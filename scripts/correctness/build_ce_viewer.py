@@ -32,6 +32,12 @@ MACHSUITE_ROOT = Path("/home/arjaiswal/Polygeist/third_party/MachSuite")
 MACHSUITE_MLIR_DIR = Path("/tmp/machsuite_mlir")
 NPB_ROOT = Path("/home/arjaiswal/Polygeist/third_party/NPB-polybenchified")
 NPB_MLIR_DIR = Path("/tmp/npb_mlir")
+POLYBENCHGPU_ROOT = Path("/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP")
+POLYBENCHGPU_MLIR_DIR = Path("/tmp/pbgpu_mlir")
+LLAMA2C_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llama2.c")
+LLAMA2C_MLIR_DIR = Path("/tmp/llama2c_mlir")
+LLMC_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llm.c")
+LLMC_MLIR_DIR = Path("/tmp/llmc_mlir")
 OUTPUT_DIR = Path("/tmp/ir_viewer")
 REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
 PYTHON = "/home/arjaiswal/slacker/.venv/bin/python3"
@@ -75,6 +81,74 @@ NPB_KERNELS: dict[str, tuple[str, str]] = {
     "mg-rprj3":    ("mg_rprj3.c",    "mg_rprj3"),
 }
 
+# polybenchGpu OpenMP variant — each kernel is a single .c file holding both
+# kernel_<name>() AND main(). cgeist inlines the kernel into main and DCEs the
+# standalone definition, so the bake uses --function=* and skips --select-func.
+# See bake_polybenchgpu_mlir.sh and the project-polybenchgpu-cgeist-inlining
+# memory note.
+POLYBENCHGPU_KERNELS: dict[str, tuple[str, str]] = {
+    "correlation":     ("datamining/correlation/correlation.c",          "kernel_correlation"),
+    "covariance":      ("datamining/covariance/covariance.c",            "kernel_covariance"),
+    "2mm":             ("linear-algebra/kernels/2mm/2mm.c",              "kernel_2mm"),
+    "3mm":             ("linear-algebra/kernels/3mm/3mm.c",              "kernel_3mm"),
+    "atax":            ("linear-algebra/kernels/atax/atax.c",            "kernel_atax"),
+    "bicg":            ("linear-algebra/kernels/bicg/bicg.c",            "kernel_bicg"),
+    "cholesky":        ("linear-algebra/kernels/cholesky/cholesky.c",    "kernel_cholesky"),
+    "doitgen":         ("linear-algebra/kernels/doitgen/doitgen.c",      "kernel_doitgen"),
+    "gemm":            ("linear-algebra/kernels/gemm/gemm.c",            "kernel_gemm"),
+    "gemver":          ("linear-algebra/kernels/gemver/gemver.c",        "kernel_gemver"),
+    "gesummv":         ("linear-algebra/kernels/gesummv/gesummv.c",      "kernel_gesummv"),
+    "mvt":             ("linear-algebra/kernels/mvt/mvt.c",              "kernel_mvt"),
+    "symm":            ("linear-algebra/kernels/symm/symm.c",            "kernel_symm"),
+    "syr2k":           ("linear-algebra/kernels/syr2k/syr2k.c",          "kernel_syr2k"),
+    "syrk":            ("linear-algebra/kernels/syrk/syrk.c",            "kernel_syrk"),
+    "trisolv":         ("linear-algebra/kernels/trisolv/trisolv.c",      "kernel_trisolv"),
+    "trmm":            ("linear-algebra/kernels/trmm/trmm.c",            "kernel_trmm"),
+    "durbin":          ("linear-algebra/solvers/durbin/durbin.c",        "kernel_durbin"),
+    "dynprog":         ("linear-algebra/solvers/dynprog/dynprog.c",      "kernel_dynprog"),
+    "gramschmidt":     ("linear-algebra/solvers/gramschmidt/gramschmidt.c", "kernel_gramschmidt"),
+    "lu":              ("linear-algebra/solvers/lu/lu.c",                "kernel_lu"),
+    "ludcmp":          ("linear-algebra/solvers/ludcmp/ludcmp.c",        "kernel_ludcmp"),
+    "floyd-warshall":  ("medley/floyd-warshall/floyd-warshall.c",        "kernel_floyd_warshall"),
+    "reg_detect":      ("medley/reg_detect/reg_detect.c",                "kernel_reg_detect"),
+    "adi":             ("stencils/adi/adi.c",                            "kernel_adi"),
+    "convolution-2d":  ("stencils/convolution-2d/convolution-2d.c",      "kernel_conv2d"),
+    "convolution-3d":  ("stencils/convolution-3d/convolution-3d.c",      "kernel_conv2d"),
+    "fdtd-2d":         ("stencils/fdtd-2d/fdtd-2d.c",                    "kernel_fdtd_2d"),
+    "fdtd-apml":       ("stencils/fdtd-apml/fdtd-apml.c",                "kernel_fdtd_apml"),
+    "jacobi-1d-imper": ("stencils/jacobi-1d-imper/jacobi-1d-imper.c",    "kernel_jacobi_1d_imper"),
+    "jacobi-2d-imper": ("stencils/jacobi-2d-imper/jacobi-2d-imper.c",    "kernel_jacobi_2d_imper"),
+    "seidel-2d":       ("stencils/seidel-2d/seidel-2d.c",                "kernel_seidel_2d"),
+}
+
+# llama2.c hot numeric functions in run.c. All three live in the same file.
+LLAMA2C_KERNELS: dict[str, tuple[str, str]] = {
+    "rmsnorm":  ("run.c", "rmsnorm"),
+    "softmax":  ("run.c", "softmax"),
+    "matmul":   ("run.c", "matmul"),
+}
+
+# llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
+# are the building blocks of GPT-2 inference + training. Skip the tiled
+# matmul_forward in favour of matmul_forward_naive (the 4-loop reference).
+LLMC_KERNELS: dict[str, tuple[str, str]] = {
+    "encoder-fwd":              ("train_gpt2.c", "encoder_forward"),
+    "encoder-bwd":              ("train_gpt2.c", "encoder_backward"),
+    "layernorm-fwd":            ("train_gpt2.c", "layernorm_forward"),
+    "layernorm-bwd":            ("train_gpt2.c", "layernorm_backward"),
+    "matmul-fwd-naive":         ("train_gpt2.c", "matmul_forward_naive"),
+    "matmul-bwd":               ("train_gpt2.c", "matmul_backward"),
+    "attention-fwd":            ("train_gpt2.c", "attention_forward"),
+    "attention-bwd":            ("train_gpt2.c", "attention_backward"),
+    "gelu-fwd":                 ("train_gpt2.c", "gelu_forward"),
+    "gelu-bwd":                 ("train_gpt2.c", "gelu_backward"),
+    "residual-fwd":             ("train_gpt2.c", "residual_forward"),
+    "residual-bwd":             ("train_gpt2.c", "residual_backward"),
+    "softmax-fwd":              ("train_gpt2.c", "softmax_forward"),
+    "crossentropy-fwd":         ("train_gpt2.c", "crossentropy_forward"),
+    "crossentropy-softmax-bwd": ("train_gpt2.c", "crossentropy_softmax_backward"),
+}
+
 # Per-NPB-kernel parallelism + characterisation notes.
 NPB_NOTES: dict[str, tuple[str, str]] = {
     "bt-add":      ("highly parallel",   "BT vector add over 4D field — pure elemwise, fully parallel"),
@@ -84,6 +158,73 @@ NPB_NOTES: dict[str, tuple[str, str]] = {
     "mg-resid":    ("highly parallel",   "MG residual r = v - Au — same 27-point stencil shape as psinv"),
     "mg-norm2u3":  ("highly parallel",   "MG L2 + L∞ combined norm — mixed sum+max reductions in one loop; raise pass can't fuse"),
     "mg-rprj3":    ("highly parallel",   "MG restriction (trilinear FE projection) — coarse-grid 2x downsample"),
+}
+
+# Per-polybenchGpu-kernel parallelism + characterisation notes. Many overlap
+# with the PolyBench shapes (same algorithm in a slightly different harness),
+# but the polybenchGpu suite adds 3D conv / fdtd-apml / reg_detect / dynprog.
+POLYBENCHGPU_NOTES: dict[str, tuple[str, str]] = {
+    "correlation":     ("partial parallel",  "mean + stddev reductions parallel; symmetric output, diagonal/off-diagonal phases"),
+    "covariance":      ("partial parallel",  "mean-centred outer product; mostly parallel with reduction phases"),
+    "2mm":             ("highly parallel",   "two chained gemms, parallel"),
+    "3mm":             ("highly parallel",   "three chained gemms, parallel"),
+    "atax":            ("highly parallel",   "y = A·x then t = Aᵀ·y, parallel"),
+    "bicg":            ("highly parallel",   "s = Aᵀ·p and q = A·r, parallel"),
+    "cholesky":        ("serial",            "L·Lᵀ factorization — column-sequential"),
+    "doitgen":         ("partial parallel",  "inner contraction parallel; outer r-update has loop-carried scratch"),
+    "gemm":            ("highly parallel",   "dense gemm, 3-loop parallel + reduction"),
+    "gemver":          ("highly parallel",   "rank-2 update + gemv stages, all parallel"),
+    "gesummv":         ("highly parallel",   "two gemvs + axpby, all parallel"),
+    "mvt":             ("highly parallel",   "x1 += A·y1; x2 += Aᵀ·y2, parallel"),
+    "symm":            ("highly parallel",   "symmetric gemm (lower triangle), parallel"),
+    "syr2k":           ("highly parallel",   "symmetric rank-2k update (lower triangle)"),
+    "syrk":            ("highly parallel",   "symmetric rank-k update (lower triangle)"),
+    "trisolv":         ("serial",            "triangular solve — y[i] depends on y[0..i-1]"),
+    "trmm":            ("highly parallel",   "triangular gemm — (i,j) parallel, k reduction"),
+    "durbin":          ("serial",            "Levinson-Durbin recurrence — O(N²) scalar carry"),
+    "dynprog":         ("serial",            "knapsack-style DP — outer time step + inner table fill have carry"),
+    "gramschmidt":     ("serial",            "modified Gram-Schmidt — column k+1 reads column k just written"),
+    "lu":              ("serial",            "LU factorization — column-sequential pattern as cholesky"),
+    "ludcmp":          ("serial",            "LU + triangular solve — both phases row-by-row carry"),
+    "floyd-warshall":  ("partial parallel",  "all-pairs shortest path: (i,j) parallel per k, k loop sequential"),
+    "reg_detect":      ("partial parallel",  "regression detection — convolution-style inner loops, sequential outer phases"),
+    "adi":             ("parallel + T loop", "alternating direction implicit; T+sweep loops sequential"),
+    "convolution-2d":  ("highly parallel",   "single 3x3 stencil pass over a 2D field — fully parallel, no T loop"),
+    "convolution-3d":  ("highly parallel",   "single 3x3x3 stencil pass over a 3D field — fully parallel"),
+    "fdtd-2d":         ("parallel + T loop", "E/H field cross-updates; T steps sequential, inner parallel"),
+    "fdtd-apml":       ("parallel + T loop", "FDTD with anisotropic PML boundary; T steps sequential, inner parallel"),
+    "jacobi-1d-imper": ("parallel + T loop", "3-point 1D smoother; T steps sequential, inner parallel"),
+    "jacobi-2d-imper": ("parallel + T loop", "5-point 2D stencil; T steps sequential, inner parallel"),
+    "seidel-2d":       ("serial",            "Gauss-Seidel — in-place writes within a sweep, current cell reads recently-updated values"),
+}
+
+# llama2.c numeric kernels — the building blocks of LLM forward pass.
+LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
+    "matmul":   ("highly parallel",   "dense gemv (W·x = xout); single linalg.generic after raise"),
+    "rmsnorm":  ("highly parallel",   "ss = mean(x²) + eps then o = weight·x/√ss; reduction + parallel scale"),
+    "softmax":  ("partial parallel",  "max-shift then exp + sum then divide; three reduction/parallel phases"),
+}
+
+# llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
+# parallel (B·T·OC or B·T·C parallel iter spaces); attention has a per-query
+# softmax that introduces a reduction phase; encoder/gelu/crossentropy have
+# data-dependent indexing or math.h ext-calls that block raise.
+LLMC_NOTES: dict[str, tuple[str, str]] = {
+    "encoder-fwd":              ("partial parallel",  "lookup wte[token]+wpe[pos]; data-dependent index blocks raise"),
+    "encoder-bwd":              ("partial parallel",  "scatter-accumulate gradients into wte/wpe; indirect-index scatter"),
+    "layernorm-fwd":            ("highly parallel",   "per-(B,T) row: mean + variance reductions then normalize + scale + bias"),
+    "layernorm-bwd":            ("partial parallel",  "per-(B,T) row: 2 reductions for dnorm/dnorm_mean then accumulate dweight/dbias/dinp"),
+    "matmul-fwd-naive":         ("highly parallel",   "4-loop reference matmul out[b,t,o] = sum_i inp[b,t,i]*weight[o,i] + bias[o]"),
+    "matmul-bwd":               ("highly parallel",   "transpose matmuls for dinp, dweight, dbias"),
+    "attention-fwd":            ("partial parallel",  "Q·Kᵀ → softmax → ·V; per-(B,T,h) parallel with two reductions (max, sum-exp)"),
+    "attention-bwd":            ("partial parallel",  "backward through Q·Kᵀ/softmax/·V; gradient accumulation across heads"),
+    "gelu-fwd":                 ("highly parallel",   "elementwise tanh-based gelu; calls tanhf — math.h ext call blocks raise"),
+    "gelu-bwd":                 ("highly parallel",   "elementwise gelu derivative; calls tanhf + coshf — math.h ext calls"),
+    "residual-fwd":             ("highly parallel",   "elementwise out = inp1 + inp2; single fully-parallel generic"),
+    "residual-bwd":             ("highly parallel",   "elementwise dinp1 += dout; dinp2 += dout; two parallel generics"),
+    "softmax-fwd":              ("partial parallel",  "per-(B,T) row softmax with max-shift; same 3-phase shape as llama2 softmax"),
+    "crossentropy-fwd":         ("highly parallel",   "elementwise -log(probs[target[b,t]]); calls logf — math.h ext blocks raise"),
+    "crossentropy-softmax-bwd": ("highly parallel",   "elementwise dlogits = (probs - onehot(target)) * dlosses"),
 }
 
 # Per-MachSuite-kernel parallelism + characterisation notes.
@@ -176,6 +317,10 @@ BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
                           "cgeist itself doesn't parse the C cleanly (bit-heavy / struct-heavy / fn-pointer code)"),
     "debuf-bug":         ("debuf dominance bug",
                           "raise OK but debufferize hits the gramschmidt-class tensor.empty dominance issue"),
+    "raise-crash":       ("polygeist-opt crash during raise",
+                          "polygeist-opt segfaults in the raise pipeline; needs deeper investigation"),
+    "ext-math-call":     ("math.h ext call in body (FIXABLE)",
+                          "loop body calls tanhf / logf / coshf etc.; raise refuses to lift a generic whose body contains an external call. Fixable by teaching the frontend or a pre-pass to rewrite known math.h calls to math.* dialect ops"),
 }
 
 # Per-kernel parallelism notes — how well the kernel's algorithm maps to GPU.
@@ -330,6 +475,77 @@ NPB_BLOCKERS: dict[str, tuple[str, str]] = {
     "mg-norm2u3":    ("mixed-reductions",  "combined L2 sum + L∞ max in one loop nest; raise rejects the dual-reduction iter_arg"),
 }
 
+# polybenchGpu blockers — most algorithms overlap with PolyBench, but the bake
+# pipeline is different (whole-program raise; main scaffolding is intermixed
+# with linalg ops), which makes v2 debuf consistently crash. The multi-root
+# debuf variant succeeds and is what the IR explorer surfaces.
+POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
+    "correlation":     ("scratch-carry",     "row-mean + variance accumulation; cross-pass scratch in cov-style outer loops"),
+    "covariance":      ("scratch-carry",     "mean-centred outer product; cross-pass scratch state"),
+    "2mm":             ("none",              ""),
+    "3mm":             ("none",              ""),
+    "atax":            ("none",              ""),
+    "bicg":            ("none",              ""),
+    "cholesky":        ("serial-recurrence", "lower-triangular factorization — column k modifies columns 0..k-1, k+1..N-1 depends on them"),
+    "doitgen":         ("matcher-gap",       "per-iter scratch-copy body not in matcher library"),
+    "gemm":            ("none",              ""),
+    "gemver":          ("none",              ""),
+    "gesummv":         ("none",              ""),
+    "mvt":             ("none",              ""),
+    "symm":            ("matcher-gap",       "lifts; one residual symm-edge body unmatched"),
+    "syr2k":           ("none",              ""),
+    "syrk":            ("none",              ""),
+    "trisolv":         ("serial-recurrence", "triangular solve — y[i] depends on y[0..i-1]"),
+    "trmm":            ("matcher-gap",       "lifts cleanly; triangular-edge body unmatched"),
+    "durbin":          ("serial-recurrence", "Levinson-Durbin recurrence — alpha/beta scalars carried across outer k"),
+    "dynprog":         ("serial-recurrence", "knapsack-style DP — outer time step + table-fill row dependencies"),
+    "gramschmidt":     ("serial-recurrence", "column-by-column modified Gram-Schmidt — column k+1 reads what column k wrote"),
+    "lu":              ("serial-recurrence", "LU factorization — pivot row k modifies later rows"),
+    "ludcmp":          ("serial-recurrence", "LU + triangular solve — both phases have row-by-row carry"),
+    "floyd-warshall":  ("cgeist-frontend",   "upstream syntax error (extraneous } at floyd-warshall.c:75) — cgeist fails"),
+    "reg_detect":      ("raise-crash",       "polygeist-opt segfaults inside the raise pipeline"),
+    "adi":             ("t-loop",            "ADI (alternating direction implicit) — T-step outer, direction sweeps inside"),
+    "convolution-2d":  ("matcher-gap",       "single 3x3 conv2d pass; lifts cleanly but matcher has no conv2d-3x3 template"),
+    "convolution-3d":  ("matcher-gap",       "single 3x3x3 conv3d pass; lifts cleanly but matcher has no conv3d template"),
+    "fdtd-2d":         ("t-loop",            "Yee FDTD E/H field update; T steps serial, per-step body parallel"),
+    "fdtd-apml":       ("t-loop",            "FDTD with PML boundary; T steps serial, inner parallel"),
+    "jacobi-1d-imper": ("t-loop",            "3-point 1D smoother; T steps serial, inner 1D parallel"),
+    "jacobi-2d-imper": ("t-loop",            "5-point 2D smoother; T steps serial, inner 2D parallel"),
+    "seidel-2d":       ("serial-recurrence", "Gauss-Seidel — in-place writes within a sweep"),
+}
+
+# llama2.c blockers — all three lift to linalg.generic cleanly; the gaps are
+# matcher-library entries for LLM-shaped bodies (rmsnorm, softmax) and a
+# v2-debufferize limitation on softmax's fused exp+sum tuple yield.
+LLAMA2C_BLOCKERS: dict[str, tuple[str, str]] = {
+    "matmul":   ("none",           ""),
+    "rmsnorm":  ("matcher-gap",    "ss-reduction + parallel weighted-scale; rmsnorm body not in matcher library"),
+    "softmax":  ("matcher-gap",    "max-shift / exp+sum / divide pipeline; softmax body not in library, and v2 debuf can't handle the fused tuple-yield generic (multi-root debuf succeeds)"),
+}
+
+# llm.c blockers — wider coverage than llama2.c includes both forward AND
+# backward kernels, plus attention and gelu which surface new blocker classes:
+# math.h ext-call bodies (gelu/crossentropy via tanhf/logf), nested
+# affine-for+tensor-yield shapes that multi-root debuf can't dominance-resolve
+# (layernorm-fwd/bwd), and indirect-index lookup (encoder).
+LLMC_BLOCKERS: dict[str, tuple[str, str]] = {
+    "encoder-fwd":              ("indirect-index",    "out[b,t,c] = wte[inp[b,t]*C+c] + wpe[t*C+c]; data-dependent index into wte"),
+    "encoder-bwd":              ("indirect-index",    "scatter-accumulate by inp[b,t]; raise rejects indirect target index"),
+    "layernorm-fwd":            ("debuf-bug",         "raises to 3 linalg.generic ops; BOTH v2 and multi-root debuf hit a dominance bug on the nested affine.for tensor.insert/yield chain"),
+    "layernorm-bwd":            ("debuf-bug",         "same dominance failure as layernorm-fwd in both debuf paths"),
+    "matmul-fwd-naive":         ("none",              ""),
+    "matmul-bwd":               ("matcher-gap",       "raises 2 linalg.generic (dinp + dweight + dbias accumulation); matcher only matches one shape"),
+    "attention-fwd":            ("matcher-gap",       "raises 4 linalg.generic (Q·Kᵀ, max-shift, exp+sum, softmax·V); v2 debuf fails on softmax-fused tuple-yield, multi-root succeeds; full attention body not in matcher library"),
+    "attention-bwd":            ("matcher-gap",       "raises 1 generic; gradient-through-attention shape not in library"),
+    "gelu-fwd":                 ("ext-math-call",     "body calls tanhf — raise can't fold an extern math.h call into a pure-arith linalg.generic body"),
+    "gelu-bwd":                 ("ext-math-call",     "body calls tanhf + coshf — same ext-call block"),
+    "residual-fwd":             ("matcher-gap",       "single fully-parallel elementwise add; matcher has no axpy/add template that matches this shape"),
+    "residual-bwd":             ("matcher-gap",       "two parallel elementwise dinp += dout generics; same axpy gap"),
+    "softmax-fwd":              ("matcher-gap",       "per-row softmax with max-shift; same library gap as llama2 softmax; v2 debuf fails on fused exp+sum tuple yield, multi-root succeeds"),
+    "crossentropy-fwd":         ("ext-math-call",     "body calls logf with indirect-indexed probs[target[b,t]]; raise can't lift"),
+    "crossentropy-softmax-bwd": ("matcher-gap",       "raises 1 linalg.generic — the fused softmax-CE backward formula; shape not in matcher library"),
+}
+
 
 def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
     """Find <name>.c. Dispatches per kernel-set."""
@@ -351,6 +567,27 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
             return None
         srcname, _fn = info
         p = NPB_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "polybenchgpu":
+        info = POLYBENCHGPU_KERNELS.get(name)
+        if not info:
+            return None
+        relsrc, _fn = info
+        p = POLYBENCHGPU_ROOT / relsrc
+        return p if p.exists() else None
+    if kset == "llama2c":
+        info = LLAMA2C_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = LLAMA2C_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "llmc":
+        info = LLMC_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = LLMC_ROOT / srcname
         return p if p.exists() else None
     # polybench
     for p in POLYBENCH_TEST_DIR.rglob(f"{name}.c"):
@@ -592,8 +829,18 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     else:
         report = [("launches", 0), ("residual_lg", 0)]
     if debuf_mr.exists():
-        html, css = syntax_highlight(debuf_mr.read_text())
+        debuf_mr_text = debuf_mr.read_text()
+        html, css = syntax_highlight(debuf_mr_text)
         pages["debuf_mr"] = html
+        # Fallback: if v2 debuf failed but multi-root succeeded (the
+        # common pattern for whole-program-raise suites like polybenchGpu),
+        # run the matcher on the multi-root output so the "matched" tab
+        # and the match-status column reflect what's actually achievable.
+        if not debuf.exists() and not debuf_mr_text.lstrip().startswith("//"):
+            n_for = count_for_loops(debuf_mr_text)
+            rewritten, report = run_rewriter(debuf_mr)
+            html, css = syntax_highlight(rewritten)
+            pages["matched"] = html
 
     ce_url = ce_link(kernel, mlir_dir=mlir_dir, kset=kset)
     open_link = (f'<a href="{ce_url}" target="_blank" '
@@ -659,6 +906,8 @@ _BLOCKER_CSS = {
     "serial-recurrence": "none",
     "non-affine":        "none",
     "cgeist-frontend":   "none",
+    "raise-crash":       "none",
+    "ext-math-call":     "partial",
 }
 
 
@@ -784,7 +1033,10 @@ def _build_taxonomy_panel() -> str:
 
 def build_index(polybench_stats: dict[str, dict],
                  machsuite_stats: dict[str, dict],
-                 npb_stats: dict[str, dict]) -> str:
+                 npb_stats: dict[str, dict],
+                 polybenchgpu_stats: dict[str, dict],
+                 llama2c_stats: dict[str, dict],
+                 llmc_stats: dict[str, dict]) -> str:
     common_legend = (
         '  Click a kernel name to open the full Polygeist pipeline in '
         '  Compiler Explorer: C source on the left feeds cgeist; the affine '
@@ -858,6 +1110,61 @@ def build_index(polybench_stats: dict[str, dict],
         notes=NPB_NOTES,
         blockers=NPB_BLOCKERS,
     )
+    polybenchgpu_section = _build_section(
+        title="polybenchGpu (OpenMP variant)",
+        anchor="polybenchgpu",
+        blurb=(
+            "32 kernels from sgrauerg/polybenchGpu, OpenMP variant — the "
+            "same numerical bodies as PolyBench but in single-file harness "
+            "form (kernel + init + main + print_array per .c). cgeist "
+            "inlines kernel_<name>() into main() and DCEs the standalone "
+            "definition, so the bake uses <code>--function=*</code> and "
+            "skips <code>--select-func</code>. The raise pass still finds "
+            "the inlined affine loops; the v2 debufferize gets confused by "
+            "the main-scaffolding ops (addressof / strcmp / print_array) "
+            "intermixed with linalg, so the multi-root debuf is what "
+            "appears in the IR preview."
+        ),
+        kernel_stats=polybenchgpu_stats,
+        notes=POLYBENCHGPU_NOTES,
+        blockers=POLYBENCHGPU_BLOCKERS,
+    )
+    llama2c_section = _build_section(
+        title="llama2.c (karpathy/llama2.c)",
+        anchor="llama2c",
+        blurb=(
+            "Hot numeric functions from run.c — the building blocks of "
+            "the LLM forward pass: matmul (W·x), rmsnorm (mean-square "
+            "normalize + scale), softmax (max-shift / exp / sum-normalize). "
+            "All three lift to linalg.generic cleanly. The blockers are "
+            "matcher-library gaps (no gemv / rmsnorm / softmax templates) "
+            "and a v2-debufferize limitation on softmax's fused exp+sum "
+            "tuple yield (multi-root debuf succeeds)."
+        ),
+        kernel_stats=llama2c_stats,
+        notes=LLAMA2C_NOTES,
+        blockers=LLAMA2C_BLOCKERS,
+    )
+    llmc_section = _build_section(
+        title="llm.c (karpathy/llm.c — GPT-2 in C, forward + backward)",
+        anchor="llmc",
+        blurb=(
+            "15 leaf kernels from train_gpt2.c — the full GPT-2 building "
+            "blocks for both inference and training: encoder, layernorm, "
+            "matmul, attention, gelu, residual, softmax, crossentropy "
+            "(forward + backward where it applies). Direct continuation of "
+            "llama2.c — same author, wider coverage. Stresses the pipeline "
+            "in new ways: indirect-index lookups (encoder), math.h ext-call "
+            "bodies (gelu/crossentropy via tanhf/logf), full scaled-dot "
+            "attention (4 fused generics including softmax-shaped reductions), "
+            "and the layernorm dominance issue in both debuf paths. The "
+            "<code>matmul_forward_naive</code> reference is used instead of "
+            "the tiled <code>matmul_forward</code>."
+        ),
+        kernel_stats=llmc_stats,
+        notes=LLMC_NOTES,
+        blockers=LLMC_BLOCKERS,
+    )
 
     body = (
         '<div class="header"><h1>Polygeist IR explorer</h1>'
@@ -866,12 +1173,18 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
         '  <a href="#polybench">PolyBench</a> &middot; '
         '  <a href="#machsuite">MachSuite</a> &middot; '
-        '  <a href="#npb">NPB (polybenchified)</a>'
+        '  <a href="#npb">NPB (polybenchified)</a> &middot; '
+        '  <a href="#polybenchgpu">polybenchGpu</a> &middot; '
+        '  <a href="#llama2c">llama2.c</a> &middot; '
+        '  <a href="#llmc">llm.c</a>'
         '</div></div>'
         + _build_taxonomy_panel()
         + polybench_section
         + machsuite_section
         + npb_section
+        + polybenchgpu_section
+        + llama2c_section
+        + llmc_section
     )
     # Extra CSS for section headers.
     extra_css = (
@@ -939,8 +1252,65 @@ def main():
             file_prefix="npb_",
         )
 
+    # polybenchGpu OpenMP set.
+    pbgpu_kernels_from_files = discover_kernels(POLYBENCHGPU_MLIR_DIR)
+    pbgpu_kernels = sorted(set(pbgpu_kernels_from_files) | set(POLYBENCHGPU_KERNELS.keys()))
+    print(f"Rendering {len(pbgpu_kernels)} polybenchGpu kernels...", flush=True)
+    pbgpu_stats = {}
+    for i, k in enumerate(pbgpu_kernels, 1):
+        print(f"  [PBGPU {i:2d}/{len(pbgpu_kernels)}] {k}", flush=True)
+        has_any = any((POLYBENCHGPU_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            pbgpu_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                               "ce_url": None, "page_filename": ""}
+            continue
+        pbgpu_stats[k] = build_kernel_page(
+            k, mlir_dir=POLYBENCHGPU_MLIR_DIR, kset="polybenchgpu",
+            file_prefix="pbgpu_",
+        )
+
+    # llama2.c set.
+    llama_kernels_from_files = discover_kernels(LLAMA2C_MLIR_DIR)
+    llama_kernels = sorted(set(llama_kernels_from_files) | set(LLAMA2C_KERNELS.keys()))
+    print(f"Rendering {len(llama_kernels)} llama2.c kernels...", flush=True)
+    llama_stats = {}
+    for i, k in enumerate(llama_kernels, 1):
+        print(f"  [LLAMA {i:2d}/{len(llama_kernels)}] {k}", flush=True)
+        has_any = any((LLAMA2C_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            llama_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                               "ce_url": None, "page_filename": ""}
+            continue
+        llama_stats[k] = build_kernel_page(
+            k, mlir_dir=LLAMA2C_MLIR_DIR, kset="llama2c",
+            file_prefix="llama_",
+        )
+
+    # llm.c set.
+    llmc_kernels_from_files = discover_kernels(LLMC_MLIR_DIR)
+    llmc_kernels = sorted(set(llmc_kernels_from_files) | set(LLMC_KERNELS.keys()))
+    print(f"Rendering {len(llmc_kernels)} llm.c kernels...", flush=True)
+    llmc_stats = {}
+    for i, k in enumerate(llmc_kernels, 1):
+        print(f"  [LLMC {i:2d}/{len(llmc_kernels)}] {k}", flush=True)
+        has_any = any((LLMC_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            llmc_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                              "ce_url": None, "page_filename": ""}
+            continue
+        llmc_stats[k] = build_kernel_page(
+            k, mlir_dir=LLMC_MLIR_DIR, kset="llmc",
+            file_prefix="llmc_",
+        )
+
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, ms_stats, npb_stats))
+        build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats, llama_stats, llmc_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 
