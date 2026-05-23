@@ -99,6 +99,18 @@ void polygeist_cudnn_conv2d_3x3_f64(
     double w6, double w7, double w8,
     const double *A, double *B);
 
+// FP32 variant of polygeist_cudnn_conv2d_3x3 — same I/O contract but with
+// float matrices + float weights. cuDNN's convolution path picks tensor-core
+// kernels for FP32 on Ampere+ GPUs (including Jetson Orin), so this is the
+// dtype to use for actual perf measurement (FP64 on Orin uses a generic
+// non-tensor-core path).
+void polygeist_cudnn_conv2d_3x3_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2,
+    float w3, float w4, float w5,
+    float w6, float w7, float w8,
+    const float *A, float *B);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

@@ -132,40 +132,68 @@ _STRIDED_2D_TARGET = "memref<?x?xf64, strided<[?, 1], offset: ?>>"
 _STRIDED_3D_TARGET = "memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>"
 
 
+def _sniff_elem_type(memref_or_tensor_ty: str) -> str | None:
+    """Extract the element type from a memref/tensor textual type.
+
+    Examples:
+      `memref<?x?xf64, strided<[?, 1], offset: ?>>`  →  "f64"
+      `memref<?x?xf32, strided<[256, 1]>>`            →  "f32"
+      `tensor<?x?xf16>`                                →  "f16"
+      `tensor<?xbf16>`                                 →  "bf16"
+      `memref<?x?xi32>`                                →  "i32"
+
+    Returns None if the type doesn't parse as memref/tensor.
+    """
+    import re
+    m = re.match(r'(?:memref|tensor)<[^>]*?x(\w+)(?:,|>)', memref_or_tensor_ty)
+    if not m:
+        return None
+    return m.group(1)
+
+
 def _normalize_memref_operands(
     operands: list[str], operand_types: list[str] | None, indent: str
 ) -> tuple[list[str], list[str], list[str]]:
-    """For each memref operand whose stride/offset is more-specific than the
-    canonical defn target type, emit a `memref.cast` to the target type.
+    """For each strided memref operand, emit a memref.cast to a uniform
+    `memref<?x?x...xT, strided<[?, ..., 1], offset: ?>>` target type, so the
+    launch's operand types match the canonical kernel.defn declaration's
+    dynamic-stride placeholder pattern.
 
-    Returns (cast_lines, new_operand_ssas, new_operand_types). For non-memref
-    operands or operands already at the target type, the original SSA/type is
-    kept and no cast is emitted. This lets the matcher emit launches whose
-    operand types match the canonical kernel.defn declarations even when the
-    original linalg.generic had subviews with static offsets / no offset.
+    Element-type-aware: handles f64, f32, f16, bf16, i32, i16, i8, i64.
+    Operands not matching the strided-memref pattern are passed through
+    unchanged.
 
-    Heuristic: target = strided<[?, 1], offset: ?> for 2D f64 memrefs;
-    strided<[?, ?, 1], offset: ?> for 3D. Operands not matching the f64 +
-    contiguous-inner-stride pattern are passed through unchanged.
+    Returns (cast_lines, new_operand_ssas, new_operand_types).
     """
     if operand_types is None or len(operand_types) != len(operands):
         return [], operands, operand_types or []
     cast_lines: list[str] = []
     new_ssas: list[str] = []
     new_types: list[str] = []
+    # Match memref<?x?xT, ...> or memref<?x?x?xT, ...> with strided layout.
+    # Capture (rank-dims-prefix, element-type).
+    rank_pat = re.compile(r"memref<((?:\?x)+)([\w_]+)(?:,\s*strided<|>)")
     for ssa, ty in zip(operands, operand_types):
-        if "f64" not in ty or not ty.startswith("memref<"):
+        if not ty.startswith("memref<") or "strided<[" not in ty:
             new_ssas.append(ssa); new_types.append(ty); continue
-        # Pick the canonical target by rank.
-        if ty.startswith("memref<?x?xf64") and "strided<[" in ty:
-            target = _STRIDED_2D_TARGET
-        elif ty.startswith("memref<?x?x?xf64") and "strided<[" in ty:
-            target = _STRIDED_3D_TARGET
+        m = rank_pat.match(ty)
+        if not m:
+            new_ssas.append(ssa); new_types.append(ty); continue
+        rank_prefix = m.group(1)         # e.g. "?x?x" for rank-2 dynamic
+        elem = m.group(2)                # e.g. "f32" / "f64" / "i32"
+        rank = rank_prefix.count("?")
+        # Build target: strided<[?, ..., 1], offset: ?> — all row strides
+        # dynamic, last (innermost) stride statically 1 (row-major, contiguous
+        # within innermost dim).
+        if rank < 1:
+            new_ssas.append(ssa); new_types.append(ty); continue
+        if rank == 1:
+            strides = "[1]"
         else:
-            new_ssas.append(ssa); new_types.append(ty); continue
+            strides = "[" + ", ".join(["?"] * (rank - 1)) + ", 1]"
+        target = f"memref<{rank_prefix}{elem}, strided<{strides}, offset: ?>>"
         if ty == target:
             new_ssas.append(ssa); new_types.append(ty); continue
-        # SSA name for the cast result. Reuse SSA's leading char and append _c.
         cast_ssa = ssa + "_c"
         cast_lines.append(
             f"{indent}{cast_ssa} = memref.cast {ssa} : {ty} to {target}"
@@ -373,6 +401,19 @@ def rewrite_mlir(
                 if "x" not in inside:
                     emit_name = "broadcast_scalar_to_vec_tensor"
 
+        # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
+        # is dtype-agnostic (arith.mulf matches any float type), so one
+        # template fires for f64, f32, f16, bf16 bodies. We emit a
+        # dtype-specific kernel.launch symbol so the canonical defn and the
+        # lowering pass can pick the right cuDNN shim per element type.
+        # The default (no suffix) is f64 for backward compat with the
+        # existing kernel.defn @cudnnConvolution2D_9tap declaration.
+        if entry.name in ("cudnnConvolution2D_9tap",
+                          "cudnnConvolution2D_9tap_tensor"):
+            elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
+            if elem and elem != "f64":
+                emit_name = f"{entry.name}_{elem}"
+
         # When the matched composition opts in to weight surfacing, hand the
         # encoder's in_arg → constant_ssa map from the FIRST matched body to
         # render_launch. (Only single-step weighted-stencil templates use
@@ -381,6 +422,14 @@ def rewrite_mlir(
         inline_weights = (bodies[i].inline_weights_per_in
                            if getattr(entry, "surface_inline_weights", False)
                            else None)
+        # Surface the weight scalars with the operand's element type
+        # (f64 / f32 / f16 / bf16 / iNN), so the launch op's signature is
+        # internally consistent and the cuDNN shim's scalar args match.
+        weight_ty = "f64"
+        if inline_weights and all_tensor_in_types:
+            sniffed = _sniff_elem_type(all_tensor_in_types[0])
+            if sniffed:
+                weight_ty = sniffed
 
         launch_line = render_launch(
             emit_name, last.result_ssa, last.result_type,
@@ -388,6 +437,7 @@ def rewrite_mlir(
             operand_types=operand_types,
             scalar_type_map=scalar_types,
             inline_weights=inline_weights,
+            inline_weight_type=weight_ty,
         )
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser

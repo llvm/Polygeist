@@ -84,6 +84,25 @@ void polygeist_cudnn_conv2d_3x3_f64(
   }
 }
 
+void polygeist_cudnn_conv2d_3x3_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2,
+    float w3, float w4, float w5,
+    float w6, float w7, float w8,
+    const float *A, float *B) {
+  const float w[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      float acc = 0.0f;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += w[(dy + 1) * 3 + (dx + 1)] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

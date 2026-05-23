@@ -878,4 +878,25 @@ module {
       %w6: f64, %w7: f64, %w8: f64) -> tensor<?x?xf64> {
     kernel.yield %C : tensor<?x?xf64>
   }
+
+  // FP32 variant of the conv2d 9-tap defn. Same structure as the f64 one
+  // but with f32 memrefs + f32 weights. Selected by the rewriter when the
+  // matched body's operand types are f32 (it emits @cudnnConvolution2D_9tap_f32
+  // as the launch symbol). Phase 2 of the cuDNN conv generalization.
+  kernel.defn @cudnnConvolution2D_9tap_f32(
+      %A0: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %w0: f32, %w1: f32, %w2: f32,
+      %w3: f32, %w4: f32, %w5: f32,
+      %w6: f32, %w7: f32, %w8: f32) {
+    kernel.yield
+  }
 }
