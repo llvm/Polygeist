@@ -135,8 +135,12 @@ LLAMA2C_KERNELS: dict[str, tuple[str, str]] = {
 # A[i,j]=(i+j)/nj formula and constant-fold the conv body away. Compare
 # their lift to the polybenchGpu (full file) entries above to see the fix.
 POLYBENCHGPU_EXTRACTED_KERNELS: dict[str, tuple[str, str]] = {
-    "conv2d-extracted":  ("conv2d.c", "kernel_conv2d"),
-    "conv3d-extracted":  ("conv3d.c", "kernel_conv2d"),
+    # Keys are the file-base names (matching /tmp/pbgpu_extracted_mlir/<k>*.mlir)
+    # so ce_link / discover_kernels / find_kernel_c all use the same name.
+    # The section header already disambiguates these from polybenchGpu's
+    # convolution-2d / convolution-3d.
+    "conv2d":  ("conv2d.c", "kernel_conv2d"),
+    "conv3d":  ("conv3d.c", "kernel_conv2d"),
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -220,17 +224,17 @@ LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
 # polybenchGpu entries, just lifted from a clean TU. Listed separately
 # so the IR explorer can show the difference side-by-side.
 POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
-    "conv2d-extracted": ("highly parallel",
-                          "9-tap 3x3 stencil; kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body"),
-    "conv3d-extracted": ("highly parallel",
-                          "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
+    "conv2d": ("highly parallel",
+                "9-tap 3x3 stencil; kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body"),
+    "conv3d": ("highly parallel",
+                "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
 }
 
 POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
-    "conv2d-extracted": ("none",
-                          ""),
-    "conv3d-extracted": ("matcher-gap",
-                          "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d-extracted now matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
+    "conv2d": ("none",
+                ""),
+    "conv3d": ("matcher-gap",
+                "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d now matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -1348,37 +1352,26 @@ def main():
             file_prefix="llama_",
         )
 
-    # polybenchGpu-extracted set.
+    # polybenchGpu-extracted set. KERNELS map keys are file-base names
+    # (conv2d, conv3d) so all of discover_kernels / ce_link / find_kernel_c /
+    # build_kernel_page use the same name throughout — no remapping needed.
     pbgpu_x_kernels_from_files = discover_kernels(POLYBENCHGPU_EXTRACTED_MLIR_DIR)
     pbgpu_x_kernels = sorted(set(pbgpu_x_kernels_from_files) | set(POLYBENCHGPU_EXTRACTED_KERNELS.keys()))
-    # discover_kernels returns the bare 'conv2d' (no '-extracted' suffix) since
-    # the bake names the files conv2d_*.mlir. Map back to the registered names.
-    file_to_reg = {"conv2d": "conv2d-extracted", "conv3d": "conv3d-extracted"}
-    pbgpu_x_kernels = sorted({file_to_reg.get(k, k) for k in pbgpu_x_kernels})
     print(f"Rendering {len(pbgpu_x_kernels)} polybenchGpu-extracted kernels...", flush=True)
     pbgpu_x_stats = {}
     for i, k in enumerate(pbgpu_x_kernels, 1):
         print(f"  [PBGPU-X {i:2d}/{len(pbgpu_x_kernels)}] {k}", flush=True)
-        # File-name basis (strip the -extracted tag back off)
-        file_base = k.replace("-extracted", "")
-        has_any = any((POLYBENCHGPU_EXTRACTED_MLIR_DIR / f"{file_base}{suf}").exists()
+        has_any = any((POLYBENCHGPU_EXTRACTED_MLIR_DIR / f"{k}{suf}").exists()
                       for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
                                    "_debuf_mr.mlir"))
         if not has_any:
             pbgpu_x_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
                                  "ce_url": None, "page_filename": ""}
             continue
-        # build_kernel_page expects the file-base name to find _linalg.mlir
-        # etc.; pass file_base instead of the registered name.
-        stats = build_kernel_page(
-            file_base, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
+        pbgpu_x_stats[k] = build_kernel_page(
+            k, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
             kset="polybenchgpu_extracted", file_prefix="pbgpux_",
         )
-        # ce_link uses the registered name to find the source .c — patch it.
-        ce_url = ce_link(k, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
-                          kset="polybenchgpu_extracted")
-        stats["ce_url"] = ce_url
-        pbgpu_x_stats[k] = stats
 
     # llm.c set.
     llmc_kernels_from_files = discover_kernels(LLMC_MLIR_DIR)
