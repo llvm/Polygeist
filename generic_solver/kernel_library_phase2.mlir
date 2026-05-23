@@ -861,7 +861,10 @@ module {
       %A6: memref<?x?xf64, strided<[?, 1], offset: ?>>,
       %A7: memref<?x?xf64, strided<[?, 1], offset: ?>>,
       %A8: memref<?x?xf64, strided<[?, 1], offset: ?>>,
-      %C:  memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+      %C:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %w0: f64, %w1: f64, %w2: f64,
+      %w3: f64, %w4: f64, %w5: f64,
+      %w6: f64, %w7: f64, %w8: f64) {
     kernel.yield
   }
 
@@ -869,7 +872,10 @@ module {
       %A0: tensor<?x?xf64>, %A1: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
       %A3: tensor<?x?xf64>, %A4: tensor<?x?xf64>, %A5: tensor<?x?xf64>,
       %A6: tensor<?x?xf64>, %A7: tensor<?x?xf64>, %A8: tensor<?x?xf64>,
-      %C:  tensor<?x?xf64>) -> tensor<?x?xf64> {
+      %C:  tensor<?x?xf64>,
+      %w0: f64, %w1: f64, %w2: f64,
+      %w3: f64, %w4: f64, %w5: f64,
+      %w6: f64, %w7: f64, %w8: f64) -> tensor<?x?xf64> {
     kernel.yield %C : tensor<?x?xf64>
   }
 }

@@ -374,20 +374,36 @@ static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
 //   - M = dim(output, 0) + 2   (output is interior, source is +2 in each axis)
 //   - N = dim(output, 1) + 2
 static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module) {
-  if (launch.getNumOperands() != 10)
-    return launch.emitError("cudnnConvolution2D_9tap: expected 10 operands "
-                            "(9 input subviews + 1 output), got ")
-           << launch.getNumOperands();
+  // Expected operands: 9 input subviews + 1 output subview + 9 f64 weights
+  // = 19 total. (Pre-Lit-surfacing the shape was 10 operands with hardcoded
+  // shim weights; we keep a compatibility path that catches the old 10-arg
+  // form and routes to the legacy polybench-specific shim.)
+  unsigned n = launch.getNumOperands();
+  if (n != 19 && n != 10)
+    return launch.emitError("cudnnConvolution2D_9tap: expected 19 operands "
+                            "(9 input subviews + 1 output + 9 weight f64) "
+                            "or legacy 10 operands; got ")
+           << n;
   if (launch.getNumResults() != 0)
     return launch.emitError("cudnnConvolution2D_9tap: expected memref-form "
                             "(void) launch; got ")
            << launch.getNumResults() << " result(s)";
 
-  for (Value op : launch.getOperands()) {
-    auto mr = dyn_cast<MemRefType>(op.getType());
+  // First 10 operands must be 2D f64 memrefs.
+  for (unsigned i = 0; i < 10; ++i) {
+    auto mr = dyn_cast<MemRefType>(launch.getOperand(i).getType());
     if (!mr || mr.getRank() != 2 || !mr.getElementType().isF64())
-      return launch.emitError("cudnnConvolution2D_9tap: all operands must "
-                              "be 2D f64 memrefs (subviews of the source)");
+      return launch.emitError(
+                 "cudnnConvolution2D_9tap: memref operands 0..9 must be 2D "
+                 "f64 memrefs (subviews of the source)");
+  }
+  // If new form, trailing 9 operands must be f64.
+  if (n == 19) {
+    for (unsigned i = 10; i < 19; ++i) {
+      if (!launch.getOperand(i).getType().isF64())
+        return launch.emitError("cudnnConvolution2D_9tap: operands 10..18 "
+                                "must be f64 (the 9 filter weights)");
+    }
   }
 
   OpBuilder b(launch);
@@ -412,11 +428,28 @@ static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module) {
   Value N = b.create<arith::AddIOp>(loc, w_i32, c2_i32);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
-                                 ptrTy, ptrTy};
-  func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_cudnn_conv2d_polybench9tap", argTypes, b);
-  b.create<func::CallOp>(loc, shim, ValueRange{M, N, A_ptr, B_ptr});
+  if (n == 19) {
+    // New generic shim: takes M, N, 9 weight f64s, A_ptr, B_ptr.
+    SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type()};
+    for (unsigned i = 0; i < 9; ++i) argTypes.push_back(b.getF64Type());
+    argTypes.push_back(ptrTy);  // A
+    argTypes.push_back(ptrTy);  // B
+    func::FuncOp shim = ensureShimDecl(
+        module, "polygeist_cudnn_conv2d_3x3_f64", argTypes, b);
+    SmallVector<Value> callOperands = {M, N};
+    for (unsigned i = 10; i < 19; ++i)
+      callOperands.push_back(launch.getOperand(i));
+    callOperands.push_back(A_ptr);
+    callOperands.push_back(B_ptr);
+    b.create<func::CallOp>(loc, shim, callOperands);
+  } else {
+    // Legacy path: shim hardcodes polybench weights.
+    SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                   ptrTy, ptrTy};
+    func::FuncOp shim = ensureShimDecl(
+        module, "polygeist_cudnn_conv2d_polybench9tap", argTypes, b);
+    b.create<func::CallOp>(loc, shim, ValueRange{M, N, A_ptr, B_ptr});
+  }
 
   launch.erase();
   return success();

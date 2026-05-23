@@ -54,11 +54,24 @@ void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
 // upstream kernel_conv2d in third_party/polybenchGpu/OpenMP/stencils/.
 void polygeist_cudnn_conv2d_polybench9tap(
     int32_t M, int32_t N, const double *A, double *B) {
-  static const double w[9] = {
+  polygeist_cudnn_conv2d_3x3_f64(M, N,
      0.2,  0.5, -0.8,
     -0.3,  0.6, -0.9,
      0.4,  0.7,  0.1,
-  };
+    A, B);
+}
+
+// Generic 3x3 conv2d — filter weights passed at runtime by the caller
+// (the matcher surfaces them from the linalg.generic body, the lowering
+// pass forwards them here). Works for polybench, Sobel, Gaussian, or any
+// other 3x3 weighted conv.
+void polygeist_cudnn_conv2d_3x3_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2,
+    double w3, double w4, double w5,
+    double w6, double w7, double w8,
+    const double *A, double *B) {
+  const double w[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
   for (int32_t i = 1; i < M - 1; ++i) {
     for (int32_t j = 1; j < N - 1; ++j) {
       double acc = 0.0;

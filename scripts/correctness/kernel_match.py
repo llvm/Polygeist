@@ -201,6 +201,14 @@ class GenericBody:
     indexing_maps: list[str]      # raw text of each map
     iterator_types: list[str]
     constants: dict[str, str]     # captured SSA name -> normalized literal value
+    # For each block input arg, the SSA name of the constant it's multiplied
+    # with in the body — populated only if the input appears in exactly one
+    # `arith.mulf %in, %cst : ...` (or `arith.mulf %cst, %in : ...`). Used by
+    # render_launch to surface body-internal weight constants as launch
+    # operands so the lowering pass can pass them to a generic runtime shim
+    # (instead of the shim having to hardcode them). None for ins that don't
+    # match the pattern. Aligned by index with ins_arg_names.
+    inline_weights_per_in: list[str | None] = None  # type: ignore[assignment]
 
 
 _GEN_RE = re.compile(
@@ -295,6 +303,36 @@ def parse_generics(mlir_text: str,
                 and yield_name not in outs and yield_name not in captures):
             captures.append(yield_name)
 
+        # Build the inline-weights side-table: for each block input arg
+        # %in_k, find the unique arith.mulf line that pairs it with a
+        # capture-constant and record the constant's SSA name. Used by
+        # the rewriter to surface body-internal weights as launch operands.
+        # If an input is multiplied by more than one constant (e.g. the
+        # buggy conv3d's duplicated-index pattern), record None — that
+        # case needs a different matcher template anyway.
+        inline_weights: list[str | None] = []
+        for in_arg in ins:
+            constant_ssas: list[str] = []
+            for ln in body_lines:
+                m_mul = re.match(
+                    r"%[\w_]+\s*=\s*arith\.mulf\s+(\S+?)\s*,\s*(\S+?)\s*:",
+                    ln.strip(),
+                )
+                if not m_mul:
+                    continue
+                a, b = m_mul.group(1), m_mul.group(2)
+                # Strip trailing commas (the regex's \S+? may grab one).
+                a = a.rstrip(",")
+                b = b.rstrip(",")
+                if a == in_arg and b in constants:
+                    constant_ssas.append(b)
+                elif b == in_arg and a in constants:
+                    constant_ssas.append(a)
+            if len(constant_ssas) == 1:
+                inline_weights.append(constant_ssas[0])
+            else:
+                inline_weights.append(None)
+
         results.append(GenericBody(
             ins_arg_names=ins,
             outs_arg_names=outs,
@@ -308,6 +346,7 @@ def parse_generics(mlir_text: str,
                 for name in captures
                 if name in constants
             },
+            inline_weights_per_in=inline_weights,
         ))
     return results
 
@@ -522,6 +561,16 @@ class CompositionEntry:
     name: str
     steps: list[CompositionStep]
     form: str = "tensor"   # "tensor" | "memref" | "any"
+    # When True, the rewriter additionally appends the matched body's
+    # inline weight constants (one per input block arg) as scalar operands
+    # of the emitted kernel.launch op. Use for templates whose body has the
+    # shape `sum_k In(k) * Cap("%wk")` where each weight is a body-internal
+    # arith.constant (e.g. conv2d_9pt_weighted). The lowering pass can then
+    # pass those weights to a generic runtime shim instead of hardcoding
+    # them. Default False to keep behavior of every other template (gemm,
+    # gemv, jacobi, ...) unchanged — they already surface scalars via
+    # function-arg Caps, not body-internal Lits.
+    surface_inline_weights: bool = False
 
 
 # Canonical body templates. Cap names are template wildcards — they bind
@@ -780,6 +829,7 @@ def _conv2d_9pt_weighted() -> CompositionEntry:
         steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
                                 parallel_dim_count=2, reduction_dim_count=0)],
         form="memref",
+        surface_inline_weights=True,
     )
 
 
@@ -794,6 +844,7 @@ def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
         steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
                                 parallel_dim_count=2, reduction_dim_count=0)],
         form="tensor",
+        surface_inline_weights=True,
     )
 
 

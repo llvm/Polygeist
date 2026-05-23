@@ -40,7 +40,7 @@ echo "  matched $N_LAUNCH conv2d_9tap launch(es)"
 echo "[conv2d/$SIZE] (4) inject defn"
 awk '/^module attributes/ && !done{
        print;
-       print "  kernel.defn @cudnnConvolution2D_9tap(%a0: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a1: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a2: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a3: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a4: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a5: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a6: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a7: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a8: memref<?x?xf64, strided<[?, 1], offset: ?>>, %c: memref<?x?xf64, strided<[?, 1], offset: ?>>) { kernel.yield }";
+       print "  kernel.defn @cudnnConvolution2D_9tap(%a0: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a1: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a2: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a3: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a4: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a5: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a6: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a7: memref<?x?xf64, strided<[?, 1], offset: ?>>, %a8: memref<?x?xf64, strided<[?, 1], offset: ?>>, %c: memref<?x?xf64, strided<[?, 1], offset: ?>>, %w0: f64, %w1: f64, %w2: f64, %w3: f64, %w4: f64, %w5: f64, %w6: f64, %w7: f64, %w8: f64) { kernel.yield }";
        done=1; next
      }{print}' $OUT/matched.mlir > $OUT/matched_with_defn.mlir
 

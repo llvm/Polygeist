@@ -79,6 +79,26 @@ void polygeist_cublas_dscal_2d(
 void polygeist_cudnn_conv2d_polybench9tap(
     int32_t M, int32_t N, const double *A, double *B);
 
+// Generic 3x3 conv2d shim — takes the 9 filter weights at runtime so a
+// single shim handles any 3x3 weighted conv (polybench, Sobel, Gaussian,
+// custom filters). Same I/O contract as the polybench9tap variant:
+//   * A is MxN row-major f64, input
+//   * B is MxN row-major f64, output; interior B[1..M-2][1..N-2] written
+//   * Weights laid out row-major in the 3x3 filter:
+//       w[0] w[1] w[2]      <- top row, applied to A[i-1][j-1..j+1]
+//       w[3] w[4] w[5]      <- middle row, applied to A[i][j-1..j+1]
+//       w[6] w[7] w[8]      <- bottom row, applied to A[i+1][j-1..j+1]
+//
+// Used by Lit-surfaced @cudnnConvolution2D_9tap match: the matcher pulls
+// the 9 weight values out of the linalg.generic body and passes them as
+// launch operands, the lowering pass forwards them here.
+void polygeist_cudnn_conv2d_3x3_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2,
+    double w3, double w4, double w5,
+    double w6, double w7, double w8,
+    const double *A, double *B);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

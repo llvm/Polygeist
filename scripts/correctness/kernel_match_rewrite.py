@@ -179,7 +179,9 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
                   operand_types: list[str] | None = None,
-                  scalar_type_map: dict[str, str] | None = None) -> str:
+                  scalar_type_map: dict[str, str] | None = None,
+                  inline_weights: list[str | None] | None = None,
+                  inline_weight_type: str = "f64") -> str:
     """Build a `kernel.launch` op line in MLIR text.
 
     When `result_ssa` and `result_type` are None, emit a void-returning
@@ -208,7 +210,19 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
             if tmpl_name.startswith("%mask"):
                 continue
             scalar_ssas.append(bound[1])
-    all_operands = operands + scalar_ssas
+
+    # Surface body-internal constants (e.g. the 9 weights of a conv2d) as
+    # additional scalar launch operands, when the template opts in via
+    # `surface_inline_weights=True`. The encoder already builds the
+    # in_arg → constant_ssa map per body (parse_generics' inline_weights_per_in).
+    # We append them positionally — same order as the input subviews — so
+    # the lowering pass can pair them with the inputs.
+    inline_weight_ssas: list[str] = []
+    if inline_weights:
+        for w in inline_weights:
+            if w is not None:
+                inline_weight_ssas.append(w)
+    all_operands = operands + scalar_ssas + inline_weight_ssas
     operand_str = ", ".join(all_operands)
 
     # Build the function-type signature for the launch.
@@ -222,6 +236,9 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
             sig_types.append(scalar_type_map[s])
         else:
             sig_types.append("!any")
+    # Inline-weight types: all the same element type (per-template config).
+    for _ in inline_weight_ssas:
+        sig_types.append(inline_weight_type)
 
     sig = f"({', '.join(sig_types)})"
     cast_prefix = "\n".join(cast_lines) + ("\n" if cast_lines else "")
@@ -356,11 +373,21 @@ def rewrite_mlir(
                 if "x" not in inside:
                     emit_name = "broadcast_scalar_to_vec_tensor"
 
+        # When the matched composition opts in to weight surfacing, hand the
+        # encoder's in_arg → constant_ssa map from the FIRST matched body to
+        # render_launch. (Only single-step weighted-stencil templates use
+        # this today; if we ever support multi-step weighted compositions,
+        # this needs to combine bodies appropriately.)
+        inline_weights = (bodies[i].inline_weights_per_in
+                           if getattr(entry, "surface_inline_weights", False)
+                           else None)
+
         launch_line = render_launch(
             emit_name, last.result_ssa, last.result_type,
             operands, last.indent, binds, [],
             operand_types=operand_types,
             scalar_type_map=scalar_types,
+            inline_weights=inline_weights,
         )
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser

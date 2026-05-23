@@ -158,20 +158,20 @@ void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
   }
 }
 
-// cuDNN 9-tap conv2d (PolyBench filter hardcoded). Single-image,
-// single-channel, FP64, 3x3 no-padding stride-1.
-void polygeist_cudnn_conv2d_polybench9tap(
-    int32_t M, int32_t N, const double *A, double *B) {
+// cuDNN 9-tap conv2d. Filter weights passed at runtime so the same shim
+// handles polybench, Sobel, Gaussian, or any other 3x3 weighted conv.
+// Single-image, single-channel, FP64, no-padding, stride-1.
+void polygeist_cudnn_conv2d_3x3_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2,
+    double w3, double w4, double w5,
+    double w6, double w7, double w8,
+    const double *A, double *B) {
   polygeist_cublas_init();
   ensure_cudnn();
 
-  // PolyBench's 3x3 weight matrix (matches kernel_conv2d in
-  // third_party/polybenchGpu/OpenMP/stencils/convolution-2d/).
-  static const double filter_h[9] = {
-     0.2,  0.5, -0.8,
-    -0.3,  0.6, -0.9,
-     0.4,  0.7,  0.1,
-  };
+  // Caller-supplied filter (laid out row-major in the 3x3 grid).
+  const double filter_h[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
 
   cudnnTensorDescriptor_t      in_desc, out_desc;
   cudnnFilterDescriptor_t      f_desc;
@@ -250,6 +250,17 @@ void polygeist_cudnn_conv2d_polybench9tap(
   cudnnDestroyTensorDescriptor(out_desc);
   cudnnDestroyFilterDescriptor(f_desc);
   cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+// Backward-compat wrapper for the legacy hardcoded-weights call site.
+// Forwards to the generic shim with polybench's filter.
+void polygeist_cudnn_conv2d_polybench9tap(
+    int32_t M, int32_t N, const double *A, double *B) {
+  polygeist_cudnn_conv2d_3x3_f64(M, N,
+     0.2,  0.5, -0.8,
+    -0.3,  0.6, -0.9,
+     0.4,  0.7,  0.1,
+    A, B);
 }
 
 void polygeist_cublas_time_begin(void) {
