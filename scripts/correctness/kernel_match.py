@@ -220,8 +220,10 @@ _GEN_RE = re.compile(
 
 
 # Recognize `%name = arith.constant <value> : <type>` at module/function scope.
+# SSA names allow `-` in the body (e.g. cgeist emits `%c-8_i32` for negative
+# int constants). Use a char class that includes `-` so we don't miss them.
 _CONST_RE = re.compile(
-    r"(%[\w_]+)\s*=\s*arith\.constant\s+([^\s:]+)\s*:\s*\S+"
+    r"(%[\w_\-]+)\s*=\s*arith\.constant\s+([^\s:]+)\s*:\s*\S+"
 )
 
 
@@ -310,6 +312,29 @@ def parse_generics(mlir_text: str,
         # If an input is multiplied by more than one constant (e.g. the
         # buggy conv3d's duplicated-index pattern), record None — that
         # case needs a different matcher template anyway.
+        # Build an "alias map": when the body has `%24 = arith.extsi %in : i16
+        # to i32`, then `%24` is a synonym for `%in` for weight-pairing
+        # purposes. C's integer-promotion rule means cgeist always inserts
+        # an extsi between an i16 input and its i32-typed multiply, so the
+        # mul's lhs is the extsi result, not the input itself. Same idea for
+        # extui / trunci / sitofp / extf / truncf.
+        alias_of: dict[str, str] = {}
+        cast_re = re.compile(
+            r"(%[\w_\-]+)\s*=\s*arith\."
+            r"(?:extsi|extui|trunci|sitofp|uitofp|fptosi|fptoui|extf|truncf|bitcast)"
+            r"\s+(%[\w_\-]+)\s*:"
+        )
+        for ln in body_lines:
+            m_cast = cast_re.match(ln.strip())
+            if m_cast:
+                alias_of[m_cast.group(1)] = m_cast.group(2)
+
+        def root_alias(ssa: str) -> str:
+            # Follow the alias chain to its root (handles double casts).
+            while ssa in alias_of:
+                ssa = alias_of[ssa]
+            return ssa
+
         inline_weights: list[str | None] = []
         for in_arg in ins:
             constant_ssas: list[str] = []
@@ -318,7 +343,7 @@ def parse_generics(mlir_text: str,
                 # to integer-typed weighted stencils (the conv2d_i32 / i16
                 # bodies) as to float ones.
                 m_mul = re.match(
-                    r"%[\w_]+\s*=\s*arith\.mul[fi]\s+(\S+?)\s*,\s*(\S+?)\s*:",
+                    r"%[\w_\-]+\s*=\s*arith\.mul[fi]\s+(\S+?)\s*,\s*(\S+?)\s*:",
                     ln.strip(),
                 )
                 if not m_mul:
@@ -327,9 +352,13 @@ def parse_generics(mlir_text: str,
                 # Strip trailing commas (the regex's \S+? may grab one).
                 a = a.rstrip(",")
                 b = b.rstrip(",")
-                if a == in_arg and b in constants:
+                # Resolve cast aliases so the mul's lhs (which may be an
+                # extsi result) is compared to the block input arg.
+                a_root = root_alias(a)
+                b_root = root_alias(b)
+                if a_root == in_arg and b in constants:
                     constant_ssas.append(b)
-                elif b == in_arg and a in constants:
+                elif b_root == in_arg and a in constants:
                     constant_ssas.append(a)
             if len(constant_ssas) == 1:
                 inline_weights.append(constant_ssas[0])
@@ -377,6 +406,22 @@ _OP_PATTERNS = {
     "arith.cmpf": "cmpf",
     "arith.cmpi": "cmpi",
     "arith.select": "select",
+    # Sign/zero extension and truncation cast ops. C's integer-promotion
+    # rule (e.g. short * int → int) makes cgeist emit `arith.extsi %in : i16
+    # to i32` before each `arith.muli`. These are semantically identity for
+    # template matching — the template sees an "input × weight" product
+    # regardless of how the i16/i32 widths flow underneath. Marking them
+    # "transparent" makes the matcher unify both widths to the same Term.
+    "arith.extsi": "transparent",
+    "arith.extui": "transparent",
+    "arith.trunci": "transparent",
+    "arith.sitofp": "transparent",
+    "arith.uitofp": "transparent",
+    "arith.fptosi": "transparent",
+    "arith.fptoui": "transparent",
+    "arith.extf": "transparent",
+    "arith.truncf": "transparent",
+    "arith.bitcast": "transparent",
 }
 
 
@@ -429,6 +474,10 @@ def encode_body(g: GenericBody) -> Term:
             return Term.Lit(tok)
 
         op_key = _OP_PATTERNS.get(op, op)
+        if op_key == "transparent":
+            # Cast-like op — propagate the source Term as-is.
+            env[result] = resolve(arg_toks[0])
+            continue
         if op_key == "mul":
             env[result] = resolve(arg_toks[0]) * resolve(arg_toks[1])
         elif op_key == "add":

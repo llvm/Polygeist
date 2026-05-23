@@ -106,8 +106,9 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
         params = fm.group(1)
         for pm in re.finditer(r'(%[\w]+)\s*:\s*([^,)]+)', params):
             out[pm.group(1).strip()] = pm.group(2).strip()
-    # arith.constant lines: "%X = arith.constant ... : f64"
-    for cm in re.finditer(r'(%[\w]+)\s*=\s*arith\.constant\s+\S+\s*:\s*(\S+)', text):
+    # arith.constant lines: "%X = arith.constant ... : f64". Allow `-` in
+    # SSA names since cgeist emits things like `%c-8_i32` for negatives.
+    for cm in re.finditer(r'(%[\w\-]+)\s*=\s*arith\.constant\s+\S+\s*:\s*(\S+)', text):
         out[cm.group(1)] = cm.group(2)
     return out
 
@@ -227,29 +228,75 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
         operands, operand_types, indent
     )
 
-    scalar_ssas: list[str] = []
-    for tmpl_name, bound in bindings.items():
-        if isinstance(bound, tuple) and len(bound) == 2 and bound[0] == "Cap":
-            # Mask Caps (template names like "%mask", "%mask1", ...) bind to
-            # internal cmpi result SSAs that aren't real scalar arguments —
-            # they're an artifact of the encoder treating arith.cmpi as opaque.
-            # Skip them; the canonical kernel.defn body reconstructs the mask
-            # from its own linalg.index + cmpi.
-            if tmpl_name.startswith("%mask"):
-                continue
-            scalar_ssas.append(bound[1])
-
     # Surface body-internal constants (e.g. the 9 weights of a conv2d) as
     # additional scalar launch operands, when the template opts in via
     # `surface_inline_weights=True`. The encoder already builds the
     # in_arg → constant_ssa map per body (parse_generics' inline_weights_per_in).
     # We append them positionally — same order as the input subviews — so
     # the lowering pass can pair them with the inputs.
+    #
+    # When the surfaced constant's type doesn't match `inline_weight_type`
+    # (e.g. cgeist promoted i16 inputs to i32 for the multiply, leaving the
+    # weight constants typed i32 even though the kernel is i16), inject a
+    # cast op so the launch signature is internally consistent. Without
+    # this, the verifier would reject the kernel.launch.
+    cast_ops_for_weights = {
+        # (src_type, dst_type) → mlir op name
+        ("i32", "i16"): "arith.trunci",
+        ("i32", "i8"):  "arith.trunci",
+        ("i16", "i8"):  "arith.trunci",
+        ("i16", "i32"): "arith.extsi",
+        ("i8",  "i32"): "arith.extsi",
+        ("i8",  "i16"): "arith.extsi",
+        ("f32", "f16"): "arith.truncf",
+        ("f32", "bf16"): "arith.truncf",
+        ("f64", "f32"): "arith.truncf",
+        ("f64", "f16"): "arith.truncf",
+        ("f64", "bf16"): "arith.truncf",
+        ("f16", "f32"): "arith.extf",
+        ("bf16", "f32"): "arith.extf",
+        ("f32", "f64"): "arith.extf",
+        ("f16", "f64"): "arith.extf",
+        ("bf16", "f64"): "arith.extf",
+    }
     inline_weight_ssas: list[str] = []
+    weight_cast_lines: list[str] = []
     if inline_weights:
         for w in inline_weights:
-            if w is not None:
+            if w is None:
+                continue
+            src_ty = scalar_type_map.get(w) if scalar_type_map else None
+            if src_ty and src_ty != inline_weight_type:
+                op = cast_ops_for_weights.get((src_ty, inline_weight_type))
+                if op is None:
+                    # Best-effort: emit the op anyway with a comment marker;
+                    # MLIR verifier will surface the issue.
+                    op = "arith.bitcast"
+                cast_ssa = w + "_to_" + inline_weight_type
+                weight_cast_lines.append(
+                    f"{indent}{cast_ssa} = {op} {w} : {src_ty} to {inline_weight_type}"
+                )
+                inline_weight_ssas.append(cast_ssa)
+            else:
                 inline_weight_ssas.append(w)
+    cast_lines.extend(weight_cast_lines)
+
+    # Cap-bound scalars from bindings. When surface_inline_weights is in
+    # effect, the template's weight Caps are already covered by the inline
+    # surfacing — emitting them again would produce duplicate operands and
+    # break the lowering. Suppress them in that case.
+    scalar_ssas: list[str] = []
+    if not inline_weight_ssas:
+        for tmpl_name, bound in bindings.items():
+            if isinstance(bound, tuple) and len(bound) == 2 and bound[0] == "Cap":
+                # Mask Caps (template names like "%mask", "%mask1", ...) bind
+                # to internal cmpi result SSAs that aren't real scalar arguments
+                # — they're an artifact of the encoder treating arith.cmpi as
+                # opaque. Skip them; the canonical kernel.defn body
+                # reconstructs the mask from its own linalg.index + cmpi.
+                if tmpl_name.startswith("%mask"):
+                    continue
+                scalar_ssas.append(bound[1])
     all_operands = operands + scalar_ssas + inline_weight_ssas
     operand_str = ", ".join(all_operands)
 
