@@ -545,40 +545,83 @@ void polygeist_cudnn_conv2d_3x3_bf16(
 }
 #endif  // bf16 support
 
-// INT32 variant. cuDNN's `cudnnConvolutionForward` does NOT support pure
-// INT32 input/filter on Ampere/Orin — it returns CUDNN_STATUS_BAD_PARAM
-// during descriptor setup or algo selection. (INT32 in cuDNN is mostly an
-// accumulator type for INT8 inputs via the bias+activation path, not a
-// standalone forward-conv dtype.) We honour the user's INT32 request by
-// running the conv on the host CPU as a reference implementation — the
-// matching/lowering pipeline still exercises end-to-end through the
-// `func.call @polygeist_cudnn_conv2d_3x3_i32` ABI; this function just
-// doesn't actually hit the GPU. To get an actual GPU integer conv you'd
-// need a hand-written CUDA kernel (which needs nvcc and is a separate
-// work item).
+// INT32 variant.
+//
+// IMPORTANT: cuDNN's `cudnnConvolutionForward` does NOT support a pure
+// INT32 input + INT32 filter + INT32 compute configuration. On Orin
+// (Ampere) the call to `cudnnSetTensor4dDescriptor(..., CUDNN_DATA_INT32,
+// ...)` (or, equivalently, the convolution-descriptor setup with
+// CUDNN_DATA_INT32 as the compute type) returns CUDNN_STATUS_BAD_PARAM —
+// not because of any error in our argument values, but because cuDNN
+// simply doesn't expose INT32 as a standalone fwd-conv I/O dtype.
+//
+// Where INT32 *does* appear in cuDNN's API is as the *accumulator* dtype
+// for an INT8 input × INT8 filter via `cudnnConvolutionBiasActivationForward`
+// (and NHWC_VECT_C layouts). That's a fundamentally different API surface
+// — different operand layout, requires quantising the user's int input
+// down to INT8 with a scale factor, etc. — so we don't silently rewrite
+// the user's INT32 stencil into INT8 quant.
+//
+// Consequently this function intentionally fails fast at the cuDNN call:
+// no host-side fallback, no silent reroute. The matcher/rewriter/ABI
+// lowering pipeline still exercises end-to-end — verifiable by inspecting
+// the produced `func.call @polygeist_cudnn_conv2d_3x3_i32` op — but the
+// GPU side is "not implemented" until a real INT32 conv path lands.
+// Options for that follow-up:
+//   * Hand-written CUDA kernel (small .cu compiled with nvcc; the runtime
+//     loads it via cuModuleLoad + cuLaunchKernel).
+//   * Switch to cuDNN INT8 quant path (changes the user-visible dtype).
+//   * Use a different library (cutlass, raw CUB) that supports INT32 conv.
 void polygeist_cudnn_conv2d_3x3_i32(
     int32_t M, int32_t N,
     int32_t w0, int32_t w1, int32_t w2,
     int32_t w3, int32_t w4, int32_t w5,
     int32_t w6, int32_t w7, int32_t w8,
     const int32_t *A, int32_t *B) {
-  const int32_t w[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
-  for (int32_t i = 1; i < M - 1; ++i) {
-    for (int32_t j = 1; j < N - 1; ++j) {
-      int64_t acc = 0;
-      for (int32_t dy = -1; dy <= 1; ++dy)
-        for (int32_t dx = -1; dx <= 1; ++dx)
-          acc += (int64_t)w[(dy + 1) * 3 + (dx + 1)] *
-                 (int64_t)A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
-      B[(size_t)i * (size_t)N + (size_t)j] = (int32_t)acc;
-    }
-  }
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  const int32_t filter_h[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
+  (void)A; (void)B; (void)filter_h;  // silence unused until cuDNN call below.
+
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+
+  // This is the call that will trip CUDNN_STATUS_BAD_PARAM on Orin/Ampere
+  // for the pure-INT32 configuration. We deliberately do not catch the
+  // error — the CUDNN_CHECK macro will print the cuDNN message and abort,
+  // making the unsupported-dtype failure visible to the caller.
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_INT32, 1, 1, M, N));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_INT32,
+                                          CUDNN_TENSOR_NCHW, 1, 1, 3, 3));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_INT32));
+  // If by some firmware/cuDNN-version combination the above three calls
+  // succeed, we'd still need to run the actual conv. The pre-existing
+  // code path for the float dtypes (algo selection, workspace alloc,
+  // cudnnConvolutionForward, async memcpy back) would go here. Until
+  // INT32 is supported we leave this as a hard failure — `CUDNN_CHECK`
+  // above will have aborted before reaching this point.
+  fprintf(stderr,
+          "polygeist_cudnn_conv2d_3x3_i32: cuDNN unexpectedly accepted "
+          "INT32 descriptors but the conv body is not implemented.\n");
+  abort();
 }
 
-// INT16 variant. cuDNN has no INT16 conv path, so we upcast inputs/filter
-// to INT32 on the host, call the INT32 cuDNN path, then downcast outputs.
-// Correctness-only — no perf advantage. Wraparound on downcast follows
-// 2's-complement.
+// INT16 variant. cuDNN has no INT16 conv path. We upcast inputs/filter to
+// INT32 on the host, then delegate to `polygeist_cudnn_conv2d_3x3_i32`.
+// That i32 shim is itself NOT implemented on the GPU (see the long
+// comment above it — cuDNN doesn't expose INT32 forward conv either), so
+// the i16 path also fails at the same cuDNN call. The upcast is still
+// the right structure once a real INT32 GPU kernel lands; only the
+// underlying i32 path needs replacing.
 void polygeist_cudnn_conv2d_3x3_i16(
     int32_t M, int32_t N,
     int16_t w0, int16_t w1, int16_t w2,

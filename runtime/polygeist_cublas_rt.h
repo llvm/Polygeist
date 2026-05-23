@@ -143,11 +143,20 @@ void polygeist_cudnn_conv2d_3x3_bf16(
     const __bf16 *A, __bf16 *B);
 #endif
 
-// INT32 / INT16 variants. cuDNN supports INT32 natively via CUDNN_DATA_INT32
-// (no tensor-core path — just integer correctness). INT16 is NOT supported
-// directly by cuDNN; the shim upcasts inputs to INT32, runs the conv, and
-// downcasts back. This is correctness-only — INT16 has no perf advantage on
-// any current NVIDIA GPU.
+// INT32 / INT16 variants.
+//
+// IMPORTANT: cuDNN does NOT support a standalone INT32 forward convolution
+// (`cudnnSetTensor4dDescriptor` with CUDNN_DATA_INT32 returns BAD_PARAM on
+// Orin/Ampere). CUDNN_DATA_INT32 is only exposed as the accumulator type
+// for INT8 inputs via the bias+activation API — a different operand
+// layout. Consequently the CUDA backend's i32 / i16 shims intentionally
+// fail at the cuDNN descriptor call: they exist so the matcher /
+// rewriter / ABI-lowering pipeline can be exercised end-to-end (the
+// `func.call @polygeist_cudnn_conv2d_3x3_i32` will land), but the GPU
+// side is "not implemented" until a custom CUDA kernel is added.
+//
+// The CPU backend's i32 / i16 implementations are real reference loops;
+// use the CPU stub for correctness validation of int conv stencils.
 void polygeist_cudnn_conv2d_3x3_i32(
     int32_t M, int32_t N,
     int32_t w0, int32_t w1, int32_t w2,
