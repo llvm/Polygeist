@@ -217,6 +217,39 @@ def LowerKernelLaunch : Pass<"lower-kernel-launch", "::mlir::ModuleOp"> {
   ];
 }
 
+def LowerKernelLaunchToCuBLAS
+    : Pass<"lower-kernel-launch-to-cublas", "::mlir::ModuleOp"> {
+  let summary = "Lower kernel.launch ops to runtime-shim func.calls (cuBLAS ABI)";
+  let description = [{
+    Phase-2 *ABI* lowering for the kernel-matcher pipeline. For each
+    recognised `kernel.launch @<libsym>(operands)` op, replaces the launch
+    with a `func.call` to a runtime-shim ABI function declared in
+    `runtime/polygeist_cublas_rt.h`. Linking the shim object file (CPU
+    stub for validation, cuBLAS-backed for hardware) produces an executable.
+
+    Distinct from `--lower-kernel-launch`, which inlines a canonical
+    `linalg.generic` body for the library symbol and stays in MLIR-land.
+    Use this pass instead when you want the matched op to dispatch to
+    an actual library implementation at runtime.
+
+    Currently supports:
+      * `@cublasDgemm` → `polygeist_cublas_dgemm`
+
+    Expected input: `kernel.launch` ops in TENSOR form (the matcher's
+    default output). The pass synthesises `bufferization.to_memref` /
+    `bufferization.to_tensor` ops around the call.
+  }];
+  let constructor = "mlir::polygeist::createLowerKernelLaunchToCuBLASPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "bufferization::BufferizationDialect",
+    "func::FuncDialect",
+    "memref::MemRefDialect",
+    "tensor::TensorDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+}
+
 def LinalgDebufferize : Pass<"linalg-debufferize"> {
   let summary = "Raise affine to linalg";
   let constructor = "mlir::polygeist::createLinalgDebufferizePass()";
