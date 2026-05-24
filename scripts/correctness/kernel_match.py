@@ -60,6 +60,8 @@ class Term(Expr):
     @classmethod
     def Abs(cls, a: Term) -> Term: ...
     @classmethod
+    def Exp(cls, a: Term) -> Term: ...
+    @classmethod
     def Select(cls, pred: Term, t: Term, f: Term) -> Term: ...
     @classmethod
     def Cmp(cls, kind: StringLike, a: Term, b: Term) -> Term: ...
@@ -458,6 +460,10 @@ _OP_PATTERNS = {
     "math.sqrt": "sqrt",
     "math.absf": "abs",
     "math.absi": "abs",
+    # Transcendentals — used by softmax (exp), gelu (tanh), crossentropy (log).
+    # Encoded as opaque unary Terms; templates can match against `Term.Exp(x)`
+    # etc. so the matcher recognises the kernel without trying to fold them.
+    "math.exp": "exp",
     "arith.cmpf": "cmpf",
     "arith.cmpi": "cmpi",
     "arith.select": "select",
@@ -551,6 +557,8 @@ def encode_body(g: GenericBody) -> Term:
             env[result] = Term.Sqrt(resolve(arg_toks[0]))
         elif op_key == "abs":
             env[result] = Term.Abs(resolve(arg_toks[0]))
+        elif op_key == "exp":
+            env[result] = Term.Exp(resolve(arg_toks[0]))
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
@@ -574,6 +582,99 @@ def encode_body(g: GenericBody) -> Term:
             env[result] = Term.Cap(result)
 
     return lookup(g.yield_value)
+
+
+def encode_body_yields(g: GenericBody) -> list[Term]:
+    """Multi-yield-aware sibling of `encode_body`. Returns one Term per
+    `linalg.yield` operand, computed in the same body env so any shared
+    intermediates are reflected across both yields.
+
+    Single-yield bodies return a 1-element list (the same Term `encode_body`
+    would have returned). Multi-yield bodies — like softmax's fused exp+sum
+    body, which writes the elementwise exp to one output and the running
+    sum to another in one iteration — return one Term per output position.
+    Callers that match against multi-yield templates iterate this list in
+    lockstep with the template's `body_per_yield`.
+    """
+    # Re-run encode_body's body walk but lookup ALL yields at the end.
+    # Reuse encode_body for the env construction by calling it once (it
+    # produces side-effects on a fresh env each invocation, so we re-do
+    # the walk inline). For now the simplest implementation rebuilds the
+    # env — duplicates encode_body's body-walking logic but extracts a
+    # Term per yield position.
+    env: dict[str, Term] = {}
+    for i, name in enumerate(g.ins_arg_names):
+        env[name] = Term.In(i)
+    for i, name in enumerate(g.outs_arg_names):
+        env[name] = Term.Out(i)
+    for cap in g.captures:
+        if cap in g.constants:
+            env[cap] = Term.Lit(g.constants[cap])
+        else:
+            env[cap] = Term.Cap(cap)
+
+    def lookup(name: str) -> Term:
+        if name in env:
+            return env[name]
+        if name in g.constants:
+            env[name] = Term.Lit(g.constants[name])
+        else:
+            env[name] = Term.Cap(name)
+        return env[name]
+
+    for line in g.body_lines:
+        m = re.match(
+            r"(%[\w_]+)\s*=\s*(\w+\.\w+)\s+(.*?)\s*:\s*\S+", line.strip()
+        )
+        if not m:
+            continue
+        result, op, args_part = m.group(1), m.group(2), m.group(3)
+        arg_toks = [s.strip() for s in args_part.split(",")]
+
+        def resolve(tok: str) -> Term:
+            tok = tok.strip()
+            if tok.startswith("%"):
+                return lookup(tok)
+            try:
+                return Term.Lit(float(tok))
+            except ValueError:
+                return Term.Lit(float("nan"))
+
+        op_key = _OP_PATTERNS.get(op, op)
+        if op_key == "transparent":
+            env[result] = resolve(arg_toks[0]); continue
+        if op_key == "mul":
+            env[result] = resolve(arg_toks[0]) * resolve(arg_toks[1])
+        elif op_key == "add":
+            env[result] = resolve(arg_toks[0]) + resolve(arg_toks[1])
+        elif op_key == "sub":
+            env[result] = resolve(arg_toks[0]) - resolve(arg_toks[1])
+        elif op_key == "div":
+            env[result] = resolve(arg_toks[0]) / resolve(arg_toks[1])
+        elif op_key == "sqrt":
+            env[result] = Term.Sqrt(resolve(arg_toks[0]))
+        elif op_key == "abs":
+            env[result] = Term.Abs(resolve(arg_toks[0]))
+        elif op_key == "exp":
+            env[result] = Term.Exp(resolve(arg_toks[0]))
+        elif op_key == "select":
+            env[result] = Term.Select(
+                resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
+            )
+        elif op_key == "cmpf":
+            kind = arg_toks[0].strip()
+            if " " in kind:
+                kind, lhs_tok = kind.split(None, 1)
+                rhs_tok = arg_toks[1]
+            elif len(arg_toks) >= 3:
+                lhs_tok, rhs_tok = arg_toks[1], arg_toks[2]
+            else:
+                env[result] = Term.Cap(result); continue
+            env[result] = Term.Cmp(kind, resolve(lhs_tok), resolve(rhs_tok))
+        else:
+            env[result] = Term.Cap(result)
+
+    return [lookup(yv) for yv in g.yield_values]
 
 
 # ---------------------------------------------------------------------------
@@ -661,6 +762,12 @@ class CompositionStep:
     num_outs: Optional[int] = None      # expected outs count, or None
     reduction_dim_count: Optional[int] = None  # number of "reduction" iters
     parallel_dim_count: Optional[int] = None   # number of "parallel" iters
+    # For multi-yield linalg.generic bodies (e.g. softmax's fused exp+sum),
+    # one template Term per yield position. The matcher walks both lists
+    # in lockstep against `encode_body_yields(body)`. None falls back to
+    # single-yield matching against `body` above. When set, num_outs
+    # should equal len(body_per_yield).
+    body_per_yield: Optional[list[Term]] = None
 
 
 @dataclass
@@ -995,6 +1102,61 @@ def _conv3d_11pt_weighted() -> CompositionEntry:
     )
 
 
+def _softmax_3step() -> CompositionEntry:
+    """1D softmax as 3 fused linalg.generic ops, matching what cgeist + raise
+    produces for llama2.c's softmax (and the per-(B,T) row in llm.c's
+    softmax_forward, after the outer affine.fors are stripped).
+
+    Step 0 — max reduction (1 in, 1 scalar out):
+        out = (in > out) ? in : out                 → Select(Cmp("ogt", In(0), Out(0)), In(0), Out(0))
+
+    Step 1 — fused exp + sum-accumulate (0 ins, 2 outs, MULTI-YIELD):
+        out_0 = exp(out_0 - max)                    → yield[0] = Exp(Out(0) - Cap("%max"))
+        out_1 = out_1 + exp(out_0 - max)            → yield[1] = Out(1) + Exp(Out(0) - Cap("%max"))
+      Note: both yields share the same `exp(out_0 - max)` intermediate;
+      encode_body_yields produces two Terms in the same body env so the
+      shared subexpression is structurally identical, letting _unify bind
+      Cap("%max") consistently across both yield slots.
+
+    Step 2 — divide-by-sum (0 ins, 1 out, parallel):
+        out = out / sum                             → Out(0) / Cap("%sum")
+
+    Lowers to a single kernel.launch @cudnnSoftmaxForward — cuDNN's
+    softmax kernel implements exactly the max-shift / exp / sum-normalize
+    pipeline natively, in one launch with tensor-core kernels on FP16/BF16
+    inputs.
+    """
+    step0 = CompositionStep(
+        body=Term.Select(
+            Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+            Term.In(0),
+            Term.Out(0),
+        ),
+        num_ins=1, num_outs=1,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    exp_intermediate = Term.Exp(Term.Out(0) - T_cap("%max"))
+    step1 = CompositionStep(
+        body=exp_intermediate,  # back-compat placeholder; matcher uses body_per_yield
+        body_per_yield=[
+            exp_intermediate,                       # yield[0]: writes back to array
+            Term.Out(1) + exp_intermediate,         # yield[1]: accumulates into sum scalar
+        ],
+        num_ins=0, num_outs=2,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    step2 = CompositionStep(
+        body=Term.Out(0) / T_cap("%sum"),
+        num_ins=0, num_outs=1,
+        reduction_dim_count=0, parallel_dim_count=1,
+    )
+    return CompositionEntry(
+        name="cudnnSoftmaxForward",
+        steps=[step0, step1, step2],
+        form="memref",
+    )
+
+
 def _jacobi_1d_3pt() -> CompositionEntry:
     """Jacobi 1D 3-point smoother: out[i] = (a + b + c) * coef
     where a, b, c are the left/center/right neighbors (encoded via subview
@@ -1251,6 +1413,10 @@ def composition_library() -> list[CompositionEntry]:
         _centered_sum_squares(),
 
         # Stencils (Bucket 2) — memref form (default v2 debufferize).
+        _softmax_3step(),       # 3-step composition, max + exp+sum (multi-yield) + div.
+                                #         Distinctive enough that ordering doesn't
+                                #         matter against the rest, but list it
+                                #         with the longer-step compositions.
         _conv3d_11pt_weighted(), # 11 ins, 3D parallel — most specific 3D
                                  #         conv shape; relies on egglog
                                  #         factoring to collapse redundant
@@ -1339,7 +1505,7 @@ def _parse_term(s: str):
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
                 j, args = i + len(tag), []
@@ -1443,7 +1609,7 @@ def _parse_term(s: str):
                 op_name = {"+": "Add", "-": "Sub", "*": "Mul", "/": "Div"}[op_char]
                 return (op_name, lhs, rhs), len(t)
         # Otherwise try parsing as a Term.Ctor leaf.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if t.startswith(tag) and t.endswith(")"):
                 inner = t[len(tag):-1]
@@ -1691,11 +1857,43 @@ def match_composition(
                 if par != step.parallel_dim_count:
                     ok = False
                     break
-            # Body match.
-            b = body_matches_template(body_terms[start + j], step.body)
-            if b is None:
-                ok = False
-                break
+            # Body match. Two modes:
+            #   * Single-yield (the common case): step.body is a single Term;
+            #     body_terms[i] is a single Term; one unify call.
+            #   * Multi-yield (softmax-style fused exp+sum, etc.): step.body_per_yield
+            #     is a list of Terms — one per yield position; the body's
+            #     yield Terms come from encode_body_yields stored in
+            #     body_yields[i]. We unify each (body_yield, template_yield) pair
+            #     and merge bindings.
+            if step.body_per_yield is not None:
+                body_yields_here = body_objs[start + j].__dict__.get(
+                    "_yield_terms_cache"
+                )
+                if body_yields_here is None:
+                    body_yields_here = encode_body_yields(body_objs[start + j])
+                    body_objs[start + j]._yield_terms_cache = body_yields_here
+                if len(body_yields_here) != len(step.body_per_yield):
+                    ok = False; break
+                step_bindings: dict = {}
+                step_ok = True
+                for body_t, tmpl_t in zip(body_yields_here, step.body_per_yield):
+                    bm = body_matches_template(body_t, tmpl_t)
+                    if bm is None:
+                        step_ok = False; break
+                    for k, v in bm.items():
+                        if k in step_bindings and step_bindings[k] != v:
+                            step_ok = False; break
+                        step_bindings[k] = v
+                    if not step_ok:
+                        break
+                if not step_ok:
+                    ok = False; break
+                b = step_bindings
+            else:
+                b = body_matches_template(body_terms[start + j], step.body)
+                if b is None:
+                    ok = False
+                    break
             for k, v in b.items():
                 if k in merged and merged[k] != v:
                     ok = False

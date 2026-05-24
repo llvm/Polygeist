@@ -114,6 +114,14 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
     # SSA names since cgeist emits things like `%c-8_i32` for negatives.
     for cm in re.finditer(r'(%[\w\-]+)\s*=\s*arith\.constant\s+\S+\s*:\s*(\S+)', text):
         out[cm.group(1)] = cm.group(2)
+    # affine.load on a scalar memref: "%X = affine.load %alloca[] : memref<f32>"
+    # The result type is the element type of the memref. Softmax binds its
+    # max/sum captures via this pattern (the loop reduces into a memref<f32>,
+    # then loads back the scalar to feed the next generic).
+    for lm in re.finditer(
+            r'(%[\w\-]+)\s*=\s*affine\.load\s+%[\w\-]+\[\]\s*:\s*memref<([^,>]+)(?:,[^>]*)?>',
+            text):
+        out[lm.group(1)] = lm.group(2).strip()
     return out
 
 
