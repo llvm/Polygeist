@@ -78,6 +78,17 @@ def parse_signature(c_text: str, kernel_name: str):
         elif re.match(r"^\s*int\b", a):
             name = a.split()[-1].strip('*')
             out.append(('int', name))
+        elif _is_plain_c_array(a):
+            # Plain C array signature: `double A[NI][NJ]` or `int A[NI][NJ][NK]`
+            # — what polybenchGpu-extracted / llama2.c-style sources use
+            # instead of POLYBENCH_2D/3D macros. We need (a) the variable name
+            # and (b) one runtime-size arg per dimension. The uppercase macros
+            # in the brackets (NI, NJ, NK) are compile-time constants; the
+            # runtime sizes by convention live in lowercase int args of the
+            # same function (ni, nj, nk). Match them by lowercasing the macro.
+            kind, name, dims = _parse_plain_c_array(a)
+            runtime_dims = [d.lower() for d in dims]
+            out.append((kind, name, *runtime_dims))
         elif re.match(r"^\s*DATA_TYPE\b", a) or re.match(r"^\s*float\b", a) \
                 or re.match(r"^\s*double\b", a):
             # Scalar (alpha, beta, etc.).
@@ -86,6 +97,41 @@ def parse_signature(c_text: str, kernel_name: str):
         else:
             raise ValueError(f"Unrecognized arg: {a}")
     return out
+
+
+def _is_plain_c_array(a: str) -> bool:
+    """True iff `a` looks like a plain C array parameter declaration
+    (e.g. 'double A[NI][NJ]' or 'int A[N]' or 'short A[NI][NJ][NK]').
+    Distinguishable from a pointer-to-scalar (`double *alpha`) because
+    array params always have a square-bracket dim list."""
+    if not re.match(r"^\s*(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
+        return False
+    return re.search(r"\[\s*\w+\s*\]\s*(?:\[\s*\w+\s*\])*\s*$", a) is not None
+
+
+def _parse_plain_c_array(a: str):
+    """Parse a plain C array parameter like 'double A[NI][NJ]' or
+    'short A[N]' into (kind, name, [dim0, dim1, ...]).
+    `kind` is '1D', '2D', or '3D' so downstream gen_wrapper() can handle
+    it identically to the POLYBENCH macro form.
+    """
+    m = re.match(
+        r"^\s*(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
+        r"\s+(\w+)((?:\s*\[\s*\w+\s*\])+)\s*$",
+        a,
+    )
+    if not m:
+        raise ValueError(f"Couldn't parse plain-C-array arg: {a!r}")
+    name = m.group(1)
+    dims = re.findall(r"\[\s*(\w+)\s*\]", m.group(2))
+    if len(dims) == 1:
+        return ('1D', name, dims)
+    if len(dims) == 2:
+        return ('2D', name, dims)
+    if len(dims) == 3:
+        return ('3D', name, dims)
+    raise ValueError(f"Plain-C-array arg has {len(dims)} dims; "
+                     f"gen_wrapper only handles 1D/2D/3D: {a!r}")
 
 
 def gen_wrapper(kernel_name: str, args, dtype: str = 'double'):
