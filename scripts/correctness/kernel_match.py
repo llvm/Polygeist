@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from egglog import EGraph, Expr, StringLike, i64Like, rewrite, ruleset, vars_
+from egglog import EGraph, Expr, StringLike, f64, f64Like, i64Like, rewrite, ruleset, vars_
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ class Term(Expr):
     @classmethod
     def Cap(cls, name: StringLike) -> Term: ...
     @classmethod
-    def Lit(cls, name: StringLike) -> Term: ...
+    def Lit(cls, value: f64Like) -> Term: ...
 
     def __add__(self, other: Term) -> Term: ...
     def __mul__(self, other: Term) -> Term: ...
@@ -73,8 +73,14 @@ a, b, c, d = vars_("a b c d", Term)
 
 
 def algebra_rules():
-    one = Term.Lit("1.0")
-    zero = Term.Lit("0.0")
+    one = Term.Lit(1.0)
+    zero = Term.Lit(0.0)
+    # Numeric literal variables — required for the factoring + folding rules
+    # below, where the RHS computes c1+c2 / c1*c2 via egglog's built-in f64
+    # arithmetic on the captured constants. `vars_` returns a generator, so
+    # single-name calls need tuple-unpack syntax.
+    (x,) = vars_("x", Term)
+    c1, c2 = vars_("c1 c2", f64)
     return ruleset(
         # Commutativity
         rewrite(a + b).to(b + a),
@@ -96,6 +102,15 @@ def algebra_rules():
         # the kernel computes `mask * value + (1 - mask) * orig`.
         rewrite(a * zero).to(zero),
         rewrite(zero * a).to(zero),
+        # Multi-coefficient factoring + literal folding. The first rule
+        # collapses `c1*x + c2*x` into `(c1+c2)*x`; the second/third fold
+        # literal arithmetic at the Term level. Together with commutativity
+        # and associativity (above), they handle the polybench conv3d
+        # "redundant mul" body where some inputs are multiplied by
+        # multiple literal constants and summed.
+        rewrite(Term.Lit(c1) * x + Term.Lit(c2) * x).to(Term.Lit(c1 + c2) * x),
+        rewrite(Term.Lit(c1) + Term.Lit(c2)).to(Term.Lit(c1 + c2)),
+        rewrite(Term.Lit(c1) * Term.Lit(c2)).to(Term.Lit(c1 * c2)),
     )
 
 
@@ -200,7 +215,7 @@ class GenericBody:
     captures: list[str]           # outer SSA values referenced in body
     indexing_maps: list[str]      # raw text of each map
     iterator_types: list[str]
-    constants: dict[str, str]     # captured SSA name -> normalized literal value
+    constants: dict[str, float]   # captured SSA name -> Python float value
     # For each block input arg, the SSA name of the constant it's multiplied
     # with in the body — populated only if the input appears in exactly one
     # `arith.mulf %in, %cst : ...` (or `arith.mulf %cst, %in : ...`). Used by
@@ -208,7 +223,13 @@ class GenericBody:
     # operands so the lowering pass can pass them to a generic runtime shim
     # (instead of the shim having to hardcode them). None for ins that don't
     # match the pattern. Aligned by index with ins_arg_names.
-    inline_weights_per_in: list[str | None] = None  # type: ignore[assignment]
+    # Each entry is either None (no constant paired with this input) or a
+    # list of all constant SSAs that pair with the input. Multi-element
+    # lists indicate the polybench-conv3d-style "redundant mul" pattern
+    # where the same input is multiplied by several literal constants
+    # and summed — the rewriter materialises a new arith.constant with
+    # the summed value for the launch operand.
+    inline_weights_per_in: list[list[str] | None] = None  # type: ignore[assignment]
 
 
 _GEN_RE = re.compile(
@@ -227,28 +248,31 @@ _CONST_RE = re.compile(
 )
 
 
-def parse_constants(mlir_text: str) -> dict[str, str]:
-    """Build a map from SSA name → constant literal value as a normalized string.
+def parse_constants(mlir_text: str) -> dict[str, float]:
+    """Build a map from SSA name → constant literal value as a Python float.
+
+    Floats here serve two purposes: (a) literal identity-rule matching in
+    the algebra ruleset (e.g. `a*1.0 → a`), and (b) the new factoring +
+    folding rules that compute on f64 constants. Both require the value
+    to live in egglog's f64 sort, so we store it as a Python float here
+    and let egglog auto-promote at Lit construction time.
+
+    Integer constants (e.g. `arith.constant 5 : i32`) are coerced to
+    float — this is sound because the encoder collapses int/float arith
+    into the same Term operators, so int-typed constants live in the same
+    Term-level numeric domain as float ones for matching purposes.
 
     Examples:
-      `%cst = arith.constant 0.000000e+00 : f64`   →  {"%cst": "0.0"}
-      `%cst_0 = arith.constant 1.000000e+00 : f64` →  {"%cst_0": "1.0"}
-      `%c1 = arith.constant 1 : index`             →  {"%c1": "1.0"} (numeric one)
+      `%cst = arith.constant 0.000000e+00 : f64`   →  {"%cst": 0.0}
+      `%cst_0 = arith.constant 1.000000e+00 : f64` →  {"%cst_0": 1.0}
+      `%c1 = arith.constant 1 : index`             →  {"%c1": 1.0}
+      `%c-8_i32 = arith.constant -8 : i32`         →  {"%c-8_i32": -8.0}
     """
-    out: dict[str, str] = {}
+    out: dict[str, float] = {}
     for m in _CONST_RE.finditer(mlir_text):
         name, value = m.group(1), m.group(2)
         try:
-            f = float(value)
-            # Normalize so 1.000000e+00 and 1 both → "1.0"; 0 → "0.0".
-            if f == 0.0:
-                out[name] = "0.0"
-            elif f == 1.0:
-                out[name] = "1.0"
-            else:
-                # Use a canonical float repr for non-special constants too,
-                # so identity rules don't fire but matching is still robust.
-                out[name] = repr(f)
+            out[name] = float(value)
         except ValueError:
             # Non-numeric (e.g. an undef). Skip.
             pass
@@ -256,7 +280,7 @@ def parse_constants(mlir_text: str) -> dict[str, str]:
 
 
 def parse_generics(mlir_text: str,
-                   constants: dict[str, str] | None = None) -> list[GenericBody]:
+                   constants: dict[str, float] | None = None) -> list[GenericBody]:
     """Extract every linalg.generic with its body."""
     if constants is None:
         constants = parse_constants(mlir_text)
@@ -335,7 +359,7 @@ def parse_generics(mlir_text: str,
                 ssa = alias_of[ssa]
             return ssa
 
-        inline_weights: list[str | None] = []
+        inline_weights: list[list[str] | None] = []
         for in_arg in ins:
             constant_ssas: list[str] = []
             for ln in body_lines:
@@ -360,10 +384,12 @@ def parse_generics(mlir_text: str,
                     constant_ssas.append(b)
                 elif b_root == in_arg and a in constants:
                     constant_ssas.append(a)
-            if len(constant_ssas) == 1:
-                inline_weights.append(constant_ssas[0])
-            else:
-                inline_weights.append(None)
+            # Empty list -> no constants paired with this input (rare); the
+            # rewriter sees None and won't surface a weight for it. Single
+            # or multiple -> always return the list; the rewriter decides
+            # whether to use the SSA directly or materialise a summed
+            # constant.
+            inline_weights.append(constant_ssas if constant_ssas else None)
 
         results.append(GenericBody(
             ins_arg_names=ins,
@@ -470,8 +496,14 @@ def encode_body(g: GenericBody) -> Term:
             tok = tok.strip()
             if tok.startswith("%"):
                 return lookup(tok)
-            # Numeric or other literal.
-            return Term.Lit(tok)
+            # Numeric literal. Lit is now f64-typed, so coerce. Non-numeric
+            # tokens (rare — only inline-affine-attribute strings would land
+            # here) get NaN as a sentinel so they still produce a valid
+            # f64 Lit but won't algebraically match anything meaningful.
+            try:
+                return Term.Lit(float(tok))
+            except ValueError:
+                return Term.Lit(float("nan"))
 
         op_key = _OP_PATTERNS.get(op, op)
         if op_key == "transparent":
@@ -730,7 +762,7 @@ def _scal_2d() -> CompositionEntry:
 
 
 def _fill_zero_1d() -> CompositionEntry:
-    body = Term.Lit("0.0")
+    body = Term.Lit(0.0)
     return CompositionEntry(
         name="memset_zero_1D",
         steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
@@ -739,7 +771,7 @@ def _fill_zero_1d() -> CompositionEntry:
 
 
 def _fill_zero_2d() -> CompositionEntry:
-    body = Term.Lit("0.0")
+    body = Term.Lit(0.0)
     return CompositionEntry(
         name="memset_zero_2D",
         steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
@@ -906,6 +938,30 @@ def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
         steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
                                 parallel_dim_count=2, reduction_dim_count=0)],
         form="tensor",
+        surface_inline_weights=True,
+    )
+
+
+def _conv3d_11pt_weighted() -> CompositionEntry:
+    """3D 11-tap weighted convolution: out = sum_{k=0..10} w_k * in_k.
+
+    Matches polybenchGpu's extracted conv3d body, which has 15 writes but
+    only 11 unique input positions (3 positions each appear in 3 muls
+    with different literal coefficients; their products are then summed).
+    The factoring + literal-folding rules in `algebra_rules` collapse the
+    redundant muls during egglog saturation, so the body normalises to
+    one mul per unique input — exactly the shape matched here.
+
+    The iteration nest is 3D parallel (over (i,j,k)); no reduction dims.
+    """
+    body = Term.In(0) * T_cap("%w0")
+    for i in range(1, 11):
+        body = body + Term.In(i) * T_cap(f"%w{i}")
+    return CompositionEntry(
+        name="cudnnConvolution3D_11tap",
+        steps=[CompositionStep(body=body, num_ins=11, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="memref",
         surface_inline_weights=True,
     )
 
@@ -1166,6 +1222,10 @@ def composition_library() -> list[CompositionEntry]:
         _centered_sum_squares(),
 
         # Stencils (Bucket 2) — memref form (default v2 debufferize).
+        _conv3d_11pt_weighted(), # 11 ins, 3D parallel — most specific 3D
+                                 #         conv shape; relies on egglog
+                                 #         factoring to collapse redundant
+                                 #         muls in polybench's conv3d body.
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
                                 #         come before jacobi_2d_5pt (5 ins)
                                 #         since both target 2D parallel iter.
@@ -1208,6 +1268,27 @@ def composition_library() -> list[CompositionEntry]:
 def _term_repr(t) -> str:
     """Stable text repr of a Term (uses egglog's default __repr__)."""
     return str(t)
+
+
+## NOTE: An egglog-driven normaliser (build EGraph, saturate, extract) was
+## prototyped here. It worked correctly on small bodies (N ≤ ~10 summands)
+## but timed out past 30s on polybenchGpu conv3d's 15-mul body due to
+## exponential e-class growth from commutativity + associativity. The
+## factoring rules are still registered in `algebra_rules()` for use by
+## `equivalent()` (which operates on small canonical-template terms), but
+## the body-normalisation hot path uses the Python tuple-AST factoring in
+## `_factor_redundant_muls` below — linear time, predictable.
+
+
+def _looks_like_float(s: str) -> bool:
+    """True iff `s` parses as a Python float (used by `_parse_term` to
+    distinguish float Lit values like `0.2` or `-1.5` from SSA / type
+    tokens)."""
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
 
 def _parse_term(s: str):
@@ -1260,6 +1341,8 @@ def _parse_term(s: str):
                         parsed_args.append(a[1:-1])
                     elif a.lstrip("-").isdigit():
                         parsed_args.append(int(a))
+                    elif _looks_like_float(a):
+                        parsed_args.append(float(a))
                     else:
                         sub, _ = parse_expr(0)
                         # If parse_expr fully consumed `a`, use it.
@@ -1350,6 +1433,8 @@ def _parse_term(s: str):
                         parsed_args.append(a[1:-1])
                     elif a.lstrip("-").isdigit():
                         parsed_args.append(int(a))
+                    elif _looks_like_float(a):
+                        parsed_args.append(float(a))
                     else:
                         sub, _ = parse_expr_str(a)
                         parsed_args.append(sub)
@@ -1418,16 +1503,114 @@ def _unify(body, template, bindings: dict) -> Optional[dict]:
     return bindings
 
 
+def _flatten_addition_chain(node):
+    """Walk down ('Add', l, r) nodes, return a flat list of leaf summands
+    in source order.
+
+    `((a + b) + c) + d` flattens to `[a, b, c, d]` regardless of bracketing.
+    Uses a recursive walk to preserve source order naturally — a stack-based
+    pre-order would visit rhs first and need reversing afterwards.
+    """
+    out: list = []
+    def walk(n):
+        if isinstance(n, tuple) and len(n) == 3 and n[0] == 'Add':
+            walk(n[1])
+            walk(n[2])
+        else:
+            out.append(n)
+    walk(node)
+    return out
+
+
+def _try_factor_summand(s):
+    """Recognise s as 'Lit(c) * X' or 'X * Lit(c)' for any X. Return (X, c)
+    or None if s is not a factorable mul.
+    """
+    if not (isinstance(s, tuple) and len(s) == 3 and s[0] == 'Mul'):
+        return None
+    a, b = s[1], s[2]
+    if isinstance(a, tuple) and a[0] == 'Lit' and isinstance(a[1], (int, float)):
+        return (b, float(a[1]))
+    if isinstance(b, tuple) and b[0] == 'Lit' and isinstance(b[1], (int, float)):
+        return (a, float(b[1]))
+    return None
+
+
+def _factor_redundant_muls(ast):
+    """Fold `c1*x + c2*x + ...` summands sharing a common factor x into
+    `(c1+c2+...)*x`. Returns the rewritten tuple AST.
+
+    Used by `body_matches_template` as a fallback when syntactic unification
+    against a template fails. Specifically targets polybenchGpu's extracted
+    conv3d body, which has 15 muls but only 11 unique input positions — the
+    same input appears in multiple muls with different literal coefficients.
+
+    Linear time in the number of summands; deterministic. Replaces an
+    earlier egglog-driven attempt that blew up exponentially on bodies of
+    this size — see the note above `body_matches_template`.
+    """
+    summands = _flatten_addition_chain(ast)
+    if len(summands) < 2:
+        return ast
+
+    # Group factorable summands by their X subtree. `factor_groups` keys
+    # are the X tuples (which are hashable since they're nested tuples of
+    # hashable leaves). `insertion_order` preserves first-appearance order
+    # so the rebuilt AST is deterministic.
+    factor_groups: dict = {}
+    insertion_order: list = []
+    passthrough: list = []
+    any_combined = False
+    for s in summands:
+        pair = _try_factor_summand(s)
+        if pair is None:
+            passthrough.append(s)
+            continue
+        X, coeff = pair
+        if X not in factor_groups:
+            factor_groups[X] = 0.0
+            insertion_order.append(X)
+        else:
+            any_combined = True
+        factor_groups[X] += coeff
+
+    # Fast path: if no input was multiplied by more than one constant, no
+    # combining happened — return the original AST unchanged. Avoids
+    # gratuitously rewriting clean bodies (which would change the
+    # bracketing and break downstream binding extraction).
+    if not any_combined:
+        return ast
+
+    new_summands = [
+        ('Mul', ('Lit', factor_groups[X]), X) for X in insertion_order
+    ] + passthrough
+
+    # Left-fold the list back into an Add tree.
+    result = new_summands[0]
+    for s in new_summands[1:]:
+        result = ('Add', result, s)
+    return result
+
+
 def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     """Check whether `body` matches `template`, with Cap names in the template
     as wildcards. Returns a binding dict on success, None on failure.
-    Algebra is *not* applied here — the caller should pass canonicalized
-    forms if needed (we currently match raw, relying on commutativity in
-    `_unify`).
+
+    First tries direct syntactic unification (with commutativity baked into
+    `_unify`). If that fails, runs `_factor_redundant_muls` on the body AST
+    — which collapses `c1*x + c2*x + ...` patterns into one mul per unique
+    input — and retries. This is what lets polybenchGpu's conv3d body
+    (15 muls, 11 unique inputs) match the `_conv3d_11pt_weighted` template.
     """
-    body_ast = _parse_term(_term_repr(body))
     tmpl_ast = _parse_term(_term_repr(template))
-    return _unify(body_ast, tmpl_ast, {})
+    body_ast = _parse_term(_term_repr(body))
+    direct = _unify(body_ast, tmpl_ast, {})
+    if direct is not None:
+        return direct
+    factored = _factor_redundant_muls(body_ast)
+    if factored is body_ast:
+        return None  # nothing to fold; second attempt would be identical
+    return _unify(factored, tmpl_ast, {})
 
 
 def match_composition(

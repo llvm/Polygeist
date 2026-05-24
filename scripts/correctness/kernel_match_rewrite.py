@@ -209,8 +209,9 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   bindings: dict, captures_per_step: list[list[str]],
                   operand_types: list[str] | None = None,
                   scalar_type_map: dict[str, str] | None = None,
-                  inline_weights: list[str | None] | None = None,
-                  inline_weight_type: str = "f64") -> str:
+                  inline_weights: list[list[str] | None] | None = None,
+                  inline_weight_type: str = "f64",
+                  body_constants: dict[str, float] | None = None) -> str:
     """Build a `kernel.launch` op line in MLIR text.
 
     When `result_ssa` and `result_type` are None, emit a void-returning
@@ -261,24 +262,57 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     }
     inline_weight_ssas: list[str] = []
     weight_cast_lines: list[str] = []
+    # Counter for generated SSAs (summed-constant materialisation) — kept
+    # unique per launch by appending an index. Mostly for the conv3d-style
+    # case where the same input is multiplied by several literal constants
+    # and summed; we precompute the sum at rewrite time and emit one
+    # arith.constant op carrying the result.
+    synth_idx = 0
     if inline_weights:
         for w in inline_weights:
             if w is None:
                 continue
-            src_ty = scalar_type_map.get(w) if scalar_type_map else None
-            if src_ty and src_ty != inline_weight_type:
-                op = cast_ops_for_weights.get((src_ty, inline_weight_type))
-                if op is None:
-                    # Best-effort: emit the op anyway with a comment marker;
-                    # MLIR verifier will surface the issue.
-                    op = "arith.bitcast"
-                cast_ssa = w + "_to_" + inline_weight_type
-                weight_cast_lines.append(
-                    f"{indent}{cast_ssa} = {op} {w} : {src_ty} to {inline_weight_type}"
-                )
-                inline_weight_ssas.append(cast_ssa)
+            # w is now always a list[str] (possibly length 1). Empty was
+            # already normalised to None by parse_generics, so len(w) >= 1.
+            if len(w) == 1:
+                source_ssa = w[0]
+                src_ty = scalar_type_map.get(source_ssa) if scalar_type_map else None
+                if src_ty and src_ty != inline_weight_type:
+                    op = cast_ops_for_weights.get((src_ty, inline_weight_type))
+                    if op is None:
+                        op = "arith.bitcast"
+                    cast_ssa = source_ssa + "_to_" + inline_weight_type
+                    weight_cast_lines.append(
+                        f"{indent}{cast_ssa} = {op} {source_ssa} : {src_ty} to {inline_weight_type}"
+                    )
+                    inline_weight_ssas.append(cast_ssa)
+                else:
+                    inline_weight_ssas.append(source_ssa)
             else:
-                inline_weight_ssas.append(w)
+                # Multi-coefficient: sum the literal values from body_constants,
+                # then emit a fresh arith.constant carrying the summed value.
+                # This handles the polybench conv3d case where the same input
+                # appears in multiple muls with different literal constants
+                # (the _factor_redundant_muls normalisation in kernel_match.py
+                # told the matcher this is a single conceptual weight).
+                summed = 0.0
+                if body_constants is not None:
+                    for ssa in w:
+                        summed += body_constants.get(ssa, 0.0)
+                synth_ssa = f"%cst_synth_{synth_idx}"
+                synth_idx += 1
+                # Format the constant literal in MLIR's normal form. f64 / f32
+                # take a decimal float; integer types take a base-10 int.
+                if inline_weight_type.startswith("f"):
+                    lit = repr(summed)
+                    if not (("." in lit) or ("e" in lit) or ("E" in lit)):
+                        lit = lit + ".0"
+                else:
+                    lit = str(int(summed))
+                weight_cast_lines.append(
+                    f"{indent}{synth_ssa} = arith.constant {lit} : {inline_weight_type}"
+                )
+                inline_weight_ssas.append(synth_ssa)
     cast_lines.extend(weight_cast_lines)
 
     # Cap-bound scalars from bindings. When surface_inline_weights is in
@@ -485,6 +519,10 @@ def rewrite_mlir(
             scalar_type_map=scalar_types,
             inline_weights=inline_weights,
             inline_weight_type=weight_ty,
+            # Pass the body's per-SSA constant values so render_launch can
+            # materialise summed-constant ops for the polybench conv3d
+            # multi-coefficient case.
+            body_constants=bodies[i].constants if inline_weights else None,
         )
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser
