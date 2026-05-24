@@ -1157,6 +1157,51 @@ def _softmax_3step() -> CompositionEntry:
     )
 
 
+def _rmsnorm_2step() -> CompositionEntry:
+    """RMSNorm — 1D root-mean-square normalize + per-element weighted scale.
+
+    cgeist + raise produces two linalg.generic ops in sequence, with the
+    scale computation (`scale = 1/sqrt(ss/N + eps)`) inlined between them
+    as ordinary scalar arith on the host side:
+
+        Step 0 — ss = sum(x[i]²):  reduction, 1 in (x), 1 scalar out
+            body = Out(0) + (In(0) * In(0))
+
+        [inline: load ss; divf ss/N; addf +eps; sqrt; divf 1/sqrt → %scale]
+
+        Step 1 — out = weight * scale * x:  parallel, 2 ins (weight, x),
+                                            1 out, captures %scale
+            body = In(0) * (Cap("%scale") * In(1))
+
+    The Cap binds to whatever body-external SSA the rewriter sees feeding
+    the second linalg's body — typically the `%5 = arith.divf %cst, %4`
+    result of the inlined scale computation.
+
+    Lowers to an `rmsnorm` kernel.launch. cuDNN has no native RMSNorm
+    entry (its `cudnnNormForward` always mean-centers). The runtime shim
+    is the natural place to decide between (a) cuBLAS decomposition
+    (cublasSdot for ss + scalar arith on host + per-element fused scale,
+    weight, multiply), (b) cuDNN LayerNorm with mean=0 trick
+    (version-dependent), or (c) a hand-written CUDA kernel (the
+    production choice in TRT-LLM / vLLM).
+    """
+    step0 = CompositionStep(
+        body=Term.Out(0) + (Term.In(0) * Term.In(0)),
+        num_ins=1, num_outs=1,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    step1 = CompositionStep(
+        body=Term.In(0) * (T_cap("%scale") * Term.In(1)),
+        num_ins=2, num_outs=1,
+        reduction_dim_count=0, parallel_dim_count=1,
+    )
+    return CompositionEntry(
+        name="rmsnorm",
+        steps=[step0, step1],
+        form="memref",
+    )
+
+
 def _jacobi_1d_3pt() -> CompositionEntry:
     """Jacobi 1D 3-point smoother: out[i] = (a + b + c) * coef
     where a, b, c are the left/center/right neighbors (encoded via subview
@@ -1417,6 +1462,11 @@ def composition_library() -> list[CompositionEntry]:
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.
+        _rmsnorm_2step(),       # 2-step composition, sum-of-squares + weighted
+                                #         scale; sits between softmax (3 steps)
+                                #         and the conv shapes (single step) by
+                                #         length so longest-first matching picks
+                                #         the right one for shared prefixes.
         _conv3d_11pt_weighted(), # 11 ins, 3D parallel — most specific 3D
                                  #         conv shape; relies on egglog
                                  #         factoring to collapse redundant

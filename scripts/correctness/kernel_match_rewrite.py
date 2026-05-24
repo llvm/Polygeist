@@ -122,6 +122,22 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
             r'(%[\w\-]+)\s*=\s*affine\.load\s+%[\w\-]+\[\]\s*:\s*memref<([^,>]+)(?:,[^>]*)?>',
             text):
         out[lm.group(1)] = lm.group(2).strip()
+    # Scalar-producing arith / math ops between linalg.generics. RMSNorm
+    # binds its %scale capture to a chain `divf(ss, N); addf(_, eps);
+    # sqrt(_); divf(1.0, _)` that lives in the function body but outside
+    # any linalg.generic. The matcher Cap binds to the final SSA, and we
+    # need its type for the launch op signature. Match `%X = <op> ... : T`
+    # for the common scalar arith ops (avoid being so broad that we
+    # accidentally type memref/tensor SSAs).
+    _scalar_op_pat = re.compile(
+        r'(%[\w\-]+)\s*=\s*'
+        r'(?:arith\.(?:add[fi]|sub[fi]|mul[fi]|div[fsui]+|negf|select|cmp[fi]|'
+        r'extf|extsi|extui|trunci|truncf|sitofp|uitofp|fptosi|fptoui|bitcast)'
+        r'|math\.(?:sqrt|exp|log|tanh|absf|absi))'
+        r'\s+\S[^\n]*?:\s*([a-zA-Z][\w]*)\s*$',
+        re.MULTILINE)
+    for sm in _scalar_op_pat.finditer(text):
+        out[sm.group(1)] = sm.group(2).strip()
     return out
 
 
