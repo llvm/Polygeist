@@ -111,12 +111,26 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
-      expr->dump();
+      llvm::errs() << "\n=== cgeist CallHelper diagnostic ===\n";
+      llvm::errs() << "callee name:        " << tocall.getName() << "\n";
+      llvm::errs() << "callee input count: " << fnType.getInputs().size()
+                   << "\n";
+      llvm::errs() << "caller arg count:   " << arguments.size() << "\n";
+      llvm::errs() << "failing at arg i:   " << i << "\n";
+      llvm::errs() << "current arg null?:  " << (a == nullptr) << "\n";
+      llvm::errs() << "\n--- callee MLIR func type:\n";
       tocall.dump();
-      fnType.dump();
-      for (auto a : arguments) {
-        std::get<1>(a)->dump();
+      llvm::errs() << "\n--- caller call-site expression:\n";
+      expr->dump();
+      llvm::errs() << "\n--- caller args (in order):\n";
+      for (size_t idx = 0; idx < arguments.size(); ++idx) {
+        llvm::errs() << "[arg " << idx << "]\n";
+        if (auto *aa = std::get<1>(arguments[idx]))
+          aa->dump();
+        else
+          llvm::errs() << " <null>\n";
       }
+      llvm::errs() << "=== end diagnostic ===\n";
       assert(0 && "too many arguments in calls");
     }
     bool isReference =
