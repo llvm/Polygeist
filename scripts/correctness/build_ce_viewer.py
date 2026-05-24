@@ -139,8 +139,15 @@ POLYBENCHGPU_EXTRACTED_KERNELS: dict[str, tuple[str, str]] = {
     # so ce_link / discover_kernels / find_kernel_c all use the same name.
     # The section header already disambiguates these from polybenchGpu's
     # convolution-2d / convolution-3d.
-    "conv2d":  ("conv2d.c", "kernel_conv2d"),
-    "conv3d":  ("conv3d.c", "kernel_conv2d"),
+    "conv2d":      ("conv2d.c",     "kernel_conv2d"),
+    # Phase 2 dtype variants — same 9-tap stencil shape as the f64 conv2d,
+    # different element type. The matcher template (`_conv2d_9pt_weighted`)
+    # is dtype-agnostic; the rewriter emits a `@cudnnConvolution2D_9tap_<dt>`
+    # launch symbol whose canonical defn picks the right cuDNN dtype.
+    "conv2d_f32":  ("conv2d_f32.c", "kernel_conv2d"),
+    "conv2d_i32":  ("conv2d_i32.c", "kernel_conv2d"),
+    "conv2d_i16":  ("conv2d_i16.c", "kernel_conv2d"),
+    "conv3d":      ("conv3d.c",     "kernel_conv2d"),
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -224,17 +231,29 @@ LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
 # polybenchGpu entries, just lifted from a clean TU. Listed separately
 # so the IR explorer can show the difference side-by-side.
 POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
-    "conv2d": ("highly parallel",
-                "9-tap 3x3 stencil; kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body"),
-    "conv3d": ("highly parallel",
-                "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
+    "conv2d":     ("highly parallel",
+                    "9-tap 3x3 stencil (f64); kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body. Validated end-to-end on Jetson Orin (bit-exact GPU/CPU)"),
+    "conv2d_f32": ("highly parallel",
+                    "FP32 9-tap 3x3 stencil; same template as f64 conv2d. Rewriter emits @cudnnConvolution2D_9tap_f32 → polygeist_cudnn_conv2d_3x3_f32 (cuDNN tensor-core path on Ampere+). Validated end-to-end on Jetson Orin"),
+    "conv2d_i32": ("highly parallel",
+                    "INT32 9-tap 3x3 stencil; matches the same template thanks to encoder's arith.muli/addi + transparent extsi/trunci handling. Rewriter emits @cudnnConvolution2D_9tap_i32. GPU side is blocked (see cudnn-dtype-gap) — matcher + ABI lowering still validated end-to-end through the func.call ABI"),
+    "conv2d_i16": ("highly parallel",
+                    "INT16 9-tap 3x3 stencil; cgeist promotes i16 multiplies to i32 via arith.extsi, which the encoder now sees through. Rewriter inserts arith.trunci on the weights so the launch signature stays i16. Same GPU blocker as i32 (cuDNN has no native INT path)"),
+    "conv3d":     ("highly parallel",
+                    "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
 }
 
 POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
-    "conv2d": ("none",
-                ""),
-    "conv3d": ("matcher-gap",
-                "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d now matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
+    "conv2d":     ("none",
+                    "lifts and matches @cudnnConvolution2D_9tap; ABI lowering routes to polygeist_cudnn_conv2d_3x3_f64 (cuDNN FP64 path). End-to-end validated on Jetson"),
+    "conv2d_f32": ("none",
+                    "lifts and matches @cudnnConvolution2D_9tap_f32; ABI lowering routes to polygeist_cudnn_conv2d_3x3_f32 (cuDNN FP32 tensor-core path). End-to-end validated on Jetson"),
+    "conv2d_i32": ("cudnn-dtype-gap",
+                    "matcher + ABI lowering land cleanly (call @polygeist_cudnn_conv2d_3x3_i32 with 9 i32 weights), but cuDNN's cudnnConvolutionForward returns CUDNN_STATUS_BAD_PARAM on any pure INT32 input+filter+compute configuration on Orin/Ampere. INT32 in cuDNN is only exposed as an accumulator for INT8 in the bias+activation API, not as a standalone fwd-conv dtype. Real fix: hand-written CUDA kernel, INT8 quant path, or cutlass"),
+    "conv2d_i16": ("cudnn-dtype-gap",
+                    "matcher OK (encoder sees through cgeist's auto-inserted arith.extsi), rewriter auto-truncates weights from i32→i16, ABI emits call @polygeist_cudnn_conv2d_3x3_i16 — but the shim upcasts to INT32 and delegates to the i32 path, which hits the same cuDNN BAD_PARAM. cuDNN has no native INT16 conv at all"),
+    "conv3d":     ("matcher-gap",
+                    "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d (all dtypes) matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -353,6 +372,10 @@ BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
                           "polygeist-opt segfaults in the raise pipeline; needs deeper investigation"),
     "ext-math-call":     ("math.h ext call in body (FIXABLE)",
                           "loop body calls tanhf / logf / coshf etc.; raise refuses to lift a generic whose body contains an external call. Fixable by teaching the frontend or a pre-pass to rewrite known math.h calls to math.* dialect ops"),
+    "cudnn-dtype-gap":   ("cuDNN dtype not supported",
+                          "MLIR pipeline (raise / match / ABI lowering / runtime shim ABI) is correct end-to-end, but the underlying library doesn't expose the requested dtype on this hardware. Today's hit: cuDNN's cudnnConvolutionForward does not support a pure INT32 input+filter+compute configuration on Ampere/Orin (returns CUDNN_STATUS_BAD_PARAM at descriptor setup); CUDNN_DATA_INT32 is only available as an accumulator type for INT8 inputs via the bias+activation API. Real fixes are out-of-pipeline: hand-written CUDA kernel via nvcc, INT8 quantisation path, or swap cuDNN for cutlass/CUB"),
+    "cgeist-dtype-gap":  ("cgeist frontend dtype assert",
+                          "cgeist itself can't parse the source dtype: BuiltinType `_Float16` / `__bf16` hits an `unhandled type` assertion in tools/cgeist/Lib/clang-mlir.cc:5830. Affects FP16 and BF16 conv2d sources — we never get an MLIR file to feed the rest of the pipeline. Fix is a small addition to the BuiltinType switch that maps clang's Half / BFloat16 to MLIR's f16 / bf16"),
 }
 
 # Per-kernel parallelism notes — how well the kernel's algorithm maps to GPU.
@@ -947,6 +970,10 @@ _BLOCKER_CSS = {
     "cgeist-frontend":   "none",
     "raise-crash":       "none",
     "ext-math-call":     "partial",
+    # Pipeline is correct; the gap is downstream (library / frontend). Mark
+    # as "partial" — matcher / lowering still validate end-to-end.
+    "cudnn-dtype-gap":   "partial",
+    "cgeist-dtype-gap":  "partial",
 }
 
 
@@ -1170,7 +1197,7 @@ def build_index(polybench_stats: dict[str, dict],
         blockers=POLYBENCHGPU_BLOCKERS,
     )
     polybenchgpu_extracted_section = _build_section(
-        title="polybenchGpu (kernel-extracted)",
+        title="polybenchGpu (kernel-extracted) — Phase 2 dtype matrix",
         anchor="polybenchgpu-extracted",
         blurb=(
             "Subset of polybenchGpu kernels extracted into standalone .c "
@@ -1181,8 +1208,24 @@ def build_index(polybench_stats: dict[str, dict],
             "into the conv body — leaving a linalg.generic with no "
             "<code>ins(A)</code> that the matcher couldn't fingerprint as "
             "conv2d/conv3d. The extracted form lifts cleanly with N "
-            "strided-subview inputs (one per stencil neighbour) and is "
-            "ready for matching to <code>@cudnnConvolution2D</code>."
+            "strided-subview inputs (one per stencil neighbour) and matches "
+            "<code>@cudnnConvolution2D_9tap</code>."
+            "<br><br>"
+            "<b>Phase 2 dtype expansion:</b> the matcher's template is "
+            "dtype-agnostic, and the rewriter dispatches to a "
+            "<code>@cudnnConvolution2D_9tap_&lt;dtype&gt;</code> launch "
+            "symbol per element type. <code>conv2d</code> is f64; "
+            "<code>conv2d_f32</code> / <code>conv2d_i32</code> / "
+            "<code>conv2d_i16</code> exercise the FP32 / INT32 / INT16 "
+            "paths. The FP16 / BF16 source files exist "
+            "(<code>conv2d_f16.c</code>) but aren't baked here because "
+            "cgeist asserts on <code>_Float16</code>/<code>__bf16</code> "
+            "(see the <i>cgeist-dtype-gap</i> blocker class). The INT "
+            "paths lift and ABI-lower cleanly, but cuDNN itself doesn't "
+            "expose a standalone INT32 forward conv (see "
+            "<i>cudnn-dtype-gap</i>) — the matcher + lowering are still "
+            "exercised, but the GPU side aborts at "
+            "<code>cudnnSetTensor4dDescriptor</code>."
         ),
         kernel_stats=polybenchgpu_extracted_stats,
         notes=POLYBENCHGPU_EXTRACTED_NOTES,

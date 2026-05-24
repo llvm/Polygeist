@@ -19,9 +19,18 @@ OUT=/tmp/pbgpu_extracted_mlir
 mkdir -p $OUT
 
 # Format: <tag>  <fn>  <source_file>
+# Phase 2 dtype expansion: f32 / i32 / i16 variants of conv2d alongside the
+# original f64. They use the same template + canonical defn library but the
+# rewriter dispatches to dtype-suffixed @cudnnConvolution2D_9tap_<dtype>.
+# f16 / bf16 sources exist (conv2d_f16.c) but cgeist asserts on _Float16 —
+# see the cgeist-dtype-gap blocker; we don't bake them here so the explorer
+# doesn't show a stale crash output for those tags.
 KERNELS=(
-  "conv2d  kernel_conv2d  conv2d.c"
-  "conv3d  kernel_conv2d  conv3d.c"
+  "conv2d       kernel_conv2d  conv2d.c"
+  "conv2d_f32   kernel_conv2d  conv2d_f32.c"
+  "conv2d_i32   kernel_conv2d  conv2d_i32.c"
+  "conv2d_i16   kernel_conv2d  conv2d_i16.c"
+  "conv3d       kernel_conv2d  conv3d.c"
 )
 
 for entry in "${KERNELS[@]}"; do
