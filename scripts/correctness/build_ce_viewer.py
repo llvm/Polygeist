@@ -240,7 +240,7 @@ POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
     "conv2d_i16": ("highly parallel",
                     "INT16 9-tap 3x3 stencil; cgeist promotes i16 multiplies to i32 via arith.extsi, which the encoder now sees through. Rewriter inserts arith.trunci on the weights so the launch signature stays i16. Same GPU blocker as i32 (cuDNN has no native INT path)"),
     "conv3d":     ("highly parallel",
-                    "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
+                    "11-tap 3x3x3 stencil; polybenchGpu's published body writes 15 muls over only 11 unique input positions (3 positions each appear in 3 muls with different literal coefficients). The matcher's tuple-AST factoring pass collapses the redundant muls into one mul per unique input and the rewriter materialises summed-constant `arith.constant` ops (e.g. `2 + 5 + -8 = -1`) for the launch operands. Emits @cudnnConvolution3D_11tap with 11 surfaced weights"),
 }
 
 POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
@@ -252,8 +252,8 @@ POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
                     "matcher + ABI lowering land cleanly (call @polygeist_cudnn_conv2d_3x3_i32 with 9 i32 weights), but cuDNN's cudnnConvolutionForward returns CUDNN_STATUS_BAD_PARAM on any pure INT32 input+filter+compute configuration on Orin/Ampere. INT32 in cuDNN is only exposed as an accumulator for INT8 in the bias+activation API, not as a standalone fwd-conv dtype. Real fix: hand-written CUDA kernel, INT8 quant path, or cutlass"),
     "conv2d_i16": ("cudnn-dtype-gap",
                     "matcher OK (encoder sees through cgeist's auto-inserted arith.extsi), rewriter auto-truncates weights from i32→i16, ABI emits call @polygeist_cudnn_conv2d_3x3_i16 — but the shim upcasts to INT32 and delegates to the i32 path, which hits the same cuDNN BAD_PARAM. cuDNN has no native INT16 conv at all"),
-    "conv3d":     ("matcher-gap",
-                    "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d (all dtypes) matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
+    "conv3d":     ("partial-pipeline",
+                    "matcher + rewriter now fire cleanly: the redundant-mul collapse runs as a tuple-AST fallback in body_matches_template, the launch is emitted as @cudnnConvolution3D_11tap with 11 surfaced weights (two of them materialised as fresh `arith.constant` ops carrying the summed coefficient values). What's still missing for full e2e: canonical defn in kernel_library_phase2.mlir, ABI lowering branch, and a cuDNN 3D runtime shim (cudnnSetConvolutionNdDescriptor with nbDims=3). The earlier _conv3d_15mul_11in template idea was abandoned — Python factoring on the tuple AST handles the redundancy more cheaply than an egglog ruleset (which blew up exponentially on 15-summand bodies)"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -376,6 +376,8 @@ BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
                           "MLIR pipeline (raise / match / ABI lowering / runtime shim ABI) is correct end-to-end, but the underlying library doesn't expose the requested dtype on this hardware. Today's hit: cuDNN's cudnnConvolutionForward does not support a pure INT32 input+filter+compute configuration on Ampere/Orin (returns CUDNN_STATUS_BAD_PARAM at descriptor setup); CUDNN_DATA_INT32 is only available as an accumulator type for INT8 inputs via the bias+activation API. Real fixes are out-of-pipeline: hand-written CUDA kernel via nvcc, INT8 quantisation path, or swap cuDNN for cutlass/CUB"),
     "cgeist-dtype-gap":  ("cgeist frontend dtype assert",
                           "cgeist itself can't parse the source dtype: BuiltinType `_Float16` / `__bf16` hits an `unhandled type` assertion in tools/cgeist/Lib/clang-mlir.cc:5830. Affects FP16 and BF16 conv2d sources — we never get an MLIR file to feed the rest of the pipeline. Fix is a small addition to the BuiltinType switch that maps clang's Half / BFloat16 to MLIR's f16 / bf16"),
+    "partial-pipeline":  ("partial pipeline (matcher OK, downstream incomplete)",
+                          "matcher + rewriter produce a clean kernel.launch op for this kernel, but the canonical defn / ABI lowering / runtime shim for the new library symbol haven't landed yet. Distinct from cudnn-dtype-gap (where the library is fundamentally unwilling) or matcher-gap (where the linalg body doesn't fingerprint). This is a 'in progress, scope-limited' state; the linalg → kernel.launch step is validated, the kernel.launch → func.call step is pending"),
 }
 
 # Per-kernel parallelism notes — how well the kernel's algorithm maps to GPU.
@@ -974,6 +976,7 @@ _BLOCKER_CSS = {
     # as "partial" — matcher / lowering still validate end-to-end.
     "cudnn-dtype-gap":   "partial",
     "cgeist-dtype-gap":  "partial",
+    "partial-pipeline":  "partial",
 }
 
 
