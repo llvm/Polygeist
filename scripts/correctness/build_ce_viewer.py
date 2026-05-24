@@ -578,8 +578,8 @@ POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
 # the matcher's regex parser corrupting multi-yield bodies (fixed in 7aef419).
 LLAMA2C_BLOCKERS: dict[str, tuple[str, str]] = {
     "matmul":   ("none",           ""),
-    "rmsnorm":  ("matcher-gap",    "ss-reduction + parallel weighted-scale; rmsnorm body not in matcher library. Lifts cleanly to 2 linalg.generic ops (ss-reduction + scale); the parser handles the multi-yield form correctly since commit 7aef419 — only the composition template is missing"),
-    "softmax":  ("matcher-gap",    "max-shift / exp+sum / divide pipeline; softmax body not in library. Lifts to 3 linalg.generics (one of them a fused multi-yield exp+sum); the matcher's regex parser previously corrupted that intermediate body but parses it correctly since commit 7aef419. Only the composition template is missing — cuDNN's cudnnSoftmaxForward is the obvious lowering target"),
+    "rmsnorm":  ("partial-pipeline", "matcher now fires (commit a3ddbac): 2-step composition matches the ss = sum(x²) reduction + the weighted-scale generic, binding the body-external scale SSA via Cap(\"%scale\"). Emits kernel.launch @rmsnorm with a well-typed (memref, memref, memref, memref<f32>, f32) signature. Downstream pieces still needed: canonical defn, ABI lowering, runtime shim. cuDNN has no native RMSNorm (cudnnNormForward always mean-centers); options are cuBLAS decomposition, a layernorm-with-mean-0 trick, or a custom CUDA kernel"),
+    "softmax":  ("partial-pipeline", "matcher now fires (commit 1235c28): 3-step composition matches the max-reduce + fused exp+sum (multi-yield) + parallel divide pipeline. Emits kernel.launch @cudnnSoftmaxForward with a well-typed signature. Downstream pieces still needed: canonical defn, ABI lowering, runtime shim — cuDNN's cudnnSoftmaxForward is the natural target"),
 }
 
 # llm.c blockers — wider coverage than llama2.c includes both forward AND
@@ -600,7 +600,7 @@ LLMC_BLOCKERS: dict[str, tuple[str, str]] = {
     "gelu-bwd":                 ("ext-math-call",     "body calls tanhf + coshf — same ext-call block"),
     "residual-fwd":             ("matcher-gap",       "single fully-parallel elementwise add; matcher has no axpy/add template that matches this shape"),
     "residual-bwd":             ("matcher-gap",       "two parallel elementwise dinp += dout generics; same axpy gap"),
-    "softmax-fwd":              ("matcher-gap",       "per-row softmax with max-shift; same library gap as llama2 softmax. The fused exp+sum multi-yield body now parses correctly (commit 7aef419); the missing piece is the softmax composition template + cudnnSoftmaxForward shim"),
+    "softmax-fwd":              ("matcher-gap",       "per-row softmax with max-shift wrapped in (B, T) outer affine.fors plus an additional masking generic. The base 3-step softmax composition (commit 1235c28) matches llama2's flat softmax but not this nested form. Needs either an outer-loop hoist pass to strip the B/T fors and re-match per row, or a separate 4-step composition that includes the masking step"),
     "crossentropy-fwd":         ("ext-math-call",     "body calls logf with indirect-indexed probs[target[b,t]]; raise can't lift"),
     "crossentropy-softmax-bwd": ("matcher-gap",       "raises 1 linalg.generic — the fused softmax-CE backward formula; shape not in matcher library"),
 }
@@ -1244,13 +1244,14 @@ def build_index(polybench_stats: dict[str, dict],
             "Hot numeric functions from run.c — the building blocks of "
             "the LLM forward pass: matmul (W·x), rmsnorm (mean-square "
             "normalize + scale), softmax (max-shift / exp / sum-normalize). "
-            "All three lift to linalg.generic cleanly. The remaining "
-            "blockers are pure matcher-library gaps (no gemv / rmsnorm / "
-            "softmax composition templates). The earlier 'v2-debufferize "
-            "can't handle softmax's fused exp+sum tuple yield' note was "
-            "misdiagnosed — debufferize handles multi-yield fine; the "
-            "actual limitation was the matcher's text-regex parser "
-            "corrupting multi-yield bodies, fixed in commit 7aef419."
+            "All three lift to linalg.generic cleanly. <b>rmsnorm and "
+            "softmax now match</b> (commits 1235c28 and a3ddbac) — softmax "
+            "as a 3-step composition firing @cudnnSoftmaxForward, rmsnorm "
+            "as a 2-step composition firing @rmsnorm. Matmul still has no "
+            "gemv composition (the row-by-row gemv flavour cgeist produces "
+            "isn't in the matcher library yet). Downstream of matching, "
+            "softmax / rmsnorm both still need canonical defns, ABI "
+            "lowering branches, and runtime shims for full Jetson e2e."
         ),
         kernel_stats=llama2c_stats,
         notes=LLAMA2C_NOTES,
