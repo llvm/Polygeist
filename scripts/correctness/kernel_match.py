@@ -211,7 +211,11 @@ class GenericBody:
     ins_arg_names: list[str]      # like ['%in', '%in_0', ...]
     outs_arg_names: list[str]     # like ['%out']
     body_lines: list[str]
-    yield_value: str              # the SSA name that gets yielded
+    # Canonical yield list (one entry per output). Single-yield bodies have
+    # len == 1; multi-yield bodies (e.g. softmax's fused exp+sum) have one
+    # entry per `outs(...)` operand. Use `body.yield_value` (singular) for
+    # back-compat single-yield reads — returns the first yield.
+    yield_values: list[str]
     captures: list[str]           # outer SSA values referenced in body
     indexing_maps: list[str]      # raw text of each map
     iterator_types: list[str]
@@ -231,11 +235,25 @@ class GenericBody:
     # the summed value for the launch operand.
     inline_weights_per_in: list[list[str] | None] = None  # type: ignore[assignment]
 
+    @property
+    def yield_value(self) -> str:
+        """Back-compat alias for callers written before multi-yield support
+        — returns the first yield's SSA name. New code should iterate
+        `yield_values` directly."""
+        return self.yield_values[0] if self.yield_values else ""
+
 
 _GEN_RE = re.compile(
     r"linalg\.generic\s*\{[^}]*indexing_maps\s*=\s*\[([^\]]*)\][^}]*"
     r"iterator_types\s*=\s*\[([^\]]*)\][^}]*\}[^\^]*?"
-    r"\^bb0\(([^)]*)\)\s*:\s*(.*?)\s*linalg\.yield\s+(%[\w_]+)\s*:",
+    # Yield captures one OR MORE comma-separated SSA names. Multi-yield
+    # bodies (e.g. softmax's fused exp+sum) write to multiple outs in one
+    # op. Single-yield bodies still match unchanged — the (?:...)*
+    # group is zero-or-more. The capture is the full operand list as a
+    # single string; parse_generics splits on commas to produce the
+    # GenericBody.yield_values list.
+    r"\^bb0\(([^)]*)\)\s*:\s*(.*?)\s*"
+    r"linalg\.yield\s+(%[\w_]+(?:\s*,\s*%[\w_]+)*)\s*:",
     re.DOTALL,
 )
 
@@ -286,7 +304,16 @@ def parse_generics(mlir_text: str,
         constants = parse_constants(mlir_text)
     results = []
     for m in _GEN_RE.finditer(mlir_text):
-        maps_str, iters_str, args_str, body_str, yield_name = m.groups()
+        maps_str, iters_str, args_str, body_str, yield_operands_str = m.groups()
+        # Split the yield's operand list on commas (multi-yield bodies have
+        # multiple SSAs separated by commas). The regex preserves whitespace
+        # around commas, so strip per-token.
+        yield_names = [s.strip() for s in yield_operands_str.split(",") if s.strip()]
+        # Back-compat for the rest of the local scope: yield_name refers to
+        # the FIRST yield. Most local logic (capture detection, etc.) was
+        # written assuming a single yield value — keeping it correct for
+        # the single-yield case AND for the first slot of multi-yield bodies.
+        yield_name = yield_names[0] if yield_names else ""
 
         # Parse args like "%in: f64, %in_0: f64, %out: f64"
         ins, outs = [], []
@@ -323,11 +350,13 @@ def parse_generics(mlir_text: str,
                 if (tok not in local_defs and tok not in ins and tok not in outs
                         and tok not in captures):
                     captures.append(tok)
-        # Also catch yield-only captures (`linalg.yield %cst : f64` with no
-        # body ops — the yield references something defined outside).
-        if (yield_name not in local_defs and yield_name not in ins
-                and yield_name not in outs and yield_name not in captures):
-            captures.append(yield_name)
+        # Also catch yield-only captures — for every yield value, if it
+        # references something defined outside the body (not a block arg,
+        # not produced by any op in the body), promote it to a capture.
+        for yn in yield_names:
+            if (yn not in local_defs and yn not in ins
+                    and yn not in outs and yn not in captures):
+                captures.append(yn)
 
         # Build the inline-weights side-table: for each block input arg
         # %in_k, find the unique arith.mulf line that pairs it with a
@@ -395,7 +424,7 @@ def parse_generics(mlir_text: str,
             ins_arg_names=ins,
             outs_arg_names=outs,
             body_lines=body_lines,
-            yield_value=yield_name,
+            yield_values=yield_names,
             captures=captures,
             indexing_maps=maps,
             iterator_types=iters,

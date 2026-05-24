@@ -39,7 +39,11 @@ _GENERIC_BLOCK_RE = re.compile(
     r"(\s*)(?:(%[\w_]+)\s*=\s*)?linalg\.generic\s*\{[^}]*\}\s*"
     r"(?:ins\(([^)]*)\)\s*)?"
     r"outs\(([^)]*)\)\s*"
-    r"\{\s*\^bb0\([^)]*\)\s*:.*?linalg\.yield\s+%[\w_]+\s*:[^}]*\}"
+    # linalg.yield captures one OR MORE comma-separated SSA operands —
+    # matches kernel_match.py's _GEN_RE, needed so multi-yield bodies
+    # (e.g. softmax's fused exp+sum) aren't dropped or partially-consumed
+    # by the .*? backtracking. Single-yield bodies still match unchanged.
+    r"\{\s*\^bb0\([^)]*\)\s*:.*?linalg\.yield\s+%[\w_]+(?:\s*,\s*%[\w_]+)*\s*:[^}]*\}"
     r"(?:\s*->\s*([^\n]+))?",
     re.DOTALL,
 )
