@@ -15,8 +15,11 @@
 #                       On a Jetson (aarch64 + JetPack CUDA), links cuDNN/
 #                       cuBLAS and the binary runs on the GPU.
 #   --target=jetson     Cross-compile from this x86 VM to aarch64 + bundle
-#                       the cross-CUDA libs. The resulting binary is shipped
-#                       and run on Jetson manually (or via a follow-up script).
+#                       the cross-CUDA libs. The resulting binary is an
+#                       aarch64 ELF you can scp to a Jetson and run there.
+#                       Deployment (scp / ssh / execute) is out of scope
+#                       for this driver — that's a separate, environment-
+#                       specific concern.
 #   --function=auto     Auto-detect the kernel function via #pragma scop
 #                       (PolyBench convention) or a leading 'kernel_' prefix.
 #                       Override with --function=NAME for non-conventional
@@ -273,9 +276,3 @@ $CC -O2 \
 echo ""
 echo "═══ build complete ═══"
 file "$OUT" || true
-if [ "$TARGET" = "jetson" ]; then
-  echo ""
-  echo "Ship to Jetson:"
-  echo "  scp '$OUT' nvidia@<jetson>:/tmp/"
-  echo "  ssh nvidia@<jetson> 'chmod +x /tmp/$(basename "$OUT") && /tmp/$(basename "$OUT")'"
-fi
