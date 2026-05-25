@@ -40,6 +40,8 @@ LLAMA2C_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llama2.c")
 LLAMA2C_MLIR_DIR = Path("/tmp/llama2c_mlir")
 LLMC_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llm.c")
 LLMC_MLIR_DIR = Path("/tmp/llmc_mlir")
+DARKNET_ROOT = Path("/home/arjaiswal/Polygeist/third_party/darknet")
+DARKNET_MLIR_DIR = Path("/tmp/darknet_mlir")
 OUTPUT_DIR = Path("/tmp/ir_viewer")
 REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
 PYTHON = "/home/arjaiswal/slacker/.venv/bin/python3"
@@ -169,6 +171,167 @@ LLMC_KERNELS: dict[str, tuple[str, str]] = {
     "softmax-fwd":              ("train_gpt2.c", "softmax_forward"),
     "crossentropy-fwd":         ("train_gpt2.c", "crossentropy_forward"),
     "crossentropy-softmax-bwd": ("train_gpt2.c", "crossentropy_softmax_backward"),
+}
+
+# darknet (pjreddie) — CPU reference implementation of CNN layers used by
+# YOLO + ResNet configurations. We bake every .c file in src/ with
+# cgeist --function='*' --no-inline; the matcher then runs against each
+# file's debuferized output. Most files are framework code (parser, list,
+# image, network) with no compute bodies. The actual numerical hot spot
+# is src/gemm.c which contains the naive C gemm_nn/nt/tn/tt variants;
+# everything else either fails to lift (struct-heavy code, IfStmt
+# limitations in cgeist) or produces linalg.generic ops the matcher's
+# current library doesn't recognise (pooling, batchnorm, RNN gates, ...).
+#
+# This is intentionally a "matcher coverage survey" rather than a
+# silicon-target list — its purpose is to enumerate which deep-learning
+# layer kernels we'd need new matcher templates to cover. See the per-
+# file notes for which pattern each unmatched file has.
+DARKNET_KERNELS: dict[str, tuple[str, str]] = {
+    "activation_layer":      ("src/activation_layer.c",      "*"),
+    "activations":           ("src/activations.c",           "*"),
+    "avgpool_layer":         ("src/avgpool_layer.c",         "*"),
+    "batchnorm_layer":       ("src/batchnorm_layer.c",       "*"),
+    "blas":                  ("src/blas.c",                  "*"),
+    "box":                   ("src/box.c",                   "*"),
+    "col2im":                ("src/col2im.c",                "*"),
+    "compare":               ("src/compare.c",               "*"),
+    "connected_layer":       ("src/connected_layer.c",       "*"),
+    "convolutional_layer":   ("src/convolutional_layer.c",   "*"),
+    "cost_layer":            ("src/cost_layer.c",            "*"),
+    "crnn_layer":            ("src/crnn_layer.c",            "*"),
+    "crop_layer":            ("src/crop_layer.c",            "*"),
+    "data":                  ("src/data.c",                  "*"),
+    "deconvolutional_layer": ("src/deconvolutional_layer.c", "*"),
+    "demo":                  ("src/demo.c",                  "*"),
+    "detection_layer":       ("src/detection_layer.c",       "*"),
+    "dropout_layer":         ("src/dropout_layer.c",         "*"),
+    "gemm":                  ("src/gemm.c",                  "*"),
+    "gru_layer":             ("src/gru_layer.c",             "*"),
+    "im2col":                ("src/im2col.c",                "*"),
+    "image":                 ("src/image.c",                 "*"),
+    "iseg_layer":            ("src/iseg_layer.c",            "*"),
+    "l2norm_layer":          ("src/l2norm_layer.c",          "*"),
+    "layer":                 ("src/layer.c",                 "*"),
+    "list":                  ("src/list.c",                  "*"),
+    "local_layer":           ("src/local_layer.c",           "*"),
+    "logistic_layer":        ("src/logistic_layer.c",        "*"),
+    "lstm_layer":            ("src/lstm_layer.c",            "*"),
+    "matrix":                ("src/matrix.c",                "*"),
+    "maxpool_layer":         ("src/maxpool_layer.c",         "*"),
+    "network":               ("src/network.c",               "*"),
+    "normalization_layer":   ("src/normalization_layer.c",   "*"),
+    "option_list":           ("src/option_list.c",           "*"),
+    "parser":                ("src/parser.c",                "*"),
+    "region_layer":          ("src/region_layer.c",          "*"),
+    "reorg_layer":           ("src/reorg_layer.c",           "*"),
+    "rnn_layer":             ("src/rnn_layer.c",             "*"),
+    "route_layer":           ("src/route_layer.c",           "*"),
+    "shortcut_layer":        ("src/shortcut_layer.c",        "*"),
+    "softmax_layer":         ("src/softmax_layer.c",         "*"),
+    "tree":                  ("src/tree.c",                  "*"),
+    "upsample_layer":        ("src/upsample_layer.c",        "*"),
+    "utils":                 ("src/utils.c",                 "*"),
+    "yolo_layer":            ("src/yolo_layer.c",            "*"),
+}
+
+DARKNET_NOTES: dict[str, tuple[str, str]] = {
+    # The 1 file that produces matches today
+    "gemm":                  ("highly parallel",   "Classic dense gemm + axpy variants; gemm_nt/tt match @cublasDgemm_alpha_only; gemm_nn/tn match @cublasDaxpy (inner-loop scalar-hoisted form not composed up to gemm)"),
+    # Compute-pattern files that raise OK but don't match — the matcher templates we're missing
+    "activation_layer":      ("pointwise",         "Activation forward (ReLU/leaky/etc.) — pointwise; no template"),
+    "activations":           ("pointwise",         "Activation primitives — pointwise; no template"),
+    "avgpool_layer":         ("partial parallel",  "Average pooling — windowed reduction; no template"),
+    "col2im":                ("pointwise",         "Column-to-image reshape — strided scatter; no template"),
+    "connected_layer":       ("highly parallel",   "Dense (fully-connected) layer — gemv shape with bias; 16 generics but matcher's gemv composition isn't firing"),
+    "cost_layer":            ("partial parallel",  "Loss computation — pointwise + reduction; no template"),
+    "crop_layer":            ("pointwise",         "Image crop — pointwise; no template"),
+    "deconvolutional_layer": ("highly parallel",   "Transposed conv via col2im — 20 generics; same matcher gap as conv (im2col-based gemm)"),
+    "dropout_layer":         ("pointwise",         "Dropout mask multiply — pointwise; no template"),
+    "gru_layer":             ("partial parallel",  "GRU RNN gates — 9 generics; matcher has no recurrent-cell composition"),
+    "im2col":                ("pointwise",         "Image-to-column reshape — strided gather; raised but no compute body to match"),
+    "l2norm_layer":          ("partial parallel",  "L2 normalization — reduction + divide; no template (similar to rmsnorm)"),
+    "local_layer":           ("highly parallel",   "Locally-connected (per-position weights) — 6 generics; matcher gap (no shared filter)"),
+    "logistic_layer":        ("pointwise",         "Sigmoid + binary cross-entropy — pointwise + reduction; no template"),
+    "maxpool_layer":         ("partial parallel",  "Max pooling — windowed reduction (3 generics); matcher has no pooling composition"),
+    "normalization_layer":   ("partial parallel",  "Local response normalization — reduction + divide (4 generics); no template"),
+    "reorg_layer":           ("pointwise",         "Spatial reorganisation — pointwise reshape; no template"),
+    "route_layer":           ("pointwise",         "Concatenation across feature maps — strided memcpy; no template"),
+    "shortcut_layer":        ("pointwise",         "Residual add (x += shortcut) — pointwise; matcher-gap (same as llmc residual-fwd)"),
+    "softmax_layer":         ("partial parallel",  "Softmax — 3-step composition; the llama2/llmc softmax template exists but this layer has different surrounding control flow"),
+    "upsample_layer":        ("pointwise",         "Nearest-neighbour upsample — strided broadcast; no template"),
+    # cgeist failures — framework code, no compute to match anyway
+    "blas":                  ("",                   "cgeist failure — header includes choke (math.h + glibc-specific intrinsics)"),
+    "box":                   ("",                   "Raise pass fails on memref-of-memref shape from box-list operations"),
+    "compare":               ("",                   "cgeist failure — variadic ranking helpers"),
+    "convolutional_layer":   ("highly parallel",   "Raise fails — body is mostly external-call dispatch (im2col_cpu + gemm); the actual compute lives in gemm.c which DOES match"),
+    "crnn_layer":            ("",                   "cgeist failure — recurrent layer struct uses function pointers"),
+    "data":                  ("",                   "cgeist failure — pthread + libc-heavy data-loading code"),
+    "demo":                  ("",                   "cgeist failure — OpenCV display loop (requires cv::Mat headers)"),
+    "detection_layer":       ("",                   "cgeist failure — IfStmt lowering bug on the per-anchor confidence branches"),
+    "image":                 ("",                   "cgeist failure — stbi-style image loaders"),
+    "iseg_layer":            ("",                   "cgeist failure — IfStmt lowering bug (instance-segmentation post-processing)"),
+    "lstm_layer":            ("",                   "cgeist failure — recurrent-cell struct + function pointers"),
+    "list":                  ("",                   "cgeist failure — linked-list manipulation; no compute"),
+    "matrix":                ("",                   "cgeist failure — IfStmt on shape validation"),
+    "network":               ("",                   "cgeist failure — FunctionDecl issue (function-pointer-of-layer.forward_layer dispatch)"),
+    "option_list":           ("",                   "cgeist failure — header includes"),
+    "parser":                ("",                   "cgeist failure — sscanf-heavy .cfg parser, header includes"),
+    "region_layer":          ("",                   "cgeist failure — BinaryOperator on the YOLO grid-cell branching"),
+    "rnn_layer":             ("",                   "cgeist failure — recurrent-cell struct"),
+    "utils":                 ("",                   "cgeist failure — exits + abort macros, no compute"),
+    "yolo_layer":            ("",                   "cgeist failure — IfStmt on YOLO loss-mask branches"),
+    # files that raise OK and produce zero linalg.generic — no compute
+    "activation_layer":      ("pointwise",         "Activation forward (ReLU/leaky/etc.) — pointwise; no template"),
+    "layer":                 ("",                   "Layer-struct allocator + free — no compute"),
+    "tree":                  ("",                   "Hierarchical-class tree manipulation — no compute"),
+}
+
+DARKNET_BLOCKERS: dict[str, tuple[str, str]] = {
+    "gemm":                  ("none",              ""),
+    "activation_layer":      ("matcher-gap",       "pointwise activation; no axpy-like template fires"),
+    "activations":           ("matcher-gap",       "pointwise"),
+    "avgpool_layer":         ("matcher-gap",       "pooling composition not in library"),
+    "col2im":                ("matcher-gap",       "strided scatter"),
+    "connected_layer":       ("matcher-gap",       "gemv composition gap (matrix index has bias term)"),
+    "cost_layer":            ("matcher-gap",       "loss = reduction over pointwise body"),
+    "crop_layer":            ("matcher-gap",       "pointwise"),
+    "deconvolutional_layer": ("matcher-gap",       "transposed conv (col2im+gemm)"),
+    "dropout_layer":         ("matcher-gap",       "pointwise"),
+    "gru_layer":             ("matcher-gap",       "RNN gates"),
+    "im2col":                ("none",              "Strided gather raises but has no compute body"),
+    "l2norm_layer":          ("matcher-gap",       "norm + divide"),
+    "local_layer":           ("matcher-gap",       "per-position weights"),
+    "logistic_layer":        ("matcher-gap",       "sigmoid+BCE"),
+    "maxpool_layer":         ("matcher-gap",       "pooling"),
+    "normalization_layer":   ("matcher-gap",       "LRN"),
+    "reorg_layer":           ("matcher-gap",       "spatial reshape"),
+    "route_layer":           ("matcher-gap",       "concat"),
+    "shortcut_layer":        ("matcher-gap",       "residual add"),
+    "softmax_layer":         ("matcher-gap",       "softmax (this layer's surrounding control flow defeats the existing softmax template)"),
+    "upsample_layer":        ("matcher-gap",       "upsample"),
+    "blas":                  ("cgeist-gap",        "header inclusion failure"),
+    "box":                   ("debuf-bug",         "memref-of-memref shape"),
+    "compare":               ("cgeist-gap",        "variadic ranking"),
+    "convolutional_layer":   ("matcher-gap",       "body is mostly external calls; real compute is in gemm.c"),
+    "crnn_layer":            ("cgeist-gap",        "RNN struct + function pointers"),
+    "data":                  ("cgeist-gap",        "pthread + libc"),
+    "demo":                  ("cgeist-gap",        "OpenCV"),
+    "detection_layer":       ("cgeist-gap",        "IfStmt bug"),
+    "image":                 ("cgeist-gap",        "stbi-style loader"),
+    "iseg_layer":            ("cgeist-gap",        "IfStmt bug"),
+    "lstm_layer":            ("cgeist-gap",        "RNN struct"),
+    "list":                  ("none",              "linked list, no compute"),
+    "matrix":                ("cgeist-gap",        "IfStmt"),
+    "network":               ("cgeist-gap",        "function-pointer dispatch"),
+    "option_list":           ("cgeist-gap",        "header includes"),
+    "parser":                ("cgeist-gap",        "sscanf-heavy"),
+    "region_layer":          ("cgeist-gap",        "BinaryOperator on grid branches"),
+    "rnn_layer":             ("cgeist-gap",        "RNN struct"),
+    "utils":                 ("none",              "no compute"),
+    "yolo_layer":            ("cgeist-gap",        "IfStmt bug"),
+    "layer":                 ("none",              "allocator only"),
+    "tree":                  ("debuf-bug",         "no compute pattern"),
 }
 
 # Per-NPB-kernel parallelism + characterisation notes.
@@ -806,6 +969,13 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
         srcname, _fn = info
         p = LLMC_ROOT / srcname
         return p if p.exists() else None
+    if kset == "darknet":
+        info = DARKNET_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = DARKNET_ROOT / srcname
+        return p if p.exists() else None
     # polybench
     for p in POLYBENCH_TEST_DIR.rglob(f"{name}.c"):
         if "/utilities/" in str(p):
@@ -1351,7 +1521,8 @@ def build_index(polybench_stats: dict[str, dict],
                  polybenchgpu_stats: dict[str, dict],
                  polybenchgpu_extracted_stats: dict[str, dict],
                  llama2c_stats: dict[str, dict],
-                 llmc_stats: dict[str, dict]) -> str:
+                 llmc_stats: dict[str, dict],
+                 darknet_stats: dict[str, dict]) -> str:
     common_legend = (
         '  Click a kernel name to open the full Polygeist pipeline in '
         '  Compiler Explorer: C source on the left feeds cgeist; the affine '
@@ -1520,6 +1691,51 @@ def build_index(polybench_stats: dict[str, dict],
         notes=LLMC_NOTES,
         blockers=LLMC_BLOCKERS,
     )
+    darknet_section = _build_section(
+        title="darknet (pjreddie/darknet — full source bake)",
+        anchor="darknet",
+        blurb=(
+            "Empirical &quot;matcher coverage survey&quot; over all 46 .c "
+            "files in <code>third_party/darknet/src/</code>. cgeist baked "
+            "with <code>--function=*</code> and <code>--no-inline</code>; "
+            "every file's debuferized output ran through the matcher. "
+            "<br><br>"
+            "Outcome (matches my earlier prediction of ~2% hit rate): "
+            "<b>1 file matches</b> (<code>gemm.c</code>, 6 kernel.launch "
+            "across gemm_nn/nt/tn/tt + gemm_bin variants). The rest splits "
+            "into three buckets:"
+            "<br>&nbsp;&nbsp;<b>18 raise-OK with 0 matches</b> — produced "
+            "linalg.generic but the matcher's template library has no "
+            "entries for pooling, batchnorm, LRN, residual-add, RNN gates, "
+            "transposed conv, locally-connected layers, dense+bias, etc. "
+            "<i>This is the actionable list: each is a matcher template "
+            "we could add to expand CNN coverage.</i>"
+            "<br>&nbsp;&nbsp;<b>5 raise-failed</b> — cgeist OK but the "
+            "raise pass chokes (batchnorm_layer, convolutional_layer, box, "
+            "demo, tree). convolutional_layer.c is the painful one because "
+            "its body is mostly external-call dispatch (to im2col_cpu + "
+            "gemm); the actual gemm work lives in <code>gemm.c</code> which "
+            "does match."
+            "<br>&nbsp;&nbsp;<b>17 cgeist-failed</b> — framework code "
+            "(parser, network, image, data, list, utils, ...) plus a few "
+            "layers with IfStmt lowering or function-pointer-dispatch "
+            "patterns cgeist can't handle. Most of these don't have "
+            "matchable compute anyway."
+            "<br><br>"
+            "darknet's actual hot path uses <code>gemm_nn</code> (TA=TB=0). "
+            "The matcher hits it as <code>@cublasDaxpy</code> (the inner "
+            "loop has a scalar-hoisted axpy shape) but doesn't compose the "
+            "outer two loops back into gemm. <code>gemm_nt</code> and "
+            "<code>gemm_tt</code> use the conventional sum-accumulator form "
+            "and match as <code>@cublasDgemm_alpha_only</code> cleanly. "
+            "Fixing the gemm_nn composition is a high-value matcher "
+            "improvement target — it would auto-cover every conv layer "
+            "darknet runs at inference time."
+        ),
+        kernel_stats=darknet_stats,
+        notes=DARKNET_NOTES,
+        blockers=DARKNET_BLOCKERS,
+    )
 
     body = (
         '<div class="header"><h1>Polygeist IR explorer</h1>'
@@ -1532,7 +1748,8 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#polybenchgpu">polybenchGpu</a> &middot; '
         '  <a href="#polybenchgpu-extracted">polybenchGpu (extracted)</a> &middot; '
         '  <a href="#llama2c">llama2.c</a> &middot; '
-        '  <a href="#llmc">llm.c</a>'
+        '  <a href="#llmc">llm.c</a> &middot; '
+        '  <a href="#darknet">darknet</a>'
         '</div></div>'
         + _build_taxonomy_panel()
         + polybench_section
@@ -1542,6 +1759,7 @@ def build_index(polybench_stats: dict[str, dict],
         + polybenchgpu_extracted_section
         + llama2c_section
         + llmc_section
+        + darknet_section
     )
     # Extra CSS for section headers.
     extra_css = (
@@ -1687,9 +1905,31 @@ def main():
             file_prefix="llmc_",
         )
 
+    # darknet (full-source bake). The kernel "name" is each .c file's
+    # basename; bake_darknet_mlir.sh emits <name>.mlir + <name>_linalg.mlir
+    # + <name>_debuf.mlir using the same naming convention the explorer
+    # expects, so build_kernel_page reads them transparently.
+    darknet_kernels_from_files = discover_kernels(DARKNET_MLIR_DIR)
+    darknet_kernels = sorted(set(darknet_kernels_from_files) | set(DARKNET_KERNELS.keys()))
+    print(f"Rendering {len(darknet_kernels)} darknet kernels...", flush=True)
+    darknet_stats = {}
+    for i, k in enumerate(darknet_kernels, 1):
+        print(f"  [DARKNET {i:2d}/{len(darknet_kernels)}] {k}", flush=True)
+        has_any = any((DARKNET_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            darknet_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                                 "ce_url": None, "page_filename": ""}
+            continue
+        darknet_stats[k] = build_kernel_page(
+            k, mlir_dir=DARKNET_MLIR_DIR, kset="darknet",
+            file_prefix="darknet_",
+        )
+
     OUTPUT_DIR.joinpath("index.html").write_text(
         build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats,
-                    pbgpu_x_stats, llama_stats, llmc_stats))
+                    pbgpu_x_stats, llama_stats, llmc_stats, darknet_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 
