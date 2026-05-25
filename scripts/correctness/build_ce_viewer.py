@@ -642,6 +642,24 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "LARGE",      "gpu_s": 0.138906, "cpu_s": 0.045992, "correct": "FP-noise"},
         {"size": "EXTRALARGE", "gpu_s": 0.326336, "cpu_s": 0.186424, "correct": "FP-noise"},
     ],
+    # atax + bicg — gemv-based polybenchGpu kernels. Lowering pass
+    # gained cublasDgemv + memset_zero_1D handlers (this commit); runs
+    # produce correct timings but DIFF correctness because both kernels
+    # do one untransposed and one TRANSPOSED gemv, and the matcher's
+    # current template emits the same @cublasDgemv symbol for both
+    # (body `Out + In(0)*In(1)` matches A·x and Aᵀ·x interchangeably).
+    # The downstream lowering picks no-transpose for every launch, so
+    # the half that should be transposed produces wrong numbers. Wall-
+    # clock numbers are still informative — they reflect the real
+    # cuBLAS cost of "two gemv H↔D round-trips" on Jetson.
+    "atax": [
+        {"size": "MINI",  "gpu_s": 0.031689, "cpu_s": 0.000002, "correct": "DIFF"},
+        {"size": "LARGE", "gpu_s": 0.373202, "cpu_s": 0.104672, "correct": "DIFF"},
+    ],
+    "bicg": [
+        {"size": "MINI",  "gpu_s": 0.031590, "cpu_s": 0.000004, "correct": "DIFF"},
+        {"size": "LARGE", "gpu_s": 0.357738, "cpu_s": 0.294078, "correct": "DIFF"},
+    ],
 }
 
 # llama2.c blockers — all three lift to linalg.generic cleanly; the only

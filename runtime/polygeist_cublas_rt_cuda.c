@@ -155,6 +155,64 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
   }
 }
 
+// Host-side 1D memset. Same justification as the 2D variant — host copy
+// to device just to zero is wasteful.
+void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
+  memset(v, 0, (size_t)N * sizeof(double));
+}
+
+// y = α·A·x + β·y, row-major.  Mirrors polygeist_cublas_dgemm structure
+// (alloc → H2D → cuBLAS → D2H → free) but for the gemv shape.
+//
+// cuBLAS is column-major; row-major y = A·x is equivalent to a column-major
+// `y = Aᵀ·x` view. Pass CUBLAS_OP_T with the row-major A's storage so cuBLAS
+// reads it as the transposed column-major matrix — algebraically the same.
+void polygeist_cublas_dgemv(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y) {
+  polygeist_cublas_init();
+
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t bytes_x = (size_t)N * sizeof(double);
+  size_t bytes_y = (size_t)M * sizeof(double);
+
+  double *dA = NULL, *dx = NULL, *dy = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_A));
+  CUDA_CHECK(cudaMalloc((void**)&dx, bytes_x));
+  CUDA_CHECK(cudaMalloc((void**)&dy, bytes_y));
+
+  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_A, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes_x, cudaMemcpyHostToDevice, g_stream));
+  if (beta != 0.0) {
+    CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes_y, cudaMemcpyHostToDevice, g_stream));
+  }
+
+  // Row-major A is M×N with leading dim lda. In column-major terms this is
+  // an lda×M matrix whose first M columns hold the row-major rows. So
+  // viewing A as column-major and applying transpose gives back row-major
+  // A·x. cuBLAS signature: cublasDgemv(handle, trans, m_cm, n_cm, α, A_cm,
+  // lda_cm, x, incx, β, y, incy) where (m_cm, n_cm) = column-major dims.
+  CUBLAS_CHECK(cublasDgemv(g_handle,
+                            CUBLAS_OP_T,
+                            /*m=*/N, /*n=*/M,
+                            &alpha,
+                            dA, lda,
+                            dx, 1,
+                            &beta,
+                            dy, 1));
+
+  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes_y, cudaMemcpyDeviceToHost, g_stream));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dA);
+  cudaFree(dx);
+  cudaFree(dy);
+}
+
 // Host-side scale. Could use cublasDscal but the H↔D copy overhead would
 // dominate this O(MN) op; do it on the CPU side. Future device-residency
 // hoisting will make this a GPU op.

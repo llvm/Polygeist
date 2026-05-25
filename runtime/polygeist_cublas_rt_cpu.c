@@ -42,6 +42,26 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
   }
 }
 
+void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
+  for (int32_t i = 0; i < N; ++i) v[i] = 0.0;
+}
+
+void polygeist_cublas_dgemv(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y) {
+  // Row-major y[i] = alpha * sum_j A[i,j] * x[j] + beta * y[i]
+  for (int32_t i = 0; i < M; ++i) {
+    double acc = 0.0;
+    for (int32_t j = 0; j < N; ++j)
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[j];
+    y[i] = alpha * acc + beta * y[i];
+  }
+}
+
 void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
                                  double *A, int32_t lda) {
   for (int32_t i = 0; i < M; ++i) {
