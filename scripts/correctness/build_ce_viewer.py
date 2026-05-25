@@ -629,6 +629,19 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "LARGE",      "gpu_s": 0.303209, "cpu_s": 8.684662, "correct": "FP-noise"},
         {"size": "EXTRALARGE", "gpu_s": 2.026066, "cpu_s": 69.050941, "correct": "FP-noise"},
     ],
+    # polybenchGpu convolution-2d (DATA_TYPE=float). Sizes per
+    # convolution-2d.h: MINI=64², LARGE=4096², EXTRALARGE=8192².
+    # Matched as cudnnConvolution2D_9tap_f32. cuDNN is slower than the
+    # CPU reference at all sizes because the 3×3 stencil has very low
+    # arithmetic intensity (9 muls + 9 loads per output) — bandwidth-
+    # bound, cuDNN setup overhead dominates. Numeric outputs match
+    # (sorted-distribution identical to %0.2lf precision; differences
+    # are rounding artifacts at the third decimal).
+    "convolution-2d": [
+        {"size": "MINI",       "gpu_s": 0.050599, "cpu_s": 0.000014, "correct": "FP-noise"},
+        {"size": "LARGE",      "gpu_s": 0.138906, "cpu_s": 0.045992, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 0.326336, "cpu_s": 0.186424, "correct": "FP-noise"},
+    ],
 }
 
 # llama2.c blockers — all three lift to linalg.generic cleanly; the only
