@@ -619,6 +619,16 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "LARGE",      "gpu_s": 0.218748, "cpu_s": 5.883726, "correct": "PASS"},
         {"size": "EXTRALARGE", "gpu_s": 0.892493, "cpu_s": 61.008747, "correct": "PASS"},
     ],
+    # polybenchGpu syrk — first kernel silicon-validated after the
+    # cgeist --no-inline fix (commit 82109b6). Sizes per syrk.h:
+    # MINI=32², LARGE=2000², EXTRALARGE=4000². Matched as cublasDgemm
+    # (A·Aᵀ is just gemm with B=A and transb=T). MINI is bit-exact GPU
+    # vs CPU; LARGE/EXTRALARGE see typical cuBLAS reduction-order drift.
+    "syrk": [
+        {"size": "MINI",       "gpu_s": 0.028651, "cpu_s": 0.000029, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.303209, "cpu_s": 8.684662, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 2.026066, "cpu_s": 69.050941, "correct": "FP-noise"},
+    ],
 }
 
 # llama2.c blockers — all three lift to linalg.generic cleanly; the only

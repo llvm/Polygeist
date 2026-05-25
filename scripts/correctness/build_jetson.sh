@@ -117,7 +117,11 @@ $CLANG --target=aarch64-linux-gnu --gcc-toolchain=/usr \
        -O3 -c $WORK/kernel.ll -o $WORK/kernel.o
 
 echo "  [5/6] cross-compile runtime shim + any harness .c files"
-$AARCH64_CC -O3 -I$CUDA/include -c \
+# The shim now includes cuDNN for conv2d; cuDNN headers live in the
+# aarch64 cross-dev location, separate from CUDA's include path.
+CUDNN_INC=${CUDNN_INC:-/usr/include/aarch64-linux-gnu}
+CUDNN_LIB=${CUDNN_LIB:-/usr/lib/aarch64-linux-gnu}
+$AARCH64_CC -O3 -I$CUDA/include -I$CUDNN_INC -c \
             $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt.o
 HARNESS_OBJS=()
 for item in "${HARNESS[@]}"; do
@@ -145,9 +149,9 @@ echo "  [6/6] link against aarch64 cuBLAS + cudart stubs"
 # JetPack's installed CUDA at runtime via RUNPATH.
 $AARCH64_CC -O2 \
     $WORK/kernel.o $WORK/rt.o "${HARNESS_OBJS[@]}" \
-    -L$CUDA/lib -L$CUDA/lib/stubs \
-    -lcublas -lcudart -lm -lpthread -ldl \
-    -Wl,-rpath,/usr/local/cuda/lib64 \
+    -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
+    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o "$OUT_EXE"
 
 echo ""
