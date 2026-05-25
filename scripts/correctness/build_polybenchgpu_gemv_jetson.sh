@@ -22,7 +22,17 @@ mkdir -p $OUT
 
 HARNESS_CFLAGS=(-O3 -I"$UTIL" -I"$KDIR"
                 -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS
-                -D${DATASET}_DATASET -Dstatic= -DPOLYBENCH_USE_C99_PROTO)
+                -D${DATASET}_DATASET -DPOLYBENCH_USE_C99_PROTO
+                # gcc's IPA modref/pure-const passes look at the local
+                # body of kernel_*() in the same TU and conclude "doesn't
+                # clobber w0 (n)", so main skips the AArch64-mandated
+                # w0 reload before print_array. But objcopy
+                # --weaken-symbol redirects the call to our wrapper at
+                # link time, and wrapper IS allowed to clobber w0 per the
+                # ABI. Mark the kernel body as `noipa` (via re-defining
+                # the `static` macro) so gcc treats the call as fully
+                # opaque and obeys the ABI.
+                "-Dstatic=__attribute__((noipa))")
 CGEIST_FLAGS=(-I"$UTIL" -I"$KDIR" -DDATA_TYPE_IS_DOUBLE
               -D${DATASET}_DATASET -Dstatic=
               --resource-dir=/usr/lib/clang/14
