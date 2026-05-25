@@ -134,14 +134,17 @@ sed -i 's|target triple = "x86_64.*"|target triple = "aarch64-linux-gnu"|;
     --target=aarch64-linux-gnu --gcc-toolchain=/usr \
     -O3 -c $WORK/kernel.ll -o $WORK/kernel.o 2>&1 | tail -1
 
-# CUDA variant
-aarch64-linux-gnu-gcc -O3 -I$CUDA/include -c $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt_cuda.o
+# CUDA variant — the runtime shim now includes cuDNN code (for conv2d
+# variants) and cudaHostRegister APIs; link against cuDNN + its rpath.
+CUDNN_INC=${CUDNN_INC:-/usr/include/aarch64-linux-gnu}
+CUDNN_LIB=${CUDNN_LIB:-/usr/lib/aarch64-linux-gnu}
+aarch64-linux-gnu-gcc -O3 -I$CUDA/include -I$CUDNN_INC -c $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt_cuda.o
 aarch64-linux-gnu-gcc -O3 -c $WRAPPER -o $WORK/wrapper.o
 aarch64-linux-gnu-gcc -O2 \
     $OUT/nokernel.o $WORK/wrapper.o $WORK/kernel.o $WORK/rt_cuda.o $OUT/polybench.o \
-    -L$CUDA/lib -L$CUDA/lib/stubs \
-    -lcublas -lcudart -lm -lpthread -ldl \
-    -Wl,-rpath,/usr/local/cuda/lib64 \
+    -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
+    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o $OUT/${KERNEL}_jetson
 
 # CPU-stub variant

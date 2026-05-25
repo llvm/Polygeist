@@ -5,13 +5,20 @@
 // or, treating the file as C with the cuda toolkit headers in scope:
 //   clang -O3 -I${CUDA}/include -c polygeist_cublas_rt_cuda.c -o ...
 //
-// MEMORY MODEL (initial, per-op copies):
-//   For each polygeist_cublas_dgemm call we cudaMalloc A_dev / B_dev / C_dev,
-//   cudaMemcpy H→D, run cublasDgemm, cudaMemcpy D→H, cudaFree. This is
-//   correct but slow: copies dominate for small matrices. The follow-up
-//   work is a "device-residency analysis" pass that hoists allocs to the
-//   enclosing function entry and elides intermediate copies between
-//   consecutive launches.
+// MEMORY MODEL (Jetson zero-copy via cudaHostRegister):
+//   The integrated GPU on Jetson shares physical DRAM with the CPU.
+//   Instead of cudaMalloc + cudaMemcpyH2D + cuBLAS + cudaMemcpyD2H + cudaFree
+//   (which moves bytes within the same DRAM, pure waste), we cudaHostRegister
+//   the polybench-allocated buffers with `cudaHostRegisterMapped`, pass the
+//   host pointers directly to cuBLAS via cudaHostGetDevicePointer, then
+//   cudaHostUnregister at the end. On a Tegra SoC with UVA, the host and
+//   device addresses are the same; the register call only sets up the GPU
+//   page-table mapping.
+//
+//   Aliased operands (e.g. syrk's A passed as both A and B) are handled by
+//   the helper register_host_safe() — it ignores
+//   cudaErrorHostMemoryAlreadyRegistered so the same pointer can be
+//   "registered" multiple times within a single call.
 //
 // ROW→COL-MAJOR:
 //   cuBLAS expects column-major; our linalg.generic is row-major. We compute
@@ -76,6 +83,36 @@ static void ensure_cudnn(void) {
   CUDNN_CHECK(cudnnSetStream(g_cudnn, g_stream));
 }
 
+// Zero-copy helper: pin a host buffer for direct GPU access on Jetson's
+// unified memory. Silently tolerates re-registration of the same pointer
+// (e.g. when A and B alias for syrk-shape calls). Returns the device-side
+// pointer obtained via cudaHostGetDevicePointer (equals the host pointer
+// under UVA on Tegra, but the explicit translation is safer).
+//
+// We tried bypassing cudaHostRegister and passing host pointers directly
+// to cuBLAS — fails with illegal-memory-access. cuBLAS requires the
+// buffer to be registered (or device-allocated) even on a Tegra SoC
+// where the iGPU can technically reach any DRAM page.
+static void *register_host_safe(void *ptr, size_t bytes) {
+  cudaError_t err = cudaHostRegister(ptr, bytes, cudaHostRegisterMapped);
+  if (err != cudaSuccess && err != cudaErrorHostMemoryAlreadyRegistered) {
+    fprintf(stderr, "%s:%d cudaHostRegister(%p, %zu) failed: %s\n",
+            __FILE__, __LINE__, ptr, bytes, cudaGetErrorString(err));
+    abort();
+  }
+  void *dev = NULL;
+  CUDA_CHECK(cudaHostGetDevicePointer(&dev, ptr, 0));
+  return dev;
+}
+
+static void unregister_host_safe(void *ptr) {
+  cudaError_t err = cudaHostUnregister(ptr);
+  if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
+    fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
+            __FILE__, __LINE__, ptr, cudaGetErrorString(err));
+  }
+}
+
 void polygeist_cublas_init(void) {
   if (g_initialized) return;
   CUDA_CHECK(cudaStreamCreate(&g_stream));
@@ -109,20 +146,12 @@ void polygeist_cublas_dgemm(
   size_t bytes_B = (size_t)K * (size_t)ldb * sizeof(double);
   size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(double);
 
-  double *dA = NULL, *dB = NULL, *dC = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_A));
-  CUDA_CHECK(cudaMalloc((void**)&dB, bytes_B));
-  CUDA_CHECK(cudaMalloc((void**)&dC, bytes_C));
+  // Pin host buffers for direct GPU access (zero-copy on Jetson).
+  double *dA = (double *)register_host_safe((void *)A, bytes_A);
+  double *dB = (double *)register_host_safe((void *)B, bytes_B);
+  double *dC = (double *)register_host_safe(C, bytes_C);
 
-  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_A, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dB, B, bytes_B, cudaMemcpyHostToDevice, g_stream));
-  if (beta != 0.0) {
-    CUDA_CHECK(cudaMemcpyAsync(dC, C, bytes_C, cudaMemcpyHostToDevice, g_stream));
-  }
-
-  // Row-major C = α A·B + β C   computed in column-major as
-  //   Cᵀ = α Bᵀ·Aᵀ + β Cᵀ
-  // i.e. cublasDgemm(handle, N_op, N_op, n=N, m=M, k=K, &α, B, ldb, A, lda, &β, C, ldc).
+  // Row-major C = α A·B + β C  →  col-major Cᵀ = α Bᵀ·Aᵀ + β Cᵀ
   CUBLAS_CHECK(cublasDgemm(g_handle,
                             CUBLAS_OP_N, CUBLAS_OP_N,
                             /*m=*/N, /*n=*/M, /*k=*/K,
@@ -131,13 +160,11 @@ void polygeist_cublas_dgemm(
                             dA, lda,
                             &beta,
                             dC, ldc));
-
-  CUDA_CHECK(cudaMemcpyAsync(C, dC, bytes_C, cudaMemcpyDeviceToHost, g_stream));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
 
-  cudaFree(dA);
-  cudaFree(dB);
-  cudaFree(dC);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
 }
 
 // Host-side memset. In the current no-hoisting model the array lives on
@@ -166,23 +193,16 @@ void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
 void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
   polygeist_cublas_init();
   size_t bytes = (size_t)N * sizeof(double);
-  double *dx = NULL, *dy = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dx, bytes));
-  CUDA_CHECK(cudaMalloc((void**)&dy, bytes));
-  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes, cudaMemcpyHostToDevice, g_stream));
+  double *dx = (double *)register_host_safe((void *)x, bytes);
+  double *dy = (double *)register_host_safe(y, bytes);
   double one = 1.0;
   CUBLAS_CHECK(cublasDaxpy(g_handle, N, &one, dx, 1, dy, 1));
-  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes, cudaMemcpyDeviceToHost, g_stream));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  cudaFree(dx); cudaFree(dy);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
 }
 
-// Rank-2 update: A += u1·v1ᵀ + u2·v2ᵀ (gemver body).
-// Two cublasDger calls. cuBLAS Dger is col-major: A = α·x·yᵀ + A with A
-// stored column-major. For row-major A: a col-major view of A is Aᵀ in
-// row-major terms. So cuBLAS computes (col-major view) → (Aᵀ_rm) += x·yᵀ.
-// That's row-major A += y·xᵀ. To get row-major A += u·vᵀ, pass (x=v, y=u).
+// Rank-2 update: A += u1·v1ᵀ + u2·v2ᵀ (gemver body). Two cublasDger calls.
 void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
                                    const double *u1, const double *v1,
                                    const double *u2, const double *v2,
@@ -192,27 +212,26 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
   size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
   size_t bytes_u = (size_t)M * sizeof(double);
   size_t bytes_v = (size_t)N * sizeof(double);
-  double *dA = NULL, *du1 = NULL, *dv1 = NULL, *du2 = NULL, *dv2 = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dA,  bytes_A));
-  CUDA_CHECK(cudaMalloc((void**)&du1, bytes_u));
-  CUDA_CHECK(cudaMalloc((void**)&dv1, bytes_v));
-  CUDA_CHECK(cudaMalloc((void**)&du2, bytes_u));
-  CUDA_CHECK(cudaMalloc((void**)&dv2, bytes_v));
-  CUDA_CHECK(cudaMemcpyAsync(dA,  A,  bytes_A, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(du1, u1, bytes_u, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dv1, v1, bytes_v, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(du2, u2, bytes_u, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dv2, v2, bytes_v, cudaMemcpyHostToDevice, g_stream));
+
+  double *dA  = (double *)register_host_safe(A,         bytes_A);
+  double *du1 = (double *)register_host_safe((void *)u1, bytes_u);
+  double *dv1 = (double *)register_host_safe((void *)v1, bytes_v);
+  double *du2 = (double *)register_host_safe((void *)u2, bytes_u);
+  double *dv2 = (double *)register_host_safe((void *)v2, bytes_v);
+
   // Row-major A[i,j] += u1[i]*v1[j] + u2[i]*v2[j].
-  // cuBLAS Dger col-major: A_cm += x · yᵀ where A_cm is N×M (col-major).
-  // Pass (m=N, n=M, x=v, y=u) to get row-major A += u·vᵀ.
+  // cuBLAS Dger col-major: pass (m=N, n=M, x=v, y=u) for row-major A += u·vᵀ.
   CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
                           &one, dv1, 1, du1, 1, dA, lda));
   CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
                           &one, dv2, 1, du2, 1, dA, lda));
-  CUDA_CHECK(cudaMemcpyAsync(A, dA, bytes_A, cudaMemcpyDeviceToHost, g_stream));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  cudaFree(dA); cudaFree(du1); cudaFree(dv1); cudaFree(du2); cudaFree(dv2);
+
+  unregister_host_safe(A);
+  unregister_host_safe((void *)u1);
+  unregister_host_safe((void *)v1);
+  unregister_host_safe((void *)u2);
+  unregister_host_safe((void *)v2);
 }
 
 // Host-side 1D memset. Same justification as the 2D variant — host copy
@@ -240,22 +259,11 @@ void polygeist_cublas_dgemv(
   size_t bytes_x = (size_t)N * sizeof(double);
   size_t bytes_y = (size_t)M * sizeof(double);
 
-  double *dA = NULL, *dx = NULL, *dy = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_A));
-  CUDA_CHECK(cudaMalloc((void**)&dx, bytes_x));
-  CUDA_CHECK(cudaMalloc((void**)&dy, bytes_y));
+  double *dA = (double *)register_host_safe((void *)A, bytes_A);
+  double *dx = (double *)register_host_safe((void *)x, bytes_x);
+  double *dy = (double *)register_host_safe(y, bytes_y);
 
-  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_A, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes_x, cudaMemcpyHostToDevice, g_stream));
-  if (beta != 0.0) {
-    CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes_y, cudaMemcpyHostToDevice, g_stream));
-  }
-
-  // Row-major A is M×N with leading dim lda. In column-major terms this is
-  // an lda×M matrix whose first M columns hold the row-major rows. So
-  // viewing A as column-major and applying transpose gives back row-major
-  // A·x. cuBLAS signature: cublasDgemv(handle, trans, m_cm, n_cm, α, A_cm,
-  // lda_cm, x, incx, β, y, incy) where (m_cm, n_cm) = column-major dims.
+  // Row-major y = A·x  →  col-major view of A is Aᵀ; OP_T undoes that.
   CUBLAS_CHECK(cublasDgemv(g_handle,
                             CUBLAS_OP_T,
                             /*m=*/N, /*n=*/M,
@@ -264,13 +272,11 @@ void polygeist_cublas_dgemv(
                             dx, 1,
                             &beta,
                             dy, 1));
-
-  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes_y, cudaMemcpyDeviceToHost, g_stream));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
 
-  cudaFree(dA);
-  cudaFree(dx);
-  cudaFree(dy);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
 }
 
 // y = α·Aᵀ·x + β·y, row-major. Shim signature is identical to the no-
@@ -292,16 +298,9 @@ void polygeist_cublas_dgemv_T(
   size_t bytes_x = (size_t)M * sizeof(double);   // x is M for Aᵀ·x
   size_t bytes_y = (size_t)N * sizeof(double);   // y is N for Aᵀ·x
 
-  double *dA = NULL, *dx = NULL, *dy = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_A));
-  CUDA_CHECK(cudaMalloc((void**)&dx, bytes_x));
-  CUDA_CHECK(cudaMalloc((void**)&dy, bytes_y));
-
-  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_A, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes_x, cudaMemcpyHostToDevice, g_stream));
-  if (beta != 0.0) {
-    CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes_y, cudaMemcpyHostToDevice, g_stream));
-  }
+  double *dA = (double *)register_host_safe((void *)A, bytes_A);
+  double *dx = (double *)register_host_safe((void *)x, bytes_x);
+  double *dy = (double *)register_host_safe(y, bytes_y);
 
   CUBLAS_CHECK(cublasDgemv(g_handle,
                             CUBLAS_OP_N,
@@ -311,13 +310,11 @@ void polygeist_cublas_dgemv_T(
                             dx, 1,
                             &beta,
                             dy, 1));
-
-  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes_y, cudaMemcpyDeviceToHost, g_stream));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
 
-  cudaFree(dA);
-  cudaFree(dx);
-  cudaFree(dy);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
 }
 
 // Host-side scale. Could use cublasDscal but the H↔D copy overhead would
