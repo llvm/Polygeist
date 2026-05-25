@@ -610,28 +610,45 @@ POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
 # dropped ~3× from the older malloc+copy runs; LARGE 25–30% for gemv-style
 # kernels (bandwidth-bound), 1.5–2× for gemm-style (compute-bound but
 # H↔D copy still meaningful).
+#
+# "notes" field (optional) is a short blurb shown in the explorer's Notes
+# column — used to explain why a specific (kernel, size) entry has
+# unexpected slowness or peculiar behaviour. Leave empty when no
+# explanation needed (clean compute-bound wins, etc.).
 JETSON_RUNTIMES: dict[str, list[dict]] = {
     "gemm": [
-        {"size": "MINI",       "gpu_s": 0.029207, "cpu_s": 0.000009, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.078334, "cpu_s": 0.631510, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 0.405161, "cpu_s": 7.138352, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.029207, "cpu_s": 0.000009, "correct": "PASS",
+         "notes": "Setup-bound: cuBLAS handle init + first cudaHostRegister dominate; 1024 flops too small to amortise"},
+        {"size": "LARGE",      "gpu_s": 0.078334, "cpu_s": 0.631510, "correct": "FP-noise",
+         "notes": ""},
+        {"size": "EXTRALARGE", "gpu_s": 0.405161, "cpu_s": 7.138352, "correct": "FP-noise",
+         "notes": ""},
     ],
     "2mm": [
-        {"size": "MINI",       "gpu_s": 0.029192, "cpu_s": 0.000013, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.095777, "cpu_s": 4.974022, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 0.466833, "cpu_s": 51.175102, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.029192, "cpu_s": 0.000013, "correct": "PASS",
+         "notes": "Setup-bound (same as gemm MINI)"},
+        {"size": "LARGE",      "gpu_s": 0.095777, "cpu_s": 4.974022, "correct": "FP-noise",
+         "notes": ""},
+        {"size": "EXTRALARGE", "gpu_s": 0.466833, "cpu_s": 51.175102, "correct": "FP-noise",
+         "notes": ""},
     ],
     "3mm": [
-        {"size": "MINI",       "gpu_s": 0.030220, "cpu_s": 0.000020, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.142634, "cpu_s": 5.883726, "correct": "PASS"},
-        {"size": "EXTRALARGE", "gpu_s": 0.779139, "cpu_s": 61.008747, "correct": "PASS"},
+        {"size": "MINI",       "gpu_s": 0.030220, "cpu_s": 0.000020, "correct": "PASS",
+         "notes": "Setup-bound (same as gemm MINI)"},
+        {"size": "LARGE",      "gpu_s": 0.142634, "cpu_s": 5.883726, "correct": "PASS",
+         "notes": ""},
+        {"size": "EXTRALARGE", "gpu_s": 0.779139, "cpu_s": 61.008747, "correct": "PASS",
+         "notes": ""},
     ],
     # polybenchGpu syrk. Sizes per syrk.h: MINI=32², LARGE=2000²,
     # EXTRALARGE=4000². Matched as cublasDgemm (A·Aᵀ via OP_T).
     "syrk": [
-        {"size": "MINI",       "gpu_s": 0.028913, "cpu_s": 0.000029, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.289359, "cpu_s": 8.684662, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 1.952076, "cpu_s": 69.050941, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.028913, "cpu_s": 0.000029, "correct": "PASS",
+         "notes": "Setup-bound; A=B alias hits register cache early"},
+        {"size": "LARGE",      "gpu_s": 0.289359, "cpu_s": 8.684662, "correct": "FP-noise",
+         "notes": "cuBLAS dgemm with B=A pointer alias; native cublasDsyrk would be ~2× faster"},
+        {"size": "EXTRALARGE", "gpu_s": 1.952076, "cpu_s": 69.050941, "correct": "FP-noise",
+         "notes": "Same as LARGE — dgemm-emulated syrk"},
     ],
     # polybenchGpu convolution-2d (DATA_TYPE=float). Sizes per
     # convolution-2d.h: MINI=64², LARGE=4096², EXTRALARGE=8192².
@@ -642,9 +659,12 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
     # (sorted-distribution identical to %0.2lf precision; differences
     # are rounding artifacts at the third decimal).
     "convolution-2d": [
-        {"size": "MINI",       "gpu_s": 0.050599, "cpu_s": 0.000014, "correct": "FP-noise"},
-        {"size": "LARGE",      "gpu_s": 0.138906, "cpu_s": 0.045992, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 0.326336, "cpu_s": 0.186424, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.027487, "cpu_s": 0.000014, "correct": "FP-noise",
+         "notes": "cuDNN descriptor + workspace setup ≫ actual 64² stencil; CPU 14 µs is just the math"},
+        {"size": "LARGE",      "gpu_s": 0.139948, "cpu_s": 0.045992, "correct": "FP-noise",
+         "notes": "3×3 stencil = 9 muls per output: arithmetic intensity ~1, bandwidth-bound; cuDNN can't reuse"},
+        {"size": "EXTRALARGE", "gpu_s": 0.305478, "cpu_s": 0.186424, "correct": "FP-noise",
+         "notes": "Same story as LARGE; CPU's wider memory subsystem competitive at this AI"},
     ],
     # atax + bicg — gemv-based polybenchGpu kernels. The matcher's
     # transpose discriminator (rewriter inspects A's first indexing-map
@@ -673,23 +693,32 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
     # (kernel does x1 = A·y_1 with β=0 instead of x1 += A·y_1), so the
     # initial-value contribution from polybench init_array is dropped.
     "atax": [
-        {"size": "MINI",  "gpu_s": 0.035718, "cpu_s": 0.000002, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.243491, "cpu_s": 0.106797, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.035718, "cpu_s": 0.000002, "correct": "PASS",
+         "notes": "Setup-bound; 32² gemv is trivial"},
+        {"size": "LARGE", "gpu_s": 0.243491, "cpu_s": 0.106797, "correct": "PASS",
+         "notes": "cuBLAS dgemv(OP_T) strided reads; ~2% of peak DRAM BW; CPU 2× faster"},
     ],
     "bicg": [
-        {"size": "MINI",  "gpu_s": 0.035921, "cpu_s": 0.000004, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.244687, "cpu_s": 0.293824, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.035921, "cpu_s": 0.000004, "correct": "PASS",
+         "notes": "Setup-bound"},
+        {"size": "LARGE", "gpu_s": 0.244687, "cpu_s": 0.293824, "correct": "PASS",
+         "notes": "Bandwidth-bound dgemv; tied with CPU"},
     ],
     "gesummv": [
-        {"size": "MINI",  "gpu_s": 0.032386, "cpu_s": 0.000004, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.242233, "cpu_s": 0.293041, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.032386, "cpu_s": 0.000004, "correct": "PASS",
+         "notes": "Setup-bound"},
+        {"size": "LARGE", "gpu_s": 0.242233, "cpu_s": 0.293041, "correct": "PASS",
+         "notes": "Two streaming dgemvs through A, B; bandwidth-bound; marginal GPU win"},
     ],
     "mvt": [
-        {"size": "MINI",  "gpu_s": 0.036262, "cpu_s": 0.000002, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.036262, "cpu_s": 0.000002, "correct": "DIFF",
+         "notes": "Matcher missed accumulating init: kernel overwrites x1/x2 with β=0 instead of += . Numerically off, timing OK"},
     ],
     "gemver": [
-        {"size": "MINI",  "gpu_s": 0.033820, "cpu_s": 0.000003, "correct": "DIFF"},
-        {"size": "LARGE", "gpu_s": 0.390434, "cpu_s": 0.575250, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.033820, "cpu_s": 0.000003, "correct": "DIFF",
+         "notes": "Same matcher-fission bug as mvt: initial value dropped"},
+        {"size": "LARGE", "gpu_s": 0.390434, "cpu_s": 0.575250, "correct": "DIFF",
+         "notes": "Same bug; also 4 separate ops on A (2 gers + 2 gemvs) all bandwidth-bound; could be 5× faster with fused kernel"},
     ],
 }
 
@@ -1117,10 +1146,12 @@ def _fmt_seconds(s: float) -> str:
 def _runtime_cells_for(kernel: str) -> list[str]:
     """One <td> block per (dataset, gpu, cpu) tuple for the JETSON_RUNTIMES
     columns. Empty list if no Jetson silicon data for this kernel — in that
-    case the caller emits empty placeholders for all four runtime cells.
-    Each returned string contains four <td>s: size / GPU time / CPU time /
-    speedup. Speedup colour is green when GPU wins, red when CPU wins,
-    yellow at parity.
+    case the caller emits empty placeholders for all five runtime cells.
+    Each returned string contains five <td>s: size / GPU time / CPU time /
+    speedup / notes. Speedup colour is green when GPU wins, red when CPU
+    wins, yellow at parity. Notes is a free-text blurb explaining why
+    a particular row is slower than expected (cf. the slack discussion
+    on bandwidth-bound gemv and cuBLAS row-major emulation).
     """
     entries = JETSON_RUNTIMES.get(kernel, [])
     cells_per_row = []
@@ -1135,12 +1166,17 @@ def _runtime_cells_for(kernel: str) -> list[str]:
         # ABORT = GPU crashed (intentional fail-fast, see cudnn-dtype-gap).
         cmark = {"PASS":"✓", "FP-noise":"≈", "DIFF":"✗", "ABORT":"⨯"}.get(
             e.get("correct", "?"), "?")
+        note = e.get("notes", "") or ""
+        note_html = (f'<td style="font-size:11px; color:#555; max-width:340px">'
+                     f'{note}</td>' if note else
+                     '<td style="font-size:11px"></td>')
         cells_per_row.append(
             f'<td style="font-size:12px"><b>{size}</b></td>'
             f'<td style="font-size:12px; text-align:right">{_fmt_seconds(gpu)}</td>'
             f'<td style="font-size:12px; text-align:right">{_fmt_seconds(cpu)}</td>'
             f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
             f'{speedup:.1f}× {cmark}</td>'
+            + note_html
         )
     return cells_per_row
 
@@ -1205,10 +1241,12 @@ def _render_section_rows(kernel_stats: dict[str, dict],
         )
 
         # Jetson-runtime cells: one <tr> per (size, gpu, cpu) when data
-        # exists; otherwise one <tr> with four empty runtime cells.
+        # exists; otherwise one <tr> with five empty runtime cells
+        # (size / GPU / CPU / speedup / notes).
         runtime_rows = _runtime_cells_for(k)
         if not runtime_rows:
             runtime_rows = ['<td style="font-size:12px; color:#bbb">—</td>'
+                            '<td style="font-size:12px; color:#bbb">—</td>'
                             '<td style="font-size:12px; color:#bbb">—</td>'
                             '<td style="font-size:12px; color:#bbb">—</td>'
                             '<td style="font-size:12px; color:#bbb">—</td>']
@@ -1268,6 +1306,7 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>GPU<br>(cuDNN/cuBLAS)</th>'
         '<th>CPU<br>(aarch64)</th>'
         '<th>speedup<br>+ ✓/≈/✗</th>'
+        '<th>notes</th>'
         '</tr></thead><tbody>'
         + rows_html +
         '</tbody></table>'
