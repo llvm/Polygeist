@@ -68,6 +68,16 @@ with open("$OUT/${DATASET}_matched.mlir") as f:
 def defn_for(name):
     if name == "cublasDgemv":
         return f"kernel.defn @{name}(%A: {ty2d}, %x: {ty1d}, %y: {ty1d}) -> {ty1d} {{ kernel.yield %y : {ty1d} }}"
+    if name == "cublasDgemv_T":
+        return f"kernel.defn @{name}(%A: {ty2d}, %x: {ty1d}, %y: {ty1d}) -> {ty1d} {{ kernel.yield %y : {ty1d} }}"
+    if name == "cublasDgemv_alpha":
+        return f"kernel.defn @{name}(%A: {ty2d}, %x: {ty1d}, %y: {ty1d}, %alpha: f64) -> {ty1d} {{ kernel.yield %y : {ty1d} }}"
+    if name == "cublasDaxpby":
+        return f"kernel.defn @{name}(%x: {ty1d}, %y: {ty1d}, %alpha: f64, %beta: f64) -> {ty1d} {{ kernel.yield %y : {ty1d} }}"
+    if name == "cublasDaxpy_unit":
+        return f"kernel.defn @{name}(%x: {ty1d}, %y: {ty1d}) -> {ty1d} {{ kernel.yield %y : {ty1d} }}"
+    if name == "cublasDger_rank2":
+        return f"kernel.defn @{name}(%u1: {ty1d}, %v1: {ty1d}, %u2: {ty1d}, %v2: {ty1d}, %A: {ty2d}) -> {ty2d} {{ kernel.yield %A : {ty2d} }}"
     if name == "memset_zero_1D":
         return f"kernel.defn @{name}(%v: {ty1d}) -> {ty1d} {{ kernel.yield %v : {ty1d} }}"
     if name == "cublasDgemm":

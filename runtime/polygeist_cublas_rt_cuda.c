@@ -155,6 +155,76 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
   }
 }
 
+// y = α*x + β*y (axpby). Two cuBLAS calls: scal then axpy.
+void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
+                              double beta, double *y) {
+  polygeist_cublas_init();
+  size_t bytes = (size_t)N * sizeof(double);
+  double *dx = NULL, *dy = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dx, bytes));
+  CUDA_CHECK(cudaMalloc((void**)&dy, bytes));
+  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes, cudaMemcpyHostToDevice, g_stream));
+  CUBLAS_CHECK(cublasDscal(g_handle, N, &beta, dy, 1));
+  CUBLAS_CHECK(cublasDaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
+  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes, cudaMemcpyDeviceToHost, g_stream));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  cudaFree(dx); cudaFree(dy);
+}
+
+// y += x (axpy with α=1).
+void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
+  polygeist_cublas_init();
+  size_t bytes = (size_t)N * sizeof(double);
+  double *dx = NULL, *dy = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dx, bytes));
+  CUDA_CHECK(cudaMalloc((void**)&dy, bytes));
+  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes, cudaMemcpyHostToDevice, g_stream));
+  double one = 1.0;
+  CUBLAS_CHECK(cublasDaxpy(g_handle, N, &one, dx, 1, dy, 1));
+  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes, cudaMemcpyDeviceToHost, g_stream));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  cudaFree(dx); cudaFree(dy);
+}
+
+// Rank-2 update: A += u1·v1ᵀ + u2·v2ᵀ (gemver body).
+// Two cublasDger calls. cuBLAS Dger is col-major: A = α·x·yᵀ + A with A
+// stored column-major. For row-major A: a col-major view of A is Aᵀ in
+// row-major terms. So cuBLAS computes (col-major view) → (Aᵀ_rm) += x·yᵀ.
+// That's row-major A += y·xᵀ. To get row-major A += u·vᵀ, pass (x=v, y=u).
+void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
+                                   const double *u1, const double *v1,
+                                   const double *u2, const double *v2,
+                                   double *A, int32_t lda) {
+  polygeist_cublas_init();
+  double one = 1.0;
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t bytes_u = (size_t)M * sizeof(double);
+  size_t bytes_v = (size_t)N * sizeof(double);
+  double *dA = NULL, *du1 = NULL, *dv1 = NULL, *du2 = NULL, *dv2 = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA,  bytes_A));
+  CUDA_CHECK(cudaMalloc((void**)&du1, bytes_u));
+  CUDA_CHECK(cudaMalloc((void**)&dv1, bytes_v));
+  CUDA_CHECK(cudaMalloc((void**)&du2, bytes_u));
+  CUDA_CHECK(cudaMalloc((void**)&dv2, bytes_v));
+  CUDA_CHECK(cudaMemcpyAsync(dA,  A,  bytes_A, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(du1, u1, bytes_u, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dv1, v1, bytes_v, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(du2, u2, bytes_u, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dv2, v2, bytes_v, cudaMemcpyHostToDevice, g_stream));
+  // Row-major A[i,j] += u1[i]*v1[j] + u2[i]*v2[j].
+  // cuBLAS Dger col-major: A_cm += x · yᵀ where A_cm is N×M (col-major).
+  // Pass (m=N, n=M, x=v, y=u) to get row-major A += u·vᵀ.
+  CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
+                          &one, dv1, 1, du1, 1, dA, lda));
+  CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
+                          &one, dv2, 1, du2, 1, dA, lda));
+  CUDA_CHECK(cudaMemcpyAsync(A, dA, bytes_A, cudaMemcpyDeviceToHost, g_stream));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  cudaFree(dA); cudaFree(du1); cudaFree(dv1); cudaFree(du2); cudaFree(dv2);
+}
+
 // Host-side 1D memset. Same justification as the 2D variant — host copy
 // to device just to zero is wasteful.
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
@@ -198,6 +268,53 @@ void polygeist_cublas_dgemv(
   // lda_cm, x, incx, β, y, incy) where (m_cm, n_cm) = column-major dims.
   CUBLAS_CHECK(cublasDgemv(g_handle,
                             CUBLAS_OP_T,
+                            /*m=*/N, /*n=*/M,
+                            &alpha,
+                            dA, lda,
+                            dx, 1,
+                            &beta,
+                            dy, 1));
+
+  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes_y, cudaMemcpyDeviceToHost, g_stream));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dA);
+  cudaFree(dx);
+  cudaFree(dy);
+}
+
+// y = α·Aᵀ·x + β·y, row-major. Shim signature is identical to the no-
+// transpose dgemv shim; the only difference is the cuBLAS op flag.
+//
+// Row-major Aᵀ (logically N×M) · x (length M) → y (length N). The col-
+// major view of row-major A IS Aᵀ, so we use CUBLAS_OP_N with the same
+// (m=N, n=M, lda=lda_rowmajor) the no-transpose shim uses.
+void polygeist_cublas_dgemv_T(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y) {
+  polygeist_cublas_init();
+
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t bytes_x = (size_t)M * sizeof(double);   // x is M for Aᵀ·x
+  size_t bytes_y = (size_t)N * sizeof(double);   // y is N for Aᵀ·x
+
+  double *dA = NULL, *dx = NULL, *dy = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_A));
+  CUDA_CHECK(cudaMalloc((void**)&dx, bytes_x));
+  CUDA_CHECK(cudaMalloc((void**)&dy, bytes_y));
+
+  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_A, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes_x, cudaMemcpyHostToDevice, g_stream));
+  if (beta != 0.0) {
+    CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes_y, cudaMemcpyHostToDevice, g_stream));
+  }
+
+  CUBLAS_CHECK(cublasDgemv(g_handle,
+                            CUBLAS_OP_N,
                             /*m=*/N, /*n=*/M,
                             &alpha,
                             dA, lda,

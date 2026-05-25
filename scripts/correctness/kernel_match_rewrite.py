@@ -523,6 +523,25 @@ def rewrite_mlir(
             if elem and elem != "f64":
                 emit_name = f"{entry.name}_{elem}"
 
+        # Transpose discriminator for gemv. The template `Out + In(0)*In(1)`
+        # with 1 parallel + 1 reduction iter matches both `y = A·x` (no
+        # transpose) and `y = Aᵀ·x` (transposed). The launch operands look
+        # identical in either case — what distinguishes them is whether A's
+        # first indexing-map dim matches the output's first dim (no-transpose)
+        # or the other input's dim (transposed). Switch the emit name to
+        # `cublasDgemv_T` for the transposed case so the downstream lowering
+        # can pick `CUBLAS_OP_N` instead of `CUBLAS_OP_T` for that call site.
+        if entry.name == "cublasDgemv" and n == 1:
+            mb = bodies[i]
+            if len(mb.indexing_maps) == 3:
+                def _map_outputs(txt: str) -> list[str]:
+                    mm = re.search(r"->\s*\(([^)]*)\)>", txt)
+                    return [s.strip() for s in mm.group(1).split(",")] if mm else []
+                A_dims = _map_outputs(mb.indexing_maps[0])
+                y_dims = _map_outputs(mb.indexing_maps[2])
+                if A_dims and y_dims and A_dims[0] != y_dims[0]:
+                    emit_name = "cublasDgemv_T"
+
         # When the matched composition opts in to weight surfacing, hand the
         # encoder's in_arg → constant_ssa map from the FIRST matched body to
         # render_launch. (Only single-step weighted-stencil templates use

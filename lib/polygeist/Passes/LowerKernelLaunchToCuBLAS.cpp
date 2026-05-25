@@ -72,6 +72,11 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "memset_zero_2D") return "polygeist_cublas_memset_zero_2d";
   if (libSym == "memset_zero_1D") return "polygeist_cublas_memset_zero_1d";
   if (libSym == "cublasDgemv") return "polygeist_cublas_dgemv";
+  if (libSym == "cublasDgemv_T") return "polygeist_cublas_dgemv_T";
+  if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
+  if (libSym == "cublasDaxpby") return "polygeist_cublas_daxpby";
+  if (libSym == "cublasDaxpy_unit") return "polygeist_cublas_daxpy_unit";
+  if (libSym == "cublasDger_rank2") return "polygeist_cublas_dger_rank2";
   if (libSym == "cudnnConvolution2D_9tap")
     return "polygeist_cudnn_conv2d_polybench9tap";
   if (libSym == "cudnnConvolution2D_9tap_f32")
@@ -491,6 +496,21 @@ static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
   return success();
 }
 
+// Shared lowering for cublasDgemv (no transpose) and cublasDgemv_T (Aᵀ·x).
+// `transpose=false` routes to polygeist_cublas_dgemv, `true` to
+// polygeist_cublas_dgemv_T. Both shims have the same signature; only the
+// internal cuBLAS op flag differs.
+static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
+                                       bool transpose);
+
+static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
+  return lowerDgemvImpl(launch, module, /*transpose=*/false);
+}
+
+static LogicalResult lowerDgemvT(LaunchOp launch, ModuleOp module) {
+  return lowerDgemvImpl(launch, module, /*transpose=*/true);
+}
+
 // @cublasDgemv(%A : tensor<MxNxf64>, %x : tensor<Nxf64>, %y : tensor<Mxf64>)
 //   -> tensor<Mxf64>
 // Computes y = A * x. Matched body has α=1, β=0 (the matcher fissions any
@@ -498,7 +518,8 @@ static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
 //
 // cuBLAS gemv signature (in our row-major convention):
 //   polygeist_cublas_dgemv(M, N, alpha, A*, lda, x*, beta, y*)
-static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
+static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
+                                       bool transpose) {
   if (launch.getNumOperands() != 3)
     return launch.emitError("cublasDgemv lowering: expected 3 operands "
                             "(A, x, y), got ")
@@ -540,19 +561,176 @@ static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
-      b.getI32Type(), b.getI32Type(),   // M, N
+      b.getI32Type(), b.getI32Type(),   // M, N (A's row-major shape)
       b.getF64Type(),                    // alpha
       ptrTy, b.getI32Type(),             // A*, lda
       ptrTy,                             // x*
       b.getF64Type(),                    // beta
       ptrTy,                             // y*
   };
-  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemv",
-                                       argTypes, b);
+  StringRef shimSym = transpose ? "polygeist_cublas_dgemv_T"
+                                 : "polygeist_cublas_dgemv";
+  func::FuncOp shim = ensureShimDecl(module, shimSym, argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{M, N, one, A_ptr, lda, x_ptr, zero, y_ptr});
 
   Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+// @cublasDaxpby(%x : tensor<Nxf64>, %y : tensor<Nxf64>, %alpha : f64, %beta : f64)
+//   -> tensor<Nxf64>
+// Computes y = α*x + β*y. Output (the second tensor) is updated in place.
+static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError("cublasDaxpby: expected 4 operands (x, y, α, β)");
+  Value x = launch.getOperand(0);
+  Value y = launch.getOperand(1);
+  Value alpha = launch.getOperand(2);
+  Value beta = launch.getOperand(3);
+  auto xt = dyn_cast<RankedTensorType>(x.getType());
+  auto yt = dyn_cast<RankedTensorType>(y.getType());
+  if (!xt || xt.getRank() != 1 || !xt.getElementType().isF64() ||
+      !yt || yt.getRank() != 1 || !yt.getElementType().isF64())
+    return launch.emitError("cublasDaxpby: x,y must be 1D f64 tensors");
+  if (!alpha.getType().isF64() || !beta.getType().isF64())
+    return launch.emitError("cublasDaxpby: α,β must be f64");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value x_mr = tensorToMemref(b, loc, x);
+  Value y_mr = tensorToMemref(b, loc, y);
+  Value N = memrefDimAsI32(b, loc, y_mr, 0);
+  Value x_ptr = memrefBasePtr(b, loc, x_mr);
+  Value y_ptr = memrefBasePtr(b, loc, y_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getF64Type(), ptrTy,
+                                 b.getF64Type(), ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_daxpby",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{N, alpha, x_ptr, beta, y_ptr});
+  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+// @cublasDaxpy_unit(%x : tensor<Nxf64>, %y : tensor<Nxf64>) -> tensor<Nxf64>
+// Computes y += x. α=1, no β scale.
+static LogicalResult lowerDaxpyUnit(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError("cublasDaxpy_unit: expected 2 operands (x, y)");
+  Value x = launch.getOperand(0);
+  Value y = launch.getOperand(1);
+  auto xt = dyn_cast<RankedTensorType>(x.getType());
+  auto yt = dyn_cast<RankedTensorType>(y.getType());
+  if (!xt || xt.getRank() != 1 || !xt.getElementType().isF64() ||
+      !yt || yt.getRank() != 1 || !yt.getElementType().isF64())
+    return launch.emitError("cublasDaxpy_unit: x,y must be 1D f64 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value x_mr = tensorToMemref(b, loc, x);
+  Value y_mr = tensorToMemref(b, loc, y);
+  Value N = memrefDimAsI32(b, loc, y_mr, 0);
+  Value x_ptr = memrefBasePtr(b, loc, x_mr);
+  Value y_ptr = memrefBasePtr(b, loc, y_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_daxpy_unit",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, x_ptr, y_ptr});
+  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+// @cublasDgemv_alpha(%A, %x, %y, %alpha) → tensor (y += α·A·x)
+static LogicalResult lowerDgemvAlpha(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError(
+        "cublasDgemv_alpha: expected 4 operands (A, x, y, α)");
+  Value A = launch.getOperand(0);
+  Value x = launch.getOperand(1);
+  Value y = launch.getOperand(2);
+  Value alpha = launch.getOperand(3);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  if (!At || At.getRank() != 2 || !At.getElementType().isF64())
+    return launch.emitError("cublasDgemv_alpha: A must be 2D f64");
+  if (!alpha.getType().isF64())
+    return launch.emitError("cublasDgemv_alpha: α must be f64");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value one = b.create<arith::ConstantOp>(loc, b.getF64Type(),
+                                          b.getF64FloatAttr(1.0));
+  Value A_mr = tensorToMemref(b, loc, A);
+  Value x_mr = tensorToMemref(b, loc, x);
+  Value y_mr = tensorToMemref(b, loc, y);
+  Value M = memrefDimAsI32(b, loc, A_mr, 0);
+  Value N = memrefDimAsI32(b, loc, A_mr, 1);
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value x_ptr = memrefBasePtr(b, loc, x_mr);
+  Value y_ptr = memrefBasePtr(b, loc, y_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  // Use the same dgemv shim but with α from launch and β=1 (accumulate).
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getF64Type(),
+      ptrTy, b.getI32Type(), ptrTy, b.getF64Type(), ptrTy,
+  };
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemv",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{M, N, alpha, A_ptr, N, x_ptr, one, y_ptr});
+  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+// @cublasDger_rank2(%u1, %v1, %u2, %v2, %A) → tensor<NxN>
+// Rank-2 update: A = A + u1·v1ᵀ + u2·v2ᵀ.
+static LogicalResult lowerDgerRank2(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 5)
+    return launch.emitError(
+        "cublasDger_rank2: expected 5 operands (u1, v1, u2, v2, A)");
+  Value A = launch.getOperand(4);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  if (!At || At.getRank() != 2 || !At.getElementType().isF64())
+    return launch.emitError("cublasDger_rank2: A must be 2D f64");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value A_mr = tensorToMemref(b, loc, A);
+  SmallVector<Value> vec_mrs;
+  for (unsigned i = 0; i < 4; ++i)
+    vec_mrs.push_back(tensorToMemref(b, loc, launch.getOperand(i)));
+  Value M = memrefDimAsI32(b, loc, A_mr, 0);
+  Value N = memrefDimAsI32(b, loc, A_mr, 1);
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  SmallVector<Value> vec_ptrs;
+  for (Value v : vec_mrs) vec_ptrs.push_back(memrefBasePtr(b, loc, v));
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  // (M, N, u1, v1, u2, v2, A, lda)
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(),
+      ptrTy, ptrTy, ptrTy, ptrTy, ptrTy, b.getI32Type(),
+  };
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dger_rank2",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{M, N,
+                 vec_ptrs[0], vec_ptrs[1], vec_ptrs[2], vec_ptrs[3],
+                 A_ptr, N});
+  Value out = memrefToTensor(b, loc, A_mr, launch.getResult(0).getType());
   launch.getResult(0).replaceAllUsesWith(out);
   launch.erase();
   return success();
@@ -661,6 +839,16 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgeamScale2D(launch, module);
       } else if (libSym == "cublasDgemv") {
         r = lowerDgemv(launch, module);
+      } else if (libSym == "cublasDgemv_T") {
+        r = lowerDgemvT(launch, module);
+      } else if (libSym == "cublasDgemv_alpha") {
+        r = lowerDgemvAlpha(launch, module);
+      } else if (libSym == "cublasDaxpby") {
+        r = lowerDaxpby(launch, module);
+      } else if (libSym == "cublasDaxpy_unit") {
+        r = lowerDaxpyUnit(launch, module);
+      } else if (libSym == "cublasDger_rank2") {
+        r = lowerDgerRank2(launch, module);
       } else if (libSym == "memset_zero_2D") {
         r = lowerMemsetZero2D(launch, module);
       } else if (libSym == "memset_zero_1D") {

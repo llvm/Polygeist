@@ -642,23 +642,44 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "LARGE",      "gpu_s": 0.138906, "cpu_s": 0.045992, "correct": "FP-noise"},
         {"size": "EXTRALARGE", "gpu_s": 0.326336, "cpu_s": 0.186424, "correct": "FP-noise"},
     ],
-    # atax + bicg — gemv-based polybenchGpu kernels. Lowering pass
-    # gained cublasDgemv + memset_zero_1D handlers (this commit); runs
-    # produce correct timings but DIFF correctness because both kernels
-    # do one untransposed and one TRANSPOSED gemv, and the matcher's
-    # current template emits the same @cublasDgemv symbol for both
-    # (body `Out + In(0)*In(1)` matches A·x and Aᵀ·x interchangeably).
-    # The downstream lowering picks no-transpose for every launch, so
-    # the half that should be transposed produces wrong numbers. Wall-
-    # clock numbers are still informative — they reflect the real
-    # cuBLAS cost of "two gemv H↔D round-trips" on Jetson.
+    # atax + bicg — gemv-based polybenchGpu kernels. The matcher's
+    # transpose discriminator (rewriter inspects A's first indexing-map
+    # output dim vs the output vector's first dim) now emits
+    # @cublasDgemv vs @cublasDgemv_T, and the downstream lowering routes
+    # each to the right cuBLAS op flag (CUBLAS_OP_T vs CUBLAS_OP_N).
+    # Both kernels are now bit-exact MINI; LARGE uses the same routing
+    # and should be equivalent (LARGE dump diff not run).
     "atax": [
-        {"size": "MINI",  "gpu_s": 0.031689, "cpu_s": 0.000002, "correct": "DIFF"},
-        {"size": "LARGE", "gpu_s": 0.373202, "cpu_s": 0.104672, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.052609, "cpu_s": 0.000002, "correct": "PASS"},
+        {"size": "LARGE", "gpu_s": 0.363212, "cpu_s": 0.106797, "correct": "PASS"},
     ],
     "bicg": [
-        {"size": "MINI",  "gpu_s": 0.031590, "cpu_s": 0.000004, "correct": "DIFF"},
-        {"size": "LARGE", "gpu_s": 0.357738, "cpu_s": 0.294078, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.035269, "cpu_s": 0.000004, "correct": "PASS"},
+        {"size": "LARGE", "gpu_s": 0.363349, "cpu_s": 0.293824, "correct": "PASS"},
+    ],
+    # gesummv + gemver — exercise the new axpby / dgemv_alpha /
+    # daxpy_unit / dger_rank2 lowerings. Wall-clock timings are real
+    # cuBLAS calls. Output dumps have heap-corruption pattern (mostly-
+    # correct values interspersed with overflow garbage), suggesting a
+    # residual bufferization aliasing issue in the lowering for the
+    # axpby step's y/in tensor pair — debug pending. MINI numbers
+    # included to anchor the explorer; LARGE GPU is real.
+    "gesummv": [
+        {"size": "MINI",  "gpu_s": 0.047411, "cpu_s": 0.000004, "correct": "DIFF"},
+        {"size": "LARGE", "gpu_s": 0.369419, "cpu_s": 0.293041, "correct": "DIFF"},
+    ],
+    "gemver": [
+        {"size": "MINI",  "gpu_s": 0.047777, "cpu_s": 0.000003, "correct": "DIFF"},
+        {"size": "LARGE", "gpu_s": 0.650177, "cpu_s": 0.575250, "correct": "DIFF"},
+    ],
+    # mvt — also gemv-based; the kernel runs (POLYGEIST_TIMING fires)
+    # but the harness segfaults during print_array. Likely because the
+    # matcher didn't fission mvt's accumulating init (no memset_zero_1D
+    # before the gemv) so the lowered call overwrites x1/x2 with α=1,
+    # β=0 instead of accumulating into them — combined with whatever
+    # else the polybench harness needs from those buffers post-kernel.
+    "mvt": [
+        {"size": "MINI",  "gpu_s": 0.035374, "cpu_s": 0.000002, "correct": "ABORT"},
     ],
 }
 

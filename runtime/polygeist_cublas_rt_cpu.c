@@ -62,6 +62,43 @@ void polygeist_cublas_dgemv(
   }
 }
 
+void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
+                              double beta, double *y) {
+  for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
+}
+
+void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
+  for (int32_t i = 0; i < N; ++i) y[i] += x[i];
+}
+
+void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
+                                   const double *u1, const double *v1,
+                                   const double *u2, const double *v2,
+                                   double *A, int32_t lda) {
+  for (int32_t i = 0; i < M; ++i) {
+    double *row = &A[(size_t)i * (size_t)lda];
+    for (int32_t j = 0; j < N; ++j)
+      row[j] += u1[i] * v1[j] + u2[i] * v2[j];
+  }
+}
+
+void polygeist_cublas_dgemv_T(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y) {
+  // Row-major y[j] = alpha * sum_i A[i,j] * x[i] + beta * y[j]
+  // (M is A's first dim = x's length; N is A's second dim = y's length)
+  for (int32_t j = 0; j < N; ++j) {
+    double acc = 0.0;
+    for (int32_t i = 0; i < M; ++i)
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[i];
+    y[j] = alpha * acc + beta * y[j];
+  }
+}
+
 void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
                                  double *A, int32_t lda) {
   for (int32_t i = 0; i < M; ++i) {

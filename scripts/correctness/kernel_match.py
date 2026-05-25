@@ -299,11 +299,41 @@ def parse_constants(mlir_text: str) -> dict[str, float]:
     return out
 
 
+_MAP_ALIAS_RE = re.compile(
+    # affine_map text contains `->` which has a `>`, so [^>] is wrong here.
+    # Match the literal form `affine_map<(...) -> (...)>`.
+    r"^\s*(#map\w*)\s*=\s*"
+    r"(affine_map<\([^)]*\)\s*->\s*\([^)]*\)>)",
+    re.MULTILINE
+)
+
+
+def _resolve_map_aliases(mlir_text: str) -> str:
+    """Inline any `#mapN = affine_map<...>` top-level aliases by substituting
+    each `#mapN` reference with the corresponding `affine_map<...>` literal.
+    Required because parse_generics' regex only sees inline `affine_map<...>`
+    text — kernels lifted via the standard pipeline carry aliased map refs,
+    so without this the indexing_maps field comes back empty."""
+    aliases = {name: literal for name, literal
+               in _MAP_ALIAS_RE.findall(mlir_text)}
+    if not aliases:
+        return mlir_text
+    # Sort by descending name length so #map10 substitutes before #map1.
+    # No `\b` left boundary because `#` is not a word char — Python's `\b`
+    # would refuse to match before it; rely on length-descending order +
+    # negative lookahead on the right to disambiguate #map1 from #map10.
+    for name in sorted(aliases, key=len, reverse=True):
+        mlir_text = re.sub(re.escape(name) + r"(?!\w)",
+                            aliases[name], mlir_text)
+    return mlir_text
+
+
 def parse_generics(mlir_text: str,
                    constants: dict[str, float] | None = None) -> list[GenericBody]:
     """Extract every linalg.generic with its body."""
     if constants is None:
         constants = parse_constants(mlir_text)
+    mlir_text = _resolve_map_aliases(mlir_text)
     results = []
     for m in _GEN_RE.finditer(mlir_text):
         maps_str, iters_str, args_str, body_str, yield_operands_str = m.groups()
@@ -327,7 +357,9 @@ def parse_generics(mlir_text: str,
             (outs if name.startswith("%out") else ins).append(name)
 
         # Tokenize indexing maps and iterator types as raw substrings.
-        maps = [s.strip() for s in re.findall(r"affine_map<[^>]*>", maps_str)]
+        # Don't use `affine_map<[^>]*>` — the `->` inside contains a `>`.
+        maps = [s.strip() for s in
+                re.findall(r"affine_map<\([^)]*\)\s*->\s*\([^)]*\)>", maps_str)]
         iters = [s.strip().strip('"') for s in iters_str.split(",")]
         # Canonicalize: rename iter dims by their first-appearance order
         # across all maps, and permute iter_types to match.
