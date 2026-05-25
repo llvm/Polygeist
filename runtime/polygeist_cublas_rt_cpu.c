@@ -278,6 +278,203 @@ void polygeist_cudnn_conv2d_3x3_i16(
   }
 }
 
+// ----------------------------------------------------------------------------
+// Extracted-darknet batched CNN primitives (CPU reference impls). NCHW
+// FP32 layout. Each is a straight-forward nested loop — slow, but useful
+// for end-to-end correctness validation against the CUDA / cuDNN path.
+// ----------------------------------------------------------------------------
+
+void polygeist_cudnn_conv2d_batched(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F, float *Out) {
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t oc = 0; oc < OC; ++oc)
+      for (int32_t oh = 0; oh < OH; ++oh)
+        for (int32_t ow = 0; ow < OW; ++ow) {
+          float acc = 0.0f;
+          for (int32_t ic = 0; ic < IC; ++ic)
+            for (int32_t kh = 0; kh < K; ++kh)
+              for (int32_t kw = 0; kw < K; ++kw) {
+                size_t a_idx = ((size_t)b * IC + ic) * H * W +
+                               (size_t)(oh + kh) * W + (ow + kw);
+                size_t f_idx = ((size_t)oc * IC + ic) * K * K +
+                               (size_t)kh * K + kw;
+                acc += A[a_idx] * F[f_idx];
+              }
+          Out[((size_t)b * OC + oc) * OH * OW +
+              (size_t)oh * OW + ow] = acc;
+        }
+}
+
+void polygeist_cudnn_maxpool_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t OH, int32_t OW,
+    const float *A, float *Out) {
+  // Derive K, S from H/OH for the typical pool=K=stride case.
+  // OH = (H - K) / S + 1. For K == S: OH = H / S → S = H / OH, K = S.
+  // For K != S (e.g. ResNet stem: K=3, S=2): can't recover both from
+  // shape alone. We rely on the harness to pass shape consistent with
+  // K = H - (OH - 1) * S = H - (OH - 1) * (H / OH) for the K==S case.
+  // For K!=S, the harness should set S=H/OH and emit K via a side channel
+  // — but for the extracted kernels in this PR both shapes use K==S
+  // (MINI: K=S=2; LARGE: harness uses K=2, S=2 to match the simpler form).
+  int32_t S = H / OH;
+  int32_t K = (S > 0) ? S : 2;
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t c = 0; c < C; ++c)
+      for (int32_t oh = 0; oh < OH; ++oh)
+        for (int32_t ow = 0; ow < OW; ++ow) {
+          float m = -3.40282347e38f;
+          for (int32_t kh = 0; kh < K; ++kh)
+            for (int32_t kw = 0; kw < K; ++kw) {
+              size_t a_idx = ((size_t)b * C + c) * H * W +
+                             (size_t)(oh * S + kh) * W + (ow * S + kw);
+              float v = A[a_idx];
+              if (v > m) m = v;
+            }
+          Out[((size_t)b * C + c) * OH * OW +
+              (size_t)oh * OW + ow] = m;
+        }
+}
+
+void polygeist_cudnn_batchnorm_inference(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out) {
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t c = 0; c < C; ++c)
+      for (int32_t h = 0; h < H; ++h)
+        for (int32_t w = 0; w < W; ++w) {
+          size_t idx = ((size_t)b * C + c) * H * W +
+                       (size_t)h * W + w;
+          Out[idx] = scale[c] * (A[idx] - mean[c]) * inv_std[c] + bias[c];
+        }
+}
+
+void polygeist_cudnn_add_tensor_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A, float *Out) {
+  size_t n = (size_t)B * C * H * W;
+  for (size_t i = 0; i < n; ++i) Out[i] += A[i];
+}
+
+void polygeist_cublas_memset_zero_2d_f32(int32_t M, int32_t N, float *A, int32_t lda) {
+  if (lda == N) {
+    memset(A, 0, (size_t)M * (size_t)N * sizeof(float));
+  } else {
+    for (int32_t i = 0; i < M; ++i)
+      memset(&A[(size_t)i * (size_t)lda], 0, (size_t)N * sizeof(float));
+  }
+}
+
+void polygeist_cublas_sgemm_1x1conv(
+    int32_t B, int32_t IC, int32_t OC, int32_t HW,
+    const float *A, const float *F, float *C) {
+  /* C[b][oc][p] = sum_ic A[b][ic][p] * F[oc][ic] for p in 0..HW-1. */
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t oc = 0; oc < OC; ++oc)
+      for (int32_t p = 0; p < HW; ++p) {
+        float acc = 0.0f;
+        for (int32_t ic = 0; ic < IC; ++ic) {
+          size_t a_idx = ((size_t)b * IC + ic) * HW + p;
+          size_t f_idx = (size_t)oc * IC + ic;
+          acc += A[a_idx] * F[f_idx];
+        }
+        C[((size_t)b * OC + oc) * HW + p] = acc;
+      }
+}
+
+void polygeist_cublas_dsyrk(int32_t N, int32_t K, const float *A, float *C) {
+  /* C = AᵀA where A is K×N (row-major); C is N×N (row-major). */
+  for (int32_t m = 0; m < N; ++m)
+    for (int32_t n = 0; n < N; ++n) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k)
+        acc += A[(size_t)k * N + m] * A[(size_t)k * N + n];
+      C[(size_t)m * N + n] = acc;
+    }
+}
+
+void polygeist_cublaslt_matmul_bias_relu(
+    int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, const float *bias,
+    float *C) {
+  for (int32_t m = 0; m < M; ++m)
+    for (int32_t n = 0; n < N; ++n) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k)
+        acc += A[(size_t)m * K + k] * B[(size_t)k * N + n];
+      float v = acc + bias[n];
+      C[(size_t)m * N + n] = v > 0.0f ? v : 0.0f;
+    }
+}
+
+void polygeist_cudnn_conv_bias_relu_add_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *bias, const float *Z,
+    float *Out) {
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t oc = 0; oc < OC; ++oc)
+      for (int32_t oh = 0; oh < OH; ++oh)
+        for (int32_t ow = 0; ow < OW; ++ow) {
+          float acc = 0.0f;
+          for (int32_t ic = 0; ic < IC; ++ic)
+            for (int32_t kh = 0; kh < K; ++kh)
+              for (int32_t kw = 0; kw < K; ++kw) {
+                size_t a_idx = ((size_t)b * IC + ic) * H * W +
+                               (size_t)(oh + kh) * W + (ow + kw);
+                size_t f_idx = ((size_t)oc * IC + ic) * K * K +
+                               (size_t)kh * K + kw;
+                acc += A[a_idx] * F[f_idx];
+              }
+          size_t z_idx = ((size_t)b * OC + oc) * OH * OW +
+                         (size_t)oh * OW + ow;
+          float val = acc + bias[oc] + Z[z_idx];
+          Out[z_idx] = val > 0.0f ? val : 0.0f;
+        }
+}
+
+void polygeist_cudnn_conv_bn_relu_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out) {
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+  for (int32_t b = 0; b < B; ++b)
+    for (int32_t oc = 0; oc < OC; ++oc)
+      for (int32_t oh = 0; oh < OH; ++oh)
+        for (int32_t ow = 0; ow < OW; ++ow) {
+          /* Conv accumulate. */
+          float acc = 0.0f;
+          for (int32_t ic = 0; ic < IC; ++ic)
+            for (int32_t kh = 0; kh < K; ++kh)
+              for (int32_t kw = 0; kw < K; ++kw) {
+                size_t a_idx = ((size_t)b * IC + ic) * H * W +
+                               (size_t)(oh + kh) * W + (ow + kw);
+                size_t f_idx = ((size_t)oc * IC + ic) * K * K +
+                               (size_t)kh * K + kw;
+                acc += A[a_idx] * F[f_idx];
+              }
+          /* BN inference. */
+          float bn = scale[oc] * (acc - mean[oc]) * inv_std[oc] + bias[oc];
+          /* ReLU. */
+          float relu = bn > 0.0f ? bn : 0.0f;
+          Out[((size_t)b * OC + oc) * OH * OW +
+              (size_t)oh * OW + ow] = relu;
+        }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

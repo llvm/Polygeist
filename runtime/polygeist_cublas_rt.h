@@ -48,6 +48,10 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc);
 
+// FP32 variant of memset_zero_2d.
+void polygeist_cublas_memset_zero_2d_f32(
+    int32_t M, int32_t N, float *A, int32_t lda);
+
 // memset a 2D row-major MxN block to zero. Used by matcher's
 // @memset_zero_2D op. Trivial host-side memset; data is host-resident
 // between launches in the current no-hoisting model.
@@ -170,6 +174,128 @@ void polygeist_cudnn_conv2d_3x3_i16(
     int16_t w3, int16_t w4, int16_t w5,
     int16_t w6, int16_t w7, int16_t w8,
     const int16_t *A, int16_t *B);
+
+// ============================================================================
+// Extracted-darknet batched CNN-block primitives. All four take 4D NCHW
+// tensors (and 1D per-channel vectors for batchnorm) as raw FP32 pointers
+// plus the shape parameters. The CUDA backend wires each to its
+// corresponding cuDNN forward call; the CPU stub runs a reference loop
+// for correctness validation.
+//
+// These cover every primitive in a ResNet residual block except ReLU:
+//   conv + bn + (relu) + conv + bn + add.
+// ============================================================================
+
+// Batched multi-channel 2D convolution (forward, NCHW, FP32):
+//   Out[b,oc,oh,ow] = sum_{ic,kh,kw} A[b,ic,oh+kh,ow+kw] * F[oc,ic,kh,kw]
+// No padding, stride 1, no dilation, no activation. K is the (square)
+// filter size, OH = H - K + 1, OW = W - K + 1.
+void polygeist_cudnn_conv2d_batched(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F, float *Out);
+
+// Batched multi-channel 2D max pooling (forward, NCHW, FP32).
+// Window size K and stride S are derived from H/OH (assumed K == stride
+// for the common ResNet shapes; tweak the shim if needed). OH and OW are
+// the output spatial dims after pooling.
+void polygeist_cudnn_maxpool_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t OH, int32_t OW,
+    const float *A, float *Out);
+
+// Batched per-channel batch normalization (INFERENCE mode, NCHW, FP32):
+//   Out[b,c,h,w] = scale[c] * (A[b,c,h,w] - mean[c]) * inv_std[c] + bias[c]
+// where inv_std[c] = 1/sqrt(var[c] + eps) is pre-computed by the caller.
+// The CUDA backend uses cudnnBatchNormalizationForwardInference (which
+// expects mean + variance, not inv_std). The shim recovers variance via
+//   var = 1/inv_std² - eps_assumed (eps_assumed = 1e-5).
+// This is an inversion of the kernel's pre-baked inv_std; the caller
+// must use the same eps when building inv_std for bit-exact output.
+void polygeist_cudnn_batchnorm_inference(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out);
+
+// Batched 4D elementwise tensor add (ResNet residual shortcut, FP32):
+//   Out[b,c,h,w] += A[b,c,h,w]
+// The CUDA backend uses cudnnAddTensor with α=β=1.
+void polygeist_cudnn_add_tensor_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A, float *Out);
+
+// 1×1 conv via batched gemm. Mathematically:
+//   C[b, oc, h, w] = sum_ic A[b, ic, h, w] * F[oc, ic, 0, 0]
+//
+// Since NCHW packs IC-contiguous H*W planes, A[b] is naturally a 2D
+// matrix of shape (IC, H*W) (row-major). Per batch:
+//   C[b] (OC, H*W) = F (OC, IC) × A[b] (IC, H*W)
+// → cublasSgemmStridedBatched with batchCount=B, F shared (stride 0),
+// A and C strided by IC*H*W and OC*H*W respectively. Hits tensor cores
+// on Orin for IC, OC, H*W aligned to 8.
+//
+// The signature takes M = B*H*W (flattened parallel dims), N = OC,
+// K = IC. The harness/lowering passes B*H*W as M; the shim recovers
+// B and H*W via the assumption that A is contiguous NCHW (which the
+// row-major layout guarantees for a single 1×1 conv).
+void polygeist_cublas_sgemm_1x1conv(
+    int32_t B, int32_t IC, int32_t OC, int32_t HW,
+    const float *A, const float *F, float *C);
+
+// Symmetric rank-K update — AᵀA or A·Aᵀ. FP32, row-major.
+//   C[N,N] = Aᵀ·A   where A is K×N (so AᵀA is N×N, symmetric)
+// Only the upper triangle of C is computed; the lower is mirrored on
+// host before returning so the caller can treat C as fully populated.
+// Routes to cublasSsyrk_v2 — half the flops of the equivalent gemm.
+void polygeist_cublas_dsyrk(
+    int32_t N, int32_t K, const float *A, float *C);
+
+// Fused matmul + bias + relu, FP32. Computes:
+//   C[m,n] = relu(sum_k A[m,k] * B[k,n] + bias[n])
+// A is MxK, B is KxN, C is MxN, bias is length N (broadcast over rows).
+// Routes to cublasLt's CUBLASLT_EPILOGUE_RELU_BIAS — needs -lcublasLt at link.
+void polygeist_cublaslt_matmul_bias_relu(
+    int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, const float *bias,
+    float *C);
+
+// Fused conv + bias + residual-add + relu, FP32 NCHW. Computes:
+//   Out[b,oc,oh,ow] = relu(conv(A,F)[b,oc,oh,ow] + bias[oc] + Z[b,oc,oh,ow])
+//
+// Bias is per-output-channel (length OC); Z has the same shape as Out
+// and is the ResNet skip-connection input. The CUDA backend issues one
+// cudnnConvolutionBiasActivationForward with α₁=1, α₂=1, activation=RELU.
+void polygeist_cudnn_conv_bias_relu_add_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *bias, const float *Z,
+    float *Out);
+
+// Fused conv + bn (inference) + relu, FP32 NCHW. Computes:
+//   Out[b,oc,oh,ow] = relu(
+//       scale[oc] * (conv(A, F)[b,oc,oh,ow] - mean[oc]) * inv_std[oc]
+//       + bias[oc])
+//
+// This is the canonical ResNet inner pattern. The CUDA backend uses the
+// standard BN-folding trick — pre-compute a scaled filter and an
+// effective bias on the host, then issue a single
+// cudnnConvolutionBiasActivationForward call with CUDNN_ACTIVATION_RELU.
+// Folded filter / bias are:
+//   F'[oc,ic,kh,kw] = F[oc,ic,kh,kw] * scale[oc] * inv_std[oc]
+//   b'[oc]         = bias[oc] - scale[oc] * mean[oc] * inv_std[oc]
+// With those substitutions, conv + bn-inference + relu = act(conv(F') + b'),
+// which cudnnConvolutionBiasActivationForward computes natively in one
+// kernel — the bandwidth-bound bn and relu ride the compute-bound conv
+// instead of paying their own per-call setup.
+void polygeist_cudnn_conv_bn_relu_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out);
 
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around

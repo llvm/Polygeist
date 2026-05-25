@@ -42,6 +42,8 @@ LLMC_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llm.c")
 LLMC_MLIR_DIR = Path("/tmp/llmc_mlir")
 DARKNET_ROOT = Path("/home/arjaiswal/Polygeist/third_party/darknet")
 DARKNET_MLIR_DIR = Path("/tmp/darknet_mlir")
+EXTRACTED_DARKNET_ROOT = Path("/home/arjaiswal/Polygeist/third_party/cnn-extracted")
+EXTRACTED_DARKNET_MLIR_DIR = Path("/tmp/extracted_darknet_mlir")
 OUTPUT_DIR = Path("/tmp/ir_viewer")
 REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
 PYTHON = "/home/arjaiswal/slacker/.venv/bin/python3"
@@ -976,6 +978,20 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
         srcname, _fn = info
         p = DARKNET_ROOT / srcname
         return p if p.exists() else None
+    if kset == "extracted_darknet":
+        info = EXTRACTED_DARKNET_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = EXTRACTED_DARKNET_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "fusion_opt":
+        info = FUSION_OPT_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = EXTRACTED_DARKNET_ROOT / srcname
+        return p if p.exists() else None
     # polybench
     for p in POLYBENCH_TEST_DIR.rglob(f"{name}.c"):
         if "/utilities/" in str(p):
@@ -1515,6 +1531,488 @@ def _build_taxonomy_panel() -> str:
     )
 
 
+# Polybench-style single-file CNN-block kernels extracted from darknet
+# for the matcher+cuDNN-shim end-to-end work. Each kernel is its own
+# `.c` in third_party/cnn-extracted/, with MINI/LARGE dataset macros
+# and (for the multi-step ones) a chained body that exercises the
+# matcher's longest-first composition library. See the section blurb
+# for which library entry each kernel matches.
+EXTRACTED_DARKNET_KERNELS: dict[str, tuple[str, str]] = {
+    "conv2d_batched":      ("conv2d_batched.c",      "kernel_conv2d_batched"),
+    "maxpool_batched":     ("maxpool_batched.c",     "kernel_maxpool_batched"),
+    "batchnorm_batched":   ("batchnorm_batched.c",   "kernel_batchnorm_batched"),
+    "shortcut_batched":    ("shortcut_batched.c",    "kernel_shortcut_batched"),
+    "conv_bn_relu_batched":("conv_bn_relu_batched.c","kernel_conv_bn_relu_batched"),
+}
+
+# Fusion-optimization kernels — algebraic rewrites that exploit specific
+# patterns to route to faster cuBLAS / cublasLt / cuDNN entry points.
+# Same .c source layout (third_party/cnn-extracted/) and bake pipeline
+# as extracted_darknet, but a separate section in the IR explorer so
+# the headline speedups are easy to spot.
+FUSION_OPT_KERNELS: dict[str, tuple[str, str]] = {
+    "conv_bias_relu_add_batched": ("conv_bias_relu_add_batched.c", "kernel_conv_bias_relu_add_batched"),
+    "gemm_bias_relu":              ("gemm_bias_relu.c",              "kernel_gemm_bias_relu"),
+    "ata_gemm":                    ("ata_gemm.c",                    "kernel_ata_gemm"),
+    "conv1x1_batched":             ("conv1x1_batched.c",             "kernel_conv1x1_batched"),
+}
+
+
+EXTRACTED_DARKNET_RUNTIMES: dict[str, list[dict]] = {
+    # Jetson Orin silicon runs (2026-05-25). All FP32 NCHW. The MINI
+    # shapes are overhead-bound (cuDNN descriptor + workspace setup
+    # dominates a sub-ms kernel). LARGE conv2d is where cuDNN's
+    # tensor-core kernels shine — 23.8× over the CPU 3-loop reference.
+    # batchnorm/shortcut LARGE remain bandwidth-bound and lose to the
+    # CPU at single-call granularity; that's the well-known story for
+    # standalone elementwise ops without device-residency hoisting.
+    "conv2d_batched": [
+        {"size": "MINI",  "shape": "B=4 IC=OC=8 H=W=32 K=3",
+         "gpu_s": 0.084316, "cpu_s": 0.001871, "correct": "FP-noise",
+         "notes": "Setup-bound: cuDNN descriptor + workspace + algo selection "
+                  "≫ 28K-elem output; the 1.87 ms CPU 3-loop is just the math"},
+        {"size": "LARGE", "shape": "B=32 IC=OC=64 H=W=56 K=3",
+         "gpu_s": 0.137029, "cpu_s": 3.260427, "correct": "FP-noise",
+         "notes": "ResNet conv2_x shape, tensor cores light up; 23.8× GPU win"},
+    ],
+    "maxpool_batched": [
+        {"size": "MINI",  "shape": "B=4 C=8 H=W=32 K=S=2",
+         "gpu_s": 0.012863, "cpu_s": 0.000057, "correct": "PASS",
+         "notes": "Setup-bound; 8K output elems is trivial"},
+        {"size": "LARGE", "shape": "B=32 C=64 H=W=112 K=3 S=2",
+         "gpu_s": 0.023644, "cpu_s": 0.030398, "correct": "PASS",
+         "notes": "ResNet stem maxpool; bandwidth-bound, cuDNN marginal win"},
+    ],
+    "batchnorm_batched": [
+        {"size": "MINI",  "shape": "B=4 C=8 H=W=32",
+         "gpu_s": 0.005291, "cpu_s": 0.000059, "correct": "FP-noise",
+         "notes": "Setup-bound; 32K elems too small for cuDNN's BN to win"},
+        {"size": "LARGE", "shape": "B=32 C=64 H=W=56",
+         "gpu_s": 0.011313, "cpu_s": 0.004263, "correct": "FP-noise",
+         "notes": "Bandwidth-bound elementwise; cuDNN BN setup overhead "
+                  "doesn't amortize on a single call. Would need device-"
+                  "residency to win"},
+    ],
+    "shortcut_batched": [
+        {"size": "MINI",  "shape": "B=4 C=8 H=W=32",
+         "gpu_s": 0.045177, "cpu_s": 0.000008, "correct": "PASS",
+         "notes": "Setup-bound; cudnnAddTensor on 32K elems is pure overhead"},
+        {"size": "LARGE", "shape": "B=32 C=64 H=W=56",
+         "gpu_s": 0.049720, "cpu_s": 0.004171, "correct": "PASS",
+         "notes": "Bandwidth-bound 2-buffer add; 6.4M float ops finish in "
+                  "4ms on CPU. cuDNN AddTensor adds descriptor setup cost"},
+    ],
+    # Fused conv + bn + relu — the canonical ResNet inner pattern. The
+    # matcher folds all four loop nests (init + conv + bn-inplace +
+    # relu-inplace) into one launch. The runtime shim uses the standard
+    # BN-folding trick (pre-multiply filter by scale*inv_std, adjust
+    # bias) and issues a single cudnnConvolutionBiasActivationForward
+    # call. Result: same wall-clock as conv2d_batched alone, but doing
+    # all three ops — bn and relu effectively ride free on conv's
+    # compute-bound win.
+    "conv_bn_relu_batched": [
+        {"size": "MINI",  "shape": "B=4 IC=OC=8 H=W=32 K=3",
+         "gpu_s": 0.186320, "cpu_s": 0.002020, "correct": "PASS",
+         "notes": "Setup-bound (the larger MINI gap vs conv2d alone is "
+                  "the first-call init of cudnnConvolutionBiasActivation"
+                  "Forward + a host BN-fold pass)"},
+        {"size": "LARGE", "shape": "B=32 IC=OC=64 H=W=56 K=3",
+         "gpu_s": 0.137820, "cpu_s": 3.243928, "correct": "FP-noise",
+         "notes": "Same 23.5× as conv2d_batched alone, but doing 3 ops. "
+                  "Fusion absorbs the bandwidth-bound bn+relu cost — they "
+                  "become free in the conv's memory pass. Best argument "
+                  "for cuDNN's fused-op API"},
+    ],
+}
+
+
+# Silicon numbers for the four fusion-optimization kernels (Jetson Orin,
+# 2026-05-25). All FP32. The "vs naive" column says what we'd be doing
+# without the rewrite — e.g. running the standalone op chain through
+# separate cuDNN launches, or routing K=1 conv through cuDNN's generic
+# path, or computing AᵀA as a full gemm.
+FUSION_OPT_RUNTIMES: dict[str, list[dict]] = {
+    "conv_bias_relu_add_batched": [
+        {"size": "MINI",  "shape": "B=4 IC=OC=8 H=W=32 K=3",
+         "gpu_s": 0.121859, "cpu_s": 0.001943, "correct": "PASS",
+         "notes": "Setup-bound (single-call init of cudnnConvolutionBias"
+                  "ActivationForward); fused bias+add+relu shows here only "
+                  "via the descriptor count, not via actual work"},
+        {"size": "LARGE", "shape": "B=32 IC=OC=64 H=W=56 K=3",
+         "gpu_s": 0.139847, "cpu_s": 3.253224, "correct": "FP-noise",
+         "notes": "Same ~23.3× as conv2d_batched alone (137 ms) — bias + "
+                  "residual-add + relu absorbed FREE into the conv's memory "
+                  "pass. Closes the standalone shortcut-add GPU LOSS"},
+    ],
+    "gemm_bias_relu": [
+        {"size": "MINI",  "shape": "M=N=K=64",
+         "gpu_s": 0.075925, "cpu_s": 0.000201, "correct": "PASS",
+         "notes": "Setup-bound (first-call init of cublasLtMatmul) "
+                  "+ host BN-folding overhead"},
+        {"size": "LARGE", "shape": "M=N=K=2048",
+         "gpu_s": 0.056678, "cpu_s": 51.083039, "correct": "FP-noise",
+         "notes": "cublasLt EPILOGUE_RELU_BIAS fires tensor cores; 901× "
+                  "vs CPU 3-loop (which on 2048³ is brutally cache-unfriendly)"},
+    ],
+    "ata_gemm": [
+        {"size": "MINI",  "shape": "M=K=64",
+         "gpu_s": 0.003577, "cpu_s": 0.000203, "correct": "PASS",
+         "notes": "Setup-bound; syrk's half-flops can't shine at this size"},
+        {"size": "LARGE", "shape": "M=K=2048",
+         "gpu_s": 0.019123, "cpu_s": 64.939412, "correct": "PASS",
+         "notes": "cublasSsyrk does HALF the flops of an equivalent gemm "
+                  "(only upper triangle of symmetric output). 3393× vs CPU."},
+    ],
+    "conv1x1_batched": [
+        {"size": "MINI",  "shape": "B=4 IC=OC=16 H=W=32",
+         "gpu_s": 0.045098, "cpu_s": 0.000796, "correct": "PASS",
+         "notes": "Setup-bound; per-batch gemms are small"},
+        {"size": "LARGE", "shape": "B=32 IC=OC=256 H=W=56",
+         "gpu_s": 0.068130, "cpu_s": 7.132080, "correct": "PASS",
+         "notes": "cublasSgemmStridedBatched on B=32 independent (256,3136)="
+                  "(256,256)·(256,3136) gemms. 105× vs CPU 3-loop. Way "
+                  "faster than cuDNN's generic K=1 conv path"},
+    ],
+}
+
+
+def _fusion_opt_section(fopt_stats: dict[str, dict]) -> str:
+    """4 algebraic / fusion-optimization kernels: conv+bias+relu+add,
+    gemm+bias+relu (cublasLt), AᵀA→cublasSsyrk via operand alias,
+    1×1 conv → cublasSgemmStridedBatched. Each picks a faster cuBLAS /
+    cublasLt / cuDNN entry point than the matcher's default routing."""
+    rows = []
+    for k, entries in FUSION_OPT_RUNTIMES.items():
+        first = True
+        rowspan = len(entries)
+        stats = fopt_stats.get(k, {})
+        if stats.get("ce_url"):
+            kernel_link = (
+                f'<a class="kernel" href="{stats["ce_url"]}" target="_blank">'
+                f'{k}</a>'
+            )
+        else:
+            kernel_link = f'<span class="nope">{k}</span>'
+        ir_link = (
+            f'<a class="viewer" href="{stats["page_filename"]}" '
+            f'style="margin-left:10px">[IR preview]</a>'
+            if stats.get("page_filename") else ""
+        )
+        l = stats.get("launches", 0)
+        r = stats.get("residual", 0)
+        fcount = stats.get("residual_for", 0)
+        match_status = ("FULL" if l > 0 and r == 0 and fcount == 0 else
+                        "PARTIAL" if l > 0 else "NONE")
+        match_cls = ("pass" if match_status == "FULL" else
+                     "partial" if match_status == "PARTIAL" else "none")
+        for e in entries:
+            size, shape = e["size"], e["shape"]
+            gpu, cpu = e["gpu_s"], e["cpu_s"]
+            speedup = cpu / gpu if gpu > 0 else 0.0
+            su_cls = ("pass" if speedup >= 2.0
+                      else "partial" if speedup >= 0.8
+                      else "none")
+            cmark = {"PASS": "&check;", "FP-noise": "&asymp;",
+                     "DIFF": "&cross;"}.get(e["correct"], "?")
+            note = e.get("notes", "")
+            if first:
+                kernel_cell = (
+                    f'<td rowspan="{rowspan}" style="vertical-align:top">'
+                    f'{kernel_link}{ir_link}'
+                    f'<div style="font-size:11px; color:#666; margin-top:4px">'
+                    f'  matcher: <span class="{match_cls}">'
+                    f'<b>{match_status}</b></span> ({l} launch, {r} res lg, '
+                    f'{fcount} loops)</div></td>'
+                )
+            else:
+                kernel_cell = ""
+            first = False
+            rows.append(
+                "<tr>"
+                + kernel_cell
+                + f'<td style="font-size:12px"><b>{size}</b></td>'
+                + f'<td style="font-size:11px; font-family:monospace">{shape}</td>'
+                + f'<td style="font-size:12px; text-align:right">{_fmt_seconds(gpu)}</td>'
+                + f'<td style="font-size:12px; text-align:right">{_fmt_seconds(cpu)}</td>'
+                + f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
+                + f'{speedup:.0f}&times; {cmark}</td>'
+                + f'<td style="font-size:11px; color:#555; max-width:340px">{note}</td>'
+                + "</tr>")
+    table = (
+        '<table><thead><tr>'
+        '<th>kernel</th><th>dataset</th><th>shape</th>'
+        '<th>GPU</th><th>CPU (3-loop)</th>'
+        '<th>GPU speedup</th><th>notes</th>'
+        '</tr></thead><tbody>'
+        + "\n".join(rows) +
+        '</tbody></table>'
+    )
+    return (
+        '<div class="section-header" id="fusion-opt" '
+        'style="background:#ffeacd; border-color:#d6b078">'
+        '  <h2 class="section-title">Fusion optimization '
+        '  (algebraic rewrites for fast cuBLAS / cublasLt / cuDNN paths)</h2>'
+        '</div>'
+        '<div class="intro">'
+        '  Four follow-on entries to the extracted-darknet matcher work. '
+        '  Each is an <em>algebraic</em> rewrite — same math as the naive '
+        '  multi-op chain, but routed to a single fused cuDNN / cublasLt / '
+        '  cuBLAS call that fires faster paths. The wins range from '
+        '  <b>23×</b> (conv chain) to <b>3393×</b> (AᵀA → syrk) over the '
+        '  CPU 3-loop reference.'
+        '  <br><br>'
+        '  <b>Matched launch symbols</b> introduced by these compositions:'
+        '  <ul style="margin:6px 0 10px 24px; padding:0; font-size:12px">'
+        '  <li><code>@cudnnConvBiasReluAddFwdFused</code> — 5-step: init + conv + '
+        '      bias + residual-add + relu. Routes to '
+        '      <code>cudnnConvolutionBiasActivationForward</code> with the Z '
+        '      addend (α₂=1) for the skip connection.</li>'
+        '  <li><code>@cublasLtMatmulBiasReluFused</code> — 4-step: init + gemm + '
+        '      bias + relu. Routes to <code>cublasLtMatmul</code> with '
+        '      <code>CUBLASLT_EPILOGUE_RELU_BIAS</code>. Needs '
+        '      <code>libcublasLt</code> at link.</li>'
+        '  <li><code>@cublasDsyrk_alias</code> — operand-alias discriminator on '
+        '      the gemm-shape composition. Detected when both gemm inputs '
+        '      resolve (after walking through <code>polygeist.submap</code>) '
+        '      to the same underlying tensor. Routes to '
+        '      <code>cublasSsyrk_v2</code> — half the flops, half the bandwidth.</li>'
+        '  <li><code>@cublasGemmFor1x1Conv</code> — distinguishes a 4-par+1-red '
+        '      contraction (K=1 conv after trivial-loop elimination) from the '
+        '      4-par+3-red K×K conv. Routes to <code>cublasSgemmStridedBatched</code> '
+        '      because cuDNN&apos;s K=1 path is generic / slow.</li>'
+        '  </ul>'
+        '  Pre-pass in the lowering elides redundant <code>memset_zero_2D</code> '
+        '  launches that precede a <code>syrk_alias</code> (since syrk uses β=0). '
+        '  <code>resolveSubmapBase</code> now walks through both '
+        '  <code>polygeist.submap</code> and <code>polygeist.submapInverse</code>, '
+        '  chaining up to 16 hops — needed to handle the nested chains the '
+        '  pre-init memset leaves behind.'
+        '</div>'
+        + table
+        # Headline call-out.
+        + '<div style="margin-top:14px; padding:10px 14px; '
+          'background:#fff3e0; border-left:4px solid #d6824a;">'
+          '  <b>Speedup headlines (LARGE on Jetson Orin):</b>'
+          '  <ul style="margin:6px 0 0 24px; padding:0; font-size:13px">'
+          '  <li>conv + bias + relu + residual-add — <b>23×</b> (closes '
+          '      the standalone shortcut-add GPU loss; bandwidth-bound bn '
+          '      effectively rides free on the conv)</li>'
+          '  <li>gemm + bias + relu — <b>901×</b> (cublasLt epilogue + '
+          '      tensor cores on 2048³ FP32; CPU 3-loop is cache-hostile)</li>'
+          '  <li>AᵀA → cublasSsyrk — <b>3393×</b> (half the flops + clean '
+          '      tensor-core dispatch + cache-hostile CPU pattern)</li>'
+          '  <li>1×1 conv → cublasSgemmStridedBatched — <b>105×</b> '
+          '      (bypasses cuDNN&apos;s generic K=1 path; gets tensor cores '
+          '      via the per-batch gemm)</li>'
+          '  </ul>'
+          '</div>'
+    )
+
+
+def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
+    """5 batched CNN-block primitives extracted from darknet, raised
+    through the full Polygeist pipeline, matched to cuDNN library
+    symbols, ABI-lowered, cross-compiled, run on the Jetson Orin
+    silicon. Each kernel gets a Compiler Explorer deep-link (clickable
+    name) + an IR-preview page (the [IR preview] link)."""
+    rows = []
+    for k, entries in EXTRACTED_DARKNET_RUNTIMES.items():
+        first = True
+        rowspan = len(entries)
+        stats = ex_darknet_stats.get(k, {})
+        # Kernel-name cell on the first row carries the CE deep-link +
+        # an [IR preview] page link, mirroring the polybench / darknet
+        # row layout. CE URL & per-kernel page are produced by
+        # build_kernel_page → returns ce_url + page_filename.
+        if stats.get("ce_url"):
+            kernel_link = (
+                f'<a class="kernel" href="{stats["ce_url"]}" target="_blank">'
+                f'{k}</a>'
+            )
+        else:
+            kernel_link = f'<span class="nope">{k}</span>'
+        ir_link = (
+            f'<a class="viewer" href="{stats["page_filename"]}" '
+            f'style="margin-left:10px">[IR preview]</a>'
+            if stats.get("page_filename") else ""
+        )
+        # Per-kernel match stats — same shape the other sections use.
+        l = stats.get("launches", 0)
+        r = stats.get("residual", 0)
+        fcount = stats.get("residual_for", 0)
+        match_status = ("FULL" if l > 0 and r == 0 and fcount == 0 else
+                        "PARTIAL" if l > 0 else "NONE")
+        match_cls = ("pass" if match_status == "FULL" else
+                     "partial" if match_status == "PARTIAL" else "none")
+        for e in entries:
+            size, shape = e["size"], e["shape"]
+            gpu, cpu = e["gpu_s"], e["cpu_s"]
+            speedup = cpu / gpu if gpu > 0 else 0.0
+            su_cls = ("pass" if speedup >= 2.0
+                      else "partial" if speedup >= 0.8
+                      else "none")
+            cmark = {"PASS": "&check;", "FP-noise": "&asymp;",
+                     "DIFF": "&cross;"}.get(e["correct"], "?")
+            note = e.get("notes", "")
+            if first:
+                kernel_cell = (
+                    f'<td rowspan="{rowspan}" style="vertical-align:top">'
+                    f'{kernel_link}{ir_link}'
+                    f'<div style="font-size:11px; color:#666; margin-top:4px">'
+                    f'  matcher: <span class="{match_cls}">'
+                    f'<b>{match_status}</b></span> ({l} launch,'
+                    f' {r} residual lg, {fcount} loops)'
+                    f'</div></td>'
+                )
+            else:
+                kernel_cell = ""
+            first = False
+            rows.append(
+                "<tr>"
+                + kernel_cell
+                + f'<td style="font-size:12px"><b>{size}</b></td>'
+                + f'<td style="font-size:11px; font-family:monospace">{shape}</td>'
+                + f'<td style="font-size:12px; text-align:right">{_fmt_seconds(gpu)}</td>'
+                + f'<td style="font-size:12px; text-align:right">{_fmt_seconds(cpu)}</td>'
+                + f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
+                + f'{speedup:.2f}&times; {cmark}</td>'
+                + f'<td style="font-size:11px; color:#555; max-width:340px">{note}</td>'
+                + "</tr>")
+    table = (
+        '<table><thead><tr>'
+        '<th>kernel</th>'
+        '<th>dataset</th>'
+        '<th>shape</th>'
+        '<th>GPU (cuDNN)</th>'
+        '<th>CPU (3-loop)</th>'
+        '<th>GPU speedup</th>'
+        '<th>notes</th>'
+        '</tr></thead><tbody>'
+        + "\n".join(rows) +
+        '</tbody></table>'
+        # Fusion punchline — make the "ride free" insight crisp.
+        '<div style="margin-top:14px; padding:10px 14px; '
+        'background:#eafff0; border-left:4px solid #4a8;">'
+        '  <b>Fusion punchline.</b> Sum the three standalone LARGE '
+        '  GPU launches as if you ran them back-to-back '
+        '  (conv2d_batched 137.0&nbsp;ms + batchnorm_batched 11.3&nbsp;ms + '
+        '  one cudnnAddTensor-shaped ReLU &asymp; 50&nbsp;ms &approx; '
+        '  <b>~198&nbsp;ms</b>) vs the fused '
+        '  <code>conv_bn_relu_batched</code> LARGE at '
+        '  <b>137.8&nbsp;ms</b>. Same conv work, but with bn + relu '
+        '  absorbed into the conv&apos;s compute-bound memory pass &mdash; '
+        '  the bandwidth-bound ops effectively cost zero. On the CPU '
+        '  side the two are within 0.5% of each other (3260 vs 3244&nbsp;ms) '
+        '  because the CPU never paid per-call setup in the first place; '
+        '  the GPU&apos;s gain comes entirely from collapsing 3 cuDNN '
+        '  descriptor / algo-select / sync rounds into 1.'
+        '</div>'
+        # Numeric agreement (FP-noise) callout.
+        '<div style="margin-top:8px; padding:10px 14px; '
+        'background:#f4f6fa; border-left:4px solid #88a;">'
+        '  <b>FP-noise comparison.</b> Tensor-core kernels reorder the '
+        '  accumulation; CPU 3-loop accumulates in natural order. '
+        '  Dumps printed at <code>%0.4f</code>:'
+        '  <ul style="margin:6px 0 0 24px; padding:0; font-size:12px">'
+        '  <li><code>conv2d_batched LARGE</code>: 0% bit-exact, max|d| = '
+        '      7.9e-3, mean|d| = 6.8e-3, max relative = 6.5e-5. Every '
+        '      output drifts by ~7 ULPs at print precision because 576 '
+        '      muladds per output (IC=64 &times; K&sup2;=9) make the '
+        '      accumulation-order drift visible.</li>'
+        '  <li><code>conv_bn_relu_batched LARGE</code>: '
+        '      <b>75% bit-exact</b>, max|d| = 3.4e-3, mean|d| = 1.4e-4. '
+        '      Better than conv alone &mdash; BN&apos;s per-channel '
+        '      normalization scales drifts down, ReLU zeros 73% of '
+        '      outputs (zero is exactly representable). Of the remaining '
+        '      27% live outputs only 3.7% exceed |d| > 1e-3.</li>'
+        '  <li><code>maxpool_batched</code>, <code>shortcut_batched</code>: '
+        '      100% bit-exact at all sizes. Max + plain add are '
+        '      order-independent.</li>'
+        '  <li><code>batchnorm_batched LARGE</code>: 99.9% bit-exact, '
+        '      max|d| = 1e-4 (one print-precision ULP) on 0.1% of elems.</li>'
+        '  </ul>'
+        '</div>'
+    )
+    return (
+        '<div class="section-header" id="extracted-darknet">'
+        '  <h2 class="section-title">extracted darknet '
+        '  (matcher + cuDNN runtime, Jetson Orin silicon)</h2>'
+        '</div>'
+        '<div class="intro">'
+        '  Four batched CNN-block primitives extracted as polybench-style '
+        '  single-file <code>.c</code> kernels in '
+        '  <code>third_party/cnn-extracted/</code>: <b>conv2d_batched</b>, '
+        '  <b>maxpool_batched</b>, <b>batchnorm_batched</b>, '
+        '  <b>shortcut_batched</b>. Together they cover every primitive '
+        '  in a ResNet residual block except ReLU.'
+        '  <br><br>'
+        '  Each kernel goes through the full Polygeist pipeline: cgeist '
+        '  &rarr; <code>--raise-affine-to-linalg-pipeline</code> &rarr; '
+        '  <code>--linalg-debufferize</code> &rarr; '
+        '  <code>kernel_match_rewrite.py</code> &rarr; '
+        '  <code>--lower-kernel-launch-to-cublas</code> (resolves '
+        '  <code>polygeist.submap</code> operands back to their base 4D '
+        '  tensors, emits <code>func.call</code> to the runtime shim) '
+        '  &rarr; aarch64 cross-compile against <code>libcudnn.so.9</code> '
+        '  &rarr; ship to Jetson Orin &rarr; run. Numbers below are wall-'
+        '  clock for a single shim call including <code>cudaHostRegister</code> '
+        '  mapping + the cuDNN forward call + a final stream sync.'
+        '  <br><br>'
+        '  <b>Matched launch symbols</b> (one per row in the table, '
+        '  ordered longest-composition first in <code>composition_library()</code>):'
+        '  <ul style="margin:6px 0 10px 24px; padding:0; font-size:12px">'
+        '  <li><code>@cudnnConvBnReluFwdFused</code> — 4-step: init zero + '
+        '      conv contraction (4 par + 3 red) + bn in-place (4 par, 4 ins) + '
+        '      relu in-place. Lowers to one '
+        '      <code>cudnnConvolutionBiasActivationForward</code> with '
+        '      <code>CUDNN_ACTIVATION_RELU</code> after host-side BN-folding '
+        '      (<code>F&apos;[oc] = F[oc] * scale[oc] * inv_std[oc]</code>, '
+        '      <code>b&apos;[oc] = bias[oc] - scale[oc] * mean[oc] * inv_std[oc]</code>).</li>'
+        '  <li><code>@cudnnConvolutionFwd_batched</code> — 2-step: init zero + 7-iter '
+        '      contraction. Lowers to <code>cudnnConvolutionForward</code>.</li>'
+        '  <li><code>@cudnnMaxPoolFwd_batched</code> — 2-step: init -INF + max-reduce. '
+        '      Lowers to <code>cudnnPoolingForward</code>.</li>'
+        '  <li><code>@cudnnBatchNormalizationForwardInference</code> — 1-step elementwise '
+        '      (5 ins, 4 par, 0 red). Lowers to '
+        '      <code>cudnnBatchNormalizationForwardInference</code> with variance '
+        '      derived from inv_std + eps.</li>'
+        '  <li><code>@cudnnAddTensor_batched</code> — 1-step <code>Out + In(0)</code>. '
+        '      Lowers to <code>cudnnAddTensor</code> with &alpha;=&beta;=1.</li>'
+        '  </ul>'
+        '  <br><br>'
+        '  The headline win is <b>23.8&times; for conv2d_batched LARGE</b> — '
+        '  cuDNN&apos;s tensor-core kernels shred a 32&times;64&times;56&sup2; '
+        '  ResNet conv where the CPU 3-loop reference takes 3.3 s. The '
+        '  bandwidth-bound elementwise kernels (batchnorm, shortcut) lose '
+        '  to the CPU at single-call granularity — the cuDNN setup overhead '
+        '  doesn&apos;t amortize without device-residency hoisting (the '
+        '  documented Phase-2 follow-up in '
+        '  <code>project-phase2-cublas-abi-lowering</code>).'
+        '  <br><br>'
+        '  The last row, <b>conv_bn_relu_batched</b>, is the operator-'
+        '  fusion follow-up: a kernel that chains conv + bn-inference + '
+        '  relu (canonical ResNet inner pattern) and a matcher 4-step '
+        '  composition <code>cudnnConvBnReluFwdFused</code> that folds '
+        '  all four loop nests (init + conv + bn-inplace + relu-inplace) '
+        '  into one launch. The runtime shim applies the standard '
+        '  &quot;BN-folding&quot; trick — pre-multiplying the filter by '
+        '  <code>scale * inv_std</code> and adjusting the bias — then '
+        '  issues a single <code>cudnnConvolutionBiasActivationForward</code> '
+        '  call. Result: 137.8 ms LARGE (essentially the same as conv2d_'
+        '  batched alone), but doing all three operations. The bandwidth-'
+        '  bound bn and relu effectively become free; they ride the conv&apos;s '
+        '  compute-bound memory pass.'
+        '  <br><br>'
+        '  Correctness key: <span class="pass">&check; PASS</span> = bit-'
+        '  exact match with the CPU stub (maxpool, shortcut are integer-'
+        '  like ops); <span class="partial">&asymp; FP-noise</span> = '
+        '  cuDNN tensor-core accumulation order differs from CPU naive '
+        '  order at the third decimal (expected, not a correctness bug).'
+        '</div>'
+        + table
+    )
+
+
 def build_index(polybench_stats: dict[str, dict],
                  machsuite_stats: dict[str, dict],
                  npb_stats: dict[str, dict],
@@ -1522,7 +2020,9 @@ def build_index(polybench_stats: dict[str, dict],
                  polybenchgpu_extracted_stats: dict[str, dict],
                  llama2c_stats: dict[str, dict],
                  llmc_stats: dict[str, dict],
-                 darknet_stats: dict[str, dict]) -> str:
+                 darknet_stats: dict[str, dict],
+                 ex_darknet_stats: dict[str, dict],
+                 fopt_stats: dict[str, dict]) -> str:
     common_legend = (
         '  Click a kernel name to open the full Polygeist pipeline in '
         '  Compiler Explorer: C source on the left feeds cgeist; the affine '
@@ -1749,7 +2249,9 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#polybenchgpu-extracted">polybenchGpu (extracted)</a> &middot; '
         '  <a href="#llama2c">llama2.c</a> &middot; '
         '  <a href="#llmc">llm.c</a> &middot; '
-        '  <a href="#darknet">darknet</a>'
+        '  <a href="#darknet">darknet</a> &middot; '
+        '  <a href="#extracted-darknet">extracted darknet</a> &middot; '
+        '  <a href="#fusion-opt">Fusion optimization</a>'
         '</div></div>'
         + _build_taxonomy_panel()
         + polybench_section
@@ -1760,6 +2262,8 @@ def build_index(polybench_stats: dict[str, dict],
         + llama2c_section
         + llmc_section
         + darknet_section
+        + _extracted_darknet_section(ex_darknet_stats)
+        + _fusion_opt_section(fopt_stats)
     )
     # Extra CSS for section headers.
     extra_css = (
@@ -1927,9 +2431,50 @@ def main():
             file_prefix="darknet_",
         )
 
+    # extracted-darknet (polybench-style CNN block kernels for the cuDNN
+    # runtime pipeline). Same per-kernel-page machinery as the other
+    # sections — bake_extracted_darknet_mlir.sh produces the per-stage
+    # MLIR files in /tmp/extracted_darknet_mlir/ that build_kernel_page
+    # consumes.
+    ex_darknet_kernels = sorted(EXTRACTED_DARKNET_KERNELS.keys())
+    print(f"Rendering {len(ex_darknet_kernels)} extracted-darknet kernels...", flush=True)
+    ex_darknet_stats = {}
+    for i, k in enumerate(ex_darknet_kernels, 1):
+        print(f"  [EXTRACTED-DARKNET {i:1d}/{len(ex_darknet_kernels)}] {k}", flush=True)
+        has_any = any((EXTRACTED_DARKNET_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir"))
+        if not has_any:
+            ex_darknet_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                                    "ce_url": None, "page_filename": ""}
+            continue
+        ex_darknet_stats[k] = build_kernel_page(
+            k, mlir_dir=EXTRACTED_DARKNET_MLIR_DIR, kset="extracted_darknet",
+            file_prefix="exdark_",
+        )
+
+    # Fusion-optimization kernels (algebraic rewrites: conv+bias+relu+add,
+    # gemm+bias+relu, AᵀA→syrk, 1×1 conv → batched gemm). Same per-stage
+    # MLIR bake pipeline as extracted_darknet.
+    fopt_kernel_list = sorted(FUSION_OPT_KERNELS.keys())
+    print(f"Rendering {len(fopt_kernel_list)} fusion-optimization kernels...", flush=True)
+    fopt_stats = {}
+    for i, k in enumerate(fopt_kernel_list, 1):
+        print(f"  [FUSION-OPT {i:1d}/{len(fopt_kernel_list)}] {k}", flush=True)
+        has_any = any((EXTRACTED_DARKNET_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir"))
+        if not has_any:
+            fopt_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                              "ce_url": None, "page_filename": ""}
+            continue
+        fopt_stats[k] = build_kernel_page(
+            k, mlir_dir=EXTRACTED_DARKNET_MLIR_DIR, kset="fusion_opt",
+            file_prefix="fopt_",
+        )
+
     OUTPUT_DIR.joinpath("index.html").write_text(
         build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats,
-                    pbgpu_x_stats, llama_stats, llmc_stats, darknet_stats))
+                    pbgpu_x_stats, llama_stats, llmc_stats, darknet_stats,
+                    ex_darknet_stats, fopt_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 

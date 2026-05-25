@@ -29,6 +29,7 @@
 #include "polygeist_cublas_rt.h"
 
 #include <cublas_v2.h>
+#include <cublasLt.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
 #include <stdio.h>
@@ -43,9 +44,10 @@
  * __nv_bfloat16. Bits are identical, so memcpy from the host's _Float16 /
  * __bf16 arrays via uint16_t lands the correct values on the device. */
 
-static cublasHandle_t g_handle;
-static cudnnHandle_t  g_cudnn = NULL;
-static cudaStream_t   g_stream;
+static cublasHandle_t   g_handle;
+static cublasLtHandle_t g_lt = NULL;
+static cudnnHandle_t    g_cudnn = NULL;
+static cudaStream_t     g_stream;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
@@ -81,6 +83,15 @@ static void ensure_cudnn(void) {
   if (g_cudnn) return;
   CUDNN_CHECK(cudnnCreate(&g_cudnn));
   CUDNN_CHECK(cudnnSetStream(g_cudnn, g_stream));
+}
+
+static void ensure_cublaslt(void) {
+  if (g_lt) return;
+  cublasStatus_t s = cublasLtCreate(&g_lt);
+  if (s != CUBLAS_STATUS_SUCCESS) {
+    fprintf(stderr, "cublasLtCreate failed: %d\n", (int)s);
+    abort();
+  }
 }
 
 // Zero-copy helpers with PERSISTENT registration. cudaHostRegister has
@@ -846,6 +857,629 @@ void polygeist_cudnn_conv2d_3x3_i16(
   }
   free(A32);
   free(B32);
+}
+
+// ============================================================================
+// Extracted-darknet batched CNN-block primitives. All FP32, NCHW.
+//
+// MEMORY MODEL: same zero-copy pattern as the BLAS shims —
+// cudaHostRegister + cudaHostGetDevicePointer via register_host_safe().
+// On Jetson Orin's iGPU these calls just set up the page-table mapping
+// (no bytes move). For workspace + descriptor allocations we use
+// cudaMalloc/cudaFree (per-call); a future device-residency hoisting
+// pass would amortize these across consecutive layers.
+// ============================================================================
+
+void polygeist_cudnn_conv2d_batched(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F, float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+
+  size_t bytes_A   = (size_t)B  * IC * H  * W  * sizeof(float);
+  size_t bytes_F   = (size_t)OC * IC * K  * K  * sizeof(float);
+  size_t bytes_Out = (size_t)B  * OC * OH * OW * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A,  bytes_A);
+  float *dF = (float *)register_host_safe((void *)F,  bytes_F);
+  float *dO = (float *)register_host_safe(Out,        bytes_Out);
+
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, IC, H, W));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, OC, IC, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, OC, OH, OW));
+
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      1, &n_returned, &algo_perf));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN conv2d_batched: no fwd algo available\n");
+    abort();
+  }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      algo_perf.algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  float alpha = 1.0f, beta = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
+      algo_perf.algo, dWS, ws_size, &beta, out_desc, dO));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+void polygeist_cudnn_maxpool_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t OH, int32_t OW,
+    const float *A, float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  // Derive S = H / OH (common K==S case for our extracted kernels).
+  int32_t S = H / OH;
+  int32_t K = (S > 0) ? S : 2;
+
+  size_t bytes_A   = (size_t)B * C * H  * W  * sizeof(float);
+  size_t bytes_Out = (size_t)B * C * OH * OW * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dO = (float *)register_host_safe(Out,       bytes_Out);
+
+  cudnnTensorDescriptor_t  in_desc, out_desc;
+  cudnnPoolingDescriptor_t pool_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreatePoolingDescriptor(&pool_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, OH, OW));
+  CUDNN_CHECK(cudnnSetPooling2dDescriptor(
+      pool_desc, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN,
+      K, K, 0, 0, S, S));
+
+  float alpha = 1.0f, beta = 0.0f;
+  CUDNN_CHECK(cudnnPoolingForward(
+      g_cudnn, pool_desc, &alpha, in_desc, dA,
+      &beta, out_desc, dO));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyPoolingDescriptor(pool_desc);
+}
+
+void polygeist_cudnn_batchnorm_inference(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  // cuDNN expects (mean, variance) and an epsilon, computing
+  //   y = scale * (x - mean) / sqrt(var + eps) + bias.
+  // Our kernel was given (mean, inv_std) where inv_std = 1/sqrt(var+eps).
+  // We invert: var = 1/inv_std² - eps. Use the same eps the caller used.
+  // The standard ResNet/PyTorch eps is 1e-5.
+  const double eps = 1e-5;
+
+  float *var_h = (float *)malloc((size_t)C * sizeof(float));
+  for (int32_t c = 0; c < C; ++c) {
+    double s = (double)inv_std[c];
+    double v = 1.0 / (s * s) - eps;
+    if (v < 0) v = 0;
+    var_h[c] = (float)v;
+  }
+
+  size_t bytes_x = (size_t)B * C * H * W * sizeof(float);
+  size_t bytes_c = (size_t)C * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A,     bytes_x);
+  float *dS = (float *)register_host_safe((void *)scale, bytes_c);
+  float *dM = (float *)register_host_safe((void *)mean,  bytes_c);
+  float *dB = (float *)register_host_safe((void *)bias,  bytes_c);
+  float *dO = (float *)register_host_safe(Out,           bytes_x);
+  float *dV = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&dV, bytes_c));
+  CUDA_CHECK(cudaMemcpyAsync(dV, var_h, bytes_c,
+                             cudaMemcpyHostToDevice, g_stream));
+
+  cudnnTensorDescriptor_t x_desc, y_desc, bn_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&x_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&y_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&bn_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(x_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(y_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, H, W));
+  // bnScaleBiasMeanVarDesc: 1×C×1×1
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(bn_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, C, 1, 1));
+
+  float alpha = 1.0f, beta = 0.0f;
+  CUDNN_CHECK(cudnnBatchNormalizationForwardInference(
+      g_cudnn, CUDNN_BATCHNORM_SPATIAL, &alpha, &beta,
+      x_desc, dA, y_desc, dO, bn_desc, dS, dB, dM, dV, eps));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dV);
+  free(var_h);
+  cudnnDestroyTensorDescriptor(x_desc);
+  cudnnDestroyTensorDescriptor(y_desc);
+  cudnnDestroyTensorDescriptor(bn_desc);
+}
+
+void polygeist_cudnn_add_tensor_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A, float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  size_t bytes = (size_t)B * C * H * W * sizeof(float);
+  float *dA = (float *)register_host_safe((void *)A, bytes);
+  float *dO = (float *)register_host_safe(Out,       bytes);
+
+  cudnnTensorDescriptor_t a_desc, o_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&a_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&o_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(a_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(o_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, C, H, W));
+
+  // cudnnAddTensor computes Out = α*A + β*Out. We want Out += A, so α=β=1.
+  float alpha = 1.0f, beta = 1.0f;
+  CUDNN_CHECK(cudnnAddTensor(g_cudnn, &alpha, a_desc, dA,
+                              &beta, o_desc, dO));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudnnDestroyTensorDescriptor(a_desc);
+  cudnnDestroyTensorDescriptor(o_desc);
+}
+
+// Fused conv + bias + residual-add + relu via the SAME cuDNN API.
+// y = activation(α₁·conv(x,w) + α₂·z + bias). We just feed real bias +
+// real Z; no BN-folding step needed.
+void polygeist_cudnn_conv_bias_relu_add_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *bias, const float *Z,
+    float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+
+  size_t bytes_A  = (size_t)B  * IC * H  * W  * sizeof(float);
+  size_t bytes_F  = (size_t)OC * IC * K  * K  * sizeof(float);
+  size_t bytes_Ou = (size_t)B  * OC * OH * OW * sizeof(float);
+  size_t bytes_b  = (size_t)OC * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A,    bytes_A);
+  float *dF = (float *)register_host_safe((void *)F,    bytes_F);
+  float *dB = (float *)register_host_safe((void *)bias, bytes_b);
+  float *dZ = (float *)register_host_safe((void *)Z,    bytes_Ou);
+  float *dO = (float *)register_host_safe(Out,          bytes_Ou);
+
+  cudnnTensorDescriptor_t      in_desc, out_desc, bias_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  cudnnActivationDescriptor_t  act_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&bias_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnCreateActivationDescriptor(&act_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, IC, H, W));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, OC, IC, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(conv_desc, CUDNN_DEFAULT_MATH));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, OC, OH, OW));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(bias_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, OC, 1, 1));
+  CUDNN_CHECK(cudnnSetActivationDescriptor(
+      act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0));
+
+  // Algo selection — see the stack-smash note in
+  // polygeist_cudnn_conv_bn_relu_fused for why this loop allocates an
+  // array of ALGO_CANDIDATES not a single struct.
+  enum { ALGO_CANDIDATES = 8 };
+  cudnnConvolutionFwdAlgoPerf_t algos[ALGO_CANDIDATES];
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      ALGO_CANDIDATES, &n_returned, algos));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN conv_bias_relu_add: no fwd algo\n"); abort();
+  }
+  cudnnConvolutionFwdAlgo_t algo = algos[0].algo;
+  for (int i = 0; i < n_returned; ++i)
+    if (algos[i].algo == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM) {
+      algo = algos[i].algo; break;
+    }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  // y = relu(1·conv(A, F) + 1·Z + bias).
+  float alpha1 = 1.0f, alpha2 = 1.0f;
+  CUDNN_CHECK(cudnnConvolutionBiasActivationForward(
+      g_cudnn, &alpha1, in_desc, dA, f_desc, dF, conv_desc, algo,
+      dWS, ws_size, &alpha2, out_desc, dZ,
+      bias_desc, dB, act_desc, out_desc, dO));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyTensorDescriptor(bias_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+  cudnnDestroyActivationDescriptor(act_desc);
+}
+
+void polygeist_cublas_memset_zero_2d_f32(int32_t M, int32_t N, float *A, int32_t lda) {
+  /* Host memset — same as the f64 path. */
+  if (lda == N) {
+    memset(A, 0, (size_t)M * (size_t)N * sizeof(float));
+  } else {
+    for (int32_t i = 0; i < M; ++i)
+      memset(&A[(size_t)i * (size_t)lda], 0, (size_t)N * sizeof(float));
+  }
+}
+
+// 1×1 conv routed to batched gemm. For NCHW input (B, IC, H, W) and
+// filter (OC, IC, 1, 1), each batch slice is a regular
+// (OC, HW) = (OC, IC) × (IC, HW) gemm. F is shared across batches
+// (stride 0); A and C each stride by their per-batch element count.
+//
+// Row-major / col-major swap, same trick as cublasDgemm: the col-major
+// view of our row-major A_b (IC × HW) is (HW × IC), of F (OC × IC) is
+// (IC × OC), of C_b (OC × HW) is (HW × OC). So:
+//   col-major C_b (HW, OC) = α · col-major A_b (HW, IC) · F (IC, OC)
+// → cublasSgemmStridedBatched(OP_N, OP_N, m=HW, n=OC, k=IC,
+//                             α, A, lda=HW, A_stride=IC*HW,
+//                             F, ldb=IC, F_stride=0,
+//                             β, C, ldc=HW, C_stride=OC*HW,
+//                             batchCount=B)
+void polygeist_cublas_sgemm_1x1conv(
+    int32_t B, int32_t IC, int32_t OC, int32_t HW,
+    const float *A, const float *F, float *C) {
+  polygeist_cublas_init();
+
+  size_t bytes_A = (size_t)B  * IC * HW * sizeof(float);
+  size_t bytes_F = (size_t)OC * IC * sizeof(float);
+  size_t bytes_C = (size_t)B  * OC * HW * sizeof(float);
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dF = (float *)register_host_safe((void *)F, bytes_F);
+  float *dC = (float *)register_host_safe(C,         bytes_C);
+
+  float alpha = 1.0f, beta = 0.0f;
+  long long strideA = (long long)IC * HW;
+  long long strideF = 0;
+  long long strideC = (long long)OC * HW;
+  CUBLAS_CHECK(cublasSgemmStridedBatched(g_handle,
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      HW, OC, IC,
+      &alpha, dA, HW, strideA,
+              dF, IC, strideF,
+      &beta,  dC, HW, strideC,
+      B));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+}
+
+// AᵀA → cublasSsyrk_v2 (FP32). Half the flops of the equivalent
+// gemm because syrk only computes the upper triangle of the symmetric
+// output. cublasSsyrk's signature:
+//   C = α·op(A)·op(A)ᵀ + β·C
+// where uplo selects which triangle is touched.
+//
+// Row-major → col-major: our A is row-major (K×N), so its column-major
+// view is Aᵀ (N×K). To compute row-major C[N,N] = Aᵀ·A we ask cublas
+// to compute col-major Cᵀ[N,N] = (Aᵀ_col_view)·(A_col_view) = A_row·Aᵀ_row.
+// Equivalent: pass A with op=N, treat as col-major (N rows × K cols).
+// uplo = LOWER on the col-major matrix == UPPER on the row-major view.
+// We fill in the missing triangle on host after the call so the caller
+// sees a fully-populated symmetric matrix.
+void polygeist_cublas_dsyrk(int32_t N, int32_t K, const float *A, float *C) {
+  polygeist_cublas_init();
+
+  size_t bytes_A = (size_t)K * N * sizeof(float);
+  size_t bytes_C = (size_t)N * N * sizeof(float);
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dC = (float *)register_host_safe(C,         bytes_C);
+
+  float alpha = 1.0f, beta = 0.0f;
+  // Layout math:
+  //   Our C is row-major. cublas operates col-major. The SAME bytes
+  //   look transposed: row-major C[i,j] is at byte i + j*N in col-major.
+  //   cublasSsyrk(uplo=UPPER) writes col-major UPPER (i ≤ j) which maps
+  //   to row-major positions (j, i) with j ≥ i — i.e. row-major LOWER.
+  //   The mirror loop below then copies row-major lower → row-major upper.
+  CUBLAS_CHECK(cublasSsyrk(g_handle,
+                            CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+                            N, K,
+                            &alpha, dA, N,
+                            &beta,  dC, N));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  for (int32_t i = 0; i < N; ++i)
+    for (int32_t j = i + 1; j < N; ++j)
+      C[(size_t)i * N + j] = C[(size_t)j * N + i];
+}
+
+// Fused matmul + bias + relu via cublasLtMatmul with EPILOGUE_RELU_BIAS.
+//
+// Row-major to col-major: we compute Cᵀ = Bᵀ·Aᵀ + bias' the same way
+// cublasDgemm does in this codebase — by swapping A↔B and treating
+// "rows" of cublasLt's matrix as columns of ours. cublasLt's matmul
+// descriptor uses col-major by default, so:
+//   our row-major C[M,N] = A[M,K] · B[K,N]
+//   ≡ col-major Cᵀ[N,M] = Bᵀ[N,K] · Aᵀ[K,M]
+// With both A and B passed as CUBLAS_OP_N (no transpose flag), and the
+// matrix layouts created in col-major with swapped sizes, the math
+// works out exactly. bias[N] is a single per-output-column vector;
+// cublasLt's RELU_BIAS epilogue applies it per column of the output.
+void polygeist_cublaslt_matmul_bias_relu(
+    int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, const float *bias,
+    float *C) {
+  polygeist_cublas_init();
+  ensure_cublaslt();
+
+  size_t bytes_A = (size_t)M * K * sizeof(float);
+  size_t bytes_B = (size_t)K * N * sizeof(float);
+  size_t bytes_C = (size_t)M * N * sizeof(float);
+  size_t bytes_b = (size_t)N * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A,    bytes_A);
+  float *dB = (float *)register_host_safe((void *)B,    bytes_B);
+  float *dC = (float *)register_host_safe(C,            bytes_C);
+  float *dBias = (float *)register_host_safe((void *)bias, bytes_b);
+
+  cublasLtMatmulDesc_t   matmul_desc = NULL;
+  cublasLtMatrixLayout_t aDesc = NULL, bDesc = NULL, cDesc = NULL;
+
+  // Op descriptor: f32 compute, f32 scale.
+  cublasStatus_t s;
+  s = cublasLtMatmulDescCreate(&matmul_desc, CUBLAS_COMPUTE_32F, CUDA_R_32F);
+  if (s != CUBLAS_STATUS_SUCCESS) { fprintf(stderr, "cublasLtMatmulDescCreate failed: %d\n", (int)s); abort(); }
+
+  cublasOperation_t opN = CUBLAS_OP_N;
+  cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA,
+                                  &opN, sizeof(opN));
+  cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB,
+                                  &opN, sizeof(opN));
+
+  // Epilogue: bias + ReLU (applied in that order, then ReLU on top of bias).
+  cublasLtEpilogue_t epi = CUBLASLT_EPILOGUE_RELU_BIAS;
+  cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_EPILOGUE,
+                                  &epi, sizeof(epi));
+  cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,
+                                  &dBias, sizeof(dBias));
+
+  // Row-major → col-major operand swap (same as cublasDgemm in this file):
+  // Compute Cᵀ = Bᵀ_col · Aᵀ_col, where each is created as col-major with
+  // sizes that mirror our row-major source. So in cublasLt's view:
+  //   "A" of the matmul is our B (size N × K, col-major, lda=N=ldb_row)
+  //   "B" of the matmul is our A (size K × M, col-major, lda=K)
+  //   "C" of the matmul is our C (size N × M, col-major, lda=N)
+  cublasLtMatrixLayoutCreate(&aDesc, CUDA_R_32F, N, K, N);
+  cublasLtMatrixLayoutCreate(&bDesc, CUDA_R_32F, K, M, K);
+  cublasLtMatrixLayoutCreate(&cDesc, CUDA_R_32F, N, M, N);
+
+  // Algorithm selection — heuristic, request 1 candidate.
+  cublasLtMatmulPreference_t pref;
+  cublasLtMatmulPreferenceCreate(&pref);
+  size_t ws_size = 16 * 1024 * 1024;  // 16 MB workspace
+  cublasLtMatmulPreferenceSetAttribute(pref,
+      CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &ws_size, sizeof(ws_size));
+  cublasLtMatmulHeuristicResult_t heur;
+  int n_results = 0;
+  cublasLtMatmulAlgoGetHeuristic(g_lt, matmul_desc,
+      aDesc, bDesc, cDesc, cDesc, pref, 1, &heur, &n_results);
+  if (n_results < 1) {
+    fprintf(stderr, "cublasLt: no matmul algo available\n"); abort();
+  }
+  void *dWS = NULL;
+  if (heur.workspaceSize > 0) CUDA_CHECK(cudaMalloc(&dWS, heur.workspaceSize));
+
+  float alpha = 1.0f, beta = 0.0f;
+  s = cublasLtMatmul(g_lt, matmul_desc,
+      &alpha, dB, aDesc,    // swapped: cublasLt's "A" is our B
+              dA, bDesc,    // swapped: cublasLt's "B" is our A
+      &beta,  dC, cDesc,
+              dC, cDesc,
+      &heur.algo, dWS, heur.workspaceSize, g_stream);
+  if (s != CUBLAS_STATUS_SUCCESS) {
+    fprintf(stderr, "cublasLtMatmul failed: %d\n", (int)s); abort();
+  }
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  if (dWS) cudaFree(dWS);
+  cublasLtMatmulPreferenceDestroy(pref);
+  cublasLtMatrixLayoutDestroy(aDesc);
+  cublasLtMatrixLayoutDestroy(bDesc);
+  cublasLtMatrixLayoutDestroy(cDesc);
+  cublasLtMatmulDescDestroy(matmul_desc);
+}
+
+// Fused conv + bn-inference + relu via cudnnConvolutionBiasActivationForward.
+// The trick is "BN folding": cudnnConvolutionBiasActivationForward computes
+//   y = activation(α₁ * conv(x, w) + α₂ * z + bias)
+// natively. To fold inference-mode BN into it, pre-compute on host:
+//   w'[oc,ic,kh,kw] = w[oc,ic,kh,kw] * scale[oc] * inv_std[oc]
+//   b'[oc]         = bias[oc] - scale[oc] * mean[oc] * inv_std[oc]
+// Then cudnnConvolutionBiasActivationForward(x, w', 1, conv, 0, _, b',
+// RELU, y) computes exactly relu(scale*(conv(x,w) - mean)*inv_std + bias).
+//
+// The folding is O(OC*IC*K²) on host, much smaller than the conv itself
+// (the LARGE shape has IC=OC=64, K=3 → 36864 muls; the conv itself does
+// ~10B muls). So it doesn't bottleneck. In a real CNN, this folding
+// would be done once at model-load time, not per call.
+void polygeist_cudnn_conv_bn_relu_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  const int32_t OH = H - K + 1;
+  const int32_t OW = W - K + 1;
+
+  // Host-side BN-into-conv folding.
+  size_t n_w = (size_t)OC * IC * K * K;
+  float *F_fold = (float *)malloc(n_w * sizeof(float));
+  float *b_fold = (float *)malloc((size_t)OC * sizeof(float));
+  for (int32_t oc = 0; oc < OC; ++oc) {
+    float coef = scale[oc] * inv_std[oc];
+    for (int32_t ic = 0; ic < IC; ++ic)
+      for (int32_t kh = 0; kh < K; ++kh)
+        for (int32_t kw = 0; kw < K; ++kw) {
+          size_t idx = ((size_t)oc * IC + ic) * K * K +
+                       (size_t)kh * K + kw;
+          F_fold[idx] = F[idx] * coef;
+        }
+    b_fold[oc] = bias[oc] - scale[oc] * mean[oc] * inv_std[oc];
+  }
+
+  size_t bytes_A  = (size_t)B  * IC * H  * W  * sizeof(float);
+  size_t bytes_F  = (size_t)OC * IC * K  * K  * sizeof(float);
+  size_t bytes_Ou = (size_t)B  * OC * OH * OW * sizeof(float);
+  size_t bytes_b  = (size_t)OC * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dO = (float *)register_host_safe(Out,       bytes_Ou);
+  // Folded weights / bias live on the device (recomputed per call —
+  // could be hoisted to a one-time setup once we wire device-residency).
+  float *dF = NULL, *dB = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&dF, bytes_F));
+  CUDA_CHECK(cudaMalloc((void **)&dB, bytes_b));
+  CUDA_CHECK(cudaMemcpyAsync(dF, F_fold, bytes_F, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dB, b_fold, bytes_b, cudaMemcpyHostToDevice, g_stream));
+
+  cudnnTensorDescriptor_t      in_desc, out_desc, bias_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  cudnnActivationDescriptor_t  act_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&bias_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnCreateActivationDescriptor(&act_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, IC, H, W));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, OC, IC, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  // CUDNN_DEFAULT_MATH would let cuDNN pick tensor cores. Required for
+  // the fused path on Ampere+ (Orin); without it the API falls back to
+  // generic kernels.
+  CUDNN_CHECK(cudnnSetConvolutionMathType(conv_desc, CUDNN_DEFAULT_MATH));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, B, OC, OH, OW));
+  // Bias is 1×OC×1×1 broadcast across (B, OH, OW).
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(bias_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, OC, 1, 1));
+  // ReLU activation, no NaN propagation, threshold 0.
+  CUDNN_CHECK(cudnnSetActivationDescriptor(
+      act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0));
+
+  // Algorithm selection. cudnnConvolutionBiasActivationForward requires
+  // CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM in many cuDNN versions
+  // (the other algos return NOT_SUPPORTED through the fused API). Ask
+  // cuDNN for up to 8 candidates in one call and pick PRECOMP_GEMM if
+  // it appears; else fall back to cuDNN's first preference.
+  enum { ALGO_CANDIDATES = 8 };
+  cudnnConvolutionFwdAlgoPerf_t algos[ALGO_CANDIDATES];
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      ALGO_CANDIDATES, &n_returned, algos));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN conv_bn_relu_fused: no fwd algo available\n");
+    abort();
+  }
+  cudnnConvolutionFwdAlgo_t algo = algos[0].algo;
+  for (int i = 0; i < n_returned; ++i) {
+    if (algos[i].algo == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM) {
+      algo = algos[i].algo;
+      break;
+    }
+  }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  // y = act(α₁ * conv(x, w') + α₂ * z + b'). We want α₂ = 0 so z is
+  // unused — but cuDNN requires a valid z descriptor + pointer anyway.
+  // Reuse the output buffer as z (cuDNN accepts that when α₂ = 0).
+  float alpha1 = 1.0f, alpha2 = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionBiasActivationForward(
+      g_cudnn, &alpha1, in_desc, dA, f_desc, dF, conv_desc, algo,
+      dWS, ws_size, &alpha2, out_desc, dO,
+      bias_desc, dB, act_desc, out_desc, dO));
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  if (dWS) cudaFree(dWS);
+  cudaFree(dF);
+  cudaFree(dB);
+  free(F_fold);
+  free(b_fold);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyTensorDescriptor(bias_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+  cudnnDestroyActivationDescriptor(act_desc);
 }
 
 void polygeist_cublas_time_begin(void) {

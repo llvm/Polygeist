@@ -869,6 +869,316 @@ def _gemm_alpha_only() -> CompositionEntry:
     )
 
 
+def _conv1x1_as_gemm_batched() -> CompositionEntry:
+    """Batched 1×1 convolution. Mathematically a per-pixel matmul:
+       (B·H·W, IC) × (IC, OC) → (B·H·W, OC)
+    Because KH = KW = 1, the trivial inner loops drop out at raise
+    time, leaving a 5-iter generic (4 parallel: B, OC, H, W; 1
+    reduction: IC) with body `Out + In(0)*In(1)`.
+
+    Distinguished from the standard K×K conv (`cudnnConvolutionFwd_batched`,
+    which has 4 par + 3 red) purely by the reduction count.
+    Routes to cublasDgemm via a reshape — much faster than cuDNN's
+    generic K=1 conv path.
+    """
+    init_step = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    gemm_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=1,
+    )
+    return CompositionEntry(
+        name="cublasGemmFor1x1Conv",
+        steps=[init_step, gemm_step],
+    )
+
+
+def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
+    """Fused matmul + bias + relu — transformer-FFN-shape op.
+    4-step composition:
+
+      step 0 (init):  C = 0                  — 2 par, 0 ins
+      step 1 (gemm):  C += A*B               — 2 par + 1 red, 2 ins
+      step 2 (bias):  C += bias              — 2 par, 1 in (1D, broadcast)
+      step 3 (relu):  C = max(C, 0)          — 2 par, 0 ins
+
+    Routes to cublasLt's CUBLASLT_EPILOGUE_RELU_BIAS — natively fuses
+    matmul + bias-add + relu in one kernel. Requires libcublasLt at link
+    time (separate from libcublas).
+    """
+    init_step = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=2, reduction_dim_count=0,
+    )
+    gemm_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=2, reduction_dim_count=1,
+    )
+    bias_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0),
+        num_ins=1, num_outs=1,
+        parallel_dim_count=2, reduction_dim_count=0,
+    )
+    relu_step = CompositionStep(
+        body=Term.Select(
+            Term.Cmp("ogt", Term.Out(0), Term.Lit(0.0)),
+            Term.Out(0),
+            Term.Lit(0.0),
+        ),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=2, reduction_dim_count=0,
+    )
+    return CompositionEntry(
+        name="cublasLtMatmulBiasReluFused",
+        steps=[init_step, gemm_step, bias_step, relu_step],
+    )
+
+
+def _cudnn_conv_bias_relu_add_fused() -> CompositionEntry:
+    """Fused conv + bias + residual-add + relu — canonical ResNet output
+    stage. 5-step composition:
+
+      step 0 (init):     Bout = 0                  — 4 par, 0 ins
+      step 1 (conv):     Bout += A * F             — 4 par + 3 red, 2 ins
+      step 2 (bias):     Bout += bias[oc]          — 4 par, 1 in (1D)
+      step 3 (residual): Bout += Z                 — 4 par, 1 in (4D)
+      step 4 (relu):     Bout = max(Bout, 0)       — 4 par, 0 ins
+
+    Steps 2 and 3 have IDENTICAL body shape (`Out + In(0)`). The matcher
+    only checks the body Term-AST, so it doesn't know "this is the bias"
+    vs "this is the residual" at match time. The lowering pass
+    disambiguates by operand rank after submap resolution:
+      - 1D operand → bias (per-channel)
+      - 4D operand → residual (same shape as output)
+
+    Routes to cudnnConvolutionBiasActivationForward, which natively
+    computes y = activation(α₁·conv(x,w) + α₂·z + bias).
+    """
+    init_step = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    conv_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=3,
+    )
+    add_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0),
+        num_ins=1, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    relu_step = CompositionStep(
+        body=Term.Select(
+            Term.Cmp("ogt", Term.Out(0), Term.Lit(0.0)),
+            Term.Out(0),
+            Term.Lit(0.0),
+        ),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    return CompositionEntry(
+        name="cudnnConvBiasReluAddFwdFused",
+        steps=[init_step, conv_step, add_step, add_step, relu_step],
+    )
+
+
+def _cudnn_conv_bn_relu_fused() -> CompositionEntry:
+    """Fused conv + bn (inference) + relu — the inner three ops of a
+    ResNet residual block. 4-step composition:
+
+      step 1 (init):   Bout = 0           — 4 par, 0 ins
+      step 2 (conv):   Bout += A * F      — 4 par + 3 red, 2 ins
+      step 3 (bn):     Bout = scale*(Bout - mean)*inv_std + bias
+                                          — 4 par, 4 ins (scale, mean,
+                                            inv_std, bias). In-place form:
+                                            Bout is BOTH read (as Out(0))
+                                            AND written.
+      step 4 (relu):   Bout = max(Bout, 0)
+                                          — 4 par, 0 ins, in-place
+
+    Body shapes (from cgeist + raise on conv_bn_relu_batched.c):
+      step 3:  In(0) * (Out(0) - In(1)) * In(2) + In(3)
+      step 4:  Select(Cmp("ogt", Out(0), Lit(0.0)), Out(0), Lit(0.0))
+
+    Lowers to cudnnConvolutionBiasActivationForward (cuDNN's native
+    fused-conv-bias-relu kernel) — needs a runtime shim that folds the
+    BN parameters into a per-output-channel scaled filter + bias
+    (standard "BN-folding" trick), then issues one cuDNN call instead
+    of three.
+    """
+    init_step = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    conv_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=3,
+    )
+    bn_step = CompositionStep(
+        body=(Term.In(0) * (Term.Out(0) - Term.In(1))) * Term.In(2)
+             + Term.In(3),
+        num_ins=4, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    relu_step = CompositionStep(
+        body=Term.Select(
+            Term.Cmp("ogt", Term.Out(0), Term.Lit(0.0)),
+            Term.Out(0),
+            Term.Lit(0.0),
+        ),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=4, reduction_dim_count=0,
+    )
+    return CompositionEntry(
+        name="cudnnConvBnReluFwdFused",
+        steps=[init_step, conv_step, bn_step, relu_step],
+    )
+
+
+def _cudnn_add_tensor_batched() -> CompositionEntry:
+    """Batched 4D elementwise tensor add (ResNet residual shortcut):
+       out[b,c,h,w] = in[b,c,h,w] + out[b,c,h,w]
+
+    4-parallel, 0-reduction, 1 input, 1 output. No captures.
+
+    The shape gates (parallel_dim_count=4, num_ins=1, body=`Out + In(0)`)
+    distinguish this from axpy (which needs an α capture) and from any
+    accumulating contraction (which would have reduction iters). Maps
+    to cudnnAddTensor.
+    """
+    body = Term.Out(0) + Term.In(0)
+    return CompositionEntry(
+        name="cudnnAddTensor_batched",
+        steps=[
+            CompositionStep(
+                body=body,
+                num_ins=1, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+        ],
+    )
+
+
+def _cudnn_batchnorm_inference() -> CompositionEntry:
+    """Batched per-channel batch normalization (inference mode):
+       out[b,c,h,w] = scale[c] * (in[b,c,h,w] - mean[c]) * inv_std[c]
+                      + bias[c]
+
+    Shape: 4-parallel (B, C, H, W), zero reductions. 5 inputs (scale, A,
+    mean, inv_std, bias all broadcast through `polygeist.submap` from
+    their 4D / 1D shapes into the 4D iteration domain), 1 output.
+
+    Maps to cudnnBatchNormalizationForwardInference. The runtime shim
+    takes the 4D input/output + four 1D per-channel vectors and lets
+    cuDNN do the fused normalize+scale+bias in one launch.
+
+    The body order assumes the raise pass orders the ins as
+    (scale, A, mean, inv_std, bias) — observed on the batchnorm_batched
+    test file. If a future input reorders these (different argument
+    order in the C source), the unifier sees a different shape and the
+    match fails — at that point the template needs alternate input
+    orderings or a more permissive structural match.
+    """
+    # ((scale * (A - mean)) * inv_std) + bias
+    body = (
+        Term.In(0) * (Term.In(1) - Term.In(2))
+    ) * Term.In(3) + Term.In(4)
+    return CompositionEntry(
+        name="cudnnBatchNormalizationForwardInference",
+        steps=[
+            CompositionStep(
+                body=body,
+                num_ins=5, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+        ],
+    )
+
+
+def _cudnn_maxpool_batched() -> CompositionEntry:
+    """Batched multi-channel 2D max pooling. Two steps:
+      step1 (init): outs[b,c,oh,ow] = -INF  — 4 parallel, 0 ins.
+      step2 (reduce): outs[b,c,oh,ow] = max(In(0), Out(0))
+                       — 4 parallel + 2 reduction over (kh, kw).
+
+    Body of step2 lowers from cgeist's `(v > cur) ? v : cur` ternary
+    via arith.cmpf + arith.select. The matcher's algebraic encoder
+    sees the select as a max op and produces a clean max-reduction
+    body shape.
+    """
+    return CompositionEntry(
+        name="cudnnMaxPoolFwd_batched",
+        steps=[
+            CompositionStep(
+                # -FLT_MAX (≈ -3.4028235e38). cgeist canonicalises whatever
+                # the C source writes (-INFINITY, -FLT_MAX, -3.4e38, etc.)
+                # to the IEEE-754 float32 minimum which MLIR prints as
+                # -3.40282347E+38. Matching the exact parsed value here.
+                body=Term.Lit(-3.40282347e38),
+                num_ins=0, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+            # max(In(0), Out(0)) — cgeist lowers the ternary
+            # `(v > cur) ? v : cur` to `arith.cmpf ogt + arith.select`. The
+            # encoder turns that into `Select(Cmp("ogt", In, Out), In, Out)`,
+            # which is the same shape the softmax max-reduce step uses.
+            CompositionStep(
+                body=Term.Select(
+                    Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+                    Term.In(0),
+                    Term.Out(0),
+                ),
+                num_ins=1, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=2,
+            ),
+        ],
+    )
+
+
+def _cudnn_conv2d_batched() -> CompositionEntry:
+    """Batched multi-channel 2D convolution: out[b,oc,oh,ow] =
+       Σ_{ic,kh,kw} in[b,ic,oh+kh,ow+kw] * filter[oc,ic,kh,kw].
+
+    Two-step composition:
+      step1 (init): outs[b,oc,oh,ow] = 0 — 4 parallel iters, 0 inputs.
+      step2 (accumulate): same outs with 2 inputs (input + filter),
+                          4 parallel + 3 reduction (over ic, kh, kw).
+
+    The input tensor reaches the accumulation linalg.generic via a
+    polygeist.submap that produces a 7D strided-window view of the
+    original 4D input — that's the implicit im2col. The downstream
+    lowering doesn't need to inspect the submap; it just maps to a
+    cudnnConvolutionForward call with the standard 4D NCHW descriptors,
+    and the runtime shim runs the actual convolution. The matcher only
+    checks body shape + iter-type counts here.
+    """
+    return CompositionEntry(
+        name="cudnnConvolutionFwd_batched",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0),  # init body: yield 0
+                num_ins=0, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0) * Term.In(1),
+                num_ins=2, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=3,
+            ),
+        ],
+    )
+
+
 def _gemm_no_alpha() -> CompositionEntry:
     """C += A*B  (no alpha, no beta)."""
     body = Term.Out(0) + Term.In(0) * Term.In(1)
@@ -1471,8 +1781,18 @@ def composition_library() -> list[CompositionEntry]:
     """Order: longest compositions first; same-length ordered by specificity
     (more-captures first, more shape-constrained first)."""
     return [
-        # Multi-step
+        # Multi-step. Longest compositions first — the matcher is greedy
+        # and otherwise a shorter composition would consume bodies the
+        # longer one wanted.
+        _cudnn_conv_bias_relu_add_fused(),  # 5-step: init + conv + bias + residual + relu
+        _cublaslt_gemm_bias_relu_fused(),   # 4-step: init + gemm + bias + relu (cublasLt)
+        _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv
+        _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
         _gemm_composition(),
+        _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
+        _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
+        _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
+        _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 
         # 1-step BLAS with α capture.
         _gemm_alpha_only(),

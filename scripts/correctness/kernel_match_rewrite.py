@@ -442,8 +442,13 @@ def rewrite_mlir(
         report.append(("match", list(range(i, i + n)), entry.name))
 
         # Build a single kernel.launch covering instances[i..i+n-1].
-        # The replacement covers the FULL span from the first generic's
-        # start to the last generic's end.
+        # We emit the launch *in place of the last generic* and delete the
+        # earlier generics individually — that way any ops sitting BETWEEN
+        # the matched generics (e.g. a `polygeist.submap` that the
+        # contraction generic reads as an operand) are preserved
+        # verbatim. Replacing the whole span [first.start, last.end]
+        # with one launch would drop those intervening defs and leave
+        # the launch referring to undefined SSA values.
         start = instances[i].span[0]
         end = instances[i + n - 1].span[1]
         # Operands: gather all tensor ins + the *first* outs (the chain root).
@@ -531,6 +536,32 @@ def rewrite_mlir(
         # or the other input's dim (transposed). Switch the emit name to
         # `cublasDgemv_T` for the transposed case so the downstream lowering
         # can pick `CUBLAS_OP_N` instead of `CUBLAS_OP_T` for that call site.
+        # AᵀA / A·Aᵀ → cublasDsyrk operand-alias discriminator.
+        # If a gemm-shape composition's two inputs resolve to the same
+        # underlying tensor (after walking through polygeist.submap),
+        # the math is a symmetric rank-K update — half the flops via
+        # cublasDsyrk (writes only the upper triangle). Cheap check:
+        # scan the matched body's ins SSA names, walk back to find the
+        # defining ops, compare the submap-base SSA name.
+        if entry.name in ("cublasDgemm", "cublasDgemm_simple",
+                          "cublasDgemm_alpha_only"):
+            gemm_inst = instances[i + n - 1]  # last (contraction) generic
+            gemm_ins = _extract_ssa_names(gemm_inst.ins_part)
+            if len(gemm_ins) == 2:
+                # Walk each input SSA through polygeist.submap definitions
+                # to find the underlying base. The submap defining-op line
+                # has the form `%X = polygeist.submap(%base, ...) ...`.
+                def _resolve_submap_base(ssa_name: str) -> str | None:
+                    pat = re.compile(
+                        rf'\s*{re.escape(ssa_name)}\s*=\s*polygeist\.submap'
+                        rf'\s*\(\s*(%[\w_]+)\s*[,)]'
+                    )
+                    m = pat.search(text)
+                    return m.group(1) if m else None
+                base0 = _resolve_submap_base(gemm_ins[0]) or gemm_ins[0]
+                base1 = _resolve_submap_base(gemm_ins[1]) or gemm_ins[1]
+                if base0 == base1:
+                    emit_name = "cublasDsyrk_alias"
         if entry.name == "cublasDgemv" and n == 1:
             mb = bodies[i]
             if len(mb.indexing_maps) == 3:
@@ -592,7 +623,21 @@ def rewrite_mlir(
             )
         else:
             replacement = launch_line
-        edits.append((start, end, replacement))
+        if n == 1:
+            # Single-step composition: one generic, one launch. No
+            # intervening ops to preserve.
+            edits.append((start, end, replacement))
+        else:
+            # Multi-step: emit the launch in place of the LAST generic;
+            # delete the earlier generics individually so any text between
+            # them (intervening defs like polygeist.submap) is preserved
+            # verbatim. The earlier-generic deletions are span replacements
+            # to the empty string.
+            for j in range(n - 1):
+                inst_j = instances[i + j]
+                edits.append((inst_j.span[0], inst_j.span[1], ""))
+            last_inst = instances[i + n - 1]
+            edits.append((last_inst.span[0], last_inst.span[1], replacement))
         i += n
 
     if dry_run:
