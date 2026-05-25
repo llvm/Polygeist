@@ -54,12 +54,14 @@ for entry in "${KERNELS[@]}"; do
   src=$(ls $D/*.c 2>/dev/null | head -1)
   [ -z "$src" ] && { echo "$tag: missing source in $D"; continue; }
 
-  # NOTE: polybenchGpu files contain BOTH the kernel and main(); cgeist
-  # inlines the kernel into main and DCEs the standalone definition. So
-  # we use --function=* and drop --select-func so the raise pass sees the
-  # affine loops inside main (where the kernel now lives).
+  # polybenchGpu files contain BOTH the kernel and main(). We use
+  # --function=* so cgeist emits every function, plus --no-inline so the
+  # inliner doesn't fold init_array's stores into kernel reads (which
+  # would let scal-rep delete the loads and break perfect nesting). The
+  # raise pass then operates on the still-isolated kernel via
+  # --select-func.
   echo "[$tag] cgeist..."
-  timeout 60 cgeist "$src" '--function=*' --resource-dir=/usr/lib/clang/14 \
+  timeout 60 cgeist "$src" '--function=*' --no-inline --resource-dir=/usr/lib/clang/14 \
     -I$UTIL -I$D --raise-scf-to-affine -fPIC -S \
     -o $OUT/${tag}.mlir 2>$OUT/${tag}.cgeist.err
   if [ ! -s $OUT/${tag}.mlir ]; then
@@ -67,7 +69,7 @@ for entry in "${KERNELS[@]}"; do
   fi
 
   echo "[$tag] raise..."
-  timeout 60 polygeist-opt \
+  timeout 60 polygeist-opt --select-func="func-name=$fn" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline --lower-polygeist-submap \
     $OUT/${tag}.mlir -o $OUT/${tag}_linalg.mlir 2>$OUT/${tag}.raise.err

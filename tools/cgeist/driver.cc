@@ -168,6 +168,12 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
 static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
+static cl::opt<bool> NoInline("no-inline", cl::init(false),
+                              cl::desc("Skip the MLIR inliner pass — keeps "
+                                       "cross-function call boundaries intact "
+                                       "(useful for raise-to-linalg when init "
+                                       "and kernel share a TU)"));
+
 static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(false),
                                 cl::desc("Unroll Affine Loops"));
 
@@ -714,7 +720,8 @@ int main(int argc, char **argv) {
           optPM.addPass(mlir::createLowerAffinePass());
         optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
-        pm.addPass(mlir::createInlinerPass());
+        if (!NoInline)
+          pm.addPass(mlir::createInlinerPass());
         mlir::OpPassManager &optPM2 = pm.nest<mlir::func::FuncOp>();
         optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
@@ -765,7 +772,8 @@ int main(int argc, char **argv) {
       noptPM.addPass(polygeist::createPolygeistMem2RegPass());
       noptPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
-      pm.addPass(mlir::createInlinerPass());
+      if (!NoInline)
+        pm.addPass(mlir::createInlinerPass());
       mlir::OpPassManager &noptPM2 = pm.nest<mlir::func::FuncOp>();
       noptPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
