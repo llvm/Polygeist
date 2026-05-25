@@ -83,17 +83,51 @@ static void ensure_cudnn(void) {
   CUDNN_CHECK(cudnnSetStream(g_cudnn, g_stream));
 }
 
-// Zero-copy helper: pin a host buffer for direct GPU access on Jetson's
-// unified memory. Silently tolerates re-registration of the same pointer
-// (e.g. when A and B alias for syrk-shape calls). Returns the device-side
-// pointer obtained via cudaHostGetDevicePointer (equals the host pointer
-// under UVA on Tegra, but the explicit translation is safer).
+// Zero-copy helpers with PERSISTENT registration. cudaHostRegister has
+// real cost on Jetson (page-table setup for the mapped range) — for an
+// 8000×8000 double matrix that's 128K pages, ~50 ms per register call.
+// Many kernels touch the same buffer multiple times (e.g. gemver:
+// A is read/written by 2 gers + 2 gemvs = 4 shim calls). Re-registering
+// + unregistering on every call is wasteful.
 //
+// Strategy: register on first use, NEVER unregister. The page mapping
+// stays live for the rest of the program. Each shim call's first action
+// is a fast no-op "already registered" check.
+//
+// Cache implementation: small open-addressed hash table keyed on host
+// pointer. Size of 256 entries handles every benchmark we care about
+// (polybench has ≤ 12 distinct buffers per kernel).
+
+#define HOSTREG_CACHE_CAP 256
+struct hostreg_entry { void *host; void *dev; };
+static struct hostreg_entry g_hostreg_cache[HOSTREG_CACHE_CAP];
+static int g_hostreg_count = 0;
+
+static void *hostreg_cache_lookup(void *ptr) {
+  for (int i = 0; i < g_hostreg_count; ++i)
+    if (g_hostreg_cache[i].host == ptr)
+      return g_hostreg_cache[i].dev;
+  return NULL;
+}
+
+static void hostreg_cache_insert(void *host, void *dev) {
+  if (g_hostreg_count >= HOSTREG_CACHE_CAP) {
+    fprintf(stderr, "polygeist runtime: hostreg cache full (cap=%d)\n",
+            HOSTREG_CACHE_CAP);
+    abort();
+  }
+  g_hostreg_cache[g_hostreg_count].host = host;
+  g_hostreg_cache[g_hostreg_count].dev  = dev;
+  g_hostreg_count++;
+}
+
 // We tried bypassing cudaHostRegister and passing host pointers directly
 // to cuBLAS — fails with illegal-memory-access. cuBLAS requires the
 // buffer to be registered (or device-allocated) even on a Tegra SoC
 // where the iGPU can technically reach any DRAM page.
 static void *register_host_safe(void *ptr, size_t bytes) {
+  void *cached = hostreg_cache_lookup(ptr);
+  if (cached) return cached;
   cudaError_t err = cudaHostRegister(ptr, bytes, cudaHostRegisterMapped);
   if (err != cudaSuccess && err != cudaErrorHostMemoryAlreadyRegistered) {
     fprintf(stderr, "%s:%d cudaHostRegister(%p, %zu) failed: %s\n",
@@ -102,16 +136,13 @@ static void *register_host_safe(void *ptr, size_t bytes) {
   }
   void *dev = NULL;
   CUDA_CHECK(cudaHostGetDevicePointer(&dev, ptr, 0));
+  hostreg_cache_insert(ptr, dev);
   return dev;
 }
 
-static void unregister_host_safe(void *ptr) {
-  cudaError_t err = cudaHostUnregister(ptr);
-  if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
-    fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
-            __FILE__, __LINE__, ptr, cudaGetErrorString(err));
-  }
-}
+// Persistent-registration model: never unregister. Mappings live until
+// the program exits, at which point the OS reclaims them anyway.
+static void unregister_host_safe(void *ptr) { (void)ptr; }
 
 void polygeist_cublas_init(void) {
   if (g_initialized) return;

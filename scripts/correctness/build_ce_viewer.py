@@ -612,26 +612,26 @@ POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
 # H↔D copy still meaningful).
 JETSON_RUNTIMES: dict[str, list[dict]] = {
     "gemm": [
-        {"size": "MINI",       "gpu_s": 0.029462, "cpu_s": 0.000009, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.078833, "cpu_s": 0.631510, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 0.408451, "cpu_s": 7.138352, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.029207, "cpu_s": 0.000009, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.078334, "cpu_s": 0.631510, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 0.405161, "cpu_s": 7.138352, "correct": "FP-noise"},
     ],
     "2mm": [
-        {"size": "MINI",       "gpu_s": 0.030438, "cpu_s": 0.000013, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.098757, "cpu_s": 4.974022, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 0.470631, "cpu_s": 51.175102, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.029192, "cpu_s": 0.000013, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.095777, "cpu_s": 4.974022, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 0.466833, "cpu_s": 51.175102, "correct": "FP-noise"},
     ],
     "3mm": [
-        {"size": "MINI",       "gpu_s": 0.030567, "cpu_s": 0.000020, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.145995, "cpu_s": 5.883726, "correct": "PASS"},
-        {"size": "EXTRALARGE", "gpu_s": 0.788624, "cpu_s": 61.008747, "correct": "PASS"},
+        {"size": "MINI",       "gpu_s": 0.030220, "cpu_s": 0.000020, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.142634, "cpu_s": 5.883726, "correct": "PASS"},
+        {"size": "EXTRALARGE", "gpu_s": 0.779139, "cpu_s": 61.008747, "correct": "PASS"},
     ],
     # polybenchGpu syrk. Sizes per syrk.h: MINI=32², LARGE=2000²,
     # EXTRALARGE=4000². Matched as cublasDgemm (A·Aᵀ via OP_T).
     "syrk": [
-        {"size": "MINI",       "gpu_s": 0.029684, "cpu_s": 0.000029, "correct": "PASS"},
-        {"size": "LARGE",      "gpu_s": 0.291590, "cpu_s": 8.684662, "correct": "FP-noise"},
-        {"size": "EXTRALARGE", "gpu_s": 1.960155, "cpu_s": 69.050941, "correct": "FP-noise"},
+        {"size": "MINI",       "gpu_s": 0.028913, "cpu_s": 0.000029, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.289359, "cpu_s": 8.684662, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 1.952076, "cpu_s": 69.050941, "correct": "FP-noise"},
     ],
     # polybenchGpu convolution-2d (DATA_TYPE=float). Sizes per
     # convolution-2d.h: MINI=64², LARGE=4096², EXTRALARGE=8192².
@@ -673,23 +673,23 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
     # (kernel does x1 = A·y_1 with β=0 instead of x1 += A·y_1), so the
     # initial-value contribution from polybench init_array is dropped.
     "atax": [
-        {"size": "MINI",  "gpu_s": 0.035801, "cpu_s": 0.000002, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.265393, "cpu_s": 0.106797, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.035718, "cpu_s": 0.000002, "correct": "PASS"},
+        {"size": "LARGE", "gpu_s": 0.243491, "cpu_s": 0.106797, "correct": "PASS"},
     ],
     "bicg": [
-        {"size": "MINI",  "gpu_s": 0.036365, "cpu_s": 0.000004, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.265848, "cpu_s": 0.293824, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.035921, "cpu_s": 0.000004, "correct": "PASS"},
+        {"size": "LARGE", "gpu_s": 0.244687, "cpu_s": 0.293824, "correct": "PASS"},
     ],
     "gesummv": [
-        {"size": "MINI",  "gpu_s": 0.032152, "cpu_s": 0.000004, "correct": "PASS"},
-        {"size": "LARGE", "gpu_s": 0.263002, "cpu_s": 0.293041, "correct": "PASS"},
+        {"size": "MINI",  "gpu_s": 0.032386, "cpu_s": 0.000004, "correct": "PASS"},
+        {"size": "LARGE", "gpu_s": 0.242233, "cpu_s": 0.293041, "correct": "PASS"},
     ],
     "mvt": [
-        {"size": "MINI",  "gpu_s": 0.036008, "cpu_s": 0.000002, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.036262, "cpu_s": 0.000002, "correct": "DIFF"},
     ],
     "gemver": [
-        {"size": "MINI",  "gpu_s": 0.034228, "cpu_s": 0.000003, "correct": "DIFF"},
-        {"size": "LARGE", "gpu_s": 0.449873, "cpu_s": 0.575250, "correct": "DIFF"},
+        {"size": "MINI",  "gpu_s": 0.033820, "cpu_s": 0.000003, "correct": "DIFF"},
+        {"size": "LARGE", "gpu_s": 0.390434, "cpu_s": 0.575250, "correct": "DIFF"},
     ],
 }
 
