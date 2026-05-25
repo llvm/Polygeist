@@ -571,6 +571,56 @@ POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
     "seidel-2d":       ("serial-recurrence", "Gauss-Seidel — in-place writes within a sweep"),
 }
 
+
+# =====================================================================
+# Jetson Orin silicon runtime measurements.
+# =====================================================================
+#
+# For kernels that have actually been silicon-validated, one entry per
+# (kernel, dataset) combination. The driver (scripts/correctness/
+# polygeist_build.sh --target=jetson) cross-compiles two binaries from
+# the same source:
+#   - "gpu":  Polygeist-lifted kernel routed through cuDNN/cuBLAS via
+#             our runtime shim. Time captured from polybench's built-in
+#             timer (-DPOLYBENCH_TIME prints seconds to stdout).
+#   - "cpu":  Plain aarch64-linux-gnu-gcc -O3 build of the same .c
+#             linked with polybench.c; no Polygeist. Runs the textbook
+#             C loop on Jetson's aarch64 CPU. Same timing method.
+#
+# Both shipped to Jetson Orin via the dev-box bounce and run; outputs
+# diffed for correctness. Last-decimal FP precision drift at large sizes
+# is normal — cuBLAS/cuDNN use tiled reductions with a different
+# summation order than the textbook 3-loop, so e.g. `447.11` printed by
+# the CPU might come out `447.10` on the GPU. PolyBench's reference
+# considers these equivalent.
+#
+# Schema per entry:
+#   { "size":        "MINI" | "LARGE" | "EXTRALARGE" (PolyBench dataset)
+#                    or numeric string for non-PolyBench kernels
+#     "gpu_s":       cuDNN/cuBLAS kernel time in seconds
+#     "cpu_s":       aarch64 textbook-C kernel time in seconds
+#     "correct":     "PASS" | "FP-noise" | "DIFF" | "ABORT"
+#                    "FP-noise" = same algorithm, last-decimal rounding
+#                    differs; functionally equivalent.
+#   }
+JETSON_RUNTIMES: dict[str, list[dict]] = {
+    "gemm": [
+        {"size": "MINI",       "gpu_s": 0.094298, "cpu_s": 0.000009, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.147958, "cpu_s": 0.631510, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 0.488472, "cpu_s": 7.138352, "correct": "FP-noise"},
+    ],
+    "2mm": [
+        {"size": "MINI",       "gpu_s": 0.093444, "cpu_s": 0.000013, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.168600, "cpu_s": 4.974022, "correct": "FP-noise"},
+        {"size": "EXTRALARGE", "gpu_s": 0.557624, "cpu_s": 51.175102, "correct": "FP-noise"},
+    ],
+    "3mm": [
+        {"size": "MINI",       "gpu_s": 0.094730, "cpu_s": 0.000020, "correct": "PASS"},
+        {"size": "LARGE",      "gpu_s": 0.218748, "cpu_s": 5.883726, "correct": "PASS"},
+        {"size": "EXTRALARGE", "gpu_s": 0.892493, "cpu_s": 61.008747, "correct": "PASS"},
+    ],
+}
+
 # llama2.c blockers — all three lift to linalg.generic cleanly; the only
 # remaining gap is matcher-library entries for LLM-shaped bodies (rmsnorm,
 # softmax). The earlier note that v2-debufferize couldn't handle softmax's
@@ -982,6 +1032,47 @@ _BLOCKER_CSS = {
 }
 
 
+def _fmt_seconds(s: float) -> str:
+    """Format a seconds value for display in the runtime cells:
+    sub-millisecond → µs, sub-second → ms, otherwise s."""
+    if s < 0.001:
+        return f"{s*1e6:.1f} µs"
+    if s < 1.0:
+        return f"{s*1000:.2f} ms"
+    return f"{s:.2f} s"
+
+
+def _runtime_cells_for(kernel: str) -> list[str]:
+    """One <td> block per (dataset, gpu, cpu) tuple for the JETSON_RUNTIMES
+    columns. Empty list if no Jetson silicon data for this kernel — in that
+    case the caller emits empty placeholders for all four runtime cells.
+    Each returned string contains four <td>s: size / GPU time / CPU time /
+    speedup. Speedup colour is green when GPU wins, red when CPU wins,
+    yellow at parity.
+    """
+    entries = JETSON_RUNTIMES.get(kernel, [])
+    cells_per_row = []
+    for e in entries:
+        size, gpu, cpu = e["size"], e["gpu_s"], e["cpu_s"]
+        speedup = cpu / gpu if gpu > 0 else 0.0
+        if speedup >= 2.0:    su_cls = "pass"
+        elif speedup >= 0.8:  su_cls = "partial"
+        else:                 su_cls = "none"
+        # Correctness annotation: PASS = bit-exact; FP-noise = last-digit
+        # drift only (cuBLAS tiled reductions); DIFF = real divergence;
+        # ABORT = GPU crashed (intentional fail-fast, see cudnn-dtype-gap).
+        cmark = {"PASS":"✓", "FP-noise":"≈", "DIFF":"✗", "ABORT":"⨯"}.get(
+            e.get("correct", "?"), "?")
+        cells_per_row.append(
+            f'<td style="font-size:12px"><b>{size}</b></td>'
+            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(gpu)}</td>'
+            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(cpu)}</td>'
+            f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
+            f'{speedup:.1f}× {cmark}</td>'
+        )
+    return cells_per_row
+
+
 def _render_section_rows(kernel_stats: dict[str, dict],
                           notes: dict[str, tuple[str, str]],
                           blockers: dict[str, tuple[str, str]]) -> str:
@@ -1031,17 +1122,54 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             )
 
         page_file = s.get("page_filename", f"{k}.html")
-        rows.append(
-            f'<tr>'
+        kernel_cell = (
             f'<td>{kernel_link}'
             f'<a class="viewer" href="{page_file}" style="margin-left:12px">[IR preview]</a>'
             f'</td>'
+        )
+        match_cells = (
             f'<td>{l}</td><td>{r}</td><td class="{for_cls}">{f}</td>'
             f'<td class="{cls}">{status}</td>'
-            f'{note_cell}'
-            f'{block_cell}'
-            f'</tr>'
         )
+
+        # Jetson-runtime cells: one <tr> per (size, gpu, cpu) when data
+        # exists; otherwise one <tr> with four empty runtime cells.
+        runtime_rows = _runtime_cells_for(k)
+        if not runtime_rows:
+            runtime_rows = ['<td style="font-size:12px; color:#bbb">—</td>'
+                            '<td style="font-size:12px; color:#bbb">—</td>'
+                            '<td style="font-size:12px; color:#bbb">—</td>'
+                            '<td style="font-size:12px; color:#bbb">—</td>']
+
+        # Multi-row layout: the kernel-shared cells (name, match-status,
+        # parallelism, blocker) use rowspan to span all the runtime rows
+        # for this kernel. The first runtime row joins them; the rest are
+        # standalone <tr>s with only the four runtime cells.
+        n_rows = len(runtime_rows)
+        rowspan_attr = f' rowspan="{n_rows}"' if n_rows > 1 else ''
+
+        # Re-apply rowspan to each <td> in kernel_cell / match_cells /
+        # note_cell / block_cell. We need to inject rowspan into each
+        # opening <td>. Simplest: substitute via string ops.
+        def _with_rowspan(html: str) -> str:
+            # Only adds rowspan to <td> tags (not </td>); used when n_rows>1.
+            if n_rows <= 1:
+                return html
+            # Replace each `<td` (with or without attrs) with `<td rowspan="N"`.
+            # Idempotent enough for our generated strings.
+            return re.sub(r'<td(\s|>)', f'<td rowspan="{n_rows}"\\1', html)
+
+        first_kernel  = _with_rowspan(kernel_cell)
+        first_match   = _with_rowspan(match_cells)
+        first_note    = _with_rowspan(note_cell)
+        first_block   = _with_rowspan(block_cell)
+
+        rows.append(
+            f'<tr>{first_kernel}{first_match}{first_note}{first_block}'
+            f'{runtime_rows[0]}</tr>'
+        )
+        for rr in runtime_rows[1:]:
+            rows.append(f'<tr>{rr}</tr>')
     return "\n".join(rows)
 
 
@@ -1064,6 +1192,10 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>parallelism notes</th>'
         '<th>blocker</th>'
         '<th>blocker notes</th>'
+        '<th>Jetson<br>dataset</th>'
+        '<th>GPU<br>(cuDNN/cuBLAS)</th>'
+        '<th>CPU<br>(aarch64)</th>'
+        '<th>speedup<br>+ ✓/≈/✗</th>'
         '</tr></thead><tbody>'
         + rows_html +
         '</tbody></table>'
