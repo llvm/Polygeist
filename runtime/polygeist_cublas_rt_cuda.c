@@ -155,21 +155,11 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
   }
 }
 
-// y = α*x + β*y (axpby). Two cuBLAS calls: scal then axpy.
+// y = α*x + β*y (axpby). O(N) bandwidth-bound; H↔D copy + two cuBLAS
+// calls would dominate any GPU benefit. Do it on the host directly.
 void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
                               double beta, double *y) {
-  polygeist_cublas_init();
-  size_t bytes = (size_t)N * sizeof(double);
-  double *dx = NULL, *dy = NULL;
-  CUDA_CHECK(cudaMalloc((void**)&dx, bytes));
-  CUDA_CHECK(cudaMalloc((void**)&dy, bytes));
-  CUDA_CHECK(cudaMemcpyAsync(dx, x, bytes, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dy, y, bytes, cudaMemcpyHostToDevice, g_stream));
-  CUBLAS_CHECK(cublasDscal(g_handle, N, &beta, dy, 1));
-  CUBLAS_CHECK(cublasDaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
-  CUDA_CHECK(cudaMemcpyAsync(y, dy, bytes, cudaMemcpyDeviceToHost, g_stream));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  cudaFree(dx); cudaFree(dy);
+  for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
 }
 
 // y += x (axpy with α=1).

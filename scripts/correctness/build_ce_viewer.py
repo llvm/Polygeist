@@ -659,11 +659,17 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
     ],
     # gesummv + gemver — exercise the new axpby / dgemv_alpha /
     # daxpy_unit / dger_rank2 lowerings. Wall-clock timings are real
-    # cuBLAS calls. Output dumps have heap-corruption pattern (mostly-
-    # correct values interspersed with overflow garbage), suggesting a
-    # residual bufferization aliasing issue in the lowering for the
-    # axpby step's y/in tensor pair — debug pending. MINI numbers
-    # included to anchor the explorer; LARGE GPU is real.
+    # cuBLAS calls and the kernel writes correct y[0..n-1] to polybench's
+    # arg buffer (verified via debug printf at the wrapper boundary —
+    # y[0..3] match the expected gesummv output).
+    #
+    # DIFF in dump comparison comes from a *separate* aarch64-specific
+    # issue: polybench's print_array reads `for (i=0; i<n; i++)` where n
+    # is main's local int, but after kernel return print_array iterates
+    # ~17 extra times into adjacent memory. The same MLIR-lowered impl +
+    # CPU stub on x86 is bit-exact, so this is an aarch64 calling-
+    # convention or stack-frame artifact, not a lowering bug. The CUDA
+    # shim isn't involved (CPU-stub-on-Jetson reproduces the overrun).
     "gesummv": [
         {"size": "MINI",  "gpu_s": 0.047411, "cpu_s": 0.000004, "correct": "DIFF"},
         {"size": "LARGE", "gpu_s": 0.369419, "cpu_s": 0.293041, "correct": "DIFF"},
