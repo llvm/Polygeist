@@ -18,6 +18,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LowerPolygeistSubmap.cpp
   LowerKernelLaunch.cpp
   LowerKernelLaunchToCuBLAS.cpp
+  LowerKernelLaunchToPVA.cpp
+  KernelLaunchLoweringUtils.cpp
   LinalgToKernel.cpp
   ParallelLower.cpp
   TrivialUse.cpp

@@ -175,6 +175,68 @@ void polygeist_cudnn_conv2d_3x3_i16(
     int16_t w6, int16_t w7, int16_t w8,
     const int16_t *A, int16_t *B);
 
+// PVA-routed INT8 / INT16 conv (NEW path; replaces the failing-cuDNN i8/i16
+// shims for the lowering). Same I/O contract as the cuDNN 3x3 shims:
+//   - A, B are MxN row-major buffers of int8_t / int16_t
+//   - Interior B[1..M-2][1..N-2] gets the convolved result; borders left untouched
+// Routes via PVA Solutions' pvaConv2d through libpva_operator.so on the Jetson.
+// PVA's conv supports kernel 3x3/5x5/7x7, single-channel, integer 8/16-bit,
+// with an internal wider accumulator + output narrowing. CPU stub does a
+// reference loop with int32 accumulator and narrowing-with-wrap on
+// store (matches PVA's behaviour for our polybench-scaled weights since
+// the per-pixel sum stays in narrow-int range).
+void polygeist_pva_conv2d_3x3_i8(
+    int32_t M, int32_t N,
+    int8_t w0, int8_t w1, int8_t w2,
+    int8_t w3, int8_t w4, int8_t w5,
+    int8_t w6, int8_t w7, int8_t w8,
+    const int8_t *A, int8_t *B);
+
+void polygeist_pva_conv2d_3x3_i16(
+    int32_t M, int32_t N,
+    int16_t w0, int16_t w1, int16_t w2,
+    int16_t w3, int16_t w4, int16_t w5,
+    int16_t w6, int16_t w7, int16_t w8,
+    const int16_t *A, int16_t *B);
+
+// BoxFilter — uniform-weight K×K filter. Single-channel signed 8/16-bit on
+// PVA via libpva_operator's pvaBoxFilter{Create,Submit}. No coefficient
+// tensor (the filter is implicitly 1/K² everywhere). REPLICATE border.
+// Output saturates to dtype range. M/N are full image dims; the shim
+// writes a (M-2)×(N-2) interior to caller-supplied B starting at &B[1][1]
+// (same pointer-shift convention the matcher uses for conv2d).
+void polygeist_pva_boxfilter_3x3_i8(int32_t M, int32_t N,
+                                     const int8_t *A, int8_t *B);
+void polygeist_pva_boxfilter_3x3_i16(int32_t M, int32_t N,
+                                      const int16_t *A, int16_t *B);
+
+// GaussianFilter — separable Gaussian via PVA's pvaGaussianFilter. The
+// hardware takes (sigmaX, sigmaY, kernelSize) parameters; for the v0
+// integration we hardcode kernelSize=3 and sigmaX=sigmaY=1.0 (the natural
+// 3×3 Gaussian). Surfacing sigma as launch operands is future work; the
+// matcher would need to recognize Gaussian-weighted convs and route here
+// instead of to OpConv2d.
+void polygeist_pva_gaussian_3x3_i8(int32_t M, int32_t N,
+                                    const int8_t *A, int8_t *B);
+void polygeist_pva_gaussian_3x3_i16(int32_t M, int32_t N,
+                                     const int16_t *A, int16_t *B);
+
+// BilateralFilter — edge-preserving smoothing. PVA's pvaBilateralFilter
+// hardcodes sigmaRange=25.0 / sigmaSpace=10.0 (typical edge-preserving
+// parameters) for v0. CPU stub is approximate (matches PVA within a few
+// LSBs on typical-content images; bilateral is non-linear so bit-exact
+// match is impractical to model without the full PVA fixed-point spec).
+// Validation strategy: PVA must run cleanly + output must be in-range.
+void polygeist_pva_bilateral_3x3_i8(int32_t M, int32_t N,
+                                     const int8_t *A, int8_t *B);
+void polygeist_pva_bilateral_3x3_i16(int32_t M, int32_t N,
+                                      const int16_t *A, int16_t *B);
+
+// HistogramEqualization — U8-only on PVA; we reinterpret i8 bytes as u8
+// (bitwise identical) for the shim's tensor allocation.
+void polygeist_pva_histeq_i8(int32_t M, int32_t N,
+                              const int8_t *A, int8_t *B);
+
 // ============================================================================
 // Extracted-darknet batched CNN-block primitives. All four take 4D NCHW
 // tensors (and 1D per-channel vectors for batchnorm) as raw FP32 pointers

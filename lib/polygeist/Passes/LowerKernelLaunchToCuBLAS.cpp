@@ -32,6 +32,8 @@
 
 #include "PassDetails.h"
 
+#include "KernelLaunchLoweringUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -88,8 +90,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_3x3_bf16";
   if (libSym == "cudnnConvolution2D_9tap_i32")
     return "polygeist_cudnn_conv2d_3x3_i32";
-  if (libSym == "cudnnConvolution2D_9tap_i16")
-    return "polygeist_cudnn_conv2d_3x3_i16";
+  // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
+  // launches route to PVA Solutions' libpva_operator and are lowered by
+  // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
+  // no working standalone INT8/INT16 forward-conv kernel on Orin.
   // Extracted-darknet batched CNN-block primitives. All four take their
   // 4D tensors through `polygeist.submap` views (the implicit im2col for
   // conv, the broadcast onto the 4D iteration domain for batchnorm, etc.)
@@ -116,19 +120,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
   return StringRef();
 }
 
-// Get-or-create a `func.func private @<shim>(<argTypes>)` declaration at
-// module scope. Idempotent.
-static func::FuncOp ensureShimDecl(ModuleOp module, StringRef shimSym,
-                                    TypeRange argTypes, OpBuilder &builder) {
-  if (auto existing = module.lookupSymbol<func::FuncOp>(shimSym))
-    return existing;
-  OpBuilder::InsertionGuard g(builder);
-  builder.setInsertionPointToEnd(module.getBody());
-  auto fnType = builder.getFunctionType(argTypes, /*results=*/{});
-  auto fn = builder.create<func::FuncOp>(module.getLoc(), shimSym, fnType);
-  fn.setPrivate();
-  return fn;
-}
+// `ensureShimDecl` and `memrefBasePtr` are shared with the PVA lowering
+// pass; their definitions live in KernelLaunchLoweringUtils.cpp.
+using mlir::polygeist::ensureShimDecl;
+using mlir::polygeist::memrefBasePtr;
 
 // Return an SSA value for the `axis` dimension of memref `m`, as `i32`.
 // We use i32 because the shim functions accept int32_t for M/N/K/lda/...
@@ -161,31 +156,6 @@ static Value memrefToTensor(OpBuilder &b, Location loc, Value m, Type tensorType
   auto t = b.create<bufferization::ToTensorOp>(
       loc, tensorType, m, /*restrict=*/true, /*writable=*/true);
   return t.getResult();
-}
-
-// Extract a raw `!llvm.ptr` to the FIRST DATA ELEMENT of a memref.
-// Sequence: aligned_ptr (as index) -> i64 -> add offset*sizeof(elt) -> ptr.
-// For freshly bufferised memrefs offset=0 so the +offset is a no-op, but
-// we emit it anyway to be safe.
-static Value memrefBasePtr(OpBuilder &b, Location loc, Value m) {
-  auto mrTy = cast<MemRefType>(m.getType());
-  auto eltTy = mrTy.getElementType();
-  // Aligned pointer base (ignores offset).
-  Value alignedIdx = b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, m);
-  Value alignedI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), alignedIdx);
-  // Strided metadata for the offset.
-  auto md = b.create<memref::ExtractStridedMetadataOp>(loc, m);
-  Value offsetIdx = md.getOffset();
-  Value offsetI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), offsetIdx);
-  // sizeof(elt) in bytes.
-  unsigned bits = eltTy.getIntOrFloatBitWidth();
-  Value eltBytes = b.create<arith::ConstantOp>(
-      loc, b.getI64Type(), b.getI64IntegerAttr(bits / 8));
-  Value byteOff = b.create<arith::MulIOp>(loc, offsetI64, eltBytes);
-  Value byteAddr = b.create<arith::AddIOp>(loc, alignedI64, byteOff);
-  // i64 -> !llvm.ptr.
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  return b.create<LLVM::IntToPtrOp>(loc, ptrTy, byteAddr);
 }
 
 // Walk a SSA value back through `polygeist.submap` / `polygeist.submapInverse`
@@ -485,123 +455,10 @@ static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
-// @cudnnConvolution2D_9tap(in0..in8, out) — memref-form, no result.
-// 10 operands: 9 input subviews (all aliases of the same source memref
-// with different strided offsets — the 3x3 neighbour positions) + 1 output
-// subview. The 9 scalar weights stay embedded in the original
-// linalg.generic body; surfacing them as launch operands is a matcher TODO.
-// For now the cuDNN runtime shim has the polybench weights hardcoded.
-//
-// We extract:
-//   - A_ptr = aligned-ptr of input 0 (= source memref's data start)
-//   - B_ptr = aligned-ptr of output  (= dest memref's data start)
-//   - M = dim(output, 0) + 2   (output is interior, source is +2 in each axis)
-//   - N = dim(output, 1) + 2
-static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
-                                            StringRef shimSymbol) {
-  // Expected operands: 9 input subviews + 1 output subview + 9 weight scalars
-  // = 19 total. (Pre-Lit-surfacing the shape was 10 operands with hardcoded
-  // shim weights; we keep a compatibility path that catches the old 10-arg
-  // form and routes to the legacy polybench-specific shim.)
-  unsigned n = launch.getNumOperands();
-  if (n != 19 && n != 10)
-    return launch.emitError("cudnnConvolution2D_9tap: expected 19 operands "
-                            "(9 input subviews + 1 output + 9 weights) "
-                            "or legacy 10 operands; got ")
-           << n;
-  if (launch.getNumResults() != 0)
-    return launch.emitError("cudnnConvolution2D_9tap: expected memref-form "
-                            "(void) launch; got ")
-           << launch.getNumResults() << " result(s)";
-
-  // First 10 operands must be 2D memrefs with a supported float element type.
-  // The element type is derived from the first input — all 10 must agree.
-  auto firstMr = dyn_cast<MemRefType>(launch.getOperand(0).getType());
-  if (!firstMr || firstMr.getRank() != 2)
-    return launch.emitError(
-        "cudnnConvolution2D_9tap: operand 0 must be a 2D memref");
-  Type elemTy = firstMr.getElementType();
-  bool isSupportedInt = false;
-  if (auto intTy = dyn_cast<IntegerType>(elemTy)) {
-    unsigned w = intTy.getWidth();
-    isSupportedInt = (w == 32 || w == 16);
-  }
-  if (!(elemTy.isF64() || elemTy.isF32() || elemTy.isF16() ||
-        elemTy.isBF16() || isSupportedInt))
-    return launch.emitError(
-        "cudnnConvolution2D_9tap: element type must be f64/f32/f16/bf16/i32/i16 (got ") << elemTy << ")";
-  for (unsigned i = 0; i < 10; ++i) {
-    auto mr = dyn_cast<MemRefType>(launch.getOperand(i).getType());
-    if (!mr || mr.getRank() != 2 || mr.getElementType() != elemTy)
-      return launch.emitError(
-                 "cudnnConvolution2D_9tap: memref operands 0..9 must be 2D "
-                 "memrefs with matching element type");
-  }
-  // If new form, trailing 9 operands must match the matrix element type.
-  if (n == 19) {
-    for (unsigned i = 10; i < 19; ++i) {
-      if (launch.getOperand(i).getType() != elemTy)
-        return launch.emitError("cudnnConvolution2D_9tap: weight operands "
-                                "(10..18) must match memref elem type");
-    }
-  }
-
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  Value A_subview = launch.getOperand(0);
-  Value B_subview = launch.getOperand(9);
-
-  Value A_ptr = memrefBasePtr(b, loc, A_subview);
-  Value B_ptr = memrefBasePtr(b, loc, B_subview);
-
-  // Derive M, N from the output subview's dynamic sizes (interior = (M-2)*(N-2))
-  // and add 2 to recover the source dims. memref.dim returns index; cast to i32.
-  Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = b.create<arith::ConstantIndexOp>(loc, 1);
-  Value c2_i32 = b.create<arith::ConstantOp>(loc, b.getI32Type(),
-                                              b.getI32IntegerAttr(2));
-  Value h_idx = b.create<memref::DimOp>(loc, B_subview, c0);
-  Value w_idx = b.create<memref::DimOp>(loc, B_subview, c1);
-  Value h_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), h_idx);
-  Value w_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), w_idx);
-  Value M = b.create<arith::AddIOp>(loc, h_i32, c2_i32);
-  Value N = b.create<arith::AddIOp>(loc, w_i32, c2_i32);
-
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  if (n == 19) {
-    // New generic shim: takes M, N, 9 weights (matching elemTy), A_ptr, B_ptr.
-    // Different shim symbol per dtype — picked by the rewriter via the
-    // launch symbol name (cudnnConvolution2D_9tap → f64,
-    // cudnnConvolution2D_9tap_f32 → f32, etc.).
-    SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type()};
-    for (unsigned i = 0; i < 9; ++i) argTypes.push_back(elemTy);
-    argTypes.push_back(ptrTy);  // A
-    argTypes.push_back(ptrTy);  // B
-    func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
-    SmallVector<Value> callOperands = {M, N};
-    for (unsigned i = 10; i < 19; ++i)
-      callOperands.push_back(launch.getOperand(i));
-    callOperands.push_back(A_ptr);
-    callOperands.push_back(B_ptr);
-    b.create<func::CallOp>(loc, shim, callOperands);
-  } else {
-    // Legacy 10-arg path — only valid for f64 because the legacy shim has
-    // polybench's specific weights hardcoded.
-    if (!elemTy.isF64())
-      return launch.emitError(
-          "cudnnConvolution2D_9tap: legacy 10-arg form requires f64 elements; "
-          "got ")
-             << elemTy;
-    SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
-                                   ptrTy, ptrTy};
-    func::FuncOp shim = ensureShimDecl(
-        module, "polygeist_cudnn_conv2d_polybench9tap", argTypes, b);
-    b.create<func::CallOp>(loc, shim, ValueRange{M, N, A_ptr, B_ptr});
-  }
-
-  launch.erase();
-  return success();
-}
+// The actual @cudnnConvolution2D_9tap lowering body is shared with
+// LowerKernelLaunchToPVA via KernelLaunchLoweringUtils.cpp. Bring it into
+// this file's scope so the dispatch switch below can name it unqualified.
+using mlir::polygeist::lowerCudnnConv2D9tap;
 
 // Shared lowering for cublasDgemv (no transpose) and cublasDgemv_T (Aᵀ·x).
 // `transpose=false` routes to polygeist_cublas_dgemv, `true` to
@@ -1685,6 +1542,12 @@ struct LowerKernelLaunchToCuBLASPass
         return signalPassFailure();
       }
       StringRef libSym = sym.getLeafReference().getValue();
+      // Symbols claimed by other backend passes (e.g. PVA for int8/int16
+      // conv2d) intentionally fall through — they're not errors here,
+      // just "not our problem". Their own pass will lower them.
+      if (libSym == "cudnnConvolution2D_9tap_i8" ||
+          libSym == "cudnnConvolution2D_9tap_i16")
+        continue;
       StringRef shim = shimSymbolFor(libSym);
       if (shim.empty()) {
         launch.emitError(
@@ -1724,8 +1587,10 @@ struct LowerKernelLaunchToCuBLASPass
                  libSym == "cudnnConvolution2D_9tap_f32" ||
                  libSym == "cudnnConvolution2D_9tap_f16" ||
                  libSym == "cudnnConvolution2D_9tap_bf16" ||
-                 libSym == "cudnnConvolution2D_9tap_i32" ||
-                 libSym == "cudnnConvolution2D_9tap_i16") {
+                 libSym == "cudnnConvolution2D_9tap_i32") {
+        // i8/i16 are handled by LowerKernelLaunchToPVA and aren't claimed
+        // here by shimSymbolFor, so they're skipped above before we ever
+        // reach this dispatch.
         r = lowerCudnnConv2D9tap(launch, module, shim);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);

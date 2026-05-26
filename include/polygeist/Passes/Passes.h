@@ -38,6 +38,7 @@ std::unique_ptr<Pass> createLinalgDebufferizePass();
 std::unique_ptr<Pass> createLowerPolygeistSubmapPass();
 std::unique_ptr<Pass> createLowerKernelLaunchPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToCuBLASPass();
+std::unique_ptr<Pass> createLowerKernelLaunchToPVAPass();
 std::unique_ptr<Pass> createRemoveIterArgsPass();
 std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();

@@ -251,6 +251,33 @@ def LowerKernelLaunchToCuBLAS
   ];
 }
 
+def LowerKernelLaunchToPVA
+    : Pass<"lower-kernel-launch-to-pva", "::mlir::ModuleOp"> {
+  let summary = "Lower kernel.launch ops to PVA Solutions runtime-shim func.calls";
+  let description = [{
+    Phase-2 ABI lowering for kernels routed to NVIDIA PVA Solutions
+    (libpva_operator on Jetson Orin's Programmable Vision Accelerator).
+    Currently handles `@cudnnConvolution2D_9tap_i{8,16}` → `func.call
+    @polygeist_pva_conv2d_3x3_i{8,16}`, the runtime-shim entry point for
+    PVA's single-channel integer Conv2d operator.
+
+    Distinct from `--lower-kernel-launch-to-cublas` because PVA is a
+    separate backend with its own vendor library, host-side staging
+    contract (cuPVA-mapped memory, not cudaMemcpy), and hardware
+    semantics (Q-format quantized filter with REPLICATE border, not
+    raw integer multiply-accumulate). The two passes handle disjoint
+    launch symbol sets and can run in either order.
+  }];
+  let constructor = "mlir::polygeist::createLowerKernelLaunchToPVAPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "func::FuncDialect",
+    "LLVM::LLVMDialect",
+    "memref::MemRefDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+}
+
 def LinalgDebufferize : Pass<"linalg-debufferize"> {
   let summary = "Raise affine to linalg";
   let constructor = "mlir::polygeist::createLinalgDebufferizePass()";

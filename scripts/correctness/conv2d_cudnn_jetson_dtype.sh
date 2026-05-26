@@ -31,8 +31,9 @@ CUDNN_LIB=/usr/lib/aarch64-linux-gnu
 case "$DTYPE" in
   f64)  SRC=$EXT/conv2d.c;       MTY=f64;  CTY=double; KIND_DEF="-DCTYPE_KIND_FLOAT"; SYM_SUFFIX="";    ;;
   f32)  SRC=$EXT/conv2d_f32.c;   MTY=f32;  CTY=float;  KIND_DEF="-DCTYPE_KIND_FLOAT"; SYM_SUFFIX="_f32";;
-  i32)  SRC=$EXT/conv2d_i32.c;   MTY=i32;  CTY=int;    KIND_DEF="-DCTYPE_KIND_INT";   SYM_SUFFIX="_i32";;
-  i16)  SRC=$EXT/conv2d_i16.c;   MTY=i16;  CTY=short;  KIND_DEF="-DCTYPE_KIND_INT";   SYM_SUFFIX="_i16";;
+  i32)  SRC=$EXT/conv2d_i32.c;   MTY=i32;  CTY=int;         KIND_DEF="-DCTYPE_KIND_INT"; SYM_SUFFIX="_i32";;
+  i16)  SRC=$EXT/conv2d_i16.c;   MTY=i16;  CTY=short;       KIND_DEF="-DCTYPE_KIND_INT"; SYM_SUFFIX="_i16";;
+  i8)   SRC=$EXT/conv2d_i8.c;    MTY=i8;   CTY=int8_t;      KIND_DEF="-DCTYPE_KIND_INT"; SYM_SUFFIX="_i8";;
   f16)
     echo "f16 not yet supported via cgeist (BuiltinType _Float16 unhandled in clang-mlir.cc)"; exit 2;;
   bf16)
@@ -76,8 +77,11 @@ awk -v mty=$MTY -v sfx=$SYM_SUFFIX '/^module/ && !done{
        done=1; next
      }{print}' $OUT/matched.mlir > $OUT/matched_with_defn.mlir
 
-echo "[conv2d/$DTYPE/$SIZE] (5) lower-kernel-launch-to-cublas"
-polygeist-opt --lower-kernel-launch-to-cublas \
+echo "[conv2d/$DTYPE/$SIZE] (5) lower-kernel-launch-to-{cublas,pva}"
+# Run both backend lowering passes. They handle disjoint launch symbols
+# (cuBLAS owns gemm + non-int conv; PVA owns int8/int16 conv). Order
+# doesn't matter — each pass skips launches the other claims.
+polygeist-opt --lower-kernel-launch-to-cublas --lower-kernel-launch-to-pva \
     $OUT/matched_with_defn.mlir -o $OUT/abi.mlir 2>$OUT/abi.err
 
 echo "[conv2d/$DTYPE/$SIZE] (6) lower to LLVM, translate, retarget aarch64"
@@ -99,17 +103,54 @@ $CLANG --target=aarch64-linux-gnu --gcc-toolchain=/usr \
 echo "[conv2d/$DTYPE/$SIZE] (7) cross-compile harness + wrapper + runtimes"
 ARCH_FLAGS="-march=armv8.2-a+fp16+bf16"
 DEFS="-DNI=$SIZE -DNJ=$SIZE -DCTYPE=$CTY $KIND_DEF"
+
+# PVA Solutions paths used for the i8/i16 dtypes (the PVA backend shim
+# polygeist_pva_rt.c needs the gated-SDK headers; the .so libraries are
+# staged on the Jetson at /tmp/pva_libs/ from the dev box copies).
+PVASOL_INC=/opt/external-pva-dependency/public/src/operator/include
+NVCV_INC=/home/arjaiswal/cv-cuda/src/nvcv/src/include
+CUPVA_INC=/home/arjaiswal/cupva_sdk_include/include
+PVA_LIB_STAGE=/home/arjaiswal/pva_libs  # contains libpva_operator/libcupva_host/libnvcv_types/libcvcuda
+JET_PVA_LIB=/tmp/pva_libs           # where the harness expects them at runtime
+
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS $DEFS -c $SCRIPTS/conv2d_main_harness_dtype.c -o $OUT/main.o
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -DCTYPE=$CTY -c $SCRIPTS/conv2d_jetson_wrapper_dtype.c -o $OUT/wrapper.o
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -I$CUDA/include -I$CUDNN_INC -c $RT/polygeist_cublas_rt_cuda.c -o $OUT/rt_cuda.o
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -c $RT/polygeist_cublas_rt_cpu.c -o $OUT/rt_cpu.o
 
+# For i8/i16 the lowering routes to polygeist_pva_conv2d_3x3_i{8,16},
+# which the matching shim impl lives in polygeist_pva_rt.c. Compile it
+# in for those dtypes (and add the .so dependency to the link line below).
+PVA_OBJ=""; PVA_LINK=""
+if [ "$DTYPE" = "i8" ] || [ "$DTYPE" = "i16" ]; then
+    aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS \
+        -I$CUDA/include -I$PVASOL_INC -I$NVCV_INC -I$CUPVA_INC \
+        -c $RT/polygeist_pva_rt.c -o $OUT/rt_pva.o
+    PVA_OBJ="$OUT/rt_pva.o"
+    # Explicit NvSciBuf/NvSciSync linkage: libcupva_host.so depends on
+    # NvSciBuf*/NvSciSync* symbols, and the PVA backend's init constructors
+    # (which run BEFORE main) call them — so deferring with
+    # --allow-shlib-undefined results in a segfault during library init.
+    # The reference yolov5_pva_pbr binary has these as direct DT_NEEDEDs;
+    # we match that link contract.
+    # --no-as-needed forces the linker to keep the NvSciBuf/NvSciSync libs
+    # in DT_NEEDED even though main() doesn't reference them directly.
+    # libcupva_host's init constructors call into them; they must be loaded
+    # before libcupva_host's constructor runs.
+    PVA_LINK="-L$PVA_LIB_STAGE -lpva_operator -lcvcuda -lnvcv_types -lcupva_host \
+              -Wl,--no-as-needed \
+              -L/home/arjaiswal/jetson_nvidia_libs -lnvscibuf -lnvscisync \
+              -Wl,--as-needed"
+fi
+
 echo "[conv2d/$DTYPE/$SIZE] (8) link CUDA binary"
 aarch64-linux-gnu-gcc -O2 \
-    $OUT/main.o $OUT/wrapper.o $OUT/kernel.o $OUT/rt_cuda.o \
+    $OUT/main.o $OUT/wrapper.o $OUT/kernel.o $OUT/rt_cuda.o $PVA_OBJ \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
-    -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
+    $PVA_LINK \
+    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl -lstdc++ \
+    -Wl,--allow-shlib-undefined \
+    -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia:${JET_PVA_LIB} \
     -o $OUT/conv2d_jetson
 
 echo "[conv2d/$DTYPE/$SIZE] (9) link CPU-stub binary"
