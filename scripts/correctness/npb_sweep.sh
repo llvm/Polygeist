@@ -9,8 +9,9 @@
 # whole .c file and report per-benchmark totals: # linalg.generic vs
 # # residual affine.for / scf.for / scf.while.
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-ROOT=/home/arjaiswal/Polygeist/third_party/NPB3.0-omp-C
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+ROOT=$REPO_ROOT/third_party/NPB3.0-omp-C
 COMMON=$ROOT/common
 OUT=/tmp/npb_sweep
 mkdir -p $OUT

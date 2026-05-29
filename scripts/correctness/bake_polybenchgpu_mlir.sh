@@ -6,8 +6,9 @@
 #   /tmp/pbgpu_mlir/<tag>_debuf.mlir    (default v2 debufferize)
 #   /tmp/pbgpu_mlir/<tag>_debuf_mr.mlir (multi-root debufferize)
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-ROOT=/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+ROOT=$REPO_ROOT/third_party/polybenchGpu/OpenMP
 UTIL=$ROOT/utilities
 OUT=/tmp/pbgpu_mlir
 mkdir -p $OUT

@@ -13,7 +13,8 @@
 # (PolyBench/C 4.2.1 doesn't have STANDARD; passing it is a silent no-op.)
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 if [ "$#" -lt 1 ]; then
   echo "usage: $0 <kernel> [DATASET]" >&2
@@ -30,7 +31,7 @@ case "$DATASET" in
   *) echo "ERROR: bad DATASET '$DATASET'" >&2; exit 1 ;;
 esac
 
-POLYBENCH_DIR=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench
+POLYBENCH_DIR=$REPO_ROOT/tools/cgeist/Test/polybench
 case "$KERNEL" in
   gemm) SRC_DIR="$POLYBENCH_DIR/linear-algebra/blas/gemm";     KFN=kernel_gemm ;;
   2mm)  SRC_DIR="$POLYBENCH_DIR/linear-algebra/kernels/2mm";   KFN=kernel_2mm ;;
@@ -39,8 +40,8 @@ case "$KERNEL" in
 esac
 
 UTIL=$POLYBENCH_DIR/utilities
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
 OUT=/tmp/polybench_jetson_${KERNEL}_${DATASET}
 mkdir -p $OUT
 
@@ -65,7 +66,7 @@ polygeist-opt --select-func=func-name=$KFN \
     $OUT/orig.mlir -o $OUT/debuf.mlir 2>$OUT/raise.err
 
 echo "[$KERNEL/$DATASET] (3) kernel-match"
-PYTHON=/home/arjaiswal/slacker/.venv/bin/python3
+PYTHON=$PYTHON
 $PYTHON $SCRIPTS/kernel_match_rewrite.py $OUT/debuf.mlir > $OUT/matched.mlir 2>$OUT/match.err
 N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir || true)
 N_LAUNCH=${N_LAUNCH:-0}
@@ -120,17 +121,17 @@ CUDA=/usr/local/cuda-12.6/targets/sbsa-linux
 
 sed 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
     $OUT/abi_renamed.mlir > $WORK/abi.mlir
-/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt \
+$REPO_ROOT/llvm-project/build/bin/mlir-opt \
     --one-shot-bufferize=bufferize-function-boundaries \
     --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
     --convert-arith-to-llvm --finalize-memref-to-llvm \
     --convert-func-to-llvm --reconcile-unrealized-casts \
     $WORK/abi.mlir -o $WORK/llvm.mlir 2>&1 | tail -1
-/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate \
+$REPO_ROOT/llvm-project/build/bin/mlir-translate \
     --mlir-to-llvmir $WORK/llvm.mlir -o $WORK/kernel.ll
 sed -i 's|target triple = "x86_64.*"|target triple = "aarch64-linux-gnu"|;
         /^target datalayout/d' $WORK/kernel.ll
-/home/arjaiswal/Polygeist/llvm-project/build/bin/clang \
+$REPO_ROOT/llvm-project/build/bin/clang \
     --target=aarch64-linux-gnu --gcc-toolchain=/usr \
     -O3 -c $WORK/kernel.ll -o $WORK/kernel.o 2>&1 | tail -1
 

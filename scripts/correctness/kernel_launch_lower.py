@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """Reverse the kernel-match rewrite: restore each `kernel.launch` op back to
 the original `linalg.generic` span the matcher recognized.
 

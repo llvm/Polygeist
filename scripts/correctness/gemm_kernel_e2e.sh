@@ -11,15 +11,16 @@
 # It does NOT validate the matcher's library LABEL ("@cublasDgemm"); that's
 # Phase 2 (canonical templates).
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
-PYTHON=/home/arjaiswal/slacker/.venv/bin/python3
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
+PYTHON=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
 
-POLYBENCH_DIR=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench
+POLYBENCH_DIR=$REPO_ROOT/tools/cgeist/Test/polybench
 UTIL=$POLYBENCH_DIR/utilities
 GEMM_DIR=$POLYBENCH_DIR/linear-algebra/blas/gemm
 

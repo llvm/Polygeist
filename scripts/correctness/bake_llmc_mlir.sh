@@ -10,8 +10,9 @@
 # blocks of GPT-2 inference + training. Skip the tiled matmul_forward in
 # favour of matmul_forward_naive (the 4-loop reference).
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-SRC=/home/arjaiswal/Polygeist/third_party/llm.c/train_gpt2.c
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+SRC=$REPO_ROOT/third_party/llm.c/train_gpt2.c
 OUT=/tmp/llmc_mlir
 mkdir -p $OUT
 

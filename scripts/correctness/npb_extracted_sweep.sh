@@ -3,8 +3,9 @@
 # Each kernel is a single .c file in third_party/NPB-polybenchified/ that
 # takes its arrays as parameters (no module-level static globals).
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-DIR=/home/arjaiswal/Polygeist/third_party/NPB-polybenchified
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+DIR=$REPO_ROOT/third_party/NPB-polybenchified
 OUT=/tmp/npb_extracted_sweep
 mkdir -p $OUT
 

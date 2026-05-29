@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """CLI: take MLIR text in, emit MLIR with matched linalg.generics replaced
 by `kernel.launch @<lib_op>(operands)` ops.
 

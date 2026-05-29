@@ -1,7 +1,8 @@
 #!/bin/bash
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
 
 OUT_DIR="/tmp/lowering_test"
 mkdir -p "$OUT_DIR"

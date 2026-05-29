@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """Render all PolyBench IR stages as a static-HTML browse-able site.
 
 For each kernel we expose:
@@ -9,6 +9,7 @@ For each kernel we expose:
 
 Plus an index page that links to all kernels and shows match stats.
 """
+import os
 import re
 import subprocess
 import sys
@@ -18,9 +19,17 @@ from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 
-POLYBENCH_DIR = Path("/tmp/polybench_new")
-OUTPUT_DIR = Path("/tmp/ir_viewer")
-REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def env_path(name: str, default: Path | str) -> Path:
+    return Path(os.environ.get(name, str(default)))
+
+
+POLYBENCH_DIR = env_path("POLYGEIST_POLYBENCH_MLIR_DIR", "/tmp/polybench_new")
+OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
+REWRITER = env_path("POLYGEIST_KERNEL_MATCH_REWRITER", SCRIPT_DIR / "kernel_match_rewrite.py")
+PYTHON = os.environ.get("PYTHON", sys.executable)
 
 
 def discover_kernels() -> list[str]:
@@ -65,7 +74,7 @@ def syntax_highlight(text: str, lang: str = "llvm") -> tuple[str, str]:
 def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     """Run the kernel-match rewriter on the file."""
     res = subprocess.run(
-        ["/home/arjaiswal/slacker/.venv/bin/python3", str(REWRITER), str(path)],
+        [PYTHON, str(REWRITER), str(path)],
         capture_output=True, text=True, timeout=120,
     )
     out = res.stdout

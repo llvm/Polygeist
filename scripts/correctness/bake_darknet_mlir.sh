@@ -8,12 +8,13 @@
 # (gemm.c, im2col.c, maybe blas.c). The rest is framework code with no
 # compute loops the raise pass can hoist.
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
-ROOT=/home/arjaiswal/Polygeist/third_party/darknet
+ROOT=$REPO_ROOT/third_party/darknet
 OUT=/tmp/darknet_mlir
-PY=/home/arjaiswal/slacker/.venv/bin/python3
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+PY=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
 mkdir -p $OUT
 
 # Track results

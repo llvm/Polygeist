@@ -9,8 +9,9 @@
 # Target the hot numeric functions in run.c. Other functions (tokenizer,
 # I/O, sampling) are not interesting for raising.
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-SRC=/home/arjaiswal/Polygeist/third_party/llama2.c/run.c
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+SRC=$REPO_ROOT/third_party/llama2.c/run.c
 OUT=/tmp/llama2c_mlir
 mkdir -p $OUT
 

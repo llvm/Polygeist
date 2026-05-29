@@ -12,13 +12,14 @@
 #                                              conv2d_jetson_cpustub}
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 DTYPE=${1:?"missing DTYPE arg (f64|f32|f16|bf16|i32|i16)"}
 SIZE=${2:-256}
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
-EXT=/home/arjaiswal/Polygeist/third_party/polybenchGpu-extracted
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
+EXT=$REPO_ROOT/third_party/polybenchGpu-extracted
 OUT=/tmp/conv2d_jetson_${DTYPE}_${SIZE}
 mkdir -p $OUT
 CUDA=/usr/local/cuda-12.6/targets/sbsa-linux
@@ -55,7 +56,7 @@ polygeist-opt --select-func=func-name=kernel_conv2d \
     $OUT/orig.mlir -o $OUT/linalg.mlir 2>$OUT/raise.err
 
 echo "[conv2d/$DTYPE/$SIZE] (3) kernel-match"
-PYTHON=/home/arjaiswal/slacker/.venv/bin/python3
+PYTHON=$PYTHON
 $PYTHON $SCRIPTS/kernel_match_rewrite.py $OUT/linalg.mlir > $OUT/matched.mlir 2>$OUT/match.err
 SYM="@cudnnConvolution2D_9tap${SYM_SUFFIX}"
 N_LAUNCH=$(grep -c "$SYM" $OUT/matched.mlir || true)
@@ -85,9 +86,9 @@ polygeist-opt --lower-kernel-launch-to-cublas --lower-kernel-launch-to-pva \
     $OUT/matched_with_defn.mlir -o $OUT/abi.mlir 2>$OUT/abi.err
 
 echo "[conv2d/$DTYPE/$SIZE] (6) lower to LLVM, translate, retarget aarch64"
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 $MLIR_OPT --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
     --expand-strided-metadata \
     --convert-arith-to-llvm --finalize-memref-to-llvm \
@@ -107,10 +108,10 @@ DEFS="-DNI=$SIZE -DNJ=$SIZE -DCTYPE=$CTY $KIND_DEF"
 # PVA Solutions paths used for the i8/i16 dtypes (the PVA backend shim
 # polygeist_pva_rt.c needs the gated-SDK headers; the .so libraries are
 # staged on the Jetson at /tmp/pva_libs/ from the dev box copies).
-PVASOL_INC=/opt/external-pva-dependency/public/src/operator/include
-NVCV_INC=/home/arjaiswal/cv-cuda/src/nvcv/src/include
-CUPVA_INC=/home/arjaiswal/cupva_sdk_include/include
-PVA_LIB_STAGE=/home/arjaiswal/pva_libs  # contains libpva_operator/libcupva_host/libnvcv_types/libcvcuda
+PVASOL_INC=${PVASOL_INC:-$PVASOL_ROOT/public/src/operator/include}
+NVCV_INC=${NVCV_INC:-$CV_CUDA_ROOT/src/nvcv/src/include}
+CUPVA_INC=${CUPVA_INC:-$CUPVA_SDK_ROOT/include}
+PVA_LIB_STAGE=${PVA_LIB_STAGE:-$HOME/pva_libs}  # contains libpva_operator/libcupva_host/libnvcv_types/libcvcuda
 JET_PVA_LIB=/tmp/pva_libs           # where the harness expects them at runtime
 
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS $DEFS -c $SCRIPTS/conv2d_main_harness_dtype.c -o $OUT/main.o
@@ -139,7 +140,7 @@ if [ "$DTYPE" = "i8" ] || [ "$DTYPE" = "i16" ]; then
     # before libcupva_host's constructor runs.
     PVA_LINK="-L$PVA_LIB_STAGE -lpva_operator -lcvcuda -lnvcv_types -lcupva_host \
               -Wl,--no-as-needed \
-              -L/home/arjaiswal/jetson_nvidia_libs -lnvscibuf -lnvscisync \
+              -L$JETSON_NVIDIA_LIBS -lnvscibuf -lnvscisync \
               -Wl,--as-needed"
 fi
 

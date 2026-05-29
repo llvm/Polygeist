@@ -6,8 +6,9 @@
 #   /tmp/npb_mlir/<tag>_debuf.mlir    (default v2 debufferize)
 #   /tmp/npb_mlir/<tag>_debuf_mr.mlir (multi-root debufferize)
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-DIR=/home/arjaiswal/Polygeist/third_party/NPB-polybenchified
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+DIR=$REPO_ROOT/third_party/NPB-polybenchified
 OUT=/tmp/npb_mlir
 mkdir -p $OUT
 

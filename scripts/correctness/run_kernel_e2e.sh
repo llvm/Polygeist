@@ -14,10 +14,11 @@
 #
 # Returns 0 on PASS, non-zero on any failure or output mismatch.
 set -e
-source /home/arjaiswal/Polygeist/envsetup.sh
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ $# -lt 2 ]; then
@@ -44,7 +45,7 @@ FN="kernel_${KERNEL//-/_}"
 
 if [ ! -f "$SRC" ]; then echo "MISSING: $SRC"; exit 2; fi
 
-POLYBENCH_DIR=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench
+POLYBENCH_DIR=$REPO_ROOT/tools/cgeist/Test/polybench
 UTIL=$POLYBENCH_DIR/utilities
 
 TAG="$KERNEL"
@@ -96,8 +97,8 @@ fi
 # original); the lowerer restores it. End result must be bit-exact to the
 # input for the round-trip to be correctness-preserving.
 if [ -n "$MATCH" ]; then
-  PY=/home/arjaiswal/slacker/.venv/bin/python3
-  SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+  PY=$PYTHON
+  SCRIPTS=$REPO_ROOT/scripts/correctness
   $PY $SCRIPTS/kernel_match_rewrite.py --with-roundtrip-markers \
     $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
   N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
@@ -116,9 +117,9 @@ fi
 # launch produces different numerics than the user's source and fails the
 # e2e diff.
 if [ -n "$MATCH_CANONICAL" ]; then
-  PY=/home/arjaiswal/slacker/.venv/bin/python3
-  SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-  LIB=/home/arjaiswal/Polygeist/generic_solver/kernel_library_phase2.mlir
+  PY=$PYTHON
+  SCRIPTS=$REPO_ROOT/scripts/correctness
+  LIB=$REPO_ROOT/generic_solver/kernel_library_phase2.mlir
   $PY $SCRIPTS/kernel_match_rewrite.py $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
   # Count both forms: `%X = kernel.launch ...` (tensor) and bare `kernel.launch ...`
   # (memref, void-returning). grep -c returns exit code 1 when zero matches, so
@@ -168,7 +169,7 @@ $CLANG -c $OUT/kernel.ll -o $OUT/kernel.o
 # Link in mlir_c_runner_utils when memref.copy survived lowering (multi-root
 # debuferize emits to_memref+memref.copy that one-shot-bufferize can't always
 # collapse). Harmless when not needed.
-MLIR_LIBDIR=/home/arjaiswal/Polygeist/llvm-project/build/lib
+MLIR_LIBDIR=$REPO_ROOT/llvm-project/build/lib
 $CLANG $OUT/nokernel.o $OUT/wrapper.o $OUT/kernel.o $OUT/polybench.o -lm \
   -L$MLIR_LIBDIR -Wl,-rpath,$MLIR_LIBDIR -lmlir_c_runner_utils \
   -o $OUT/test_exe

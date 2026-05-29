@@ -12,9 +12,10 @@
 # (raised / debuf tabs + matcher round-trip via the rewriter).
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
-EXT=/home/arjaiswal/Polygeist/third_party/cnn-extracted
+EXT=$REPO_ROOT/third_party/cnn-extracted
 OUT=/tmp/extracted_darknet_mlir
 mkdir -p "$OUT"
 

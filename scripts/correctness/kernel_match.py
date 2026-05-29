@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """linalg.generic body matcher using egglog.
 
 This is an iterative prototype of the "match raised linalg to a kernel

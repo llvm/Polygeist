@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """Build a static HTML index of PolyBench kernels where each row deep-links to
 Compiler Explorer with the full Polygeist pipeline pre-wired:
 
@@ -20,33 +20,61 @@ Output:
   /tmp/ir_viewer/<k>.html     (per-kernel IR preview)
 """
 import json
+import os
 import re
 import subprocess
+import sys
 import urllib.parse
 from pathlib import Path
 
-POLYBENCH_TEST_DIR = Path("/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench")
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[1]
+
+
+def env_path(name: str, default: Path | str) -> Path:
+    return Path(os.environ.get(name, str(default)))
+
+
+POLYBENCH_TEST_DIR = env_path(
+    "POLYGEIST_POLYBENCH_TEST_DIR",
+    REPO_ROOT / "tools/cgeist/Test/polybench",
+)
 POLYBENCH_UTILS = POLYBENCH_TEST_DIR / "utilities"
-MLIR_DIR = Path("/tmp/polybench_new")
-MACHSUITE_ROOT = Path("/home/arjaiswal/Polygeist/third_party/MachSuite")
-MACHSUITE_MLIR_DIR = Path("/tmp/machsuite_mlir")
-NPB_ROOT = Path("/home/arjaiswal/Polygeist/third_party/NPB-polybenchified")
-NPB_MLIR_DIR = Path("/tmp/npb_mlir")
-POLYBENCHGPU_ROOT = Path("/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP")
-POLYBENCHGPU_MLIR_DIR = Path("/tmp/pbgpu_mlir")
-POLYBENCHGPU_EXTRACTED_ROOT = Path("/home/arjaiswal/Polygeist/third_party/polybenchGpu-extracted")
-POLYBENCHGPU_EXTRACTED_MLIR_DIR = Path("/tmp/pbgpu_extracted_mlir")
-LLAMA2C_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llama2.c")
-LLAMA2C_MLIR_DIR = Path("/tmp/llama2c_mlir")
-LLMC_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llm.c")
-LLMC_MLIR_DIR = Path("/tmp/llmc_mlir")
-DARKNET_ROOT = Path("/home/arjaiswal/Polygeist/third_party/darknet")
-DARKNET_MLIR_DIR = Path("/tmp/darknet_mlir")
-EXTRACTED_DARKNET_ROOT = Path("/home/arjaiswal/Polygeist/third_party/cnn-extracted")
-EXTRACTED_DARKNET_MLIR_DIR = Path("/tmp/extracted_darknet_mlir")
-OUTPUT_DIR = Path("/tmp/ir_viewer")
-REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
-PYTHON = "/home/arjaiswal/slacker/.venv/bin/python3"
+MLIR_DIR = env_path("POLYGEIST_POLYBENCH_MLIR_DIR", "/tmp/polybench_new")
+MACHSUITE_ROOT = env_path("POLYGEIST_MACHSUITE_ROOT", REPO_ROOT / "third_party/MachSuite")
+MACHSUITE_MLIR_DIR = env_path("POLYGEIST_MACHSUITE_MLIR_DIR", "/tmp/machsuite_mlir")
+NPB_ROOT = env_path("POLYGEIST_NPB_ROOT", REPO_ROOT / "third_party/NPB-polybenchified")
+NPB_MLIR_DIR = env_path("POLYGEIST_NPB_MLIR_DIR", "/tmp/npb_mlir")
+POLYBENCHGPU_ROOT = env_path(
+    "POLYGEIST_POLYBENCHGPU_ROOT",
+    REPO_ROOT / "third_party/polybenchGpu/OpenMP",
+)
+POLYBENCHGPU_MLIR_DIR = env_path("POLYGEIST_POLYBENCHGPU_MLIR_DIR", "/tmp/pbgpu_mlir")
+POLYBENCHGPU_EXTRACTED_ROOT = env_path(
+    "POLYGEIST_POLYBENCHGPU_EXTRACTED_ROOT",
+    REPO_ROOT / "third_party/polybenchGpu-extracted",
+)
+POLYBENCHGPU_EXTRACTED_MLIR_DIR = env_path(
+    "POLYGEIST_POLYBENCHGPU_EXTRACTED_MLIR_DIR",
+    "/tmp/pbgpu_extracted_mlir",
+)
+LLAMA2C_ROOT = env_path("POLYGEIST_LLAMA2C_ROOT", REPO_ROOT / "third_party/llama2.c")
+LLAMA2C_MLIR_DIR = env_path("POLYGEIST_LLAMA2C_MLIR_DIR", "/tmp/llama2c_mlir")
+LLMC_ROOT = env_path("POLYGEIST_LLMC_ROOT", REPO_ROOT / "third_party/llm.c")
+LLMC_MLIR_DIR = env_path("POLYGEIST_LLMC_MLIR_DIR", "/tmp/llmc_mlir")
+DARKNET_ROOT = env_path("POLYGEIST_DARKNET_ROOT", REPO_ROOT / "third_party/darknet")
+DARKNET_MLIR_DIR = env_path("POLYGEIST_DARKNET_MLIR_DIR", "/tmp/darknet_mlir")
+EXTRACTED_DARKNET_ROOT = env_path(
+    "POLYGEIST_EXTRACTED_DARKNET_ROOT",
+    REPO_ROOT / "third_party/cnn-extracted",
+)
+EXTRACTED_DARKNET_MLIR_DIR = env_path(
+    "POLYGEIST_EXTRACTED_DARKNET_MLIR_DIR",
+    "/tmp/extracted_darknet_mlir",
+)
+OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
+REWRITER = env_path("POLYGEIST_KERNEL_MATCH_REWRITER", SCRIPT_DIR / "kernel_match_rewrite.py")
+PYTHON = os.environ.get("PYTHON", sys.executable)
 
 # MachSuite tag → (relative subdir under third_party/MachSuite, kernel function).
 # The tag is what the viewer uses for filenames and as the display name.

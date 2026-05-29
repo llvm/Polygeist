@@ -9,8 +9,9 @@
 # Kernels that don't produce a given stage are skipped silently — viewer's
 # `if file.exists():` branches handle missing files gracefully.
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-ROOT=/home/arjaiswal/Polygeist/third_party/MachSuite
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+ROOT=$REPO_ROOT/third_party/MachSuite
 COMMON=$ROOT/common
 OUT=/tmp/machsuite_mlir
 mkdir -p $OUT

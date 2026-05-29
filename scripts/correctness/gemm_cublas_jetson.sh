@@ -19,7 +19,8 @@
 # Then scp to Jetson and run.
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 DATASET=${1:-MINI}
 case "$DATASET" in
@@ -30,11 +31,11 @@ esac
 OUT=/tmp/gemm_cublas_jetson_build
 mkdir -p $OUT
 
-POLYBENCH_DIR=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench
+POLYBENCH_DIR=$REPO_ROOT/tools/cgeist/Test/polybench
 UTIL=$POLYBENCH_DIR/utilities
 GEMM_DIR=$POLYBENCH_DIR/linear-algebra/blas/gemm
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
 
 # Harness CFLAGS for cross-compiling polybench's gemm.c + polybench.c.
 HARNESS_CFLAGS=(-O3 -I"$UTIL" -I"$GEMM_DIR"

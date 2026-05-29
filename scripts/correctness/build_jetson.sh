@@ -28,7 +28,8 @@
 #   nsys profile -o trace ./<out_exe>
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 if [ "$#" -lt 2 ]; then
   echo "usage: $0 <abi.mlir> <out_exe> [<harness.c> ...]" >&2
@@ -52,10 +53,10 @@ CUDA_CROSS_VER=${CUDA_CROSS_VER:-12.6}
 CUDA=${CUDA:-/usr/local/cuda-${CUDA_CROSS_VER}/targets/sbsa-linux}
 AARCH64_CC=${AARCH64_CC:-aarch64-linux-gnu-gcc}
 AARCH64_READELF=${AARCH64_READELF:-aarch64-linux-gnu-readelf}
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
-RT=/home/arjaiswal/Polygeist/runtime
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
+RT=$REPO_ROOT/runtime
 
 # Sanity checks
 for tool in "$AARCH64_CC" "$AARCH64_READELF"; do

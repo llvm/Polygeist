@@ -3,17 +3,18 @@
 # Build a single polybenchGpu kernel for one dataset size, end-to-end.
 # Produces /tmp/<KERNEL>_pbgpu_jetson_build/<KERNEL>_jetson_<DATASET>
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 KERNEL=${1:?"need kernel name e.g. syrk"}
 DATASET=${2:?"need dataset e.g. MINI|LARGE|EXTRALARGE"}
 
-PY=/home/arjaiswal/slacker/.venv/bin/python3
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
+PY=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
 
-ROOT=/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP
+ROOT=$REPO_ROOT/third_party/polybenchGpu/OpenMP
 UTIL=$ROOT/utilities
 # Find the kernel subdir
 case "$KERNEL" in

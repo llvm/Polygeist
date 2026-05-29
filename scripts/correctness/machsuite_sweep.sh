@@ -9,8 +9,9 @@
 # and report: # linalg.generic, # affine.for, # scf.for after each stage.
 #
 # This is a coverage/diagnostic sweep — not a correctness test.
-source /home/arjaiswal/Polygeist/envsetup.sh
-ROOT=/home/arjaiswal/Polygeist/third_party/MachSuite
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+ROOT=$REPO_ROOT/third_party/MachSuite
 COMMON=$ROOT/common
 OUT=/tmp/machsuite_sweep
 mkdir -p $OUT

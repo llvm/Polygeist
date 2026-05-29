@@ -3,15 +3,16 @@
 # Build a polybenchGpu gemv-based kernel (atax, bicg, mvt, gemver, gesummv) end-to-end for Jetson.
 # Handles 2D memref<?xMxf64> + 1D memref<?xf64> shapes, multiple kernel.launch callees.
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 KERNEL=${1:?"need kernel: atax|bicg|mvt|gemver|gesummv"}
 DATASET=${2:?"need dataset: MINI|LARGE|EXTRALARGE"}
 
-PY=/home/arjaiswal/slacker/.venv/bin/python3
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+PY=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
 
-ROOT=/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP
+ROOT=$REPO_ROOT/third_party/polybenchGpu/OpenMP
 UTIL=$ROOT/utilities
 KDIR=$ROOT/linear-algebra/kernels/$KERNEL
 SRC=$(ls $KDIR/*.c | head -1)

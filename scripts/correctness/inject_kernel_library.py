@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """Prepend kernel.defn ops from a kernel library file into an input module so
 the kernel.launch ops it contains pass MLIR's symbol verification at parse
 time. Used by the Phase-2 e2e pipeline before running --lower-kernel-launch.

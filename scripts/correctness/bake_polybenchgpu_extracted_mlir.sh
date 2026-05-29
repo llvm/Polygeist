@@ -13,8 +13,9 @@
 # produces clean linalg.generic ops with ins(A) outs(B). See the
 # directory's conv2d.c docstring for the longer explanation.
 set +e
-source /home/arjaiswal/Polygeist/envsetup.sh
-DIR=/home/arjaiswal/Polygeist/third_party/polybenchGpu-extracted
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+DIR=$REPO_ROOT/third_party/polybenchGpu-extracted
 OUT=/tmp/pbgpu_extracted_mlir
 mkdir -p $OUT
 

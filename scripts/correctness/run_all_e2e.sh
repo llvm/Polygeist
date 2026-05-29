@@ -2,8 +2,11 @@
 # Run e2e for every PolyBench kernel that lowers clean through our pass.
 # Reports PASS / FAIL_<stage> for each.
 set +e
-SCRIPT=/home/arjaiswal/Polygeist/scripts/correctness/run_kernel_e2e.sh
-PB=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+
+SCRIPT=$REPO_ROOT/scripts/correctness/run_kernel_e2e.sh
+PB=$REPO_ROOT/tools/cgeist/Test/polybench
 MODE="${1:-}"   # "" or "--debuf"
 
 # (relative_dir, kernel_short_name) for the 17 lowering-clean kernels.

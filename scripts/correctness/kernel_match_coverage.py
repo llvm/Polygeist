@@ -1,4 +1,4 @@
-#!/home/arjaiswal/slacker/.venv/bin/python3
+#!/usr/bin/env python3
 """Cross-coverage analysis: for every (kernel, body), what library entries match?
 
 This tells us how many distinct "library kernels" we actually need to cover
@@ -6,7 +6,8 @@ the 26 lowering-clean PolyBench kernels — and where sharing happens.
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, "/home/arjaiswal/Polygeist/scripts/correctness")
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
 from kernel_match import (
     build_library_from_dir, parse_generics, encode_body, match,
 )

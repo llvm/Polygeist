@@ -11,12 +11,13 @@
 # Output: /tmp/pva_histeq_<DTYPE>_<SIZE>/{histeq_jetson, histeq_jetson_cpustub}
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 DTYPE=${1:?"missing DTYPE arg (i8|i16)"}
 SIZE=${2:-256}
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
 OUT=/tmp/pva_histeq_${DTYPE}_${SIZE}
 mkdir -p $OUT
 CUDA=/usr/local/cuda-12.6/targets/sbsa-linux
@@ -66,9 +67,9 @@ echo "[histeq/$DTYPE/$SIZE] (2) lower-kernel-launch-to-pva"
 polygeist-opt --lower-kernel-launch-to-pva $OUT/synth.mlir -o $OUT/abi.mlir 2>$OUT/abi.err
 
 echo "[histeq/$DTYPE/$SIZE] (3) lower to LLVM, translate, retarget aarch64"
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 $MLIR_OPT --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
     --expand-strided-metadata \
     --convert-arith-to-llvm --finalize-memref-to-llvm \
@@ -85,10 +86,10 @@ echo "[histeq/$DTYPE/$SIZE] (4) cross-compile harness + wrapper + runtimes"
 ARCH_FLAGS="-march=armv8.2-a+fp16+bf16"
 KIND_DEF="-DCTYPE_KIND_INT"
 DEFS="-DNI=$SIZE -DNJ=$SIZE -DCTYPE=$CTY $KIND_DEF"
-PVASOL_INC=/opt/external-pva-dependency/public/src/operator/include
-NVCV_INC=/home/arjaiswal/cv-cuda/src/nvcv/src/include
-CUPVA_INC=/home/arjaiswal/cupva_sdk_include/include
-PVA_LIB_STAGE=/home/arjaiswal/pva_libs
+PVASOL_INC=${PVASOL_INC:-$PVASOL_ROOT/public/src/operator/include}
+NVCV_INC=${NVCV_INC:-$CV_CUDA_ROOT/src/nvcv/src/include}
+CUPVA_INC=${CUPVA_INC:-$CUPVA_SDK_ROOT/include}
+PVA_LIB_STAGE=${PVA_LIB_STAGE:-$HOME/pva_libs}
 JET_PVA_LIB=/tmp/pva_libs
 
 aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS $DEFS -c $SCRIPTS/conv2d_main_harness_dtype.c -o $OUT/main.o
@@ -102,7 +103,7 @@ aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -I$CUDA/include -c $RT/polygeist_cublas_rt
 echo "[histeq/$DTYPE/$SIZE] (5) link PVA binary"
 PVA_LINK="-L$PVA_LIB_STAGE -lpva_operator -lcvcuda -lnvcv_types -lcupva_host \
           -Wl,--no-as-needed \
-          -L/home/arjaiswal/jetson_nvidia_libs -lnvscibuf -lnvscisync \
+          -L$JETSON_NVIDIA_LIBS -lnvscibuf -lnvscisync \
           -Wl,--as-needed"
 CUDNN_LIB=/usr/lib/aarch64-linux-gnu
 aarch64-linux-gnu-gcc -O2 \

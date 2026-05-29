@@ -1,4 +1,4 @@
-//RUN: polygeist-opt --linalg-to-kernel="kernel-library-path=/home/arjaiswal/Polygeist/generic_solver/kernel_library.mlir" -allow-unregistered-dialect generic_solver/example.mlir
+//RUN: polygeist-opt --linalg-to-kernel="kernel-library-path=%S/kernel_library.mlir" -allow-unregistered-dialect %s
 // Example MLIR module demonstrating kernel operations and their linalg.generic representations
 module {
     //Func that uses simple gemm
@@ -46,4 +46,4 @@ module {
       return %result : tensor<i32>
     }
 
-} 
+}

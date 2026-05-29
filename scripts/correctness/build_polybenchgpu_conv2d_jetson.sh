@@ -3,19 +3,20 @@
 # Build polybenchGpu convolution-2d for one dataset, end-to-end for Jetson.
 # Matches as cudnnConvolution2D_9tap_f32 (polybenchGpu DATA_TYPE defaults to float).
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 DATASET=${1:?"need dataset MINI|SMALL|STANDARD|LARGE|EXTRALARGE"}
 
-PY=/home/arjaiswal/slacker/.venv/bin/python3
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+PY=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 
-KDIR=/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP/stencils/convolution-2d
-UTIL=/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP/utilities
+KDIR=$REPO_ROOT/third_party/polybenchGpu/OpenMP/stencils/convolution-2d
+UTIL=$REPO_ROOT/third_party/polybenchGpu/OpenMP/utilities
 SRC=$KDIR/convolution-2d.c
 FN=kernel_conv2d
 CUDA=/usr/local/cuda-12.6/targets/sbsa-linux

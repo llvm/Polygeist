@@ -15,7 +15,8 @@
 # kernel once, print POLYGEIST_TIMING + CHECKSUM + DUMP_ARRAYS on stderr.
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 KERNEL="${1:-conv2d_batched}"
 DATASET="${2:-MINI}"
@@ -28,9 +29,9 @@ case "$DATASET" in MINI|LARGE) ;;
   *) echo "DATASET must be MINI or LARGE (got '$DATASET')" >&2; exit 2 ;;
 esac
 
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
-EXT=/home/arjaiswal/Polygeist/third_party/cnn-extracted
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
+EXT=$REPO_ROOT/third_party/cnn-extracted
 OUT=/tmp/extracted_darknet_${KERNEL}_${DATASET}
 mkdir -p $OUT
 
@@ -58,7 +59,7 @@ polygeist-opt --select-func=func-name=$KERN_FN \
 polygeist-opt --linalg-debufferize -o $OUT/linalg.mlir 2>>$OUT/raise.err
 
 echo "[$KERNEL/$DATASET] (3) kernel-match"
-PYTHON=/home/arjaiswal/slacker/.venv/bin/python3
+PYTHON=$PYTHON
 [ -x "$PYTHON" ] || PYTHON=$(command -v python3)
 $PYTHON $SCRIPTS/kernel_match_rewrite.py $OUT/linalg.mlir > $OUT/matched.mlir 2>$OUT/match.err
 N_LAUNCH=$(grep -c 'kernel.launch' $OUT/matched.mlir || true)
@@ -76,9 +77,9 @@ polygeist-opt --lower-kernel-launch-to-cublas \
     $OUT/cleaned.mlir -o $OUT/abi.mlir 2>$OUT/abi.err
 
 echo "[$KERNEL/$DATASET] (6) lower polygeist.submap + MLIR → LLVM IR, retarget aarch64"
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 # After ABI lowering the launch is gone but residual polygeist.submap /
 # submapInverse ops are still there (their results were rewired by the
 # lowering helper, so they're now DCE-able pure ops). Run polygeist-opt

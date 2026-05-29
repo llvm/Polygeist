@@ -6,12 +6,13 @@
 # Output: /tmp/conv2d_jetson_<SIZE>/{conv2d_jetson, conv2d_jetson_cpustub}
 
 set -euo pipefail
-source /home/arjaiswal/Polygeist/envsetup.sh
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
 
 SIZE=${1:-256}
-SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
-RT=/home/arjaiswal/Polygeist/runtime
-EXT=/home/arjaiswal/Polygeist/third_party/polybenchGpu-extracted
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
+EXT=$REPO_ROOT/third_party/polybenchGpu-extracted
 OUT=/tmp/conv2d_jetson_${SIZE}
 mkdir -p $OUT
 CUDA=/usr/local/cuda-12.6/targets/sbsa-linux
@@ -31,7 +32,7 @@ polygeist-opt --select-func=func-name=kernel_conv2d \
     $OUT/orig.mlir -o $OUT/linalg.mlir 2>$OUT/raise.err
 
 echo "[conv2d/$SIZE] (3) kernel-match"
-PYTHON=/home/arjaiswal/slacker/.venv/bin/python3
+PYTHON=$PYTHON
 $PYTHON $SCRIPTS/kernel_match_rewrite.py $OUT/linalg.mlir > $OUT/matched.mlir 2>$OUT/match.err
 N_LAUNCH=$(grep -c '@cudnnConvolution2D_9tap' $OUT/matched.mlir || true)
 [ "${N_LAUNCH:-0}" -ge 1 ] || { echo "  FAIL: matcher didn't emit conv2d launch"; exit 1; }
@@ -49,9 +50,9 @@ polygeist-opt --lower-kernel-launch-to-cublas \
     $OUT/matched_with_defn.mlir -o $OUT/abi.mlir 2>$OUT/abi.err
 
 echo "[conv2d/$SIZE] (6) lower to LLVM, translate, retarget aarch64"
-MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate
-CLANG=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
+MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
+MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 $MLIR_OPT --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
     --expand-strided-metadata \
     --convert-arith-to-llvm --finalize-memref-to-llvm \
