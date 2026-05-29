@@ -30,6 +30,7 @@ KERNELS=(
   "gemm_bias_relu              kernel_gemm_bias_relu"
   "ata_gemm                    kernel_ata_gemm"
   "conv1x1_batched             kernel_conv1x1_batched"
+  "darknet_im2col_gemm         kernel_darknet_im2col_gemm"
 )
 
 for line in "${KERNELS[@]}"; do

@@ -151,7 +151,7 @@ echo "  [6/6] link against aarch64 cuBLAS + cudart stubs"
 $AARCH64_CC -O2 \
     $WORK/kernel.o $WORK/rt.o "${HARNESS_OBJS[@]}" \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
     -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o "$OUT_EXE"
 

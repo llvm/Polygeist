@@ -80,7 +80,7 @@ echo "[conv2d/$SIZE] (8) link CUDA binary"
 aarch64-linux-gnu-gcc -O2 \
     $OUT/main.o $OUT/wrapper.o $OUT/kernel.o $OUT/rt_cuda.o \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
     -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o $OUT/conv2d_jetson
 

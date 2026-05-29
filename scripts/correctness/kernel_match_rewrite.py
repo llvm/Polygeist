@@ -141,6 +141,35 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
     return out
 
 
+def _enclosing_func_args(text: str, pos: int) -> list[tuple[str, str]]:
+    """Best-effort function-argument list for the func containing `pos`.
+
+    The Darknet im2col+GEMM fused rewrite needs the original scalar shape
+    parameters, which cgeist emits as the first seven function arguments:
+    channels, height, width, out_channels, ksize, stride, pad.
+    """
+    matches = list(re.finditer(r'func\.func\s+@\w+\s*\(([^)]*)\)', text[:pos]))
+    if not matches:
+        return []
+    params = matches[-1].group(1)
+    out: list[tuple[str, str]] = []
+    for pm in re.finditer(r'(%[\w_\-]+)\s*:\s*([^,)]+)', params):
+        out.append((pm.group(1).strip(), pm.group(2).strip()))
+    return out
+
+
+def _extract_guarded_im2col_input(body_lines: list[str]) -> tuple[str, str] | None:
+    """Find the source memref loaded by the guarded im2col linalg body."""
+    body = "\n".join(body_lines)
+    m = re.search(
+        r'memref\.load\s+(%[\w_\-]+)\[[^\]]*\]\s*:\s*(memref<[^>]+>)',
+        body,
+    )
+    if not m:
+        return None
+    return m.group(1), m.group(2)
+
+
 def collect_generics_with_spans(text: str) -> list[LinalgInstance]:
     """Return every linalg.generic in `text`, in source order, with span."""
     out: list[LinalgInstance] = []
@@ -522,6 +551,37 @@ def rewrite_mlir(
         # lowering pass can pick the right cuDNN shim per element type.
         # The default (no suffix) is f64 for backward compat with the
         # existing kernel.defn @cudnnConvolution2D_9tap declaration.
+        if entry.name == "cudnnConvolutionFwd_im2col_gemm":
+            im2col = _extract_guarded_im2col_input(bodies[i + 1].body_lines)
+            func_args = _enclosing_func_args(text, instances[i].span[0])
+            gemm_ins = _extract_ssa_names(instances[i + 2].ins_part)
+            gemm_in_types = _extract_ssa_types(instances[i + 2].ins_part)
+            if im2col is None or len(func_args) < 7 or len(gemm_ins) < 1:
+                report.append(("im2col_gemm_reject", i, entry.name))
+                i += 1
+                continue
+            input_ssa, input_ty = im2col
+            weights_ssa = gemm_ins[0]
+            weights_ty = gemm_in_types[0] if gemm_in_types else "!any"
+            output_ssa = outs0[0] if outs0 else ""
+            output_ty = outs0_types[0] if outs0_types else "!any"
+            shape_args = func_args[:7]
+            operands = [input_ssa, weights_ssa, output_ssa] + [
+                name for name, _ty in shape_args
+            ]
+            operand_types = [input_ty, weights_ty, output_ty] + [
+                ty for _name, ty in shape_args
+            ]
+            # The fused memref launch mutates the original flat output buffer.
+            last = LinalgInstance(
+                result_ssa=None,
+                ins_part=last.ins_part,
+                outs_part=last.outs_part,
+                result_type=None,
+                span=last.span,
+                indent=last.indent,
+            )
+
         if entry.name in ("cudnnConvolution2D_9tap",
                           "cudnnConvolution2D_9tap_tensor"):
             elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
@@ -562,6 +622,27 @@ def rewrite_mlir(
                 base1 = _resolve_submap_base(gemm_ins[1]) or gemm_ins[1]
                 if base0 == base1:
                     emit_name = "cublasDsyrk_alias"
+            elem = _sniff_elem_type(operand_types[0]) if operand_types else None
+            operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            if (entry.name == "cublasDgemm_simple" and elem == "f32" and
+                    operand_ranks == [3, 3, 3]):
+                # Darknet im2col+GEMM reaches linalg as a rank-3 broadcasted
+                # view: logical (N, K, M) iteration, but the underlying buffers
+                # are the usual 2D row-major A[M,K], B[K,N], C[M,N]. Emit a
+                # dedicated symbol so ABI lowering can unwrap the submaps and
+                # call cuBLAS SGEMM.
+                emit_name = "cublasSgemm_broadcast3d_simple"
+        if entry.name == "memset_zero_1D":
+            elem = _sniff_elem_type(outs0_types[0]) if outs0_types else None
+            if elem == "f32":
+                emit_name = "memset_zero_1D_f32"
+        if entry.name == "cublasSgemm_broadcast3d_memref":
+            elem = _sniff_elem_type(operand_types[0]) if operand_types else None
+            operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            if elem != "f32" or operand_ranks != [3, 3, 3]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
         if entry.name == "cublasDgemv" and n == 1:
             mb = bodies[i]
             if len(mb.indexing_maps) == 3:

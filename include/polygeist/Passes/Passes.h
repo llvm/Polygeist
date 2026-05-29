@@ -40,6 +40,7 @@ std::unique_ptr<Pass> createLowerKernelLaunchPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToCuBLASPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToPVAPass();
 std::unique_ptr<Pass> createRemoveIterArgsPass();
+std::unique_ptr<Pass> createFoldSCFIfPass();
 std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();

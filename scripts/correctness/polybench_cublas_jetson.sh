@@ -49,7 +49,7 @@ WRAPPER=$SCRIPTS/${KERNEL}_jetson_wrapper.c
 [ -f "$WRAPPER" ] || { echo "ERROR: wrapper missing at $WRAPPER" >&2; exit 1; }
 
 CFLAGS=(-O3 -I"$UTIL" -I"$SRC_DIR"
-        -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS
+        -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -DPOLYBENCH_DUMP_ARRAYS
         -D${DATASET}_DATASET
         -Dstatic= -DPOLYBENCH_USE_C99_PROTO)
 
@@ -144,7 +144,7 @@ aarch64-linux-gnu-gcc -O3 -c $WRAPPER -o $WORK/wrapper.o
 aarch64-linux-gnu-gcc -O2 \
     $OUT/nokernel.o $WORK/wrapper.o $WORK/kernel.o $WORK/rt_cuda.o $OUT/polybench.o \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
     -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o $OUT/${KERNEL}_jetson
 

@@ -48,9 +48,19 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc);
 
+void polygeist_cublas_sgemm(
+    int32_t M, int32_t N, int32_t K,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
 // FP32 variant of memset_zero_2d.
 void polygeist_cublas_memset_zero_2d_f32(
     int32_t M, int32_t N, float *A, int32_t lda);
+
+void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v);
 
 // memset a 2D row-major MxN block to zero. Used by matcher's
 // @memset_zero_2D op. Trivial host-side memset; data is host-resident
@@ -255,6 +265,13 @@ void polygeist_pva_histeq_i8(int32_t M, int32_t N,
 void polygeist_cudnn_conv2d_batched(
     int32_t B, int32_t IC, int32_t OC,
     int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F, float *Out);
+
+// Darknet-style explicit im2col + GEMM fused to one convolution. Single
+// batch, NCHW, FP32. Supports caller-supplied square kernel, stride, and pad.
+void polygeist_cudnn_conv2d_im2col_gemm_f32(
+    int32_t IC, int32_t H, int32_t W, int32_t OC,
+    int32_t K, int32_t S, int32_t P,
     const float *A, const float *F, float *Out);
 
 // Batched multi-channel 2D max pooling (forward, NCHW, FP32).

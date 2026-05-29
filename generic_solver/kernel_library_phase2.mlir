@@ -70,6 +70,61 @@ module {
     kernel.yield %result : tensor<?x?xf64>
   }
 
+  // FP32 Darknet im2col+GEMM lowered shape. The linalg raiser represents the
+  // scalar A[i,k] load as a broadcasted rank-3 input so the output submap can
+  // still ignore the reduction dim when lowered back to the flat C buffer.
+  kernel.defn @cublasSgemm_broadcast3d_simple(
+      %A: tensor<?x?x?xf32>, %B: tensor<?x?x?xf32>,
+      %C: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "reduction", "parallel"]
+    } ins(%A, %B : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
+      outs(%C : tensor<?x?x?xf32>) {
+    ^bb0(%a: f32, %b: f32, %out: f32):
+      %p = arith.mulf %a, %b : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?xf32>
+  }
+
+  kernel.defn @cublasSgemm_broadcast3d_memref(
+      %A: memref<?x?x?xf32>, %B: memref<?x?x?xf32>,
+      %C: memref<?x?x?xf32>) {
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "reduction", "parallel"]
+    } ins(%A, %B : memref<?x?x?xf32>, memref<?x?x?xf32>)
+      outs(%C : memref<?x?x?xf32>) {
+    ^bb0(%a: f32, %b: f32, %out: f32):
+      %p = arith.mulf %a, %b : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    }
+    kernel.yield
+  }
+
+  // Darknet-style explicit im2col + SGEMM as one library op. The matcher
+  // recognizes the zero-fill, guarded im2col workspace materialization, and
+  // following GEMM as a single composition; ABI lowering maps this directly
+  // to cuDNN convolution with caller-supplied padding and stride.
+  kernel.defn @cudnnConvolutionFwd_im2col_gemm(
+      %input: memref<?xf32>, %weights: memref<?x?x?xf32>,
+      %output: memref<?xf32>,
+      %channels: i32, %height: i32, %width: i32, %out_channels: i32,
+      %ksize: i32, %stride: i32, %pad: i32) {
+    kernel.yield
+  }
+
   // GEMM-ALPHA-ONLY: C += alpha*A*B (beta=1, accumulate-into-C, custom alpha).
   kernel.defn @cublasDgemm_alpha_only(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                        %C: tensor<?x?xf64>,
@@ -223,6 +278,18 @@ module {
       linalg.yield %zero : f64
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @memset_zero_1D_f32(%y: tensor<?xf32>) -> tensor<?xf32> {
+    %zero = arith.constant 0.000000e+00 : f32
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0)>],
+      iterator_types = ["parallel"]
+    } outs(%y : tensor<?xf32>) {
+    ^bb0(%out: f32):
+      linalg.yield %zero : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
   }
 
   // MEMSET-ZERO-2D: A[i,j] = 0 for all i,j.

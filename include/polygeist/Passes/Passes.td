@@ -172,6 +172,18 @@ def RemoveIterArgs : Pass<"remove-iter-args"> {
   ];
 }
 
+def FoldSCFIf : Pass<"fold-scf-if"> {
+  let summary = "Fold simple scf.if regions into arith.select";
+  let constructor = "mlir::polygeist::createFoldSCFIfPass()";
+  let dependentDialects = [
+    "affine::AffineDialect",
+    "arith::ArithDialect",
+    "func::FuncDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+  ];
+}
+
 def LowerPolygeistSubmap : Pass<"lower-polygeist-submap"> {
   let summary = "Lower polygeist.submap and polygeist.submapInverse to standard MLIR";
   let constructor = "mlir::polygeist::createLowerPolygeistSubmapPass()";
@@ -312,7 +324,7 @@ def AffineRaiseToLinalg : Pass<"raise-affine-to-linalg"> {
 }
 
 def AffineRaiseToLinalgPipeline : Pass<"raise-affine-to-linalg-pipeline"> {
-  let summary = "Pipeline: affine-parallelize followed by raise-affine-to-linalg";
+  let summary = "Pipeline: fold-scf-if, affine-parallelize, raise-affine-to-linalg";
   let constructor = "mlir::polygeist::createRaiseAffineToLinalgPipelinePass()";
   let dependentDialects = [
     "affine::AffineDialect",

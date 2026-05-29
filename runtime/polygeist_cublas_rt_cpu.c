@@ -8,6 +8,7 @@
 #include "polygeist_cublas_rt.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 void polygeist_cublas_init(void) { /* no-op */ }
@@ -34,6 +35,26 @@ void polygeist_cublas_dgemm(
   }
 }
 
+void polygeist_cublas_sgemm(
+    int32_t M, int32_t N, int32_t K,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+  for (int32_t i = 0; i < M; ++i) {
+    for (int32_t j = 0; j < N; ++j) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k) {
+        acc += A[(size_t)i * (size_t)lda + (size_t)k] *
+               B[(size_t)k * (size_t)ldb + (size_t)j];
+      }
+      float *c = &C[(size_t)i * (size_t)ldc + (size_t)j];
+      *c = alpha * acc + beta * (*c);
+    }
+  }
+}
+
 void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
                                        double *A, int32_t lda) {
   for (int32_t i = 0; i < M; ++i) {
@@ -44,6 +65,10 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
 
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
   for (int32_t i = 0; i < N; ++i) v[i] = 0.0;
+}
+
+void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
+  for (int32_t i = 0; i < N; ++i) v[i] = 0.0f;
 }
 
 void polygeist_cublas_dgemv(
@@ -555,6 +580,32 @@ void polygeist_cudnn_conv2d_batched(
           Out[((size_t)b * OC + oc) * OH * OW +
               (size_t)oh * OW + ow] = acc;
         }
+}
+
+void polygeist_cudnn_conv2d_im2col_gemm_f32(
+    int32_t IC, int32_t H, int32_t W, int32_t OC,
+    int32_t K, int32_t S, int32_t P,
+    const float *A, const float *F, float *Out) {
+  const int32_t OH = (H + 2 * P - K) / S + 1;
+  const int32_t OW = (W + 2 * P - K) / S + 1;
+  for (int32_t oc = 0; oc < OC; ++oc)
+    for (int32_t oh = 0; oh < OH; ++oh)
+      for (int32_t ow = 0; ow < OW; ++ow) {
+        float acc = 0.0f;
+        for (int32_t ic = 0; ic < IC; ++ic)
+          for (int32_t kh = 0; kh < K; ++kh)
+            for (int32_t kw = 0; kw < K; ++kw) {
+              int32_t ih = oh * S + kh - P;
+              int32_t iw = ow * S + kw - P;
+              if (ih < 0 || iw < 0 || ih >= H || iw >= W)
+                continue;
+              size_t a_idx = ((size_t)ic * H + ih) * W + iw;
+              size_t f_idx = ((size_t)oc * IC + ic) * K * K +
+                             (size_t)kh * K + kw;
+              acc += A[a_idx] * F[f_idx];
+            }
+        Out[((size_t)oc * OH + oh) * OW + ow] = acc;
+      }
 }
 
 void polygeist_cudnn_maxpool_batched(

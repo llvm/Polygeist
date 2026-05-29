@@ -45,19 +45,6 @@ MACHSUITE_ROOT = env_path("POLYGEIST_MACHSUITE_ROOT", REPO_ROOT / "third_party/M
 MACHSUITE_MLIR_DIR = env_path("POLYGEIST_MACHSUITE_MLIR_DIR", "/tmp/machsuite_mlir")
 NPB_ROOT = env_path("POLYGEIST_NPB_ROOT", REPO_ROOT / "third_party/NPB-polybenchified")
 NPB_MLIR_DIR = env_path("POLYGEIST_NPB_MLIR_DIR", "/tmp/npb_mlir")
-POLYBENCHGPU_ROOT = env_path(
-    "POLYGEIST_POLYBENCHGPU_ROOT",
-    REPO_ROOT / "third_party/polybenchGpu/OpenMP",
-)
-POLYBENCHGPU_MLIR_DIR = env_path("POLYGEIST_POLYBENCHGPU_MLIR_DIR", "/tmp/pbgpu_mlir")
-POLYBENCHGPU_EXTRACTED_ROOT = env_path(
-    "POLYGEIST_POLYBENCHGPU_EXTRACTED_ROOT",
-    REPO_ROOT / "third_party/polybenchGpu-extracted",
-)
-POLYBENCHGPU_EXTRACTED_MLIR_DIR = env_path(
-    "POLYGEIST_POLYBENCHGPU_EXTRACTED_MLIR_DIR",
-    "/tmp/pbgpu_extracted_mlir",
-)
 LLAMA2C_ROOT = env_path("POLYGEIST_LLAMA2C_ROOT", REPO_ROOT / "third_party/llama2.c")
 LLAMA2C_MLIR_DIR = env_path("POLYGEIST_LLAMA2C_MLIR_DIR", "/tmp/llama2c_mlir")
 LLMC_ROOT = env_path("POLYGEIST_LLMC_ROOT", REPO_ROOT / "third_party/llm.c")
@@ -115,71 +102,11 @@ NPB_KERNELS: dict[str, tuple[str, str]] = {
     "mg-rprj3":    ("mg_rprj3.c",    "mg_rprj3"),
 }
 
-# polybenchGpu OpenMP variant — each kernel is a single .c file holding both
-# kernel_<name>() AND main(). cgeist inlines the kernel into main and DCEs the
-# standalone definition, so the bake uses --function=* and skips --select-func.
-# See bake_polybenchgpu_mlir.sh and the project-polybenchgpu-cgeist-inlining
-# memory note.
-POLYBENCHGPU_KERNELS: dict[str, tuple[str, str]] = {
-    "correlation":     ("datamining/correlation/correlation.c",          "kernel_correlation"),
-    "covariance":      ("datamining/covariance/covariance.c",            "kernel_covariance"),
-    "2mm":             ("linear-algebra/kernels/2mm/2mm.c",              "kernel_2mm"),
-    "3mm":             ("linear-algebra/kernels/3mm/3mm.c",              "kernel_3mm"),
-    "atax":            ("linear-algebra/kernels/atax/atax.c",            "kernel_atax"),
-    "bicg":            ("linear-algebra/kernels/bicg/bicg.c",            "kernel_bicg"),
-    "cholesky":        ("linear-algebra/kernels/cholesky/cholesky.c",    "kernel_cholesky"),
-    "doitgen":         ("linear-algebra/kernels/doitgen/doitgen.c",      "kernel_doitgen"),
-    "gemm":            ("linear-algebra/kernels/gemm/gemm.c",            "kernel_gemm"),
-    "gemver":          ("linear-algebra/kernels/gemver/gemver.c",        "kernel_gemver"),
-    "gesummv":         ("linear-algebra/kernels/gesummv/gesummv.c",      "kernel_gesummv"),
-    "mvt":             ("linear-algebra/kernels/mvt/mvt.c",              "kernel_mvt"),
-    "symm":            ("linear-algebra/kernels/symm/symm.c",            "kernel_symm"),
-    "syr2k":           ("linear-algebra/kernels/syr2k/syr2k.c",          "kernel_syr2k"),
-    "syrk":            ("linear-algebra/kernels/syrk/syrk.c",            "kernel_syrk"),
-    "trisolv":         ("linear-algebra/kernels/trisolv/trisolv.c",      "kernel_trisolv"),
-    "trmm":            ("linear-algebra/kernels/trmm/trmm.c",            "kernel_trmm"),
-    "durbin":          ("linear-algebra/solvers/durbin/durbin.c",        "kernel_durbin"),
-    "dynprog":         ("linear-algebra/solvers/dynprog/dynprog.c",      "kernel_dynprog"),
-    "gramschmidt":     ("linear-algebra/solvers/gramschmidt/gramschmidt.c", "kernel_gramschmidt"),
-    "lu":              ("linear-algebra/solvers/lu/lu.c",                "kernel_lu"),
-    "ludcmp":          ("linear-algebra/solvers/ludcmp/ludcmp.c",        "kernel_ludcmp"),
-    "floyd-warshall":  ("medley/floyd-warshall/floyd-warshall.c",        "kernel_floyd_warshall"),
-    "reg_detect":      ("medley/reg_detect/reg_detect.c",                "kernel_reg_detect"),
-    "adi":             ("stencils/adi/adi.c",                            "kernel_adi"),
-    "convolution-2d":  ("stencils/convolution-2d/convolution-2d.c",      "kernel_conv2d"),
-    "convolution-3d":  ("stencils/convolution-3d/convolution-3d.c",      "kernel_conv2d"),
-    "fdtd-2d":         ("stencils/fdtd-2d/fdtd-2d.c",                    "kernel_fdtd_2d"),
-    "fdtd-apml":       ("stencils/fdtd-apml/fdtd-apml.c",                "kernel_fdtd_apml"),
-    "jacobi-1d-imper": ("stencils/jacobi-1d-imper/jacobi-1d-imper.c",    "kernel_jacobi_1d_imper"),
-    "jacobi-2d-imper": ("stencils/jacobi-2d-imper/jacobi-2d-imper.c",    "kernel_jacobi_2d_imper"),
-    "seidel-2d":       ("stencils/seidel-2d/seidel-2d.c",                "kernel_seidel_2d"),
-}
-
 # llama2.c hot numeric functions in run.c. All three live in the same file.
 LLAMA2C_KERNELS: dict[str, tuple[str, str]] = {
     "rmsnorm":  ("run.c", "rmsnorm"),
     "softmax":  ("run.c", "softmax"),
     "matmul":   ("run.c", "matmul"),
-}
-
-# polybenchGpu-extracted: standalone .c files containing ONLY the kernel
-# function (no main, no init), so cgeist can't inline init's
-# A[i,j]=(i+j)/nj formula and constant-fold the conv body away. Compare
-# their lift to the polybenchGpu (full file) entries above to see the fix.
-POLYBENCHGPU_EXTRACTED_KERNELS: dict[str, tuple[str, str]] = {
-    # Keys are the file-base names (matching /tmp/pbgpu_extracted_mlir/<k>*.mlir)
-    # so ce_link / discover_kernels / find_kernel_c all use the same name.
-    # The section header already disambiguates these from polybenchGpu's
-    # convolution-2d / convolution-3d.
-    "conv2d":      ("conv2d.c",     "kernel_conv2d"),
-    # Phase 2 dtype variants — same 9-tap stencil shape as the f64 conv2d,
-    # different element type. The matcher template (`_conv2d_9pt_weighted`)
-    # is dtype-agnostic; the rewriter emits a `@cudnnConvolution2D_9tap_<dt>`
-    # launch symbol whose canonical defn picks the right cuDNN dtype.
-    "conv2d_f32":  ("conv2d_f32.c", "kernel_conv2d"),
-    "conv2d_i32":  ("conv2d_i32.c", "kernel_conv2d"),
-    "conv2d_i16":  ("conv2d_i16.c", "kernel_conv2d"),
-    "conv3d":      ("conv3d.c",     "kernel_conv2d"),
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -205,8 +132,8 @@ LLMC_KERNELS: dict[str, tuple[str, str]] = {
 
 # darknet (pjreddie) — CPU reference implementation of CNN layers used by
 # YOLO + ResNet configurations. We bake every .c file in src/ with
-# cgeist --function='*' --no-inline; the matcher then runs against each
-# file's debuferized output. Most files are framework code (parser, list,
+# cgeist --function='*' and inlining enabled; the matcher then runs against
+# each file's debuferized output. Most files are framework code (parser, list,
 # image, network) with no compute bodies. The actual numerical hot spot
 # is src/gemm.c which contains the naive C gemm_nn/nt/tn/tt variants;
 # everything else either fails to lift (struct-heavy code, IfStmt
@@ -375,78 +302,11 @@ NPB_NOTES: dict[str, tuple[str, str]] = {
     "mg-rprj3":    ("highly parallel",   "MG restriction (trilinear FE projection) — coarse-grid 2x downsample"),
 }
 
-# Per-polybenchGpu-kernel parallelism + characterisation notes. Many overlap
-# with the PolyBench shapes (same algorithm in a slightly different harness),
-# but the polybenchGpu suite adds 3D conv / fdtd-apml / reg_detect / dynprog.
-POLYBENCHGPU_NOTES: dict[str, tuple[str, str]] = {
-    "correlation":     ("partial parallel",  "mean + stddev reductions parallel; symmetric output, diagonal/off-diagonal phases"),
-    "covariance":      ("partial parallel",  "mean-centred outer product; mostly parallel with reduction phases"),
-    "2mm":             ("highly parallel",   "two chained gemms, parallel"),
-    "3mm":             ("highly parallel",   "three chained gemms, parallel"),
-    "atax":            ("highly parallel",   "y = A·x then t = Aᵀ·y, parallel"),
-    "bicg":            ("highly parallel",   "s = Aᵀ·p and q = A·r, parallel"),
-    "cholesky":        ("serial",            "L·Lᵀ factorization — column-sequential"),
-    "doitgen":         ("partial parallel",  "inner contraction parallel; outer r-update has loop-carried scratch"),
-    "gemm":            ("highly parallel",   "dense gemm, 3-loop parallel + reduction"),
-    "gemver":          ("highly parallel",   "rank-2 update + gemv stages, all parallel"),
-    "gesummv":         ("highly parallel",   "two gemvs + axpby, all parallel"),
-    "mvt":             ("highly parallel",   "x1 += A·y1; x2 += Aᵀ·y2, parallel"),
-    "symm":            ("highly parallel",   "symmetric gemm (lower triangle), parallel"),
-    "syr2k":           ("highly parallel",   "symmetric rank-2k update (lower triangle)"),
-    "syrk":            ("highly parallel",   "symmetric rank-k update (lower triangle)"),
-    "trisolv":         ("serial",            "triangular solve — y[i] depends on y[0..i-1]"),
-    "trmm":            ("highly parallel",   "triangular gemm — (i,j) parallel, k reduction"),
-    "durbin":          ("serial",            "Levinson-Durbin recurrence — O(N²) scalar carry"),
-    "dynprog":         ("serial",            "knapsack-style DP — outer time step + inner table fill have carry"),
-    "gramschmidt":     ("serial",            "modified Gram-Schmidt — column k+1 reads column k just written"),
-    "lu":              ("serial",            "LU factorization — column-sequential pattern as cholesky"),
-    "ludcmp":          ("serial",            "LU + triangular solve — both phases row-by-row carry"),
-    "floyd-warshall":  ("partial parallel",  "all-pairs shortest path: (i,j) parallel per k, k loop sequential"),
-    "reg_detect":      ("partial parallel",  "regression detection — convolution-style inner loops, sequential outer phases"),
-    "adi":             ("parallel + T loop", "alternating direction implicit; T+sweep loops sequential"),
-    "convolution-2d":  ("highly parallel",   "single 3x3 stencil pass over a 2D field — fully parallel, no T loop"),
-    "convolution-3d":  ("highly parallel",   "single 3x3x3 stencil pass over a 3D field — fully parallel"),
-    "fdtd-2d":         ("parallel + T loop", "E/H field cross-updates; T steps sequential, inner parallel"),
-    "fdtd-apml":       ("parallel + T loop", "FDTD with anisotropic PML boundary; T steps sequential, inner parallel"),
-    "jacobi-1d-imper": ("parallel + T loop", "3-point 1D smoother; T steps sequential, inner parallel"),
-    "jacobi-2d-imper": ("parallel + T loop", "5-point 2D stencil; T steps sequential, inner parallel"),
-    "seidel-2d":       ("serial",            "Gauss-Seidel — in-place writes within a sweep, current cell reads recently-updated values"),
-}
-
 # llama2.c numeric kernels — the building blocks of LLM forward pass.
 LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
     "matmul":   ("highly parallel",   "dense gemv (W·x = xout); single linalg.generic after raise"),
     "rmsnorm":  ("highly parallel",   "ss = mean(x²) + eps then o = weight·x/√ss; reduction + parallel scale"),
     "softmax":  ("partial parallel",  "max-shift then exp + sum then divide; three reduction/parallel phases"),
-}
-
-# polybenchGpu-extracted parallelism notes — same algorithms as the
-# polybenchGpu entries, just lifted from a clean TU. Listed separately
-# so the IR explorer can show the difference side-by-side.
-POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
-    "conv2d":     ("highly parallel",
-                    "9-tap 3x3 stencil (f64); kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body. Validated end-to-end on Jetson Orin (bit-exact GPU/CPU)"),
-    "conv2d_f32": ("highly parallel",
-                    "FP32 9-tap 3x3 stencil; same template as f64 conv2d. Rewriter emits @cudnnConvolution2D_9tap_f32 → polygeist_cudnn_conv2d_3x3_f32 (cuDNN tensor-core path on Ampere+). Validated end-to-end on Jetson Orin"),
-    "conv2d_i32": ("highly parallel",
-                    "INT32 9-tap 3x3 stencil; matches the same template thanks to encoder's arith.muli/addi + transparent extsi/trunci handling. Rewriter emits @cudnnConvolution2D_9tap_i32. GPU side is blocked (see cudnn-dtype-gap) — matcher + ABI lowering still validated end-to-end through the func.call ABI"),
-    "conv2d_i16": ("highly parallel",
-                    "INT16 9-tap 3x3 stencil; cgeist promotes i16 multiplies to i32 via arith.extsi, which the encoder now sees through. Rewriter inserts arith.trunci on the weights so the launch signature stays i16. Same GPU blocker as i32 (cuDNN has no native INT path)"),
-    "conv3d":     ("highly parallel",
-                    "11-tap 3x3x3 stencil; polybenchGpu's published body writes 15 muls over only 11 unique input positions (3 positions each appear in 3 muls with different literal coefficients). The matcher's tuple-AST factoring pass collapses the redundant muls into one mul per unique input and the rewriter materialises summed-constant `arith.constant` ops (e.g. `2 + 5 + -8 = -1`) for the launch operands. Emits @cudnnConvolution3D_11tap with 11 surfaced weights"),
-}
-
-POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
-    "conv2d":     ("none",
-                    "lifts and matches @cudnnConvolution2D_9tap; ABI lowering routes to polygeist_cudnn_conv2d_3x3_f64 (cuDNN FP64 path). End-to-end validated on Jetson"),
-    "conv2d_f32": ("none",
-                    "lifts and matches @cudnnConvolution2D_9tap_f32; ABI lowering routes to polygeist_cudnn_conv2d_3x3_f32 (cuDNN FP32 tensor-core path). End-to-end validated on Jetson"),
-    "conv2d_i32": ("cudnn-dtype-gap",
-                    "matcher + ABI lowering land cleanly (call @polygeist_cudnn_conv2d_3x3_i32 with 9 i32 weights), but cuDNN's cudnnConvolutionForward returns CUDNN_STATUS_BAD_PARAM on any pure INT32 input+filter+compute configuration on Orin/Ampere. INT32 in cuDNN is only exposed as an accumulator for INT8 in the bias+activation API, not as a standalone fwd-conv dtype. Real fix: hand-written CUDA kernel, INT8 quant path, or cutlass"),
-    "conv2d_i16": ("cudnn-dtype-gap",
-                    "matcher OK (encoder sees through cgeist's auto-inserted arith.extsi), rewriter auto-truncates weights from i32→i16, ABI emits call @polygeist_cudnn_conv2d_3x3_i16 — but the shim upcasts to INT32 and delegates to the i32 path, which hits the same cuDNN BAD_PARAM. cuDNN has no native INT16 conv at all"),
-    "conv3d":     ("partial-pipeline",
-                    "matcher + rewriter now fire cleanly: the redundant-mul collapse runs as a tuple-AST fallback in body_matches_template, the launch is emitted as @cudnnConvolution3D_11tap with 11 surfaced weights (two of them materialised as fresh `arith.constant` ops carrying the summed coefficient values). What's still missing for full e2e: canonical defn in kernel_library_phase2.mlir, ABI lowering branch, and a cuDNN 3D runtime shim (cudnnSetConvolutionNdDescriptor with nbDims=3). The earlier _conv3d_15mul_11in template idea was abandoned — Python factoring on the tuple AST handles the redundancy more cheaply than an egglog ruleset (which blew up exponentially on 15-summand bodies)"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -725,46 +585,6 @@ NPB_BLOCKERS: dict[str, tuple[str, str]] = {
     "mg-norm2u3":    ("mixed-reductions",  "combined L2 sum + L∞ max in one loop nest; raise rejects the dual-reduction iter_arg"),
 }
 
-# polybenchGpu blockers — most algorithms overlap with PolyBench, but the bake
-# pipeline is different (whole-program raise; main scaffolding is intermixed
-# with linalg ops), which makes v2 debuf consistently crash. The multi-root
-# debuf variant succeeds and is what the IR explorer surfaces.
-POLYBENCHGPU_BLOCKERS: dict[str, tuple[str, str]] = {
-    "correlation":     ("scratch-carry",     "row-mean + variance accumulation; cross-pass scratch in cov-style outer loops"),
-    "covariance":      ("scratch-carry",     "mean-centred outer product; cross-pass scratch state"),
-    "2mm":             ("none",              ""),
-    "3mm":             ("none",              ""),
-    "atax":            ("none",              ""),
-    "bicg":            ("none",              ""),
-    "cholesky":        ("serial-recurrence", "lower-triangular factorization — column k modifies columns 0..k-1, k+1..N-1 depends on them"),
-    "doitgen":         ("matcher-gap",       "per-iter scratch-copy body not in matcher library"),
-    "gemm":            ("none",              ""),
-    "gemver":          ("none",              ""),
-    "gesummv":         ("none",              ""),
-    "mvt":             ("none",              ""),
-    "symm":            ("matcher-gap",       "lifts; one residual symm-edge body unmatched"),
-    "syr2k":           ("none",              ""),
-    "syrk":            ("none",              ""),
-    "trisolv":         ("serial-recurrence", "triangular solve — y[i] depends on y[0..i-1]"),
-    "trmm":            ("matcher-gap",       "lifts cleanly; triangular-edge body unmatched"),
-    "durbin":          ("serial-recurrence", "Levinson-Durbin recurrence — alpha/beta scalars carried across outer k"),
-    "dynprog":         ("serial-recurrence", "knapsack-style DP — outer time step + table-fill row dependencies"),
-    "gramschmidt":     ("serial-recurrence", "column-by-column modified Gram-Schmidt — column k+1 reads what column k wrote"),
-    "lu":              ("serial-recurrence", "LU factorization — pivot row k modifies later rows"),
-    "ludcmp":          ("serial-recurrence", "LU + triangular solve — both phases have row-by-row carry"),
-    "floyd-warshall":  ("cgeist-frontend",   "upstream syntax error (extraneous } at floyd-warshall.c:75) — cgeist fails"),
-    "reg_detect":      ("raise-crash",       "polygeist-opt segfaults inside the raise pipeline"),
-    "adi":             ("t-loop",            "ADI (alternating direction implicit) — T-step outer, direction sweeps inside"),
-    "convolution-2d":  ("matcher-gap",       "single 3x3 conv2d pass; lifts cleanly but matcher has no conv2d-3x3 template"),
-    "convolution-3d":  ("matcher-gap",       "single 3x3x3 conv3d pass; lifts cleanly but matcher has no conv3d template"),
-    "fdtd-2d":         ("t-loop",            "Yee FDTD E/H field update; T steps serial, per-step body parallel"),
-    "fdtd-apml":       ("t-loop",            "FDTD with PML boundary; T steps serial, inner parallel"),
-    "jacobi-1d-imper": ("t-loop",            "3-point 1D smoother; T steps serial, inner 1D parallel"),
-    "jacobi-2d-imper": ("t-loop",            "5-point 2D smoother; T steps serial, inner 2D parallel"),
-    "seidel-2d":       ("serial-recurrence", "Gauss-Seidel — in-place writes within a sweep"),
-}
-
-
 # =====================================================================
 # Jetson Orin silicon runtime measurements.
 # =====================================================================
@@ -833,7 +653,7 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "EXTRALARGE", "gpu_s": 0.779139, "cpu_s": 61.008747, "correct": "PASS",
          "notes": ""},
     ],
-    # polybenchGpu syrk. Sizes per syrk.h: MINI=32², LARGE=2000²,
+    # SYRK dataset sizes: MINI=32², LARGE=2000²,
     # EXTRALARGE=4000². Matched as cublasDgemm (A·Aᵀ via OP_T).
     "syrk": [
         {"size": "MINI",       "gpu_s": 0.028913, "cpu_s": 0.000029, "correct": "PASS",
@@ -843,7 +663,7 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "EXTRALARGE", "gpu_s": 1.952076, "cpu_s": 69.050941, "correct": "FP-noise",
          "notes": "Same as LARGE — dgemm-emulated syrk"},
     ],
-    # polybenchGpu convolution-2d (DATA_TYPE=float). Sizes per
+    # Convolution-2d dataset sizes per the benchmark header:
     # convolution-2d.h: MINI=64², LARGE=4096², EXTRALARGE=8192².
     # Matched as cudnnConvolution2D_9tap_f32. cuDNN is slower than the
     # CPU reference at all sizes because the 3×3 stencil has very low
@@ -859,14 +679,14 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
         {"size": "EXTRALARGE", "gpu_s": 0.305478, "cpu_s": 0.186424, "correct": "FP-noise",
          "notes": "Same story as LARGE; CPU's wider memory subsystem competitive at this AI"},
     ],
-    # atax + bicg — gemv-based polybenchGpu kernels. The matcher's
+    # atax + bicg — gemv-based kernels. The matcher's
     # transpose discriminator (rewriter inspects A's first indexing-map
     # output dim vs the output vector's first dim) now emits
     # @cublasDgemv vs @cublasDgemv_T, and the downstream lowering routes
     # each to the right cuBLAS op flag (CUBLAS_OP_T vs CUBLAS_OP_N).
     # Both kernels are now bit-exact MINI; LARGE uses the same routing
     # and should be equivalent (LARGE dump diff not run).
-    # atax/bicg/mvt/gesummv/gemver — all five gemv-based polybenchGpu
+    # atax/bicg/mvt/gesummv/gemver — all five gemv-based
     # kernels now build + run cleanly after two consecutive fixes:
     #
     # 1. Matcher transpose discriminator: rewriter emits @cublasDgemv vs
@@ -912,6 +732,36 @@ JETSON_RUNTIMES: dict[str, list[dict]] = {
          "notes": "Same matcher-fission bug as mvt: initial value dropped"},
         {"size": "LARGE", "gpu_s": 0.390434, "cpu_s": 0.575250, "correct": "DIFF",
          "notes": "Same bug; also 4 separate ops on A (2 gers + 2 gemvs) all bandwidth-bound; could be 5× faster with fused kernel"},
+    ],
+}
+
+# Warmed in-process comparison against handwritten PolyBenchGPU CUDA kernels.
+# Method: Jetson Orin, N/NI/NJ/NK/NL/NM=512, double precision, 50 iterations
+# in a single process, discard the first 10 warmup iterations, then report a
+# 10% trimmed mean over the remaining 40 samples. Raised numbers are summed
+# device-event timings from the runtime shims; PolyBenchGPU numbers are CUDA
+# event timings around the handwritten kernel sequence. CPU comparison is
+# intentionally not rendered in the PolyBench tracker for now.
+POLYBENCHGPU_RUNTIMES: dict[str, list[dict]] = {
+    "gemm": [
+        {"size": "512 warmed", "raised_ms": 3.808535, "pbgpu_ms": 7.696930,
+         "notes": "Raised path uses cuBLAS dgemm; first cuBLAS cold-start iteration discarded"},
+    ],
+    "2mm": [
+        {"size": "512 warmed", "raised_ms": 7.639525, "pbgpu_ms": 11.200252,
+         "notes": "Raised path is two warmed cuBLAS dgemms plus host helper ops"},
+    ],
+    "3mm": [
+        {"size": "512 warmed", "raised_ms": 11.451146, "pbgpu_ms": 10.500537,
+         "notes": "Only current warmed case where handwritten PolyBenchGPU is slightly faster"},
+    ],
+    "gesummv": [
+        {"size": "512 warmed", "raised_ms": 0.069274, "pbgpu_ms": 0.341379,
+         "notes": "Raised path is two warmed cuBLAS gemv calls plus host axpby"},
+    ],
+    "gemver": [
+        {"size": "512 warmed", "raised_ms": 0.188384, "pbgpu_ms": 0.312846,
+         "notes": "Raised path is warmed ger/gemv/axpy sequence"},
     ],
 }
 
@@ -971,26 +821,12 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
         srcname, _fn = info
         p = NPB_ROOT / srcname
         return p if p.exists() else None
-    if kset == "polybenchgpu":
-        info = POLYBENCHGPU_KERNELS.get(name)
-        if not info:
-            return None
-        relsrc, _fn = info
-        p = POLYBENCHGPU_ROOT / relsrc
-        return p if p.exists() else None
     if kset == "llama2c":
         info = LLAMA2C_KERNELS.get(name)
         if not info:
             return None
         srcname, _fn = info
         p = LLAMA2C_ROOT / srcname
-        return p if p.exists() else None
-    if kset == "polybenchgpu_extracted":
-        info = POLYBENCHGPU_EXTRACTED_KERNELS.get(name)
-        if not info:
-            return None
-        srcname, _fn = info
-        p = POLYBENCHGPU_EXTRACTED_ROOT / srcname
         return p if p.exists() else None
     if kset == "llmc":
         info = LLMC_KERNELS.get(name)
@@ -1229,6 +1065,10 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
         [PYTHON, str(REWRITER), str(path)],
         capture_output=True, text=True, timeout=120,
     )
+    if res.returncode != 0:
+        raise RuntimeError(
+            f"kernel matcher failed for {path} with {PYTHON}:\n{res.stderr}"
+        )
     out = res.stdout
     n_launch = len(re.findall(r"kernel\.launch", out))
     n_lg = len(re.findall(r"linalg\.generic", out))
@@ -1264,7 +1104,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         html, css = syntax_highlight(debuf_mr_text)
         pages["debuf_mr"] = html
         # Fallback: if v2 debuf failed but multi-root succeeded (the
-        # common pattern for whole-program-raise suites like polybenchGpu),
+        # common pattern for whole-program-raise suites),
         # run the matcher on the multi-root output so the "matched" tab
         # and the match-status column reflect what's actually achievable.
         if not debuf.exists() and not debuf_mr_text.lstrip().startswith("//"):
@@ -1358,38 +1198,42 @@ def _fmt_seconds(s: float) -> str:
 
 
 def _runtime_cells_for(kernel: str) -> list[str]:
-    """One <td> block per (dataset, gpu, cpu) tuple for the JETSON_RUNTIMES
-    columns. Empty list if no Jetson silicon data for this kernel — in that
-    case the caller emits empty placeholders for all five runtime cells.
-    Each returned string contains five <td>s: size / GPU time / CPU time /
-    speedup / notes. Speedup colour is green when GPU wins, red when CPU
-    wins, yellow at parity. Notes is a free-text blurb explaining why
-    a particular row is slower than expected (cf. the slack discussion
-    on bandwidth-bound gemv and cuBLAS row-major emulation).
+    """One <td> block per warmed raised-vs-PolyBenchGPU comparison entry.
+    Empty list if no PolyBenchGPU comparison exists for this kernel; the
+    caller emits empty placeholders for all five runtime cells. Each returned
+    string contains five <td>s: case / raised runtime / PolyBenchGPU CUDA /
+    winner / notes. Winner colour is green when the raised pipeline wins,
+    red when handwritten PolyBenchGPU wins, yellow near parity.
     """
-    entries = JETSON_RUNTIMES.get(kernel, [])
+    entries = POLYBENCHGPU_RUNTIMES.get(kernel, [])
     cells_per_row = []
     for e in entries:
-        size, gpu, cpu = e["size"], e["gpu_s"], e["cpu_s"]
-        speedup = cpu / gpu if gpu > 0 else 0.0
-        if speedup >= 2.0:    su_cls = "pass"
-        elif speedup >= 0.8:  su_cls = "partial"
-        else:                 su_cls = "none"
-        # Correctness annotation: PASS = bit-exact; FP-noise = last-digit
-        # drift only (cuBLAS tiled reductions); DIFF = real divergence;
-        # ABORT = GPU crashed (intentional fail-fast, see cudnn-dtype-gap).
-        cmark = {"PASS":"✓", "FP-noise":"≈", "DIFF":"✗", "ABORT":"⨯"}.get(
-            e.get("correct", "?"), "?")
+        size = e["size"]
+        raised_s = e["raised_ms"] / 1000.0
+        pbgpu_s = e["pbgpu_ms"] / 1000.0
+        raised_speedup = pbgpu_s / raised_s if raised_s > 0 else 0.0
+        if raised_speedup >= 1.10:
+            su_cls = "pass"
+            winner = f'raised {raised_speedup:.2f}&times;'
+        elif raised_speedup >= 0.90:
+            su_cls = "partial"
+            if raised_speedup >= 1.0:
+                winner = f'raised {raised_speedup:.2f}&times;'
+            else:
+                winner = f'PBGPU {1.0 / raised_speedup:.2f}&times;'
+        else:
+            su_cls = "none"
+            winner = f'PBGPU {1.0 / raised_speedup:.2f}&times;'
         note = e.get("notes", "") or ""
         note_html = (f'<td style="font-size:11px; color:#555; max-width:340px">'
                      f'{note}</td>' if note else
                      '<td style="font-size:11px"></td>')
         cells_per_row.append(
             f'<td style="font-size:12px"><b>{size}</b></td>'
-            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(gpu)}</td>'
-            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(cpu)}</td>'
+            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(raised_s)}</td>'
+            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(pbgpu_s)}</td>'
             f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
-            f'{speedup:.1f}× {cmark}</td>'
+            f'{winner}</td>'
             + note_html
         )
     return cells_per_row
@@ -1454,9 +1298,9 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             f'<td class="{cls}">{status}</td>'
         )
 
-        # Jetson-runtime cells: one <tr> per (size, gpu, cpu) when data
-        # exists; otherwise one <tr> with five empty runtime cells
-        # (size / GPU / CPU / speedup / notes).
+        # Jetson-runtime cells: one <tr> per warmed raised-vs-PolyBenchGPU
+        # comparison when data exists; otherwise one <tr> with five empty
+        # runtime cells (case / raised / PolyBenchGPU / winner / notes).
         runtime_rows = _runtime_cells_for(k)
         if not runtime_rows:
             runtime_rows = ['<td style="font-size:12px; color:#bbb">—</td>'
@@ -1516,10 +1360,10 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>parallelism notes</th>'
         '<th>blocker</th>'
         '<th>blocker notes</th>'
-        '<th>Jetson<br>dataset</th>'
-        '<th>GPU<br>(cuDNN/cuBLAS)</th>'
-        '<th>CPU<br>(aarch64)</th>'
-        '<th>speedup<br>+ ✓/≈/✗</th>'
+        '<th>Jetson<br>case</th>'
+        '<th>Raised pipeline<br>(rt-gpu)</th>'
+        '<th>PolyBenchGPU<br>CUDA</th>'
+        '<th>winner<br>speed</th>'
         '<th>notes</th>'
         '</tr></thead><tbody>'
         + rows_html +
@@ -1567,6 +1411,7 @@ def _build_taxonomy_panel() -> str:
 # for which library entry each kernel matches.
 EXTRACTED_DARKNET_KERNELS: dict[str, tuple[str, str]] = {
     "conv2d_batched":      ("conv2d_batched.c",      "kernel_conv2d_batched"),
+    "darknet_im2col_gemm": ("darknet_im2col_gemm.c", "kernel_darknet_im2col_gemm"),
     "maxpool_batched":     ("maxpool_batched.c",     "kernel_maxpool_batched"),
     "batchnorm_batched":   ("batchnorm_batched.c",   "kernel_batchnorm_batched"),
     "shortcut_batched":    ("shortcut_batched.c",    "kernel_shortcut_batched"),
@@ -1722,7 +1567,7 @@ PVA_KERNELS: list[dict] = [
                     ("1024×1024", "33.7 ms"),
                     ("10240×10240", "216.3 ms")],
         "note": "Single-channel 3×3 9-tap signed conv from "
-                "polybenchGpu-extracted/conv2d_i8.c. Full matcher pipeline "
+                "the extracted conv2d_i8 dtype source. Full matcher pipeline "
                 "(cgeist → linalg → @cudnnConvolution2D_9tap_i8 → "
                 "--lower-kernel-launch-to-pva).",
     },
@@ -1866,7 +1711,7 @@ def _pva_section() -> str:
         '  <code>libpva_operator.so</code>.'
         '  <br><br>'
         '  Two kernels come through the full <em>matcher</em> pipeline today '
-        '  (Conv2d i8 and i16, lifted from <code>polybenchGpu-extracted/conv2d_i{8,16}.c</code>). '
+        '  (Conv2d i8 and i16, lifted from extracted dtype-specific conv2d sources). '
         '  The remaining four were validated via <em>hand-authored</em> kernel.launch '
         '  MLIR — the lowering + shim + silicon work, but matcher templates that '
         '  recognise their C-level patterns (uniform-weight conv, Gaussian-weighted '
@@ -2257,8 +2102,6 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 def build_index(polybench_stats: dict[str, dict],
                  machsuite_stats: dict[str, dict],
                  npb_stats: dict[str, dict],
-                 polybenchgpu_stats: dict[str, dict],
-                 polybenchgpu_extracted_stats: dict[str, dict],
                  llama2c_stats: dict[str, dict],
                  llmc_stats: dict[str, dict],
                  darknet_stats: dict[str, dict],
@@ -2289,6 +2132,9 @@ def build_index(polybench_stats: dict[str, dict],
         '  reductions / serial steps), <span class="none"><b>serial</b></span> '
         '  (cross-iter dependencies, poor naive GPU fit — factorizations, '
         '  recurrences, DPs).'
+        '  Runtime columns compare warmed raised-pipeline runtime timings '
+        '  against handwritten PolyBenchGPU CUDA timings where available; '
+        '  CPU comparison is intentionally hidden for now.'
     )
 
     polybench_section = _build_section(
@@ -2337,61 +2183,6 @@ def build_index(polybench_stats: dict[str, dict],
         notes=NPB_NOTES,
         blockers=NPB_BLOCKERS,
     )
-    polybenchgpu_section = _build_section(
-        title="polybenchGpu (OpenMP variant)",
-        anchor="polybenchgpu",
-        blurb=(
-            "32 kernels from sgrauerg/polybenchGpu, OpenMP variant — the "
-            "same numerical bodies as PolyBench but in single-file harness "
-            "form (kernel + init + main + print_array per .c). cgeist "
-            "inlines kernel_<name>() into main() and DCEs the standalone "
-            "definition, so the bake uses <code>--function=*</code> and "
-            "skips <code>--select-func</code>. The raise pass still finds "
-            "the inlined affine loops; the v2 debufferize gets confused by "
-            "the main-scaffolding ops (addressof / strcmp / print_array) "
-            "intermixed with linalg, so the multi-root debuf is what "
-            "appears in the IR preview."
-        ),
-        kernel_stats=polybenchgpu_stats,
-        notes=POLYBENCHGPU_NOTES,
-        blockers=POLYBENCHGPU_BLOCKERS,
-    )
-    polybenchgpu_extracted_section = _build_section(
-        title="polybenchGpu (kernel-extracted) — Phase 2 dtype matrix",
-        anchor="polybenchgpu-extracted",
-        blurb=(
-            "Subset of polybenchGpu kernels extracted into standalone .c "
-            "files (third_party/polybenchGpu-extracted/) — kernel function "
-            "only, no main, no init. Solves the constant-folding issue "
-            "where cgeist inlined main→init→kernel, then the optimizer "
-            "constant-folded init's <code>A[i,j]=(i+j)/nj</code> formula "
-            "into the conv body — leaving a linalg.generic with no "
-            "<code>ins(A)</code> that the matcher couldn't fingerprint as "
-            "conv2d/conv3d. The extracted form lifts cleanly with N "
-            "strided-subview inputs (one per stencil neighbour) and matches "
-            "<code>@cudnnConvolution2D_9tap</code>."
-            "<br><br>"
-            "<b>Phase 2 dtype expansion:</b> the matcher's template is "
-            "dtype-agnostic, and the rewriter dispatches to a "
-            "<code>@cudnnConvolution2D_9tap_&lt;dtype&gt;</code> launch "
-            "symbol per element type. <code>conv2d</code> is f64; "
-            "<code>conv2d_f32</code> / <code>conv2d_i32</code> / "
-            "<code>conv2d_i16</code> exercise the FP32 / INT32 / INT16 "
-            "paths. The FP16 / BF16 source files exist "
-            "(<code>conv2d_f16.c</code>) but aren't baked here because "
-            "cgeist asserts on <code>_Float16</code>/<code>__bf16</code> "
-            "(see the <i>cgeist-dtype-gap</i> blocker class). The INT "
-            "paths lift and ABI-lower cleanly, but cuDNN itself doesn't "
-            "expose a standalone INT32 forward conv (see "
-            "<i>cudnn-dtype-gap</i>) — the matcher + lowering are still "
-            "exercised, but the GPU side aborts at "
-            "<code>cudnnSetTensor4dDescriptor</code>."
-        ),
-        kernel_stats=polybenchgpu_extracted_stats,
-        notes=POLYBENCHGPU_EXTRACTED_NOTES,
-        blockers=POLYBENCHGPU_EXTRACTED_BLOCKERS,
-    )
-
     llama2c_section = _build_section(
         title="llama2.c (karpathy/llama2.c)",
         anchor="llama2c",
@@ -2438,7 +2229,7 @@ def build_index(polybench_stats: dict[str, dict],
         blurb=(
             "Empirical &quot;matcher coverage survey&quot; over all 46 .c "
             "files in <code>third_party/darknet/src/</code>. cgeist baked "
-            "with <code>--function=*</code> and <code>--no-inline</code>; "
+            "with <code>--function=*</code> and inlining enabled; "
             "every file's debuferized output ran through the matcher. "
             "<br><br>"
             "Outcome (matches my earlier prediction of ~2% hit rate): "
@@ -2486,8 +2277,6 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#polybench">PolyBench</a> &middot; '
         '  <a href="#machsuite">MachSuite</a> &middot; '
         '  <a href="#npb">NPB (polybenchified)</a> &middot; '
-        '  <a href="#polybenchgpu">polybenchGpu</a> &middot; '
-        '  <a href="#polybenchgpu-extracted">polybenchGpu (extracted)</a> &middot; '
         '  <a href="#llama2c">llama2.c</a> &middot; '
         '  <a href="#llmc">llm.c</a> &middot; '
         '  <a href="#darknet">darknet</a> &middot; '
@@ -2499,8 +2288,6 @@ def build_index(polybench_stats: dict[str, dict],
         + polybench_section
         + machsuite_section
         + npb_section
-        + polybenchgpu_section
-        + polybenchgpu_extracted_section
         + llama2c_section
         + llmc_section
         + darknet_section
@@ -2574,25 +2361,6 @@ def main():
             file_prefix="npb_",
         )
 
-    # polybenchGpu OpenMP set.
-    pbgpu_kernels_from_files = discover_kernels(POLYBENCHGPU_MLIR_DIR)
-    pbgpu_kernels = sorted(set(pbgpu_kernels_from_files) | set(POLYBENCHGPU_KERNELS.keys()))
-    print(f"Rendering {len(pbgpu_kernels)} polybenchGpu kernels...", flush=True)
-    pbgpu_stats = {}
-    for i, k in enumerate(pbgpu_kernels, 1):
-        print(f"  [PBGPU {i:2d}/{len(pbgpu_kernels)}] {k}", flush=True)
-        has_any = any((POLYBENCHGPU_MLIR_DIR / f"{k}{suf}").exists()
-                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
-                                   "_debuf_mr.mlir"))
-        if not has_any:
-            pbgpu_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
-                               "ce_url": None, "page_filename": ""}
-            continue
-        pbgpu_stats[k] = build_kernel_page(
-            k, mlir_dir=POLYBENCHGPU_MLIR_DIR, kset="polybenchgpu",
-            file_prefix="pbgpu_",
-        )
-
     # llama2.c set.
     llama_kernels_from_files = discover_kernels(LLAMA2C_MLIR_DIR)
     llama_kernels = sorted(set(llama_kernels_from_files) | set(LLAMA2C_KERNELS.keys()))
@@ -2610,27 +2378,6 @@ def main():
         llama_stats[k] = build_kernel_page(
             k, mlir_dir=LLAMA2C_MLIR_DIR, kset="llama2c",
             file_prefix="llama_",
-        )
-
-    # polybenchGpu-extracted set. KERNELS map keys are file-base names
-    # (conv2d, conv3d) so all of discover_kernels / ce_link / find_kernel_c /
-    # build_kernel_page use the same name throughout — no remapping needed.
-    pbgpu_x_kernels_from_files = discover_kernels(POLYBENCHGPU_EXTRACTED_MLIR_DIR)
-    pbgpu_x_kernels = sorted(set(pbgpu_x_kernels_from_files) | set(POLYBENCHGPU_EXTRACTED_KERNELS.keys()))
-    print(f"Rendering {len(pbgpu_x_kernels)} polybenchGpu-extracted kernels...", flush=True)
-    pbgpu_x_stats = {}
-    for i, k in enumerate(pbgpu_x_kernels, 1):
-        print(f"  [PBGPU-X {i:2d}/{len(pbgpu_x_kernels)}] {k}", flush=True)
-        has_any = any((POLYBENCHGPU_EXTRACTED_MLIR_DIR / f"{k}{suf}").exists()
-                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
-                                   "_debuf_mr.mlir"))
-        if not has_any:
-            pbgpu_x_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
-                                 "ce_url": None, "page_filename": ""}
-            continue
-        pbgpu_x_stats[k] = build_kernel_page(
-            k, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
-            kset="polybenchgpu_extracted", file_prefix="pbgpux_",
         )
 
     # llm.c set.
@@ -2715,9 +2462,8 @@ def main():
         )
 
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats,
-                    pbgpu_x_stats, llama_stats, llmc_stats, darknet_stats,
-                    ex_darknet_stats, fopt_stats))
+        build_index(pb_stats, ms_stats, npb_stats, llama_stats, llmc_stats,
+                    darknet_stats, ex_darknet_stats, fopt_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 

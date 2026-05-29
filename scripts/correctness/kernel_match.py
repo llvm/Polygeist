@@ -800,6 +800,11 @@ class CompositionStep:
     # single-yield matching against `body` above. When set, num_outs
     # should equal len(body_per_yield).
     body_per_yield: Optional[list[Term]] = None
+    # Non-scalar structural predicate for bodies whose semantics cannot be
+    # represented by the scalar Term language. Used for guarded im2col:
+    # the body contains scf.if + memref.load, and the value yielded from the
+    # scf.if appears opaque to encode_body().
+    special: Optional[str] = None
 
 
 @dataclass
@@ -1179,6 +1184,42 @@ def _cudnn_conv2d_batched() -> CompositionEntry:
     )
 
 
+def _darknet_im2col_gemm_fused() -> CompositionEntry:
+    """Darknet-style explicit im2col followed by GEMM.
+
+    Raised memref IR shape:
+      step0: output[:] = 0                         -- 1D flat zero-fill
+      step1: workspace[k, oh, ow] = guarded load   -- im2col with zero pad
+      step2: output[oc, oh*ow] += weights[oc,k] *
+                                    workspace[k,oh*ow]
+
+    The im2col body contains an scf.if and a memref.load, so the scalar Term
+    encoder sees it as opaque. Match it with a structural predicate, then
+    lower the whole 3-step composition as one cuDNN convolution.
+    """
+    init_step = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=1, reduction_dim_count=0,
+    )
+    im2col_step = CompositionStep(
+        body=T_cap("%guarded_im2col"),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=0,
+        special="guarded_im2col",
+    )
+    gemm_step = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=2, reduction_dim_count=1,
+    )
+    return CompositionEntry(
+        name="cudnnConvolutionFwd_im2col_gemm",
+        steps=[init_step, im2col_step, gemm_step],
+        form="memref",
+    )
+
+
 def _gemm_no_alpha() -> CompositionEntry:
     """C += A*B  (no alpha, no beta)."""
     body = Term.Out(0) + Term.In(0) * Term.In(1)
@@ -1186,6 +1227,21 @@ def _gemm_no_alpha() -> CompositionEntry:
         name="cublasDgemm_simple",
         steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
                                 parallel_dim_count=2, reduction_dim_count=1)],
+    )
+
+
+def _sgemm_broadcast3d_memref() -> CompositionEntry:
+    """Darknet im2col GEMM in memref form after scalar-load promotion.
+
+    The linalg view is rank-3 because A and C are broadcasted through submaps,
+    but the underlying buffers are flat row-major A[M,K], B[K,N], C[M,N].
+    """
+    body = Term.Out(0) + Term.In(0) * Term.In(1)
+    return CompositionEntry(
+        name="cublasSgemm_broadcast3d_memref",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=1)],
+        form="memref",
     )
 
 
@@ -1786,6 +1842,7 @@ def composition_library() -> list[CompositionEntry]:
         # longer one wanted.
         _cudnn_conv_bias_relu_add_fused(),  # 5-step: init + conv + bias + residual + relu
         _cublaslt_gemm_bias_relu_fused(),   # 4-step: init + gemm + bias + relu (cublasLt)
+        _darknet_im2col_gemm_fused(),       # 3-step: zero + guarded im2col + sgemm
         _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv
         _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
         _gemm_composition(),
@@ -1844,6 +1901,7 @@ def composition_library() -> list[CompositionEntry]:
         # 1-step BLAS, no α.
         _gemv_accumulate(),
         _gemm_no_alpha(),
+        _sgemm_broadcast3d_memref(),
         _dot(),
         _asum(),
         _reduce_sum_axis(),     # 1 in, 1 out, P=1+R=1: separate from gemv (2 ins)
@@ -2210,6 +2268,42 @@ def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     return _unify(factored, tmpl_ast, {})
 
 
+def _is_guarded_im2col_body(g: GenericBody) -> bool:
+    """Return true for the raised Darknet im2col workspace-fill body.
+
+    This intentionally checks structural markers rather than exact SSA names:
+    the scalar Term encoder cannot model the scf.if/memref.load payload, but
+    the surrounding composition and launch rewriter recover the actual operands
+    from the matched body text.
+    """
+    if len(g.ins_arg_names) != 0 or len(g.outs_arg_names) != 1:
+        return False
+    if sum(1 for it in g.iterator_types if it == "parallel") != 3:
+        return False
+    if any(it == "reduction" for it in g.iterator_types):
+        return False
+    body = "\n".join(g.body_lines)
+    required = [
+        "linalg.index 0",
+        "linalg.index 1",
+        "linalg.index 2",
+        "scf.if",
+        "memref.load",
+        "arith.cmpi slt",
+        "arith.cmpi sge",
+        "arith.select",
+        "scf.yield",
+    ]
+    if not all(tok in body for tok in required):
+        return False
+    # The im2col linearization decomposes the workspace row with div/rem by
+    # the kernel size and computes the padded input coordinates from stride
+    # and pad. These checks keep the predicate from firing on arbitrary
+    # guarded loads.
+    return ("arith.remsi" in body and "arith.divsi" in body and
+            body.count("scf.yield") >= 2)
+
+
 def match_composition(
     body_objs: list[GenericBody],
     body_terms: list[Term],
@@ -2267,7 +2361,16 @@ def match_composition(
             #     yield Terms come from encode_body_yields stored in
             #     body_yields[i]. We unify each (body_yield, template_yield) pair
             #     and merge bindings.
-            if step.body_per_yield is not None:
+            if step.special is not None:
+                if step.special == "guarded_im2col":
+                    if not _is_guarded_im2col_body(g):
+                        ok = False
+                        break
+                    b = {}
+                else:
+                    ok = False
+                    break
+            elif step.body_per_yield is not None:
                 body_yields_here = body_objs[start + j].__dict__.get(
                     "_yield_terms_cache"
                 )

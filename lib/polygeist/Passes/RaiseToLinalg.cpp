@@ -285,17 +285,24 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   LLVM_DEBUG(llvm::dbgs() << "  dimidx: " << dimidx << "\n");
   LLVM_DEBUG(llvm::dbgs() << "  check_reduction (output): " << check_reduction << "\n");
 
+  // Raising an outer loop around an existing linalg.generic prepends a new
+  // iterator dimension: old `linalg.index 0` becomes index 1, etc. Keep the
+  // submap in that same logical order. Previously this appended the new
+  // dimension after the existing inner dimensions, which made lowered
+  // im2col-style layouts use `(w, h, c)` storage while the body used
+  // `(c, h, w)` indices.
   SmallVector<AffineExpr> dimReplacements;
   size_t validSims = 0;
-  size_t validDims = 0;
+  size_t nextInnerDim = 1;
+  AffineExpr newLoopDim =
+      builder.getAffineDimExpr(0) + builder.getAffineConstantExpr(lower_bound_val);
   for (int i = 0; i < oldmap.getNumDims(); i++) {
     if (i < firstNDims) {
       assert(i != dimidx);
-      dimReplacements.push_back(builder.getAffineDimExpr(validDims));
-      validDims++;
+      dimReplacements.push_back(builder.getAffineDimExpr(nextInnerDim));
+      nextInnerDim++;
     } else if (i == dimidx) {
-      dimReplacements.push_back(builder.getAffineDimExpr(validDims) + builder.getAffineConstantExpr(lower_bound_val));
-      validDims++;
+      dimReplacements.push_back(newLoopDim);
     } else {
       // TODO: Why are we using symbol here instead of dim?
       dimReplacements.push_back(builder.getAffineSymbolExpr(validSims));
@@ -306,8 +313,7 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   SmallVector<AffineExpr> symReplacements;
   for (int i = 0; i < oldmap.getNumSymbols(); i++) {
     if (i + oldmap.getNumDims() == dimidx) {
-      symReplacements.push_back(builder.getAffineDimExpr(validDims) + builder.getAffineConstantExpr(lower_bound_val));
-      validDims++;
+      symReplacements.push_back(newLoopDim);
     } else {
       symReplacements.push_back(builder.getAffineSymbolExpr(validSims));
       validSims++;
@@ -341,9 +347,11 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
                                            operands_without_indices.size() /*Number of symbols in new map*/);
   
   LLVM_DEBUG(llvm::dbgs() << "  new map (map2): " << map2 << "\n");
-  LLVM_DEBUG(llvm::dbgs() << "  validDims: " << validDims << ", validSims: " << validSims << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "  nextInnerDim: " << nextInnerDim
+                          << ", validSims: " << validSims << "\n");
 
   SmallVector<Value> idx_sizes;
+  idx_sizes.push_back(bound);
   for (size_t i = 0; i < firstNDims; i++) {
     // memref.dimOp captures the size of the memref
     if (auto submap = origmemref.getDefiningOp<polygeist::SubmapOp>())
@@ -353,7 +361,6 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
     // idx_sizes.push_back(builder.create<memref::DimOp>(origmemref.getLoc(),
     // origmemref, i));
   }
-  idx_sizes.push_back(bound);
 
   legal = true;
   SmallVector<int64_t> sizes(idx_sizes.size(), mlir::ShapedType::kDynamic);
@@ -1530,6 +1537,224 @@ struct BoundMaskInfo {
   SmallVector<Value> origOperands;
 };
 
+static bool onlyFeedsNestedGenericThroughReadNone(Value value, Operation *scope,
+                                                  Operation *nestedGeneric,
+                                                  DenseSet<Value> &seen) {
+  if (!seen.insert(value).second)
+    return true;
+
+  for (Operation *user : value.getUsers()) {
+    if (!scope->isAncestor(user))
+      return false;
+    if (user == nestedGeneric || nestedGeneric->isAncestor(user))
+      continue;
+    if (!isReadNone(user))
+      return false;
+    for (Value result : user->getResults())
+      if (!onlyFeedsNestedGenericThroughReadNone(result, scope, nestedGeneric,
+                                                seen))
+        return false;
+  }
+  return true;
+}
+
+struct PromotedScalarLoad {
+  Value input;
+  AffineMap indexingMap;
+};
+
+static Value getOperandDimSize(OpBuilder &builder, Location loc, Value operand,
+                               unsigned dim) {
+  if (auto submap = operand.getDefiningOp<polygeist::SubmapOp>())
+    return submap.getSizes()[dim];
+  return linalg::createOrFoldDimOp(builder, loc, operand, dim);
+}
+
+static LogicalResult
+collectNestedGenericLoopSizes(linalg::GenericOp generic, OpBuilder &builder,
+                              SmallVectorImpl<Value> &loopSizes) {
+  loopSizes.assign(generic.getNumLoops(), Value());
+
+  SmallVector<Value> operands;
+  operands.append(generic.getInputs().begin(), generic.getInputs().end());
+  operands.append(generic.getOutputs().begin(), generic.getOutputs().end());
+
+  SmallVector<AffineMap> maps = generic.getIndexingMapsArray();
+  if (maps.size() != operands.size())
+    return failure();
+
+  for (auto indexedOperand : llvm::enumerate(operands)) {
+    AffineMap map = maps[indexedOperand.index()];
+    if (!map.isProjectedPermutation())
+      return failure();
+
+    Value operand = indexedOperand.value();
+    auto operandType = dyn_cast<MemRefType>(operand.getType());
+    if (!operandType)
+      return failure();
+    if (map.getNumResults() != operandType.getRank())
+      return failure();
+
+    for (auto indexedExpr : llvm::enumerate(map.getResults())) {
+      auto dimExpr = indexedExpr.value().dyn_cast<AffineDimExpr>();
+      if (!dimExpr)
+        continue;
+      unsigned loopDim = dimExpr.getPosition();
+      if (loopDim >= loopSizes.size())
+        return failure();
+      if (!loopSizes[loopDim])
+        loopSizes[loopDim] = getOperandDimSize(
+            builder, generic.getLoc(), operand, indexedExpr.index());
+    }
+  }
+
+  for (Value loopSize : loopSizes)
+    if (!loopSize)
+      return failure();
+  return success();
+}
+
+// Hybrid raiser for loop bodies that are semantically elementwise stores but
+// cannot be expressed as pure linalg ins/outs because the value computation
+// contains guarded memory reads (for example im2col padding:
+// `scf.if oob then 0 else memref.load input[idx]`). MLIR allows such a region
+// inside linalg.generic, so keep the guarded load in the payload and only raise
+// the output iteration space to linalg. This gives downstream matchers a stable
+// `linalg.generic` anchor without speculating the load past its bounds check.
+struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(affine::AffineForOp loop,
+                                PatternRewriter &rewriter) const final {
+    if (loop.getNumResults() != 0)
+      return failure();
+    if (!loop.hasConstantLowerBound() || loop.getConstantLowerBound() != 0)
+      return failure();
+    if (loop.getStep() != 1)
+      return failure();
+
+    Block *loopBody = loop.getBody();
+    Operation *terminator = loopBody->getTerminator();
+
+    affine::AffineStoreOp targetStore;
+    bool hasHybridPayload = false;
+    bool illegal = false;
+
+    loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
+      if (op == loop)
+        return WalkResult::advance();
+
+      if (isa<affine::AffineYieldOp, scf::YieldOp>(op))
+        return WalkResult::advance();
+
+      if (isa<affine::AffineForOp, affine::AffineParallelOp,
+              linalg::GenericOp>(op)) {
+        illegal = true;
+        return WalkResult::interrupt();
+      }
+
+      if (auto store = dyn_cast<affine::AffineStoreOp>(op)) {
+        if (store->getParentOp() != loop || targetStore) {
+          illegal = true;
+          return WalkResult::interrupt();
+        }
+        targetStore = store;
+        return WalkResult::advance();
+      }
+
+      if (isa<memref::StoreOp, CallOpInterface>(op)) {
+        illegal = true;
+        return WalkResult::interrupt();
+      }
+
+      if (isa<scf::IfOp, memref::LoadOp>(op)) {
+        hasHybridPayload = true;
+        return WalkResult::advance();
+      }
+
+      if (isa<affine::AffineLoadOp>(op)) {
+        // After replacing the affine IV with linalg.index, an affine.load that
+        // indexes by that value may fail affine verification. Leave those
+        // cases to the standard affine-load/store raiser instead of preserving
+        // the affine.load inside the hybrid payload.
+        illegal = true;
+        return WalkResult::interrupt();
+      }
+
+      if (isReadNone(op))
+        return WalkResult::advance();
+
+      illegal = true;
+      return WalkResult::interrupt();
+    });
+
+    if (illegal || !targetStore || !hasHybridPayload)
+      return failure();
+    if (targetStore->getNextNode() != terminator)
+      return failure();
+
+    Value storedValue = targetStore.getValueToStore();
+
+    AffineMap ubMap = loop.getUpperBoundMap();
+    SmallVector<Value> ubOperands(loop.getUpperBoundOperands());
+    AffineMap lbMap = loop.getLowerBoundMap();
+    SmallVector<Value> lbOperands(loop.getLowerBoundOperands());
+    if (!ubMap || ubMap.getNumResults() != 1 || !lbMap ||
+        lbMap.getNumResults() != 1)
+      return failure();
+
+    auto ubValue =
+        rewriter.create<AffineApplyOp>(loop.getLoc(), ubMap, ubOperands);
+    auto lbValue =
+        rewriter.create<AffineApplyOp>(loop.getLoc(), lbMap, lbOperands);
+    auto loopSize =
+        rewriter.create<arith::SubIOp>(loop.getLoc(), ubValue, lbValue);
+
+    bool legal = true;
+    bool checkReduction = true;
+    size_t firstNDims = 0;
+    Value newOutput = remap_in_affine_dim(
+        legal, rewriter, targetStore.getAffineMap(), targetStore.getMemref(),
+        loop.getInductionVar(), loopSize, lbValue, firstNDims,
+        targetStore.getMapOperands(), targetStore.getMemref(), checkReduction);
+    if (!legal)
+      return failure();
+
+    SmallVector<Value> inputs;
+    SmallVector<Value> outputs{newOutput};
+    SmallVector<AffineMap> affineMaps{
+        rewriter.getMultiDimIdentityMap(firstNDims + 1)};
+    SmallVector<utils::IteratorType> iteratorTypes{
+        checkReduction ? utils::IteratorType::reduction
+                       : utils::IteratorType::parallel};
+
+    StringAttr empty = StringAttr::get(loop.getContext());
+    auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
+        loop.getLoc(), TypeRange(), inputs, outputs, affineMaps, iteratorTypes,
+        empty, empty);
+
+    rewriter.setInsertionPointToStart(loopBody);
+    auto idx = rewriter.create<linalg::IndexOp>(loop.getLoc(), 0);
+    rewriter.replaceAllUsesWith(loop.getInductionVar(), idx);
+
+    auto &genericBody = genericOp.getRegion();
+    genericBody.takeBody(loop.getRegion());
+
+    Block *newBody = &genericBody.front();
+    newBody->eraseArguments(0, newBody->getNumArguments());
+    newBody->addArgument(targetStore.getValueToStore().getType(),
+                         targetStore.getLoc());
+
+    rewriter.eraseOp(targetStore);
+    rewriter.eraseOp(newBody->getTerminator());
+    rewriter.setInsertionPointToEnd(newBody);
+    rewriter.create<linalg::YieldOp>(loop.getLoc(), storedValue);
+
+    rewriter.eraseOp(loop);
+    return success();
+  }
+};
+
 struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
 
@@ -1584,6 +1809,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         }
         if (auto linalgGeneric = dyn_cast<GenericOp>(op)) {
           linalgGenerics.emplace_back(conditions, linalgGeneric);
+          // Treat a nested linalg.generic as a single payload op for this
+          // wrapping step. Its region may legally contain guarded loads after
+          // HybridAffineForOpRaising, and those operations should not be
+          // re-classified as top-level affine loop accesses here.
+          return WalkResult::skip();
         } else if (auto load = dyn_cast<AffineLoadOp>(op)) {
           loads.emplace_back(conditions, load);
         } else {
@@ -1601,6 +1831,15 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     if (result.wasInterrupted()) {
       LLVM_DEBUG(llvm::dbgs() << "REJECTED: Walk was interrupted (invalid operations found)\n\n");
+      return failure();
+    }
+
+    if (!(linalgGenerics.size() == 1 || linalgGenerics.size() == 0)) {
+      LLVM_DEBUG(llvm::dbgs() << "REJECTED: More than one linalg generic\n\n");
+      return failure();
+    }
+    if ((linalgGenerics.size() == 1) && !stores.empty()) {
+      LLVM_DEBUG(llvm::dbgs() << "REJECTED: Linalg generic exists with stores\n\n");
       return failure();
     }
 
@@ -1650,6 +1889,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     SmallVector<Value> inputs, outputs;
     SmallVector<AffineMap> affineMaps;
     SmallVector<AffineMap> indexingMaps;
+    SmallVector<PromotedScalarLoad> promotedScalarLoads;
 
     // if (loop.getStep() != 1) {
     //     return failure();
@@ -1923,6 +2163,72 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         continue;
       }
 
+      if (linalgGenerics.size() == 1) {
+        // Darknet's GEMM uses the shape `for i; for k; a = A[i,k];
+        // for j; C[i,j] += a * B[k,j]`. After the `j` loop has been raised,
+        // the `k` wrapper contains one scalar affine.load plus one nested
+        // linalg.generic. Promote that scalar load to a broadcast linalg input
+        // instead of rejecting the mixed load + nested-generic body.
+        auto nestedGeneric = linalgGenerics[0].second;
+        if (load->getParentOp() != loop) {
+          LLVM_DEBUG(llvm::dbgs() << "  REJECTED: Load is not top-level in the wrapper loop\n");
+          return failure();
+        }
+        for (Value output : nestedGeneric.getOutputs()) {
+          if (load.getMemref() == output) {
+            LLVM_DEBUG(llvm::dbgs() << "  REJECTED: Promoted load aliases nested output by identity\n");
+            return failure();
+          }
+        }
+        DenseSet<Value> seen;
+        if (!onlyFeedsNestedGenericThroughReadNone(
+                load.getResult(), loop.getOperation(), nestedGeneric, seen)) {
+          LLVM_DEBUG(llvm::dbgs() << "  REJECTED: Load has non-generic/non-readnone users\n");
+          return failure();
+        }
+
+        size_t firstNDims = 0;
+        bool legal = true;
+        bool promotedLoadReductionCheck = false;
+        auto newMemref = remap_in_affine_dim(
+            legal, rewriter, load.getAffineMap(), load.getMemref(),
+            loop.getInductionVar(), loopSize, lbValue, firstNDims,
+            load.getMapOperands(), load.getMemref(),
+            promotedLoadReductionCheck);
+
+        if (!legal)
+          return failure();
+
+        auto newMemrefType = cast<MemRefType>(newMemref.getType());
+        if (nestedGeneric.getNumLoops() != 0) {
+          SmallVector<Value> innerLoopSizes;
+          if (failed(collectNestedGenericLoopSizes(nestedGeneric, rewriter,
+                                                   innerLoopSizes)))
+            return failure();
+
+          SmallVector<Value> broadcastSizes;
+          broadcastSizes.push_back(loopSize);
+          broadcastSizes.append(innerLoopSizes.begin(), innerLoopSizes.end());
+
+          SmallVector<int64_t> broadcastShape(
+              broadcastSizes.size(), ShapedType::kDynamic);
+          auto broadcastType = MemRefType::get(
+              broadcastShape, newMemrefType.getElementType());
+          auto broadcastMap = AffineMap::get(
+              /*dimCount=*/broadcastSizes.size(), /*symbolCount=*/0,
+              rewriter.getAffineDimExpr(0), rewriter.getContext());
+          newMemref = rewriter.create<polygeist::SubmapOp>(
+              load.getLoc(), broadcastType, newMemref, broadcastSizes,
+              broadcastMap);
+        }
+
+        auto newAffineMap =
+            rewriter.getMultiDimIdentityMap(nestedGeneric.getNumLoops() + 1);
+        promotedScalarLoads.push_back(PromotedScalarLoad{newMemref,
+                                                         newAffineMap});
+        continue;
+      }
+
       size_t firstNDims = 0;
       bool legal = true;
 
@@ -1976,18 +2282,17 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     }
     // TODO Push all of the outputs to the linalg generics
 
-    // TODO presently  if linalg generic exists, assert there are no load/stores
-    if ((linalgGenerics.size() > 0) &&
-        ((loads.size() != 0) || (stores.size() != 0))) {
-      LLVM_DEBUG(llvm::dbgs() << "REJECTED: Linalg generic exists with loads/stores\n\n");
-      return failure();
-    }
-
-    // TODO assert only zero or one linalg generic exists
-    if (!(linalgGenerics.size() == 1 || linalgGenerics.size() == 0)) {
-      LLVM_DEBUG(llvm::dbgs() << "REJECTED: More than one linalg generic\n\n");
-      // assert(false);
-      return failure();
+    if (!promotedScalarLoads.empty()) {
+      SmallVector<Value> promotedInputs;
+      SmallVector<AffineMap> promotedMaps;
+      for (const PromotedScalarLoad &promoted : promotedScalarLoads) {
+        promotedInputs.push_back(promoted.input);
+        promotedMaps.push_back(promoted.indexingMap);
+      }
+      inputs.insert(inputs.begin(), promotedInputs.begin(),
+                    promotedInputs.end());
+      affineMaps.insert(affineMaps.begin(), promotedMaps.begin(),
+                        promotedMaps.end());
     }
 
     SmallVector<utils::IteratorType> iteratorTypes;
@@ -2408,6 +2713,11 @@ void RaiseAffineToLinalgPipeline::runOnOperation() {
   
   // Create a nested pass manager for function operations
   OpPassManager &funcPM = pm.nest<func::FuncOp>();
+
+  // Convert if/else scalar choices and matching stores to arith.select before
+  // the affine-to-linalg raise. This handles control-flow-shaped expressions
+  // that the linalg raiser can represent inside a generic body.
+  funcPM.addPass(createFoldSCFIfPass());
   
   // Add affine-parallelize pass first (runs on func.func)
   funcPM.addPass(mlir::affine::createAffineParallelizePass());
@@ -2486,6 +2796,7 @@ void RaiseAffineToLinalg::runOnOperation() {
     // mirroring the rank-0 sibling). When that fix lands, uncomment the
     // line below to re-enable.
     // raisingPatterns.add<PrivatizeRowScratchAllocaForLoop>(&getContext(), /*benefit=*/3);
+    raisingPatterns.add<HybridAffineForOpRaising>(&getContext(), /*benefit=*/2);
     raisingPatterns.add<DistributeAffineForOnLinalgGeneric>(&getContext(), /*benefit=*/2);
     raisingPatterns.add<AffineForOpRaising>(&getContext(), /*benefit=*/1);
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(raisingPatterns), config))) {

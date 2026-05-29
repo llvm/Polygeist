@@ -13,6 +13,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   BarrierRemovalContinuation.cpp
   RaiseToAffine.cpp
   RemoveIterArgs.cpp
+  FoldSCFIf.cpp
   RaiseToLinalg.cpp
   LinalgDebufferize.cpp
   LowerPolygeistSubmap.cpp

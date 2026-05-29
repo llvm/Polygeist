@@ -112,7 +112,7 @@ aarch64-linux-gnu-gcc -O2 \
     $OUT/${DATASET}_kernel.o $OUT/${DATASET}_rt_cuda.o \
     $OUT/${DATASET}_wrapper.o $OUT/${DATASET}_nokernel.o $OUT/${DATASET}_polybench.o \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
     -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
     -o $OUT/conv2d_jetson_${DATASET}
 

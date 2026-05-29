@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 /* Intentionally do NOT include <cuda_fp16.h> or <cuda_bf16.h>. Those
  * headers use NVCC-specific `__device__` builtins that fail to parse under
  * aarch64-linux-gnu-gcc (our cross-compile path). cuDNN's API is type-agnostic
@@ -51,6 +52,8 @@ static cudaStream_t     g_stream;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
+static int            g_timing_enabled = -1;
+static FILE          *g_timing_file = NULL;
 
 #define CUDA_CHECK(call) do {                                                \
     cudaError_t err = (call);                                                \
@@ -78,6 +81,73 @@ static int            g_initialized = 0;
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+static int timing_enabled(void) {
+  if (g_timing_enabled >= 0) return g_timing_enabled;
+  const char *env = getenv("POLYGEIST_RT_TIMING");
+  g_timing_enabled =
+      env && env[0] != '\0' && strcmp(env, "0") != 0 &&
+      strcmp(env, "false") != 0 && strcmp(env, "FALSE") != 0;
+  return g_timing_enabled;
+}
+
+static FILE *timing_file(void) {
+  if (!timing_enabled()) return NULL;
+  if (g_timing_file) return g_timing_file;
+  const char *path = getenv("POLYGEIST_RT_TIMING_FILE");
+  if (path && path[0] != '\0') {
+    g_timing_file = fopen(path, "a");
+    if (!g_timing_file) {
+      fprintf(stderr, "polygeist runtime: failed to open timing file %s\n", path);
+      abort();
+    }
+  } else {
+    g_timing_file = stderr;
+  }
+  return g_timing_file;
+}
+
+static double wall_time_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
+}
+
+static void timing_gpu_begin(void) {
+  if (timing_enabled()) CUDA_CHECK(cudaEventRecord(g_ev_begin, g_stream));
+}
+
+static void timing_gpu_end(
+    const char *op, int32_t m, int32_t n, int32_t k, double host_start_ms) {
+  if (!timing_enabled()) {
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    return;
+  }
+
+  CUDA_CHECK(cudaEventRecord(g_ev_end, g_stream));
+  CUDA_CHECK(cudaEventSynchronize(g_ev_end));
+  float device_ms = 0.0f;
+  CUDA_CHECK(cudaEventElapsedTime(&device_ms, g_ev_begin, g_ev_end));
+
+  FILE *f = timing_file();
+  fprintf(f,
+          "POLYGEIST_RT_TIMING\top=%s\tm=%d\tn=%d\tk=%d\t"
+          "host_ms=%.6f\tdevice_ms=%.6f\n",
+          op, (int)m, (int)n, (int)k, wall_time_ms() - host_start_ms,
+          (double)device_ms);
+  fflush(f);
+}
+
+static void timing_host_only(
+    const char *op, int32_t m, int32_t n, int32_t k, double host_start_ms) {
+  if (!timing_enabled()) return;
+  FILE *f = timing_file();
+  fprintf(f,
+          "POLYGEIST_RT_TIMING\top=%s\tm=%d\tn=%d\tk=%d\t"
+          "host_ms=%.6f\tdevice_ms=0.000000\n",
+          op, (int)m, (int)n, (int)k, wall_time_ms() - host_start_ms);
+  fflush(f);
+}
 
 static void ensure_cudnn(void) {
   if (g_cudnn) return;
@@ -167,6 +237,10 @@ void polygeist_cublas_init(void) {
 }
 
 void polygeist_cublas_destroy(void) {
+  if (g_timing_file && g_timing_file != stderr) {
+    fclose(g_timing_file);
+    g_timing_file = NULL;
+  }
   if (!g_initialized) return;
   cudaEventDestroy(g_ev_begin);
   cudaEventDestroy(g_ev_end);
@@ -183,6 +257,7 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc) {
   polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
   size_t bytes_B = (size_t)K * (size_t)ldb * sizeof(double);
@@ -194,6 +269,7 @@ void polygeist_cublas_dgemm(
   double *dC = (double *)register_host_safe(C, bytes_C);
 
   // Row-major C = α A·B + β C  →  col-major Cᵀ = α Bᵀ·Aᵀ + β Cᵀ
+  timing_gpu_begin();
   CUBLAS_CHECK(cublasDgemm(g_handle,
                             CUBLAS_OP_N, CUBLAS_OP_N,
                             /*m=*/N, /*n=*/M, /*k=*/K,
@@ -202,7 +278,41 @@ void polygeist_cublas_dgemm(
                             dA, lda,
                             &beta,
                             dC, ldc));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  timing_gpu_end("cublasDgemm", M, N, K, host_start_ms);
+
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_sgemm(
+    int32_t M, int32_t N, int32_t K,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)K * (size_t)ldb * sizeof(float);
+  size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dB = (float *)register_host_safe((void *)B, bytes_B);
+  float *dC = (float *)register_host_safe(C, bytes_C);
+
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemm(g_handle,
+                            CUBLAS_OP_N, CUBLAS_OP_N,
+                            /*m=*/N, /*n=*/M, /*k=*/K,
+                            &alpha,
+                            dB, ldb,
+                            dA, lda,
+                            &beta,
+                            dC, ldc));
+  timing_gpu_end("cublasSgemm", M, N, K, host_start_ms);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)B);
@@ -213,6 +323,7 @@ void polygeist_cublas_dgemm(
 // host between launches; pulling it to device just to zero is wasteful.
 void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
                                        double *A, int32_t lda) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   if (lda == N) {
     // Contiguous: one memset.
     memset(A, 0, (size_t)M * (size_t)N * sizeof(double));
@@ -222,24 +333,29 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
              (size_t)N * sizeof(double));
     }
   }
+  timing_host_only("host_memset_zero_2d_f64", M, N, 0, host_start_ms);
 }
 
 // y = α*x + β*y (axpby). O(N) bandwidth-bound; H↔D copy + two cuBLAS
 // calls would dominate any GPU benefit. Do it on the host directly.
 void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
                               double beta, double *y) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
+  timing_host_only("host_daxpby", N, 1, 0, host_start_ms);
 }
 
 // y += x (axpy with α=1).
 void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
   polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   size_t bytes = (size_t)N * sizeof(double);
   double *dx = (double *)register_host_safe((void *)x, bytes);
   double *dy = (double *)register_host_safe(y, bytes);
   double one = 1.0;
+  timing_gpu_begin();
   CUBLAS_CHECK(cublasDaxpy(g_handle, N, &one, dx, 1, dy, 1));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  timing_gpu_end("cublasDaxpy", N, 1, 0, host_start_ms);
   unregister_host_safe((void *)x);
   unregister_host_safe(y);
 }
@@ -250,6 +366,7 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
                                    const double *u2, const double *v2,
                                    double *A, int32_t lda) {
   polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   double one = 1.0;
   size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
   size_t bytes_u = (size_t)M * sizeof(double);
@@ -263,11 +380,12 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
 
   // Row-major A[i,j] += u1[i]*v1[j] + u2[i]*v2[j].
   // cuBLAS Dger col-major: pass (m=N, n=M, x=v, y=u) for row-major A += u·vᵀ.
+  timing_gpu_begin();
   CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
                           &one, dv1, 1, du1, 1, dA, lda));
   CUBLAS_CHECK(cublasDger(g_handle, /*m=*/N, /*n=*/M,
                           &one, dv2, 1, du2, 1, dA, lda));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  timing_gpu_end("cublasDger_rank2", M, N, 0, host_start_ms);
 
   unregister_host_safe(A);
   unregister_host_safe((void *)u1);
@@ -279,7 +397,15 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
 // Host-side 1D memset. Same justification as the 2D variant — host copy
 // to device just to zero is wasteful.
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   memset(v, 0, (size_t)N * sizeof(double));
+  timing_host_only("host_memset_zero_1d_f64", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  memset(v, 0, (size_t)N * sizeof(float));
+  timing_host_only("host_memset_zero_1d_f32", N, 1, 0, host_start_ms);
 }
 
 // y = α·A·x + β·y, row-major.  Mirrors polygeist_cublas_dgemm structure
@@ -296,6 +422,7 @@ void polygeist_cublas_dgemv(
     double beta,
     double *y) {
   polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
   size_t bytes_x = (size_t)N * sizeof(double);
@@ -306,6 +433,7 @@ void polygeist_cublas_dgemv(
   double *dy = (double *)register_host_safe(y, bytes_y);
 
   // Row-major y = A·x  →  col-major view of A is Aᵀ; OP_T undoes that.
+  timing_gpu_begin();
   CUBLAS_CHECK(cublasDgemv(g_handle,
                             CUBLAS_OP_T,
                             /*m=*/N, /*n=*/M,
@@ -314,7 +442,7 @@ void polygeist_cublas_dgemv(
                             dx, 1,
                             &beta,
                             dy, 1));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  timing_gpu_end("cublasDgemv", M, N, 0, host_start_ms);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -335,6 +463,7 @@ void polygeist_cublas_dgemv_T(
     double beta,
     double *y) {
   polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
   size_t bytes_x = (size_t)M * sizeof(double);   // x is M for Aᵀ·x
@@ -344,6 +473,7 @@ void polygeist_cublas_dgemv_T(
   double *dx = (double *)register_host_safe((void *)x, bytes_x);
   double *dy = (double *)register_host_safe(y, bytes_y);
 
+  timing_gpu_begin();
   CUBLAS_CHECK(cublasDgemv(g_handle,
                             CUBLAS_OP_N,
                             /*m=*/N, /*n=*/M,
@@ -352,7 +482,7 @@ void polygeist_cublas_dgemv_T(
                             dx, 1,
                             &beta,
                             dy, 1));
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  timing_gpu_end("cublasDgemv_T", M, N, 0, host_start_ms);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -364,10 +494,12 @@ void polygeist_cublas_dgemv_T(
 // hoisting will make this a GPU op.
 void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
                                  double *A, int32_t lda) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   for (int32_t i = 0; i < M; ++i) {
     double *row = &A[(size_t)i * (size_t)lda];
     for (int32_t j = 0; j < N; ++j) row[j] *= scale;
   }
+  timing_host_only("host_dscal_2d", M, N, 0, host_start_ms);
 }
 
 // cuDNN 9-tap conv2d. Filter weights passed at runtime so the same shim
@@ -927,6 +1059,73 @@ void polygeist_cudnn_conv2d_batched(
       g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
       algo_perf.algo, dWS, ws_size, &beta, out_desc, dO));
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+void polygeist_cudnn_conv2d_im2col_gemm_f32(
+    int32_t IC, int32_t H, int32_t W, int32_t OC,
+    int32_t K, int32_t S, int32_t P,
+    const float *A, const float *F, float *Out) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  const int32_t OH = (H + 2 * P - K) / S + 1;
+  const int32_t OW = (W + 2 * P - K) / S + 1;
+  size_t bytes_A   = (size_t)IC * H * W * sizeof(float);
+  size_t bytes_F   = (size_t)OC * IC * K * K * sizeof(float);
+  size_t bytes_Out = (size_t)OC * OH * OW * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dF = (float *)register_host_safe((void *)F, bytes_F);
+  float *dO = (float *)register_host_safe(Out, bytes_Out);
+
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, IC, H, W));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, OC, IC, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, P, P, S, S, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, OC, OH, OW));
+
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      1, &n_returned, &algo_perf));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN conv2d_im2col_gemm: no fwd algo available\n");
+    abort();
+  }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      algo_perf.algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
+      algo_perf.algo, dWS, ws_size, &beta, out_desc, dO));
+  timing_gpu_end("cudnnConv2d_im2col_gemm", OC, OH * OW, IC * K * K,
+                 host_start_ms);
 
   if (dWS) cudaFree(dWS);
   cudnnDestroyTensorDescriptor(in_desc);

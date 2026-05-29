@@ -38,11 +38,11 @@ for src in $ROOT/src/*.c; do
     continue
   fi
 
-  # 1. cgeist — emit affine MLIR for every function. Use --no-inline to
-  # keep cross-function boundaries; --raise-scf-to-affine so we get
-  # affine.for nests where possible.
+  # 1. cgeist — emit affine MLIR for every function. Keep inlining enabled so
+  # same-translation-unit helper calls are exposed before the raise pipeline;
+  # --raise-scf-to-affine gives us affine.for nests where possible.
   affine=$OUT/${base}.affine.mlir
-  timeout 60 cgeist "$src" --function='*' --no-inline \
+  timeout 60 cgeist "$src" --function='*' \
       --resource-dir=/usr/lib/clang/14 \
       -I$ROOT/include -I$ROOT/src \
       --raise-scf-to-affine -fPIC -S \

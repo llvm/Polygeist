@@ -176,15 +176,25 @@ echo "         emitted $N_CALL func.call to runtime shim"
 
 # ─── Step 6: lower to LLVM dialect + translate to LLVM IR ───────────────
 echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
+# ABI lowering can leave pure polygeist.submap/submapInverse view ops around,
+# especially when a matched launch consumed one view but the neighboring CPU
+# residual linalg still uses another. Clean those up with polygeist-opt before
+# handing the IR to upstream mlir-opt, which does not load the Polygeist dialect.
+polygeist-opt --canonicalize --cse --lower-polygeist-submap --canonicalize --cse \
+  $WORK/abi.mlir -o $WORK/abi_canon.mlir 2>>$WORK/abi.err || {
+    echo "ERROR: polygeist submap cleanup failed; see $WORK/abi.err" >&2
+    cat $WORK/abi.err >&2
+    exit 1
+  }
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
-  $WORK/abi.mlir
+  $WORK/abi_canon.mlir
 $MLIR_OPT --one-shot-bufferize=bufferize-function-boundaries \
   --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
   --expand-strided-metadata \
   --convert-arith-to-llvm --finalize-memref-to-llvm \
   --convert-func-to-llvm --reconcile-unrealized-casts \
-  $WORK/abi.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
+  $WORK/abi_canon.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
     echo "ERROR: mlir-opt lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
 $MLIR_TRANSLATE --mlir-to-llvmir $WORK/llvm.mlir -o $WORK/kernel.ll
 
@@ -219,7 +229,7 @@ else
   CLANG_TARGET_ARGS="--target=aarch64-linux-gnu --gcc-toolchain=/usr"
   RT_SRC=$RT/polygeist_cublas_rt_cuda.c
   RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB \
-           -lcudnn -lcublas -lcudart -lm -lpthread -ldl \
+           -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
 fi
 

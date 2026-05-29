@@ -71,9 +71,15 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasDgemm") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_simple") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasSgemm_broadcast3d_simple")
+    return "polygeist_cublas_sgemm";
+  if (libSym == "cublasSgemm_broadcast3d_memref")
+    return "polygeist_cublas_sgemm";
   if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
   if (libSym == "memset_zero_2D") return "polygeist_cublas_memset_zero_2d";
   if (libSym == "memset_zero_1D") return "polygeist_cublas_memset_zero_1d";
+  if (libSym == "memset_zero_1D_f32")
+    return "polygeist_cublas_memset_zero_1d_f32";
   if (libSym == "cublasDgemv") return "polygeist_cublas_dgemv";
   if (libSym == "cublasDgemv_T") return "polygeist_cublas_dgemv_T";
   if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
@@ -101,6 +107,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
   // memref before extracting the data pointer.
   if (libSym == "cudnnConvolutionFwd_batched")
     return "polygeist_cudnn_conv2d_batched";
+  if (libSym == "cudnnConvolutionFwd_im2col_gemm")
+    return "polygeist_cudnn_conv2d_im2col_gemm_f32";
   if (libSym == "cudnnMaxPoolFwd_batched")
     return "polygeist_cudnn_maxpool_batched";
   if (libSym == "cudnnBatchNormalizationForwardInference")
@@ -138,6 +146,19 @@ static Value memrefDimAsI32(OpBuilder &b, Location loc, Value m, int64_t axis) {
   Value idx = b.create<arith::ConstantIndexOp>(loc, axis);
   Value dimIdx = b.create<memref::DimOp>(loc, m, idx);
   return b.create<arith::IndexCastOp>(loc, b.getI32Type(), dimIdx);
+}
+
+static Value valueAsI32(OpBuilder &b, Location loc, Value v) {
+  if (v.getType().isIndex())
+    return b.create<arith::IndexCastOp>(loc, b.getI32Type(), v);
+  if (v.getType().isInteger(32))
+    return v;
+  if (auto intTy = dyn_cast<IntegerType>(v.getType())) {
+    if (intTy.getWidth() > 32)
+      return b.create<arith::TruncIOp>(loc, b.getI32Type(), v);
+    return b.create<arith::ExtSIOp>(loc, b.getI32Type(), v);
+  }
+  return v;
 }
 
 // Bufferize a tensor operand to a memref so the runtime can take a pointer.
@@ -424,6 +445,169 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
   return success();
 }
 
+// Darknet im2col+GEMM reaches the matcher as rank-3 broadcasted submaps:
+//   A(m, k, n) -> weights[m, k]
+//   B(m, k, n) -> workspace[k, n]
+//   C(m, k, n) -> output[m, n]
+// The underlying buffers are still regular row-major 2D GEMM operands, so
+// unwrap the submaps and call the FP32 cuBLAS shim with M/N/K from the view
+// sizes. The middle C dimension is the reduction/broadcast dimension and is
+// ignored by the base output map.
+static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
+                                                 ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_simple: expected A/B/C operands");
+  if (launch.getNumResults() != 1)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_simple: expected 1 result");
+
+  Value A = launch.getOperand(0);
+  Value B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 3 || Bt.getRank() != 3 ||
+      Ct.getRank() != 3 || !At.getElementType().isF32() ||
+      !Bt.getElementType().isF32() || !Ct.getElementType().isF32())
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_simple: A/B/C must be 3D f32 tensors");
+
+  auto aSubmap = A.getDefiningOp<polygeist::SubmapOp>();
+  auto bSubmap = B.getDefiningOp<polygeist::SubmapOp>();
+  auto cSubmap = C.getDefiningOp<polygeist::SubmapOp>();
+  if (!aSubmap || !bSubmap || !cSubmap || aSubmap.getSizes().size() != 3 ||
+      bSubmap.getSizes().size() != 3 || cSubmap.getSizes().size() != 3)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_simple: operands must be rank-3 submaps");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+
+  Value M = valueAsI32(b, loc, aSubmap.getSizes()[0]);
+  Value K = valueAsI32(b, loc, aSubmap.getSizes()[1]);
+  Value N = valueAsI32(b, loc, aSubmap.getSizes()[2]);
+  Value alpha = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                            b.getF32FloatAttr(1.0));
+  Value beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                           b.getF32FloatAttr(1.0));
+
+  Value A_base = resolveSubmapBase(A);
+  Value B_base = resolveSubmapBase(B);
+  Value C_base = resolveSubmapBase(C);
+  auto A_base_type = dyn_cast<RankedTensorType>(A_base.getType());
+  auto B_base_type = dyn_cast<RankedTensorType>(B_base.getType());
+  auto C_base_type = dyn_cast<RankedTensorType>(C_base.getType());
+  if (!A_base_type || !B_base_type || !C_base_type ||
+      !A_base_type.getElementType().isF32() ||
+      !B_base_type.getElementType().isF32() ||
+      !C_base_type.getElementType().isF32())
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_simple: submap bases must be f32 tensors");
+
+  Value A_mr = tensorToMemref(b, loc, A_base);
+  Value B_mr = tensorToMemref(b, loc, B_base);
+  Value C_mr = tensorToMemref(b, loc, C_base);
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value B_ptr = memrefBasePtr(b, loc, B_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getF32Type(),
+      ptrTy, b.getI32Type(),
+      ptrTy, b.getI32Type(),
+      b.getF32Type(),
+      ptrTy, b.getI32Type(),
+  };
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_sgemm",
+                                     argTypes, b);
+  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, K,
+                                     B_ptr, N, beta, C_ptr, N};
+  b.create<func::CallOp>(loc, shim, callOperands);
+
+  Value updatedBaseTensor = memrefToTensor(b, loc, C_mr, C_base.getType());
+  rewireLaunchResult(launch, updatedBaseTensor);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerSgemmBroadcast3DMemRef(LaunchOp launch,
+                                                 ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_memref: expected A/B/C operands");
+  if (launch.getNumResults() != 0)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_memref: expected no results");
+
+  Value A = launch.getOperand(0);
+  Value B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  auto At = dyn_cast<MemRefType>(A.getType());
+  auto Bt = dyn_cast<MemRefType>(B.getType());
+  auto Ct = dyn_cast<MemRefType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 3 || Bt.getRank() != 3 ||
+      Ct.getRank() != 3 || !At.getElementType().isF32() ||
+      !Bt.getElementType().isF32() || !Ct.getElementType().isF32())
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_memref: A/B/C must be 3D f32 memrefs");
+
+  auto aSubmap = A.getDefiningOp<polygeist::SubmapOp>();
+  auto bSubmap = B.getDefiningOp<polygeist::SubmapOp>();
+  auto cSubmap = C.getDefiningOp<polygeist::SubmapOp>();
+  if (!aSubmap || !bSubmap || !cSubmap || aSubmap.getSizes().size() != 3 ||
+      bSubmap.getSizes().size() != 3 || cSubmap.getSizes().size() != 3)
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_memref: operands must be rank-3 submaps");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M = valueAsI32(b, loc, aSubmap.getSizes()[0]);
+  Value K = valueAsI32(b, loc, aSubmap.getSizes()[1]);
+  Value N = valueAsI32(b, loc, aSubmap.getSizes()[2]);
+  Value alpha = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                            b.getF32FloatAttr(1.0));
+  Value beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                           b.getF32FloatAttr(1.0));
+
+  Value A_base = aSubmap.getBase();
+  Value B_base = bSubmap.getBase();
+  Value C_base = cSubmap.getBase();
+  auto ABaseType = dyn_cast<MemRefType>(A_base.getType());
+  auto BBaseType = dyn_cast<MemRefType>(B_base.getType());
+  auto CBaseType = dyn_cast<MemRefType>(C_base.getType());
+  if (!ABaseType || !BBaseType || !CBaseType ||
+      !ABaseType.getElementType().isF32() ||
+      !BBaseType.getElementType().isF32() ||
+      !CBaseType.getElementType().isF32())
+    return launch.emitError(
+        "cublasSgemm_broadcast3d_memref: submap bases must be f32 memrefs");
+
+  Value A_ptr = memrefBasePtr(b, loc, A_base);
+  Value B_ptr = memrefBasePtr(b, loc, B_base);
+  Value C_ptr = memrefBasePtr(b, loc, C_base);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getF32Type(),
+      ptrTy, b.getI32Type(),
+      ptrTy, b.getI32Type(),
+      b.getF32Type(),
+      ptrTy, b.getI32Type(),
+  };
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_sgemm",
+                                     argTypes, b);
+  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, K,
+                                     B_ptr, N, beta, C_ptr, N};
+  b.create<func::CallOp>(loc, shim, callOperands);
+  launch.erase();
+  return success();
+}
+
 // @cublasDgeam_scale2D(%M : tensor<?x?xf64>, %scale : f64) -> tensor<?x?xf64>
 // Diagonal/scale-only geam: M = scale * M, in place.
 static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
@@ -701,13 +885,20 @@ static LogicalResult lowerDgerRank2(LaunchOp launch, ModuleOp module) {
 }
 
 // @memset_zero_1D(%v : tensor<Nxf64>) -> tensor<Nxf64>
-static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module) {
+// @memset_zero_1D_f32(%v : tensor<Nxf32>) -> tensor<Nxf32>
+static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
+                                       StringRef variant) {
   if (launch.getNumOperands() != 1)
-    return launch.emitError("memset_zero_1D: expected 1 operand");
+    return launch.emitError(variant) << ": expected 1 operand";
   Value V = launch.getOperand(0);
   auto Vt = dyn_cast<RankedTensorType>(V.getType());
-  if (!Vt || Vt.getRank() != 1 || !Vt.getElementType().isF64())
-    return launch.emitError("memset_zero_1D: V must be 1D f64 tensor");
+  bool isF32Variant = variant == "memset_zero_1D_f32";
+  if (!Vt || Vt.getRank() != 1 ||
+      (isF32Variant ? !Vt.getElementType().isF32()
+                    : !Vt.getElementType().isF64()))
+    return launch.emitError(variant)
+           << ": V must be a 1D "
+           << (isF32Variant ? "f32" : "f64") << " tensor";
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
@@ -717,8 +908,9 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module) {
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {b.getI32Type(), ptrTy};
-  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_memset_zero_1d",
-                                       argTypes, b);
+  StringRef shimName = isF32Variant ? "polygeist_cublas_memset_zero_1d_f32"
+                                    : "polygeist_cublas_memset_zero_1d";
+  func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{len, V_ptr});
 
   Value out = memrefToTensor(b, loc, V_mr, launch.getResult(0).getType());
@@ -848,6 +1040,71 @@ static LogicalResult lowerCudnnConv2dBatched(LaunchOp launch,
 
   Value updated = memrefToTensor(b, loc, O_mr, outputBase.getType());
   rewireLaunchResult(launch, updated);
+  launch.erase();
+  return success();
+}
+
+// @cudnnConvolutionFwd_im2col_gemm(%input, %weights_view, %output,
+//                                  channels, height, width, out_channels,
+//                                  ksize, stride, pad)
+//
+// This is the explicit Darknet im2col + GEMM composition:
+//   zero(output); workspace = im2col(input); output += weights * workspace
+// The matcher has already proven the guarded im2col body and GEMM body are
+// adjacent. Lower the whole composition to one cuDNN convolution call, avoiding
+// materialization of the workspace.
+static LogicalResult lowerCudnnConv2dIm2colGemm(LaunchOp launch,
+                                                ModuleOp module) {
+  if (launch.getNumOperands() != 10)
+    return launch.emitError("cudnnConvolutionFwd_im2col_gemm: expected 10 "
+                            "operands (input, weights, output, 7 shape ints); got ")
+           << launch.getNumOperands();
+  if (launch.getNumResults() != 0)
+    return launch.emitError(
+        "cudnnConvolutionFwd_im2col_gemm: expected no results");
+
+  Value input = launch.getOperand(0);
+  Value weightsView = launch.getOperand(1);
+  Value output = launch.getOperand(2);
+
+  auto inputTy = dyn_cast<MemRefType>(input.getType());
+  auto weightsTy = dyn_cast<MemRefType>(weightsView.getType());
+  auto outputTy = dyn_cast<MemRefType>(output.getType());
+  if (!inputTy || !weightsTy || !outputTy || inputTy.getRank() != 1 ||
+      weightsTy.getRank() != 3 || outputTy.getRank() != 1 ||
+      !inputTy.getElementType().isF32() ||
+      !weightsTy.getElementType().isF32() ||
+      !outputTy.getElementType().isF32())
+    return launch.emitError(
+        "cudnnConvolutionFwd_im2col_gemm: expected f32 input/output flat "
+        "memrefs and a rank-3 f32 weights submap");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value IC = valueAsI32(b, loc, launch.getOperand(3));
+  Value H = valueAsI32(b, loc, launch.getOperand(4));
+  Value W = valueAsI32(b, loc, launch.getOperand(5));
+  Value OC = valueAsI32(b, loc, launch.getOperand(6));
+  Value K = valueAsI32(b, loc, launch.getOperand(7));
+  Value S = valueAsI32(b, loc, launch.getOperand(8));
+  Value P = valueAsI32(b, loc, launch.getOperand(9));
+
+  Value weightsBase = resolveSubmapBase(weightsView);
+  Value A_ptr = memrefBasePtr(b, loc, input);
+  Value F_ptr = memrefBasePtr(b, loc, weightsBase);
+  Value O_ptr = memrefBasePtr(b, loc, output);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      ptrTy, ptrTy, ptrTy,
+  };
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_conv2d_im2col_gemm_f32", argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim, ValueRange{IC, H, W, OC, K, S, P, A_ptr, F_ptr, O_ptr});
+
   launch.erase();
   return success();
 }
@@ -1565,6 +1822,10 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cublasDgemm_simple" ||
                  libSym == "cublasDgemm_alpha_only") {
         r = lowerDgemmVariant(launch, module, libSym);
+      } else if (libSym == "cublasSgemm_broadcast3d_simple") {
+        r = lowerSgemmBroadcast3DSimple(launch, module);
+      } else if (libSym == "cublasSgemm_broadcast3d_memref") {
+        r = lowerSgemmBroadcast3DMemRef(launch, module);
       } else if (libSym == "cublasDgeam_scale2D") {
         r = lowerDgeamScale2D(launch, module);
       } else if (libSym == "cublasDgemv") {
@@ -1581,8 +1842,9 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgerRank2(launch, module);
       } else if (libSym == "memset_zero_2D") {
         r = lowerMemsetZero2D(launch, module);
-      } else if (libSym == "memset_zero_1D") {
-        r = lowerMemsetZero1D(launch, module);
+      } else if (libSym == "memset_zero_1D" ||
+                 libSym == "memset_zero_1D_f32") {
+        r = lowerMemsetZero1D(launch, module, libSym);
       } else if (libSym == "cudnnConvolution2D_9tap" ||
                  libSym == "cudnnConvolution2D_9tap_f32" ||
                  libSym == "cudnnConvolution2D_9tap_f16" ||
@@ -1594,6 +1856,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudnnConv2D9tap(launch, module, shim);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
+      } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {
+        r = lowerCudnnConv2dIm2colGemm(launch, module);
       } else if (libSym == "cudnnMaxPoolFwd_batched") {
         r = lowerCudnnMaxpoolBatched(launch, module);
       } else if (libSym == "cudnnBatchNormalizationForwardInference") {
