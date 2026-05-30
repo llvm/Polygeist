@@ -7,6 +7,7 @@
 
 #include "polygeist_cublas_rt.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -87,6 +88,21 @@ void polygeist_cublas_dgemv(
   }
 }
 
+void polygeist_cublas_sgemv(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y) {
+  for (int32_t i = 0; i < M; ++i) {
+    float acc = 0.0f;
+    for (int32_t j = 0; j < N; ++j)
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[j];
+    y[i] = alpha * acc + beta * y[i];
+  }
+}
+
 void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
                               double beta, double *y) {
   for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
@@ -118,6 +134,21 @@ void polygeist_cublas_dgemv_T(
   // (M is A's first dim = x's length; N is A's second dim = y's length)
   for (int32_t j = 0; j < N; ++j) {
     double acc = 0.0;
+    for (int32_t i = 0; i < M; ++i)
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[i];
+    y[j] = alpha * acc + beta * y[j];
+  }
+}
+
+void polygeist_cublas_sgemv_T(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y) {
+  for (int32_t j = 0; j < N; ++j) {
+    float acc = 0.0f;
     for (int32_t i = 0; i < M; ++i)
       acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[i];
     y[j] = alpha * acc + beta * y[j];
@@ -772,6 +803,30 @@ void polygeist_cudnn_conv_bn_relu_fused(
           Out[((size_t)b * OC + oc) * OH * OW +
               (size_t)oh * OW + ow] = relu;
         }
+}
+
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out) {
+  float ss = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    ss += X[i] * X[i];
+  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = Weight[i] * (scale * X[i]);
+}
+
+void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X) {
+  if (N <= 0) return;
+  float max_val = X[0];
+  for (int32_t i = 1; i < N; ++i)
+    if (X[i] > max_val) max_val = X[i];
+  float sum = 0.0f;
+  for (int32_t i = 0; i < N; ++i) {
+    X[i] = expf(X[i] - max_val);
+    sum += X[i];
+  }
+  for (int32_t i = 0; i < N; ++i)
+    X[i] /= sum;
 }
 
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful

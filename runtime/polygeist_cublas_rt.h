@@ -56,6 +56,38 @@ void polygeist_cublas_sgemm(
     float beta,
     float *C, int32_t ldc);
 
+void polygeist_cublas_dgemv(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y);
+
+void polygeist_cublas_dgemv_T(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y);
+
+void polygeist_cublas_sgemv(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y);
+
+void polygeist_cublas_sgemv_T(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y);
+
 // FP32 variant of memset_zero_2d.
 void polygeist_cublas_memset_zero_2d_f32(
     int32_t M, int32_t N, float *A, int32_t lda);
@@ -375,6 +407,16 @@ void polygeist_cudnn_conv_bn_relu_fused(
     const float *scale, const float *mean,
     const float *inv_std, const float *bias,
     float *Out);
+
+// llama2.c RMSNorm, FP32:
+//   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out);
+
+// llama2.c row softmax, FP32, in-place:
+//   X[i] = exp(X[i] - max(X)) / sum_j exp(X[j] - max(X))
+// CUDA backend routes this through cudnnSoftmaxForward.
+void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X);
 
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around

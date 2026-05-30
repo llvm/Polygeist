@@ -1594,9 +1594,9 @@ def _rmsnorm_2step() -> CompositionEntry:
         reduction_dim_count=0, parallel_dim_count=1,
     )
     return CompositionEntry(
-        name="rmsnorm",
+        name="rmsnorm_f32",
         steps=[step0, step1],
-        form="memref",
+        form="any",
     )
 
 

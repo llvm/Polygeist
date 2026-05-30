@@ -122,6 +122,11 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
             r'(%[\w\-]+)\s*=\s*affine\.load\s+%[\w\-]+\[\]\s*:\s*memref<([^,>]+)(?:,[^>]*)?>',
             text):
         out[lm.group(1)] = lm.group(2).strip()
+    for tm in re.finditer(
+            r'(%[\w\-]+)\s*=\s*tensor\.extract\s+%[\w\-]+(?:#[0-9]+)?(?:\[[^\]]*\])?\s*:\s*tensor<([^>]+)>',
+            text):
+        elem = tm.group(2).strip().rsplit("x", 1)[-1]
+        out[tm.group(1)] = elem
     # Scalar-producing arith / math ops between linalg.generics. RMSNorm
     # binds its %scale capture to a chain `divf(ss, N); addf(_, eps);
     # sqrt(_); divf(1.0, _)` that lives in the function body but outside
@@ -202,11 +207,22 @@ def _sniff_elem_type(memref_or_tensor_ty: str) -> str | None:
 
     Returns None if the type doesn't parse as memref/tensor.
     """
-    import re
-    m = re.match(r'(?:memref|tensor)<[^>]*?x(\w+)(?:,|>)', memref_or_tensor_ty)
+    m = re.match(r'(?:memref|tensor)<(.+)>', memref_or_tensor_ty.strip())
     if not m:
         return None
-    return m.group(1)
+    body = m.group(1)
+    depth = 0
+    head = []
+    for c in body:
+        if c == "," and depth == 0:
+            break
+        if c in "<([":
+            depth += 1
+        elif c in ">)]":
+            depth -= 1
+        head.append(c)
+    shaped = "".join(head).strip()
+    return shaped.rsplit("x", 1)[-1].strip() if "x" in shaped else shaped
 
 
 def _normalize_memref_operands(
@@ -261,6 +277,59 @@ def _normalize_memref_operands(
     return cast_lines, new_ssas, new_types
 
 
+def _derived_ssa_name(ssa: str, suffix: str) -> str:
+    """Create a readable SSA name derived from an existing textual SSA."""
+    base = ssa[1:] if ssa.startswith("%") else ssa
+    base = re.sub(r"\W", "_", base)
+    if not base or base[0].isdigit():
+        base = "v" + base
+    return f"%{base}_{suffix}"
+
+
+def _dynamic_tensor_type(ty: str) -> str | None:
+    """Return an all-dynamic tensor type with the same rank/element type."""
+    if not ty.startswith("tensor<"):
+        return None
+    m = re.match(r"tensor<(.+)>", ty.strip())
+    if not m:
+        return None
+    shaped = m.group(1).strip()
+    # Keep scalar tensors and complex element encodings unchanged. The kernel
+    # library defns we need to normalize against are plain ranked tensors.
+    if "x" not in shaped or "*" in shaped or "<" in shaped:
+        return ty
+    elem = shaped.rsplit("x", 1)[-1].strip()
+    shape = shaped[:-(len(elem) + 1)]
+    dims = [d.strip() for d in shape.split("x") if d.strip()]
+    if not dims:
+        return ty
+    return "tensor<" + "x".join("?" for _ in dims) + "x" + elem + ">"
+
+
+def _normalize_tensor_operands(
+    operands: list[str], operand_types: list[str] | None, indent: str
+) -> tuple[list[str], list[str], list[str]]:
+    """Erase static tensor extents with tensor.cast for kernel.defn matching."""
+    if operand_types is None or len(operand_types) != len(operands):
+        return [], operands, operand_types or []
+    cast_lines: list[str] = []
+    new_ssas: list[str] = []
+    new_types: list[str] = []
+    for idx, (ssa, ty) in enumerate(zip(operands, operand_types)):
+        target = _dynamic_tensor_type(ty)
+        if target is None or target == ty:
+            new_ssas.append(ssa)
+            new_types.append(ty)
+            continue
+        cast_ssa = _derived_ssa_name(ssa, f"tc{idx}")
+        cast_lines.append(
+            f"{indent}{cast_ssa} = tensor.cast {ssa} : {ty} to {target}"
+        )
+        new_ssas.append(cast_ssa)
+        new_types.append(target)
+    return cast_lines, new_ssas, new_types
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -285,6 +354,10 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     cast_lines, operands, operand_types = _normalize_memref_operands(
         operands, operand_types, indent
     )
+    tensor_cast_lines, operands, operand_types = _normalize_tensor_operands(
+        operands, operand_types, indent
+    )
+    cast_lines.extend(tensor_cast_lines)
 
     # Surface body-internal constants (e.g. the 9 weights of a conv2d) as
     # additional scalar launch operands, when the template opts in via
@@ -411,7 +484,22 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     if result_ssa is None or result_type is None:
         # Memref-form / void launch.
         return f"{cast_prefix}{indent}kernel.launch @{name}({operand_str}) : {sig} -> ()"
-    return f"{cast_prefix}{indent}{result_ssa} = kernel.launch @{name}({operand_str}) : {sig} -> {result_type}"
+    launch_result_ssa = result_ssa
+    launch_result_type = result_type
+    result_cast = ""
+    dyn_result_type = _dynamic_tensor_type(result_type)
+    if dyn_result_type is not None and dyn_result_type != result_type:
+        launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
+        launch_result_type = dyn_result_type
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
+            f"{dyn_result_type} to {result_type}"
+        )
+    return (
+        f"{cast_prefix}{indent}{launch_result_ssa} = kernel.launch "
+        f"@{name}({operand_str}) : {sig} -> {launch_result_type}"
+        f"{result_cast}"
+    )
 
 
 def rewrite_mlir(
@@ -528,6 +616,7 @@ def rewrite_mlir(
         # rather than the indexing_map because parse_generics doesn't
         # resolve `#map` symbol references (only inline affine_map).
         emit_name = entry.name
+        replace_full_span = False
         if entry.name == "cublasDcopy" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
             # rank-0 memref: starts with `memref<` and the chunk before the
@@ -582,6 +671,78 @@ def rewrite_mlir(
                 indent=last.indent,
             )
 
+        if entry.name == "rmsnorm_f32":
+            # RMSNorm is a two-stage composition:
+            #   step0: ss = sum(x[i] * x[i])
+            #   step1: out[i] = weight[i] * scale * x[i]
+            # The generic operand collection above only keeps the first
+            # generic's outs (the scalar ss buffer), which is not enough for
+            # ABI lowering. Emit the semantic operands directly and let the
+            # runtime recompute the reduction/scale in one call.
+            forms = body_forms[i : i + n]
+            x_names = _extract_ssa_names(instances[i].ins_part)
+            x_types = _extract_ssa_types(instances[i].ins_part)
+            scale_ins = _extract_ssa_names(instances[i + 1].ins_part)
+            scale_in_types = _extract_ssa_types(instances[i + 1].ins_part)
+            out_names = _extract_ssa_names(instances[i + 1].outs_part)
+            out_types = _extract_ssa_types(instances[i + 1].outs_part)
+            if (len(x_names) < 1 or len(scale_ins) < 2 or len(out_names) < 1
+                    or any(f != forms[0] for f in forms)):
+                report.append(("rmsnorm_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [x_names[0], scale_ins[0], out_names[0]]
+            operand_types = [x_types[0], scale_in_types[0], out_types[0]]
+            binds = {}
+            if forms[0] == "tensor":
+                # Tensor RMSNorm's scalar scale chain depends on the first
+                # generic result. Since the shim recomputes the full RMSNorm,
+                # replace the whole span, including that scalar chain, with
+                # one result-producing tensor launch.
+                emit_name = "rmsnorm_f32_tensor"
+                replace_full_span = True
+            else:
+                last = LinalgInstance(
+                    result_ssa=None,
+                    ins_part=last.ins_part,
+                    outs_part=last.outs_part,
+                    result_type=None,
+                    span=last.span,
+                    indent=last.indent,
+                )
+
+        if entry.name == "cudnnSoftmaxForward":
+            # The raised llama2 softmax has a scalar max buffer as the first
+            # generic's out, then mutates the full vector in the later two
+            # generics. Emit the full vector operand, not the max scalar nor
+            # the x[1:] subview used only for the initialized-max reduction.
+            out_names = _extract_ssa_names(instances[i + n - 1].outs_part)
+            out_types = _extract_ssa_types(instances[i + n - 1].outs_part)
+            if len(out_names) < 1:
+                report.append(("softmax_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [out_names[0]]
+            operand_types = [out_types[0]]
+            binds = {}
+            last = LinalgInstance(
+                result_ssa=None,
+                ins_part=last.ins_part,
+                outs_part=last.outs_part,
+                result_type=None,
+                span=last.span,
+                indent=last.indent,
+            )
+
+        if entry.name == "elemwise_div_scalar":
+            # This template is useful for algebraic recognition, but the ABI
+            # lowering path does not have a runtime shim for it. Keep the
+            # linalg.generic in place so downstream MLIR lowering handles it
+            # as ordinary residual tensor code.
+            report.append(("unsupported_abi_reject", i, entry.name))
+            i += 1
+            continue
+
         if entry.name in ("cudnnConvolution2D_9tap",
                           "cudnnConvolution2D_9tap_tensor"):
             elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
@@ -593,9 +754,9 @@ def rewrite_mlir(
         # transpose) and `y = Aᵀ·x` (transposed). The launch operands look
         # identical in either case — what distinguishes them is whether A's
         # first indexing-map dim matches the output's first dim (no-transpose)
-        # or the other input's dim (transposed). Switch the emit name to
-        # `cublasDgemv_T` for the transposed case so the downstream lowering
-        # can pick `CUBLAS_OP_N` instead of `CUBLAS_OP_T` for that call site.
+        # or the other input's dim (transposed). Switch the concrete emit
+        # name by both transpose and dtype so f32 tensor GEMV goes to SGEMV
+        # while the shared algebraic template remains dtype-agnostic.
         # AᵀA / A·Aᵀ → cublasDsyrk operand-alias discriminator.
         # If a gemm-shape composition's two inputs resolve to the same
         # underlying tensor (after walking through polygeist.submap),
@@ -644,7 +805,17 @@ def rewrite_mlir(
                 i += 1
                 continue
         if entry.name == "cublasDgemv" and n == 1:
+            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
+            elem = elems[0] if elems else None
+            operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            if (elem not in ("f64", "f32") or
+                    len(elems) != 3 or any(e != elem for e in elems) or
+                    operand_ranks != [2, 1, 1]):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
             mb = bodies[i]
+            transposed = False
             if len(mb.indexing_maps) == 3:
                 def _map_outputs(txt: str) -> list[str]:
                     mm = re.search(r"->\s*\(([^)]*)\)>", txt)
@@ -652,7 +823,11 @@ def rewrite_mlir(
                 A_dims = _map_outputs(mb.indexing_maps[0])
                 y_dims = _map_outputs(mb.indexing_maps[2])
                 if A_dims and y_dims and A_dims[0] != y_dims[0]:
-                    emit_name = "cublasDgemv_T"
+                    transposed = True
+            if elem == "f32":
+                emit_name = "cublasSgemv_T" if transposed else "cublasSgemv"
+            else:
+                emit_name = "cublasDgemv_T" if transposed else "cublasDgemv"
 
         # When the matched composition opts in to weight surfacing, hand the
         # encoder's in_arg → constant_ssa map from the FIRST matched body to
@@ -704,7 +879,9 @@ def rewrite_mlir(
             )
         else:
             replacement = launch_line
-        if n == 1:
+        if replace_full_span:
+            edits.append((start, end, replacement))
+        elif n == 1:
             # Single-step composition: one generic, one launch. No
             # intervening ops to preserve.
             edits.append((start, end, replacement))

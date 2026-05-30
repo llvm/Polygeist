@@ -125,6 +125,29 @@ module {
     kernel.yield
   }
 
+  // llama2.c RMSNorm matched as:
+  //   ss = sum(x[i] * x[i])
+  //   out[i] = weight[i] * x[i] * rsqrt(ss / N + 1e-5)
+  // ABI lowering maps this to a runtime shim. The shim owns the optimized
+  // implementation choice (cuDNN frontend/custom CUDA/CPU fallback).
+  kernel.defn @rmsnorm_f32(
+      %x: memref<?xf32>, %weight: memref<?xf32>, %out: memref<?xf32>) {
+    kernel.yield
+  }
+
+  kernel.defn @rmsnorm_f32_tensor(
+      %x: tensor<?xf32>, %weight: tensor<?xf32>,
+      %out: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  // llama2.c row softmax in-place:
+  //   x = exp(x - max(x)) / sum(exp(x - max(x)))
+  // ABI lowering maps this to cudnnSoftmaxForward for FP32.
+  kernel.defn @cudnnSoftmaxForward(%x: memref<?xf32>) {
+    kernel.yield
+  }
+
   // GEMM-ALPHA-ONLY: C += alpha*A*B (beta=1, accumulate-into-C, custom alpha).
   kernel.defn @cublasDgemm_alpha_only(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                        %C: tensor<?x?xf64>,
@@ -180,6 +203,63 @@ module {
       linalg.yield %s : f64
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @cublasDgemv_T(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
+                              %y: tensor<?xf64>) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%y : tensor<?xf64>) {
+    ^bb0(%a: f64, %xv: f64, %out: f64):
+      %p = arith.mulf %a, %xv : f64
+      %s = arith.addf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @cublasSgemv(%A: tensor<?x?xf32>, %x: tensor<?xf32>,
+                            %y: tensor<?xf32>) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf32>, tensor<?xf32>)
+      outs(%y : tensor<?xf32>) {
+    ^bb0(%a: f32, %xv: f32, %out: f32):
+      %p = arith.mulf %a, %xv : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cublasSgemv_T(%A: tensor<?x?xf32>, %x: tensor<?xf32>,
+                              %y: tensor<?xf32>) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf32>, tensor<?xf32>)
+      outs(%y : tensor<?xf32>) {
+    ^bb0(%a: f32, %xv: f32, %out: f32):
+      %p = arith.mulf %a, %xv : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
   }
 
   // GEMV-ALPHA: y += alpha * A * x (gemver pattern).

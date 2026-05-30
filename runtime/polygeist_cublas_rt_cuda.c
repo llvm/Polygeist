@@ -32,6 +32,8 @@
 #include <cublasLt.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -224,6 +226,97 @@ static void *register_host_safe(void *ptr, size_t bytes) {
 // Persistent-registration model: never unregister. Mappings live until
 // the program exits, at which point the OS reclaims them anyway.
 static void unregister_host_safe(void *ptr) { (void)ptr; }
+
+static void destroy_backend_desc(cudnnBackendDescriptor_t *desc) {
+  if (*desc) {
+    cudnnBackendDestroyDescriptor(*desc);
+    *desc = NULL;
+  }
+}
+
+static void report_rmsnorm_backend_fallback(
+    const char *where, cudnnStatus_t status) {
+  static int warned = 0;
+  if (warned) return;
+  warned = 1;
+  fprintf(stderr,
+          "polygeist runtime: cuDNN RMSNorm graph unavailable at %s: %s; "
+          "using host fallback\n",
+          where, cudnnGetErrorString(status));
+}
+
+static int set_backend_attr(
+    cudnnBackendDescriptor_t desc,
+    cudnnBackendAttributeName_t attr,
+    cudnnBackendAttributeType_t type,
+    int64_t count,
+    const void *value,
+    const char *where,
+    cudnnStatus_t *last_status) {
+  cudnnStatus_t status =
+      cudnnBackendSetAttribute(desc, attr, type, count, value);
+  if (status != CUDNN_STATUS_SUCCESS) {
+    *last_status = status;
+    report_rmsnorm_backend_fallback(where, status);
+    return 0;
+  }
+  return 1;
+}
+
+static int finalize_backend_desc(
+    cudnnBackendDescriptor_t desc,
+    const char *where,
+    cudnnStatus_t *last_status) {
+  cudnnStatus_t status = cudnnBackendFinalize(desc);
+  if (status != CUDNN_STATUS_SUCCESS) {
+    *last_status = status;
+    report_rmsnorm_backend_fallback(where, status);
+    return 0;
+  }
+  return 1;
+}
+
+static int make_f32_backend_tensor(
+    cudnnBackendDescriptor_t *desc,
+    int64_t uid,
+    const int64_t *dims,
+    const int64_t *strides,
+    int64_t rank,
+    bool by_value,
+    const char *name,
+    cudnnStatus_t *last_status) {
+  cudnnStatus_t status =
+      cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, desc);
+  if (status != CUDNN_STATUS_SUCCESS) {
+    *last_status = status;
+    report_rmsnorm_backend_fallback(name, status);
+    return 0;
+  }
+
+  cudnnDataType_t dtype = CUDNN_DATA_FLOAT;
+  int64_t alignment = 4;
+  if (!set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DATA_TYPE,
+                        CUDNN_TYPE_DATA_TYPE, 1, &dtype, name,
+                        last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DIMENSIONS,
+                        CUDNN_TYPE_INT64, rank, dims, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_STRIDES,
+                        CUDNN_TYPE_INT64, rank, strides, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_UNIQUE_ID,
+                        CUDNN_TYPE_INT64, 1, &uid, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT,
+                        CUDNN_TYPE_INT64, 1, &alignment, name,
+                        last_status))
+    return 0;
+
+  if (by_value &&
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_IS_BY_VALUE,
+                        CUDNN_TYPE_BOOLEAN, 1, &by_value, name,
+                        last_status))
+    return 0;
+
+  return finalize_backend_desc(*desc, name, last_status);
+}
 
 void polygeist_cublas_init(void) {
   if (g_initialized) return;
@@ -449,6 +542,40 @@ void polygeist_cublas_dgemv(
   unregister_host_safe(y);
 }
 
+void polygeist_cublas_sgemv(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(float);
+  size_t bytes_x = (size_t)N * sizeof(float);
+  size_t bytes_y = (size_t)M * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dx = (float *)register_host_safe((void *)x, bytes_x);
+  float *dy = (float *)register_host_safe(y, bytes_y);
+
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemv(g_handle,
+                            CUBLAS_OP_T,
+                            /*m=*/N, /*n=*/M,
+                            &alpha,
+                            dA, lda,
+                            dx, 1,
+                            &beta,
+                            dy, 1));
+  timing_gpu_end("cublasSgemv", M, N, 0, host_start_ms);
+
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
+}
+
 // y = α·Aᵀ·x + β·y, row-major. Shim signature is identical to the no-
 // transpose dgemv shim; the only difference is the cuBLAS op flag.
 //
@@ -483,6 +610,40 @@ void polygeist_cublas_dgemv_T(
                             &beta,
                             dy, 1));
   timing_gpu_end("cublasDgemv_T", M, N, 0, host_start_ms);
+
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
+}
+
+void polygeist_cublas_sgemv_T(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(float);
+  size_t bytes_x = (size_t)M * sizeof(float);
+  size_t bytes_y = (size_t)N * sizeof(float);
+
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dx = (float *)register_host_safe((void *)x, bytes_x);
+  float *dy = (float *)register_host_safe(y, bytes_y);
+
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemv(g_handle,
+                            CUBLAS_OP_N,
+                            /*m=*/N, /*n=*/M,
+                            &alpha,
+                            dA, lda,
+                            dx, 1,
+                            &beta,
+                            dy, 1));
+  timing_gpu_end("cublasSgemv_T", M, N, 0, host_start_ms);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -1679,6 +1840,313 @@ void polygeist_cudnn_conv_bn_relu_fused(
   cudnnDestroyFilterDescriptor(f_desc);
   cudnnDestroyConvolutionDescriptor(conv_desc);
   cudnnDestroyActivationDescriptor(act_desc);
+}
+
+static void rmsnorm_host_f32(
+    int32_t N, const float *X, const float *Weight, float *Out) {
+  float ss = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    ss += X[i] * X[i];
+  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = Weight[i] * (scale * X[i]);
+}
+
+static int try_cudnn_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out,
+    double host_start_ms) {
+  cudnnBackendDescriptor_t x_desc = NULL;
+  cudnnBackendDescriptor_t scale_desc = NULL;
+  cudnnBackendDescriptor_t bias_desc = NULL;
+  cudnnBackendDescriptor_t epsilon_desc = NULL;
+  cudnnBackendDescriptor_t y_desc = NULL;
+  cudnnBackendDescriptor_t norm_op = NULL;
+  cudnnBackendDescriptor_t op_graph = NULL;
+  cudnnBackendDescriptor_t engine = NULL;
+  cudnnBackendDescriptor_t engine_cfg = NULL;
+  cudnnBackendDescriptor_t plan = NULL;
+  cudnnBackendDescriptor_t variant_pack = NULL;
+  float *dX = NULL;
+  float *dWeight = NULL;
+  float *dOut = NULL;
+  float *dBias = NULL;
+  void *workspace = NULL;
+  cudnnStatus_t last_status = CUDNN_STATUS_SUCCESS;
+  int ok = 0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  CUDA_CHECK(cudaMalloc((void **)&dX, bytes));
+  CUDA_CHECK(cudaMalloc((void **)&dWeight, bytes));
+  CUDA_CHECK(cudaMalloc((void **)&dOut, bytes));
+  CUDA_CHECK(cudaMalloc((void **)&dBias, bytes));
+  CUDA_CHECK(cudaMemcpyAsync(dX, X, bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(
+      cudaMemcpyAsync(dWeight, Weight, bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemsetAsync(dBias, 0, bytes, g_stream));
+
+  int64_t tensor_dims[4] = {1, (int64_t)N, 1, 1};
+  int64_t tensor_strides[4] = {(int64_t)N, 1, 1, 1};
+  int64_t scalar_dims[4] = {1, 1, 1, 1};
+  int64_t scalar_strides[4] = {1, 1, 1, 1};
+  int64_t uid_x = 'x';
+  int64_t uid_scale = 's';
+  int64_t uid_bias = 'b';
+  int64_t uid_epsilon = 'e';
+  int64_t uid_y = 'y';
+
+  if (!make_f32_backend_tensor(&x_desc, uid_x, tensor_dims, tensor_strides, 4,
+                               false, "rmsnorm.x", &last_status) ||
+      !make_f32_backend_tensor(&scale_desc, uid_scale, tensor_dims,
+                               tensor_strides, 4, false, "rmsnorm.scale",
+                               &last_status) ||
+      !make_f32_backend_tensor(&bias_desc, uid_bias, tensor_dims,
+                               tensor_strides, 4, false, "rmsnorm.bias",
+                               &last_status) ||
+      !make_f32_backend_tensor(&epsilon_desc, uid_epsilon, scalar_dims,
+                               scalar_strides, 4, true, "rmsnorm.epsilon",
+                               &last_status) ||
+      !make_f32_backend_tensor(&y_desc, uid_y, tensor_dims, tensor_strides, 4,
+                               false, "rmsnorm.y", &last_status))
+    goto cleanup;
+
+  last_status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &norm_op);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_rmsnorm_backend_fallback("rmsnorm.norm_op.create", last_status);
+    goto cleanup;
+  }
+  cudnnBackendNormMode_t mode = CUDNN_RMS_NORM;
+  cudnnBackendNormFwdPhase_t phase = CUDNN_NORM_FWD_INFERENCE;
+  if (!set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
+                        CUDNN_TYPE_NORM_MODE, 1, &mode, "rmsnorm.mode",
+                        &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
+                        CUDNN_TYPE_NORM_FWD_PHASE, 1, &phase, "rmsnorm.phase",
+                        &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_desc,
+                        "rmsnorm.xdesc", &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &scale_desc,
+                        "rmsnorm.scale_desc", &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &bias_desc,
+                        "rmsnorm.bias_desc", &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &epsilon_desc,
+                        "rmsnorm.epsilon_desc", &last_status) ||
+      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &y_desc,
+                        "rmsnorm.ydesc", &last_status) ||
+      !finalize_backend_desc(norm_op, "rmsnorm.norm_op.finalize",
+                             &last_status))
+    goto cleanup;
+
+  last_status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR, &op_graph);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_rmsnorm_backend_fallback("rmsnorm.graph.create", last_status);
+    goto cleanup;
+  }
+  if (!set_backend_attr(op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+                        CUDNN_TYPE_HANDLE, 1, &g_cudnn, "rmsnorm.graph.handle",
+                        &last_status) ||
+      !set_backend_attr(op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &norm_op,
+                        "rmsnorm.graph.ops", &last_status) ||
+      !finalize_backend_desc(op_graph, "rmsnorm.graph.finalize",
+                             &last_status))
+    goto cleanup;
+
+  int64_t engine_count = 0;
+  int64_t elem_count = 0;
+  last_status = cudnnBackendGetAttribute(
+      op_graph, CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT,
+      CUDNN_TYPE_INT64, 1, &elem_count, &engine_count);
+  if (last_status != CUDNN_STATUS_SUCCESS || engine_count <= 0) {
+    if (last_status == CUDNN_STATUS_SUCCESS)
+      last_status = CUDNN_STATUS_NOT_SUPPORTED;
+    report_rmsnorm_backend_fallback("rmsnorm.engine_count", last_status);
+    goto cleanup;
+  }
+
+  cudnnStatus_t plan_status = CUDNN_STATUS_NOT_SUPPORTED;
+  for (int64_t gidx = 0; gidx < engine_count; ++gidx) {
+    cudnnBackendDescriptor_t engine_tmp = NULL;
+    cudnnBackendDescriptor_t cfg_tmp = NULL;
+    cudnnBackendDescriptor_t plan_tmp = NULL;
+
+    plan_status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINE_DESCRIPTOR,
+                                               &engine_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        engine_tmp, CUDNN_ATTR_ENGINE_OPERATION_GRAPH,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &op_graph);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        engine_tmp, CUDNN_ATTR_ENGINE_GLOBAL_INDEX, CUDNN_TYPE_INT64, 1,
+        &gidx);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendFinalize(engine_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, &cfg_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        cfg_tmp, CUDNN_ATTR_ENGINECFG_ENGINE, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+        &engine_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendFinalize(cfg_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &plan_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        plan_tmp, CUDNN_ATTR_EXECUTION_PLAN_HANDLE, CUDNN_TYPE_HANDLE, 1,
+        &g_cudnn);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        plan_tmp, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &cfg_tmp);
+    if (plan_status != CUDNN_STATUS_SUCCESS)
+      goto engine_cleanup;
+    plan_status = cudnnBackendFinalize(plan_tmp);
+    if (plan_status == CUDNN_STATUS_SUCCESS) {
+      engine = engine_tmp;
+      engine_cfg = cfg_tmp;
+      plan = plan_tmp;
+      break;
+    }
+
+engine_cleanup:
+    if (plan_status == CUDNN_STATUS_SUCCESS)
+      plan_status = CUDNN_STATUS_NOT_SUPPORTED;
+    if (plan_tmp != plan)
+      destroy_backend_desc(&plan_tmp);
+    if (cfg_tmp != engine_cfg)
+      destroy_backend_desc(&cfg_tmp);
+    if (engine_tmp != engine)
+      destroy_backend_desc(&engine_tmp);
+  }
+  if (!plan) {
+    report_rmsnorm_backend_fallback("rmsnorm.plan", plan_status);
+    goto cleanup;
+  }
+
+  int64_t workspace_size = 0;
+  last_status = cudnnBackendGetAttribute(
+      plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
+      &elem_count, &workspace_size);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_rmsnorm_backend_fallback("rmsnorm.workspace_size", last_status);
+    goto cleanup;
+  }
+  if (workspace_size > 0)
+    CUDA_CHECK(cudaMalloc(&workspace, (size_t)workspace_size));
+
+  last_status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &variant_pack);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_rmsnorm_backend_fallback("rmsnorm.variant.create", last_status);
+    goto cleanup;
+  }
+  float epsilon = 1.0e-5f;
+  int64_t uids[5] = {uid_x, uid_scale, uid_bias, uid_epsilon, uid_y};
+  void *data_ptrs[5] = {dX, dWeight, dBias, &epsilon, dOut};
+  if (!set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+                        CUDNN_TYPE_VOID_PTR, 5, data_ptrs,
+                        "rmsnorm.variant.ptrs", &last_status) ||
+      !set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+                        CUDNN_TYPE_INT64, 5, uids, "rmsnorm.variant.uids",
+                        &last_status) ||
+      !set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+                        CUDNN_TYPE_VOID_PTR, 1, &workspace,
+                        "rmsnorm.variant.workspace", &last_status) ||
+      !finalize_backend_desc(variant_pack, "rmsnorm.variant.finalize",
+                             &last_status))
+    goto cleanup;
+
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, plan, variant_pack));
+  CUDA_CHECK(cudaMemcpyAsync(Out, dOut, bytes, cudaMemcpyDeviceToHost,
+                             g_stream));
+  timing_gpu_end("cudnnRmsNormForward", 1, N, 0, host_start_ms);
+  ok = 1;
+
+cleanup:
+  destroy_backend_desc(&variant_pack);
+  destroy_backend_desc(&plan);
+  destroy_backend_desc(&engine_cfg);
+  destroy_backend_desc(&engine);
+  destroy_backend_desc(&op_graph);
+  destroy_backend_desc(&norm_op);
+  destroy_backend_desc(&y_desc);
+  destroy_backend_desc(&epsilon_desc);
+  destroy_backend_desc(&bias_desc);
+  destroy_backend_desc(&scale_desc);
+  destroy_backend_desc(&x_desc);
+  if (workspace)
+    CUDA_CHECK(cudaFree(workspace));
+  if (dBias)
+    CUDA_CHECK(cudaFree(dBias));
+  if (dOut)
+    CUDA_CHECK(cudaFree(dOut));
+  if (dWeight)
+    CUDA_CHECK(cudaFree(dWeight));
+  if (dX)
+    CUDA_CHECK(cudaFree(dX));
+  return ok;
+}
+
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  if (try_cudnn_rmsnorm_f32(N, X, Weight, Out, host_start_ms))
+    return;
+
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  rmsnorm_host_f32(N, X, Weight, Out);
+
+  timing_host_only("host_rmsnorm_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dX = (float *)register_host_safe(X, bytes);
+
+  cudnnTensorDescriptor_t x_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&x_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(x_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
+
+  float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnSoftmaxForward(
+      g_cudnn, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_INSTANCE,
+      &alpha, x_desc, dX, &beta, x_desc, dX));
+  timing_gpu_end("cudnnSoftmaxForward", 1, N, 0, host_start_ms);
+
+  cudnnDestroyTensorDescriptor(x_desc);
 }
 
 void polygeist_cublas_time_begin(void) {

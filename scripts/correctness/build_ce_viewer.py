@@ -765,15 +765,14 @@ POLYBENCHGPU_RUNTIMES: dict[str, list[dict]] = {
     ],
 }
 
-# llama2.c blockers — all three lift to linalg.generic cleanly; the only
-# remaining gap is matcher-library entries for LLM-shaped bodies (rmsnorm,
-# softmax). The earlier note that v2-debufferize couldn't handle softmax's
-# fused exp+sum tuple yield was misdiagnosed — the actual limitation was
-# the matcher's regex parser corrupting multi-yield bodies (fixed in 7aef419).
+# llama2.c blockers — all three lift to linalg.generic cleanly. RMSNorm,
+# softmax, and the tensor GEMV form now match/lower through runtime ABI paths;
+# the whole tiny-forward fixture currently replaces RMSNorm + GEMV while
+# leaving the softmax max/normalize tail as residual tensor code.
 LLAMA2C_BLOCKERS: dict[str, tuple[str, str]] = {
-    "matmul":   ("none",           ""),
-    "rmsnorm":  ("partial-pipeline", "matcher now fires (commit a3ddbac): 2-step composition matches the ss = sum(x²) reduction + the weighted-scale generic, binding the body-external scale SSA via Cap(\"%scale\"). Emits kernel.launch @rmsnorm with a well-typed (memref, memref, memref, memref<f32>, f32) signature. Downstream pieces still needed: canonical defn, ABI lowering, runtime shim. cuDNN has no native RMSNorm (cudnnNormForward always mean-centers); options are cuBLAS decomposition, a layernorm-with-mean-0 trick, or a custom CUDA kernel"),
-    "softmax":  ("partial-pipeline", "matcher now fires (commit 1235c28): 3-step composition matches the max-reduce + fused exp+sum (multi-yield) + parallel divide pipeline. Emits kernel.launch @cudnnSoftmaxForward with a well-typed signature. Downstream pieces still needed: canonical defn, ABI lowering, runtime shim — cuDNN's cudnnSoftmaxForward is the natural target"),
+    "matmul":   ("none", "Tensor GEMV form emits @cublasSgemv / @cublasSgemv_T and lowers to cuBLAS SGEMV; validated in the tiny forward fixture on Jetson."),
+    "rmsnorm":  ("none", "2-step composition matches the ss = sum(x²) reduction + weighted-scale generic. Emits @rmsnorm_f32 for memref or @rmsnorm_f32_tensor after debufferize, lowering to polygeist_rmsnorm_f32."),
+    "softmax":  ("none", "3-step composition matches max-reduce + fused exp+sum (multi-yield) + parallel divide. Emits @cudnnSoftmaxForward, lowers to polygeist_cudnn_softmax_forward_f32, and runs on Jetson through cudnnSoftmaxForward."),
 }
 
 # llm.c blockers — wider coverage than llama2.c includes both forward AND
@@ -2190,14 +2189,14 @@ def build_index(polybench_stats: dict[str, dict],
             "Hot numeric functions from run.c — the building blocks of "
             "the LLM forward pass: matmul (W·x), rmsnorm (mean-square "
             "normalize + scale), softmax (max-shift / exp / sum-normalize). "
-            "All three lift to linalg.generic cleanly. <b>rmsnorm and "
-            "softmax now match</b> (commits 1235c28 and a3ddbac) — softmax "
-            "as a 3-step composition firing @cudnnSoftmaxForward, rmsnorm "
-            "as a 2-step composition firing @rmsnorm. Matmul still has no "
-            "gemv composition (the row-by-row gemv flavour cgeist produces "
-            "isn't in the matcher library yet). Downstream of matching, "
-            "softmax / rmsnorm both still need canonical defns, ABI "
-            "lowering branches, and runtime shims for full Jetson e2e."
+            "All three lift to linalg.generic cleanly. <b>rmsnorm, softmax, "
+            "and tensor GEMV now have runtime ABI paths</b> — softmax as a "
+            "3-step composition firing @cudnnSoftmaxForward, rmsnorm as a "
+            "2-step composition firing @rmsnorm_f32 or @rmsnorm_f32_tensor, "
+            "and matmul/GEMV firing @cublasSgemv in the tiny forward fixture. "
+            "The current whole-forward tiny run replaces RMSNorm + SGEMV; "
+            "softmax still needs the max-if/tensor tail folded into the "
+            "single softmax launch in that combined path."
         ),
         kernel_stats=llama2c_stats,
         notes=LLAMA2C_NOTES,

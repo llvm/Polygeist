@@ -6,6 +6,7 @@
 #
 # Usage:
 #   polygeist_build.sh [--target=host|jetson] [--function=NAME] [-o OUT]
+#                      [--no-debuf]
 #                      <kernel.c> [gcc-passthrough-flags...]
 #
 # Defaults:
@@ -25,6 +26,10 @@
 #                       Override with --function=NAME for non-conventional
 #                       source.
 #   -o OUT              Defaults to the .c basename without extension.
+#   --no-debuf          Match the memref linalg form directly instead of
+#                       running --linalg-debufferize before the matcher.
+#                       Useful for memref-only compositions such as the
+#                       llama2.c RMSNorm/softmax patterns.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -61,6 +66,7 @@ TARGET=host
 FUNCTION=
 OUT=
 INPUT=
+DEBUFFERIZE=1
 GCC_PASSTHROUGH=()
 
 usage() {
@@ -72,6 +78,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --target=*)    TARGET="${1#--target=}"; shift ;;
     --function=*)  FUNCTION="${1#--function=}"; shift ;;
+    --no-debuf|--no-linalg-debufferize) DEBUFFERIZE=0; shift ;;
     -o)            OUT="$2"; shift 2 ;;
     -h|--help)     usage ;;
     *.c)
@@ -127,14 +134,24 @@ cgeist "$INPUT" --function="$FUNCTION" \
     echo "ERROR: cgeist failed; see $WORK/cgeist.err" >&2; cat $WORK/cgeist.err >&2; exit 1; }
 
 # ─── Step 2: raise affine → linalg + debufferize ────────────────────────
-echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
-polygeist-opt --select-func=func-name="$FUNCTION" \
-  --remove-iter-args --affine-parallelize \
-  --raise-affine-to-linalg-pipeline \
-  --lower-polygeist-submap \
-  --linalg-debufferize \
-  $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
-    echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
+if [ "$DEBUFFERIZE" -eq 1 ]; then
+  echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
+  polygeist-opt --select-func=func-name="$FUNCTION" \
+    --remove-iter-args --affine-parallelize \
+    --raise-affine-to-linalg-pipeline \
+    --lower-polygeist-submap \
+    --linalg-debufferize \
+    $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
+      echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
+else
+  echo "  [2/9] polygeist-opt: raise + lower-submap (memref linalg)"
+  polygeist-opt --select-func=func-name="$FUNCTION" \
+    --remove-iter-args --affine-parallelize \
+    --raise-affine-to-linalg-pipeline \
+    --lower-polygeist-submap \
+    $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
+      echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
+fi
 
 # ─── Step 3: matcher (linalg.generic → kernel.launch) ───────────────────
 echo "  [3/9] matcher: linalg.generic → kernel.launch"
@@ -189,8 +206,11 @@ polygeist-opt --canonicalize --cse --lower-polygeist-submap --canonicalize --cse
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
   $WORK/abi_canon.mlir
-$MLIR_OPT --one-shot-bufferize=bufferize-function-boundaries \
-  --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
+$MLIR_OPT --convert-math-to-llvm \
+  --empty-tensor-to-alloc-tensor \
+  --lower-affine \
+  --one-shot-bufferize=bufferize-function-boundaries \
+  --convert-linalg-to-loops --convert-scf-to-cf \
   --expand-strided-metadata \
   --convert-arith-to-llvm --finalize-memref-to-llvm \
   --convert-func-to-llvm --reconcile-unrealized-casts \

@@ -82,6 +82,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_memset_zero_1d_f32";
   if (libSym == "cublasDgemv") return "polygeist_cublas_dgemv";
   if (libSym == "cublasDgemv_T") return "polygeist_cublas_dgemv_T";
+  if (libSym == "cublasSgemv") return "polygeist_cublas_sgemv";
+  if (libSym == "cublasSgemv_T") return "polygeist_cublas_sgemv_T";
   if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
   if (libSym == "cublasDaxpby") return "polygeist_cublas_daxpby";
   if (libSym == "cublasDaxpy_unit") return "polygeist_cublas_daxpy_unit";
@@ -119,6 +121,12 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv_bn_relu_fused";
   if (libSym == "cudnnConvBiasReluAddFwdFused")
     return "polygeist_cudnn_conv_bias_relu_add_fused";
+  if (libSym == "rmsnorm_f32")
+    return "polygeist_rmsnorm_f32";
+  if (libSym == "rmsnorm_f32_tensor")
+    return "polygeist_rmsnorm_f32";
+  if (libSym == "cudnnSoftmaxForward")
+    return "polygeist_cudnn_softmax_forward_f32";
   if (libSym == "cublasLtMatmulBiasReluFused")
     return "polygeist_cublaslt_matmul_bias_relu";
   if (libSym == "cublasDsyrk_alias")
@@ -168,6 +176,20 @@ static Value tensorToMemref(OpBuilder &b, Location loc, Value t) {
   auto tt = cast<RankedTensorType>(t.getType());
   auto memrefType = MemRefType::get(tt.getShape(), tt.getElementType());
   return b.create<bufferization::ToMemrefOp>(loc, memrefType, t);
+}
+
+static Value valueToMemref(OpBuilder &b, Location loc, Value v) {
+  if (isa<MemRefType>(v.getType()))
+    return v;
+  return tensorToMemref(b, loc, v);
+}
+
+static ShapedType getRankedShapedType(Value v) {
+  if (auto t = dyn_cast<RankedTensorType>(v.getType()))
+    return t;
+  if (auto m = dyn_cast<MemRefType>(v.getType()))
+    return m;
+  return ShapedType();
 }
 
 // Inverse of the above — wrap a memref back into a tensor for downstream
@@ -644,19 +666,25 @@ static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
 // this file's scope so the dispatch switch below can name it unqualified.
 using mlir::polygeist::lowerCudnnConv2D9tap;
 
-// Shared lowering for cublasDgemv (no transpose) and cublasDgemv_T (Aᵀ·x).
-// `transpose=false` routes to polygeist_cublas_dgemv, `true` to
-// polygeist_cublas_dgemv_T. Both shims have the same signature; only the
-// internal cuBLAS op flag differs.
+// Shared lowering for tensor GEMV. D/S variants differ only in element type
+// and runtime shim symbol; transpose picks A*x vs A^T*x.
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
-                                       bool transpose);
+                                       bool transpose, bool useF32);
 
 static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
-  return lowerDgemvImpl(launch, module, /*transpose=*/false);
+  return lowerDgemvImpl(launch, module, /*transpose=*/false, /*useF32=*/false);
 }
 
 static LogicalResult lowerDgemvT(LaunchOp launch, ModuleOp module) {
-  return lowerDgemvImpl(launch, module, /*transpose=*/true);
+  return lowerDgemvImpl(launch, module, /*transpose=*/true, /*useF32=*/false);
+}
+
+static LogicalResult lowerSgemv(LaunchOp launch, ModuleOp module) {
+  return lowerDgemvImpl(launch, module, /*transpose=*/false, /*useF32=*/true);
+}
+
+static LogicalResult lowerSgemvT(LaunchOp launch, ModuleOp module) {
+  return lowerDgemvImpl(launch, module, /*transpose=*/true, /*useF32=*/true);
 }
 
 // @cublasDgemv(%A : tensor<MxNxf64>, %x : tensor<Nxf64>, %y : tensor<Mxf64>)
@@ -667,13 +695,15 @@ static LogicalResult lowerDgemvT(LaunchOp launch, ModuleOp module) {
 // cuBLAS gemv signature (in our row-major convention):
 //   polygeist_cublas_dgemv(M, N, alpha, A*, lda, x*, beta, y*)
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
-                                       bool transpose) {
+                                       bool transpose, bool useF32) {
+  StringRef libName = useF32 ? "cublasSgemv" : "cublasDgemv";
+  StringRef elemName = useF32 ? "f32" : "f64";
   if (launch.getNumOperands() != 3)
-    return launch.emitError("cublasDgemv lowering: expected 3 operands "
-                            "(A, x, y), got ")
+    return launch.emitError(libName)
+           << " lowering: expected 3 operands (A, x, y), got "
            << launch.getNumOperands();
   if (launch.getNumResults() != 1)
-    return launch.emitError("cublasDgemv lowering: expected 1 result");
+    return launch.emitError(libName) << " lowering: expected 1 result";
 
   Value A = launch.getOperand(0);
   Value x = launch.getOperand(1);
@@ -681,19 +711,26 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   auto At = dyn_cast<RankedTensorType>(A.getType());
   auto xt = dyn_cast<RankedTensorType>(x.getType());
   auto yt = dyn_cast<RankedTensorType>(y.getType());
-  if (!At || At.getRank() != 2 || !At.getElementType().isF64())
-    return launch.emitError("cublasDgemv lowering: A must be 2D f64 tensor");
-  if (!xt || xt.getRank() != 1 || !xt.getElementType().isF64())
-    return launch.emitError("cublasDgemv lowering: x must be 1D f64 tensor");
-  if (!yt || yt.getRank() != 1 || !yt.getElementType().isF64())
-    return launch.emitError("cublasDgemv lowering: y must be 1D f64 tensor");
+  auto hasElem = [&](Type ty) { return useF32 ? ty.isF32() : ty.isF64(); };
+  if (!At || At.getRank() != 2 || !hasElem(At.getElementType()))
+    return launch.emitError(libName)
+           << " lowering: A must be 2D " << elemName << " tensor";
+  if (!xt || xt.getRank() != 1 || !hasElem(xt.getElementType()))
+    return launch.emitError(libName)
+           << " lowering: x must be 1D " << elemName << " tensor";
+  if (!yt || yt.getRank() != 1 || !hasElem(yt.getElementType()))
+    return launch.emitError(libName)
+           << " lowering: y must be 1D " << elemName << " tensor";
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
-  Value one = b.create<arith::ConstantOp>(loc, b.getF64Type(),
-                                          b.getF64FloatAttr(1.0));
-  Value zero = b.create<arith::ConstantOp>(loc, b.getF64Type(),
-                                           b.getF64FloatAttr(0.0));
+  Type scalarTy = useF32 ? b.getF32Type() : b.getF64Type();
+  TypedAttr oneAttr = useF32 ? b.getF32FloatAttr(1.0f)
+                             : b.getF64FloatAttr(1.0);
+  TypedAttr zeroAttr = useF32 ? b.getF32FloatAttr(0.0f)
+                              : b.getF64FloatAttr(0.0);
+  Value one = b.create<arith::ConstantOp>(loc, scalarTy, oneAttr);
+  Value zero = b.create<arith::ConstantOp>(loc, scalarTy, zeroAttr);
 
   Value A_mr = tensorToMemref(b, loc, A);
   Value x_mr = tensorToMemref(b, loc, x);
@@ -710,14 +747,17 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(),   // M, N (A's row-major shape)
-      b.getF64Type(),                    // alpha
+      scalarTy,                          // alpha
       ptrTy, b.getI32Type(),             // A*, lda
       ptrTy,                             // x*
-      b.getF64Type(),                    // beta
+      scalarTy,                          // beta
       ptrTy,                             // y*
   };
-  StringRef shimSym = transpose ? "polygeist_cublas_dgemv_T"
-                                 : "polygeist_cublas_dgemv";
+  StringRef shimSym =
+      useF32 ? (transpose ? "polygeist_cublas_sgemv_T"
+                          : "polygeist_cublas_sgemv")
+             : (transpose ? "polygeist_cublas_dgemv_T"
+                          : "polygeist_cublas_dgemv");
   func::FuncOp shim = ensureShimDecl(module, shimSym, argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{M, N, one, A_ptr, lda, x_ptr, zero, y_ptr});
@@ -1519,6 +1559,88 @@ static LogicalResult lowerCudnnConvBiasReluAdd(LaunchOp launch,
   return success();
 }
 
+// @rmsnorm(%x, %weight, %out), FP32 1D memref/tensor operands.
+// Runtime computes:
+//   out[i] = weight[i] * x[i] * rsqrt(sum_j x[j]^2 / N + 1e-5)
+static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError("rmsnorm: expected 3 operands (x, weight, out)");
+  if (launch.getNumResults() > 1)
+    return launch.emitError("rmsnorm: expected zero or one result");
+
+  Value x = resolveSubmapBase(launch.getOperand(0));
+  Value weight = resolveSubmapBase(launch.getOperand(1));
+  Value out = resolveSubmapBase(launch.getOperand(2));
+
+  ShapedType xTy = getRankedShapedType(x);
+  ShapedType wTy = getRankedShapedType(weight);
+  ShapedType oTy = getRankedShapedType(out);
+  if (!xTy || !wTy || !oTy || xTy.getRank() != 1 || wTy.getRank() != 1 ||
+      oTy.getRank() != 1)
+    return launch.emitError("rmsnorm: x/weight/out must be ranked 1D");
+  if (!xTy.getElementType().isF32() ||
+      wTy.getElementType() != xTy.getElementType() ||
+      oTy.getElementType() != xTy.getElementType())
+    return launch.emitError("rmsnorm: only f32 x/weight/out supported");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemref(b, loc, x);
+  Value wMr = valueToMemref(b, loc, weight);
+  Value oMr = valueToMemref(b, loc, out);
+
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value wPtr = memrefBasePtr(b, loc, wMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_rmsnorm_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, wPtr, oPtr});
+
+  if (launch.getNumResults() == 1) {
+    Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+    rewireLaunchResult(launch, updated);
+  }
+
+  launch.erase();
+  return success();
+}
+
+// @cudnnSoftmaxForward(%x), FP32 1D in-place row softmax.
+static LogicalResult lowerCudnnSoftmaxForwardF32(LaunchOp launch,
+                                                  ModuleOp module) {
+  if (launch.getNumOperands() != 1)
+    return launch.emitError("cudnnSoftmaxForward: expected 1 operand");
+  if (launch.getNumResults() != 0)
+    return launch.emitError(
+        "cudnnSoftmaxForward: expected void in-place launch");
+
+  Value x = resolveSubmapBase(launch.getOperand(0));
+  ShapedType xTy = getRankedShapedType(x);
+  if (!xTy || xTy.getRank() != 1)
+    return launch.emitError("cudnnSoftmaxForward: x must be ranked 1D");
+  if (!xTy.getElementType().isF32())
+    return launch.emitError("cudnnSoftmaxForward: only f32 supported");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemref(b, loc, x);
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_softmax_forward_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr});
+
+  launch.erase();
+  return success();
+}
+
 // @cublasLtMatmulBiasReluFused(%A_view, %B_view, %bias_view, %C_view)
 //
 // 4 operands. After resolving submap → 4 base tensors:
@@ -1832,6 +1954,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgemv(launch, module);
       } else if (libSym == "cublasDgemv_T") {
         r = lowerDgemvT(launch, module);
+      } else if (libSym == "cublasSgemv") {
+        r = lowerSgemv(launch, module);
+      } else if (libSym == "cublasSgemv_T") {
+        r = lowerSgemvT(launch, module);
       } else if (libSym == "cublasDgemv_alpha") {
         r = lowerDgemvAlpha(launch, module);
       } else if (libSym == "cublasDaxpby") {
@@ -1868,6 +1994,11 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudnnConvBnReluFused(launch, module);
       } else if (libSym == "cudnnConvBiasReluAddFwdFused") {
         r = lowerCudnnConvBiasReluAdd(launch, module);
+      } else if (libSym == "rmsnorm_f32" ||
+                 libSym == "rmsnorm_f32_tensor") {
+        r = lowerRmsnormF32(launch, module);
+      } else if (libSym == "cudnnSoftmaxForward") {
+        r = lowerCudnnSoftmaxForwardF32(launch, module);
       } else if (libSym == "cublasLtMatmulBiasReluFused") {
         r = lowerCublasLtMatmulBiasRelu(launch, module);
       } else if (libSym == "cublasDsyrk_alias") {
