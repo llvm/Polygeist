@@ -33,3 +33,26 @@ func.func @guarded_load(%A: memref<?xf32>, %B: memref<?xf32>, %i: index,
 // CHECK: memref.load
 // CHECK: memref.store
 // CHECK: return
+
+// -----
+
+func.func @guarded_max_store(%A: memref<?xf32>, %max: memref<f32>,
+                             %i: index) {
+  %candidate = affine.load %A[%i] : memref<?xf32>
+  %old = affine.load %max[] : memref<f32>
+  %cmp = arith.cmpf ogt, %candidate, %old : f32
+  scf.if %cmp {
+    %candidate_reload = affine.load %A[%i] : memref<?xf32>
+    affine.store %candidate_reload, %max[] : memref<f32>
+  }
+  return
+}
+
+// CHECK-LABEL: func.func @guarded_max_store
+// CHECK: %[[CANDIDATE:.*]] = affine.load %{{.*}}[%{{.*}}] : memref<?xf32>
+// CHECK: %[[OLD:.*]] = affine.load %{{.*}}[] : memref<f32>
+// CHECK: %[[CMP:.*]] = arith.cmpf ogt, %[[CANDIDATE]], %[[OLD]] : f32
+// CHECK: %[[SELECT:.*]] = arith.select %[[CMP]], %[[CANDIDATE]], %[[OLD]] : f32
+// CHECK: affine.store %[[SELECT]], %{{.*}}[] : memref<f32>
+// CHECK-NOT: scf.if
+// CHECK: return

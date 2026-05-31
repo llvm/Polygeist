@@ -532,10 +532,16 @@ def rewrite_mlir(
         except Exception:
             body_terms.append(None)
 
-    # Per-body form ("tensor" / "memref"), aligned with `instances`. The
-    # form is determined by whether the linalg.generic has an SSA result —
-    # tensor-form returns an SSA, memref-form is void with side effects.
-    body_forms = ["tensor" if inst.result_ssa else "memref" for inst in instances]
+    # Per-body form ("tensor" / "memref"), aligned with `instances`.
+    # Multi-result tensor generics print as `%x:2 = linalg.generic ...`; the
+    # lightweight block regex intentionally starts at `linalg.generic`, so
+    # `result_ssa` is absent for that form. Use the trailing result type to
+    # classify tensor-vs-memref instead.
+    body_forms = [
+        "tensor" if (inst.result_type and "tensor<" in inst.result_type)
+        else "memref"
+        for inst in instances
+    ]
 
     comps = composition_library()
 
@@ -711,13 +717,15 @@ def rewrite_mlir(
                     indent=last.indent,
                 )
 
-        if entry.name == "cudnnSoftmaxForward":
+        if entry.name in ("cudnnSoftmaxForward", "cudnnSoftmaxForward_tensor"):
             # The raised llama2 softmax has a scalar max buffer as the first
             # generic's out, then mutates the full vector in the later two
             # generics. Emit the full vector operand, not the max scalar nor
             # the x[1:] subview used only for the initialized-max reduction.
-            out_names = _extract_ssa_names(instances[i + n - 1].outs_part)
-            out_types = _extract_ssa_types(instances[i + n - 1].outs_part)
+            vector_inst = (instances[i + 1] if entry.name.endswith("_tensor")
+                           else instances[i + n - 1])
+            out_names = _extract_ssa_names(vector_inst.outs_part)
+            out_types = _extract_ssa_types(vector_inst.outs_part)
             if len(out_names) < 1:
                 report.append(("softmax_reject", i, entry.name))
                 i += 1
@@ -725,14 +733,17 @@ def rewrite_mlir(
             operands = [out_names[0]]
             operand_types = [out_types[0]]
             binds = {}
-            last = LinalgInstance(
-                result_ssa=None,
-                ins_part=last.ins_part,
-                outs_part=last.outs_part,
-                result_type=None,
-                span=last.span,
-                indent=last.indent,
-            )
+            if entry.name.endswith("_tensor"):
+                replace_full_span = True
+            else:
+                last = LinalgInstance(
+                    result_ssa=None,
+                    ins_part=last.ins_part,
+                    outs_part=last.outs_part,
+                    result_type=None,
+                    span=last.span,
+                    indent=last.indent,
+                )
 
         if entry.name == "elemwise_div_scalar":
             # This template is useful for algebraic recognition, but the ABI

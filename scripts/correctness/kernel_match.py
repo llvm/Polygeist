@@ -1555,6 +1555,15 @@ def _softmax_3step() -> CompositionEntry:
     )
 
 
+def _softmax_3step_tensor() -> CompositionEntry:
+    entry = _softmax_3step()
+    return CompositionEntry(
+        name="cudnnSoftmaxForward_tensor",
+        steps=entry.steps,
+        form="tensor",
+    )
+
+
 def _rmsnorm_2step() -> CompositionEntry:
     """RMSNorm — 1D root-mean-square normalize + per-element weighted scale.
 
@@ -1866,8 +1875,9 @@ def composition_library() -> list[CompositionEntry]:
         _rank_two_update(),
         _centered_sum_squares(),
 
-        # Stencils (Bucket 2) — memref form (default v2 debufferize).
+        # Stencils (Bucket 2).
         _softmax_3step(),       # 3-step composition, max + exp+sum (multi-yield) + div.
+        _softmax_3step_tensor(),
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.

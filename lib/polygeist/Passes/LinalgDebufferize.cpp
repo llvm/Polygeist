@@ -1479,12 +1479,20 @@ struct LinalgDebufferization : public OpRewritePattern<func::FuncOp> {
 
 namespace v2 {
 
-// Does `v` transitively come from `root` via a chain of polygeist.submap ops?
+// Does `v` transitively come from `root` via a chain of supported memref view
+// ops?  The rewriter below can route both polygeist.submap and memref.subview
+// to tensor-side slice ops, so the feasibility and touch checks must accept the
+// same view forms.  Otherwise an earlier root can partially tensorize a
+// multi-root linalg.generic while the output root is skipped.
 static bool tracesToRoot(Value v, Value root) {
   while (true) {
     if (v == root) return true;
     if (auto sm = v.getDefiningOp<polygeist::SubmapOp>()) {
       v = sm.getViewSource();
+      continue;
+    }
+    if (auto sv = v.getDefiningOp<memref::SubViewOp>()) {
+      v = sv.getSource();
       continue;
     }
     return false;
@@ -1505,7 +1513,7 @@ static bool ancestorsAreHandled(Operation *op) {
 }
 
 // Precondition: can we safely debufferize `root` end-to-end?
-// All transitive memory users (through polygeist.submap) must be
+// All transitive memory users (through supported memref view ops) must be
 // load/store/linalg.generic, each under only handled region-bearing
 // ancestors. There must also be at least one such memory op (otherwise
 // there's no work to do and re-firing the pattern would loop forever).
@@ -1530,6 +1538,10 @@ static bool canHandle(Value root) {
       }
       if (auto submap = dyn_cast<polygeist::SubmapOp>(user)) {
         worklist.push_back(submap.getResult());
+        continue;
+      }
+      if (auto subview = dyn_cast<memref::SubViewOp>(user)) {
+        worklist.push_back(subview.getResult());
         continue;
       }
       return false;
@@ -1559,7 +1571,8 @@ static SubviewChainInfo traceSubviewChainToRoot(Value memref) {
 }
 
 // Does anything inside `r` *write* to `root` (via store/affine.store/
-// linalg.generic with root in outs) — AND, for linalg.generic, can we
+// linalg.generic with root in outs, including through supported views) — AND,
+// for linalg.generic, can we
 // fully rewrite that op (all its memref operands trace to `root`)?
 // This second condition prevents handleScfFor/handleAffineFor from
 // speculatively rebuilding the loop with a tensor iter_arg in cases
@@ -2177,16 +2190,14 @@ static void walkBlock(WalkCtx &ctx, Block &block) {
       // Rewrite only if this generic touches our root via in/out operands.
       bool touches = false;
       for (Value v : generic.getInputs()) {
-        if (v.getType().isa<MemRefType>() &&
-            traceSubmapChainToRoot(v).rootMemref == ctx.root) {
+        if (v.getType().isa<MemRefType>() && tracesToRoot(v, ctx.root)) {
           touches = true;
           break;
         }
       }
       if (!touches) {
         for (Value v : generic.getOutputs()) {
-          if (v.getType().isa<MemRefType>() &&
-              traceSubmapChainToRoot(v).rootMemref == ctx.root) {
+          if (v.getType().isa<MemRefType>() && tracesToRoot(v, ctx.root)) {
             touches = true;
             break;
           }

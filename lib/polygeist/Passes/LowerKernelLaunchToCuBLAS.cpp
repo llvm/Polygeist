@@ -127,6 +127,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_rmsnorm_f32";
   if (libSym == "cudnnSoftmaxForward")
     return "polygeist_cudnn_softmax_forward_f32";
+  if (libSym == "cudnnSoftmaxForward_tensor")
+    return "polygeist_cudnn_softmax_forward_f32";
   if (libSym == "cublasLtMatmulBiasReluFused")
     return "polygeist_cublaslt_matmul_bias_relu";
   if (libSym == "cublasDsyrk_alias")
@@ -1610,13 +1612,14 @@ static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
 }
 
 // @cudnnSoftmaxForward(%x), FP32 1D in-place row softmax.
+// Tensor form returns the updated tensor after the same in-place shim call.
 static LogicalResult lowerCudnnSoftmaxForwardF32(LaunchOp launch,
                                                   ModuleOp module) {
   if (launch.getNumOperands() != 1)
     return launch.emitError("cudnnSoftmaxForward: expected 1 operand");
-  if (launch.getNumResults() != 0)
+  if (launch.getNumResults() > 1)
     return launch.emitError(
-        "cudnnSoftmaxForward: expected void in-place launch");
+        "cudnnSoftmaxForward: expected void or one tensor result");
 
   Value x = resolveSubmapBase(launch.getOperand(0));
   ShapedType xTy = getRankedShapedType(x);
@@ -1636,6 +1639,11 @@ static LogicalResult lowerCudnnSoftmaxForwardF32(LaunchOp launch,
   func::FuncOp shim = ensureShimDecl(
       module, "polygeist_cudnn_softmax_forward_f32", argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr});
+
+  if (launch.getNumResults() == 1) {
+    Value updated = memrefToTensor(b, loc, xMr, launch.getResult(0).getType());
+    rewireLaunchResult(launch, updated);
+  }
 
   launch.erase();
   return success();
@@ -1997,7 +2005,8 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "rmsnorm_f32" ||
                  libSym == "rmsnorm_f32_tensor") {
         r = lowerRmsnormF32(launch, module);
-      } else if (libSym == "cudnnSoftmaxForward") {
+      } else if (libSym == "cudnnSoftmaxForward" ||
+                 libSym == "cudnnSoftmaxForward_tensor") {
         r = lowerCudnnSoftmaxForwardF32(launch, module);
       } else if (libSym == "cublasLtMatmulBiasReluFused") {
         r = lowerCublasLtMatmulBiasRelu(launch, module);

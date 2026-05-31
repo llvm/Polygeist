@@ -148,6 +148,10 @@ module {
     kernel.yield
   }
 
+  kernel.defn @cudnnSoftmaxForward_tensor(%x: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %x : tensor<?xf32>
+  }
+
   // GEMM-ALPHA-ONLY: C += alpha*A*B (beta=1, accumulate-into-C, custom alpha).
   kernel.defn @cublasDgemm_alpha_only(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                        %C: tensor<?x?xf64>,

@@ -79,6 +79,57 @@ struct MemRefStoreInfo {
 };
 } // namespace
 
+static bool getMemRefLoadInfo(Value value, MemRefStoreInfo &info) {
+  Operation *op = value.getDefiningOp();
+  if (!op)
+    return false;
+
+  info = MemRefStoreInfo();
+  info.type = value.getType();
+  info.source = op;
+
+  if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
+    info.operands.assign(loadOp.getIndices().begin(),
+                         loadOp.getIndices().end());
+    info.isAffineStore = false;
+    return true;
+  }
+
+  if (auto loadOp = dyn_cast<affine::AffineLoadOp>(op)) {
+    info.operands.assign(loadOp.getMapOperands().begin(),
+                         loadOp.getMapOperands().end());
+    info.affineMap = loadOp.getAffineMap();
+    info.isAffineStore = true;
+    return true;
+  }
+
+  return false;
+}
+
+static bool getSingleStoreInfo(Operation &op, MemRefStoreInfo &info) {
+  info = MemRefStoreInfo();
+  info.source = &op;
+
+  if (auto storeOp = dyn_cast<memref::StoreOp>(op)) {
+    info.type = storeOp.getValueToStore().getType();
+    info.operands.assign(storeOp.getIndices().begin(),
+                         storeOp.getIndices().end());
+    info.isAffineStore = false;
+    return true;
+  }
+
+  if (auto storeOp = dyn_cast<affine::AffineStoreOp>(op)) {
+    info.type = storeOp.getValueToStore().getType();
+    info.operands.assign(storeOp.getMapOperands().begin(),
+                         storeOp.getMapOperands().end());
+    info.affineMap = storeOp.getAffineMap();
+    info.isAffineStore = true;
+    return true;
+  }
+
+  return false;
+}
+
 static void getMemRefStoreInfo(Block *block,
                                llvm::MapVector<Value, MemRefStoreInfo> &info) {
   unsigned ord = 0;
@@ -138,6 +189,163 @@ static bool hasMatchingStores(ArrayRef<Block *> blocks) {
   }
 
   return true;
+}
+
+static Value getMemrefFromStore(Operation *op) {
+  if (auto storeOp = dyn_cast<memref::StoreOp>(op))
+    return storeOp.getMemref();
+  if (auto storeOp = dyn_cast<affine::AffineStoreOp>(op))
+    return storeOp.getMemref();
+  return Value();
+}
+
+static Value getMemrefFromLoad(Operation *op) {
+  if (auto loadOp = dyn_cast<memref::LoadOp>(op))
+    return loadOp.getMemref();
+  if (auto loadOp = dyn_cast<affine::AffineLoadOp>(op))
+    return loadOp.getMemref();
+  return Value();
+}
+
+static bool sameLoadStoreAddress(const MemRefStoreInfo &load,
+                                 const MemRefStoreInfo &store) {
+  if (load.isAffineStore != store.isAffineStore)
+    return false;
+  if (getMemrefFromLoad(load.source) != getMemrefFromStore(store.source))
+    return false;
+  if (load.operands != store.operands)
+    return false;
+  if (load.isAffineStore && load.affineMap != store.affineMap)
+    return false;
+  return true;
+}
+
+static bool sameLoadAddress(const MemRefStoreInfo &a,
+                            const MemRefStoreInfo &b) {
+  if (a.isAffineStore != b.isAffineStore)
+    return false;
+  if (getMemrefFromLoad(a.source) != getMemrefFromLoad(b.source))
+    return false;
+  if (a.operands != b.operands)
+    return false;
+  if (a.isAffineStore && a.affineMap != b.affineMap)
+    return false;
+  return true;
+}
+
+static Value getStoredValue(Operation *op) {
+  if (auto storeOp = dyn_cast<memref::StoreOp>(op))
+    return storeOp.getValueToStore();
+  if (auto storeOp = dyn_cast<affine::AffineStoreOp>(op))
+    return storeOp.getValueToStore();
+  return Value();
+}
+
+static bool isLoadLike(Operation &op) {
+  return isa<memref::LoadOp, affine::AffineLoadOp>(op);
+}
+
+static bool hasUnsafeInterveningEffect(Operation *begin, Operation *end) {
+  for (Operation *op = begin->getNextNode(); op && op != end;
+       op = op->getNextNode()) {
+    if (isLoadLike(*op) || isMemoryEffectFree(op))
+      continue;
+    return true;
+  }
+  return false;
+}
+
+static bool valueMatchesCandidate(Value value, Value candidate) {
+  if (value == candidate)
+    return true;
+
+  MemRefStoreInfo valueLoad, candidateLoad;
+  if (!getMemRefLoadInfo(value, valueLoad) ||
+      !getMemRefLoadInfo(candidate, candidateLoad))
+    return false;
+  return sameLoadAddress(valueLoad, candidateLoad);
+}
+
+static bool getCompareOperands(Value condition, Value &lhs, Value &rhs) {
+  Operation *condOp = condition.getDefiningOp();
+  if (!condOp || !isa<arith::CmpFOp, arith::CmpIOp>(condOp) ||
+      condOp->getNumOperands() != 2)
+    return false;
+  lhs = condOp->getOperand(0);
+  rhs = condOp->getOperand(1);
+  return true;
+}
+
+static LogicalResult foldGuardedStoreUpdate(scf::IfOp ifOp, OpBuilder &b) {
+  if (ifOp.elseBlock() || ifOp.getNumResults() != 0)
+    return failure();
+
+  Operation *store = nullptr;
+  for (Operation &op : ifOp.thenBlock()->without_terminator()) {
+    if (isa<memref::StoreOp, affine::AffineStoreOp>(op)) {
+      if (store)
+        return failure();
+      store = &op;
+      continue;
+    }
+    if (!isLoadLike(op))
+      return failure();
+  }
+  if (!store)
+    return failure();
+
+  MemRefStoreInfo storeInfo;
+  if (!getSingleStoreInfo(*store, storeInfo))
+    return failure();
+
+  for (Value operand : storeInfo.operands)
+    if (operand.getParentBlock() == ifOp.thenBlock())
+      return failure();
+
+  Value cmpLhs, cmpRhs;
+  if (!getCompareOperands(ifOp.getCondition(), cmpLhs, cmpRhs))
+    return failure();
+
+  Value stored = getStoredValue(store);
+  Value candidate;
+  Value oldValue;
+  if (valueMatchesCandidate(stored, cmpLhs)) {
+    candidate = cmpLhs;
+    oldValue = cmpRhs;
+  } else if (valueMatchesCandidate(stored, cmpRhs)) {
+    candidate = cmpRhs;
+    oldValue = cmpLhs;
+  } else {
+    return failure();
+  }
+
+  MemRefStoreInfo oldLoad;
+  if (!getMemRefLoadInfo(oldValue, oldLoad) ||
+      !sameLoadStoreAddress(oldLoad, storeInfo))
+    return failure();
+
+  if (oldLoad.source->getBlock() != ifOp->getBlock() ||
+      hasUnsafeInterveningEffect(oldLoad.source, ifOp))
+    return failure();
+
+  OpBuilder::InsertionGuard guard(b);
+  Location loc = ifOp.getLoc();
+  b.setInsertionPointAfter(ifOp);
+  Value selected =
+      b.create<arith::SelectOp>(loc, ifOp.getCondition(), candidate, oldValue);
+
+  if (auto storeOp = dyn_cast<memref::StoreOp>(store)) {
+    b.create<memref::StoreOp>(loc, selected, storeOp.getMemref(),
+                              storeOp.getIndices());
+  } else {
+    auto affineStoreOp = cast<affine::AffineStoreOp>(store);
+    b.create<affine::AffineStoreOp>(loc, selected, affineStoreOp.getMemref(),
+                                    affineStoreOp.getAffineMap(),
+                                    affineStoreOp.getMapOperands());
+  }
+
+  ifOp.erase();
+  return success();
 }
 
 static LogicalResult liftStoreOps(scf::IfOp ifOp, OpBuilder &b) {
@@ -240,6 +448,16 @@ static bool foldSCFIf(scf::IfOp ifOp, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
   LLVM_DEBUG(llvm::dbgs() << "Working on scf.if:\n" << ifOp << "\n");
+
+  // Fold scalar store-update idioms such as softmax/reduce-max:
+  //   if (%candidate > %old) store %candidate, %slot
+  // into:
+  //   %selected = arith.select %cond, %candidate, %old
+  //   store %selected, %slot
+  // This is intentionally narrower than generic store speculation: the
+  // implicit else must be the previously loaded value from the same address.
+  if (succeeded(foldGuardedStoreUpdate(ifOp, b)))
+    return true;
 
   if (!hasSingleStore(ifOp.thenBlock()) ||
       (ifOp.elseBlock() && !hasSingleStore(ifOp.elseBlock())))
