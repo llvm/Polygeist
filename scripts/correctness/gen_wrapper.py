@@ -27,7 +27,9 @@ def extract_macro_prelude(c_text: str) -> str:
         if "(" in name:
             continue
         if rest:
+            lines.append(f"#ifndef {name}")
             lines.append(f"#define {name} {rest}")
+            lines.append("#endif")
     return "\n".join(lines)
 
 

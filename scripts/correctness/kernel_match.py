@@ -2252,6 +2252,21 @@ def _unify(body, template, bindings: dict) -> Optional[dict]:
         bindings = dict(bindings)
         bindings[name] = body
         return bindings
+    # Some front-end/canonicalization paths erase explicit multiplication by
+    # one before the matcher sees the linalg body. Let a template term like
+    # `In(k) * Cap("%w")` match a bare `In(k)` by binding `%w = 1.0`.
+    # This keeps 3x3 filters with unit coefficients (Sobel/Laplacian/emboss)
+    # on the same cudnnConvolution2D_9tap path as the fully weighted case.
+    if isinstance(template, tuple) and template[0] == "Mul" and len(template) == 3:
+        for cap_idx, term_idx in ((1, 2), (2, 1)):
+            cap = template[cap_idx]
+            term = template[term_idx]
+            if isinstance(cap, tuple) and cap[0] == "Cap":
+                bound = _unify(body, term, bindings)
+                if bound is not None:
+                    bound = _unify(("Lit", 1.0), cap, bound)
+                    if bound is not None:
+                        return bound
     # Otherwise structural equality.
     if not (isinstance(template, tuple) and isinstance(body, tuple)):
         return bindings if template == body else None

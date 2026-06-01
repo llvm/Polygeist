@@ -542,6 +542,18 @@ module {
     kernel.yield %result : tensor<?x?xf64>
   }
 
+  kernel.defn @memset_zero_2D_f32(%A: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %zero = arith.constant 0.000000e+00 : f32
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>],
+      iterator_types = ["parallel", "parallel"]
+    } outs(%A : tensor<?x?xf32>) {
+    ^bb0(%out: f32):
+      linalg.yield %zero : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
   // MEMSET-CONST-1D: fill the diagonal of a 2D tensor with 1.0.
   // The matcher names this "1D" because the iter space is 1D (single d0) —
   // the tensor is 2D but accessed at (d0, d0). Used in correlation's

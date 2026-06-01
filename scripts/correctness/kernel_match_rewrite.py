@@ -410,6 +410,17 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     if inline_weights:
         for w in inline_weights:
             if w is None:
+                # The matcher may accept an elided `* 1.0` coefficient: some
+                # frontend/canonicalization paths rewrite `1.0 * in[k]` to
+                # bare `in[k]`. The runtime ABI still expects one scalar per
+                # tap, so materialize the implicit unit coefficient here.
+                synth_ssa = f"%cst_synth_{synth_idx}"
+                synth_idx += 1
+                lit = "1.0" if inline_weight_type.startswith("f") else "1"
+                weight_cast_lines.append(
+                    f"{indent}{synth_ssa} = arith.constant {lit} : {inline_weight_type}"
+                )
+                inline_weight_ssas.append(synth_ssa)
                 continue
             # w is now always a list[str] (possibly length 1). Empty was
             # already normalised to None by parse_generics, so len(w) >= 1.
@@ -654,6 +665,15 @@ def rewrite_mlir(
                     emit_name = "cudaCopy1D_f32_tensor"
                 elif ranks[0] == 2:
                     emit_name = "cudaCopy2D_f32_tensor"
+                else:
+                    report.append(("rank_or_dtype_reject", i, entry.name))
+                    i += 1
+                    continue
+            elif emit_name == "cublasDcopy_tensor":
+                if not (elem == "f64" and len(ranks) == 2 and ranks == [1, 1]):
+                    report.append(("rank_or_dtype_reject", i, entry.name))
+                    i += 1
+                    continue
 
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one
@@ -882,10 +902,22 @@ def rewrite_mlir(
                 # dedicated symbol so ABI lowering can unwrap the submaps and
                 # call cuBLAS SGEMM.
                 emit_name = "cublasSgemm_broadcast3d_simple"
+            elif elem != "f64" or operand_ranks != [2, 2, 2]:
+                # Do not let generic rank-3/strided contractions masquerade as
+                # the plain double GEMM ABI. The extended Llama split-Q/K
+                # fixture intentionally leaves these as residual linalg until
+                # we add a real batched/split projection lowering.
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
         if entry.name == "memset_zero_1D":
             elem = _sniff_elem_type(outs0_types[0]) if outs0_types else None
             if elem == "f32":
                 emit_name = "memset_zero_1D_f32"
+        if entry.name == "memset_zero_2D":
+            elem = _sniff_elem_type(outs0_types[0]) if outs0_types else None
+            if elem == "f32":
+                emit_name = "memset_zero_2D_f32"
         if entry.name == "cublasSgemm_broadcast3d_memref":
             elem = _sniff_elem_type(operand_types[0]) if operand_types else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]

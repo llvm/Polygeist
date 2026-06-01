@@ -16,7 +16,9 @@ _CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_CORRECTNESS_DIR/common_env.sh"
 
 SRC=$REPO_ROOT/third_party/cnn-extracted/llama_forward_ops.c
+EXTENDED_SRC=$REPO_ROOT/third_party/cnn-extracted/llama2_extended_forward_bench.c
 OUT=${POLYGEIST_LLAMA_OPS_OUT:-/tmp/llama_forward_ops_mlir}
+EXTENDED_TIMEOUT=${POLYGEIST_LLAMA_EXTENDED_TIMEOUT:-180}
 mkdir -p "$OUT"
 rm -f "$OUT"/*
 
@@ -161,6 +163,51 @@ for entry in "${KERNELS[@]}"; do
 
   summarize_one "$tag" >> "$SUMMARY"
 done
+
+tag=extended_forward
+fn=kernel_llama2_extended_forward
+
+echo "[$tag] cgeist..."
+timeout "$EXTENDED_TIMEOUT" cgeist "$EXTENDED_SRC" --function="$fn" --resource-dir=/usr/lib/clang/14 \
+  --raise-scf-to-affine -fPIC -S \
+  -o "$OUT/${tag}.mlir" 2>"$OUT/${tag}.cgeist.err"
+if [ ! -s "$OUT/${tag}.mlir" ]; then
+  echo "  cgeist FAILED"
+  rm -f "$OUT/${tag}.mlir"
+  summarize_one "$tag" >> "$SUMMARY"
+else
+  echo "[$tag] raise..."
+  timeout "$EXTENDED_TIMEOUT" polygeist-opt --select-func=func-name="$fn" \
+    --remove-iter-args --affine-parallelize \
+    --raise-affine-to-linalg-pipeline --lower-polygeist-submap \
+    "$OUT/${tag}.mlir" -o "$OUT/${tag}_linalg.mlir" \
+    2>"$OUT/${tag}.raise.err"
+  if [ ! -s "$OUT/${tag}_linalg.mlir" ]; then
+    echo "  raise FAILED"
+    rm -f "$OUT/${tag}_linalg.mlir"
+    summarize_one "$tag" >> "$SUMMARY"
+  else
+    echo "[$tag] debuf v2..."
+    timeout "$EXTENDED_TIMEOUT" polygeist-opt --linalg-debufferize \
+      "$OUT/${tag}_linalg.mlir" -o "$OUT/${tag}_debuf.mlir" \
+      2>"$OUT/${tag}.debuf.err"
+    if [ ! -s "$OUT/${tag}_debuf.mlir" ]; then
+      echo "  v2 debuf FAILED"
+      rm -f "$OUT/${tag}_debuf.mlir"
+    fi
+
+    echo "[$tag] debuf multi-root..."
+    timeout "$EXTENDED_TIMEOUT" polygeist-opt --linalg-debufferize=use-multi-root=true \
+      "$OUT/${tag}_linalg.mlir" -o "$OUT/${tag}_debuf_mr.mlir" \
+      2>"$OUT/${tag}.debuf_mr.err"
+    if [ ! -s "$OUT/${tag}_debuf_mr.mlir" ]; then
+      echo "  multi-root debuf FAILED"
+      rm -f "$OUT/${tag}_debuf_mr.mlir"
+    fi
+
+    summarize_one "$tag" >> "$SUMMARY"
+  fi
+fi
 
 echo "Done. Output in $OUT"
 cat "$SUMMARY"

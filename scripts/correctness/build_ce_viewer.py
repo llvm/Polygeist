@@ -47,6 +47,22 @@ NPB_ROOT = env_path("POLYGEIST_NPB_ROOT", REPO_ROOT / "third_party/NPB-polybench
 NPB_MLIR_DIR = env_path("POLYGEIST_NPB_MLIR_DIR", "/tmp/npb_mlir")
 LLAMA2C_ROOT = env_path("POLYGEIST_LLAMA2C_ROOT", REPO_ROOT / "third_party/llama2.c")
 LLAMA2C_MLIR_DIR = env_path("POLYGEIST_LLAMA2C_MLIR_DIR", "/tmp/llama2c_mlir")
+LLAMA_FORWARD_ROOT = env_path(
+    "POLYGEIST_LLAMA_FORWARD_ROOT",
+    REPO_ROOT / "third_party/cnn-extracted",
+)
+LLAMA_FORWARD_MLIR_DIR = env_path(
+    "POLYGEIST_LLAMA_FORWARD_MLIR_DIR",
+    "/tmp/llama_forward_ops_mlir",
+)
+STENCIL_CONV2D_ROOT = env_path(
+    "POLYGEIST_STENCIL_CONV2D_ROOT",
+    REPO_ROOT / "third_party/cnn-extracted",
+)
+STENCIL_CONV2D_MLIR_DIR = env_path(
+    "POLYGEIST_STENCIL_CONV2D_MLIR_DIR",
+    "/tmp/stencil_conv2d_mlir",
+)
 LLMC_ROOT = env_path("POLYGEIST_LLMC_ROOT", REPO_ROOT / "third_party/llm.c")
 LLMC_MLIR_DIR = env_path("POLYGEIST_LLMC_MLIR_DIR", "/tmp/llmc_mlir")
 DARKNET_ROOT = env_path("POLYGEIST_DARKNET_ROOT", REPO_ROOT / "third_party/darknet")
@@ -107,6 +123,83 @@ LLAMA2C_KERNELS: dict[str, tuple[str, str]] = {
     "rmsnorm":  ("run.c", "rmsnorm"),
     "softmax":  ("run.c", "softmax"),
     "matmul":   ("run.c", "matmul"),
+}
+
+# Standalone Llama-forward operation fixtures plus the fuller one-token
+# one-layer forward fixture. These live in third_party/cnn-extracted/ and are
+# intentionally source-level C benchmarks that our pipeline raises.
+LLAMA_FORWARD_KERNELS: dict[str, tuple[str, str]] = {
+    "token_embedding":        ("llama_forward_ops.c", "kernel_llama_token_embedding"),
+    "attention_rmsnorm":      ("llama_forward_ops.c", "kernel_llama_attention_rmsnorm"),
+    "qkv_projection":         ("llama_forward_ops.c", "kernel_llama_qkv_projection"),
+    "rope_interleaved":       ("llama_forward_ops.c", "kernel_llama_rope"),
+    "rope_split":             ("llama_forward_ops.c", "kernel_llama_rope_split"),
+    "kv_cache_rw":            ("llama_forward_ops.c", "kernel_llama_kv_cache_rw"),
+    "attention_scores":       ("llama_forward_ops.c", "kernel_llama_attention_scores"),
+    "attention_mask_if":      ("llama_forward_ops.c", "kernel_llama_attention_mask"),
+    "attention_mask_select":  ("llama_forward_ops.c", "kernel_llama_attention_mask_select"),
+    "attention_softmax":      ("llama_forward_ops.c", "kernel_llama_attention_softmax"),
+    "attention_output":       ("llama_forward_ops.c", "kernel_llama_attention_output"),
+    "output_projection":      ("llama_forward_ops.c", "kernel_llama_output_projection"),
+    "residual_add":           ("llama_forward_ops.c", "kernel_llama_residual_add"),
+    "ffn_rmsnorm":            ("llama_forward_ops.c", "kernel_llama_ffn_rmsnorm"),
+    "gate_up_projection":     ("llama_forward_ops.c", "kernel_llama_gate_up_projection"),
+    "swiglu":                 ("llama_forward_ops.c", "kernel_llama_swiglu"),
+    "down_projection":        ("llama_forward_ops.c", "kernel_llama_down_projection"),
+    "final_rmsnorm":          ("llama_forward_ops.c", "kernel_llama_final_rmsnorm"),
+    "lm_head_projection":     ("llama_forward_ops.c", "kernel_llama_lm_head_projection"),
+    "extended_forward":       ("llama2_extended_forward_bench.c", "kernel_llama2_extended_forward"),
+}
+
+LLAMA_FORWARD_ORDER = list(LLAMA_FORWARD_KERNELS.keys())
+
+LLAMA_FORWARD_DISPLAY_NAMES: dict[str, str] = {
+    "token_embedding":        "token embedding",
+    "attention_rmsnorm":      "attention RMSNorm",
+    "qkv_projection":         "QKV projection",
+    "rope_interleaved":       "RoPE, interleaved",
+    "rope_split":             "RoPE, split",
+    "kv_cache_rw":            "KV cache read/write",
+    "attention_scores":       "attention scores",
+    "attention_mask_if":      "causal mask, if-form",
+    "attention_mask_select":  "causal mask, select-form",
+    "attention_softmax":      "attention softmax",
+    "attention_output":       "attention output",
+    "output_projection":      "output projection",
+    "residual_add":           "residual add",
+    "ffn_rmsnorm":            "FFN RMSNorm",
+    "gate_up_projection":     "gate/up projection",
+    "swiglu":                 "SwiGLU",
+    "down_projection":        "down projection",
+    "final_rmsnorm":          "final RMSNorm",
+    "lm_head_projection":     "LM head projection",
+    "extended_forward":       "extended forward benchmark",
+}
+
+STENCIL_CONV2D_KERNELS: dict[str, tuple[str, str]] = {
+    "box3x3":          ("stencil_conv2d_3x3.c", "kernel_stencil_box3x3"),
+    "gaussian3x3":     ("stencil_conv2d_3x3.c", "kernel_stencil_gaussian3x3"),
+    "sobel_x3x3":      ("stencil_conv2d_3x3.c", "kernel_stencil_sobel_x3x3"),
+    "sobel_y3x3":      ("stencil_conv2d_3x3.c", "kernel_stencil_sobel_y3x3"),
+    "laplacian4_3x3":  ("stencil_conv2d_3x3.c", "kernel_stencil_laplacian4_3x3"),
+    "laplacian8_3x3":  ("stencil_conv2d_3x3.c", "kernel_stencil_laplacian8_3x3"),
+    "sharpen3x3":      ("stencil_conv2d_3x3.c", "kernel_stencil_sharpen3x3"),
+    "emboss3x3":       ("stencil_conv2d_3x3.c", "kernel_stencil_emboss3x3"),
+    "box5x5":          ("stencil_conv2d_3x3.c", "kernel_stencil_box5x5"),
+}
+
+STENCIL_CONV2D_ORDER = list(STENCIL_CONV2D_KERNELS.keys())
+
+STENCIL_CONV2D_DISPLAY_NAMES: dict[str, str] = {
+    "box3x3":          "box blur 3x3",
+    "gaussian3x3":     "Gaussian blur 3x3",
+    "sobel_x3x3":      "Sobel X 3x3",
+    "sobel_y3x3":      "Sobel Y 3x3",
+    "laplacian4_3x3":  "Laplacian 4-neighbor 3x3",
+    "laplacian8_3x3":  "Laplacian 8-neighbor 3x3",
+    "sharpen3x3":      "sharpen 3x3",
+    "emboss3x3":       "emboss 3x3",
+    "box5x5":          "box blur 5x5",
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -307,6 +400,41 @@ LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
     "matmul":   ("highly parallel",   "dense gemv (W·x = xout); single linalg.generic after raise"),
     "rmsnorm":  ("highly parallel",   "ss = mean(x²) + eps then o = weight·x/√ss; reduction + parallel scale"),
     "softmax":  ("partial parallel",  "max-shift then exp + sum then divide; three reduction/parallel phases"),
+}
+
+LLAMA_FORWARD_NOTES: dict[str, tuple[str, str]] = {
+    "token_embedding":        ("highly parallel",  "embedding row copy for one token"),
+    "attention_rmsnorm":      ("highly parallel",  "attention RMSNorm; mean-square reduction + weighted scale"),
+    "qkv_projection":         ("highly parallel",  "Q/K/V dense projections from normalized hidden state"),
+    "rope_interleaved":       ("partial parallel", "exact interleaved RoPE layout; still leaves loops today"),
+    "rope_split":             ("highly parallel",  "raise-friendly split even/odd RoPE form"),
+    "kv_cache_rw":            ("highly parallel",  "KV cache write at current position plus full cache read"),
+    "attention_scores":       ("highly parallel",  "Q·K score reduction over per-head dimensions"),
+    "attention_mask_if":      ("partial parallel", "branchy causal mask; still contains an if/loop shape"),
+    "attention_mask_select":  ("highly parallel",  "branchless select-form causal mask"),
+    "attention_softmax":      ("partial parallel", "max-shift softmax over the active sequence row"),
+    "attention_output":       ("highly parallel",  "weighted sum over V cache"),
+    "output_projection":      ("highly parallel",  "attention output projection GEMV"),
+    "residual_add":           ("highly parallel",  "elementwise residual add"),
+    "ffn_rmsnorm":            ("highly parallel",  "FFN RMSNorm; same shape as attention RMSNorm"),
+    "gate_up_projection":     ("highly parallel",  "gate/up FFN projections"),
+    "swiglu":                 ("highly parallel",  "elementwise SiLU(gate) * up"),
+    "down_projection":        ("highly parallel",  "FFN down projection GEMV"),
+    "final_rmsnorm":          ("highly parallel",  "final RMSNorm before logits"),
+    "lm_head_projection":     ("highly parallel",  "lm_head GEMV to logits"),
+    "extended_forward":       ("partial parallel", "one-token, one-layer Llama-style forward fixture combining the raised pieces"),
+}
+
+STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
+    "box3x3":          ("highly parallel", "uniform 3x3 box blur written as a shifted-neighbour stencil"),
+    "gaussian3x3":     ("highly parallel", "separable-looking 3x3 Gaussian coefficient stencil, matched as one generic 9-tap conv"),
+    "sobel_x3x3":      ("highly parallel", "horizontal image-gradient stencil; unit coefficients are recovered by the matcher"),
+    "sobel_y3x3":      ("highly parallel", "vertical image-gradient stencil; same 9 shifted input views as Sobel X"),
+    "laplacian4_3x3":  ("highly parallel", "4-neighbour Laplacian finite-difference stencil embedded in a 3x3 kernel"),
+    "laplacian8_3x3":  ("highly parallel", "8-neighbour Laplacian finite-difference stencil"),
+    "sharpen3x3":      ("highly parallel", "classic image sharpen filter, center-heavy 3x3 stencil"),
+    "emboss3x3":       ("highly parallel", "asymmetric emboss filter; still maps to cross-correlation semantics"),
+    "box5x5":          ("highly parallel", "25-tap box filter; raises cleanly but current matcher only has the 3x3/9-tap template"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -765,6 +893,157 @@ POLYBENCHGPU_RUNTIMES: dict[str, list[dict]] = {
     ],
 }
 
+LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
+    "token_embedding": [
+        {"size": "toy standalone warm", "raised": "host 0.0319 ms<br>device 0.0243 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Jetson Orin, REPEAT=50, first 5 iterations discarded"},
+    ],
+    "attention_rmsnorm": [
+        {"size": "toy standalone warm", "raised": "host 0.0652 ms<br>device 0.0471 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "RMSNorm composition via runtime shim"},
+    ],
+    "qkv_projection": [
+        {"size": "toy standalone warm", "raised": "host 0.0687 ms<br>device 0.0446 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Six emitted launches for split Q/K/V projection fixture"},
+    ],
+    "rope_interleaved": [
+        {"size": "not run", "raised": "not raised", "reference": "not measured",
+         "winner": "n/a", "notes": "Exact interleaved RoPE still leaves loops"},
+    ],
+    "rope_split": [
+        {"size": "toy standalone warm", "raised": "host 0.1486 ms<br>device 0.0969 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Raise-friendly split even/odd RoPE"},
+    ],
+    "kv_cache_rw": [
+        {"size": "toy standalone warm", "raised": "host 0.1244 ms<br>device 0.0908 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "KV write at current position plus cache read fixture"},
+    ],
+    "attention_scores": [
+        {"size": "toy standalone warm", "raised": "host 0.0215 ms<br>device 0.0135 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "QK score reduction over heads/pairs"},
+    ],
+    "attention_mask_if": [
+        {"size": "not run", "raised": "not raised", "reference": "not measured",
+         "winner": "n/a", "notes": "Branchy mask variant still leaves if/loop IR"},
+    ],
+    "attention_mask_select": [
+        {"size": "toy standalone warm", "raised": "host 0.0422 ms<br>device 0.0275 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Branchless causal mask"},
+    ],
+    "attention_softmax": [
+        {"size": "toy standalone warm", "raised": "host 0.0552 ms<br>device 0.0384 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Max-shift softmax composition"},
+    ],
+    "attention_output": [
+        {"size": "toy standalone warm", "raised": "host 0.0208 ms<br>device 0.0128 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Weighted sum over V cache"},
+    ],
+    "output_projection": [
+        {"size": "toy standalone warm", "raised": "host 0.0252 ms<br>device 0.0157 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Attention output projection"},
+    ],
+    "residual_add": [
+        {"size": "toy standalone warm", "raised": "host 0.0440 ms<br>device 0.0361 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Elementwise residual add"},
+    ],
+    "ffn_rmsnorm": [
+        {"size": "toy standalone warm", "raised": "host 0.0652 ms<br>device 0.0465 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Same shape as attention RMSNorm"},
+    ],
+    "gate_up_projection": [
+        {"size": "toy standalone warm", "raised": "host 0.0445 ms<br>device 0.0286 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Gate/up FFN projection fixture"},
+    ],
+    "swiglu": [
+        {"size": "toy standalone warm", "raised": "host 0.0376 ms<br>device 0.0248 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Elementwise SiLU(gate) * up"},
+    ],
+    "down_projection": [
+        {"size": "toy standalone warm", "raised": "host 0.0252 ms<br>device 0.0156 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "FFN down projection"},
+    ],
+    "final_rmsnorm": [
+        {"size": "toy standalone warm", "raised": "host 0.0662 ms<br>device 0.0475 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "Final RMSNorm before logits"},
+    ],
+    "lm_head_projection": [
+        {"size": "toy standalone warm", "raised": "host 0.0246 ms<br>device 0.0156 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "LM head GEMV to logits"},
+    ],
+    "extended_forward": [
+        {"size": "7B-size one layer warm", "raised": "host 13.480 ms<br>device 12.273 ms",
+         "reference": "ggml CUDA host 9.638 ms", "winner": "ggml 1.40x",
+         "notes": "MODEL_DIM=4096, FFN_DIM=11008, VOCAB=32000, SEQ_LEN=2048, HEADS=32; one layer only"},
+        {"size": "toy one layer warm", "raised": "host 0.719 ms<br>device 0.447 ms",
+         "reference": "ggml CUDA host 0.098 ms", "winner": "ggml 7.3x",
+         "notes": "MODEL_DIM=64, FFN_DIM=128, VOCAB=256, SEQ_LEN=32; useful for IR/debugging"},
+    ],
+}
+
+STENCIL_CONV2D_RUNTIMES: dict[str, list[dict]] = {
+    "box3x3": [
+        {"size": "64x64 warm", "raised": "host 0.426 ms<br>device 0.0059 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.41999996"},
+    ],
+    "gaussian3x3": [
+        {"size": "64x64 warm", "raised": "host 0.418 ms<br>device 0.0059 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.42000079"},
+    ],
+    "sobel_x3x3": [
+        {"size": "64x64 warm", "raised": "host 0.425 ms<br>device 0.0059 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -5.88010693"},
+    ],
+    "sobel_y3x3": [
+        {"size": "64x64 warm", "raised": "host 0.423 ms<br>device 0.0059 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum 4.11986542"},
+    ],
+    "laplacian4_3x3": [
+        {"size": "64x64 warm", "raised": "host 0.166 ms<br>device 0.0417 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum 0.00000403"},
+    ],
+    "laplacian8_3x3": [
+        {"size": "64x64 warm", "raised": "host 0.157 ms<br>device 0.0366 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.00000316"},
+    ],
+    "sharpen3x3": [
+        {"size": "64x64 warm", "raised": "host 0.160 ms<br>device 0.0392 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.42001334"},
+    ],
+    "emboss3x3": [
+        {"size": "64x64 warm", "raised": "host 0.162 ms<br>device 0.0399 ms",
+         "reference": "cuDNN 3x3 f32", "winner": "raised-only",
+         "notes": "REPEAT=20, first 5 discarded; checksum -1.74002242"},
+    ],
+    "box5x5": [
+        {"size": "not run", "raised": "not matched", "reference": "cuDNN 5x5 possible",
+         "winner": "n/a", "notes": "Raises to linalg, but needs a 25-tap matcher/lowering entry"},
+    ],
+}
+
 # llama2.c blockers — all three lift to linalg.generic cleanly. RMSNorm,
 # softmax, and the tensor GEMV form now match/lower through runtime ABI paths;
 # the whole tiny-forward fixture currently replaces RMSNorm + GEMV while
@@ -773,6 +1052,41 @@ LLAMA2C_BLOCKERS: dict[str, tuple[str, str]] = {
     "matmul":   ("none", "Tensor GEMV form emits @cublasSgemv / @cublasSgemv_T and lowers to cuBLAS SGEMV; validated in the tiny forward fixture on Jetson."),
     "rmsnorm":  ("none", "2-step composition matches the ss = sum(x²) reduction + weighted-scale generic. Emits @rmsnorm_f32 for memref or @rmsnorm_f32_tensor after debufferize, lowering to polygeist_rmsnorm_f32."),
     "softmax":  ("none", "3-step composition matches max-reduce + fused exp+sum (multi-yield) + parallel divide. Emits @cudnnSoftmaxForward, lowers to polygeist_cudnn_softmax_forward_f32, and runs on Jetson through cudnnSoftmaxForward."),
+}
+
+LLAMA_FORWARD_BLOCKERS: dict[str, tuple[str, str]] = {
+    "token_embedding":        ("none", ""),
+    "attention_rmsnorm":      ("none", ""),
+    "qkv_projection":         ("none", "Raises and matches as split GEMV/copy forms for the standalone fixture."),
+    "rope_interleaved":       ("matcher-gap", "Exact interleaved layout still leaves residual loops; split even/odd RoPE is the currently matched form."),
+    "rope_split":             ("none", ""),
+    "kv_cache_rw":            ("none", ""),
+    "attention_scores":       ("none", ""),
+    "attention_mask_if":      ("matcher-gap", "Branchy if form still leaves residual control flow; branchless select form raises and matches."),
+    "attention_mask_select":  ("none", ""),
+    "attention_softmax":      ("none", ""),
+    "attention_output":       ("none", ""),
+    "output_projection":      ("none", ""),
+    "residual_add":           ("none", ""),
+    "ffn_rmsnorm":            ("none", ""),
+    "gate_up_projection":     ("none", ""),
+    "swiglu":                 ("none", ""),
+    "down_projection":        ("none", ""),
+    "final_rmsnorm":          ("none", ""),
+    "lm_head_projection":     ("none", ""),
+    "extended_forward":       ("none", "Full fixture emits 34 runtime calls after lowering and matches native C logits on Jetson; it uses split RoPE and branchless mask to stay inside today's raising envelope."),
+}
+
+STENCIL_CONV2D_BLOCKERS: dict[str, tuple[str, str]] = {
+    "box3x3":          ("none", ""),
+    "gaussian3x3":     ("none", ""),
+    "sobel_x3x3":      ("none", ""),
+    "sobel_y3x3":      ("none", ""),
+    "laplacian4_3x3":  ("none", ""),
+    "laplacian8_3x3":  ("none", ""),
+    "sharpen3x3":      ("none", ""),
+    "emboss3x3":       ("none", ""),
+    "box5x5":          ("matcher-gap", "Raises to one linalg.generic with no residual loops, but the matcher library has no 25-tap/5x5 convolution template yet."),
 }
 
 # llm.c blockers — wider coverage than llama2.c includes both forward AND
@@ -826,6 +1140,20 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
             return None
         srcname, _fn = info
         p = LLAMA2C_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "llama_forward":
+        info = LLAMA_FORWARD_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = LLAMA_FORWARD_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "stencil_conv2d":
+        info = STENCIL_CONV2D_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = STENCIL_CONV2D_ROOT / srcname
         return p if p.exists() else None
     if kset == "llmc":
         info = LLMC_KERNELS.get(name)
@@ -1196,41 +1524,55 @@ def _fmt_seconds(s: float) -> str:
     return f"{s:.2f} s"
 
 
-def _runtime_cells_for(kernel: str) -> list[str]:
-    """One <td> block per warmed raised-vs-PolyBenchGPU comparison entry.
-    Empty list if no PolyBenchGPU comparison exists for this kernel; the
-    caller emits empty placeholders for all five runtime cells. Each returned
-    string contains five <td>s: case / raised runtime / PolyBenchGPU CUDA /
-    winner / notes. Winner colour is green when the raised pipeline wins,
-    red when handwritten PolyBenchGPU wins, yellow near parity.
+def _runtime_cells_for(kernel: str, runtimes: dict[str, list[dict]] | None) -> list[str]:
+    """One <td> block per runtime entry.
+    Empty list if no runtime comparison exists for this kernel; the caller
+    emits empty placeholders for all five runtime cells. PolyBench entries use
+    raised_ms/pbgpu_ms and get an automatic speed comparison. Other sections
+    can pass preformatted raised/reference/winner strings.
     """
-    entries = POLYBENCHGPU_RUNTIMES.get(kernel, [])
+    entries = (runtimes or {}).get(kernel, [])
     cells_per_row = []
     for e in entries:
         size = e["size"]
-        raised_s = e["raised_ms"] / 1000.0
-        pbgpu_s = e["pbgpu_ms"] / 1000.0
-        raised_speedup = pbgpu_s / raised_s if raised_s > 0 else 0.0
-        if raised_speedup >= 1.10:
-            su_cls = "pass"
-            winner = f'raised {raised_speedup:.2f}&times;'
-        elif raised_speedup >= 0.90:
-            su_cls = "partial"
-            if raised_speedup >= 1.0:
+        if "raised_ms" in e and "pbgpu_ms" in e:
+            raised_s = e["raised_ms"] / 1000.0
+            pbgpu_s = e["pbgpu_ms"] / 1000.0
+            raised_cell = _fmt_seconds(raised_s)
+            reference_cell = _fmt_seconds(pbgpu_s)
+            raised_speedup = pbgpu_s / raised_s if raised_s > 0 else 0.0
+            if raised_speedup >= 1.10:
+                su_cls = "pass"
                 winner = f'raised {raised_speedup:.2f}&times;'
+            elif raised_speedup >= 0.90:
+                su_cls = "partial"
+                if raised_speedup >= 1.0:
+                    winner = f'raised {raised_speedup:.2f}&times;'
+                else:
+                    winner = f'PBGPU {1.0 / raised_speedup:.2f}&times;'
             else:
+                su_cls = "none"
                 winner = f'PBGPU {1.0 / raised_speedup:.2f}&times;'
         else:
-            su_cls = "none"
-            winner = f'PBGPU {1.0 / raised_speedup:.2f}&times;'
+            raised_cell = e.get("raised", "—")
+            reference_cell = e.get("reference", "—")
+            winner = e.get("winner", "—")
+            su_cls = e.get("winner_class")
+            if not su_cls:
+                if winner.startswith("raised"):
+                    su_cls = "pass"
+                elif winner in ("n/a", "—", "raised-only"):
+                    su_cls = "partial"
+                else:
+                    su_cls = "none"
         note = e.get("notes", "") or ""
         note_html = (f'<td style="font-size:11px; color:#555; max-width:340px">'
                      f'{note}</td>' if note else
                      '<td style="font-size:11px"></td>')
         cells_per_row.append(
             f'<td style="font-size:12px"><b>{size}</b></td>'
-            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(raised_s)}</td>'
-            f'<td style="font-size:12px; text-align:right">{_fmt_seconds(pbgpu_s)}</td>'
+            f'<td style="font-size:12px; text-align:right">{raised_cell}</td>'
+            f'<td style="font-size:12px; text-align:right">{reference_cell}</td>'
             f'<td class="{su_cls}" style="font-size:12px; text-align:right">'
             f'{winner}</td>'
             + note_html
@@ -1240,9 +1582,18 @@ def _runtime_cells_for(kernel: str) -> list[str]:
 
 def _render_section_rows(kernel_stats: dict[str, dict],
                           notes: dict[str, tuple[str, str]],
-                          blockers: dict[str, tuple[str, str]]) -> str:
+                          blockers: dict[str, tuple[str, str]],
+                          runtimes: dict[str, list[dict]] | None = None,
+                          display_names: dict[str, str] | None = None,
+                          order: list[str] | None = None) -> str:
     rows = []
-    for k, s in sorted(kernel_stats.items()):
+    if order:
+        ordered = [k for k in order if k in kernel_stats]
+        ordered += sorted(k for k in kernel_stats if k not in set(order))
+    else:
+        ordered = sorted(kernel_stats)
+    for k in ordered:
+        s = kernel_stats[k]
         l = s["launches"]; r = s["residual"]; f = s["residual_for"]
         if l > 0 and r == 0 and f == 0:
             cls = "pass"; status = "FULL"
@@ -1253,9 +1604,11 @@ def _render_section_rows(kernel_stats: dict[str, dict],
         for_cls = "none" if f > 0 else "pass"
 
         if s["ce_url"]:
-            kernel_link = f'<a class="kernel" href="{s["ce_url"]}" target="_blank">{k}</a>'
+            label = (display_names or {}).get(k, k)
+            kernel_link = f'<a class="kernel" href="{s["ce_url"]}" target="_blank">{label}</a>'
         else:
-            kernel_link = f'<span class="nope">{k} (no source)</span>'
+            label = (display_names or {}).get(k, k)
+            kernel_link = f'<span class="nope">{label} (no source)</span>'
 
         note_tag, note_blurb = notes.get(k, ("", ""))
         tag_cls = {
@@ -1297,10 +1650,9 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             f'<td class="{cls}">{status}</td>'
         )
 
-        # Jetson-runtime cells: one <tr> per warmed raised-vs-PolyBenchGPU
-        # comparison when data exists; otherwise one <tr> with five empty
-        # runtime cells (case / raised / PolyBenchGPU / winner / notes).
-        runtime_rows = _runtime_cells_for(k)
+        # Jetson-runtime cells: one <tr> per warmed comparison entry when data
+        # exists; otherwise one <tr> with five empty runtime cells.
+        runtime_rows = _runtime_cells_for(k, runtimes)
         if not runtime_rows:
             runtime_rows = ['<td style="font-size:12px; color:#bbb">—</td>'
                             '<td style="font-size:12px; color:#bbb">—</td>'
@@ -1344,9 +1696,25 @@ def _build_section(title: str, anchor: str, blurb: str,
                     kernel_stats: dict[str, dict],
                     notes: dict[str, tuple[str, str]],
                     blockers: dict[str, tuple[str, str]],
-                    extra_html: str = "") -> str:
+                    extra_html: str = "",
+                    runtimes: dict[str, list[dict]] | None = None,
+                    display_names: dict[str, str] | None = None,
+                    order: list[str] | None = None,
+                    runtime_headers: tuple[str, str, str, str, str] = (
+                        "Jetson<br>case",
+                        "Raised pipeline<br>(rt-gpu)",
+                        "PolyBenchGPU<br>CUDA",
+                        "winner<br>speed",
+                        "notes",
+                    )) -> str:
     """Render one benchmark-suite section: a section header, blurb, then table."""
-    rows_html = _render_section_rows(kernel_stats, notes, blockers)
+    rows_html = _render_section_rows(
+        kernel_stats, notes, blockers,
+        runtimes=runtimes,
+        display_names=display_names,
+        order=order,
+    )
+    case_h, raised_h, reference_h, winner_h, notes_h = runtime_headers
     return (
         f'<a name="{anchor}"></a>'
         f'<div class="section-header"><h2 class="section-title">{title}</h2></div>'
@@ -1361,11 +1729,11 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>parallelism notes</th>'
         '<th>blocker</th>'
         '<th>blocker notes</th>'
-        '<th>Jetson<br>case</th>'
-        '<th>Raised pipeline<br>(rt-gpu)</th>'
-        '<th>PolyBenchGPU<br>CUDA</th>'
-        '<th>winner<br>speed</th>'
-        '<th>notes</th>'
+        f'<th>{case_h}</th>'
+        f'<th>{raised_h}</th>'
+        f'<th>{reference_h}</th>'
+        f'<th>{winner_h}</th>'
+        f'<th>{notes_h}</th>'
         '</tr></thead><tbody>'
         + rows_html +
         '</tbody></table>'
@@ -1421,6 +1789,46 @@ def _llama2c_runtime_summary() -> str:
         'embedding + one layer + final RMSNorm + lm_head 0.955 ms</td>'
         '<td>covers split RoPE and branchless mask; interleaved RoPE and '
         'branchy mask still remain non-raised variants</td>'
+        '</tr>'
+        '</tbody></table>'
+    )
+
+
+def _llama_forward_runtime_summary() -> str:
+    return (
+        '<div class="intro" style="padding-top:0">'
+        '<b>Exact one-token Llama fixture comparison</b>'
+        '</div>'
+        '<table style="margin-top:4px"><thead><tr>'
+        '<th>fixture</th>'
+        '<th>math compared</th>'
+        '<th>ggml CUDA</th>'
+        '<th>raised pipeline</th>'
+        '<th>correctness</th>'
+        '<th>notes</th>'
+        '</tr></thead><tbody>'
+        '<tr>'
+        '<td><b>extended_forward, 7B-size one layer</b></td>'
+        '<td>one token at pos=1024: MODEL_DIM=4096, FFN_DIM=11008, '
+        'VOCAB=32000, SEQ_LEN=2048, HEADS=32</td>'
+        '<td>warm host median 9.638 ms</td>'
+        '<td>warm host median 13.480 ms<br>warm device median 12.273 ms<br>'
+        'cold first iter host 447.317 ms</td>'
+        '<td>first 4 logits match exactly to printed precision; checksum '
+        'diff is about 0.002 over 32000 logits</td>'
+        '<td>Same one-layer f32 fixture and dimensions, not the full 32-layer '
+        'Llama 2 model and not a quantized GGUF path.</td>'
+        '</tr>'
+        '<tr>'
+        '<td><b>extended_forward, toy one layer</b></td>'
+        '<td>one token at pos=16: MODEL_DIM=64, FFN_DIM=128, VOCAB=256, '
+        'SEQ_LEN=32, HEADS=4</td>'
+        '<td>warm host median 0.098 ms<br>cold one-iter 72.725 ms</td>'
+        '<td>warm host median 0.719 ms<br>warm device median 0.447 ms<br>'
+        'cold first iter host 269.634 ms</td>'
+        '<td>ggml CUDA vs native C max diff 8.46e-06</td>'
+        '<td>Kept for fast IR/debug iteration; the 7B-size row is the '
+        'headline size comparison.</td>'
         '</tr>'
         '</tbody></table>'
     )
@@ -2155,7 +2563,8 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 
 
 def build_index(polybench_stats: dict[str, dict],
-                 llama2c_stats: dict[str, dict],
+                 llama_forward_stats: dict[str, dict],
+                 stencil_conv2d_stats: dict[str, dict],
                  llmc_stats: dict[str, dict],
                  darknet_stats: dict[str, dict],
                  ex_darknet_stats: dict[str, dict],
@@ -2201,33 +2610,64 @@ def build_index(polybench_stats: dict[str, dict],
         kernel_stats=polybench_stats,
         notes=KERNEL_NOTES,
         blockers=POLYBENCH_BLOCKERS,
+        runtimes=POLYBENCHGPU_RUNTIMES,
     )
-    llama2c_section = _build_section(
-        title="llama2.c (karpathy/llama2.c)",
-        anchor="llama2c",
+    llama_forward_section = _build_section(
+        title="Llama forward fixtures (raised C benchmarks)",
+        anchor="llama-forward",
         blurb=(
-            "Hot numeric functions from run.c — the building blocks of "
-            "the LLM forward pass: matmul (W·x), rmsnorm (mean-square "
-            "normalize + scale), softmax (max-shift / exp / sum-normalize). "
-            "All three lift to linalg.generic cleanly. <b>rmsnorm, softmax, "
-            "and tensor GEMV now have runtime ABI paths</b> — softmax as a "
-            "3-step composition firing @cudnnSoftmaxForward, rmsnorm as a "
-            "2-step composition firing @rmsnorm_f32 or @rmsnorm_f32_tensor, "
-            "and matmul/GEMV firing @cublasSgemv in the tensor forward "
-            "fixtures. The larger N=1024, H=4096 tensor path now matches "
-            "RMSNorm, zero-fill, SGEMV, and softmax. Warm Jetson device "
-            "timings after first-use setup are: cuDNN RMSNorm ~0.09-0.10 ms, "
-            "cuBLAS SGEMV ~0.53-0.55 ms, and cuDNN softmax ~0.028-0.030 ms. "
-            "For the N=2048, H=32000 logits suffix comparison against "
-            "llama.cpp/ggml CUDA, ggml is 1.494 ms median while the raised "
-            "device-only path is 2.135 ms median; the current host-visible "
-            "raised time is 186.1 ms because the RMSNorm shim rebuilds cuDNN "
-            "backend descriptors/plans and buffers on every call."
+            "Source-level C fixtures in <code>third_party/cnn-extracted</code> "
+            "covering the pieces of a one-token Llama decode step. The rows "
+            "below include the individual kernels used in the op sweep plus "
+            "<code>extended_forward</code>, the fuller one-token, one-layer "
+            "benchmark that combines token embedding, attention RMSNorm, "
+            "Q/K/V projections, split RoPE, KV cache read/write, attention "
+            "scores + softmax, attention value matvec, output projection, "
+            "residuals, FFN RMSNorm, gate/up/down projections, SwiGLU, final "
+            "RMSNorm, and lm_head logits. Each row has a Compiler Explorer "
+            "deep-link and an IR preview for the C benchmark we are raising."
         ),
-        kernel_stats=llama2c_stats,
-        notes=LLAMA2C_NOTES,
-        blockers=LLAMA2C_BLOCKERS,
-        extra_html=_llama2c_runtime_summary(),
+        kernel_stats=llama_forward_stats,
+        notes=LLAMA_FORWARD_NOTES,
+        blockers=LLAMA_FORWARD_BLOCKERS,
+        extra_html=_llama_forward_runtime_summary(),
+        runtimes=LLAMA_FORWARD_RUNTIMES,
+        display_names=LLAMA_FORWARD_DISPLAY_NAMES,
+        order=LLAMA_FORWARD_ORDER,
+        runtime_headers=(
+            "Jetson<br>case",
+            "Raised pipeline<br>(rt-gpu)",
+            "Reference<br>CUDA",
+            "comparison",
+            "notes",
+        ),
+    )
+    stencil_conv2d_section = _build_section(
+        title="Stencil Conv2D fixtures (cuDNN 3x3 targets)",
+        anchor="stencil-conv2d",
+        blurb=(
+            "Image-processing and finite-difference stencil fixtures written "
+            "as plain C neighbourhood expressions. The eight 3x3 variants "
+            "raise to one loop-free linalg.generic and match the generic "
+            "<code>@cudnnConvolution2D_9tap_f32</code> path with surfaced "
+            "coefficients. The 5x5 box filter is included as the next "
+            "matcher-extension target: it raises cleanly, but today has no "
+            "25-tap library entry. Each row links to Compiler Explorer and "
+            "an IR preview for the raised C fixture."
+        ),
+        kernel_stats=stencil_conv2d_stats,
+        notes=STENCIL_CONV2D_NOTES,
+        blockers=STENCIL_CONV2D_BLOCKERS,
+        runtimes=STENCIL_CONV2D_RUNTIMES,
+        display_names=STENCIL_CONV2D_DISPLAY_NAMES,
+        order=STENCIL_CONV2D_ORDER,
+        runtime_headers=(
+            "Jetson<br>case",
+            "Raised pipeline<br>(cuDNN)",
+            "Target<br>library",
+            "comparison",
+            "notes",
+        ),
     )
     llmc_section = _build_section(
         title="llm.c (karpathy/llm.c — GPT-2 in C, forward + backward)",
@@ -2236,8 +2676,8 @@ def build_index(polybench_stats: dict[str, dict],
             "15 leaf kernels from train_gpt2.c — the full GPT-2 building "
             "blocks for both inference and training: encoder, layernorm, "
             "matmul, attention, gelu, residual, softmax, crossentropy "
-            "(forward + backward where it applies). Direct continuation of "
-            "llama2.c — same author, wider coverage. Stresses the pipeline "
+            "(forward + backward where it applies). This is a related C LLM "
+            "suite with wider coverage. It stresses the pipeline "
             "in new ways: indirect-index lookups (encoder), math.h ext-call "
             "bodies (gelu/crossentropy via tanhf/logf), full scaled-dot "
             "attention (4 fused generics including softmax-shaped reductions), "
@@ -2301,7 +2741,8 @@ def build_index(polybench_stats: dict[str, dict],
         '  Jump to: '
         '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
         '  <a href="#polybench">PolyBench</a> &middot; '
-        '  <a href="#llama2c">llama2.c</a> &middot; '
+        '  <a href="#llama-forward">Llama forward fixtures</a> &middot; '
+        '  <a href="#stencil-conv2d">Stencil Conv2D</a> &middot; '
         '  <a href="#llmc">llm.c</a> &middot; '
         '  <a href="#darknet">darknet</a> &middot; '
         '  <a href="#extracted-darknet">extracted darknet</a> &middot; '
@@ -2310,7 +2751,8 @@ def build_index(polybench_stats: dict[str, dict],
         '</div></div>'
         + _build_taxonomy_panel()
         + polybench_section
-        + llama2c_section
+        + llama_forward_section
+        + stencil_conv2d_section
         + llmc_section
         + darknet_section
         + _extracted_darknet_section(ex_darknet_stats)
@@ -2329,6 +2771,8 @@ def build_index(polybench_stats: dict[str, dict],
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    for stale in OUTPUT_DIR.glob("llama_*.html"):
+        stale.unlink()
 
     # PolyBench set.
     pb_kernels = discover_kernels(MLIR_DIR)
@@ -2339,23 +2783,53 @@ def main():
         pb_stats[k] = build_kernel_page(k, mlir_dir=MLIR_DIR,
                                          kset="polybench", file_prefix="")
 
-    # llama2.c set.
-    llama_kernels_from_files = discover_kernels(LLAMA2C_MLIR_DIR)
-    llama_kernels = sorted(set(llama_kernels_from_files) | set(LLAMA2C_KERNELS.keys()))
-    print(f"Rendering {len(llama_kernels)} llama2.c kernels...", flush=True)
-    llama_stats = {}
-    for i, k in enumerate(llama_kernels, 1):
-        print(f"  [LLAMA {i:2d}/{len(llama_kernels)}] {k}", flush=True)
-        has_any = any((LLAMA2C_MLIR_DIR / f"{k}{suf}").exists()
+    # Llama forward fixtures extracted as C benchmarks.
+    llama_forward_kernels_from_files = discover_kernels(LLAMA_FORWARD_MLIR_DIR)
+    llama_forward_kernel_set = (
+        set(llama_forward_kernels_from_files) | set(LLAMA_FORWARD_KERNELS.keys())
+    )
+    llama_forward_kernels = [
+        k for k in LLAMA_FORWARD_ORDER if k in llama_forward_kernel_set
+    ]
+    llama_forward_kernels += sorted(
+        k for k in llama_forward_kernel_set if k not in set(LLAMA_FORWARD_ORDER)
+    )
+    print(f"Rendering {len(llama_forward_kernels)} Llama forward fixture kernels...", flush=True)
+    llama_forward_stats = {}
+    for i, k in enumerate(llama_forward_kernels, 1):
+        print(f"  [LLAMA-FWD {i:2d}/{len(llama_forward_kernels)}] {k}", flush=True)
+        has_any = any((LLAMA_FORWARD_MLIR_DIR / f"{k}{suf}").exists()
                       for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
                                    "_debuf_mr.mlir"))
         if not has_any:
-            llama_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
-                               "ce_url": None, "page_filename": ""}
+            llama_forward_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                                      "ce_url": None, "page_filename": ""}
             continue
-        llama_stats[k] = build_kernel_page(
-            k, mlir_dir=LLAMA2C_MLIR_DIR, kset="llama2c",
-            file_prefix="llama_",
+        llama_forward_stats[k] = build_kernel_page(
+            k, mlir_dir=LLAMA_FORWARD_MLIR_DIR, kset="llama_forward",
+            file_prefix="llamafwd_",
+        )
+
+    # Non-DL stencil fixtures that map to cuDNN 3x3 convolution.
+    # This directory also contains scratch artifacts produced by the local
+    # smoke tests (`*_matched.mlir`, `*_lowered.mlir`). Keep the website to
+    # the explicit fixture list so those files do not become bogus rows.
+    stencil_conv2d_kernels = list(STENCIL_CONV2D_ORDER)
+    print(f"Rendering {len(stencil_conv2d_kernels)} stencil Conv2D kernels...", flush=True)
+    stencil_conv2d_stats = {}
+    for i, k in enumerate(stencil_conv2d_kernels, 1):
+        print(f"  [STENCIL-CONV2D {i:2d}/{len(stencil_conv2d_kernels)}] {k}", flush=True)
+        has_any = any((STENCIL_CONV2D_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            stencil_conv2d_stats[k] = {"launches": 0, "residual": 0,
+                                       "residual_for": 0, "ce_url": None,
+                                       "page_filename": ""}
+            continue
+        stencil_conv2d_stats[k] = build_kernel_page(
+            k, mlir_dir=STENCIL_CONV2D_MLIR_DIR, kset="stencil_conv2d",
+            file_prefix="stencilconv_",
         )
 
     # llm.c set.
@@ -2440,8 +2914,8 @@ def main():
         )
 
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, llama_stats, llmc_stats, darknet_stats,
-                    ex_darknet_stats, fopt_stats))
+        build_index(pb_stats, llama_forward_stats, stencil_conv2d_stats,
+                    llmc_stats, darknet_stats, ex_darknet_stats, fopt_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 

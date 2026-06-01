@@ -77,6 +77,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_sgemm";
   if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
   if (libSym == "memset_zero_2D") return "polygeist_cublas_memset_zero_2d";
+  if (libSym == "memset_zero_2D_f32")
+    return "polygeist_cublas_memset_zero_2d_f32";
   if (libSym == "memset_zero_1D") return "polygeist_cublas_memset_zero_1d";
   if (libSym == "memset_zero_1D_f32")
     return "polygeist_cublas_memset_zero_1d_f32";
@@ -2357,6 +2359,7 @@ struct LowerKernelLaunchToCuBLASPass
         if (auto memsetLaunch = dyn_cast<LaunchOp>(def)) {
           auto msym = memsetLaunch->getAttrOfType<SymbolRefAttr>("kernel");
           if (msym && (msym.getLeafReference().getValue() == "memset_zero_2D" ||
+                       msym.getLeafReference().getValue() == "memset_zero_2D_f32" ||
                        msym.getLeafReference().getValue() == "memset_zero_1D")) {
             // Replace memset result uses with its first operand (the
             // pre-init tensor). cublasSsyrk writes with β=0 anyway, so
@@ -2429,7 +2432,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDaxpyUnit(launch, module);
       } else if (libSym == "cublasDger_rank2") {
         r = lowerDgerRank2(launch, module);
-      } else if (libSym == "memset_zero_2D") {
+      } else if (libSym == "memset_zero_2D" ||
+                 libSym == "memset_zero_2D_f32") {
         r = lowerMemsetZero2D(launch, module);
       } else if (libSym == "memset_zero_1D" ||
                  libSym == "memset_zero_1D_f32") {

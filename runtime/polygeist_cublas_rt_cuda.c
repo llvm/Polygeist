@@ -714,6 +714,7 @@ void polygeist_cudnn_conv2d_3x3_f64(
     double w3, double w4, double w5,
     double w6, double w7, double w8,
     const double *A, double *B) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   polygeist_cublas_init();
   ensure_cudnn();
 
@@ -775,9 +776,11 @@ void polygeist_cudnn_conv2d_3x3_f64(
 
   // Run
   double alpha = 1.0, beta = 0.0;
+  timing_gpu_begin();
   CUDNN_CHECK(cudnnConvolutionForward(
       g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
       algo_perf.algo, dWS, ws_size, &beta, out_desc, dB));
+  timing_gpu_end("cudnnConvolution2D_9tap_f64", M, N, 9, host_start_ms);
 
   // The output (M-2)×(N-2) needs to be copied back into the *interior* of
   // B (i.e. B[1..M-2][1..N-2]) — that's what polybench's kernel writes to.
@@ -821,6 +824,7 @@ void polygeist_cudnn_conv2d_3x3_f32(
     float w3, float w4, float w5,
     float w6, float w7, float w8,
     const float *A, float *B) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   polygeist_cublas_init();
   ensure_cudnn();
 
@@ -870,9 +874,11 @@ void polygeist_cudnn_conv2d_3x3_f32(
   if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
 
   float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
   CUDNN_CHECK(cudnnConvolutionForward(
       g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
       algo_perf.algo, dWS, ws_size, &beta, out_desc, dB));
+  timing_gpu_end("cudnnConvolution2D_9tap_f32", M, N, 9, host_start_ms);
 
   for (int32_t i = 0; i < M - 2; ++i) {
     CUDA_CHECK(cudaMemcpyAsync(
