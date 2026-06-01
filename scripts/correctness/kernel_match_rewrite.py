@@ -175,6 +175,15 @@ def _extract_guarded_im2col_input(body_lines: list[str]) -> tuple[str, str] | No
     return m.group(1), m.group(2)
 
 
+def _extract_cmpi_rhs_i32(body_lines: list[str]) -> str | None:
+    """Find the RHS scalar in a linalg-index comparison like `i > %pos`."""
+    for line in body_lines:
+        m = re.search(r'arith\.cmpi\s+\w+,\s+%[\w_\-]+,\s+(%[\w_\-]+)\s*:', line)
+        if m:
+            return m.group(1)
+    return None
+
+
 def collect_generics_with_spans(text: str) -> list[LinalgInstance]:
     """Return every linalg.generic in `text`, in source order, with span."""
     out: list[LinalgInstance] = []
@@ -638,6 +647,13 @@ def rewrite_mlir(
                 inside = in0_ty[len("tensor<"):].split(",", 1)[0]
                 if "x" not in inside:
                     emit_name = "broadcast_scalar_to_vec_tensor"
+            elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else None
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            if elem == "f32" and len(ranks) == 2 and ranks[0] == ranks[1]:
+                if ranks[0] == 1:
+                    emit_name = "cudaCopy1D_f32_tensor"
+                elif ranks[0] == 2:
+                    emit_name = "cudaCopy2D_f32_tensor"
 
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one
@@ -744,6 +760,68 @@ def rewrite_mlir(
                     span=last.span,
                     indent=last.indent,
                 )
+
+        if entry.name == "cudnnSoftmaxForwardOut_tensor":
+            # Standalone attention softmax is out-of-place: step1 reads the
+            # scores tensor and writes the exp-shifted values into `out`.
+            vector_inst = instances[i + 1]
+            score_names = _extract_ssa_names(vector_inst.ins_part)
+            score_types = _extract_ssa_types(vector_inst.ins_part)
+            out_names = _extract_ssa_names(vector_inst.outs_part)
+            out_types = _extract_ssa_types(vector_inst.outs_part)
+            if (len(score_names) < 1 or len(out_names) < 1 or
+                    not score_types or not out_types or
+                    _sniff_elem_type(score_types[0]) != "f32" or
+                    _sniff_elem_type(out_types[0]) != "f32"):
+                report.append(("softmax_out_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [score_names[0], out_names[0]]
+            operand_types = [score_types[0], out_types[0]]
+            binds = {}
+            replace_full_span = True
+
+        if entry.name == "cudaMaskSelect_f32_tensor":
+            pos = _extract_cmpi_rhs_i32(bodies[i].body_lines)
+            if not pos:
+                report.append(("mask_select_reject", i, entry.name))
+                i += 1
+                continue
+            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            if elems != ["f32", "f32"] or ranks != [1, 1]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+            operands = operands + [pos]
+            operand_types = operand_types + [scalar_types.get(pos, "i32")]
+            binds = {}
+
+        if entry.name in ("cudaAdd_f32_tensor", "cudaSwiGLU_f32_tensor"):
+            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
+            ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            if elems != ["f32", "f32", "f32"] or ranks != [1, 1, 1]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+
+        if entry.name in ("cudaRopeMulMulSub_f32_tensor",
+                          "cudaRopeMulMulAdd_f32_tensor"):
+            # Preserve the linalg operand order. The generic rank-sort above is
+            # valid for commutative BLAS templates, but RoPE semantics depend
+            # on [2D, 1D, 2D, 1D, out] ordering.
+            in_names = _extract_ssa_names(instances[i].ins_part)
+            in_types = _extract_ssa_types(instances[i].ins_part)
+            out_names = _extract_ssa_names(instances[i].outs_part)
+            out_types = _extract_ssa_types(instances[i].outs_part)
+            operands = in_names + out_names
+            operand_types = in_types + out_types
+            elems = [_sniff_elem_type(t) for t in operand_types[:5]]
+            ranks = [_tensor_rank(t) for t in operand_types[:5]]
+            if (elems != ["f32"] * 5 or ranks != [2, 1, 2, 1, 2]):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
 
         if entry.name == "elemwise_div_scalar":
             # This template is useful for algebraic recognition, but the ABI

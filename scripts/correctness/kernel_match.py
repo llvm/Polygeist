@@ -481,6 +481,7 @@ _OP_PATTERNS = {
     "arith.addf": "add",
     "arith.subf": "sub",
     "arith.divf": "div",
+    "arith.negf": "neg",
     # Integer counterparts. The encoder collapses int and float arith into
     # the same algebraic Term (mul/add/sub/div) so one library template
     # matches both dtypes. The dtype-suffix dispatch in the rewriter picks
@@ -583,6 +584,8 @@ def encode_body(g: GenericBody) -> Term:
             env[result] = resolve(arg_toks[0]) + resolve(arg_toks[1])
         elif op_key == "sub":
             env[result] = resolve(arg_toks[0]) - resolve(arg_toks[1])
+        elif op_key == "neg":
+            env[result] = Term.Lit(0.0) - resolve(arg_toks[0])
         elif op_key == "div":
             env[result] = resolve(arg_toks[0]) / resolve(arg_toks[1])
         elif op_key == "sqrt":
@@ -681,6 +684,8 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
             env[result] = resolve(arg_toks[0]) + resolve(arg_toks[1])
         elif op_key == "sub":
             env[result] = resolve(arg_toks[0]) - resolve(arg_toks[1])
+        elif op_key == "neg":
+            env[result] = Term.Lit(0.0) - resolve(arg_toks[0])
         elif op_key == "div":
             env[result] = resolve(arg_toks[0]) / resolve(arg_toks[1])
         elif op_key == "sqrt":
@@ -1564,6 +1569,47 @@ def _softmax_3step_tensor() -> CompositionEntry:
     )
 
 
+def _softmax_3step_out_tensor() -> CompositionEntry:
+    """Out-of-place 1D softmax:
+
+        max = reduce_max(scores)
+        out[i] = exp(scores[i] - max); sum += out[i]
+        out[i] /= sum
+
+    This is the standalone attention-softmax fixture shape. The CUDA lowering
+    copies scores to out and routes the normalized row through cuDNN softmax.
+    """
+    step0 = CompositionStep(
+        body=Term.Select(
+            Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+            Term.In(0),
+            Term.Out(0),
+        ),
+        num_ins=1, num_outs=1,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    exp_intermediate = Term.Exp(Term.In(0) - T_cap("%max"))
+    step1 = CompositionStep(
+        body=exp_intermediate,
+        body_per_yield=[
+            exp_intermediate,
+            Term.Out(1) + exp_intermediate,
+        ],
+        num_ins=1, num_outs=2,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    step2 = CompositionStep(
+        body=Term.Out(0) / T_cap("%sum"),
+        num_ins=0, num_outs=1,
+        reduction_dim_count=0, parallel_dim_count=1,
+    )
+    return CompositionEntry(
+        name="cudnnSoftmaxForwardOut_tensor",
+        steps=[step0, step1, step2],
+        form="tensor",
+    )
+
+
 def _rmsnorm_2step() -> CompositionEntry:
     """RMSNorm — 1D root-mean-square normalize + per-element weighted scale.
 
@@ -1606,6 +1652,71 @@ def _rmsnorm_2step() -> CompositionEntry:
         name="rmsnorm_f32",
         steps=[step0, step1],
         form="any",
+    )
+
+
+def _llama_add_f32_tensor() -> CompositionEntry:
+    """out = in0 + in1 — residual add in standalone Llama fixtures."""
+    return CompositionEntry(
+        name="cudaAdd_f32_tensor",
+        steps=[CompositionStep(body=Term.In(0) + Term.In(1),
+                                num_ins=2, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _llama_mask_select_f32_tensor() -> CompositionEntry:
+    """Branchless causal mask fixture:
+
+        drop = (i > pos)
+        out = (1 - drop) * scores + drop * NEG_INF
+
+    The `%mask` cap is produced from linalg.index inside the linalg body; the
+    rewriter special-cases this symbol and surfaces the real `%pos` operand.
+    """
+    drop = T_cap("%mask")
+    body = (Term.Lit(1.0) - drop) * Term.In(0) + \
+           drop * Term.Lit(-3.40282347e38)
+    return CompositionEntry(
+        name="cudaMaskSelect_f32_tensor",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _llama_swiglu_f32_tensor() -> CompositionEntry:
+    """out = (gate / (1 + exp(-gate))) * up."""
+    gate = Term.In(0)
+    body = (gate / (Term.Exp(Term.Lit(0.0) - gate) + Term.Lit(1.0))) * Term.In(1)
+    return CompositionEntry(
+        name="cudaSwiGLU_f32_tensor",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _llama_rope_mulmul_sub_f32_tensor() -> CompositionEntry:
+    """RoPE split even output: out[h,p] = a[h,p] * b[p] - c[h,p] * d[p]."""
+    body = Term.In(0) * Term.In(1) - Term.In(2) * Term.In(3)
+    return CompositionEntry(
+        name="cudaRopeMulMulSub_f32_tensor",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _llama_rope_mulmul_add_f32_tensor() -> CompositionEntry:
+    """RoPE split odd output: out[h,p] = a[h,p] * b[p] + c[h,p] * d[p]."""
+    body = Term.In(0) * Term.In(1) + Term.In(2) * Term.In(3)
+    return CompositionEntry(
+        name="cudaRopeMulMulAdd_f32_tensor",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
     )
 
 
@@ -1878,6 +1989,7 @@ def composition_library() -> list[CompositionEntry]:
         # Stencils (Bucket 2).
         _softmax_3step(),       # 3-step composition, max + exp+sum (multi-yield) + div.
         _softmax_3step_tensor(),
+        _softmax_3step_out_tensor(),
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.
@@ -1909,6 +2021,11 @@ def composition_library() -> list[CompositionEntry]:
         _copy_input_tensor(),
 
         # 1-step BLAS, no α.
+        _llama_rope_mulmul_sub_f32_tensor(),
+        _llama_rope_mulmul_add_f32_tensor(),
+        _llama_swiglu_f32_tensor(),
+        _llama_mask_select_f32_tensor(),
+        _llama_add_f32_tensor(),
         _gemv_accumulate(),
         _gemm_no_alpha(),
         _sgemm_broadcast3d_memref(),

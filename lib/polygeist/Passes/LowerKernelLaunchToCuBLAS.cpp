@@ -129,6 +129,20 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_softmax_forward_f32";
   if (libSym == "cudnnSoftmaxForward_tensor")
     return "polygeist_cudnn_softmax_forward_f32";
+  if (libSym == "cudnnSoftmaxForwardOut_tensor")
+    return "polygeist_cudnn_softmax_forward_out_f32";
+  if (libSym == "cudaCopy1D_f32_tensor" ||
+      libSym == "cudaCopy2D_f32_tensor")
+    return "polygeist_cuda_copy_f32";
+  if (libSym == "cudaAdd_f32_tensor")
+    return "polygeist_cuda_add_f32";
+  if (libSym == "cudaMaskSelect_f32_tensor")
+    return "polygeist_cuda_mask_select_f32";
+  if (libSym == "cudaSwiGLU_f32_tensor")
+    return "polygeist_cuda_swiglu_f32";
+  if (libSym == "cudaRopeMulMulSub_f32_tensor" ||
+      libSym == "cudaRopeMulMulAdd_f32_tensor")
+    return "polygeist_cuda_rope_mulmul_f32";
   if (libSym == "cublasLtMatmulBiasReluFused")
     return "polygeist_cublaslt_matmul_bias_relu";
   if (libSym == "cublasDsyrk_alias")
@@ -156,6 +170,55 @@ static Value memrefDimAsI32(OpBuilder &b, Location loc, Value m, int64_t axis) {
   Value idx = b.create<arith::ConstantIndexOp>(loc, axis);
   Value dimIdx = b.create<memref::DimOp>(loc, m, idx);
   return b.create<arith::IndexCastOp>(loc, b.getI32Type(), dimIdx);
+}
+
+static Value memrefNumElementsAsI32(OpBuilder &b, Location loc, Value m) {
+  auto mrType = cast<MemRefType>(m.getType());
+  Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
+                                            b.getI32IntegerAttr(1));
+  for (int64_t axis = 0; axis < mrType.getRank(); ++axis)
+    total = b.create<arith::MulIOp>(loc, total,
+                                    memrefDimAsI32(b, loc, m, axis));
+  return total;
+}
+
+static Value valueAsI32(OpBuilder &b, Location loc, Value v);
+
+static Value integerLikeAsI64(OpBuilder &b, Location loc, Value v) {
+  if (v.getType().isIndex()) {
+    if (auto cast = v.getDefiningOp<arith::IndexCastOp>()) {
+      Value src = cast.getIn();
+      if (isa<IntegerType>(src.getType()))
+        return integerLikeAsI64(b, loc, src);
+    }
+    return b.create<arith::IndexCastOp>(loc, b.getI64Type(), v);
+  }
+  if (v.getType().isInteger(64))
+    return v;
+  if (auto intTy = dyn_cast<IntegerType>(v.getType())) {
+    if (intTy.getWidth() > 64)
+      return b.create<arith::TruncIOp>(loc, b.getI64Type(), v);
+    return b.create<arith::ExtSIOp>(loc, b.getI64Type(), v);
+  }
+  return v;
+}
+
+static Value opFoldResultAsI64(OpBuilder &b, Location loc, OpFoldResult ofr) {
+  if (auto attr = ofr.dyn_cast<Attribute>()) {
+    int64_t v = cast<IntegerAttr>(attr).getInt();
+    return b.create<arith::ConstantOp>(loc, b.getI64Type(),
+                                       b.getI64IntegerAttr(v));
+  }
+  return integerLikeAsI64(b, loc, cast<Value>(ofr));
+}
+
+static Value opFoldResultAsI32(OpBuilder &b, Location loc, OpFoldResult ofr) {
+  if (auto attr = ofr.dyn_cast<Attribute>()) {
+    int64_t v = cast<IntegerAttr>(attr).getInt();
+    return b.create<arith::ConstantOp>(loc, b.getI32Type(),
+                                       b.getI32IntegerAttr((int32_t)v));
+  }
+  return valueAsI32(b, loc, cast<Value>(ofr));
 }
 
 static Value valueAsI32(OpBuilder &b, Location loc, Value v) {
@@ -194,6 +257,115 @@ static ShapedType getRankedShapedType(Value v) {
   return ShapedType();
 }
 
+static Value stripTensorCasts(Value v) {
+  for (int hops = 0; hops < 8; ++hops) {
+    if (auto cast = v.getDefiningOp<tensor::CastOp>()) {
+      v = cast.getSource();
+      continue;
+    }
+    break;
+  }
+  return v;
+}
+
+static bufferization::ToTensorOp sourceToTensorOp(Value tensorValue) {
+  Value v = stripTensorCasts(tensorValue);
+  if (auto toTensor = v.getDefiningOp<bufferization::ToTensorOp>())
+    return toTensor;
+  return nullptr;
+}
+
+static Value sliceSourceMemref(Value tensorValue) {
+  Value v = stripTensorCasts(tensorValue);
+  auto slice = v.getDefiningOp<tensor::ExtractSliceOp>();
+  if (!slice) return Value();
+  auto toTensor = sourceToTensorOp(slice.getSource());
+  if (!toTensor) return Value();
+  return toTensor.getMemref();
+}
+
+static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v);
+
+static Value pointerForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
+  Value stripped = stripTensorCasts(v);
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    if (auto toTensor = sourceToTensorOp(slice.getSource())) {
+      Value base = toTensor.getMemref();
+      auto baseTy = cast<MemRefType>(base.getType());
+      Value alignedIdx =
+          b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, base);
+      Value alignedI64 = b.create<arith::IndexCastOp>(
+          loc, b.getI64Type(), alignedIdx);
+      auto md = b.create<memref::ExtractStridedMetadataOp>(loc, base);
+      Value linear = integerLikeAsI64(b, loc, md.getOffset());
+      auto offsets = slice.getMixedOffsets();
+      for (int64_t i = 0, e = offsets.size(); i < e; ++i) {
+        Value off = opFoldResultAsI64(b, loc, offsets[i]);
+        Value stride = integerLikeAsI64(b, loc, md.getStrides()[i]);
+        Value scaled = b.create<arith::MulIOp>(loc, off, stride);
+        linear = b.create<arith::AddIOp>(loc, linear, scaled);
+      }
+      unsigned bits = baseTy.getElementType().getIntOrFloatBitWidth();
+      Value eltBytes = b.create<arith::ConstantOp>(
+          loc, b.getI64Type(), b.getI64IntegerAttr(bits / 8));
+      Value byteOff = b.create<arith::MulIOp>(loc, linear, eltBytes);
+      Value byteAddr = b.create<arith::AddIOp>(loc, alignedI64, byteOff);
+      auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+      return b.create<LLVM::IntToPtrOp>(loc, ptrTy, byteAddr);
+    }
+  }
+
+  Value mr = valueToMemrefPreservingSlice(b, loc, v);
+  return memrefBasePtr(b, loc, mr);
+}
+
+static Value numElementsForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
+  Value stripped = stripTensorCasts(v);
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
+                                              b.getI32IntegerAttr(1));
+    for (OpFoldResult size : slice.getMixedSizes())
+      total = b.create<arith::MulIOp>(loc, total,
+                                      opFoldResultAsI32(b, loc, size));
+    return total;
+  }
+  Value mr = valueToMemrefPreservingSlice(b, loc, v);
+  return memrefNumElementsAsI32(b, loc, mr);
+}
+
+static Value dimForTensorOrMemrefAsI32(OpBuilder &b, Location loc, Value v,
+                                       int64_t axis) {
+  Value stripped = stripTensorCasts(v);
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    if ((int64_t)slice.getType().getRank() == (int64_t)slice.getMixedSizes().size())
+      return opFoldResultAsI32(b, loc, slice.getMixedSizes()[axis]);
+  }
+  Value mr = valueToMemrefPreservingSlice(b, loc, v);
+  return memrefDimAsI32(b, loc, mr, axis);
+}
+
+// Bufferize a tensor value, preserving extract_slice views as memref.subview.
+// This avoids handing dynamic tensor.extract_slice / tensor.insert_slice to
+// one-shot-bufferize after the launch has already been lowered to a call.
+static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v) {
+  Value stripped = stripTensorCasts(v);
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    if (auto toTensor = sourceToTensorOp(slice.getSource())) {
+      auto srcType = cast<MemRefType>(toTensor.getMemref().getType());
+      auto resultType = cast<MemRefType>(
+          memref::SubViewOp::inferRankReducedResultType(
+              slice.getType().getShape(), srcType, slice.getMixedOffsets(),
+              slice.getMixedSizes(), slice.getMixedStrides()));
+      return b.create<memref::SubViewOp>(
+          loc, resultType, toTensor.getMemref(), slice.getMixedOffsets(),
+          slice.getMixedSizes(), slice.getMixedStrides());
+    }
+  }
+  if (isa<MemRefType>(v.getType()))
+    return v;
+  return tensorToMemref(b, loc, v);
+}
+
 // Inverse of the above — wrap a memref back into a tensor for downstream
 // SSA uses. The `restrict` + `writable` attributes promise this is the
 // only alias of the memref, which is true for fresh launch results.
@@ -201,6 +373,38 @@ static Value memrefToTensor(OpBuilder &b, Location loc, Value m, Type tensorType
   auto t = b.create<bufferization::ToTensorOp>(
       loc, tensorType, m, /*restrict=*/true, /*writable=*/true);
   return t.getResult();
+}
+
+static Value tensorForSliceSource(OpBuilder &b, Location loc, Value tensorValue) {
+  Value v = stripTensorCasts(tensorValue);
+  auto slice = v.getDefiningOp<tensor::ExtractSliceOp>();
+  if (!slice) return Value();
+  Value src = stripTensorCasts(slice.getSource());
+  auto srcTy = dyn_cast<RankedTensorType>(src.getType());
+  Value srcMr = sliceSourceMemref(v);
+  if (!srcTy || !srcMr) return Value();
+  return memrefToTensor(b, loc, srcMr, srcTy);
+}
+
+static void rewireTensorSliceLaunchResult(LaunchOp launch,
+                                          Value updatedViewTensor,
+                                          Value updatedBaseTensor) {
+  if (launch.getNumResults() == 0) return;
+  Value res = launch.getResult(0);
+  SmallVector<tensor::InsertSliceOp> inserts;
+  if (updatedBaseTensor) {
+    for (Operation *user : res.getUsers()) {
+      if (auto insert = dyn_cast<tensor::InsertSliceOp>(user))
+        if (insert.getSource() == res)
+          inserts.push_back(insert);
+    }
+  }
+  for (auto insert : inserts) {
+    insert.getResult().replaceAllUsesWith(updatedBaseTensor);
+    insert.erase();
+  }
+  if (!res.use_empty() && updatedViewTensor)
+    res.replaceAllUsesWith(updatedViewTensor);
 }
 
 // Walk a SSA value back through `polygeist.submap` / `polygeist.submapInverse`
@@ -1649,6 +1853,257 @@ static LogicalResult lowerCudnnSoftmaxForwardF32(LaunchOp launch,
   return success();
 }
 
+static LogicalResult lowerCudnnSoftmaxForwardOutF32(LaunchOp launch,
+                                                     ModuleOp module) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError(
+        "cudnnSoftmaxForwardOut: expected 2 operands (scores, out)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudnnSoftmaxForwardOut: expected one result");
+
+  Value scores = launch.getOperand(0);
+  Value out = launch.getOperand(1);
+  auto sTy = dyn_cast<RankedTensorType>(scores.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!sTy || !oTy || sTy.getRank() != 1 || oTy.getRank() != 1 ||
+      !sTy.getElementType().isF32() || !oTy.getElementType().isF32())
+    return launch.emitError(
+        "cudnnSoftmaxForwardOut: scores/out must be 1D f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value sMr = valueToMemrefPreservingSlice(b, loc, scores);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, sMr, 0);
+  Value sPtr = memrefBasePtr(b, loc, sMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_softmax_forward_out_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, sPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudaCopyF32(LaunchOp launch, ModuleOp module,
+                                      int expectedRank) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError("cudaCopy_f32: expected 2 operands");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudaCopy_f32: expected one result");
+
+  Value src = launch.getOperand(0);
+  Value out = launch.getOperand(1);
+  auto sTy = dyn_cast<RankedTensorType>(src.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!sTy || !oTy || sTy.getRank() != expectedRank ||
+      oTy.getRank() != expectedRank || !sTy.getElementType().isF32() ||
+      !oTy.getElementType().isF32())
+    return launch.emitError("cudaCopy_f32: operands must be rank-")
+           << expectedRank << " f32 tensors";
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value N = numElementsForTensorOrMemref(b, loc, src);
+  Value sPtr = pointerForTensorOrMemref(b, loc, src);
+  Value oPtr = pointerForTensorOrMemref(b, loc, out);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_copy_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, sPtr, oPtr});
+
+  Value updatedBase = tensorForSliceSource(b, loc, out);
+  Value updated = updatedBase ? Value()
+      : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
+                       launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudaAddF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError("cudaAdd_f32: expected 3 operands");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudaAdd_f32: expected one result");
+
+  Value x = launch.getOperand(0);
+  Value y = launch.getOperand(1);
+  Value out = launch.getOperand(2);
+  auto xTy = dyn_cast<RankedTensorType>(x.getType());
+  auto yTy = dyn_cast<RankedTensorType>(y.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!xTy || !yTy || !oTy || xTy.getRank() != 1 || yTy.getRank() != 1 ||
+      oTy.getRank() != 1 || !xTy.getElementType().isF32() ||
+      !yTy.getElementType().isF32() || !oTy.getElementType().isF32())
+    return launch.emitError("cudaAdd_f32: operands must be 1D f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemrefPreservingSlice(b, loc, x);
+  Value yMr = valueToMemrefPreservingSlice(b, loc, y);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, oMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value yPtr = memrefBasePtr(b, loc, yMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_add_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, yPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudaMaskSelectF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError(
+        "cudaMaskSelect_f32: expected 3 operands (scores, out, pos)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudaMaskSelect_f32: expected one result");
+
+  Value scores = launch.getOperand(0);
+  Value out = launch.getOperand(1);
+  Value pos = launch.getOperand(2);
+  auto sTy = dyn_cast<RankedTensorType>(scores.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!sTy || !oTy || sTy.getRank() != 1 || oTy.getRank() != 1 ||
+      !sTy.getElementType().isF32() || !oTy.getElementType().isF32())
+    return launch.emitError(
+        "cudaMaskSelect_f32: scores/out must be 1D f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value sMr = valueToMemrefPreservingSlice(b, loc, scores);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, sMr, 0);
+  Value posI32 = valueAsI32(b, loc, pos);
+  Value sPtr = memrefBasePtr(b, loc, sMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_mask_select_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, posI32, sPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudaSwiGLUF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError("cudaSwiGLU_f32: expected 3 operands");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudaSwiGLU_f32: expected one result");
+
+  Value gate = launch.getOperand(0);
+  Value up = launch.getOperand(1);
+  Value out = launch.getOperand(2);
+  auto gTy = dyn_cast<RankedTensorType>(gate.getType());
+  auto uTy = dyn_cast<RankedTensorType>(up.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!gTy || !uTy || !oTy || gTy.getRank() != 1 || uTy.getRank() != 1 ||
+      oTy.getRank() != 1 || !gTy.getElementType().isF32() ||
+      !uTy.getElementType().isF32() || !oTy.getElementType().isF32())
+    return launch.emitError("cudaSwiGLU_f32: operands must be 1D f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value gMr = valueToMemrefPreservingSlice(b, loc, gate);
+  Value uMr = valueToMemrefPreservingSlice(b, loc, up);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, oMr, 0);
+  Value gPtr = memrefBasePtr(b, loc, gMr);
+  Value uPtr = memrefBasePtr(b, loc, uMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_swiglu_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, gPtr, uPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudaRopeMulMulF32(LaunchOp launch, ModuleOp module,
+                                            bool add) {
+  if (launch.getNumOperands() != 5)
+    return launch.emitError("cudaRopeMulMul_f32: expected 5 operands");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cudaRopeMulMul_f32: expected one result");
+
+  Value A = launch.getOperand(0);
+  Value B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  Value D = launch.getOperand(3);
+  Value Out = launch.getOperand(4);
+  auto ATy = dyn_cast<RankedTensorType>(A.getType());
+  auto BTy = dyn_cast<RankedTensorType>(B.getType());
+  auto CTy = dyn_cast<RankedTensorType>(C.getType());
+  auto DTy = dyn_cast<RankedTensorType>(D.getType());
+  auto OTy = dyn_cast<RankedTensorType>(Out.getType());
+  if (!ATy || !BTy || !CTy || !DTy || !OTy || ATy.getRank() != 2 ||
+      BTy.getRank() != 1 || CTy.getRank() != 2 || DTy.getRank() != 1 ||
+      OTy.getRank() != 2 || !ATy.getElementType().isF32() ||
+      !BTy.getElementType().isF32() || !CTy.getElementType().isF32() ||
+      !DTy.getElementType().isF32() || !OTy.getElementType().isF32())
+    return launch.emitError(
+        "cudaRopeMulMul_f32: expected [2D,1D,2D,1D,2D] f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M = dimForTensorOrMemrefAsI32(b, loc, Out, 0);
+  Value N = dimForTensorOrMemrefAsI32(b, loc, Out, 1);
+  Value addI32 = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(add ? 1 : 0));
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                ptrTy, ptrTy, ptrTy, ptrTy, ptrTy,
+                                b.getI32Type()};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_rope_mulmul_f32", argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{M, N, pointerForTensorOrMemref(b, loc, A),
+                 pointerForTensorOrMemref(b, loc, B),
+                 pointerForTensorOrMemref(b, loc, C),
+                 pointerForTensorOrMemref(b, loc, D),
+                 pointerForTensorOrMemref(b, loc, Out),
+                 addI32});
+
+  Value updatedBase = tensorForSliceSource(b, loc, Out);
+  Value updated = updatedBase ? Value()
+      : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, Out),
+                       launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  launch.erase();
+  return success();
+}
+
 // @cublasLtMatmulBiasReluFused(%A_view, %B_view, %bias_view, %C_view)
 //
 // 4 operands. After resolving submap → 4 base tensors:
@@ -2008,6 +2463,22 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnSoftmaxForward" ||
                  libSym == "cudnnSoftmaxForward_tensor") {
         r = lowerCudnnSoftmaxForwardF32(launch, module);
+      } else if (libSym == "cudnnSoftmaxForwardOut_tensor") {
+        r = lowerCudnnSoftmaxForwardOutF32(launch, module);
+      } else if (libSym == "cudaCopy1D_f32_tensor") {
+        r = lowerCudaCopyF32(launch, module, /*expectedRank=*/1);
+      } else if (libSym == "cudaCopy2D_f32_tensor") {
+        r = lowerCudaCopyF32(launch, module, /*expectedRank=*/2);
+      } else if (libSym == "cudaAdd_f32_tensor") {
+        r = lowerCudaAddF32(launch, module);
+      } else if (libSym == "cudaMaskSelect_f32_tensor") {
+        r = lowerCudaMaskSelectF32(launch, module);
+      } else if (libSym == "cudaSwiGLU_f32_tensor") {
+        r = lowerCudaSwiGLUF32(launch, module);
+      } else if (libSym == "cudaRopeMulMulSub_f32_tensor") {
+        r = lowerCudaRopeMulMulF32(launch, module, /*add=*/false);
+      } else if (libSym == "cudaRopeMulMulAdd_f32_tensor") {
+        r = lowerCudaRopeMulMulF32(launch, module, /*add=*/true);
       } else if (libSym == "cublasLtMatmulBiasReluFused") {
         r = lowerCublasLtMatmulBiasRelu(launch, module);
       } else if (libSym == "cublasDsyrk_alias") {

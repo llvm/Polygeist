@@ -417,6 +417,22 @@ void polygeist_rmsnorm_f32(
 //   X[i] = exp(X[i] - max(X)) / sum_j exp(X[j] - max(X))
 // CUDA backend routes this through cudnnSoftmaxForward.
 void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X);
+void polygeist_cudnn_softmax_forward_out_f32(
+    int32_t N, const float *X, float *Out);
+
+// Llama standalone FP32 helpers. The CUDA backend implements these with
+// CUDA-runtime copies plus cuBLAS/cuDNN tensor ops; the CPU backend is a
+// reference implementation for host correctness runs.
+void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out);
+void polygeist_cuda_add_f32(
+    int32_t N, const float *X, const float *Y, float *Out);
+void polygeist_cuda_mask_select_f32(
+    int32_t N, int32_t pos, const float *Scores, float *Out);
+void polygeist_cuda_swiglu_f32(
+    int32_t N, const float *Gate, const float *Up, float *Out);
+void polygeist_cuda_rope_mulmul_f32(
+    int32_t M, int32_t N, const float *A, const float *B,
+    const float *C, const float *D, float *Out, int32_t add);
 
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around

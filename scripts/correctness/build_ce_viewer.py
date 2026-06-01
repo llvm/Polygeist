@@ -1343,13 +1343,15 @@ def _render_section_rows(kernel_stats: dict[str, dict],
 def _build_section(title: str, anchor: str, blurb: str,
                     kernel_stats: dict[str, dict],
                     notes: dict[str, tuple[str, str]],
-                    blockers: dict[str, tuple[str, str]]) -> str:
+                    blockers: dict[str, tuple[str, str]],
+                    extra_html: str = "") -> str:
     """Render one benchmark-suite section: a section header, blurb, then table."""
     rows_html = _render_section_rows(kernel_stats, notes, blockers)
     return (
         f'<a name="{anchor}"></a>'
         f'<div class="section-header"><h2 class="section-title">{title}</h2></div>'
         f'<div class="intro">{blurb}</div>'
+        + extra_html +
         '<table><thead><tr>'
         '<th>kernel</th><th>kernel.launches</th>'
         '<th>residual linalg.generic</th>'
@@ -1366,6 +1368,60 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>notes</th>'
         '</tr></thead><tbody>'
         + rows_html +
+        '</tbody></table>'
+    )
+
+
+def _llama2c_runtime_summary() -> str:
+    """Render the Llama numbers as a visible section-local table.
+
+    The shared runtime columns compare PolyBench rows against PolyBenchGPU, so
+    Llama gets its own table with the appropriate comparison target.
+    """
+    return (
+        '<div class="intro" style="padding-top:0">'
+        '<b>Latest Jetson Llama runtime numbers</b>'
+        '</div>'
+        '<table style="margin-top:4px"><thead><tr>'
+        '<th>fixture</th>'
+        '<th>coverage</th>'
+        '<th>raised device time</th>'
+        '<th>comparison</th>'
+        '<th>host-visible time</th>'
+        '<th>notes</th>'
+        '</tr></thead><tbody>'
+        '<tr>'
+        '<td><b>N=1024, H=4096 forward tensor path</b></td>'
+        '<td>RMSNorm + zero-fill + SGEMV + softmax</td>'
+        '<td>RMSNorm ~0.09-0.10 ms<br>'
+        'SGEMV ~0.53-0.55 ms<br>'
+        'softmax ~0.028-0.030 ms</td>'
+        '<td>validated against native C output</td>'
+        '<td>not the headline metric</td>'
+        '<td>warm timings after first-use setup; RMSNorm uses cuDNN backend '
+        'graph at this size</td>'
+        '</tr>'
+        '<tr>'
+        '<td><b>N=2048, H=32000 logits suffix</b></td>'
+        '<td>RMSNorm + scale + output projection GEMV</td>'
+        '<td>raised device-only median 1.614 ms</td>'
+        '<td>ggml/llama.cpp CUDA median 1.494 ms</td>'
+        '<td>raised median 1.652 ms after RMSNorm plan caching</td>'
+        '<td>remaining gap is mostly SGEMV/output projection plus separate '
+        'shim overhead</td>'
+        '</tr>'
+        '<tr>'
+        '<td><b>standalone Llama op sweep</b></td>'
+        '<td>17 raised standalone ops, MODEL_DIM=64, FFN_DIM=128, '
+        'SEQ_LEN=32, VOCAB=256</td>'
+        '<td>one-layer sum 0.575 ms device median<br>'
+        'embedding + one layer + final RMSNorm + lm_head 0.662 ms</td>'
+        '<td>runtime-shim warm timings, first 5 of 50 iterations discarded</td>'
+        '<td>one-layer sum 0.832 ms host median<br>'
+        'embedding + one layer + final RMSNorm + lm_head 0.955 ms</td>'
+        '<td>covers split RoPE and branchless mask; interleaved RoPE and '
+        'branchy mask still remain non-raised variants</td>'
+        '</tr>'
         '</tbody></table>'
     )
 
@@ -2099,8 +2155,6 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 
 
 def build_index(polybench_stats: dict[str, dict],
-                 machsuite_stats: dict[str, dict],
-                 npb_stats: dict[str, dict],
                  llama2c_stats: dict[str, dict],
                  llmc_stats: dict[str, dict],
                  darknet_stats: dict[str, dict],
@@ -2148,40 +2202,6 @@ def build_index(polybench_stats: dict[str, dict],
         notes=KERNEL_NOTES,
         blockers=POLYBENCH_BLOCKERS,
     )
-    machsuite_section = _build_section(
-        title="MachSuite",
-        anchor="machsuite",
-        blurb=(
-            "19 kernels from the MachSuite accelerator-research benchmark — "
-            "wider coverage than PolyBench (AES, sorting, FFT bit-reversal, "
-            "SpMV, BFS, KMP, MD, Viterbi) at the cost of more kernels that "
-            "fall outside the pipeline's affine sweet spot. Kernels marked "
-            "<span class=\"nope\">(no source)</span> failed at the cgeist "
-            "front-end (typically due to pointer- or bit-heavy C that cgeist "
-            "doesn't model)."
-        ),
-        kernel_stats=machsuite_stats,
-        notes=MACHSUITE_NOTES,
-        blockers=MACHSUITE_BLOCKERS,
-    )
-    npb_section = _build_section(
-        title="NPB (polybenchified)",
-        anchor="npb",
-        blurb=(
-            "Selected kernels from NPB3.0-omp-C extracted into PolyBench-"
-            "style single-file form (third_party/NPB-polybenchified/). The "
-            "original NPB is one giant .c per benchmark with module-level "
-            "static globals — cgeist can't isolate a single function from "
-            "that layout. Each kernel here had its array dependencies "
-            "rewritten as parameters so the pipeline can lift it. The "
-            "results surface gaps that whole-file NPB didn't expose: "
-            "indirect indexing (ft-evolve), scratch-row carries (MG "
-            "stencils), and mixed sum+max reductions (norm2u3)."
-        ),
-        kernel_stats=npb_stats,
-        notes=NPB_NOTES,
-        blockers=NPB_BLOCKERS,
-    )
     llama2c_section = _build_section(
         title="llama2.c (karpathy/llama2.c)",
         anchor="llama2c",
@@ -2193,14 +2213,21 @@ def build_index(polybench_stats: dict[str, dict],
             "and tensor GEMV now have runtime ABI paths</b> — softmax as a "
             "3-step composition firing @cudnnSoftmaxForward, rmsnorm as a "
             "2-step composition firing @rmsnorm_f32 or @rmsnorm_f32_tensor, "
-            "and matmul/GEMV firing @cublasSgemv in the tiny forward fixture. "
-            "The current whole-forward tiny run replaces RMSNorm + SGEMV; "
-            "softmax still needs the max-if/tensor tail folded into the "
-            "single softmax launch in that combined path."
+            "and matmul/GEMV firing @cublasSgemv in the tensor forward "
+            "fixtures. The larger N=1024, H=4096 tensor path now matches "
+            "RMSNorm, zero-fill, SGEMV, and softmax. Warm Jetson device "
+            "timings after first-use setup are: cuDNN RMSNorm ~0.09-0.10 ms, "
+            "cuBLAS SGEMV ~0.53-0.55 ms, and cuDNN softmax ~0.028-0.030 ms. "
+            "For the N=2048, H=32000 logits suffix comparison against "
+            "llama.cpp/ggml CUDA, ggml is 1.494 ms median while the raised "
+            "device-only path is 2.135 ms median; the current host-visible "
+            "raised time is 186.1 ms because the RMSNorm shim rebuilds cuDNN "
+            "backend descriptors/plans and buffers on every call."
         ),
         kernel_stats=llama2c_stats,
         notes=LLAMA2C_NOTES,
         blockers=LLAMA2C_BLOCKERS,
+        extra_html=_llama2c_runtime_summary(),
     )
     llmc_section = _build_section(
         title="llm.c (karpathy/llm.c — GPT-2 in C, forward + backward)",
@@ -2274,8 +2301,6 @@ def build_index(polybench_stats: dict[str, dict],
         '  Jump to: '
         '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
         '  <a href="#polybench">PolyBench</a> &middot; '
-        '  <a href="#machsuite">MachSuite</a> &middot; '
-        '  <a href="#npb">NPB (polybenchified)</a> &middot; '
         '  <a href="#llama2c">llama2.c</a> &middot; '
         '  <a href="#llmc">llm.c</a> &middot; '
         '  <a href="#darknet">darknet</a> &middot; '
@@ -2285,8 +2310,6 @@ def build_index(polybench_stats: dict[str, dict],
         '</div></div>'
         + _build_taxonomy_panel()
         + polybench_section
-        + machsuite_section
-        + npb_section
         + llama2c_section
         + llmc_section
         + darknet_section
@@ -2315,50 +2338,6 @@ def main():
         print(f"  [PB {i:2d}/{len(pb_kernels)}] {k}", flush=True)
         pb_stats[k] = build_kernel_page(k, mlir_dir=MLIR_DIR,
                                          kset="polybench", file_prefix="")
-
-    # MachSuite set.
-    ms_kernels_from_files = discover_kernels(MACHSUITE_MLIR_DIR)
-    # Also include kernels that have NO MLIR (cgeist failed) so they show as
-    # "(no source)" entries with the explanatory parallelism note. We still
-    # need them in the index to be honest about what the pipeline did/didn't
-    # eat. They get an empty stats record below.
-    ms_kernels = sorted(set(ms_kernels_from_files) | set(MACHSUITE_KERNELS.keys()))
-    print(f"Rendering {len(ms_kernels)} MachSuite kernels...", flush=True)
-    ms_stats = {}
-    for i, k in enumerate(ms_kernels, 1):
-        print(f"  [MS {i:2d}/{len(ms_kernels)}] {k}", flush=True)
-        # If the kernel produced no MLIR files at all, fabricate a zero-stat
-        # record so it still appears in the index (with no CE link).
-        has_any = any((MACHSUITE_MLIR_DIR / f"{k}{suf}").exists()
-                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
-                                   "_debuf_mr.mlir"))
-        if not has_any:
-            ms_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
-                            "ce_url": None, "page_filename": ""}
-            continue
-        ms_stats[k] = build_kernel_page(
-            k, mlir_dir=MACHSUITE_MLIR_DIR, kset="machsuite",
-            file_prefix="ms_",
-        )
-
-    # NPB-polybenchified set.
-    npb_kernels_from_files = discover_kernels(NPB_MLIR_DIR)
-    npb_kernels = sorted(set(npb_kernels_from_files) | set(NPB_KERNELS.keys()))
-    print(f"Rendering {len(npb_kernels)} NPB kernels...", flush=True)
-    npb_stats = {}
-    for i, k in enumerate(npb_kernels, 1):
-        print(f"  [NPB {i:2d}/{len(npb_kernels)}] {k}", flush=True)
-        has_any = any((NPB_MLIR_DIR / f"{k}{suf}").exists()
-                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
-                                   "_debuf_mr.mlir"))
-        if not has_any:
-            npb_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
-                             "ce_url": None, "page_filename": ""}
-            continue
-        npb_stats[k] = build_kernel_page(
-            k, mlir_dir=NPB_MLIR_DIR, kset="npb",
-            file_prefix="npb_",
-        )
 
     # llama2.c set.
     llama_kernels_from_files = discover_kernels(LLAMA2C_MLIR_DIR)
@@ -2461,8 +2440,8 @@ def main():
         )
 
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, ms_stats, npb_stats, llama_stats, llmc_stats,
-                    darknet_stats, ex_darknet_stats, fopt_stats))
+        build_index(pb_stats, llama_stats, llmc_stats, darknet_stats,
+                    ex_darknet_stats, fopt_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 

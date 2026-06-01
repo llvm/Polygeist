@@ -34,6 +34,7 @@
 #include <cudnn.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -182,18 +183,57 @@ static void ensure_cublaslt(void) {
 // (polybench has ≤ 12 distinct buffers per kernel).
 
 #define HOSTREG_CACHE_CAP 256
-struct hostreg_entry { void *host; void *dev; };
+struct hostreg_entry { void *host; void *dev; size_t bytes; };
 static struct hostreg_entry g_hostreg_cache[HOSTREG_CACHE_CAP];
 static int g_hostreg_count = 0;
 
-static void *hostreg_cache_lookup(void *ptr) {
-  for (int i = 0; i < g_hostreg_count; ++i)
-    if (g_hostreg_cache[i].host == ptr)
-      return g_hostreg_cache[i].dev;
+static int range_contains(void *outer, size_t outer_bytes,
+                          void *inner, size_t inner_bytes) {
+  uintptr_t o0 = (uintptr_t)outer;
+  uintptr_t i0 = (uintptr_t)inner;
+  uintptr_t o1 = o0 + outer_bytes;
+  uintptr_t i1 = i0 + inner_bytes;
+  return i0 >= o0 && i1 <= o1;
+}
+
+static int ranges_overlap(void *a, size_t a_bytes, void *b, size_t b_bytes) {
+  uintptr_t a0 = (uintptr_t)a;
+  uintptr_t b0 = (uintptr_t)b;
+  uintptr_t a1 = a0 + a_bytes;
+  uintptr_t b1 = b0 + b_bytes;
+  return a0 < b1 && b0 < a1;
+}
+
+static void *hostreg_cache_lookup(void *ptr, size_t bytes) {
+  for (int i = 0; i < g_hostreg_count; ++i) {
+    struct hostreg_entry *e = &g_hostreg_cache[i];
+    if (range_contains(e->host, e->bytes, ptr, bytes)) {
+      uintptr_t delta = (uintptr_t)ptr - (uintptr_t)e->host;
+      return (void *)((uintptr_t)e->dev + delta);
+    }
+  }
   return NULL;
 }
 
-static void hostreg_cache_insert(void *host, void *dev) {
+static void hostreg_cache_remove_overlaps(void *ptr, size_t bytes) {
+  for (int i = 0; i < g_hostreg_count;) {
+    struct hostreg_entry *e = &g_hostreg_cache[i];
+    if (!ranges_overlap(e->host, e->bytes, ptr, bytes)) {
+      ++i;
+      continue;
+    }
+    cudaError_t err = cudaHostUnregister(e->host);
+    if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
+      fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
+              __FILE__, __LINE__, e->host, cudaGetErrorString(err));
+      abort();
+    }
+    g_hostreg_cache[i] = g_hostreg_cache[g_hostreg_count - 1];
+    g_hostreg_count--;
+  }
+}
+
+static void hostreg_cache_insert(void *host, void *dev, size_t bytes) {
   if (g_hostreg_count >= HOSTREG_CACHE_CAP) {
     fprintf(stderr, "polygeist runtime: hostreg cache full (cap=%d)\n",
             HOSTREG_CACHE_CAP);
@@ -201,6 +241,7 @@ static void hostreg_cache_insert(void *host, void *dev) {
   }
   g_hostreg_cache[g_hostreg_count].host = host;
   g_hostreg_cache[g_hostreg_count].dev  = dev;
+  g_hostreg_cache[g_hostreg_count].bytes = bytes;
   g_hostreg_count++;
 }
 
@@ -209,8 +250,9 @@ static void hostreg_cache_insert(void *host, void *dev) {
 // buffer to be registered (or device-allocated) even on a Tegra SoC
 // where the iGPU can technically reach any DRAM page.
 static void *register_host_safe(void *ptr, size_t bytes) {
-  void *cached = hostreg_cache_lookup(ptr);
+  void *cached = hostreg_cache_lookup(ptr, bytes);
   if (cached) return cached;
+  hostreg_cache_remove_overlaps(ptr, bytes);
   cudaError_t err = cudaHostRegister(ptr, bytes, cudaHostRegisterMapped);
   if (err != cudaSuccess && err != cudaErrorHostMemoryAlreadyRegistered) {
     fprintf(stderr, "%s:%d cudaHostRegister(%p, %zu) failed: %s\n",
@@ -219,7 +261,7 @@ static void *register_host_safe(void *ptr, size_t bytes) {
   }
   void *dev = NULL;
   CUDA_CHECK(cudaHostGetDevicePointer(&dev, ptr, 0));
-  hostreg_cache_insert(ptr, dev);
+  hostreg_cache_insert(ptr, dev, bytes);
   return dev;
 }
 
@@ -1852,40 +1894,103 @@ static void rmsnorm_host_f32(
     Out[i] = Weight[i] * (scale * X[i]);
 }
 
-static int try_cudnn_rmsnorm_f32(
-    int32_t N, const float *X, const float *Weight, float *Out,
-    double host_start_ms) {
-  cudnnBackendDescriptor_t x_desc = NULL;
-  cudnnBackendDescriptor_t scale_desc = NULL;
-  cudnnBackendDescriptor_t bias_desc = NULL;
-  cudnnBackendDescriptor_t epsilon_desc = NULL;
-  cudnnBackendDescriptor_t y_desc = NULL;
-  cudnnBackendDescriptor_t norm_op = NULL;
-  cudnnBackendDescriptor_t op_graph = NULL;
-  cudnnBackendDescriptor_t engine = NULL;
-  cudnnBackendDescriptor_t engine_cfg = NULL;
-  cudnnBackendDescriptor_t plan = NULL;
-  cudnnBackendDescriptor_t variant_pack = NULL;
-  float *dX = NULL;
-  float *dWeight = NULL;
-  float *dOut = NULL;
-  float *dBias = NULL;
-  void *workspace = NULL;
+#define RMSNORM_F32_CACHE_CAP 8
+struct rmsnorm_f32_plan {
+  int in_use;
+  int unsupported;
+  int32_t N;
+  size_t bytes;
+  float epsilon;
+
+  float *dX;
+  float *dWeight;
+  float *dOut;
+  float *dBias;
+  void *workspace;
+
+  cudnnBackendDescriptor_t x_desc;
+  cudnnBackendDescriptor_t scale_desc;
+  cudnnBackendDescriptor_t bias_desc;
+  cudnnBackendDescriptor_t epsilon_desc;
+  cudnnBackendDescriptor_t y_desc;
+  cudnnBackendDescriptor_t norm_op;
+  cudnnBackendDescriptor_t op_graph;
+  cudnnBackendDescriptor_t engine;
+  cudnnBackendDescriptor_t engine_cfg;
+  cudnnBackendDescriptor_t plan;
+  cudnnBackendDescriptor_t variant_pack;
+};
+
+static struct rmsnorm_f32_plan g_rmsnorm_f32_cache[RMSNORM_F32_CACHE_CAP];
+
+static void release_rmsnorm_f32_plan_resources(struct rmsnorm_f32_plan *p) {
+  destroy_backend_desc(&p->variant_pack);
+  destroy_backend_desc(&p->plan);
+  destroy_backend_desc(&p->engine_cfg);
+  destroy_backend_desc(&p->engine);
+  destroy_backend_desc(&p->op_graph);
+  destroy_backend_desc(&p->norm_op);
+  destroy_backend_desc(&p->y_desc);
+  destroy_backend_desc(&p->epsilon_desc);
+  destroy_backend_desc(&p->bias_desc);
+  destroy_backend_desc(&p->scale_desc);
+  destroy_backend_desc(&p->x_desc);
+  if (p->workspace) {
+    CUDA_CHECK(cudaFree(p->workspace));
+    p->workspace = NULL;
+  }
+  if (p->dBias) {
+    CUDA_CHECK(cudaFree(p->dBias));
+    p->dBias = NULL;
+  }
+  if (p->dOut) {
+    CUDA_CHECK(cudaFree(p->dOut));
+    p->dOut = NULL;
+  }
+  if (p->dWeight) {
+    CUDA_CHECK(cudaFree(p->dWeight));
+    p->dWeight = NULL;
+  }
+  if (p->dX) {
+    CUDA_CHECK(cudaFree(p->dX));
+    p->dX = NULL;
+  }
+}
+
+static struct rmsnorm_f32_plan *find_rmsnorm_f32_plan(int32_t N) {
+  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i)
+    if (g_rmsnorm_f32_cache[i].in_use && g_rmsnorm_f32_cache[i].N == N)
+      return &g_rmsnorm_f32_cache[i];
+  return NULL;
+}
+
+static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t N) {
+  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i) {
+    if (!g_rmsnorm_f32_cache[i].in_use) {
+      memset(&g_rmsnorm_f32_cache[i], 0, sizeof(g_rmsnorm_f32_cache[i]));
+      g_rmsnorm_f32_cache[i].in_use = 1;
+      g_rmsnorm_f32_cache[i].N = N;
+      return &g_rmsnorm_f32_cache[i];
+    }
+  }
+  fprintf(stderr, "polygeist runtime: RMSNorm f32 cache full (cap=%d)\n",
+          RMSNORM_F32_CACHE_CAP);
+  abort();
+}
+
+static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
   cudnnStatus_t last_status = CUDNN_STATUS_SUCCESS;
-  int ok = 0;
 
-  size_t bytes = (size_t)N * sizeof(float);
-  CUDA_CHECK(cudaMalloc((void **)&dX, bytes));
-  CUDA_CHECK(cudaMalloc((void **)&dWeight, bytes));
-  CUDA_CHECK(cudaMalloc((void **)&dOut, bytes));
-  CUDA_CHECK(cudaMalloc((void **)&dBias, bytes));
-  CUDA_CHECK(cudaMemcpyAsync(dX, X, bytes, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(
-      cudaMemcpyAsync(dWeight, Weight, bytes, cudaMemcpyHostToDevice, g_stream));
-  CUDA_CHECK(cudaMemsetAsync(dBias, 0, bytes, g_stream));
+  p->bytes = (size_t)p->N * sizeof(float);
+  p->epsilon = 1.0e-5f;
+  CUDA_CHECK(cudaMalloc((void **)&p->dX, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->dWeight, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->dOut, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->dBias, p->bytes));
+  CUDA_CHECK(cudaMemsetAsync(p->dBias, 0, p->bytes, g_stream));
 
-  int64_t tensor_dims[4] = {1, (int64_t)N, 1, 1};
-  int64_t tensor_strides[4] = {(int64_t)N, 1, 1, 1};
+  int64_t tensor_dims[4] = {1, (int64_t)p->N, 1, 1};
+  int64_t tensor_strides[4] = {(int64_t)p->N, 1, 1, 1};
   int64_t scalar_dims[4] = {1, 1, 1, 1};
   int64_t scalar_strides[4] = {1, 1, 1, 1};
   int64_t uid_x = 'x';
@@ -1894,80 +1999,80 @@ static int try_cudnn_rmsnorm_f32(
   int64_t uid_epsilon = 'e';
   int64_t uid_y = 'y';
 
-  if (!make_f32_backend_tensor(&x_desc, uid_x, tensor_dims, tensor_strides, 4,
+  if (!make_f32_backend_tensor(&p->x_desc, uid_x, tensor_dims, tensor_strides, 4,
                                false, "rmsnorm.x", &last_status) ||
-      !make_f32_backend_tensor(&scale_desc, uid_scale, tensor_dims,
+      !make_f32_backend_tensor(&p->scale_desc, uid_scale, tensor_dims,
                                tensor_strides, 4, false, "rmsnorm.scale",
                                &last_status) ||
-      !make_f32_backend_tensor(&bias_desc, uid_bias, tensor_dims,
+      !make_f32_backend_tensor(&p->bias_desc, uid_bias, tensor_dims,
                                tensor_strides, 4, false, "rmsnorm.bias",
                                &last_status) ||
-      !make_f32_backend_tensor(&epsilon_desc, uid_epsilon, scalar_dims,
+      !make_f32_backend_tensor(&p->epsilon_desc, uid_epsilon, scalar_dims,
                                scalar_strides, 4, true, "rmsnorm.epsilon",
                                &last_status) ||
-      !make_f32_backend_tensor(&y_desc, uid_y, tensor_dims, tensor_strides, 4,
+      !make_f32_backend_tensor(&p->y_desc, uid_y, tensor_dims, tensor_strides, 4,
                                false, "rmsnorm.y", &last_status))
-    goto cleanup;
+    return 0;
 
   last_status = cudnnBackendCreateDescriptor(
-      CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &norm_op);
+      CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &p->norm_op);
   if (last_status != CUDNN_STATUS_SUCCESS) {
     report_rmsnorm_backend_fallback("rmsnorm.norm_op.create", last_status);
-    goto cleanup;
+    return 0;
   }
   cudnnBackendNormMode_t mode = CUDNN_RMS_NORM;
   cudnnBackendNormFwdPhase_t phase = CUDNN_NORM_FWD_INFERENCE;
-  if (!set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
+  if (!set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
                         CUDNN_TYPE_NORM_MODE, 1, &mode, "rmsnorm.mode",
                         &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
                         CUDNN_TYPE_NORM_FWD_PHASE, 1, &phase, "rmsnorm.phase",
                         &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_desc,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->x_desc,
                         "rmsnorm.xdesc", &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &scale_desc,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->scale_desc,
                         "rmsnorm.scale_desc", &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &bias_desc,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->bias_desc,
                         "rmsnorm.bias_desc", &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &epsilon_desc,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->epsilon_desc,
                         "rmsnorm.epsilon_desc", &last_status) ||
-      !set_backend_attr(norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &y_desc,
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->y_desc,
                         "rmsnorm.ydesc", &last_status) ||
-      !finalize_backend_desc(norm_op, "rmsnorm.norm_op.finalize",
+      !finalize_backend_desc(p->norm_op, "rmsnorm.norm_op.finalize",
                              &last_status))
-    goto cleanup;
+    return 0;
 
   last_status = cudnnBackendCreateDescriptor(
-      CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR, &op_graph);
+      CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR, &p->op_graph);
   if (last_status != CUDNN_STATUS_SUCCESS) {
     report_rmsnorm_backend_fallback("rmsnorm.graph.create", last_status);
-    goto cleanup;
+    return 0;
   }
-  if (!set_backend_attr(op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+  if (!set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
                         CUDNN_TYPE_HANDLE, 1, &g_cudnn, "rmsnorm.graph.handle",
                         &last_status) ||
-      !set_backend_attr(op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &norm_op,
+      !set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->norm_op,
                         "rmsnorm.graph.ops", &last_status) ||
-      !finalize_backend_desc(op_graph, "rmsnorm.graph.finalize",
+      !finalize_backend_desc(p->op_graph, "rmsnorm.graph.finalize",
                              &last_status))
-    goto cleanup;
+    return 0;
 
   int64_t engine_count = 0;
   int64_t elem_count = 0;
   last_status = cudnnBackendGetAttribute(
-      op_graph, CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT,
+      p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT,
       CUDNN_TYPE_INT64, 1, &elem_count, &engine_count);
   if (last_status != CUDNN_STATUS_SUCCESS || engine_count <= 0) {
     if (last_status == CUDNN_STATUS_SUCCESS)
       last_status = CUDNN_STATUS_NOT_SUPPORTED;
     report_rmsnorm_backend_fallback("rmsnorm.engine_count", last_status);
-    goto cleanup;
+    return 0;
   }
 
   cudnnStatus_t plan_status = CUDNN_STATUS_NOT_SUPPORTED;
@@ -1982,7 +2087,7 @@ static int try_cudnn_rmsnorm_f32(
       goto engine_cleanup;
     plan_status = cudnnBackendSetAttribute(
         engine_tmp, CUDNN_ATTR_ENGINE_OPERATION_GRAPH,
-        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &op_graph);
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->op_graph);
     if (plan_status != CUDNN_STATUS_SUCCESS)
       goto engine_cleanup;
     plan_status = cudnnBackendSetAttribute(
@@ -2023,90 +2128,92 @@ static int try_cudnn_rmsnorm_f32(
       goto engine_cleanup;
     plan_status = cudnnBackendFinalize(plan_tmp);
     if (plan_status == CUDNN_STATUS_SUCCESS) {
-      engine = engine_tmp;
-      engine_cfg = cfg_tmp;
-      plan = plan_tmp;
+      p->engine = engine_tmp;
+      p->engine_cfg = cfg_tmp;
+      p->plan = plan_tmp;
       break;
     }
 
 engine_cleanup:
     if (plan_status == CUDNN_STATUS_SUCCESS)
       plan_status = CUDNN_STATUS_NOT_SUPPORTED;
-    if (plan_tmp != plan)
+    if (plan_tmp != p->plan)
       destroy_backend_desc(&plan_tmp);
-    if (cfg_tmp != engine_cfg)
+    if (cfg_tmp != p->engine_cfg)
       destroy_backend_desc(&cfg_tmp);
-    if (engine_tmp != engine)
+    if (engine_tmp != p->engine)
       destroy_backend_desc(&engine_tmp);
   }
-  if (!plan) {
+  if (!p->plan) {
     report_rmsnorm_backend_fallback("rmsnorm.plan", plan_status);
-    goto cleanup;
+    return 0;
   }
 
   int64_t workspace_size = 0;
   last_status = cudnnBackendGetAttribute(
-      plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
+      p->plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
       &elem_count, &workspace_size);
   if (last_status != CUDNN_STATUS_SUCCESS) {
     report_rmsnorm_backend_fallback("rmsnorm.workspace_size", last_status);
-    goto cleanup;
+    return 0;
   }
   if (workspace_size > 0)
-    CUDA_CHECK(cudaMalloc(&workspace, (size_t)workspace_size));
+    CUDA_CHECK(cudaMalloc(&p->workspace, (size_t)workspace_size));
 
   last_status = cudnnBackendCreateDescriptor(
-      CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &variant_pack);
+      CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
   if (last_status != CUDNN_STATUS_SUCCESS) {
     report_rmsnorm_backend_fallback("rmsnorm.variant.create", last_status);
-    goto cleanup;
+    return 0;
   }
-  float epsilon = 1.0e-5f;
   int64_t uids[5] = {uid_x, uid_scale, uid_bias, uid_epsilon, uid_y};
-  void *data_ptrs[5] = {dX, dWeight, dBias, &epsilon, dOut};
-  if (!set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+  void *data_ptrs[5] = {p->dX, p->dWeight, p->dBias, &p->epsilon, p->dOut};
+  if (!set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
                         CUDNN_TYPE_VOID_PTR, 5, data_ptrs,
                         "rmsnorm.variant.ptrs", &last_status) ||
-      !set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+      !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
                         CUDNN_TYPE_INT64, 5, uids, "rmsnorm.variant.uids",
                         &last_status) ||
-      !set_backend_attr(variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
-                        CUDNN_TYPE_VOID_PTR, 1, &workspace,
+      !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+                        CUDNN_TYPE_VOID_PTR, 1, &p->workspace,
                         "rmsnorm.variant.workspace", &last_status) ||
-      !finalize_backend_desc(variant_pack, "rmsnorm.variant.finalize",
+      !finalize_backend_desc(p->variant_pack, "rmsnorm.variant.finalize",
                              &last_status))
-    goto cleanup;
+    return 0;
+
+  return 1;
+}
+
+static struct rmsnorm_f32_plan *get_rmsnorm_f32_plan(int32_t N) {
+  struct rmsnorm_f32_plan *p = find_rmsnorm_f32_plan(N);
+  if (p) return p;
+
+  p = alloc_rmsnorm_f32_plan(N);
+  if (!build_rmsnorm_f32_plan(p)) {
+    release_rmsnorm_f32_plan_resources(p);
+    p->unsupported = 1;
+  }
+  return p;
+}
+
+static int try_cudnn_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out,
+    double host_start_ms) {
+  struct rmsnorm_f32_plan *p = get_rmsnorm_f32_plan(N);
+  if (!p || p->unsupported)
+    return 0;
+
+  CUDA_CHECK(cudaMemcpyAsync(p->dX, X, p->bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(p->dWeight, Weight, p->bytes,
+                             cudaMemcpyHostToDevice, g_stream));
 
   timing_gpu_begin();
-  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, plan, variant_pack));
-  CUDA_CHECK(cudaMemcpyAsync(Out, dOut, bytes, cudaMemcpyDeviceToHost,
+  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+  CUDA_CHECK(cudaMemcpyAsync(Out, p->dOut, p->bytes, cudaMemcpyDeviceToHost,
                              g_stream));
   timing_gpu_end("cudnnRmsNormForward", 1, N, 0, host_start_ms);
-  ok = 1;
-
-cleanup:
-  destroy_backend_desc(&variant_pack);
-  destroy_backend_desc(&plan);
-  destroy_backend_desc(&engine_cfg);
-  destroy_backend_desc(&engine);
-  destroy_backend_desc(&op_graph);
-  destroy_backend_desc(&norm_op);
-  destroy_backend_desc(&y_desc);
-  destroy_backend_desc(&epsilon_desc);
-  destroy_backend_desc(&bias_desc);
-  destroy_backend_desc(&scale_desc);
-  destroy_backend_desc(&x_desc);
-  if (workspace)
-    CUDA_CHECK(cudaFree(workspace));
-  if (dBias)
-    CUDA_CHECK(cudaFree(dBias));
-  if (dOut)
-    CUDA_CHECK(cudaFree(dOut));
-  if (dWeight)
-    CUDA_CHECK(cudaFree(dWeight));
-  if (dX)
-    CUDA_CHECK(cudaFree(dX));
-  return ok;
+  return 1;
 }
 
 void polygeist_rmsnorm_f32(
@@ -2147,6 +2254,229 @@ void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X) {
   timing_gpu_end("cudnnSoftmaxForward", 1, N, 0, host_start_ms);
 
   cudnnDestroyTensorDescriptor(x_desc);
+}
+
+void polygeist_cudnn_softmax_forward_out_f32(
+    int32_t N, const float *X, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dX = (float *)register_host_safe((void *)X, bytes);
+  float *dOut = (float *)register_host_safe(Out, bytes);
+
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
+                             g_stream));
+  timing_gpu_end("cudaCopySoftmaxInput_f32", N, 1, 0, host_start_ms);
+  polygeist_cudnn_softmax_forward_f32(N, Out);
+}
+
+void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dX = (float *)register_host_safe((void *)X, bytes);
+  float *dOut = (float *)register_host_safe(Out, bytes);
+
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
+                             g_stream));
+  timing_gpu_end("cudaCopy_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cuda_add_f32(
+    int32_t N, const float *X, const float *Y, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dX = (float *)register_host_safe((void *)X, bytes);
+  float *dY = (float *)register_host_safe((void *)Y, bytes);
+  float *dOut = (float *)register_host_safe(Out, bytes);
+  const float alpha = 1.0f;
+
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
+                             g_stream));
+  CUBLAS_CHECK(cublasSaxpy(g_handle, N, &alpha, dY, 1, dOut, 1));
+  timing_gpu_end("cudaAdd_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cuda_mask_select_f32(
+    int32_t N, int32_t pos, const float *Scores, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *keep_h = (float *)malloc(bytes);
+  float *bias_h = (float *)malloc(bytes);
+  if (!keep_h || !bias_h) {
+    fprintf(stderr, "polygeist_cuda_mask_select_f32: malloc failed\n");
+    abort();
+  }
+  for (int32_t i = 0; i < N; ++i) {
+    int drop = i > pos;
+    keep_h[i] = drop ? 0.0f : 1.0f;
+    bias_h[i] = drop ? -3.4028234663852886e38f : 0.0f;
+  }
+
+  float *dScores = (float *)register_host_safe((void *)Scores, bytes);
+  float *dOut = (float *)register_host_safe(Out, bytes);
+  float *dKeep = NULL;
+  float *dBias = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&dKeep, bytes));
+  CUDA_CHECK(cudaMalloc((void **)&dBias, bytes));
+
+  cudnnTensorDescriptor_t desc;
+  cudnnOpTensorDescriptor_t mul_desc, add_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&add_desc));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      add_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
+
+  float one = 1.0f;
+  float zero = 0.0f;
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dKeep, keep_h, bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dBias, bias_h, bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
+                            &one, desc, dScores,
+                            &one, desc, dKeep,
+                            &zero, desc, dOut));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
+                            &one, desc, dOut,
+                            &one, desc, dBias,
+                            &zero, desc, dOut));
+  timing_gpu_end("cudaMaskSelect_f32", N, 1, 0, host_start_ms);
+
+  cudnnDestroyOpTensorDescriptor(mul_desc);
+  cudnnDestroyOpTensorDescriptor(add_desc);
+  cudnnDestroyTensorDescriptor(desc);
+  cudaFree(dKeep);
+  cudaFree(dBias);
+  free(keep_h);
+  free(bias_h);
+}
+
+void polygeist_cuda_swiglu_f32(
+    int32_t N, const float *Gate, const float *Up, float *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dGate = (float *)register_host_safe((void *)Gate, bytes);
+  float *dUp = (float *)register_host_safe((void *)Up, bytes);
+  float *dOut = (float *)register_host_safe(Out, bytes);
+  float *dSigmoid = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&dSigmoid, bytes));
+
+  cudnnTensorDescriptor_t desc;
+  cudnnActivationDescriptor_t act_desc;
+  cudnnOpTensorDescriptor_t mul_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
+  CUDNN_CHECK(cudnnCreateActivationDescriptor(&act_desc));
+  CUDNN_CHECK(cudnnSetActivationDescriptor(
+      act_desc, CUDNN_ACTIVATION_SIGMOID, CUDNN_PROPAGATE_NAN, 0.0));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
+
+  float one = 1.0f;
+  float zero = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnActivationForward(
+      g_cudnn, act_desc, &one, desc, dGate, &zero, desc, dSigmoid));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
+                            &one, desc, dGate,
+                            &one, desc, dSigmoid,
+                            &zero, desc, dOut));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
+                            &one, desc, dOut,
+                            &one, desc, dUp,
+                            &zero, desc, dOut));
+  timing_gpu_end("cudaSwiGLU_f32", N, 1, 0, host_start_ms);
+
+  cudnnDestroyOpTensorDescriptor(mul_desc);
+  cudnnDestroyActivationDescriptor(act_desc);
+  cudnnDestroyTensorDescriptor(desc);
+  cudaFree(dSigmoid);
+}
+
+void polygeist_cuda_rope_mulmul_f32(
+    int32_t M, int32_t N, const float *A, const float *B,
+    const float *C, const float *D, float *Out, int32_t add) {
+  if (M <= 0 || N <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t mat_bytes = (size_t)M * (size_t)N * sizeof(float);
+  size_t vec_bytes = (size_t)N * sizeof(float);
+  float *dA = (float *)register_host_safe((void *)A, mat_bytes);
+  float *dB = (float *)register_host_safe((void *)B, vec_bytes);
+  float *dC = (float *)register_host_safe((void *)C, mat_bytes);
+  float *dD = (float *)register_host_safe((void *)D, vec_bytes);
+  float *dOut = (float *)register_host_safe(Out, mat_bytes);
+  float *dTmp = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&dTmp, mat_bytes));
+
+  cudnnTensorDescriptor_t mat_desc, vec_desc;
+  cudnnOpTensorDescriptor_t mul_desc, add_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&mat_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&vec_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(mat_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, M, N));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(vec_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&add_desc));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      add_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
+
+  float one = 1.0f;
+  float zero = 0.0f;
+  float sign = add ? 1.0f : -1.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
+                            &one, mat_desc, dA,
+                            &one, vec_desc, dB,
+                            &zero, mat_desc, dOut));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
+                            &one, mat_desc, dC,
+                            &one, vec_desc, dD,
+                            &zero, mat_desc, dTmp));
+  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
+                            &one, mat_desc, dOut,
+                            &sign, mat_desc, dTmp,
+                            &zero, mat_desc, dOut));
+  timing_gpu_end(add ? "cudaRopeMulMulAdd_f32" : "cudaRopeMulMulSub_f32",
+                 M, N, 0, host_start_ms);
+
+  cudnnDestroyOpTensorDescriptor(mul_desc);
+  cudnnDestroyOpTensorDescriptor(add_desc);
+  cudnnDestroyTensorDescriptor(mat_desc);
+  cudnnDestroyTensorDescriptor(vec_desc);
+  cudaFree(dTmp);
 }
 
 void polygeist_cublas_time_begin(void) {

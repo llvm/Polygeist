@@ -152,6 +152,159 @@ module {
     kernel.yield %x : tensor<?xf32>
   }
 
+  kernel.defn @cudnnSoftmaxForwardOut_tensor(
+      %scores: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  // Llama standalone elementwise / copy helpers. ABI lowering routes these
+  // to CUDA-runtime/cuDNN/cuBLAS shims in the CUDA backend.
+  kernel.defn @cudaCopy1D_f32_tensor(
+      %src: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%src : tensor<?xf32>) outs(%out : tensor<?xf32>) {
+    ^bb0(%sv: f32, %ov: f32):
+      linalg.yield %sv : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cudaCopy2D_f32_tensor(
+      %src: tensor<?x?xf32>, %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%src : tensor<?x?xf32>) outs(%out : tensor<?x?xf32>) {
+    ^bb0(%sv: f32, %ov: f32):
+      linalg.yield %sv : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
+  kernel.defn @cudaAdd_f32_tensor(
+      %x: tensor<?xf32>, %y: tensor<?xf32>,
+      %out: tensor<?xf32>) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%x, %y : tensor<?xf32>, tensor<?xf32>) outs(%out : tensor<?xf32>) {
+    ^bb0(%xv: f32, %yv: f32, %ov: f32):
+      %sum = arith.addf %xv, %yv : f32
+      linalg.yield %sum : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cudaMaskSelect_f32_tensor(
+      %scores: tensor<?xf32>, %out: tensor<?xf32>, %pos: i32)
+      -> tensor<?xf32> {
+    %one = arith.constant 1.000000e+00 : f32
+    %neg_inf = arith.constant -3.40282347E+38 : f32
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%scores : tensor<?xf32>) outs(%out : tensor<?xf32>) {
+    ^bb0(%sv: f32, %ov: f32):
+      %i = linalg.index 0 : index
+      %ii = arith.index_cast %i : index to i32
+      %pred = arith.cmpi sgt, %ii, %pos : i32
+      %drop_i = arith.extui %pred : i1 to i32
+      %drop = arith.sitofp %drop_i : i32 to f32
+      %keep = arith.subf %one, %drop : f32
+      %kept = arith.mulf %keep, %sv : f32
+      %masked = arith.mulf %drop, %neg_inf : f32
+      %r = arith.addf %kept, %masked : f32
+      linalg.yield %r : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cudaSwiGLU_f32_tensor(
+      %gate: tensor<?xf32>, %up: tensor<?xf32>,
+      %out: tensor<?xf32>) -> tensor<?xf32> {
+    %one = arith.constant 1.000000e+00 : f32
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%gate, %up : tensor<?xf32>, tensor<?xf32>) outs(%out : tensor<?xf32>) {
+    ^bb0(%g: f32, %u: f32, %ov: f32):
+      %ng = arith.negf %g : f32
+      %e = math.exp %ng : f32
+      %den = arith.addf %e, %one : f32
+      %silu = arith.divf %g, %den : f32
+      %r = arith.mulf %silu, %u : f32
+      linalg.yield %r : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cudaRopeMulMulSub_f32_tensor(
+      %a: tensor<?x?xf32>, %b: tensor<?xf32>,
+      %c: tensor<?x?xf32>, %d: tensor<?xf32>,
+      %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a, %b, %c, %d : tensor<?x?xf32>, tensor<?xf32>,
+          tensor<?x?xf32>, tensor<?xf32>) outs(%out : tensor<?x?xf32>) {
+    ^bb0(%av: f32, %bv: f32, %cv: f32, %dv: f32, %ov: f32):
+      %p0 = arith.mulf %av, %bv : f32
+      %p1 = arith.mulf %cv, %dv : f32
+      %r = arith.subf %p0, %p1 : f32
+      linalg.yield %r : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
+  kernel.defn @cudaRopeMulMulAdd_f32_tensor(
+      %a: tensor<?x?xf32>, %b: tensor<?xf32>,
+      %c: tensor<?x?xf32>, %d: tensor<?xf32>,
+      %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a, %b, %c, %d : tensor<?x?xf32>, tensor<?xf32>,
+          tensor<?x?xf32>, tensor<?xf32>) outs(%out : tensor<?x?xf32>) {
+    ^bb0(%av: f32, %bv: f32, %cv: f32, %dv: f32, %ov: f32):
+      %p0 = arith.mulf %av, %bv : f32
+      %p1 = arith.mulf %cv, %dv : f32
+      %r = arith.addf %p0, %p1 : f32
+      linalg.yield %r : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
   // GEMM-ALPHA-ONLY: C += alpha*A*B (beta=1, accumulate-into-C, custom alpha).
   kernel.defn @cublasDgemm_alpha_only(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                        %C: tensor<?x?xf64>,

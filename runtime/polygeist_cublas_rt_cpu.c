@@ -829,6 +829,52 @@ void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X) {
     X[i] /= sum;
 }
 
+void polygeist_cudnn_softmax_forward_out_f32(
+    int32_t N, const float *X, float *Out) {
+  if (N <= 0) return;
+  memcpy(Out, X, (size_t)N * sizeof(float));
+  polygeist_cudnn_softmax_forward_f32(N, Out);
+}
+
+void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
+  if (N <= 0) return;
+  memcpy(Out, X, (size_t)N * sizeof(float));
+}
+
+void polygeist_cuda_add_f32(
+    int32_t N, const float *X, const float *Y, float *Out) {
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = X[i] + Y[i];
+}
+
+void polygeist_cuda_mask_select_f32(
+    int32_t N, int32_t pos, const float *Scores, float *Out) {
+  const float neg_inf = -3.4028234663852886e38f;
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = (i > pos) ? neg_inf : Scores[i];
+}
+
+void polygeist_cuda_swiglu_f32(
+    int32_t N, const float *Gate, const float *Up, float *Out) {
+  for (int32_t i = 0; i < N; ++i) {
+    float g = Gate[i];
+    Out[i] = (g / (1.0f + expf(-g))) * Up[i];
+  }
+}
+
+void polygeist_cuda_rope_mulmul_f32(
+    int32_t M, int32_t N, const float *A, const float *B,
+    const float *C, const float *D, float *Out, int32_t add) {
+  for (int32_t i = 0; i < M; ++i) {
+    for (int32_t j = 0; j < N; ++j) {
+      size_t idx = (size_t)i * (size_t)N + (size_t)j;
+      float p0 = A[idx] * B[j];
+      float p1 = C[idx] * D[j];
+      Out[idx] = add ? (p0 + p1) : (p0 - p1);
+    }
+  }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

@@ -15,6 +15,32 @@ import re
 import sys
 
 
+def extract_macro_prelude(c_text: str) -> str:
+    """Copy simple #define constants needed by fixed-size plain C arrays."""
+    lines = []
+    for line in c_text.splitlines():
+        m = re.match(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(.*)$", line)
+        if not m:
+            continue
+        name = m.group(1)
+        rest = m.group(2).strip()
+        if "(" in name:
+            continue
+        if rest:
+            lines.append(f"#define {name} {rest}")
+    return "\n".join(lines)
+
+
+def infer_dtype(c_text: str) -> str:
+    m = re.search(r"^\s*#\s*define\s+DATA_TYPE\s+(float|double)\b",
+                  c_text, re.MULTILINE)
+    if m:
+        return m.group(1)
+    if re.search(r"\bfloat\s+[A-Za-z_]\w*\s*\[", c_text):
+        return "float"
+    return "double"
+
+
 def parse_signature(c_text: str, kernel_name: str):
     """Return list of (kind, *fields) tuples describing each argument.
 
@@ -49,6 +75,8 @@ def parse_signature(c_text: str, kernel_name: str):
     args.append(''.join(cur).strip())
 
     out = []
+    plain_array_indices = []
+    scalar_ints = set()
     for a in args:
         if 'POLYBENCH_3D' in a:
             m3 = re.search(
@@ -78,6 +106,7 @@ def parse_signature(c_text: str, kernel_name: str):
         elif re.match(r"^\s*int\b", a):
             name = a.split()[-1].strip('*')
             out.append(('int', name))
+            scalar_ints.add(name)
         elif _is_plain_c_array(a):
             # Plain C array signature: `double A[NI][NJ]` or `int A[NI][NJ][NK]`
             # — what polybenchGpu-extracted / llama2.c-style sources use
@@ -87,8 +116,8 @@ def parse_signature(c_text: str, kernel_name: str):
             # runtime sizes by convention live in lowercase int args of the
             # same function (ni, nj, nk). Match them by lowercasing the macro.
             kind, name, dims = _parse_plain_c_array(a)
-            runtime_dims = [d.lower() for d in dims]
-            out.append((kind, name, *runtime_dims))
+            out.append((kind, name, *dims))
+            plain_array_indices.append(len(out) - 1)
         elif re.match(r"^\s*DATA_TYPE\b", a) or re.match(r"^\s*float\b", a) \
                 or re.match(r"^\s*double\b", a):
             # Scalar (alpha, beta, etc.).
@@ -96,6 +125,14 @@ def parse_signature(c_text: str, kernel_name: str):
             out.append(('double', name))
         else:
             raise ValueError(f"Unrecognized arg: {a}")
+
+    for idx in plain_array_indices:
+        entry = out[idx]
+        dims = []
+        for d in entry[2:]:
+            lower = d.lower()
+            dims.append(lower if lower in scalar_ints else d)
+        out[idx] = (entry[0], entry[1], *dims)
     return out
 
 
@@ -134,7 +171,7 @@ def _parse_plain_c_array(a: str):
                      f"gen_wrapper only handles 1D/2D/3D: {a!r}")
 
 
-def gen_wrapper(kernel_name: str, args, dtype: str = 'double'):
+def gen_wrapper(kernel_name: str, args, dtype: str = 'double', prelude: str = ''):
     """Emit wrapper C source for `kernel_name`."""
     extern_args, wrapper_args, call_args = [], [], []
     for a in args:
@@ -192,7 +229,10 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double'):
         + ",\n      ".join(call_args)
         + ");\n}"
     )
-    return f"#include <stdint.h>\n\n{extern}\n\n{wrapper}\n"
+    prefix = "#include <stdint.h>"
+    if prelude:
+        prefix += "\n" + prelude
+    return f"{prefix}\n\n{extern}\n\n{wrapper}\n"
 
 
 def main():
@@ -203,7 +243,7 @@ def main():
     with open(src) as f:
         text = f.read()
     args = parse_signature(text, name)
-    print(gen_wrapper(name, args))
+    print(gen_wrapper(name, args, infer_dtype(text), extract_macro_prelude(text)))
 
 
 if __name__ == "__main__":
