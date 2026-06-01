@@ -857,6 +857,14 @@ def rewrite_mlir(
             elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
             if elem and elem != "f64":
                 emit_name = f"{entry.name}_{elem}"
+        if entry.name == "cudnnConvolution2D_25tap":
+            elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
+            if elem not in (None, "f64", "f32"):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+            if elem == "f32":
+                emit_name = "cudnnConvolution2D_25tap_f32"
 
         # Transpose discriminator for gemv. The template `Out + In(0)*In(1)`
         # with 1 parallel + 1 reduction iter matches both `y = A·x` (no

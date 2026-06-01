@@ -189,9 +189,7 @@ void kernel_stencil_emboss3x3(int h, int w,
 #pragma endscop
 }
 
-/* Negative-control fixture for the next matcher extension: cuDNN can run a
- * 5x5 convolution, but the current matcher only has the 3x3/9-tap template.
- */
+/* 5x5 fixtures exercise the sibling 25-tap cuDNN convolution path. */
 void kernel_stencil_box5x5(int h, int w,
                            DATA_TYPE in[STENCIL_H][STENCIL_W],
                            DATA_TYPE out[STENCIL_H][STENCIL_W]) {
@@ -227,6 +225,226 @@ void kernel_stencil_box5x5(int h, int w,
           (DATA_TYPE)0.04 * in[i + 2][j + 2];
 #pragma endscop
 }
+
+#define STENCIL5_TAP(DI, DJ, W) ((DATA_TYPE)(W) * in[i + (DI)][j + (DJ)])
+
+void kernel_stencil_gaussian5x5(int h, int w,
+                                DATA_TYPE in[STENCIL_H][STENCIL_W],
+                                DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2, 0.00390625) +
+          STENCIL5_TAP(-2, -1, 0.01562500) +
+          STENCIL5_TAP(-2,  0, 0.02343750) +
+          STENCIL5_TAP(-2,  1, 0.01562500) +
+          STENCIL5_TAP(-2,  2, 0.00390625) +
+          STENCIL5_TAP(-1, -2, 0.01562500) +
+          STENCIL5_TAP(-1, -1, 0.06250000) +
+          STENCIL5_TAP(-1,  0, 0.09375000) +
+          STENCIL5_TAP(-1,  1, 0.06250000) +
+          STENCIL5_TAP(-1,  2, 0.01562500) +
+          STENCIL5_TAP( 0, -2, 0.02343750) +
+          STENCIL5_TAP( 0, -1, 0.09375000) +
+          STENCIL5_TAP( 0,  0, 0.14062500) +
+          STENCIL5_TAP( 0,  1, 0.09375000) +
+          STENCIL5_TAP( 0,  2, 0.02343750) +
+          STENCIL5_TAP( 1, -2, 0.01562500) +
+          STENCIL5_TAP( 1, -1, 0.06250000) +
+          STENCIL5_TAP( 1,  0, 0.09375000) +
+          STENCIL5_TAP( 1,  1, 0.06250000) +
+          STENCIL5_TAP( 1,  2, 0.01562500) +
+          STENCIL5_TAP( 2, -2, 0.00390625) +
+          STENCIL5_TAP( 2, -1, 0.01562500) +
+          STENCIL5_TAP( 2,  0, 0.02343750) +
+          STENCIL5_TAP( 2,  1, 0.01562500) +
+          STENCIL5_TAP( 2,  2, 0.00390625);
+#pragma endscop
+}
+
+void kernel_stencil_sobel_x5x5(int h, int w,
+                               DATA_TYPE in[STENCIL_H][STENCIL_W],
+                               DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2, -5.0) +
+          STENCIL5_TAP(-2, -1, -4.0) +
+          STENCIL5_TAP(-2,  0,  0.0) +
+          STENCIL5_TAP(-2,  1,  4.0) +
+          STENCIL5_TAP(-2,  2,  5.0) +
+          STENCIL5_TAP(-1, -2, -8.0) +
+          STENCIL5_TAP(-1, -1, -10.0) +
+          STENCIL5_TAP(-1,  0,  0.0) +
+          STENCIL5_TAP(-1,  1,  10.0) +
+          STENCIL5_TAP(-1,  2,  8.0) +
+          STENCIL5_TAP( 0, -2, -10.0) +
+          STENCIL5_TAP( 0, -1, -20.0) +
+          STENCIL5_TAP( 0,  0,  0.0) +
+          STENCIL5_TAP( 0,  1,  20.0) +
+          STENCIL5_TAP( 0,  2,  10.0) +
+          STENCIL5_TAP( 1, -2, -8.0) +
+          STENCIL5_TAP( 1, -1, -10.0) +
+          STENCIL5_TAP( 1,  0,  0.0) +
+          STENCIL5_TAP( 1,  1,  10.0) +
+          STENCIL5_TAP( 1,  2,  8.0) +
+          STENCIL5_TAP( 2, -2, -5.0) +
+          STENCIL5_TAP( 2, -1, -4.0) +
+          STENCIL5_TAP( 2,  0,  0.0) +
+          STENCIL5_TAP( 2,  1,  4.0) +
+          STENCIL5_TAP( 2,  2,  5.0);
+#pragma endscop
+}
+
+void kernel_stencil_sobel_y5x5(int h, int w,
+                               DATA_TYPE in[STENCIL_H][STENCIL_W],
+                               DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2, -5.0) +
+          STENCIL5_TAP(-2, -1, -8.0) +
+          STENCIL5_TAP(-2,  0, -10.0) +
+          STENCIL5_TAP(-2,  1, -8.0) +
+          STENCIL5_TAP(-2,  2, -5.0) +
+          STENCIL5_TAP(-1, -2, -4.0) +
+          STENCIL5_TAP(-1, -1, -10.0) +
+          STENCIL5_TAP(-1,  0, -20.0) +
+          STENCIL5_TAP(-1,  1, -10.0) +
+          STENCIL5_TAP(-1,  2, -4.0) +
+          STENCIL5_TAP( 0, -2,  0.0) +
+          STENCIL5_TAP( 0, -1,  0.0) +
+          STENCIL5_TAP( 0,  0,  0.0) +
+          STENCIL5_TAP( 0,  1,  0.0) +
+          STENCIL5_TAP( 0,  2,  0.0) +
+          STENCIL5_TAP( 1, -2,  4.0) +
+          STENCIL5_TAP( 1, -1,  10.0) +
+          STENCIL5_TAP( 1,  0,  20.0) +
+          STENCIL5_TAP( 1,  1,  10.0) +
+          STENCIL5_TAP( 1,  2,  4.0) +
+          STENCIL5_TAP( 2, -2,  5.0) +
+          STENCIL5_TAP( 2, -1,  8.0) +
+          STENCIL5_TAP( 2,  0,  10.0) +
+          STENCIL5_TAP( 2,  1,  8.0) +
+          STENCIL5_TAP( 2,  2,  5.0);
+#pragma endscop
+}
+
+void kernel_stencil_laplacian5x5(int h, int w,
+                                 DATA_TYPE in[STENCIL_H][STENCIL_W],
+                                 DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2,  0.0) +
+          STENCIL5_TAP(-2, -1,  0.0) +
+          STENCIL5_TAP(-2,  0, -1.0) +
+          STENCIL5_TAP(-2,  1,  0.0) +
+          STENCIL5_TAP(-2,  2,  0.0) +
+          STENCIL5_TAP(-1, -2,  0.0) +
+          STENCIL5_TAP(-1, -1, -1.0) +
+          STENCIL5_TAP(-1,  0, -2.0) +
+          STENCIL5_TAP(-1,  1, -1.0) +
+          STENCIL5_TAP(-1,  2,  0.0) +
+          STENCIL5_TAP( 0, -2, -1.0) +
+          STENCIL5_TAP( 0, -1, -2.0) +
+          STENCIL5_TAP( 0,  0, 16.0) +
+          STENCIL5_TAP( 0,  1, -2.0) +
+          STENCIL5_TAP( 0,  2, -1.0) +
+          STENCIL5_TAP( 1, -2,  0.0) +
+          STENCIL5_TAP( 1, -1, -1.0) +
+          STENCIL5_TAP( 1,  0, -2.0) +
+          STENCIL5_TAP( 1,  1, -1.0) +
+          STENCIL5_TAP( 1,  2,  0.0) +
+          STENCIL5_TAP( 2, -2,  0.0) +
+          STENCIL5_TAP( 2, -1,  0.0) +
+          STENCIL5_TAP( 2,  0, -1.0) +
+          STENCIL5_TAP( 2,  1,  0.0) +
+          STENCIL5_TAP( 2,  2,  0.0);
+#pragma endscop
+}
+
+void kernel_stencil_sharpen5x5(int h, int w,
+                               DATA_TYPE in[STENCIL_H][STENCIL_W],
+                               DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2, -0.125) +
+          STENCIL5_TAP(-2, -1, -0.125) +
+          STENCIL5_TAP(-2,  0, -0.125) +
+          STENCIL5_TAP(-2,  1, -0.125) +
+          STENCIL5_TAP(-2,  2, -0.125) +
+          STENCIL5_TAP(-1, -2, -0.125) +
+          STENCIL5_TAP(-1, -1,  0.250) +
+          STENCIL5_TAP(-1,  0,  0.250) +
+          STENCIL5_TAP(-1,  1,  0.250) +
+          STENCIL5_TAP(-1,  2, -0.125) +
+          STENCIL5_TAP( 0, -2, -0.125) +
+          STENCIL5_TAP( 0, -1,  0.250) +
+          STENCIL5_TAP( 0,  0,  1.000) +
+          STENCIL5_TAP( 0,  1,  0.250) +
+          STENCIL5_TAP( 0,  2, -0.125) +
+          STENCIL5_TAP( 1, -2, -0.125) +
+          STENCIL5_TAP( 1, -1,  0.250) +
+          STENCIL5_TAP( 1,  0,  0.250) +
+          STENCIL5_TAP( 1,  1,  0.250) +
+          STENCIL5_TAP( 1,  2, -0.125) +
+          STENCIL5_TAP( 2, -2, -0.125) +
+          STENCIL5_TAP( 2, -1, -0.125) +
+          STENCIL5_TAP( 2,  0, -0.125) +
+          STENCIL5_TAP( 2,  1, -0.125) +
+          STENCIL5_TAP( 2,  2, -0.125);
+#pragma endscop
+}
+
+void kernel_stencil_emboss5x5(int h, int w,
+                              DATA_TYPE in[STENCIL_H][STENCIL_W],
+                              DATA_TYPE out[STENCIL_H][STENCIL_W]) {
+  int i, j;
+#pragma scop
+  for (i = 2; i < h - 2; ++i)
+    for (j = 2; j < w - 2; ++j)
+      out[i][j] =
+          STENCIL5_TAP(-2, -2, -2.0) +
+          STENCIL5_TAP(-2, -1, -1.0) +
+          STENCIL5_TAP(-2,  0, -1.0) +
+          STENCIL5_TAP(-2,  1,  0.0) +
+          STENCIL5_TAP(-2,  2,  0.0) +
+          STENCIL5_TAP(-1, -2, -1.0) +
+          STENCIL5_TAP(-1, -1, -1.0) +
+          STENCIL5_TAP(-1,  0,  0.0) +
+          STENCIL5_TAP(-1,  1,  1.0) +
+          STENCIL5_TAP(-1,  2,  0.0) +
+          STENCIL5_TAP( 0, -2, -1.0) +
+          STENCIL5_TAP( 0, -1,  0.0) +
+          STENCIL5_TAP( 0,  0,  1.0) +
+          STENCIL5_TAP( 0,  1,  1.0) +
+          STENCIL5_TAP( 0,  2,  1.0) +
+          STENCIL5_TAP( 1, -2,  0.0) +
+          STENCIL5_TAP( 1, -1,  1.0) +
+          STENCIL5_TAP( 1,  0,  1.0) +
+          STENCIL5_TAP( 1,  1,  1.0) +
+          STENCIL5_TAP( 1,  2,  2.0) +
+          STENCIL5_TAP( 2, -2,  0.0) +
+          STENCIL5_TAP( 2, -1,  0.0) +
+          STENCIL5_TAP( 2,  0,  1.0) +
+          STENCIL5_TAP( 2,  1,  2.0) +
+          STENCIL5_TAP( 2,  2,  2.0);
+#pragma endscop
+}
+
+#undef STENCIL5_TAP
 
 static DATA_TYPE input_img[STENCIL_H][STENCIL_W];
 static DATA_TYPE output_img[STENCIL_H][STENCIL_W];

@@ -186,6 +186,12 @@ STENCIL_CONV2D_KERNELS: dict[str, tuple[str, str]] = {
     "sharpen3x3":      ("stencil_conv2d_3x3.c", "kernel_stencil_sharpen3x3"),
     "emboss3x3":       ("stencil_conv2d_3x3.c", "kernel_stencil_emboss3x3"),
     "box5x5":          ("stencil_conv2d_3x3.c", "kernel_stencil_box5x5"),
+    "gaussian5x5":     ("stencil_conv2d_3x3.c", "kernel_stencil_gaussian5x5"),
+    "sobel_x5x5":      ("stencil_conv2d_3x3.c", "kernel_stencil_sobel_x5x5"),
+    "sobel_y5x5":      ("stencil_conv2d_3x3.c", "kernel_stencil_sobel_y5x5"),
+    "laplacian5x5":    ("stencil_conv2d_3x3.c", "kernel_stencil_laplacian5x5"),
+    "sharpen5x5":      ("stencil_conv2d_3x3.c", "kernel_stencil_sharpen5x5"),
+    "emboss5x5":       ("stencil_conv2d_3x3.c", "kernel_stencil_emboss5x5"),
 }
 
 STENCIL_CONV2D_ORDER = list(STENCIL_CONV2D_KERNELS.keys())
@@ -200,6 +206,12 @@ STENCIL_CONV2D_DISPLAY_NAMES: dict[str, str] = {
     "sharpen3x3":      "sharpen 3x3",
     "emboss3x3":       "emboss 3x3",
     "box5x5":          "box blur 5x5",
+    "gaussian5x5":     "Gaussian blur 5x5",
+    "sobel_x5x5":      "Sobel X 5x5",
+    "sobel_y5x5":      "Sobel Y 5x5",
+    "laplacian5x5":    "Laplacian 5x5",
+    "sharpen5x5":      "sharpen 5x5",
+    "emboss5x5":       "emboss 5x5",
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -434,7 +446,13 @@ STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
     "laplacian8_3x3":  ("highly parallel", "8-neighbour Laplacian finite-difference stencil"),
     "sharpen3x3":      ("highly parallel", "classic image sharpen filter, center-heavy 3x3 stencil"),
     "emboss3x3":       ("highly parallel", "asymmetric emboss filter; still maps to cross-correlation semantics"),
-    "box5x5":          ("highly parallel", "25-tap box filter; raises cleanly but current matcher only has the 3x3/9-tap template"),
+    "box5x5":          ("highly parallel", "25-tap box filter; now matches the 5x5 cuDNN convolution path"),
+    "gaussian5x5":     ("highly parallel", "separable 5x5 Gaussian coefficient stencil, matched as one generic 25-tap conv"),
+    "sobel_x5x5":      ("highly parallel", "wider horizontal-gradient stencil with zero center column coefficients"),
+    "sobel_y5x5":      ("highly parallel", "wider vertical-gradient stencil with zero center row coefficients"),
+    "laplacian5x5":    ("highly parallel", "5x5 Laplacian / LoG-style finite-difference stencil"),
+    "sharpen5x5":      ("highly parallel", "wider sharpen filter with center-heavy positive weights"),
+    "emboss5x5":       ("highly parallel", "asymmetric 5x5 emboss filter mapped to cross-correlation semantics"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -1039,8 +1057,39 @@ STENCIL_CONV2D_RUNTIMES: dict[str, list[dict]] = {
          "notes": "REPEAT=20, first 5 discarded; checksum -1.74002242"},
     ],
     "box5x5": [
-        {"size": "not run", "raised": "not matched", "reference": "cuDNN 5x5 possible",
-         "winner": "n/a", "notes": "Raises to linalg, but needs a 25-tap matcher/lowering entry"},
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -0.02520496; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "gaussian5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -0.48238885; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "sobel_x5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 225.14816284; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "sobel_y5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 12.86839104; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "laplacian5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -17.16963387; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "sharpen5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -2.78251743; Jetson build OK; silicon run blocked by SSH"},
+    ],
+    "emboss5x5": [
+        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+         "reference": "cuDNN 5x5 f32", "winner": "raised-only",
+         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 18.00988960; Jetson build OK; silicon run blocked by SSH"},
     ],
 }
 
@@ -1086,7 +1135,13 @@ STENCIL_CONV2D_BLOCKERS: dict[str, tuple[str, str]] = {
     "laplacian8_3x3":  ("none", ""),
     "sharpen3x3":      ("none", ""),
     "emboss3x3":       ("none", ""),
-    "box5x5":          ("matcher-gap", "Raises to one linalg.generic with no residual loops, but the matcher library has no 25-tap/5x5 convolution template yet."),
+    "box5x5":          ("none", ""),
+    "gaussian5x5":     ("none", ""),
+    "sobel_x5x5":      ("none", ""),
+    "sobel_y5x5":      ("none", ""),
+    "laplacian5x5":    ("none", ""),
+    "sharpen5x5":      ("none", ""),
+    "emboss5x5":       ("none", ""),
 }
 
 # llm.c blockers — wider coverage than llama2.c includes both forward AND
@@ -1412,20 +1467,27 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     pages: dict[str, str] = {}
     css = ""
     n_for = 0
+    report = [("launches", 0), ("residual_lg", 0)]
 
     if raised.exists():
-        html, css = syntax_highlight(raised.read_text())
+        raised_text = raised.read_text()
+        html, css = syntax_highlight(raised_text)
         pages["raised"] = html
+        if kset == "stencil_conv2d":
+            n_for = count_for_loops(raised_text)
+            rewritten, report = run_rewriter(raised)
+            html, css = syntax_highlight(rewritten)
+            pages["matched"] = html
     if debuf.exists():
         debuf_text = debuf.read_text()
-        n_for = count_for_loops(debuf_text)
+        if kset != "stencil_conv2d":
+            n_for = count_for_loops(debuf_text)
         html, css = syntax_highlight(debuf_text)
         pages["debuf"] = html
-        rewritten, report = run_rewriter(debuf)
-        html, css = syntax_highlight(rewritten)
-        pages["matched"] = html
-    else:
-        report = [("launches", 0), ("residual_lg", 0)]
+        if kset != "stencil_conv2d":
+            rewritten, report = run_rewriter(debuf)
+            html, css = syntax_highlight(rewritten)
+            pages["matched"] = html
     if debuf_mr.exists():
         debuf_mr_text = debuf_mr.read_text()
         html, css = syntax_highlight(debuf_mr_text)
@@ -2643,17 +2705,16 @@ def build_index(polybench_stats: dict[str, dict],
         ),
     )
     stencil_conv2d_section = _build_section(
-        title="Stencil Conv2D fixtures (cuDNN 3x3 targets)",
+        title="Stencil Conv2D fixtures (cuDNN 3x3/5x5 targets)",
         anchor="stencil-conv2d",
         blurb=(
             "Image-processing and finite-difference stencil fixtures written "
             "as plain C neighbourhood expressions. The eight 3x3 variants "
             "raise to one loop-free linalg.generic and match the generic "
             "<code>@cudnnConvolution2D_9tap_f32</code> path with surfaced "
-            "coefficients. The 5x5 box filter is included as the next "
-            "matcher-extension target: it raises cleanly, but today has no "
-            "25-tap library entry. Each row links to Compiler Explorer and "
-            "an IR preview for the raised C fixture."
+            "coefficients. The 5x5 variants use the sibling "
+            "<code>@cudnnConvolution2D_25tap_f32</code> path. Each row links "
+            "to Compiler Explorer and an IR preview for the raised C fixture."
         ),
         kernel_stats=stencil_conv2d_stats,
         notes=STENCIL_CONV2D_NOTES,

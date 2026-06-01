@@ -157,6 +157,27 @@ void polygeist_cudnn_conv2d_3x3_f32(
     float w6, float w7, float w8,
     const float *A, float *B);
 
+// Generic 5x5 conv2d shim. The lowering passes a pointer to the top-left
+// input subview and a pointer to the output interior subview B[2][2], so the
+// shim writes a dense (M-4)x(N-4) block relative to B with row stride N.
+void polygeist_cudnn_conv2d_5x5_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2, double w3, double w4,
+    double w5, double w6, double w7, double w8, double w9,
+    double w10, double w11, double w12, double w13, double w14,
+    double w15, double w16, double w17, double w18, double w19,
+    double w20, double w21, double w22, double w23, double w24,
+    const double *A, double *B);
+
+void polygeist_cudnn_conv2d_5x5_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2, float w3, float w4,
+    float w5, float w6, float w7, float w8, float w9,
+    float w10, float w11, float w12, float w13, float w14,
+    float w15, float w16, float w17, float w18, float w19,
+    float w20, float w21, float w22, float w23, float w24,
+    const float *A, float *B);
+
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
 // `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI

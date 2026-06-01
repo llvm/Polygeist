@@ -216,6 +216,54 @@ void polygeist_cudnn_conv2d_3x3_f32(
   }
 }
 
+void polygeist_cudnn_conv2d_5x5_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2, double w3, double w4,
+    double w5, double w6, double w7, double w8, double w9,
+    double w10, double w11, double w12, double w13, double w14,
+    double w15, double w16, double w17, double w18, double w19,
+    double w20, double w21, double w22, double w23, double w24,
+    const double *A, double *B) {
+  const double w[25] = {
+      w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
+      w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
+      w20, w21, w22, w23, w24};
+  for (int32_t i = 0; i < M - 4; ++i) {
+    for (int32_t j = 0; j < N - 4; ++j) {
+      double acc = 0.0;
+      for (int32_t dy = 0; dy < 5; ++dy)
+        for (int32_t dx = 0; dx < 5; ++dx)
+          acc += w[dy * 5 + dx] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
+void polygeist_cudnn_conv2d_5x5_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2, float w3, float w4,
+    float w5, float w6, float w7, float w8, float w9,
+    float w10, float w11, float w12, float w13, float w14,
+    float w15, float w16, float w17, float w18, float w19,
+    float w20, float w21, float w22, float w23, float w24,
+    const float *A, float *B) {
+  const float w[25] = {
+      w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
+      w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
+      w20, w21, w22, w23, w24};
+  for (int32_t i = 0; i < M - 4; ++i) {
+    for (int32_t j = 0; j < N - 4; ++j) {
+      float acc = 0.0f;
+      for (int32_t dy = 0; dy < 5; ++dy)
+        for (int32_t dx = 0; dx < 5; ++dx)
+          acc += w[dy * 5 + dx] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the

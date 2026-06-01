@@ -1216,6 +1216,79 @@ module {
     kernel.yield
   }
 
+  // Conv2D 25-tap weighted (5x5 stencil), surfaced exactly like the 9-tap
+  // path: 25 shifted input subviews, one output interior subview, then 25
+  // scalar filter weights in row-major order.
+  kernel.defn @cudnnConvolution2D_25tap(
+      %A0:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A1:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A2:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A3:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A4:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A5:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A6:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A7:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A8:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A9:  memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A10: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A11: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A12: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A13: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A14: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A15: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A16: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A17: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A18: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A19: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A20: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A21: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A22: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A23: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A24: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %C:   memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %w0:  f64, %w1:  f64, %w2:  f64, %w3:  f64, %w4:  f64,
+      %w5:  f64, %w6:  f64, %w7:  f64, %w8:  f64, %w9:  f64,
+      %w10: f64, %w11: f64, %w12: f64, %w13: f64, %w14: f64,
+      %w15: f64, %w16: f64, %w17: f64, %w18: f64, %w19: f64,
+      %w20: f64, %w21: f64, %w22: f64, %w23: f64, %w24: f64) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_25tap_f32(
+      %A0:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A1:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A2:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A3:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A4:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A5:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A6:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A7:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A8:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A9:  memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A10: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A11: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A12: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A13: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A14: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A15: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A16: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A17: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A18: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A19: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A20: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A21: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A22: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A23: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %A24: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %C:   memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %w0:  f32, %w1:  f32, %w2:  f32, %w3:  f32, %w4:  f32,
+      %w5:  f32, %w6:  f32, %w7:  f32, %w8:  f32, %w9:  f32,
+      %w10: f32, %w11: f32, %w12: f32, %w13: f32, %w14: f32,
+      %w15: f32, %w16: f32, %w17: f32, %w18: f32, %w19: f32,
+      %w20: f32, %w21: f32, %w22: f32, %w23: f32, %w24: f32) {
+    kernel.yield
+  }
+
   kernel.defn @cudnnConvolution2D_9tap_f16(
       %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
       %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,

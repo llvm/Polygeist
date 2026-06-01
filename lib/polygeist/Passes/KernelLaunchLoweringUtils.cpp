@@ -43,23 +43,29 @@ Value memrefBasePtr(OpBuilder &b, Location loc, Value m) {
   return b.create<LLVM::IntToPtrOp>(loc, ptrTy, byteAddr);
 }
 
-LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
-                                    StringRef shimSymbol) {
+static LogicalResult lowerCudnnConv2DNtap(LaunchOp launch, ModuleOp module,
+                                           StringRef shimSymbol,
+                                           unsigned filterWidth,
+                                           bool allowLegacy9tap) {
+  unsigned taps = filterWidth * filterWidth;
+  unsigned weightedOperands = taps + 1 + taps;
   unsigned n = launch.getNumOperands();
-  if (n != 19 && n != 10)
-    return launch.emitError("cudnnConvolution2D_9tap: expected 19 operands "
-                            "(9 input subviews + 1 output + 9 weights) "
-                            "or legacy 10 operands; got ")
+  if (n != weightedOperands && !(allowLegacy9tap && n == 10))
+    return launch.emitError("cudnnConvolution2D_")
+           << taps << "tap: expected " << weightedOperands << " operands "
+           << "(" << taps << " input subviews + 1 output + " << taps
+           << " weights)"
+           << (allowLegacy9tap ? " or legacy 10 operands; got " : "; got ")
            << n;
   if (launch.getNumResults() != 0)
-    return launch.emitError("cudnnConvolution2D_9tap: expected memref-form "
-                            "(void) launch; got ")
+    return launch.emitError("cudnnConvolution2D_")
+           << taps << "tap: expected memref-form (void) launch; got "
            << launch.getNumResults() << " result(s)";
 
   auto firstMr = dyn_cast<MemRefType>(launch.getOperand(0).getType());
   if (!firstMr || firstMr.getRank() != 2)
-    return launch.emitError(
-        "cudnnConvolution2D_9tap: operand 0 must be a 2D memref");
+    return launch.emitError("cudnnConvolution2D_")
+           << taps << "tap: operand 0 must be a 2D memref";
   Type elemTy = firstMr.getElementType();
   bool isSupportedInt = false;
   if (auto intTy = dyn_cast<IntegerType>(elemTy)) {
@@ -68,51 +74,53 @@ LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
   }
   if (!(elemTy.isF64() || elemTy.isF32() || elemTy.isF16() ||
         elemTy.isBF16() || isSupportedInt))
-    return launch.emitError(
-        "cudnnConvolution2D_9tap: element type must be f64/f32/f16/bf16/i32/i16/i8 (got ") << elemTy << ")";
-  for (unsigned i = 0; i < 10; ++i) {
+    return launch.emitError("cudnnConvolution2D_")
+           << taps
+           << "tap: element type must be f64/f32/f16/bf16/i32/i16/i8 (got "
+           << elemTy << ")";
+  for (unsigned i = 0; i < taps + 1; ++i) {
     auto mr = dyn_cast<MemRefType>(launch.getOperand(i).getType());
     if (!mr || mr.getRank() != 2 || mr.getElementType() != elemTy)
-      return launch.emitError(
-                 "cudnnConvolution2D_9tap: memref operands 0..9 must be 2D "
-                 "memrefs with matching element type");
+      return launch.emitError("cudnnConvolution2D_")
+             << taps << "tap: input/output memref operands must be 2D "
+             << "memrefs with matching element type";
   }
-  if (n == 19) {
-    for (unsigned i = 10; i < 19; ++i) {
+  if (n == weightedOperands) {
+    for (unsigned i = taps + 1; i < weightedOperands; ++i) {
       if (launch.getOperand(i).getType() != elemTy)
-        return launch.emitError("cudnnConvolution2D_9tap: weight operands "
-                                "(10..18) must match memref elem type");
+        return launch.emitError("cudnnConvolution2D_")
+               << taps << "tap: weight operands must match memref elem type";
     }
   }
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value A_subview = launch.getOperand(0);
-  Value B_subview = launch.getOperand(9);
+  Value B_subview = launch.getOperand(taps);
 
   Value A_ptr = memrefBasePtr(b, loc, A_subview);
   Value B_ptr = memrefBasePtr(b, loc, B_subview);
 
   Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = b.create<arith::ConstantIndexOp>(loc, 1);
-  Value c2_i32 = b.create<arith::ConstantOp>(loc, b.getI32Type(),
-                                              b.getI32IntegerAttr(2));
+  Value border_i32 = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(filterWidth - 1));
   Value h_idx = b.create<memref::DimOp>(loc, B_subview, c0);
   Value w_idx = b.create<memref::DimOp>(loc, B_subview, c1);
   Value h_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), h_idx);
   Value w_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), w_idx);
-  Value M = b.create<arith::AddIOp>(loc, h_i32, c2_i32);
-  Value N = b.create<arith::AddIOp>(loc, w_i32, c2_i32);
+  Value M = b.create<arith::AddIOp>(loc, h_i32, border_i32);
+  Value N = b.create<arith::AddIOp>(loc, w_i32, border_i32);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  if (n == 19) {
+  if (n == weightedOperands) {
     SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type()};
-    for (unsigned i = 0; i < 9; ++i) argTypes.push_back(elemTy);
+    for (unsigned i = 0; i < taps; ++i) argTypes.push_back(elemTy);
     argTypes.push_back(ptrTy);
     argTypes.push_back(ptrTy);
     func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
     SmallVector<Value> callOperands = {M, N};
-    for (unsigned i = 10; i < 19; ++i)
+    for (unsigned i = taps + 1; i < weightedOperands; ++i)
       callOperands.push_back(launch.getOperand(i));
     callOperands.push_back(A_ptr);
     callOperands.push_back(B_ptr);
@@ -132,6 +140,18 @@ LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
 
   launch.erase();
   return success();
+}
+
+LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
+                                    StringRef shimSymbol) {
+  return lowerCudnnConv2DNtap(launch, module, shimSymbol,
+                              /*filterWidth=*/3, /*allowLegacy9tap=*/true);
+}
+
+LogicalResult lowerCudnnConv2D25tap(LaunchOp launch, ModuleOp module,
+                                     StringRef shimSymbol) {
+  return lowerCudnnConv2DNtap(launch, module, shimSymbol,
+                              /*filterWidth=*/5, /*allowLegacy9tap=*/false);
 }
 
 LogicalResult lowerImageFilter2Operand(kernel::LaunchOp launch,

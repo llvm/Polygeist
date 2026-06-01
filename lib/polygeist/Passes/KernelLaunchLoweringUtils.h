@@ -40,6 +40,11 @@ Value memrefBasePtr(OpBuilder &b, Location loc, Value m);
 LogicalResult lowerCudnnConv2D9tap(kernel::LaunchOp launch, ModuleOp module,
                                     StringRef shimSymbol);
 
+// Same convention as lowerCudnnConv2D9tap, but for 5x5 / 25-tap stencils.
+// The launch has 25 input subviews, one output subview, then 25 scalar weights.
+LogicalResult lowerCudnnConv2D25tap(kernel::LaunchOp launch, ModuleOp module,
+                                     StringRef shimSymbol);
+
 // Lower a kernel.launch carrying a "uniform-weight K×K image filter" shape
 // (1 input subview + 1 output subview, no scalar weights) to a func.call
 // whose signature is `(M, N, A_ptr, B_ptr)`. Used by the PVA pass for

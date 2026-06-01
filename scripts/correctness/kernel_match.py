@@ -1466,6 +1466,26 @@ def _conv2d_9pt_weighted() -> CompositionEntry:
     )
 
 
+def _conv2d_25pt_weighted() -> CompositionEntry:
+    """2D 25-tap weighted convolution: out = sum_{k=0..24} w_k * in_k.
+
+    This is the 5x5 sibling of _conv2d_9pt_weighted. The raise pipeline
+    exposes straight-line 5x5 image/PDE stencils as 25 shifted input subviews
+    plus one output subview; surfacing the literals lets lowering route the
+    whole linalg.generic to a single cuDNN 5x5 convolution shim.
+    """
+    body = Term.In(0) * T_cap("%w0")
+    for i in range(1, 25):
+        body = body + Term.In(i) * T_cap(f"%w{i}")
+    return CompositionEntry(
+        name="cudnnConvolution2D_25tap",
+        steps=[CompositionStep(body=body, num_ins=25, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="memref",
+        surface_inline_weights=True,
+    )
+
+
 def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
     """Tensor-form sibling of _conv2d_9pt_weighted — fires after the
     multi-root debufferize on the same body."""
@@ -2002,6 +2022,8 @@ def composition_library() -> list[CompositionEntry]:
                                  #         conv shape; relies on egglog
                                  #         factoring to collapse redundant
                                  #         muls in polybench's conv3d body.
+        _conv2d_25pt_weighted(), # 25 ins — 5x5 conv shape; keep before 9-tap
+                                  #          and lower-point stencil templates.
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
                                 #         come before jacobi_2d_5pt (5 ins)
                                 #         since both target 2D parallel iter.
