@@ -1065,6 +1065,158 @@ void polygeist_cudnn_conv2d_5x5_f32(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
+void polygeist_cudnn_conv2d_ntap_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  int32_t out_h = M - (K - 1);
+  int32_t out_w = N - (K - 1);
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_DOUBLE, 1, 1, M, N));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_DOUBLE,
+                                          CUDNN_TENSOR_NCHW, 1, 1, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_DOUBLE));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_DOUBLE, 1, 1, out_h, out_w));
+
+  size_t bytes_in  = (size_t)M * (size_t)N * sizeof(double);
+  size_t bytes_f   = (size_t)K * (size_t)K * sizeof(double);
+  size_t bytes_out = (size_t)out_h * (size_t)out_w * sizeof(double);
+  double *dA = NULL, *dF = NULL, *dB = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_in));
+  CUDA_CHECK(cudaMalloc((void**)&dF, bytes_f));
+  CUDA_CHECK(cudaMalloc((void**)&dB, bytes_out));
+  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_in, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dF, W, bytes_f, cudaMemcpyHostToDevice, g_stream));
+
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, 1, &n_returned, &algo_perf));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN(f64 ntap): no fwd algo available\n");
+    abort();
+  }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, algo_perf.algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  double alpha = 1.0, beta = 0.0;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
+      algo_perf.algo, dWS, ws_size, &beta, out_desc, dB));
+  timing_gpu_end("cudnnConvolution2D_ntap_f64", M, N, K * K, host_start_ms);
+
+  for (int32_t i = 0; i < out_h; ++i) {
+    CUDA_CHECK(cudaMemcpyAsync(
+        B + (size_t)i * (size_t)N,
+        dB + (size_t)i * (size_t)out_w,
+        (size_t)out_w * sizeof(double),
+        cudaMemcpyDeviceToHost, g_stream));
+  }
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dA);  cudaFree(dF);  cudaFree(dB);
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+void polygeist_cudnn_conv2d_ntap_f32(
+    int32_t M, int32_t N, int32_t K,
+    const float *W, const float *A, float *B) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  int32_t out_h = M - (K - 1);
+  int32_t out_w = N - (K - 1);
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, M, N));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, 1, 1, K, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, 1, 1, out_h, out_w));
+
+  size_t bytes_in  = (size_t)M * (size_t)N * sizeof(float);
+  size_t bytes_f   = (size_t)K * (size_t)K * sizeof(float);
+  size_t bytes_out = (size_t)out_h * (size_t)out_w * sizeof(float);
+  float *dA = NULL, *dF = NULL, *dB = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_in));
+  CUDA_CHECK(cudaMalloc((void**)&dF, bytes_f));
+  CUDA_CHECK(cudaMalloc((void**)&dB, bytes_out));
+  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_in, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dF, W, bytes_f, cudaMemcpyHostToDevice, g_stream));
+
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, 1, &n_returned, &algo_perf));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN(f32 ntap): no fwd algo available\n");
+    abort();
+  }
+
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, algo_perf.algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
+      algo_perf.algo, dWS, ws_size, &beta, out_desc, dB));
+  timing_gpu_end("cudnnConvolution2D_ntap_f32", M, N, K * K, host_start_ms);
+
+  for (int32_t i = 0; i < out_h; ++i) {
+    CUDA_CHECK(cudaMemcpyAsync(
+        B + (size_t)i * (size_t)N,
+        dB + (size_t)i * (size_t)out_w,
+        (size_t)out_w * sizeof(float),
+        cudaMemcpyDeviceToHost, g_stream));
+  }
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dA);  cudaFree(dF);  cudaFree(dB);
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
 // FP16 variant. cuDNN tensor cores light up here on Ampere+ (Orin) when the
 // shape is large enough and channel-aligned. Single-batch single-channel may
 // still fall back to a generic path — but for batched/channeled workloads

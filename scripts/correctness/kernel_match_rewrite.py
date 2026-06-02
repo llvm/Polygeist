@@ -16,6 +16,7 @@ ABI. That step is *not* in this script.
 """
 from __future__ import annotations
 import argparse
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -339,6 +340,164 @@ def _normalize_tensor_operands(
     return cast_lines, new_ssas, new_types
 
 
+def _parse_static_subview_offset(text: str, ssa: str) -> tuple[str, tuple[int, int]] | None:
+    pat = re.compile(
+        rf"^\s*{re.escape(ssa)}\s*=\s*memref\.subview\s+"
+        rf"(%[\w_\-]+)\s*\[([^\]]+)\]",
+        re.MULTILINE,
+    )
+    m = pat.search(text)
+    if not m:
+        return None
+    pieces = [p.strip() for p in m.group(2).split(",")]
+    if len(pieces) != 2:
+        return None
+    try:
+        return m.group(1), (int(pieces[0]), int(pieces[1]))
+    except ValueError:
+        return None
+
+
+def _conv2d_ntap_grid_info(
+    text: str, input_names: list[str], out_name: str
+) -> tuple[int, str, list[int]] | None:
+    """Validate same-base odd-square input subviews and return row-major order.
+
+    Returns (filter_width, top_left_input_ssa, input_indices_in_row_major_order).
+    The scalar algebra matcher only proves a weighted sum. This check proves
+    the operands are actually shifted subviews that cuDNN can interpret as a
+    dense KxK cross-correlation window.
+    """
+    ntaps = len(input_names)
+    width = math.isqrt(ntaps)
+    if width * width != ntaps or width < 3 or width % 2 == 0:
+        return None
+    parsed: list[tuple[int, str, tuple[int, int]]] = []
+    bases = set()
+    for idx, name in enumerate(input_names):
+        p = _parse_static_subview_offset(text, name)
+        if p is None:
+            return None
+        base, off = p
+        bases.add(base)
+        parsed.append((idx, name, off))
+    if len(bases) != 1:
+        return None
+    ys = sorted({off[0] for _, _, off in parsed})
+    xs = sorted({off[1] for _, _, off in parsed})
+    if len(ys) != width or len(xs) != width:
+        return None
+    if ys != list(range(ys[0], ys[0] + width)):
+        return None
+    if xs != list(range(xs[0], xs[0] + width)):
+        return None
+
+    out = _parse_static_subview_offset(text, out_name)
+    if out is None:
+        return None
+    _out_base, out_off = out
+    radius = width // 2
+    if out_off != (ys[0] + radius, xs[0] + radius):
+        return None
+
+    by_offset = {off: (idx, name) for idx, name, off in parsed}
+    ordered_indices: list[int] = []
+    top_left_name = ""
+    for y in ys:
+        for x in xs:
+            item = by_offset.get((y, x))
+            if item is None:
+                return None
+            idx, name = item
+            if y == ys[0] and x == xs[0]:
+                top_left_name = name
+            ordered_indices.append(idx)
+    return width, top_left_name, ordered_indices
+
+
+def _weight_cast_op(src_ty: str, dst_ty: str) -> str:
+    casts = {
+        ("f64", "f32"): "arith.truncf",
+        ("f32", "f64"): "arith.extf",
+    }
+    return casts.get((src_ty, dst_ty), "arith.bitcast")
+
+
+def _format_weight_literal(value: float, ty: str) -> str:
+    if ty.startswith("f"):
+        lit = repr(value)
+        return lit if any(c in lit for c in ".eE") else lit + ".0"
+    return str(int(value))
+
+
+def _render_ntap_conv_launch(
+    name: str,
+    top_left_ssa: str,
+    top_left_type: str,
+    out_ssa: str,
+    out_type: str,
+    width: int,
+    ordered_inline_weights: list[list[str] | None],
+    indent: str,
+    scalar_type_map: dict[str, str],
+    body_constants: dict[str, float],
+    weight_ty: str,
+    unique_id: int,
+) -> str:
+    cast_lines, memrefs, memref_types = _normalize_memref_operands(
+        [top_left_ssa, out_ssa], [top_left_type, out_type], indent
+    )
+    ntaps = width * width
+    weight_memref_ty = f"memref<{ntaps}x{weight_ty}>"
+    prefix = f"%ntap{unique_id}"
+    wbuf = f"{prefix}_weights"
+    k_ssa = f"{prefix}_k"
+    lines = list(cast_lines)
+    lines.append(f"{indent}{wbuf} = memref.alloca() : {weight_memref_ty}")
+    for idx, weights in enumerate(ordered_inline_weights):
+        idx_ssa = f"{prefix}_i{idx}"
+        lines.append(f"{indent}{idx_ssa} = arith.constant {idx} : index")
+        if weights is None:
+            val_ssa = f"{prefix}_w{idx}"
+            lines.append(
+                f"{indent}{val_ssa} = arith.constant "
+                f"{_format_weight_literal(1.0, weight_ty)} : {weight_ty}"
+            )
+        elif len(weights) == 1:
+            val_ssa = weights[0]
+            src_ty = scalar_type_map.get(val_ssa)
+            if src_ty and src_ty != weight_ty:
+                cast_ssa = f"{prefix}_w{idx}_cast"
+                lines.append(
+                    f"{indent}{cast_ssa} = {_weight_cast_op(src_ty, weight_ty)} "
+                    f"{val_ssa} : {src_ty} to {weight_ty}"
+                )
+                val_ssa = cast_ssa
+        else:
+            summed = sum(body_constants.get(w, 0.0) for w in weights)
+            val_ssa = f"{prefix}_w{idx}"
+            lines.append(
+                f"{indent}{val_ssa} = arith.constant "
+                f"{_format_weight_literal(summed, weight_ty)} : {weight_ty}"
+            )
+        lines.append(
+            f"{indent}memref.store {val_ssa}, {wbuf}[{idx_ssa}] : {weight_memref_ty}"
+        )
+    weight_dyn_ty = f"memref<?x{weight_ty}>"
+    wbuf_dyn = f"{wbuf}_c"
+    lines.append(
+        f"{indent}{wbuf_dyn} = memref.cast {wbuf} : {weight_memref_ty} to {weight_dyn_ty}"
+    )
+    lines.append(f"{indent}{k_ssa} = arith.constant {width} : i32")
+    operands = [memrefs[0], memrefs[1], wbuf_dyn, k_ssa]
+    sig_types = [memref_types[0], memref_types[1], weight_dyn_ty, "i32"]
+    lines.append(
+        f"{indent}kernel.launch @{name}({', '.join(operands)}) : "
+        f"({', '.join(sig_types)}) -> ()"
+    )
+    return "\n".join(lines)
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -643,6 +802,7 @@ def rewrite_mlir(
         # resolve `#map` symbol references (only inline affine_map).
         emit_name = entry.name
         replace_full_span = False
+        custom_launch_line: str | None = None
         if entry.name == "cublasDcopy" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
             # rank-0 memref: starts with `memref<` and the chunk before the
@@ -852,6 +1012,53 @@ def rewrite_mlir(
             i += 1
             continue
 
+        if entry.name == "cudnnConvolution2D_ntap":
+            in_names = _extract_ssa_names(instances[i].ins_part)
+            in_types = _extract_ssa_types(instances[i].ins_part)
+            out_names = _extract_ssa_names(instances[i].outs_part)
+            out_types = _extract_ssa_types(instances[i].outs_part)
+            if len(out_names) != 1 or len(in_names) == 0:
+                report.append(("ntap_stencil_reject", i, entry.name))
+                i += 1
+                continue
+            grid = _conv2d_ntap_grid_info(text, in_names, out_names[0])
+            if grid is None:
+                report.append(("ntap_stencil_reject", i, entry.name))
+                i += 1
+                continue
+            width, top_left_ssa, ordered_indices = grid
+            elem = _sniff_elem_type(in_types[0]) if in_types else None
+            if elem not in ("f32", "f64"):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+            if any(_sniff_elem_type(t) != elem for t in in_types + out_types):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+            top_left_idx = in_names.index(top_left_ssa)
+            inline_weights = bodies[i].inline_weights_per_in
+            if not inline_weights or len(inline_weights) != len(in_names):
+                report.append(("ntap_weight_reject", i, entry.name))
+                i += 1
+                continue
+            ordered_weights = [inline_weights[idx] for idx in ordered_indices]
+            emit_name = "cudnnConvolution2D_ntap_f32" if elem == "f32" else "cudnnConvolution2D_ntap"
+            custom_launch_line = _render_ntap_conv_launch(
+                emit_name,
+                top_left_ssa,
+                in_types[top_left_idx],
+                out_names[0],
+                out_types[0],
+                width,
+                ordered_weights,
+                last.indent,
+                scalar_types,
+                bodies[i].constants,
+                elem,
+                i,
+            )
+
         if entry.name in ("cudnnConvolution2D_9tap",
                           "cudnnConvolution2D_9tap_tensor"):
             elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else "f64"
@@ -958,35 +1165,38 @@ def rewrite_mlir(
             else:
                 emit_name = "cublasDgemv_T" if transposed else "cublasDgemv"
 
-        # When the matched composition opts in to weight surfacing, hand the
-        # encoder's in_arg → constant_ssa map from the FIRST matched body to
-        # render_launch. (Only single-step weighted-stencil templates use
-        # this today; if we ever support multi-step weighted compositions,
-        # this needs to combine bodies appropriately.)
-        inline_weights = (bodies[i].inline_weights_per_in
-                           if getattr(entry, "surface_inline_weights", False)
-                           else None)
-        # Surface the weight scalars with the operand's element type
-        # (f64 / f32 / f16 / bf16 / iNN), so the launch op's signature is
-        # internally consistent and the cuDNN shim's scalar args match.
-        weight_ty = "f64"
-        if inline_weights and all_tensor_in_types:
-            sniffed = _sniff_elem_type(all_tensor_in_types[0])
-            if sniffed:
-                weight_ty = sniffed
+        if custom_launch_line is not None:
+            launch_line = custom_launch_line
+        else:
+            # When the matched composition opts in to weight surfacing, hand the
+            # encoder's in_arg → constant_ssa map from the FIRST matched body to
+            # render_launch. (Only single-step weighted-stencil templates use
+            # this today; if we ever support multi-step weighted compositions,
+            # this needs to combine bodies appropriately.)
+            inline_weights = (bodies[i].inline_weights_per_in
+                               if getattr(entry, "surface_inline_weights", False)
+                               else None)
+            # Surface the weight scalars with the operand's element type
+            # (f64 / f32 / f16 / bf16 / iNN), so the launch op's signature is
+            # internally consistent and the cuDNN shim's scalar args match.
+            weight_ty = "f64"
+            if inline_weights and all_tensor_in_types:
+                sniffed = _sniff_elem_type(all_tensor_in_types[0])
+                if sniffed:
+                    weight_ty = sniffed
 
-        launch_line = render_launch(
-            emit_name, last.result_ssa, last.result_type,
-            operands, last.indent, binds, [],
-            operand_types=operand_types,
-            scalar_type_map=scalar_types,
-            inline_weights=inline_weights,
-            inline_weight_type=weight_ty,
-            # Pass the body's per-SSA constant values so render_launch can
-            # materialise summed-constant ops for the polybench conv3d
-            # multi-coefficient case.
-            body_constants=bodies[i].constants if inline_weights else None,
-        )
+            launch_line = render_launch(
+                emit_name, last.result_ssa, last.result_type,
+                operands, last.indent, binds, [],
+                operand_types=operand_types,
+                scalar_type_map=scalar_types,
+                inline_weights=inline_weights,
+                inline_weight_type=weight_ty,
+                # Pass the body's per-SSA constant values so render_launch can
+                # materialise summed-constant ops for the polybench conv3d
+                # multi-coefficient case.
+                body_constants=bodies[i].constants if inline_weights else None,
+            )
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser
             # captures the line break before the op. Use only the spaces.

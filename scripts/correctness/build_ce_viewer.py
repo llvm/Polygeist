@@ -192,6 +192,7 @@ STENCIL_CONV2D_KERNELS: dict[str, tuple[str, str]] = {
     "laplacian5x5":    ("stencil_conv2d_3x3.c", "kernel_stencil_laplacian5x5"),
     "sharpen5x5":      ("stencil_conv2d_3x3.c", "kernel_stencil_sharpen5x5"),
     "emboss5x5":       ("stencil_conv2d_3x3.c", "kernel_stencil_emboss5x5"),
+    "box7x7":          ("stencil_conv2d_3x3.c", "kernel_stencil_box7x7"),
 }
 
 STENCIL_CONV2D_ORDER = list(STENCIL_CONV2D_KERNELS.keys())
@@ -212,6 +213,7 @@ STENCIL_CONV2D_DISPLAY_NAMES: dict[str, str] = {
     "laplacian5x5":    "Laplacian 5x5",
     "sharpen5x5":      "sharpen 5x5",
     "emboss5x5":       "emboss 5x5",
+    "box7x7":          "box blur 7x7",
 }
 
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
@@ -453,6 +455,7 @@ STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
     "laplacian5x5":    ("highly parallel", "5x5 Laplacian / LoG-style finite-difference stencil"),
     "sharpen5x5":      ("highly parallel", "wider sharpen filter with center-heavy positive weights"),
     "emboss5x5":       ("highly parallel", "asymmetric 5x5 emboss filter mapped to cross-correlation semantics"),
+    "box7x7":          ("highly parallel", "49-tap box filter; matched by the generalized packed-weight ntap cuDNN path"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -1091,6 +1094,11 @@ STENCIL_CONV2D_RUNTIMES: dict[str, list[dict]] = {
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
          "notes": "REPEAT=20, first 5 discarded; checksum 18.00988960"},
     ],
+    "box7x7": [
+        {"size": "64x64 warm", "raised": "host 0.430 ms<br>device 0.0107 ms",
+         "reference": "cuDNN ntap f32", "winner": "raised-only",
+         "notes": "K=7, W[49] packed ABI; REPEAT=20, first 5 discarded; checksum 0.03551028"},
+    ],
 }
 
 # llama2.c blockers — all three lift to linalg.generic cleanly. RMSNorm,
@@ -1142,6 +1150,7 @@ STENCIL_CONV2D_BLOCKERS: dict[str, tuple[str, str]] = {
     "laplacian5x5":    ("none", ""),
     "sharpen5x5":      ("none", ""),
     "emboss5x5":       ("none", ""),
+    "box7x7":          ("none", ""),
 }
 
 # llm.c blockers — wider coverage than llama2.c includes both forward AND
@@ -2705,7 +2714,7 @@ def build_index(polybench_stats: dict[str, dict],
         ),
     )
     stencil_conv2d_section = _build_section(
-        title="Stencil Conv2D fixtures (cuDNN 3x3/5x5 targets)",
+        title="Stencil Conv2D fixtures (cuDNN 3x3/5x5/ntap targets)",
         anchor="stencil-conv2d",
         blurb=(
             "Image-processing and finite-difference stencil fixtures written "
@@ -2713,7 +2722,9 @@ def build_index(polybench_stats: dict[str, dict],
             "raise to one loop-free linalg.generic and match the generic "
             "<code>@cudnnConvolution2D_9tap_f32</code> path with surfaced "
             "coefficients. The 5x5 variants use the sibling "
-            "<code>@cudnnConvolution2D_25tap_f32</code> path. Each row links "
+            "<code>@cudnnConvolution2D_25tap_f32</code> path, and the 7x7 "
+            "proof fixture uses the generalized packed-weight "
+            "<code>@cudnnConvolution2D_ntap_f32</code> route. Each row links "
             "to Compiler Explorer and an IR preview for the raised C fixture."
         ),
         kernel_stats=stencil_conv2d_stats,

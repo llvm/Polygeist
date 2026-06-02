@@ -41,6 +41,7 @@ KERNELS=(
   "laplacian5x5    kernel_stencil_laplacian5x5"
   "sharpen5x5      kernel_stencil_sharpen5x5"
   "emboss5x5       kernel_stencil_emboss5x5"
+  "box7x7          kernel_stencil_box7x7"
 )
 
 count_pattern() {

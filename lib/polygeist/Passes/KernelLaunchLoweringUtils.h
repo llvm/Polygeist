@@ -45,6 +45,13 @@ LogicalResult lowerCudnnConv2D9tap(kernel::LaunchOp launch, ModuleOp module,
 LogicalResult lowerCudnnConv2D25tap(kernel::LaunchOp launch, ModuleOp module,
                                      StringRef shimSymbol);
 
+// Lower a generalized packed-weight KxK conv2d stencil launch:
+//   (top-left input subview, output interior subview, weights memref<K*K>, K)
+// to a runtime shim `(M, N, K, weights*, input*, output*)`.
+LogicalResult lowerCudnnConv2DNtapPacked(kernel::LaunchOp launch,
+                                          ModuleOp module,
+                                          StringRef shimSymbol);
+
 // Lower a kernel.launch carrying a "uniform-weight K×K image filter" shape
 // (1 input subview + 1 output subview, no scalar weights) to a func.call
 // whose signature is `(M, N, A_ptr, B_ptr)`. Used by the PVA pass for

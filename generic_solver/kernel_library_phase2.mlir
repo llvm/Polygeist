@@ -1289,6 +1289,27 @@ module {
     kernel.yield
   }
 
+  // Generalized odd-square weighted Conv2D stencil. The matcher proves the
+  // original linalg inputs are same-base shifted subviews, then packs the
+  // row-major KxK weights into %W and passes only the top-left input subview,
+  // output interior subview, packed weights, and K. This avoids adding one
+  // kernel.defn per tap count.
+  kernel.defn @cudnnConvolution2D_ntap(
+      %A: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %C: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %W: memref<?xf64>,
+      %K: i32) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_ntap_f32(
+      %A: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %C: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %W: memref<?xf32>,
+      %K: i32) {
+    kernel.yield
+  }
+
   kernel.defn @cudnnConvolution2D_9tap_f16(
       %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
       %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,

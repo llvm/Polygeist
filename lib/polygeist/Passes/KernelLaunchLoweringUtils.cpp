@@ -154,6 +154,69 @@ LogicalResult lowerCudnnConv2D25tap(LaunchOp launch, ModuleOp module,
                               /*filterWidth=*/5, /*allowLegacy9tap=*/false);
 }
 
+LogicalResult lowerCudnnConv2DNtapPacked(LaunchOp launch, ModuleOp module,
+                                          StringRef shimSymbol) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError("cudnnConvolution2D_ntap: expected 4 operands "
+                            "(input subview, output subview, weights, K); got ")
+           << launch.getNumOperands();
+  if (launch.getNumResults() != 0)
+    return launch.emitError("cudnnConvolution2D_ntap: expected memref-form "
+                            "(void) launch; got ")
+           << launch.getNumResults() << " result(s)";
+
+  Value A_subview = launch.getOperand(0);
+  Value B_subview = launch.getOperand(1);
+  Value W_memref = launch.getOperand(2);
+  Value K = launch.getOperand(3);
+
+  auto aTy = dyn_cast<MemRefType>(A_subview.getType());
+  auto bTy = dyn_cast<MemRefType>(B_subview.getType());
+  auto wTy = dyn_cast<MemRefType>(W_memref.getType());
+  if (!aTy || aTy.getRank() != 2 || !bTy || bTy.getRank() != 2)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap: input/output must be 2D memrefs");
+  if (!wTy || wTy.getRank() != 1)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap: weights must be a 1D memref");
+  Type elemTy = aTy.getElementType();
+  if (bTy.getElementType() != elemTy || wTy.getElementType() != elemTy)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap: input/output/weights dtypes must match");
+  if (!(elemTy.isF64() || elemTy.isF32()))
+    return launch.emitError(
+        "cudnnConvolution2D_ntap: only f64/f32 packed weights are supported");
+  if (!K.getType().isInteger(32))
+    return launch.emitError("cudnnConvolution2D_ntap: K must be i32");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value A_ptr = memrefBasePtr(b, loc, A_subview);
+  Value B_ptr = memrefBasePtr(b, loc, B_subview);
+  Value W_ptr = memrefBasePtr(b, loc, W_memref);
+
+  Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1 = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value oneI32 = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(1));
+  Value border = b.create<arith::SubIOp>(loc, K, oneI32);
+  Value h_idx = b.create<memref::DimOp>(loc, B_subview, c0);
+  Value w_idx = b.create<memref::DimOp>(loc, B_subview, c1);
+  Value h_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), h_idx);
+  Value w_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), w_idx);
+  Value M = b.create<arith::AddIOp>(loc, h_i32, border);
+  Value N = b.create<arith::AddIOp>(loc, w_i32, border);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{M, N, K, W_ptr, A_ptr, B_ptr});
+
+  launch.erase();
+  return success();
+}
+
 LogicalResult lowerImageFilter2Operand(kernel::LaunchOp launch,
                                         ModuleOp module,
                                         StringRef shimSymbol) {

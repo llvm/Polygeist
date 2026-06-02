@@ -178,6 +178,17 @@ void polygeist_cudnn_conv2d_5x5_f32(
     float w20, float w21, float w22, float w23, float w24,
     const float *A, float *B);
 
+// Generalized packed-weight odd-square Conv2D stencil. K is the filter width;
+// W has K*K row-major weights. A points at the top-left input subview and B
+// points at the output interior subview.
+void polygeist_cudnn_conv2d_ntap_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B);
+
+void polygeist_cudnn_conv2d_ntap_f32(
+    int32_t M, int32_t N, int32_t K,
+    const float *W, const float *A, float *B);
+
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
 // `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI

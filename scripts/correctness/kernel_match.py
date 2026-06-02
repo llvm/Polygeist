@@ -15,6 +15,7 @@ kernels. Bodies that are *structurally equivalent under algebra* collapse to
 the same library entry.
 """
 from __future__ import annotations
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -1486,6 +1487,26 @@ def _conv2d_25pt_weighted() -> CompositionEntry:
     )
 
 
+def _conv2d_ntap_weighted() -> CompositionEntry:
+    """Fallback family matcher for odd-square 2D weighted stencils.
+
+    Exact 3x3/9-tap and 5x5/25-tap entries stay in the library first so the
+    existing ABI/PVA paths remain stable. This dynamic entry covers wider
+    odd-square stencils without adding one algebra template per size. The
+    special matcher builds the weighted-sum template from the matched body's
+    actual input count, then the rewriter performs the non-algebraic safety
+    check that those inputs are shifted subviews of one base image.
+    """
+    return CompositionEntry(
+        name="cudnnConvolution2D_ntap",
+        steps=[CompositionStep(body=Term.In(0), num_outs=1,
+                                parallel_dim_count=2,
+                                reduction_dim_count=0,
+                                special="weighted_conv2d_ntap")],
+        form="memref",
+    )
+
+
 def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
     """Tensor-form sibling of _conv2d_9pt_weighted — fires after the
     multi-root debufferize on the same body."""
@@ -2027,6 +2048,7 @@ def composition_library() -> list[CompositionEntry]:
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
                                 #         come before jacobi_2d_5pt (5 ins)
                                 #         since both target 2D parallel iter.
+        _conv2d_ntap_weighted(), # odd-square weighted fallback (7x7+ today)
         _heat_3d_7pt(),       # 7 ins
         _fdtd_E_update(),     # 4 ins
         _jacobi_2d_5pt(),     # 5 ins
@@ -2432,6 +2454,98 @@ def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     return _unify(factored, tmpl_ast, {})
 
 
+def _weighted_sum_template(ntaps: int) -> Term:
+    body = Term.In(0) * T_cap("%w0")
+    for i in range(1, ntaps):
+        body = body + Term.In(i) * T_cap(f"%w{i}")
+    return body
+
+
+def _match_weighted_conv2d_ntap_body(g: GenericBody, body: Term) -> Optional[dict]:
+    """Dynamic scalar-body matcher for odd-square 2D weighted stencils.
+
+    This checks only the linalg body and iterator shape. The caller in
+    kernel_match_rewrite.py separately proves the matched operands are shifted
+    subviews from one base image before emitting the cuDNN launch.
+    """
+    ntaps = len(g.ins_arg_names)
+    if ntaps < 9:
+        return None
+    width = math.isqrt(ntaps)
+    if width * width != ntaps or width % 2 == 0:
+        return None
+    if len(g.outs_arg_names) != 1:
+        return None
+    if sum(1 for it in g.iterator_types if it == "parallel") != 2:
+        return None
+    if any(it == "reduction" for it in g.iterator_types):
+        return None
+
+    # Avoid recursive egglog/string-repr unification for large filters: repeated
+    # constants make egglog print alias bindings like `_Term_1 = ...`, which the
+    # lightweight Term parser intentionally does not model. For this family we
+    # only need to prove that the yielded scalar is a sum of N independent
+    # scalar-weighted input taps.
+    TapSet = frozenset[int]
+    env: dict[str, tuple[str, TapSet]] = {}
+    for i, name in enumerate(g.ins_arg_names):
+        env[name] = ("tap", frozenset({i}))
+    for name in g.outs_arg_names:
+        env[name] = ("other", frozenset())
+    for cap in g.captures:
+        env[cap] = ("scalar", frozenset())
+
+    def classify(tok: str) -> tuple[str, TapSet]:
+        tok = tok.strip()
+        if tok in env:
+            return env[tok]
+        if tok.startswith("%"):
+            return ("scalar", frozenset())
+        try:
+            float(tok)
+            return ("scalar", frozenset())
+        except ValueError:
+            return ("other", frozenset())
+
+    for line in g.body_lines:
+        m = re.match(
+            r"(%[\w_\-]+)\s*=\s*(\w+\.\w+)\s+(.*?)\s*:\s*\S+",
+            line.strip(),
+        )
+        if not m:
+            continue
+        result, op, args_part = m.group(1), m.group(2), m.group(3)
+        args = [s.strip() for s in args_part.split(",")]
+        op_key = _OP_PATTERNS.get(op, op)
+        if op_key == "transparent" and args:
+            env[result] = classify(args[0])
+        elif op_key == "mul" and len(args) >= 2:
+            a_kind, a_taps = classify(args[0])
+            b_kind, b_taps = classify(args[1])
+            if a_kind == "tap" and b_kind == "scalar":
+                env[result] = ("tap", a_taps)
+            elif a_kind == "scalar" and b_kind == "tap":
+                env[result] = ("tap", b_taps)
+            else:
+                env[result] = ("other", frozenset())
+        elif op_key == "add" and len(args) >= 2:
+            a_kind, a_taps = classify(args[0])
+            b_kind, b_taps = classify(args[1])
+            if a_kind == "tap" and b_kind == "tap" and a_taps.isdisjoint(b_taps):
+                env[result] = ("tap", a_taps | b_taps)
+            else:
+                env[result] = ("other", frozenset())
+        else:
+            env[result] = ("other", frozenset())
+
+    if not g.yield_values:
+        return None
+    kind, taps = classify(g.yield_values[0])
+    if kind == "tap" and taps == frozenset(range(ntaps)):
+        return {}
+    return None
+
+
 def _is_guarded_im2col_body(g: GenericBody) -> bool:
     """Return true for the raised Darknet im2col workspace-fill body.
 
@@ -2531,6 +2645,13 @@ def match_composition(
                         ok = False
                         break
                     b = {}
+                elif step.special == "weighted_conv2d_ntap":
+                    b = _match_weighted_conv2d_ntap_body(
+                        g, body_terms[start + j]
+                    )
+                    if b is None:
+                        ok = False
+                        break
                 else:
                     ok = False
                     break

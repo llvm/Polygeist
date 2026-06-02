@@ -104,6 +104,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_5x5_f64";
   if (libSym == "cudnnConvolution2D_25tap_f32")
     return "polygeist_cudnn_conv2d_5x5_f32";
+  if (libSym == "cudnnConvolution2D_ntap")
+    return "polygeist_cudnn_conv2d_ntap_f64";
+  if (libSym == "cudnnConvolution2D_ntap_f32")
+    return "polygeist_cudnn_conv2d_ntap_f32";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -878,6 +882,7 @@ static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
 // this file's scope so the dispatch switch below can name it unqualified.
 using mlir::polygeist::lowerCudnnConv2D9tap;
 using mlir::polygeist::lowerCudnnConv2D25tap;
+using mlir::polygeist::lowerCudnnConv2DNtapPacked;
 
 // Shared lowering for tensor GEMV. D/S variants differ only in element type
 // and runtime shim symbol; transpose picks A*x vs A^T*x.
@@ -2455,6 +2460,9 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution2D_25tap" ||
                  libSym == "cudnnConvolution2D_25tap_f32") {
         r = lowerCudnnConv2D25tap(launch, module, shim);
+      } else if (libSym == "cudnnConvolution2D_ntap" ||
+                 libSym == "cudnnConvolution2D_ntap_f32") {
+        r = lowerCudnnConv2DNtapPacked(launch, module, shim);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {

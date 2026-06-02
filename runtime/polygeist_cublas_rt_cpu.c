@@ -264,6 +264,40 @@ void polygeist_cudnn_conv2d_5x5_f32(
   }
 }
 
+void polygeist_cudnn_conv2d_ntap_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B) {
+  int32_t out_h = M - (K - 1);
+  int32_t out_w = N - (K - 1);
+  for (int32_t i = 0; i < out_h; ++i) {
+    for (int32_t j = 0; j < out_w; ++j) {
+      double acc = 0.0;
+      for (int32_t dy = 0; dy < K; ++dy)
+        for (int32_t dx = 0; dx < K; ++dx)
+          acc += W[(size_t)dy * (size_t)K + (size_t)dx] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
+void polygeist_cudnn_conv2d_ntap_f32(
+    int32_t M, int32_t N, int32_t K,
+    const float *W, const float *A, float *B) {
+  int32_t out_h = M - (K - 1);
+  int32_t out_w = N - (K - 1);
+  for (int32_t i = 0; i < out_h; ++i) {
+    for (int32_t j = 0; j < out_w; ++j) {
+      float acc = 0.0f;
+      for (int32_t dy = 0; dy < K; ++dy)
+        for (int32_t dx = 0; dx < K; ++dx)
+          acc += W[(size_t)dy * (size_t)K + (size_t)dx] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the
