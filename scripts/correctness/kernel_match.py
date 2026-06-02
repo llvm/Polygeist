@@ -1649,8 +1649,8 @@ def _softmax_3step_out_tensor() -> CompositionEntry:
     )
 
 
-def _rmsnorm_2step() -> CompositionEntry:
-    """RMSNorm — 1D root-mean-square normalize + per-element weighted scale.
+def _rmsnorm_family() -> list[CompositionEntry]:
+    """RMSNorm family — 1D root-mean-square normalize + optional scale terms.
 
     cgeist + raise produces two linalg.generic ops in sequence, with the
     scale computation (`scale = 1/sqrt(ss/N + eps)`) inlined between them
@@ -1661,9 +1661,18 @@ def _rmsnorm_2step() -> CompositionEntry:
 
         [inline: load ss; divf ss/N; addf +eps; sqrt; divf 1/sqrt → %scale]
 
-        Step 1 — out = weight * scale * x:  parallel, 2 ins (weight, x),
-                                            1 out, captures %scale
-            body = In(0) * (Cap("%scale") * In(1))
+        Step 1 variants:
+            weighted:
+                out = weight * scale * x
+                body = In(0) * (Cap("%scale") * In(1))
+
+            unweighted:
+                out = x * scale
+                body = In(0) * Cap("%scale")
+
+            scalar-gain unweighted:
+                out = x * scale * gain
+                body = In(0) * (Cap("%scale") * Cap("%gain"))
 
     The Cap binds to whatever body-external SSA the rewriter sees feeding
     the second linalg's body — typically the `%5 = arith.divf %cst, %4`
@@ -1676,22 +1685,52 @@ def _rmsnorm_2step() -> CompositionEntry:
     weight, multiply), (b) cuDNN LayerNorm with mean=0 trick
     (version-dependent), or (c) a hand-written CUDA kernel (the
     production choice in TRT-LLM / vLLM).
+
+    Keep the variants generated together so RMSNorm stays one semantic
+    matcher family instead of a pile of near-duplicate one-off templates.
+    Priority is weighted first (more specific tensor operand shape), then
+    plain unweighted, then scalar-gain unweighted.
     """
     step0 = CompositionStep(
         body=Term.Out(0) + (Term.In(0) * Term.In(0)),
         num_ins=1, num_outs=1,
         reduction_dim_count=1, parallel_dim_count=0,
     )
-    step1 = CompositionStep(
-        body=Term.In(0) * (T_cap("%scale") * Term.In(1)),
-        num_ins=2, num_outs=1,
-        reduction_dim_count=0, parallel_dim_count=1,
-    )
-    return CompositionEntry(
-        name="rmsnorm_f32",
-        steps=[step0, step1],
-        form="any",
-    )
+
+    def entry(name: str, body: Term, num_ins: int) -> CompositionEntry:
+        step1 = CompositionStep(
+            body=body,
+            num_ins=num_ins, num_outs=1,
+            reduction_dim_count=0, parallel_dim_count=1,
+        )
+        return CompositionEntry(
+            name=name,
+            steps=[step0, step1],
+            form="any",
+        )
+
+    return [
+        entry(
+            "rmsnorm_f32",
+            Term.In(0) * (T_cap("%scale") * Term.In(1)),
+            2,
+        ),
+        entry(
+            "rmsnorm_unweighted_f32",
+            Term.In(0) * T_cap("%scale"),
+            1,
+        ),
+        entry(
+            "rmsnorm_scaled_unweighted_f32",
+            (Term.In(0) * T_cap("%scale")) * T_cap("%gain"),
+            1,
+        ),
+        entry(
+            "rmsnorm_scaled_unweighted_f32",
+            Term.In(0) * (T_cap("%scale") * T_cap("%gain")),
+            1,
+        ),
+    ]
 
 
 def _llama_add_f32_tensor() -> CompositionEntry:
@@ -2032,11 +2071,13 @@ def composition_library() -> list[CompositionEntry]:
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.
-        _rmsnorm_2step(),       # 2-step composition, sum-of-squares + weighted
-                                #         scale; sits between softmax (3 steps)
-                                #         and the conv shapes (single step) by
-                                #         length so longest-first matching picks
-                                #         the right one for shared prefixes.
+        *_rmsnorm_family(),     # 2-step composition family:
+                                #         sum-of-squares + weighted,
+                                #         unweighted, or scalar-gain scale.
+                                #         Sits between softmax (3 steps) and
+                                #         conv shapes (single step) so
+                                #         longest-first matching picks the
+                                #         right shared-prefix family.
         _conv3d_11pt_weighted(), # 11 ins, 3D parallel — most specific 3D
                                  #         conv shape; relies on egglog
                                  #         factoring to collapse redundant

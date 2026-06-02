@@ -570,6 +570,17 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     auto postTy = getMLIRType(expr->getType());
     return success(ValueCategory(res, /*isRef*/ false));
   }
+  case Builtin::BItanh:
+  case Builtin::BItanhf:
+  case Builtin::BItanhl:
+  case Builtin::BI__builtin_tanh:
+  case Builtin::BI__builtin_tanhf:
+  case Builtin::BI__builtin_tanhl: {
+    auto v = Visit(expr->getArg(0));
+    assert(!v.isReference);
+    Value res = builder.create<math::TanhOp>(loc, v.val);
+    return success(ValueCategory(res, /*isRef*/ false));
+  }
   case Builtin::BI__builtin_clzs:
   case Builtin::BI__builtin_clz:
   case Builtin::BI__builtin_clzl:

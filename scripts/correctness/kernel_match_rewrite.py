@@ -1026,14 +1026,26 @@ def rewrite_mlir(
                 indent=last.indent,
             )
 
-        if entry.name == "rmsnorm_f32":
+        if entry.name in ("rmsnorm_f32", "rmsnorm_unweighted_f32",
+                          "rmsnorm_scaled_unweighted_f32"):
             # RMSNorm is a two-stage composition:
             #   step0: ss = sum(x[i] * x[i])
-            #   step1: out[i] = weight[i] * scale * x[i]
+            #   step1: out[i] = weight[i] * scale * x[i]     (weighted)
+            #          out[i] = scale * x[i]                 (unweighted)
+            #          out[i] = gain * scale * x[i]          (scalar gain)
             # The generic operand collection above only keeps the first
             # generic's outs (the scalar ss buffer), which is not enough for
             # ABI lowering. Emit the semantic operands directly and let the
             # runtime recompute the reduction/scale in one call.
+            #
+            # The scalar-gain variant is recognized by the matcher factory,
+            # but we do not lower it until the runtime ABI has an explicit gain
+            # operand. Leaving it as residual linalg is safer than pretending
+            # the weighted ABI can represent it.
+            if entry.name == "rmsnorm_scaled_unweighted_f32":
+                report.append(("unsupported_abi_reject", i, entry.name))
+                i += n
+                continue
             forms = body_forms[i : i + n]
             x_names = _extract_ssa_names(instances[i].ins_part)
             x_types = _extract_ssa_types(instances[i].ins_part)
@@ -1041,20 +1053,29 @@ def rewrite_mlir(
             scale_in_types = _extract_ssa_types(instances[i + 1].ins_part)
             out_names = _extract_ssa_names(instances[i + 1].outs_part)
             out_types = _extract_ssa_types(instances[i + 1].outs_part)
-            if (len(x_names) < 1 or len(scale_ins) < 2 or len(out_names) < 1
-                    or any(f != forms[0] for f in forms)):
+            min_scale_ins = 2 if entry.name == "rmsnorm_f32" else 1
+            if (len(x_names) < 1 or len(scale_ins) < min_scale_ins
+                    or len(out_names) < 1 or any(f != forms[0] for f in forms)):
                 report.append(("rmsnorm_reject", i, entry.name))
                 i += 1
                 continue
-            operands = [x_names[0], scale_ins[0], out_names[0]]
-            operand_types = [x_types[0], scale_in_types[0], out_types[0]]
+            if entry.name == "rmsnorm_f32":
+                operands = [x_names[0], scale_ins[0], out_names[0]]
+                operand_types = [x_types[0], scale_in_types[0], out_types[0]]
+            else:
+                operands = [x_names[0], out_names[0]]
+                operand_types = [x_types[0], out_types[0]]
             binds = {}
             if forms[0] == "tensor":
                 # Tensor RMSNorm's scalar scale chain depends on the first
                 # generic result. Since the shim recomputes the full RMSNorm,
                 # replace the whole span, including that scalar chain, with
                 # one result-producing tensor launch.
-                emit_name = "rmsnorm_f32_tensor"
+                emit_name = (
+                    "rmsnorm_f32_tensor"
+                    if entry.name == "rmsnorm_f32"
+                    else "rmsnorm_unweighted_f32_tensor"
+                )
                 replace_full_span = True
             else:
                 last = LinalgInstance(

@@ -1872,6 +1872,18 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
                           /*isReference*/ false),
             true);
       }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "tanhf" ||
+           sr->getDecl()->getName() == "tanh")) {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(loc, builder));
+        }
+        return make_pair(
+            ValueCategory(builder.create<mlir::math::TanhOp>(loc, args[0]),
+                          /*isReference*/ false),
+            true);
+      }
       if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {

@@ -55,6 +55,14 @@ LLAMA_FORWARD_MLIR_DIR = env_path(
     "POLYGEIST_LLAMA_FORWARD_MLIR_DIR",
     "/tmp/llama_forward_ops_mlir",
 )
+WHISPER_OPS_ROOT = env_path(
+    "POLYGEIST_WHISPER_OPS_ROOT",
+    REPO_ROOT / "third_party/cnn-extracted",
+)
+WHISPER_OPS_MLIR_DIR = env_path(
+    "POLYGEIST_WHISPER_OPS_MLIR_DIR",
+    "/tmp/whisper_ops_mlir",
+)
 STENCIL_CONV2D_ROOT = env_path(
     "POLYGEIST_STENCIL_CONV2D_ROOT",
     REPO_ROOT / "third_party/cnn-extracted",
@@ -174,6 +182,26 @@ LLAMA_FORWARD_DISPLAY_NAMES: dict[str, str] = {
     "final_rmsnorm":          "final RMSNorm",
     "lm_head_projection":     "LM head projection",
     "extended_forward":       "extended forward benchmark",
+}
+
+WHISPER_OPS_KERNELS: dict[str, tuple[str, str]] = {
+    "whisper_vec_dot":      ("whisper_ops.c", "kernel_whisper_vec_dot"),
+    "whisper_vec_softmax":  ("whisper_ops.c", "kernel_whisper_vec_softmax"),
+    "whisper_softmax_full": ("whisper_ops.c", "kernel_whisper_softmax_full"),
+    "whisper_rms_norm":     ("whisper_ops.c", "kernel_whisper_rms_norm"),
+    "whisper_gelu":         ("whisper_ops.c", "kernel_whisper_gelu"),
+    "whisper_conv1d":       ("whisper_ops.c", "kernel_whisper_conv1d"),
+}
+
+WHISPER_OPS_ORDER = list(WHISPER_OPS_KERNELS.keys())
+
+WHISPER_OPS_DISPLAY_NAMES: dict[str, str] = {
+    "whisper_vec_dot":      "vector dot",
+    "whisper_vec_softmax":  "vector softmax",
+    "whisper_softmax_full": "full softmax",
+    "whisper_rms_norm":     "RMSNorm",
+    "whisper_gelu":         "GELU",
+    "whisper_conv1d":       "1D convolution",
 }
 
 STENCIL_CONV2D_KERNELS: dict[str, tuple[str, str]] = {
@@ -439,6 +467,15 @@ LLAMA_FORWARD_NOTES: dict[str, tuple[str, str]] = {
     "extended_forward":       ("partial parallel", "one-token, one-layer Llama-style forward fixture combining the raised pieces"),
 }
 
+WHISPER_OPS_NOTES: dict[str, tuple[str, str]] = {
+    "whisper_vec_dot":      ("highly parallel",  "dot-product reduction used by ggml vec_dot / matvec-style projection kernels"),
+    "whisper_vec_softmax":  ("partial parallel", "inner softmax exp+sum loop with caller-provided max; reduction plus output write"),
+    "whisper_softmax_full": ("partial parallel", "max-reduce, exp+sum, and normalize phases for attention softmax"),
+    "whisper_rms_norm":     ("partial parallel", "mean-square reduction followed by parallel scale; RMSNorm-style normalization"),
+    "whisper_gelu":         ("highly parallel",  "elementwise transformer activation; raises through math.tanh into tensor linalg"),
+    "whisper_conv1d":       ("highly parallel",  "valid 1D convolution shape representing Whisper encoder-side audio conv"),
+}
+
 STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
     "box3x3":          ("highly parallel", "uniform 3x3 box blur written as a shifted-neighbour stencil; tensor path uses generalized ntap"),
     "gaussian3x3":     ("highly parallel", "separable-looking 3x3 Gaussian coefficient stencil, matched by the tensor ntap path"),
@@ -520,6 +557,8 @@ POPT_DISPLAY = "polygeist-opt: full (raise + lower-submap + debuferize)"
 #   matcher-gap       — lifts to linalg.generic cleanly but the body
 #                       shape isn't in the matcher library (fixable:
 #                       add a CompositionEntry + kernel.defn).
+#   runtime-gap       — matcher emits a kernel.launch form, but ABI lowering
+#                       or the runtime shim for that exact symbol is pending.
 #   t-loop            — body is parallel; outer "for t = 0..T" timestep
 #                       loop is genuinely serial (stencils — body of one
 #                       timestep reads the previous timestep's output).
@@ -554,6 +593,8 @@ BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
                           "fully lifts to kernel.launch (or to linalg.generic + matched library entry)"),
     "matcher-gap":       ("matcher library gap",
                           "lifts to linalg.generic, but the body shape isn't in the matcher library yet"),
+    "runtime-gap":       ("runtime ABI gap",
+                          "matches to a kernel.launch symbol, but ABI lowering or the runtime shim for that exact symbol is still pending"),
     "t-loop":            ("serial T loop",
                           "stencil-style: body parallel, outer time/step loop must be sequential"),
     "serial-recurrence": ("serial recurrence",
@@ -1134,6 +1175,15 @@ LLAMA_FORWARD_BLOCKERS: dict[str, tuple[str, str]] = {
     "extended_forward":       ("none", "Full fixture emits 34 runtime calls after lowering and matches native C logits on Jetson; it uses split RoPE and branchless mask to stay inside today's raising envelope."),
 }
 
+WHISPER_OPS_BLOCKERS: dict[str, tuple[str, str]] = {
+    "whisper_vec_dot":      ("none", "Raises to tensor linalg and matches the current dot-product template."),
+    "whisper_vec_softmax":  ("matcher-gap", "Raises to tensor linalg in the scalar path. Direct ggml vec.cpp hits SIMD frontend issues, so this fixture captures the canonical math body."),
+    "whisper_softmax_full": ("matcher-gap", "Raises as the expected max-reduce + exp/sum + normalize sequence; today only the normalize/scal tail matches, leaving max/exp-sum residual linalg."),
+    "whisper_rms_norm":     ("runtime-gap", "Matches the RMSNorm family as unweighted RMSNorm and emits the tensor launch form; runtime/library lowering for the unweighted ABI is still follow-up work."),
+    "whisper_gelu":         ("matcher-gap", "Raises to one elementwise tensor linalg.generic with math.tanh; no GELU matcher/library template is wired yet."),
+    "whisper_conv1d":       ("matcher-gap", "Raises and matches the per-output inner dot, but still leaves one output-position loop; full 1D conv composition/library routing is future matcher work."),
+}
+
 STENCIL_CONV2D_BLOCKERS: dict[str, tuple[str, str]] = {
     "box3x3":          ("none", ""),
     "gaussian3x3":     ("none", ""),
@@ -1211,6 +1261,13 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
             return None
         srcname, _fn = info
         p = LLAMA_FORWARD_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "whisper_ops":
+        info = WHISPER_OPS_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = WHISPER_OPS_ROOT / srcname
         return p if p.exists() else None
     if kset == "stencil_conv2d":
         info = STENCIL_CONV2D_KERNELS.get(name)
@@ -1565,6 +1622,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
 _BLOCKER_CSS = {
     "none":              "pass",
     "matcher-gap":       "partial",
+    "runtime-gap":       "partial",
     "scratch-carry":     "partial",
     "indirect-index":    "partial",
     "mixed-reductions":  "partial",
@@ -2633,6 +2691,7 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 
 def build_index(polybench_stats: dict[str, dict],
                  llama_forward_stats: dict[str, dict],
+                 whisper_ops_stats: dict[str, dict],
                  stencil_conv2d_stats: dict[str, dict],
                  llmc_stats: dict[str, dict],
                  darknet_stats: dict[str, dict],
@@ -2707,6 +2766,33 @@ def build_index(polybench_stats: dict[str, dict],
             "Jetson<br>case",
             "Raised pipeline<br>(rt-gpu)",
             "Reference<br>CUDA",
+            "comparison",
+            "notes",
+        ),
+    )
+    whisper_ops_section = _build_section(
+        title="Whisper extracted kernels (raised C fixtures)",
+        anchor="whisper-ops",
+        blurb=(
+            "Source-level C fixtures in <code>third_party/cnn-extracted/"
+            "whisper_ops.c</code> covering representative Whisper/ggml "
+            "inference compute bodies: vector dot, softmax, RMSNorm-style "
+            "normalization, GELU, and encoder-side 1D convolution. These rows "
+            "are intentionally the exposed kernel bodies, not full "
+            "<code>ggml_tensor</code> framework functions; they show which "
+            "algorithmic kernels the linalg raising path can express once the "
+            "framework metadata, SIMD dispatch, and helper-call scaffolding "
+            "are isolated."
+        ),
+        kernel_stats=whisper_ops_stats,
+        notes=WHISPER_OPS_NOTES,
+        blockers=WHISPER_OPS_BLOCKERS,
+        display_names=WHISPER_OPS_DISPLAY_NAMES,
+        order=WHISPER_OPS_ORDER,
+        runtime_headers=(
+            "case",
+            "raised pipeline",
+            "reference",
             "comparison",
             "notes",
         ),
@@ -2811,6 +2897,7 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
         '  <a href="#polybench">PolyBench</a> &middot; '
         '  <a href="#llama-forward">Llama forward fixtures</a> &middot; '
+        '  <a href="#whisper-ops">Whisper extracted kernels</a> &middot; '
         '  <a href="#stencil-conv2d">Stencil Conv2D</a> &middot; '
         '  <a href="#llmc">llm.c</a> &middot; '
         '  <a href="#darknet">darknet</a> &middot; '
@@ -2821,6 +2908,7 @@ def build_index(polybench_stats: dict[str, dict],
         + _build_taxonomy_panel()
         + polybench_section
         + llama_forward_section
+        + whisper_ops_section
         + stencil_conv2d_section
         + llmc_section
         + darknet_section
@@ -2841,6 +2929,8 @@ def build_index(polybench_stats: dict[str, dict],
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     for stale in OUTPUT_DIR.glob("llama_*.html"):
+        stale.unlink()
+    for stale in OUTPUT_DIR.glob("whisper_*.html"):
         stale.unlink()
 
     # PolyBench set.
@@ -2877,6 +2967,34 @@ def main():
         llama_forward_stats[k] = build_kernel_page(
             k, mlir_dir=LLAMA_FORWARD_MLIR_DIR, kset="llama_forward",
             file_prefix="llamafwd_",
+        )
+
+    # Whisper/ggml-style extracted operation fixtures.
+    whisper_ops_kernels_from_files = discover_kernels(WHISPER_OPS_MLIR_DIR)
+    whisper_ops_kernel_set = (
+        set(whisper_ops_kernels_from_files) | set(WHISPER_OPS_KERNELS.keys())
+    )
+    whisper_ops_kernels = [
+        k for k in WHISPER_OPS_ORDER if k in whisper_ops_kernel_set
+    ]
+    whisper_ops_kernels += sorted(
+        k for k in whisper_ops_kernel_set if k not in set(WHISPER_OPS_ORDER)
+    )
+    print(f"Rendering {len(whisper_ops_kernels)} Whisper extracted kernels...", flush=True)
+    whisper_ops_stats = {}
+    for i, k in enumerate(whisper_ops_kernels, 1):
+        print(f"  [WHISPER {i:2d}/{len(whisper_ops_kernels)}] {k}", flush=True)
+        has_any = any((WHISPER_OPS_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            whisper_ops_stats[k] = {"launches": 0, "residual": 0,
+                                    "residual_for": 0, "ce_url": None,
+                                    "page_filename": ""}
+            continue
+        whisper_ops_stats[k] = build_kernel_page(
+            k, mlir_dir=WHISPER_OPS_MLIR_DIR, kset="whisper_ops",
+            file_prefix="",
         )
 
     # Non-DL stencil fixtures that map to cuDNN 3x3 convolution.
@@ -2983,7 +3101,8 @@ def main():
         )
 
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, llama_forward_stats, stencil_conv2d_stats,
+        build_index(pb_stats, llama_forward_stats, whisper_ops_stats,
+                    stencil_conv2d_stats,
                     llmc_stats, darknet_stats, ex_darknet_stats, fopt_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
