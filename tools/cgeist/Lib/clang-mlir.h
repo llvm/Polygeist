@@ -195,6 +195,8 @@ private:
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
+  mlir::Value castScalarToBool(mlir::Location loc, mlir::Value val);
+
   mlir::Value getLLVM(Expr *E, bool isRef = false);
 
   bool isTrivialAffineLoop(clang::ForStmt *fors,
