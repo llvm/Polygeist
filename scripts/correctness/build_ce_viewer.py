@@ -1057,39 +1057,39 @@ STENCIL_CONV2D_RUNTIMES: dict[str, list[dict]] = {
          "notes": "REPEAT=20, first 5 discarded; checksum -1.74002242"},
     ],
     "box5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.417 ms<br>device 0.0082 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -0.02520496; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.02519889"},
     ],
     "gaussian5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.160 ms<br>device 0.0399 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -0.48238885; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum -0.48238647"},
     ],
     "sobel_x5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.155 ms<br>device 0.0400 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 225.14816284; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum 225.14791870"},
     ],
     "sobel_y5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.156 ms<br>device 0.0369 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 12.86839104; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum 12.86828041"},
     ],
     "laplacian5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.170 ms<br>device 0.0416 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -17.16963387; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum -17.16963387"},
     ],
     "sharpen5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.159 ms<br>device 0.0399 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum -2.78251743; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum -2.78251743"},
     ],
     "emboss5x5": [
-        {"size": "64x64 host/cross-build", "raised": "host checksum OK<br>Jetson build OK",
+        {"size": "64x64 warm", "raised": "host 0.162 ms<br>device 0.0403 ms",
          "reference": "cuDNN 5x5 f32", "winner": "raised-only",
-         "notes": "Matches @cudnnConvolution2D_25tap_f32; host checksum 18.00988960; Jetson build OK; silicon run blocked by SSH"},
+         "notes": "REPEAT=20, first 5 discarded; checksum 18.00988960"},
     ],
 }
 
