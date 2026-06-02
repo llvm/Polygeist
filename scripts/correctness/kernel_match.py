@@ -1487,23 +1487,21 @@ def _conv2d_25pt_weighted() -> CompositionEntry:
     )
 
 
-def _conv2d_ntap_weighted() -> CompositionEntry:
-    """Fallback family matcher for odd-square 2D weighted stencils.
+def _conv2d_ntap_weighted_tensor() -> CompositionEntry:
+    """Tensor-form family matcher for odd-square 2D weighted stencils.
 
-    Exact 3x3/9-tap and 5x5/25-tap entries stay in the library first so the
-    existing ABI/PVA paths remain stable. This dynamic entry covers wider
-    odd-square stencils without adding one algebra template per size. The
-    special matcher builds the weighted-sum template from the matched body's
-    actual input count, then the rewriter performs the non-algebraic safety
-    check that those inputs are shifted subviews of one base image.
+    This dynamic entry covers 3x3 and wider odd-square stencils without adding
+    one algebra template per size. The special matcher checks only the scalar
+    weighted-sum body; kernel_match_rewrite.py separately proves the tensor
+    operands are shifted extract_slice views before emitting the cuDNN launch.
     """
     return CompositionEntry(
-        name="cudnnConvolution2D_ntap",
+        name="cudnnConvolution2D_ntap_tensor",
         steps=[CompositionStep(body=Term.In(0), num_outs=1,
                                 parallel_dim_count=2,
                                 reduction_dim_count=0,
                                 special="weighted_conv2d_ntap")],
-        form="memref",
+        form="tensor",
     )
 
 
@@ -2048,7 +2046,6 @@ def composition_library() -> list[CompositionEntry]:
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
                                 #         come before jacobi_2d_5pt (5 ins)
                                 #         since both target 2D parallel iter.
-        _conv2d_ntap_weighted(), # odd-square weighted fallback (7x7+ today)
         _heat_3d_7pt(),       # 7 ins
         _fdtd_E_update(),     # 4 ins
         _jacobi_2d_5pt(),     # 5 ins
@@ -2056,6 +2053,7 @@ def composition_library() -> list[CompositionEntry]:
         _fdtd_update_2in(),   # 2 ins — checked AFTER more-specific 2D shapes
 
         # Stencils — tensor form (multi-root debufferize).
+        _conv2d_ntap_weighted_tensor(), # odd-square weighted tensor fallback.
         _conv2d_9pt_weighted_tensor(),
         _heat_3d_7pt_tensor(),
         _fdtd_E_update_tensor(),

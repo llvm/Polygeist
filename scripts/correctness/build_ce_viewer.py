@@ -440,16 +440,16 @@ LLAMA_FORWARD_NOTES: dict[str, tuple[str, str]] = {
 }
 
 STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
-    "box3x3":          ("highly parallel", "uniform 3x3 box blur written as a shifted-neighbour stencil"),
-    "gaussian3x3":     ("highly parallel", "separable-looking 3x3 Gaussian coefficient stencil, matched as one generic 9-tap conv"),
+    "box3x3":          ("highly parallel", "uniform 3x3 box blur written as a shifted-neighbour stencil; tensor path uses generalized ntap"),
+    "gaussian3x3":     ("highly parallel", "separable-looking 3x3 Gaussian coefficient stencil, matched by the tensor ntap path"),
     "sobel_x3x3":      ("highly parallel", "horizontal image-gradient stencil; unit coefficients are recovered by the matcher"),
     "sobel_y3x3":      ("highly parallel", "vertical image-gradient stencil; same 9 shifted input views as Sobel X"),
     "laplacian4_3x3":  ("highly parallel", "4-neighbour Laplacian finite-difference stencil embedded in a 3x3 kernel"),
     "laplacian8_3x3":  ("highly parallel", "8-neighbour Laplacian finite-difference stencil"),
     "sharpen3x3":      ("highly parallel", "classic image sharpen filter, center-heavy 3x3 stencil"),
     "emboss3x3":       ("highly parallel", "asymmetric emboss filter; still maps to cross-correlation semantics"),
-    "box5x5":          ("highly parallel", "25-tap box filter; now matches the 5x5 cuDNN convolution path"),
-    "gaussian5x5":     ("highly parallel", "separable 5x5 Gaussian coefficient stencil, matched as one generic 25-tap conv"),
+    "box5x5":          ("highly parallel", "25-tap box filter; tensor path packs W[25] for the generalized ntap cuDNN route"),
+    "gaussian5x5":     ("highly parallel", "separable 5x5 Gaussian coefficient stencil, matched by the generalized ntap path"),
     "sobel_x5x5":      ("highly parallel", "wider horizontal-gradient stencil with zero center column coefficients"),
     "sobel_y5x5":      ("highly parallel", "wider vertical-gradient stencil with zero center row coefficients"),
     "laplacian5x5":    ("highly parallel", "5x5 Laplacian / LoG-style finite-difference stencil"),
@@ -1095,9 +1095,9 @@ STENCIL_CONV2D_RUNTIMES: dict[str, list[dict]] = {
          "notes": "REPEAT=20, first 5 discarded; checksum 18.00988960"},
     ],
     "box7x7": [
-        {"size": "64x64 warm", "raised": "host 0.430 ms<br>device 0.0107 ms",
+        {"size": "64x64 warm", "raised": "host 0.433 ms<br>device 0.0109 ms",
          "reference": "cuDNN ntap f32", "winner": "raised-only",
-         "notes": "K=7, W[49] packed ABI; REPEAT=20, first 5 discarded; checksum 0.03551028"},
+         "notes": "tensor ntap, K=7, W[49] packed ABI; REPEAT=20, first 5 discarded; checksum 0.03551028"},
     ],
 }
 
@@ -1482,21 +1482,19 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         raised_text = raised.read_text()
         html, css = syntax_highlight(raised_text)
         pages["raised"] = html
-        if kset == "stencil_conv2d":
+        if kset == "stencil_conv2d" and not debuf.exists():
             n_for = count_for_loops(raised_text)
             rewritten, report = run_rewriter(raised)
             html, css = syntax_highlight(rewritten)
             pages["matched"] = html
     if debuf.exists():
         debuf_text = debuf.read_text()
-        if kset != "stencil_conv2d":
-            n_for = count_for_loops(debuf_text)
+        n_for = count_for_loops(debuf_text)
         html, css = syntax_highlight(debuf_text)
         pages["debuf"] = html
-        if kset != "stencil_conv2d":
-            rewritten, report = run_rewriter(debuf)
-            html, css = syntax_highlight(rewritten)
-            pages["matched"] = html
+        rewritten, report = run_rewriter(debuf)
+        html, css = syntax_highlight(rewritten)
+        pages["matched"] = html
     if debuf_mr.exists():
         debuf_mr_text = debuf_mr.read_text()
         html, css = syntax_highlight(debuf_mr_text)
@@ -2714,18 +2712,17 @@ def build_index(polybench_stats: dict[str, dict],
         ),
     )
     stencil_conv2d_section = _build_section(
-        title="Stencil Conv2D fixtures (cuDNN 3x3/5x5/ntap targets)",
+        title="Stencil Conv2D fixtures (cuDNN tensor ntap target)",
         anchor="stencil-conv2d",
         blurb=(
             "Image-processing and finite-difference stencil fixtures written "
-            "as plain C neighbourhood expressions. The eight 3x3 variants "
-            "raise to one loop-free linalg.generic and match the generic "
-            "<code>@cudnnConvolution2D_9tap_f32</code> path with surfaced "
-            "coefficients. The 5x5 variants use the sibling "
-            "<code>@cudnnConvolution2D_25tap_f32</code> path, and the 7x7 "
-            "proof fixture uses the generalized packed-weight "
-            "<code>@cudnnConvolution2D_ntap_f32</code> route. Each row links "
-            "to Compiler Explorer and an IR preview for the raised C fixture."
+            "as plain C neighbourhood expressions. The debufferized tensor "
+            "forms raise to one loop-free linalg.generic and match the "
+            "generalized packed-weight "
+            "<code>@cudnnConvolution2D_ntap_f32_tensor</code> route. The "
+            "legacy memref 9/25-tap entries remain available for explicit "
+            "no-debufferize runs. Each row links to Compiler Explorer and an "
+            "IR preview for the raised C fixture."
         ),
         kernel_stats=stencil_conv2d_stats,
         notes=STENCIL_CONV2D_NOTES,

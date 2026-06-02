@@ -1310,6 +1310,22 @@ module {
     kernel.yield
   }
 
+  kernel.defn @cudnnConvolution2D_ntap_tensor(
+      %A: tensor<?x?xf64>,
+      %C: tensor<?x?xf64>,
+      %W: tensor<?xf64>,
+      %K: i32) -> tensor<?x?xf64> {
+    kernel.yield %C : tensor<?x?xf64>
+  }
+
+  kernel.defn @cudnnConvolution2D_ntap_f32_tensor(
+      %A: tensor<?x?xf32>,
+      %C: tensor<?x?xf32>,
+      %W: tensor<?xf32>,
+      %K: i32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+
   kernel.defn @cudnnConvolution2D_9tap_f16(
       %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
       %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,

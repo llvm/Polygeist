@@ -108,6 +108,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_ntap_f64";
   if (libSym == "cudnnConvolution2D_ntap_f32")
     return "polygeist_cudnn_conv2d_ntap_f32";
+  if (libSym == "cudnnConvolution2D_ntap_tensor")
+    return "polygeist_cudnn_conv2d_ntap_f64";
+  if (libSym == "cudnnConvolution2D_ntap_f32_tensor")
+    return "polygeist_cudnn_conv2d_ntap_f32";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -679,6 +683,79 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
   Value resultTensor = memrefToTensor(b, loc, C_mr,
                                        launch.getResult(0).getType());
   launch.getResult(0).replaceAllUsesWith(resultTensor);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudnnConv2DNtapTensor(LaunchOp launch,
+                                                ModuleOp module,
+                                                StringRef shimSymbol) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError("cudnnConvolution2D_ntap_tensor: expected 4 "
+                            "operands (input slice, output slice, weights, K); got ")
+           << launch.getNumOperands();
+  if (launch.getNumResults() != 1)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap_tensor: expected 1 tensor result");
+
+  Value A = launch.getOperand(0);
+  Value C = launch.getOperand(1);
+  Value W = launch.getOperand(2);
+  Value K = launch.getOperand(3);
+
+  auto aTy = dyn_cast<RankedTensorType>(A.getType());
+  auto cTy = dyn_cast<RankedTensorType>(C.getType());
+  auto wTy = dyn_cast<RankedTensorType>(W.getType());
+  auto resTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
+  if (!aTy || !cTy || !wTy || !resTy)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap_tensor: operands/result must be tensors");
+  if (aTy.getRank() != 2 || cTy.getRank() != 2 || resTy.getRank() != 2 ||
+      wTy.getRank() != 1)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap_tensor: expected 2D input/output and 1D weights");
+  Type elemTy = aTy.getElementType();
+  if (cTy.getElementType() != elemTy || wTy.getElementType() != elemTy ||
+      resTy.getElementType() != elemTy)
+    return launch.emitError(
+        "cudnnConvolution2D_ntap_tensor: input/output/weights dtypes must match");
+  if (!(elemTy.isF64() || elemTy.isF32()))
+    return launch.emitError(
+        "cudnnConvolution2D_ntap_tensor: only f64/f32 packed weights are supported");
+  if (!K.getType().isInteger(32))
+    return launch.emitError("cudnnConvolution2D_ntap_tensor: K must be i32");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+
+  // Preserve tensor.extract_slice views as memref.subview so the runtime sees
+  // the same top-left input window and output interior slice as the tensor IR.
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value C_mr = valueToMemrefPreservingSlice(b, loc, C);
+  Value W_mr = valueToMemrefPreservingSlice(b, loc, W);
+
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+  Value W_ptr = memrefBasePtr(b, loc, W_mr);
+
+  Value oneI32 = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(1));
+  Value border = b.create<arith::SubIOp>(loc, K, oneI32);
+  Value outH = memrefDimAsI32(b, loc, C_mr, 0);
+  Value outW = memrefDimAsI32(b, loc, C_mr, 1);
+  Value M = b.create<arith::AddIOp>(loc, outH, border);
+  Value N = b.create<arith::AddIOp>(loc, outW, border);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{M, N, K, W_ptr, A_ptr, C_ptr});
+
+  Value updatedView =
+      memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
+  Value updatedBase = tensorForSliceSource(b, loc, C);
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
 }
@@ -2463,6 +2540,9 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution2D_ntap" ||
                  libSym == "cudnnConvolution2D_ntap_f32") {
         r = lowerCudnnConv2DNtapPacked(launch, module, shim);
+      } else if (libSym == "cudnnConvolution2D_ntap_tensor" ||
+                 libSym == "cudnnConvolution2D_ntap_f32_tensor") {
+        r = lowerCudnnConv2DNtapTensor(launch, module, shim);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {

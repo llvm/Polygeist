@@ -109,20 +109,25 @@ for entry in "${KERNELS[@]}"; do
     2>"$OUT/${tag}.debuf_mr.err"
   [ ! -s "$OUT/${tag}_debuf_mr.mlir" ] && rm -f "$OUT/${tag}_debuf_mr.mlir"
 
-  "$PYTHON" "$SCRIPTS/kernel_match_rewrite.py" "$OUT/${tag}_linalg.mlir" \
+  match_ir="$OUT/${tag}_linalg.mlir"
+  if [ -s "$OUT/${tag}_debuf.mlir" ]; then
+    match_ir="$OUT/${tag}_debuf.mlir"
+  fi
+
+  "$PYTHON" "$SCRIPTS/kernel_match_rewrite.py" "$match_ir" \
     > "$OUT/${tag}_matched.mlir" 2>"$OUT/${tag}.match.err"
 
-  lg=$(count_pattern "linalg\\.generic" "$OUT/${tag}_linalg.mlir")
-  loops=$(count_pattern "affine\\.for|scf\\.for" "$OUT/${tag}_linalg.mlir")
+  lg=$(count_pattern "linalg\\.generic" "$match_ir")
+  loops=$(count_pattern "affine\\.for|scf\\.for" "$match_ir")
   launches=$(count_pattern "kernel\\.launch" "$OUT/${tag}_matched.mlir")
-  sym=$(match_symbol "$OUT/${tag}_linalg.mlir")
+  sym=$(match_symbol "$match_ir")
   [ -z "$sym" ] && sym="-"
   status="matched"
   [ "$launches" -eq 0 ] && status="no-match"
 
   printf "%-16s %-12s %7s %7s %7s %-36s %s\n" \
     "$tag" "$status" "$lg" "$loops" "$launches" "$sym" \
-    "$OUT/${tag}_linalg.mlir" >> "$summary"
+    "$match_ir" >> "$summary"
 done
 
 echo "Done. Output in $OUT"

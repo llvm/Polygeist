@@ -358,6 +358,26 @@ def _parse_static_subview_offset(text: str, ssa: str) -> tuple[str, tuple[int, i
         return None
 
 
+def _parse_static_extract_slice_offset(
+    text: str, ssa: str
+) -> tuple[str, tuple[int, int]] | None:
+    pat = re.compile(
+        rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.extract_slice\s+"
+        rf"(%[\w_\-]+)\s*\[([^\]]+)\]",
+        re.MULTILINE,
+    )
+    m = pat.search(text)
+    if not m:
+        return None
+    pieces = [p.strip() for p in m.group(2).split(",")]
+    if len(pieces) != 2:
+        return None
+    try:
+        return m.group(1), (int(pieces[0]), int(pieces[1]))
+    except ValueError:
+        return None
+
+
 def _conv2d_ntap_grid_info(
     text: str, input_names: list[str], out_name: str
 ) -> tuple[int, str, list[int]] | None:
@@ -393,6 +413,57 @@ def _conv2d_ntap_grid_info(
         return None
 
     out = _parse_static_subview_offset(text, out_name)
+    if out is None:
+        return None
+    _out_base, out_off = out
+    radius = width // 2
+    if out_off != (ys[0] + radius, xs[0] + radius):
+        return None
+
+    by_offset = {off: (idx, name) for idx, name, off in parsed}
+    ordered_indices: list[int] = []
+    top_left_name = ""
+    for y in ys:
+        for x in xs:
+            item = by_offset.get((y, x))
+            if item is None:
+                return None
+            idx, name = item
+            if y == ys[0] and x == xs[0]:
+                top_left_name = name
+            ordered_indices.append(idx)
+    return width, top_left_name, ordered_indices
+
+
+def _conv2d_ntap_tensor_grid_info(
+    text: str, input_names: list[str], out_name: str
+) -> tuple[int, str, list[int]] | None:
+    """Tensor extract_slice sibling of _conv2d_ntap_grid_info."""
+    ntaps = len(input_names)
+    width = math.isqrt(ntaps)
+    if width * width != ntaps or width < 3 or width % 2 == 0:
+        return None
+    parsed: list[tuple[int, str, tuple[int, int]]] = []
+    bases = set()
+    for idx, name in enumerate(input_names):
+        p = _parse_static_extract_slice_offset(text, name)
+        if p is None:
+            return None
+        base, off = p
+        bases.add(base)
+        parsed.append((idx, name, off))
+    if len(bases) != 1:
+        return None
+    ys = sorted({off[0] for _, _, off in parsed})
+    xs = sorted({off[1] for _, _, off in parsed})
+    if len(ys) != width or len(xs) != width:
+        return None
+    if ys != list(range(ys[0], ys[0] + width)):
+        return None
+    if xs != list(range(xs[0], xs[0] + width)):
+        return None
+
+    out = _parse_static_extract_slice_offset(text, out_name)
     if out is None:
         return None
     _out_base, out_off = out
@@ -494,6 +565,88 @@ def _render_ntap_conv_launch(
     lines.append(
         f"{indent}kernel.launch @{name}({', '.join(operands)}) : "
         f"({', '.join(sig_types)}) -> ()"
+    )
+    return "\n".join(lines)
+
+
+def _render_ntap_conv_tensor_launch(
+    name: str,
+    result_ssa: str,
+    result_type: str,
+    top_left_ssa: str,
+    top_left_type: str,
+    out_ssa: str,
+    out_type: str,
+    width: int,
+    ordered_inline_weights: list[list[str] | None],
+    indent: str,
+    scalar_type_map: dict[str, str],
+    body_constants: dict[str, float],
+    weight_ty: str,
+    unique_id: int,
+) -> str:
+    cast_lines, tensors, tensor_types = _normalize_tensor_operands(
+        [top_left_ssa, out_ssa], [top_left_type, out_type], indent
+    )
+    ntaps = width * width
+    prefix = f"%ntap{unique_id}"
+    value_ssas: list[str] = []
+    lines = list(cast_lines)
+    for idx, weights in enumerate(ordered_inline_weights):
+        if weights is None:
+            val_ssa = f"{prefix}_w{idx}"
+            lines.append(
+                f"{indent}{val_ssa} = arith.constant "
+                f"{_format_weight_literal(1.0, weight_ty)} : {weight_ty}"
+            )
+        elif len(weights) == 1:
+            val_ssa = weights[0]
+            src_ty = scalar_type_map.get(val_ssa)
+            if src_ty and src_ty != weight_ty:
+                cast_ssa = f"{prefix}_w{idx}_cast"
+                lines.append(
+                    f"{indent}{cast_ssa} = {_weight_cast_op(src_ty, weight_ty)} "
+                    f"{val_ssa} : {src_ty} to {weight_ty}"
+                )
+                val_ssa = cast_ssa
+        else:
+            summed = sum(body_constants.get(w, 0.0) for w in weights)
+            val_ssa = f"{prefix}_w{idx}"
+            lines.append(
+                f"{indent}{val_ssa} = arith.constant "
+                f"{_format_weight_literal(summed, weight_ty)} : {weight_ty}"
+            )
+        value_ssas.append(val_ssa)
+
+    weight_static_ty = f"tensor<{ntaps}x{weight_ty}>"
+    weight_dyn_ty = f"tensor<?x{weight_ty}>"
+    wvec = f"{prefix}_weights"
+    wvec_dyn = f"{wvec}_c"
+    k_ssa = f"{prefix}_k"
+    lines.append(
+        f"{indent}{wvec} = tensor.from_elements {', '.join(value_ssas)} : "
+        f"{weight_static_ty}"
+    )
+    lines.append(
+        f"{indent}{wvec_dyn} = tensor.cast {wvec} : {weight_static_ty} to "
+        f"{weight_dyn_ty}"
+    )
+    lines.append(f"{indent}{k_ssa} = arith.constant {width} : i32")
+    dyn_result_type = _dynamic_tensor_type(result_type) or result_type
+    launch_result_ssa = result_ssa
+    result_cast = ""
+    if dyn_result_type != result_type:
+        launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
+            f"{dyn_result_type} to {result_type}"
+        )
+    operands = [tensors[0], tensors[1], wvec_dyn, k_ssa]
+    sig_types = [tensor_types[0], tensor_types[1], weight_dyn_ty, "i32"]
+    lines.append(
+        f"{indent}{launch_result_ssa} = kernel.launch @{name}"
+        f"({', '.join(operands)}) : ({', '.join(sig_types)}) -> "
+        f"{dyn_result_type}{result_cast}"
     )
     return "\n".join(lines)
 
@@ -1012,7 +1165,8 @@ def rewrite_mlir(
             i += 1
             continue
 
-        if entry.name == "cudnnConvolution2D_ntap":
+        if entry.name in ("cudnnConvolution2D_ntap",
+                          "cudnnConvolution2D_ntap_tensor"):
             in_names = _extract_ssa_names(instances[i].ins_part)
             in_types = _extract_ssa_types(instances[i].ins_part)
             out_names = _extract_ssa_names(instances[i].outs_part)
@@ -1021,7 +1175,12 @@ def rewrite_mlir(
                 report.append(("ntap_stencil_reject", i, entry.name))
                 i += 1
                 continue
-            grid = _conv2d_ntap_grid_info(text, in_names, out_names[0])
+            is_tensor_ntap = entry.name.endswith("_tensor")
+            grid = (
+                _conv2d_ntap_tensor_grid_info(text, in_names, out_names[0])
+                if is_tensor_ntap
+                else _conv2d_ntap_grid_info(text, in_names, out_names[0])
+            )
             if grid is None:
                 report.append(("ntap_stencil_reject", i, entry.name))
                 i += 1
@@ -1043,21 +1202,47 @@ def rewrite_mlir(
                 i += 1
                 continue
             ordered_weights = [inline_weights[idx] for idx in ordered_indices]
-            emit_name = "cudnnConvolution2D_ntap_f32" if elem == "f32" else "cudnnConvolution2D_ntap"
-            custom_launch_line = _render_ntap_conv_launch(
-                emit_name,
-                top_left_ssa,
-                in_types[top_left_idx],
-                out_names[0],
-                out_types[0],
-                width,
-                ordered_weights,
-                last.indent,
-                scalar_types,
-                bodies[i].constants,
-                elem,
-                i,
-            )
+            if is_tensor_ntap:
+                if last.result_ssa is None or last.result_type is None:
+                    report.append(("ntap_stencil_reject", i, entry.name))
+                    i += 1
+                    continue
+                emit_name = (
+                    "cudnnConvolution2D_ntap_f32_tensor"
+                    if elem == "f32" else "cudnnConvolution2D_ntap_tensor"
+                )
+                custom_launch_line = _render_ntap_conv_tensor_launch(
+                    emit_name,
+                    last.result_ssa,
+                    last.result_type,
+                    top_left_ssa,
+                    in_types[top_left_idx],
+                    out_names[0],
+                    out_types[0],
+                    width,
+                    ordered_weights,
+                    last.indent,
+                    scalar_types,
+                    bodies[i].constants,
+                    elem,
+                    i,
+                )
+            else:
+                emit_name = "cudnnConvolution2D_ntap_f32" if elem == "f32" else "cudnnConvolution2D_ntap"
+                custom_launch_line = _render_ntap_conv_launch(
+                    emit_name,
+                    top_left_ssa,
+                    in_types[top_left_idx],
+                    out_names[0],
+                    out_types[0],
+                    width,
+                    ordered_weights,
+                    last.indent,
+                    scalar_types,
+                    bodies[i].constants,
+                    elem,
+                    i,
+                )
 
         if entry.name in ("cudnnConvolution2D_9tap",
                           "cudnnConvolution2D_9tap_tensor"):
