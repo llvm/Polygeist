@@ -1092,6 +1092,11 @@ ValueCategory MLIRScanner::VisitPredefinedExpr(clang::PredefinedExpr *expr) {
   return VisitStringLiteral(expr->getFunctionName());
 }
 
+ValueCategory
+MLIRScanner::VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr) {
+  return Visit(expr->getInitializer());
+}
+
 ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
   mlir::Type subType = getMLIRType(expr->getType());
   bool isArray = false;
@@ -2454,6 +2459,7 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
   auto loc = getMLIRLocation(BO->getExprLoc());
 
   switch (BO->getOp()) {
+  case AtomicExpr::AtomicOp::AO__atomic_fetch_add:
   case AtomicExpr::AtomicOp::AO__atomic_add_fetch: {
     auto a0 = Visit(BO->getPtr()).getValue(loc, builder);
     auto a1 = Visit(BO->getVal1()).getValue(loc, builder);
@@ -2475,6 +2481,9 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     else
       v = builder.create<LLVM::AtomicRMWOp>(loc, lop, a0, a1,
                                             LLVM::AtomicOrdering::acq_rel);
+
+    if (BO->getOp() == AtomicExpr::AtomicOp::AO__atomic_fetch_add)
+      return ValueCategory(v, false);
 
     if (ty.isa<mlir::IntegerType>())
       v = builder.create<arith::AddIOp>(loc, v, a1);
@@ -4954,14 +4963,41 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
           initial_value = A;
         }
       } else {
-        auto VC = ms.Visit(const_cast<clang::Expr *>(init));
-        if (!VC.isReference) {
-          if (auto cop = VC.val.getDefiningOp<arith::ConstantOp>()) {
-            initial_value = cop.getValue();
-            initial_value = SplatElementsAttr::get(
-                RankedTensorType::get(mr.getShape(), mr.getElementType()),
-                initial_value);
-            initialized = true;
+        clang::Expr::EvalResult evalResult;
+        if (init->EvaluateAsInt(evalResult, CGM.getContext())) {
+          auto intValue = evalResult.Val.getInt();
+          initial_value = builder.getIntegerAttr(mr.getElementType(), intValue);
+          initial_value = SplatElementsAttr::get(
+              RankedTensorType::get(mr.getShape(), mr.getElementType()),
+              initial_value);
+          initialized = true;
+        } else {
+          auto VC = ms.Visit(const_cast<clang::Expr *>(init));
+          if (!VC.isReference) {
+            if (VC.val)
+              if (auto cop = VC.val.getDefiningOp<arith::ConstantOp>()) {
+                initial_value = cop.getValue();
+                initial_value = SplatElementsAttr::get(
+                    RankedTensorType::get(mr.getShape(), mr.getElementType()),
+                    initial_value);
+                initialized = true;
+              }
+            if (VC.val)
+              if (auto castOp = VC.val.getDefiningOp<arith::IndexCastOp>())
+                if (auto cop =
+                        castOp.getIn().getDefiningOp<arith::ConstantIndexOp>()) {
+                  initial_value =
+                      builder.getIntegerAttr(mr.getElementType(), cop.value());
+                  initial_value = SplatElementsAttr::get(
+                      RankedTensorType::get(mr.getShape(), mr.getElementType()),
+                      initial_value);
+                  initialized = true;
+                }
+          }
+          if (!initialized && !VC.val) {
+            init->dump();
+            llvm::errs() << " warning null global initializer value: " << name
+                         << "\n";
           }
         }
       }
@@ -5602,9 +5638,16 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       types.push_back(ty);
     }
 
-    if (types.empty())
-      if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
+    for (size_t i = 1; i < types.size(); ++i) {
+      if (types[i] != types[0])
+        notAllSame = true;
+    }
+
+    if (types.empty()) {
+      if (ST->isOpaque() ||
+          (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8)))
         return typeTranslator.translateType(anonymize(ST));
+    }
 
     if (recursive) {
       auto LR = typeCache[RT].setBody(types, /*isPacked*/ false);

@@ -408,6 +408,7 @@ public:
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
                                                 clang::Expr *expr);
+  ValueCategory VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr);
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
   ValueCategory
   VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *expr);

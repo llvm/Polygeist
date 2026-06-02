@@ -41,8 +41,17 @@ mlir::Value ValueCategory::getValue(mlir::Location loc,
     return builder.create<mlir::LLVM::LoadOp>(loc, val);
   }
   if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
-    assert(mt.getShape().size() == 1 && "must have shape 1");
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
+    if (mt.getShape().size() > 1) {
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape.erase(shape.begin());
+      auto mt0 =
+          mlir::MemRefType::get(shape, mt.getElementType(),
+                                mlir::MemRefLayoutAttrInterface(),
+                                mt.getMemorySpace());
+      return builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0);
+    }
+    assert(mt.getShape().size() == 1 && "must have shape 1");
     return builder.create<memref::LoadOp>(loc, val,
                                           std::vector<mlir::Value>({c0}));
   }
@@ -85,6 +94,38 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
     return;
   }
   if (auto mt = dyn_cast<MemRefType>(val.getType())) {
+    if (auto smt = dyn_cast<MemRefType>(toStore.getType());
+        smt && mt.getElementType() != toStore.getType()) {
+      auto target = val;
+      auto targetType = mt;
+      while (targetType.getShape().size() > smt.getShape().size()) {
+        auto c0 = builder.create<ConstantIndexOp>(loc, 0);
+        auto shape = std::vector<int64_t>(targetType.getShape());
+        shape.erase(shape.begin());
+        targetType =
+            MemRefType::get(shape, targetType.getElementType(),
+                            MemRefLayoutAttrInterface(),
+                            targetType.getMemorySpace());
+        target =
+            builder.create<polygeist::SubIndexOp>(loc, targetType, target, c0);
+      }
+      ValueCategory(target, /*isReference*/ true)
+          .store(loc, builder, ValueCategory(toStore, /*isReference*/ false),
+                 /*isArray*/ true);
+      return;
+    }
+    if (mt.getShape().size() > 1) {
+      auto c0 = builder.create<ConstantIndexOp>(loc, 0);
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape.erase(shape.begin());
+      auto mt0 =
+          MemRefType::get(shape, mt.getElementType(),
+                          MemRefLayoutAttrInterface(), mt.getMemorySpace());
+      ValueCategory(builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
+                    /*isReference*/ true)
+          .store(loc, builder, toStore);
+      return;
+    }
     assert(mt.getShape().size() == 1 && "must have size 1");
     if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(toStore.getType())) {
       if (auto MT = dyn_cast<mlir::MemRefType>(
@@ -125,8 +166,10 @@ ValueCategory ValueCategory::dereference(mlir::Location loc,
     if (isReference) {
       if (shape.size() > 1) {
         shape.erase(shape.begin());
-        auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                         mt.getLayout(), mt.getMemorySpace());
+        auto mt0 =
+            mlir::MemRefType::get(shape, mt.getElementType(),
+                                  mlir::MemRefLayoutAttrInterface(),
+                                  mt.getMemorySpace());
         return ValueCategory(
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
             /*isReference*/ true);
@@ -148,16 +191,40 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
   assert(toStore.val);
   if (isArray) {
     if (!toStore.isReference) {
-      llvm::errs() << " toStore.val: " << toStore.val << " isref "
-                   << toStore.isReference << " isar" << isArray << "\n";
+      if (!toStore.val.getType().isa<mlir::MemRefType,
+                                     mlir::LLVM::LLVMPointerType>()) {
+        llvm::errs() << " toStore.val: " << toStore.val << " isref "
+                     << toStore.isReference << " isar" << isArray << "\n";
+        assert(toStore.isReference);
+      }
     }
-    assert(toStore.isReference);
     auto zeroIndex = builder.create<ConstantIndexOp>(loc, 0);
 
     if (auto smt = dyn_cast<mlir::MemRefType>(toStore.val.getType())) {
       assert(smt.getShape().size() <= 2);
 
       if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
+        if (mt.getShape().size() == 1) {
+          if (auto pt = dyn_cast<LLVM::LLVMPointerType>(mt.getElementType())) {
+            if (pt.getElementType() == smt.getElementType()) {
+              store(loc, builder,
+                    builder.create<polygeist::Memref2PointerOp>(
+                        loc, pt, toStore.val));
+              return;
+            }
+          }
+          if (auto targetMT = dyn_cast<MemRefType>(mt.getElementType())) {
+            if (targetMT != smt) {
+              auto anyPT = LLVM::LLVMPointerType::get(builder.getI8Type());
+              auto ptr = builder.create<polygeist::Memref2PointerOp>(
+                  loc, anyPT, toStore.val);
+              store(loc, builder,
+                    builder.create<polygeist::Pointer2MemrefOp>(loc, targetMT,
+                                                                ptr));
+              return;
+            }
+          }
+        }
         assert(smt.getElementType() == mt.getElementType());
         if (mt.getShape().size() != smt.getShape().size()) {
           llvm::errs() << " val: " << val << " tsv: " << toStore.val << "\n";
