@@ -419,6 +419,9 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, OpBuilder &b) {
     }
   }
 
+  for (auto result : llvm::enumerate(ifOp.getResults()))
+    result.value().replaceAllUsesWith(newIfOp.getResult(result.index()));
+
   ifOp.erase();
   return success();
 }

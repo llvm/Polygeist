@@ -533,15 +533,38 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
     auto pshape = shape[0];
 
     if (name)
-      if (auto var = dyn_cast<VariableArrayType>(
+      if (isa<VariableArrayType>(
               name->getType()->getUnqualifiedDesugaredType())) {
         assert(shape[0] == ShapedType::kDynamic);
         mr = mlir::MemRefType::get(
             shape, mt.getElementType(), MemRefLayoutAttrInterface(),
             wrapIntegerMemorySpace(memspace, mt.getContext()));
-        auto len = Visit(var->getSizeExpr()).getValue(varLoc, builder);
-        len = builder.create<IndexCastOp>(varLoc, builder.getIndexType(), len);
-        alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
+        SmallVector<mlir::Value, 4> dynamicSizes;
+        QualType arrayType = name->getType();
+        while (true) {
+          const clang::Type *desugared =
+              arrayType->getUnqualifiedDesugaredType();
+          if (auto varArray = dyn_cast<VariableArrayType>(desugared)) {
+            auto len =
+                Visit(varArray->getSizeExpr()).getValue(varLoc, builder);
+            len = builder.create<IndexCastOp>(varLoc, builder.getIndexType(),
+                                              len);
+            dynamicSizes.push_back(len);
+            arrayType = varArray->getElementType();
+            continue;
+          }
+          if (auto constantArray = dyn_cast<ConstantArrayType>(desugared)) {
+            arrayType = constantArray->getElementType();
+            continue;
+          }
+          if (auto incompleteArray = dyn_cast<IncompleteArrayType>(desugared)) {
+            arrayType = incompleteArray->getElementType();
+            continue;
+          }
+          break;
+        }
+        alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr,
+                                                       dynamicSizes);
         builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
         if (memspace != 0) {
           alloc = abuilder.create<polygeist::Pointer2MemrefOp>(
