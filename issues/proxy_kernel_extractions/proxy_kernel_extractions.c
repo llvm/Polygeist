@@ -525,7 +525,7 @@ void hypar_interp_second_order_central(double fI[HL + 1][HNV],
 }
 
 void hypar_interp_second_order_muscl(double fI[HL + 1][HNV],
-                                     const double fC[HL + 2][HNV]) {
+                                     const double fC[HL + 3][HNV]) {
   for (int i = 0; i < HL + 1; i++)
     for (int v = 0; v < HNV; v++) {
       double dl = fC[i + 1][v] - fC[i][v];

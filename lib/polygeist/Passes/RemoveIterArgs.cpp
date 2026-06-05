@@ -44,6 +44,20 @@ bool isLoopInvariant(Value val, Operation *loopOp) {
   return true;
 }
 
+bool isLoopCarriedRegionArg(Value val) {
+  auto blockArg = dyn_cast<BlockArgument>(val);
+  if (!blockArg)
+    return false;
+
+  Operation *parentOp = blockArg.getOwner()->getParentOp();
+  if (!isa<scf::ForOp, affine::AffineForOp>(parentOp))
+    return false;
+
+  // In both scf.for and affine.for regions, argument 0 is the induction
+  // variable and subsequent block arguments are loop-carried values.
+  return blockArg.getArgNumber() > 0;
+}
+
 /// Result of use chain analysis
 struct UseChainAnalysis {
   SmallVector<std::pair<Operation*, Value>, 4> opsChain; // (op, invariant_operand)
@@ -338,6 +352,21 @@ struct RemoveSCFIterArgs : public OpRewritePattern<scf::ForOp> {
       newIterArgs.pop_back(); // Remove last iter_arg
     }
     
+    // For direct overwrite reductions (`sum = init; ...; out = sum`), seed the
+    // destination with the original iter_arg init before the rewritten loop.
+    // If the analysis found a loop-invariant load, the source was already an
+    // update form (`out = old_out + ...`), so keep the existing output value.
+    if (!initLoad && !isLoopCarriedRegionArg(init)) {
+      rewriter.setInsertionPoint(forOp);
+      auto initStore = rewriter.create<memref::StoreOp>(
+          loc, init, storeOp.getMemref(), storeOp.getIndices());
+      LLVM_DEBUG(llvm::dbgs()
+                 << "    Created memref.store for reduction seed: "
+                 << initStore << "\n");
+    }
+
+    rewriter.setInsertionPoint(forOp);
+
     // Create new loop with correct signature (fewer iter_args)
     auto newForOp = rewriter.create<scf::ForOp>(
         loc, forOp.getLowerBound(), forOp.getUpperBound(), forOp.getStep(), newIterArgs);
@@ -542,6 +571,22 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
       newIterArgs.pop_back(); // Remove last iter_arg
     }
     
+    // For direct overwrite reductions (`sum = init; ...; out = sum`), seed the
+    // destination with the original iter_arg init before the rewritten loop.
+    // If the analysis found a loop-invariant load, the source was already an
+    // update form (`out = old_out + ...`), so keep the existing output value.
+    if (!initLoad && !isLoopCarriedRegionArg(init)) {
+      rewriter.setInsertionPoint(forOp);
+      auto initStore = rewriter.create<affine::AffineStoreOp>(
+          loc, init, storeOp.getMemref(), storeOp.getMap(),
+          storeOp.getMapOperands());
+      LLVM_DEBUG(llvm::dbgs()
+                 << "    Created affine.store for reduction seed: "
+                 << initStore << "\n");
+    }
+
+    rewriter.setInsertionPoint(forOp);
+
     // Create new loop with correct signature (fewer iter_args)
     auto newForOp = rewriter.create<affine::AffineForOp>(
         loc, forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),

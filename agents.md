@@ -223,3 +223,48 @@
     memref-Linalg, not tensor-Linalg. They keep dynamic coarse-grid
     `memref.load` payloads inside the Linalg body, so the current debufferizer
     does not tensorize them.
+
+### Proxy Kernel Correctness Verification
+
+- 2026-06-04 execution verifier:
+  `python3 /tmp/proxy_kernel_correctness.py --repo /home/arjaiswal/Polygeist --mlir-dir /tmp/proxy_kernel_extractions_mlir`
+- Latest verifier workspace:
+  `/tmp/proxy_kernel_correctness_1780640949`
+- Result after rebuilding `polygeist-opt` and regenerating
+  `/tmp/proxy_kernel_extractions_mlir`:
+  - 85/85 standalone proxy probes still reach Linalg structurally.
+  - 81/85 lower to LLVM, link into the generated C harness, and match the
+    original C reference output.
+  - The executable subset reports `SUMMARY failures=0 tests=81` and
+    `ALL_PROXY_KERNEL_CORRECTNESS_PASS`.
+- Four probes are not yet execution-verified because verifier lowering rejects
+  their current Linalg/submap form:
+  - `miniamr_stencil_calc_27`
+  - `miniamr_stencil_27_weighted`
+  - `hpgmg_apply_op_27pt`
+  - `hpgmg_interpolation_p0`
+- Lowering-blocker details:
+  - `miniamr_stencil_27_weighted` and `hpgmg_apply_op_27pt` now have the
+    correct overwrite-reduction seed, but the raised IR still contains no-op
+    identity `linalg.generic` reductions such as `outs(...) { yield %out }`
+    over `polygeist.submap` views. These are semantically removable, but the
+    standard Linalg lowering rejects the reduction-shaped output maps with
+    "expected the shape-to-loops map to be non-null".
+  - `miniamr_stencil_calc_27` remains the residual-loop/memref-Linalg case and
+    still carries a symbol-bearing `polygeist.submap` in the executable
+    lowering path.
+  - `hpgmg_interpolation_p0` raises as a 2x2x2 fanout Linalg map into the fine
+    grid. This is structurally useful but not directly lowerable by standard
+    Linalg because the output map is not a projected permutation/invertible
+    shape-to-loop map.
+- Verification-time fixes:
+  - `lib/polygeist/Passes/RemoveIterArgs.cpp`: direct overwrite reductions
+    (`sum = init; ...; out = sum`) now seed the destination with the iter_arg
+    init before the rewritten loop. This fixes reductions that previously
+    accumulated from the old output value, which was only correct for
+    `out += ...` forms. The helper skips loop-carried region args so nested
+    accumulator loops are not seeded from enclosing loop-carried values.
+  - `issues/proxy_kernel_extractions/proxy_kernel_extractions.c`:
+    `hypar_interp_second_order_muscl` now declares `fC[HL + 3][HNV]`. The old
+    `HL + 2` bound made the last iteration read `fC[i + 2]` one row past the
+    array, so the reference C and lowered path compared undefined behavior.
