@@ -838,9 +838,9 @@ bool mayAlias(Value v, Value v2) {
 
   if (auto ba = dyn_cast<BlockArgument>(v2)) {
     if (auto fn = dyn_cast<FunctionOpInterface>(ba.getOwner()->getParentOp())) {
-      isArg[0] = true;
+      isArg[1] = true;
       if (fn.getArgAttr(ba.getArgNumber(), LLVM::LLVMDialect::getNoAliasAttrName())) {
-        isNoAliasArg[0] = true;
+        isNoAliasArg[1] = true;
       }
     }
   }
@@ -6721,4 +6721,3 @@ void polygeist::SubmapInverseOp::getCanonicalizationPatterns(
   // TODO: Add canonicalization patterns for SubmapInverseOp
   // For now, leave empty
 }
-

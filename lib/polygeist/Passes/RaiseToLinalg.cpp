@@ -1537,6 +1537,40 @@ struct BoundMaskInfo {
   SmallVector<Value> origOperands;
 };
 
+static bool affineStoresProvablyDisjoint(affine::AffineStoreOp lhs,
+                                         affine::AffineStoreOp rhs) {
+  if (lhs.getMemref() != rhs.getMemref())
+    return true;
+
+  AffineMap lhsMap = lhs.getAffineMap();
+  AffineMap rhsMap = rhs.getAffineMap();
+  if (lhsMap.getNumResults() != rhsMap.getNumResults())
+    return false;
+
+  for (auto pair : llvm::zip(lhsMap.getResults(), rhsMap.getResults())) {
+    auto lhsConst = std::get<0>(pair).dyn_cast<AffineConstantExpr>();
+    auto rhsConst = std::get<1>(pair).dyn_cast<AffineConstantExpr>();
+    if (lhsConst && rhsConst && lhsConst.getValue() != rhsConst.getValue())
+      return true;
+  }
+
+  return false;
+}
+
+static bool storesProvablyDisjoint(Operation *lhs, Operation *rhs) {
+  if (auto lhsAffine = dyn_cast<affine::AffineStoreOp>(lhs)) {
+    if (auto rhsAffine = dyn_cast<affine::AffineStoreOp>(rhs))
+      return affineStoresProvablyDisjoint(lhsAffine, rhsAffine);
+  }
+
+  if (auto lhsStore = dyn_cast<memref::StoreOp>(lhs)) {
+    if (auto rhsStore = dyn_cast<memref::StoreOp>(rhs))
+      return lhsStore.getMemref() != rhsStore.getMemref();
+  }
+
+  return false;
+}
+
 static bool onlyFeedsNestedGenericThroughReadNone(Value value, Operation *scope,
                                                   Operation *nestedGeneric,
                                                   DenseSet<Value> &seen) {
@@ -1562,6 +1596,13 @@ struct PromotedScalarLoad {
   Value input;
   AffineMap indexingMap;
 };
+
+static bool sameAffineLoadStoreAddress(affine::AffineLoadOp load,
+                                       affine::AffineStoreOp store) {
+  return load.getMemref() == store.getMemref() &&
+         load.getAffineMap() == store.getAffineMap() &&
+         load.getMapOperands() == store.getMapOperands();
+}
 
 static Value getOperandDimSize(OpBuilder &builder, Location loc, Value operand,
                                unsigned dim) {
@@ -1637,6 +1678,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     Operation *terminator = loopBody->getTerminator();
 
     affine::AffineStoreOp targetStore;
+    SmallVector<affine::AffineLoadOp> outputLoads;
     bool hasHybridPayload = false;
     bool illegal = false;
 
@@ -1672,13 +1714,9 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         return WalkResult::advance();
       }
 
-      if (isa<affine::AffineLoadOp>(op)) {
-        // After replacing the affine IV with linalg.index, an affine.load that
-        // indexes by that value may fail affine verification. Leave those
-        // cases to the standard affine-load/store raiser instead of preserving
-        // the affine.load inside the hybrid payload.
-        illegal = true;
-        return WalkResult::interrupt();
+      if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
+        outputLoads.push_back(load);
+        return WalkResult::advance();
       }
 
       if (isReadNone(op))
@@ -1692,6 +1730,10 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       return failure();
     if (targetStore->getNextNode() != terminator)
       return failure();
+
+    for (affine::AffineLoadOp outputLoad : outputLoads)
+      if (!sameAffineLoadStoreAddress(outputLoad, targetStore))
+        return failure();
 
     Value storedValue = targetStore.getValueToStore();
 
@@ -1742,8 +1784,14 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     Block *newBody = &genericBody.front();
     newBody->eraseArguments(0, newBody->getNumArguments());
-    newBody->addArgument(targetStore.getValueToStore().getType(),
-                         targetStore.getLoc());
+    Value outputArg =
+        newBody->addArgument(targetStore.getValueToStore().getType(),
+                             targetStore.getLoc());
+    for (affine::AffineLoadOp outputLoad : outputLoads) {
+      if (storedValue == outputLoad.getResult())
+        storedValue = outputArg;
+      rewriter.replaceOp(outputLoad, outputArg);
+    }
 
     rewriter.eraseOp(targetStore);
     rewriter.eraseOp(newBody->getTerminator());
@@ -1877,7 +1925,9 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       for (auto &&[_, store2] : stores) {
         if (store == store2)
           continue;
-        if (mayAlias(store.getMemref(), store2.getMemref())) {
+        if (mayAlias(store.getMemref(), store2.getMemref()) &&
+            !storesProvablyDisjoint(store.getOperation(),
+                                    store2.getOperation())) {
           return failure();
         }
       }

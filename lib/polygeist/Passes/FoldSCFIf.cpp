@@ -9,6 +9,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/PassManager.h"
@@ -245,6 +246,42 @@ static bool isLoadLike(Operation &op) {
   return isa<memref::LoadOp, affine::AffineLoadOp>(op);
 }
 
+static bool canSpeculateForSelect(Block *block) {
+  for (Operation &op : block->getOperations()) {
+    if (isa<scf::YieldOp, affine::AffineYieldOp>(op))
+      continue;
+    if (isLoadLike(op))
+      continue;
+    if (op.getNumRegions() != 0 || !isMemoryEffectFree(&op))
+      return false;
+  }
+  return true;
+}
+
+static Value materializeIntegerSetCondition(Location loc, IntegerSet set,
+                                            ValueRange operands, OpBuilder &b) {
+  Value active;
+  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
+
+  for (auto constraint : llvm::enumerate(set.getConstraints())) {
+    AffineMap constraintMap =
+        AffineMap::get(set.getNumDims(), set.getNumSymbols(),
+                       constraint.value(), b.getContext());
+    Value applied =
+        b.create<affine::AffineApplyOp>(loc, constraintMap, operands);
+    auto predicate = set.isEq(constraint.index())
+                         ? arith::CmpIPredicate::eq
+                         : arith::CmpIPredicate::sge;
+    Value ok = b.create<arith::CmpIOp>(loc, predicate, applied, zero);
+    active = active ? b.create<arith::AndIOp>(loc, active, ok).getResult()
+                    : ok;
+  }
+
+  if (!active)
+    active = b.create<arith::ConstantIntOp>(loc, true, 1);
+  return active;
+}
+
 static bool hasUnsafeInterveningEffect(Operation *begin, Operation *end) {
   for (Operation *op = begin->getNextNode(); op && op != end;
        op = op->getNextNode()) {
@@ -348,6 +385,75 @@ static LogicalResult foldGuardedStoreUpdate(scf::IfOp ifOp, OpBuilder &b) {
   return success();
 }
 
+static bool foldSingleStoreIfToSelect(scf::IfOp ifOp, OpBuilder &b) {
+  if (ifOp.elseBlock() || ifOp.getNumResults() != 0)
+    return false;
+
+  Operation *store = nullptr;
+  for (Operation &op : ifOp.thenBlock()->without_terminator()) {
+    if (isa<memref::StoreOp, affine::AffineStoreOp>(op)) {
+      if (store)
+        return false;
+      store = &op;
+      continue;
+    }
+    if (!isLoadLike(op) &&
+        (op.getNumRegions() != 0 || !isMemoryEffectFree(&op)))
+      return false;
+  }
+  if (!store)
+    return false;
+
+  MemRefStoreInfo storeInfo;
+  if (!getSingleStoreInfo(*store, storeInfo))
+    return false;
+
+  for (Value operand : storeInfo.operands)
+    if (operand.getParentBlock() == ifOp.thenBlock())
+      return false;
+
+  OpBuilder::InsertionGuard guard(b);
+  Location loc = ifOp.getLoc();
+  b.setInsertionPointAfter(ifOp);
+
+  IRMapping vmap;
+  Value candidate;
+  for (Operation &op : ifOp.thenBlock()->getOperations()) {
+    if (isa<scf::YieldOp>(op))
+      continue;
+    if (&op == store) {
+      candidate = vmap.lookupOrDefault(getStoredValue(store));
+      continue;
+    }
+    b.clone(op, vmap);
+  }
+  if (!candidate)
+    return false;
+
+  Value oldValue;
+  if (auto storeOp = dyn_cast<memref::StoreOp>(store)) {
+    oldValue = b.create<memref::LoadOp>(loc, storeOp.getMemref(),
+                                        storeOp.getIndices());
+    Value selected =
+        b.create<arith::SelectOp>(loc, ifOp.getCondition(), candidate, oldValue);
+    b.create<memref::StoreOp>(loc, selected, storeOp.getMemref(),
+                              storeOp.getIndices());
+  } else {
+    auto affineStoreOp = cast<affine::AffineStoreOp>(store);
+    oldValue = b.create<affine::AffineLoadOp>(
+        loc, affineStoreOp.getMemref(), affineStoreOp.getAffineMap(),
+        affineStoreOp.getMapOperands());
+    Value selected =
+        b.create<arith::SelectOp>(loc, ifOp.getCondition(), candidate, oldValue);
+    b.create<affine::AffineStoreOp>(loc, selected, affineStoreOp.getMemref(),
+                                    affineStoreOp.getAffineMap(),
+                                    affineStoreOp.getMapOperands());
+  }
+
+  ifOp.erase();
+  return true;
+}
+
 static LogicalResult liftStoreOps(scf::IfOp ifOp, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
@@ -447,6 +553,95 @@ static bool processLiftStoreOps(func::FuncOp f, OpBuilder &b) {
   return changed;
 }
 
+static bool foldScalarSCFIf(scf::IfOp ifOp, OpBuilder &b) {
+  if (ifOp.getNumResults() == 0 || !ifOp.elseBlock())
+    return false;
+  if (!canSpeculateForSelect(ifOp.thenBlock()) ||
+      !canSpeculateForSelect(ifOp.elseBlock()))
+    return false;
+
+  Location loc = ifOp.getLoc();
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(ifOp);
+
+  SmallVector<Value> thenResults, elseResults;
+
+  auto cloneAfter = [&](Block *block, SmallVectorImpl<Value> &results) {
+    IRMapping vmap;
+    for (Operation &op : block->getOperations()) {
+      if (auto yieldOp = dyn_cast<scf::YieldOp>(op)) {
+        for (Value result : yieldOp.getOperands())
+          results.push_back(vmap.lookupOrDefault(result));
+      } else {
+        b.clone(op, vmap);
+      }
+    }
+  };
+
+  cloneAfter(ifOp.thenBlock(), thenResults);
+  cloneAfter(ifOp.elseBlock(), elseResults);
+
+  if (thenResults.size() != ifOp.getNumResults() ||
+      elseResults.size() != ifOp.getNumResults())
+    return false;
+
+  for (auto ifResult : llvm::enumerate(ifOp.getResults())) {
+    Value newResult = b.create<arith::SelectOp>(
+        loc, ifOp.getCondition(), thenResults[ifResult.index()],
+        elseResults[ifResult.index()]);
+    ifResult.value().replaceAllUsesWith(newResult);
+  }
+
+  ifOp.erase();
+  return true;
+}
+
+static bool foldScalarAffineIf(affine::AffineIfOp ifOp, OpBuilder &b) {
+  if (ifOp.getNumResults() == 0 || !ifOp.hasElse())
+    return false;
+  if (!canSpeculateForSelect(ifOp.getThenBlock()) ||
+      !canSpeculateForSelect(ifOp.getElseBlock()))
+    return false;
+
+  Location loc = ifOp.getLoc();
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(ifOp);
+
+  Value condition = materializeIntegerSetCondition(
+      loc, ifOp.getIntegerSet(), ifOp.getOperands(), b);
+
+  SmallVector<Value> thenResults, elseResults;
+
+  auto cloneAfter = [&](Block *block, SmallVectorImpl<Value> &results) {
+    IRMapping vmap;
+    for (Operation &op : block->getOperations()) {
+      if (auto yieldOp = dyn_cast<affine::AffineYieldOp>(op)) {
+        for (Value result : yieldOp.getOperands())
+          results.push_back(vmap.lookupOrDefault(result));
+      } else {
+        b.clone(op, vmap);
+      }
+    }
+  };
+
+  cloneAfter(ifOp.getThenBlock(), thenResults);
+  cloneAfter(ifOp.getElseBlock(), elseResults);
+
+  if (thenResults.size() != ifOp.getNumResults() ||
+      elseResults.size() != ifOp.getNumResults())
+    return false;
+
+  for (auto ifResult : llvm::enumerate(ifOp.getResults())) {
+    Value newResult = b.create<arith::SelectOp>(
+        loc, condition, thenResults[ifResult.index()],
+        elseResults[ifResult.index()]);
+    ifResult.value().replaceAllUsesWith(newResult);
+  }
+
+  ifOp.erase();
+  return true;
+}
+
 static bool foldSCFIf(scf::IfOp ifOp, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
@@ -462,24 +657,20 @@ static bool foldSCFIf(scf::IfOp ifOp, OpBuilder &b) {
   if (succeeded(foldGuardedStoreUpdate(ifOp, b)))
     return true;
 
+  if (foldSingleStoreIfToSelect(ifOp, b))
+    return true;
+
+  if (foldScalarSCFIf(ifOp, b))
+    return true;
+
   if (!hasSingleStore(ifOp.thenBlock()) ||
       (ifOp.elseBlock() && !hasSingleStore(ifOp.elseBlock())))
     return false;
 
-  auto canSpeculate = [](Block *block) {
-    for (Operation &op : block->getOperations()) {
-      if (isa<scf::YieldOp>(op))
-        continue;
-      if (op.getNumRegions() != 0 || !isMemoryEffectFree(&op))
-        return false;
-    }
-    return true;
-  };
-
-  // Replacing control flow with select speculates both sides. Keep this pass
-  // correct by refusing branches with loads, stores, calls, or nested regions.
-  if (!canSpeculate(ifOp.thenBlock()) ||
-      (ifOp.elseBlock() && !canSpeculate(ifOp.elseBlock())))
+  // Replacing control flow with select speculates both sides. Keep this path
+  // narrow by refusing stores, calls, and nested regions.
+  if (!canSpeculateForSelect(ifOp.thenBlock()) ||
+      (ifOp.elseBlock() && !canSpeculateForSelect(ifOp.elseBlock())))
     return false;
 
   if (ifOp.getNumResults() == 0)
@@ -532,6 +723,19 @@ static bool processFold(func::FuncOp f, OpBuilder &b) {
   return changed;
 }
 
+static bool processAffineFold(func::FuncOp f, OpBuilder &b) {
+  bool changed = false;
+
+  f.walk([&](affine::AffineIfOp ifOp) {
+    if (changed)
+      return;
+
+    changed = foldScalarAffineIf(ifOp, b);
+  });
+
+  return changed;
+}
+
 namespace {
 struct FoldSCFIf : public FoldSCFIfBase<FoldSCFIf> {
   void runOnOperation() override {
@@ -558,6 +762,8 @@ struct FoldSCFIf : public FoldSCFIfBase<FoldSCFIf> {
         return signalPassFailure();
 
       while (processFold(func, builder))
+        ;
+      while (processAffineFold(func, builder))
         ;
     }
   }

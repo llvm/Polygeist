@@ -174,28 +174,52 @@
     limiters, LinearADR, Burgers, and Euler flux/upwind bodies.
   - `SWFFT`: 6 local redistribution, slab, and transpose/layout kernels.
   - `ExaSP2`: 9 dense matrix/SP2/trace/AXPBY/SpMV/CG-step kernels.
+- 2026-06-04 raising fixes for the remaining standalone proxy issues:
+  - Fixed `mayAlias` bookkeeping in `lib/polygeist/Ops.cpp`: the second value's
+    block-argument/noalias state now updates `isArg[1]` and `isNoAliasArg[1]`
+    instead of accidentally overwriting slot 0.
+  - Extended `lib/polygeist/Passes/FoldSCFIf.cpp` with a single-store
+    conditional rewrite. An `scf.if` with one store and no else can now become
+    `select(condition, candidate, old_output_value)` plus one store. This is
+    what lets the branchy HPGMG red-black smoother
+    `hpgmg_gsrb_smooth_7pt` raise to tensor Linalg.
+  - Added scalar `scf.if` and `affine.if` result folding to selects. The
+    affine path materializes each integer-set constraint as
+    `affine.apply + arith.cmpi` and combines them with `arith.andi`. This fixes
+    the HyPar branch/upwind cases and the previous
+    `exasp2_normalize_dense` raise failure caused by an `affine.if` reaching a
+    `linalg.generic` body with `linalg.index` operands.
+  - Extended store-disjointness checks in
+    `lib/polygeist/Passes/RaiseToLinalg.cpp`. Multiple stores are now accepted
+    when they target distinct memrefs, or when affine constant result positions
+    prove different fixed components of the same memref. This fixes
+    `hpgmg_cg_update`, `hpgmg_bicgstab_update`,
+    `hypar_weno_weights_js`, HyPar Euler flux bodies, and
+    `exasp2_conjugate_gradient_step`.
+  - Extended the hybrid affine-for raiser so affine self-loads from the exact
+    same address as the final store become the Linalg `outs` block argument
+    instead of being preserved as illegal affine loads after `linalg.index`
+    substitution. This turns `hpgmg_interpolation_p1` into loop-free memref
+    Linalg.
 - Latest run status:
   - 0 `cgeist` failures.
-  - 68 tensor-form Linalg results.
-  - 2 memref-form Linalg results.
-  - 14 no-Linalg loop/control-flow results.
-  - 1 raise failure.
+  - 82 tensor-form Linalg results.
+  - 2 loop-free memref-form Linalg results:
+    `hpgmg_interpolation_p1`, `hpgmg_interpolation_p2`.
+  - 1 memref-form Linalg result with residual loops:
+    `miniamr_stencil_calc_27`.
+  - 0 no-Linalg loop/control-flow results.
+  - 0 raise failures.
 - Important successful story:
   after stripping app ABI/MPI/BML/solver structs, most regular compute and
   local data-layout kernels raise cleanly. This supports the paper point that
   extracted kernels can form a useful ISA-like layer plus a fallback Linalg
   lowering path.
 - Important remaining limitations:
-  - `exasp2_normalize_dense` direct diagonal branch fails because raise creates
-    `affine.if` inside `linalg.generic` using `linalg.index` values as affine
-    dimension ids. The split form `exasp2_normalize_dense_split` raises as two
-    tensor Linalg ops.
-  - Red-black / upwind / diffusion branch kernels leave residual loops/ifs.
-  - Multi-store vector update kernels such as `hpgmg_cg_update`,
-    `hpgmg_bicgstab_update`, and `exasp2_conjugate_gradient_step` do not become
-    Linalg yet.
-  - `hypar_weno_weights_js` remains loops because it has three output stores and
-    a long nonlinear scalar chain.
-  - `hpgmg_interpolation_p1` remains loops because parity-dependent indexing is
-    not currently converted.
-  - Euler fixed-component flux bodies remain scalar loops with multiple stores.
+  - `miniamr_stencil_calc_27` still leaves the explicit nested 3x3x3
+    accumulation loops. It reaches memref Linalg around the outer update, but
+    the fixed-size inner reduction is not composed into one tensor Linalg body.
+  - `hpgmg_interpolation_p1` and `hpgmg_interpolation_p2` are loop-free
+    memref-Linalg, not tensor-Linalg. They keep dynamic coarse-grid
+    `memref.load` payloads inside the Linalg body, so the current debufferizer
+    does not tensorize them.
