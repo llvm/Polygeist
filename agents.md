@@ -149,3 +149,53 @@
   - `quantize_row_q4_0_ref`: raises but produces no linalg, leaves loops/ifs
   - `decode_residue`: raise fails on mixed LLVM/memref `llvm.load`
   - `inverse_mdct`: selected output has no useful raised function body
+
+## Proxy App Standalone Kernel Extraction Status
+
+- Added a standalone extraction suite for the five selected C proxy apps under
+  `issues/proxy_kernel_extractions/`.
+- Source fixture:
+  `issues/proxy_kernel_extractions/proxy_kernel_extractions.c`
+- Runner:
+  `issues/proxy_kernel_extractions/run_proxy_kernel_extractions.sh`
+- Results note:
+  `issues/proxy_kernel_extractions/RESULTS.md`
+- Latest generated MLIR output:
+  `/tmp/proxy_kernel_extractions_mlir`
+- Latest summary:
+  `/tmp/proxy_kernel_extractions_mlir/summary.txt`
+- Coverage: 85 standalone probes.
+  - `miniAMR`: 13 kernels covering stencil averages, weighted/directional
+    stencils, material pointwise updates, and halo/block pack/unpack.
+  - `HPGMG`: 29 kernels covering 7-point/27-point apply, residual, Jacobi,
+    GSRB, BLAS1, reductions, restriction, interpolation, FV flux, and solver
+    updates.
+  - `HyPar`: 28 kernels covering finite derivatives, reconstruction/WENO,
+    limiters, LinearADR, Burgers, and Euler flux/upwind bodies.
+  - `SWFFT`: 6 local redistribution, slab, and transpose/layout kernels.
+  - `ExaSP2`: 9 dense matrix/SP2/trace/AXPBY/SpMV/CG-step kernels.
+- Latest run status:
+  - 0 `cgeist` failures.
+  - 68 tensor-form Linalg results.
+  - 2 memref-form Linalg results.
+  - 14 no-Linalg loop/control-flow results.
+  - 1 raise failure.
+- Important successful story:
+  after stripping app ABI/MPI/BML/solver structs, most regular compute and
+  local data-layout kernels raise cleanly. This supports the paper point that
+  extracted kernels can form a useful ISA-like layer plus a fallback Linalg
+  lowering path.
+- Important remaining limitations:
+  - `exasp2_normalize_dense` direct diagonal branch fails because raise creates
+    `affine.if` inside `linalg.generic` using `linalg.index` values as affine
+    dimension ids. The split form `exasp2_normalize_dense_split` raises as two
+    tensor Linalg ops.
+  - Red-black / upwind / diffusion branch kernels leave residual loops/ifs.
+  - Multi-store vector update kernels such as `hpgmg_cg_update`,
+    `hpgmg_bicgstab_update`, and `exasp2_conjugate_gradient_step` do not become
+    Linalg yet.
+  - `hypar_weno_weights_js` remains loops because it has three output stores and
+    a long nonlinear scalar chain.
+  - `hpgmg_interpolation_p1` remains loops because parity-dependent indexing is
+    not currently converted.
+  - Euler fixed-component flux bodies remain scalar loops with multiple stores.
