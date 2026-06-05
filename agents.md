@@ -268,3 +268,284 @@
     `hypar_interp_second_order_muscl` now declares `fC[HL + 3][HNV]`. The old
     `HL + 2` bound made the last iteration read `fC[i + 2]` one row past the
     array, so the reference C and lowered path compared undefined behavior.
+
+### Proxy Kernel Matcher Coverage and Operand-Role Lessons
+
+- 2026-06-05 matcher sweep over `/tmp/proxy_kernel_extractions_mlir/summary.txt`
+  reached full structural kernel-dialect coverage:
+  - 85/85 standalone proxy kernels emit at least one `kernel.launch`.
+  - Total emitted launches: 88.
+  - Matcher exits: 0 nonzero return codes.
+  - Latest sweep result file:
+    `/tmp/proxy_kernel_kernel_match_after_1780674500/results.tsv`.
+- Important distinction for the paper/matcher discussion: the same scalar
+  algebra can differ in operand role, and that determines whether a cuBLAS
+  call is valid or whether the matcher must emit a separate residual/custom
+  kernel symbol.
+- Example 1, in-place scale vs out-of-place scale:
+  - Existing `cublasDscal` template correctly matches the in-place form
+    `x[i] = alpha * x[i]`.
+  - Linalg body shape for in-place scale:
+    `yield alpha * Out(0)`.
+  - HPGMG `scale_vector` is out-of-place:
+    `out[i] = alpha * in[i]`.
+  - Linalg body shape for HPGMG:
+    `yield alpha * In(0)`.
+  - Plain `cublasDscal` cannot represent this by itself because it mutates one
+    vector in place. A CUDA lowering would need either `copy(in, out)` followed
+    by `scal(out)`, or a fused custom elementwise kernel. The matcher therefore
+    emits a separate semantic symbol, `elemwise_scale_input_1D`, rather than
+    overclaiming `cublasDscal`.
+- Example 2, in-place AXPBY vs two-input AXPBY:
+  - Existing `_axpby` template matches:
+    `out[i] = alpha * x[i] + beta * out[i]`.
+  - Linalg body shape:
+    `yield alpha * In(0) + beta * Out(0)`.
+  - HPGMG `add_vectors` and ExaSP2 `axpby` use two separate source vectors:
+    `out[i] = alpha * x[i] + beta * y[i]`.
+  - Linalg body shape:
+    `yield alpha * In(0) + beta * In(1)`.
+  - The old template should not fire because the second source is not the old
+    output value. The matcher now emits `elemwise_axpby_inputs_1D` for this
+    out-of-place/two-input variant.
+- 2026-06-05 batched-GEMV-to-GEMM probe:
+  - Probe source: `issues/gemv_to_gemm_probe.c`.
+  - Shape tested:
+    `for b, i: Y[b][i] = 0; for b, i, k: Y[b][i] += X[b][k] * A[i][k]`.
+  - Mathematically this is a batch of GEMVs, equivalently
+    `Y = X * A^T`.
+  - Raised/debufferized IR has two tensor `linalg.generic` ops:
+    a 2-D zero fill and a contraction with iterator types
+    `["parallel", "parallel", "reduction"]`.
+  - Kernel matcher emits:
+    `memset_zero_2D` followed by `cublasDgemm_simple`.
+  - This exposed a matcher ordering issue: the alpha-capture GEMM template
+    could previously match no-alpha GEMM by implicitly binding `alpha = 1`.
+    Exact no-alpha GEMM/GEMV templates now run before alpha-capture variants,
+    so no-alpha contractions emit ABI-compatible simple symbols.
+- Other matcher-side fixes that made the 85/85 sweep possible:
+  - Added parser support for egglog pretty-printed `_Term_N = ...` aliases and
+    trailing constructor commas. Without this, templates that were algebraically
+    identical, such as `hpgmg_norm` and `hypar_limiter_minmod`, failed because
+    repeated subexpressions were not inlined before unification.
+  - Added shape-gated tensor copy symbols for rank-2, rank-3, and rank-6 copy
+    bodies. The existing `cublasDcopy_tensor` algebra matched some pack/unpack
+    kernels, but rewrite policy rejected them because the cuBLAS copy ABI was
+    1D-only.
+  - Added exact semantic templates for proxy kernels that are useful as a
+    kernel-ISA layer: miniAMR 7/27-point stencils, HPGMG apply/residual/smooth/
+    restriction/interpolation, HyPar derivatives/limiters/WENO/Euler fluxes,
+    SWFFT copies/transposes, and ExaSP2 normalize/SP2/CG update kernels.
+- Runtime/ABI caveat:
+  - This is structural kernel-dialect coverage, not full CUDA execution
+    coverage.
+  - `kernel_match_rewrite.py` can emit symbols such as
+    `elemwise_scale_input_1D`, `hypar_weno_weights_js`, or
+    `hpgmg_gsrb_smooth_7pt_tensor`.
+  - For actual GPU execution, each emitted symbol still needs a matching
+    `LowerKernelLaunchToCuBLAS.cpp` lowering case plus a runtime implementation
+    or decomposition. For example, `elemwise_scale_input_1D` could lower to
+    `copy + cublasDscal` or to a fused custom CUDA elementwise kernel; until
+    that ABI/runtime path exists, the IR explorer can show a successful kernel
+    match but CUDA lowering may still reject or leave the launch unsupported.
+
+## Proxy Pipeline Fixtures
+
+### miniAMR Pipeline
+
+- 2026-06-05 added `issues/proxy_kernel_pipelines/miniamr_pipeline.c`.
+- The fixture is one inline pipeline-shaped function, not a call wrapper, so
+  `--select-func=miniamr_pipeline` sees the loop bodies directly.
+- Included loop families:
+  - halo face pack/unpack
+  - block pack/unpack
+  - 7-point average stencil
+  - 27-point average stencil
+  - material coupled sum
+  - pointwise material update
+  - x/y/z directional stencils
+  - weighted 7-point stencil
+  - weighted 27-point stencil
+- Latest fixture run:
+  `/tmp/miniamr_pipeline_1780675056`
+- Pipeline fixture result:
+  - `cgeist` succeeds.
+  - `--raise-affine-to-linalg-pipeline` produces 16 `linalg.generic` ops.
+  - The selected raised artifact still has 8 residual loops and 0 ifs.
+  - Both default and multi-root `--linalg-debufferize` fail.
+  - Running the matcher on the non-debufferized Linalg artifact emits 6
+    launches: four `cublasDcopy`, one `reduce_sum_1D`, and one
+    `reduce_weighted_sum_1D`.
+- Primary composed-pipeline blocker:
+  - The 27-point average stencil still lowers as outer affine loops containing
+    a scalar `memref.alloca` accumulator and an inner reduction
+    `linalg.generic`.
+  - During debufferization this becomes an invalid tensor/affine region with a
+    dominance failure:
+    `operand #0 does not dominate this use`, where the offending operand is the
+    scalar alloca defined inside the child loop region.
+  - This is the same structural limitation as isolated
+    `miniamr_stencil_calc_27`: the fixed 3x3x3 reduction is not collapsed into
+    one clean tensor Linalg op.
+- Secondary matcher issue in the composed fixture:
+  - Because debufferization fails, most stencil bodies remain memref-form.
+  - The isolated-kernel matcher templates for miniAMR directional/weighted
+    stencils are mostly tensor-form symbols, so the non-debufferized pipeline
+    artifact does not get the same 85/85-style coverage.
+  - This is not an algebra miss; body inspection shows the same shapes as the
+    isolated kernels.
+- Fresh original-source miniAMR probe:
+  `/tmp/miniamr_original_probe_1780675165`
+- Original `third_party/miniAMR/ref/stencil.c::stencil_calc` result:
+  - `cgeist` succeeds.
+  - Raised artifact has 0 `linalg.generic`, 6 loops, 7 ifs, and 152 memref
+    type mentions.
+  - The original app function remains worse than the pipeline fixture because
+    it contains branchy `stencil_in` selection, `scf.while` over
+    `sorted_index[num_refine+1]`, global block metadata, `blocks[sorted_list]`
+    indirection, LLVM GEP/load on `block` structs, and `double ****array`
+    pointer-chasing before reaching the stencil values.
+  - Problem chain observed in the original miniAMR source:
+    `global lookup -> struct pointer -> array pointer -> dynamic loop bounds ->
+    branchy control flow -> temporary VLA -> copy-back loop`.
+  - Compiler-facing meaning of that chain:
+    - Global lookup: the useful stencil body is reached through global AMR
+      state such as sorted block/refinement metadata, not direct kernel
+      arguments.
+    - Struct pointer: the selected block is loaded through a `block` struct,
+      which introduces LLVM GEP/load traffic before the numeric array is
+      visible.
+    - Array pointer: the data payload is a pointer-rich layout such as
+      `double ****array`, so the frontend sees pointer chasing instead of a
+      simple strided memref.
+    - Dynamic loop bounds: block dimensions and refinement metadata drive loop
+      bounds, so the regular stencil extents are not obvious constants at the
+      kernel boundary.
+    - Branchy control flow: stencil selection and boundary/control branches
+      survive as `scf.if`/`scf.while`, blocking the clean affine/linalg shape.
+    - Temporary VLA: the local work array
+      `work[x_block_size+2][y_block_size+2][z_block_size+2]` becomes a dynamic
+      stack allocation. The frontend VLA allocation bug is fixed, but the
+      remaining temporary still complicates tensorization.
+    - Copy-back loop: the stencil result is first staged into the temporary and
+      then copied back, so the useful update is split across producer and
+      consumer loops rather than appearing as one direct linalg operation.
+  - This confirms the current paper-facing path should use extracted or
+    pipeline-shaped kernels for miniAMR, while treating the full original app
+    as future frontend/control-flow/metadata work.
+
+### miniAMR Easy Pipeline
+
+- 2026-06-05 added
+  `issues/proxy_kernel_pipelines/miniamr_pipeline_easy.c`.
+- This is a cleaned, paper-facing miniAMR-style pipeline fixture. It keeps the
+  relevant pipeline families but removes the original app ABI/control-flow
+  barriers and the one reduction shape that still trips debufferization:
+  global block metadata, `double ****` pointer chasing, AMR sorted-list
+  indirection, branchy stencil selection, and the unweighted local-scalar
+  27-point accumulator.
+- Included loop families:
+  - halo face pack/unpack
+  - block pack/unpack
+  - 7-point average stencil
+  - x/y/z directional stencils
+  - weighted 7-point stencil
+  - weighted 27-point stencil expressed with a 3x3x3 coefficient tensor
+  - final pointwise six-input combine
+- Latest fixture run:
+  `/tmp/miniamr_pipeline_easy_1780678211`
+- Pipeline result:
+  - `cgeist` succeeds.
+  - `--raise-affine-to-linalg-pipeline` produces 14 `linalg.generic` ops.
+  - Multi-root `--linalg-debufferize` succeeds.
+  - The debufferized artifact has 14 tensor `linalg.generic` ops, 0 residual
+    loops, and 0 ifs.
+  - Kernel matcher dry-run reports 10 matched bodies out of 11 semantic bodies:
+    two `tensor_copy_2D`, two `tensor_copy_3D`, one
+    `miniamr_average_7pt_tensor`, three
+    `miniamr_directional_stencil_tensor`, one
+    `miniamr_weighted_7pt_tensor`, and one composed
+    `miniamr_weighted_27pt_tensor` spanning bodies 9-12.
+  - Rewritten kernel dialect artifact has 10 `kernel.launch` ops.
+  - The only unmatched body is the final clean 3D pointwise sum of six tensors:
+    `final = avg7 + dir_x + dir_y + dir_z + weighted7 + weighted27`.
+- Interpretation:
+  - This fixture demonstrates a clean end-to-end route for a miniAMR-style
+    extracted pipeline: linalg raising, tensor debufferization, and kernel-ISA
+    matching all work for the stencil/copy pieces.
+  - The final pointwise combine is a good residual-Linalg example for the paper:
+    it can be lowered through ordinary Linalg tiling/vectorization/buffering, or
+    later matched to a small generated elementwise kernel if we want 11/11
+    kernel-dialect coverage.
+
+### Five Easy Proxy Pipelines
+
+- 2026-06-05 added four more easy composed-pipeline fixtures:
+  - `issues/proxy_kernel_pipelines/hpgmg_pipeline_easy.c`
+  - `issues/proxy_kernel_pipelines/hypar_pipeline_easy.c`
+  - `issues/proxy_kernel_pipelines/swfft_pipeline_easy.c`
+  - `issues/proxy_kernel_pipelines/exasp2_pipeline_easy.c`
+- Together with `miniamr_pipeline_easy.c`, these are the five paper-facing
+  pipeline fixtures:
+  - miniAMR: halo/block movement, 7-point and weighted stencils, final
+    pointwise combine.
+  - HPGMG: apply-op, residual, Jacobi smoother, restriction, simple
+    prolongation/injection, CG vector update.
+  - HyPar: fourth-order derivative, WENO weights/reconstruction, limiter,
+    upwind flux, reaction/update.
+  - SWFFT: local pack/unpack, slab movement, and local transposes.
+  - ExaSP2: dense normalization, dense square/SP2 update, diagonal trace-term
+    extraction, SpMV, AXPBY, and CG update.
+- Latest all-pipeline sweep:
+  `/tmp/proxy_pipeline_easy_all_1780679229/summary.txt`
+- Common result across all five:
+  - `cgeist` succeeds.
+  - `--raise-affine-to-linalg-pipeline` succeeds.
+  - Multi-root `--linalg-debufferize` succeeds.
+  - Rewriting through `kernel_match_rewrite.py` succeeds.
+  - Every debufferized pipeline has 0 residual `affine.for`/`scf.for` loops and
+    0 residual `affine.if`/`scf.if` branches.
+- Final structural/matcher coverage:
+  - miniAMR: 14 tensor `linalg.generic`, 10 `kernel.launch`, 10/11 semantic
+    bodies matched. The remaining body is the final six-input pointwise combine
+    `avg7 + dir_x + dir_y + dir_z + weighted7 + weighted27`.
+  - HPGMG: 6 tensor `linalg.generic`, 6 `kernel.launch`, 6/6 matched:
+    `hpgmg_apply_op_7pt_tensor`, `hpgmg_residual_7pt_tensor`,
+    `hpgmg_jacobi_smooth_7pt_tensor`, `hpgmg_restriction_cell_tensor`,
+    `tensor_copy_3D`, and `cg_update_3out`.
+  - HyPar: 7 tensor `linalg.generic`, 5 `kernel.launch`, 5/7 matched:
+    `derivative_fourth_order`, `hypar_weno_weights_js`,
+    `hypar_weno_interp5`, `elemwise_avg2`, and `hypar_upwind_var_flux`.
+    The two residual bodies are:
+    - composed slope-difference plus minmod limiter, which does not match the
+      existing standalone minmod template because the slope differences are
+      computed inside the same body instead of passed as direct inputs.
+    - final fused reaction plus conservative update, which is a good
+      residual-Linalg lowering example.
+  - SWFFT: 6 tensor `linalg.generic`, 6 `kernel.launch`, 6/6 matched. All are
+    local copy/layout movement bodies (`tensor_copy_2D`/`tensor_copy_3D`) for
+    pack/unpack/slab/transpose shapes.
+  - ExaSP2: 10 tensor `linalg.generic`, 9 `kernel.launch`, 9/10 matched:
+    `exasp2_neg_div`, `elemwise_add_out_scalar_1D`, `memset_zero_2D`,
+    dense square lowered as `cublasDsyrk_alias`, diagonal trace-term extraction
+    as `elemwise_scale_input_1D`, `memset_zero_1D`, `cublasDgemv`,
+    `elemwise_axpby_inputs_1D`, and `cg_update_3out`. The residual body is the
+    scalar-conditioned SP2 selection:
+    `x = take_square ? x2 : 2*rho - x2`.
+- HPGMG adjustment note:
+  - An earlier HPGMG version included P2 interpolation and one-element stats
+    reductions. P2 interpolation is one of the known memref-only Linalg cases,
+    so it prevented useful tensor-form kernel matching for the composed
+    pipeline.
+  - The one-element stats reductions exposed a scalar-output reduction hazard:
+    in the composed form, the raised reduction body did not use the accumulator
+    block argument. Keep scalar reductions out of the easy composed fixtures
+    until that lowering is fixed or verified through the correctness harness.
+  - The final HPGMG easy fixture therefore uses simple injection/prolongation
+    and keeps the CG update but leaves scalar norm/dot/mean reductions as a
+    separate issue.
+- ExaSP2 trace adjustment note:
+  - The first ExaSP2 pipeline used a scalar trace reduction and exposed the same
+    scalar-output reduction hazard. The current fixture extracts diagonal trace
+    terms into a vector instead. This keeps the pipeline correct and
+    tensorizable while leaving scalar trace reduction as a separate fix.
