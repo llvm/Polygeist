@@ -3,9 +3,10 @@
 //
 // The pass emits `func.call` ops targeting these C functions. The functions
 // are implemented in two flavours:
-//   * polygeist_cublas_rt_cpu.c   — reference CPU implementation (no CUDA).
-//                                    Used for correctness validation on
-//                                    machines without a GPU.
+//   * polygeist_cublas_rt_cpu.c   — CPU implementation (no CUDA). Reference
+//                                    loops by default, or optimized CBLAS for
+//                                    BLAS-like symbols when compiled with
+//                                    POLYGEIST_CPU_USE_CBLAS.
 //   * polygeist_cublas_rt_cuda.c  — real cuBLAS implementation. Used on
 //                                    Jetson / x86 + NVIDIA GPU.
 // Link exactly one of them into the executable.

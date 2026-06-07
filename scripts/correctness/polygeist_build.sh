@@ -31,6 +31,13 @@
 #                       Useful for memref-only compositions such as the
 #                       llama2.c RMSNorm/softmax patterns.
 #
+# Optional environment:
+#   POLYGEIST_CPU_BLAS=1
+#                       Host target only. Compile the CPU runtime shim with
+#                       CBLAS calls for BLAS-like symbols and link OpenBLAS by
+#                       default. Override with POLYGEIST_CPU_BLAS_CFLAGS and
+#                       POLYGEIST_CPU_BLAS_LIBS for MKL/BLIS/ArmPL/NVPL.
+#
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
 # runtime shim). This is how PolyBench-style preprocessor defines like
@@ -69,6 +76,7 @@ INPUT=
 HARNESS_INPUT=
 DEBUFFERIZE=1
 GCC_PASSTHROUGH=()
+RT_CFLAGS=()
 
 usage() {
   sed -n '3,40p' "$0" | sed 's/^# \?//'
@@ -252,6 +260,15 @@ if [ "$TARGET" = "host" ]; then
   CLANG_TARGET_ARGS=""
   RT_SRC=$RT/polygeist_cublas_rt_cpu.c
   RT_LIBS="-lm -lpthread"
+  if [ "${POLYGEIST_CPU_BLAS:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_CPU_USE_CBLAS")
+    if [ -n "${POLYGEIST_CPU_BLAS_CFLAGS:-}" ]; then
+      read -r -a _CPU_BLAS_CFLAGS <<< "$POLYGEIST_CPU_BLAS_CFLAGS"
+      RT_CFLAGS+=("${_CPU_BLAS_CFLAGS[@]}")
+    fi
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+    echo "         + optimized CPU CBLAS runtime enabled"
+  fi
 else
   # aarch64-linux-gnu-gcc is already configured for aarch64 — no --target arg.
   # Clang (used for kernel.ll → kernel.o only) does need --target=aarch64-linux-gnu.
@@ -293,7 +310,7 @@ fi
 
 # Runtime shim. For jetson target we also need cuda + cudnn headers.
 if [ "$TARGET" = "host" ]; then
-  $CC -O2 -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 "${RT_CFLAGS[@]}" -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 else
   $CC -O2 -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC -c $RT_SRC -o $WORK/rt.o

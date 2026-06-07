@@ -1,9 +1,7 @@
-// polygeist_cublas_rt_cpu.c — reference CPU implementation of the runtime
-// shim ABI. No CUDA dependency. Used for end-to-end correctness validation
-// on machines without a GPU.
-//
-// The math is intentionally the slowest possible 3-loop gemm: the goal is
-// to validate the lowering pass and the runtime call shape, not to be fast.
+// polygeist_cublas_rt_cpu.c — CPU implementation of the runtime shim ABI.
+// No CUDA dependency. By default this uses reference loops for correctness
+// validation. Define POLYGEIST_CPU_USE_CBLAS to route BLAS-like kernels to an
+// optimized CBLAS implementation such as OpenBLAS, BLIS, MKL, ArmPL, or NVPL.
 
 #include "polygeist_cublas_rt.h"
 
@@ -11,6 +9,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef POLYGEIST_CPU_USE_CBLAS
+#include <cblas.h>
+#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327950288
@@ -28,6 +30,11 @@ void polygeist_cublas_dgemm(
     const double *B, int32_t ldb,
     double beta,
     double *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, A,
+              lda, B, ldb, beta, C, ldc);
+  return;
+#endif
   // C[i,j] = alpha * sum_k A[i,k] * B[k,j] + beta * C[i,j]
   for (int32_t i = 0; i < M; ++i) {
     for (int32_t j = 0; j < N; ++j) {
@@ -49,6 +56,11 @@ void polygeist_cublas_sgemm(
     const float *B, int32_t ldb,
     float beta,
     float *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, A,
+              lda, B, ldb, beta, C, ldc);
+  return;
+#endif
   for (int32_t i = 0; i < M; ++i) {
     for (int32_t j = 0; j < N; ++j) {
       float acc = 0.0f;
@@ -85,6 +97,11 @@ void polygeist_cublas_dgemv(
     const double *x,
     double beta,
     double *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dgemv(CblasRowMajor, CblasNoTrans, M, N, alpha, A, lda, x, 1, beta, y,
+              1);
+  return;
+#endif
   // Row-major y[i] = alpha * sum_j A[i,j] * x[j] + beta * y[i]
   for (int32_t i = 0; i < M; ++i) {
     double acc = 0.0;
@@ -101,6 +118,11 @@ void polygeist_cublas_sgemv(
     const float *x,
     float beta,
     float *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemv(CblasRowMajor, CblasNoTrans, M, N, alpha, A, lda, x, 1, beta, y,
+              1);
+  return;
+#endif
   for (int32_t i = 0; i < M; ++i) {
     float acc = 0.0f;
     for (int32_t j = 0; j < N; ++j)
@@ -111,10 +133,23 @@ void polygeist_cublas_sgemv(
 
 void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
                               double beta, double *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  if (x == y) {
+    cblas_dscal(N, alpha + beta, y, 1);
+  } else {
+    cblas_dscal(N, beta, y, 1);
+    cblas_daxpy(N, alpha, x, 1, y, 1);
+  }
+  return;
+#endif
   for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
 }
 
 void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_daxpy(N, 1.0, x, 1, y, 1);
+  return;
+#endif
   for (int32_t i = 0; i < N; ++i) y[i] += x[i];
 }
 
@@ -122,6 +157,11 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
                                    const double *u1, const double *v1,
                                    const double *u2, const double *v2,
                                    double *A, int32_t lda) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dger(CblasRowMajor, M, N, 1.0, u1, 1, v1, 1, A, lda);
+  cblas_dger(CblasRowMajor, M, N, 1.0, u2, 1, v2, 1, A, lda);
+  return;
+#endif
   for (int32_t i = 0; i < M; ++i) {
     double *row = &A[(size_t)i * (size_t)lda];
     for (int32_t j = 0; j < N; ++j)
@@ -136,6 +176,11 @@ void polygeist_cublas_dgemv_T(
     const double *x,
     double beta,
     double *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x, 1, beta, y,
+              1);
+  return;
+#endif
   // Row-major y[j] = alpha * sum_i A[i,j] * x[i] + beta * y[j]
   // (M is A's first dim = x's length; N is A's second dim = y's length)
   for (int32_t j = 0; j < N; ++j) {
@@ -153,6 +198,11 @@ void polygeist_cublas_sgemv_T(
     const float *x,
     float beta,
     float *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x, 1, beta, y,
+              1);
+  return;
+#endif
   for (int32_t j = 0; j < N; ++j) {
     float acc = 0.0f;
     for (int32_t i = 0; i < M; ++i)
@@ -163,6 +213,15 @@ void polygeist_cublas_sgemv_T(
 
 void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
                                  double *A, int32_t lda) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  if (lda == N) {
+    cblas_dscal((int32_t)((size_t)M * (size_t)N), scale, A, 1);
+  } else {
+    for (int32_t i = 0; i < M; ++i)
+      cblas_dscal(N, scale, &A[(size_t)i * (size_t)lda], 1);
+  }
+  return;
+#endif
   for (int32_t i = 0; i < M; ++i) {
     double *row = &A[(size_t)i * (size_t)lda];
     for (int32_t j = 0; j < N; ++j) row[j] *= scale;
@@ -922,6 +981,15 @@ void polygeist_cublas_memset_zero_2d_f32(int32_t M, int32_t N, float *A, int32_t
 void polygeist_cublas_sgemm_1x1conv(
     int32_t B, int32_t IC, int32_t OC, int32_t HW,
     const float *A, const float *F, float *C) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  for (int32_t b = 0; b < B; ++b) {
+    const float *Ab = &A[(size_t)b * (size_t)IC * (size_t)HW];
+    float *Cb = &C[(size_t)b * (size_t)OC * (size_t)HW];
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, OC, HW, IC, 1.0f,
+                F, IC, Ab, HW, 0.0f, Cb, HW);
+  }
+  return;
+#endif
   /* C[b][oc][p] = sum_ic A[b][ic][p] * F[oc][ic] for p in 0..HW-1. */
   for (int32_t b = 0; b < B; ++b)
     for (int32_t oc = 0; oc < OC; ++oc)
@@ -937,6 +1005,11 @@ void polygeist_cublas_sgemm_1x1conv(
 }
 
 void polygeist_cublas_dsyrk(int32_t N, int32_t K, const float *A, float *C) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, N, N, K, 1.0f, A, N,
+              A, N, 0.0f, C, N);
+  return;
+#endif
   /* C = AᵀA where A is K×N (row-major); C is N×N (row-major). */
   for (int32_t m = 0; m < N; ++m)
     for (int32_t n = 0; n < N; ++n) {
@@ -951,6 +1024,16 @@ void polygeist_cublaslt_matmul_bias_relu(
     int32_t M, int32_t N, int32_t K,
     const float *A, const float *B, const float *bias,
     float *C) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0f, A, K,
+              B, N, 0.0f, C, N);
+  for (int32_t m = 0; m < M; ++m)
+    for (int32_t n = 0; n < N; ++n) {
+      float v = C[(size_t)m * (size_t)N + (size_t)n] + bias[n];
+      C[(size_t)m * (size_t)N + (size_t)n] = v > 0.0f ? v : 0.0f;
+    }
+  return;
+#endif
   for (int32_t m = 0; m < M; ++m)
     for (int32_t n = 0; n < N; ++n) {
       float acc = 0.0f;
