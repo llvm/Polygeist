@@ -63,6 +63,8 @@ class Term(Expr):
     @classmethod
     def Exp(cls, a: Term) -> Term: ...
     @classmethod
+    def Tanh(cls, a: Term) -> Term: ...
+    @classmethod
     def Select(cls, pred: Term, t: Term, f: Term) -> Term: ...
     @classmethod
     def Cmp(cls, kind: StringLike, a: Term, b: Term) -> Term: ...
@@ -223,6 +225,16 @@ class GenericBody:
     indexing_maps: list[str]      # raw text of each map
     iterator_types: list[str]
     constants: dict[str, float]   # captured SSA name -> Python float value
+    # Result SSA names for this linalg.generic. Multi-result ops use MLIR's
+    # `%r:2 = ...` spelling and expose `%r#0`, `%r#1`, ... as users. This is
+    # needed for scalar-chain checks such as `%inv_sum = 1.0 / %softmax_sum`.
+    result_names: list[str] = None  # type: ignore[assignment]
+    # Best-effort scalar use-def environment for SSA values outside linalg
+    # bodies. The ordinary body matcher intentionally focuses on linalg body
+    # Terms; this side table lets selected compositions prove relationships
+    # among captured scalars without turning the whole matcher into MLIR data
+    # flow analysis.
+    scalar_defs: dict[str, Term] = None  # type: ignore[assignment]
     # For each block input arg, the SSA name of the constant it's multiplied
     # with in the body — populated only if the input appears in exactly one
     # `arith.mulf %in, %cst : ...` (or `arith.mulf %cst, %in : ...`). Used by
@@ -247,6 +259,7 @@ class GenericBody:
 
 
 _GEN_RE = re.compile(
+    r"(?:(%[\w_\-]+)(?::(\d+))?\s*=\s*)?"
     r"linalg\.generic\s*\{[^}]*indexing_maps\s*=\s*\[([^\]]*)\][^}]*"
     r"iterator_types\s*=\s*\[([^\]]*)\][^}]*\}[^\^]*?"
     # Yield captures one OR MORE comma-separated SSA names. Multi-yield
@@ -300,6 +313,69 @@ def parse_constants(mlir_text: str) -> dict[str, float]:
     return out
 
 
+def _encode_scalar_defs(mlir_text: str,
+                        constants: dict[str, float]) -> dict[str, Term]:
+    """Best-effort scalar SSA expression table for ops surrounding linalg.
+
+    The main matcher encodes each linalg.generic body independently. Some
+    kernels, however, compute scalar captures between generics, e.g. Whisper
+    softmax:
+
+      %sum = tensor.extract %exp_sum#1[] : tensor<f32>
+      %inv = arith.divf %cst_1, %sum : f32
+      ... yield %out * %inv ...
+
+    This table keeps just enough scalar use-def information to prove those
+    capture relationships when a composition explicitly asks for it.
+    Unknown values remain opaque Caps.
+    """
+    env: dict[str, Term] = {
+        name: Term.Lit(value) for name, value in constants.items()
+    }
+
+    def resolve(tok: str) -> Term:
+        tok = tok.strip()
+        m = re.match(r"(%[\w_\-]+(?:#\d+)?)", tok)
+        if m:
+            name = m.group(1)
+            return env.get(name, Term.Cap(name))
+        try:
+            return Term.Lit(float(tok))
+        except ValueError:
+            return Term.Lit(float("nan"))
+
+    for raw in mlir_text.splitlines():
+        line = raw.strip()
+        m = re.match(r"(%[\w_\-]+)\s*=\s*(\w+\.\w+)\s+(.*?)\s*:", line)
+        if not m:
+            continue
+        result, op, args_part = m.group(1), m.group(2), m.group(3)
+        arg_toks = [s.strip() for s in args_part.split(",")]
+        if op in ("arith.mulf", "arith.muli") and len(arg_toks) >= 2:
+            env[result] = resolve(arg_toks[0]) * resolve(arg_toks[1])
+        elif op in ("arith.addf", "arith.addi") and len(arg_toks) >= 2:
+            env[result] = resolve(arg_toks[0]) + resolve(arg_toks[1])
+        elif op in ("arith.subf", "arith.subi") and len(arg_toks) >= 2:
+            env[result] = resolve(arg_toks[0]) - resolve(arg_toks[1])
+        elif op in ("arith.divf", "arith.divsi") and len(arg_toks) >= 2:
+            env[result] = resolve(arg_toks[0]) / resolve(arg_toks[1])
+        elif op == "arith.negf" and arg_toks:
+            env[result] = Term.Lit(0.0) - resolve(arg_toks[0])
+        elif op == "math.sqrt" and arg_toks:
+            env[result] = Term.Sqrt(resolve(arg_toks[0]))
+        elif op in ("math.absf", "math.absi") and arg_toks:
+            env[result] = Term.Abs(resolve(arg_toks[0]))
+        elif op == "math.exp" and arg_toks:
+            env[result] = Term.Exp(resolve(arg_toks[0]))
+        elif op == "math.tanh" and arg_toks:
+            env[result] = Term.Tanh(resolve(arg_toks[0]))
+        elif op == "tensor.extract" and arg_toks:
+            # Treat extracting a scalar tensor result as transparent to the
+            # result SSA, e.g. `%s = tensor.extract %r#1[]` -> Cap("%r#1").
+            env[result] = resolve(arg_toks[0])
+    return env
+
+
 _MAP_ALIAS_RE = re.compile(
     # affine_map text contains `->` which has a `>`, so [^>] is wrong here.
     # Match the literal form `affine_map<(...) -> (...)>`.
@@ -334,10 +410,19 @@ def parse_generics(mlir_text: str,
     """Extract every linalg.generic with its body."""
     if constants is None:
         constants = parse_constants(mlir_text)
+    scalar_defs = _encode_scalar_defs(mlir_text, constants)
     mlir_text = _resolve_map_aliases(mlir_text)
     results = []
     for m in _GEN_RE.finditer(mlir_text):
-        maps_str, iters_str, args_str, body_str, yield_operands_str = m.groups()
+        result_base, result_count, maps_str, iters_str, args_str, body_str, yield_operands_str = m.groups()
+        if result_base and result_count:
+            result_names = [
+                f"{result_base}#{i}" for i in range(int(result_count))
+            ]
+        elif result_base:
+            result_names = [result_base]
+        else:
+            result_names = []
         # Split the yield's operand list on commas (multi-yield bodies have
         # multiple SSAs separated by commas). The regex preserves whitespace
         # around commas, so strip per-token.
@@ -468,6 +553,8 @@ def parse_generics(mlir_text: str,
                 for name in captures
                 if name in constants
             },
+            result_names=result_names,
+            scalar_defs=scalar_defs,
             inline_weights_per_in=inline_weights,
         ))
     return results
@@ -498,6 +585,7 @@ _OP_PATTERNS = {
     # Encoded as opaque unary Terms; templates can match against `Term.Exp(x)`
     # etc. so the matcher recognises the kernel without trying to fold them.
     "math.exp": "exp",
+    "math.tanh": "tanh",
     "arith.cmpf": "cmpf",
     "arith.cmpi": "cmpi",
     "arith.select": "select",
@@ -595,6 +683,8 @@ def encode_body(g: GenericBody) -> Term:
             env[result] = Term.Abs(resolve(arg_toks[0]))
         elif op_key == "exp":
             env[result] = Term.Exp(resolve(arg_toks[0]))
+        elif op_key == "tanh":
+            env[result] = Term.Tanh(resolve(arg_toks[0]))
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
@@ -695,6 +785,8 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
             env[result] = Term.Abs(resolve(arg_toks[0]))
         elif op_key == "exp":
             env[result] = Term.Exp(resolve(arg_toks[0]))
+        elif op_key == "tanh":
+            env[result] = Term.Tanh(resolve(arg_toks[0]))
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
@@ -844,6 +936,37 @@ class CompositionEntry:
     # gemv, jacobi, ...) unchanged — they already surface scalars via
     # function-arg Caps, not body-internal Lits.
     surface_inline_weights: bool = False
+    # Optional named postcondition over scalar captures outside the linalg
+    # bodies. Used sparingly for composition variants whose body shape alone
+    # is under-constrained, e.g. softmax normalization written as
+    # `out *= inv_sum` where `%inv_sum` must be proven to be `1 / sum`.
+    scalar_relation: Optional[str] = None
+
+
+@dataclass
+class SemanticCandidate:
+    """One possible semantic interpretation of a raised linalg body.
+
+    This is intentionally separate from ABI lowering. A candidate may denote:
+      - an exact whole-body/composition match already present in
+        `composition_library()`;
+      - a semantic node recognized inside a scalar subexpression; or
+      - a specialization/completion of one semantic node into another, e.g.
+        a 7-point sparse stencil completed into a 3x3x3 convolution by filling
+        missing taps with zero.
+
+    The rewriter can still pick the old greedy ABI-lowerable path, while dry
+    runs can expose the full candidate set for planning/cost-model work.
+    """
+    name: str
+    body_indices: tuple[int, ...]
+    match_kind: str          # "whole" | "composition" | "subterm" | "completion"
+    coverage: str            # "whole" | "partial"
+    bindings: dict
+    entry: Optional[CompositionEntry] = None
+    defaults: tuple[tuple[str, str], ...] = ()
+    subterm_path: tuple[int, ...] = ()
+    source: Optional[str] = None
 
 
 # Canonical body templates. Cap names are template wildcards — they bind
@@ -1376,6 +1499,832 @@ def _subf_inputs() -> CompositionEntry:
     )
 
 
+def _scale_input_1d() -> CompositionEntry:
+    """out[i] = alpha * in[i]  — out-of-place vector scale.
+
+    This is not the in-place cuBLAS DSCAL shape (`out *= alpha`), so keep it
+    as an explicit elementwise-kernel template rather than overloading
+    `cublasDscal`.
+    """
+    body = T_cap("%alpha") * Term.In(0)
+    return CompositionEntry(
+        name="elemwise_scale_input_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _axpby_inputs_1d() -> CompositionEntry:
+    """out[i] = alpha * x[i] + beta * y[i].
+
+    Distinct from `_axpby`, whose second source is the output buffer itself
+    (`alpha*x + beta*out`).
+    """
+    body = T_cap("%alpha") * Term.In(0) + T_cap("%beta") * Term.In(1)
+    return CompositionEntry(
+        name="elemwise_axpby_inputs_1D",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _mul_inputs_scaled_1d() -> CompositionEntry:
+    """out[i] = alpha * x[i] * y[i]."""
+    body = (T_cap("%alpha") * Term.In(0)) * Term.In(1)
+    return CompositionEntry(
+        name="elemwise_mul_inputs_scaled_1D",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _mul_inputs_pointwise() -> CompositionEntry:
+    """out = in0 * in1 for pointwise tensor kernels."""
+    body = Term.In(0) * Term.In(1)
+    return CompositionEntry(
+        name="elemwise_mul_inputs",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _add_scalar_1d() -> CompositionEntry:
+    """out[i] = in[i] + alpha."""
+    body = Term.In(0) + T_cap("%alpha")
+    return CompositionEntry(
+        name="elemwise_add_scalar_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _div_scalar_by_input_1d() -> CompositionEntry:
+    """out[i] = alpha / in[i]."""
+    body = T_cap("%alpha") / Term.In(0)
+    return CompositionEntry(
+        name="elemwise_div_scalar_by_input_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _avg2_pointwise() -> CompositionEntry:
+    """out = 0.5 * (in0 + in1)."""
+    body = (Term.In(0) + Term.In(1)) * Term.Lit(0.5)
+    return CompositionEntry(
+        name="elemwise_avg2",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _half_diff_pointwise() -> CompositionEntry:
+    """out = 0.5 * (in0 - in1)."""
+    body = (Term.In(0) - Term.In(1)) * Term.Lit(0.5)
+    return CompositionEntry(
+        name="elemwise_half_diff",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _linear_reaction_pointwise() -> CompositionEntry:
+    """out = in0 - alpha * in1."""
+    body = Term.In(0) - (T_cap("%alpha") * Term.In(1))
+    return CompositionEntry(
+        name="elemwise_linear_reaction",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _hypar_reaction_update() -> CompositionEntry:
+    """Fused HyPar reaction plus conservative update.
+
+    yield0: reaction = source - lambda * u
+    yield1: next = u - dt * (flux_r - flux_l) + dt * reaction
+    """
+    reaction = Term.In(0) - (T_cap("%lambda") * Term.In(1))
+    update = (Term.In(2) - (T_cap("%dt") * (Term.In(3) - Term.In(4)))) + (
+        T_cap("%dt") * reaction
+    )
+    return CompositionEntry(
+        name="hypar_reaction_update",
+        steps=[CompositionStep(
+            body=reaction,
+            body_per_yield=[reaction, update],
+            num_ins=5,
+            num_outs=2,
+            parallel_dim_count=2,
+            reduction_dim_count=0,
+        )],
+    )
+
+
+def _llf_flux_2d() -> CompositionEntry:
+    """Local Lax-Friedrichs/Rusanov two-state flux:
+       out = 0.5 * (left_flux + right_flux - alpha * (right - left)).
+    """
+    body = ((Term.In(0) + Term.In(1)) -
+            (T_cap("%alpha") * (Term.In(2) - Term.In(3)))) * Term.Lit(0.5)
+    return CompositionEntry(
+        name="hypar_llf_flux_2D",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _burgers_advection_1d() -> CompositionEntry:
+    """Burgers flux/advection primitive: out = 0.5 * x * x."""
+    body = (Term.In(0) * Term.Lit(0.5)) * Term.In(0)
+    return CompositionEntry(
+        name="burgers_advection_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _upwind_select_const() -> CompositionEntry:
+    """First-order upwind choice: out = x0 > 0 ? left : right."""
+    body = Term.Select(
+        Term.Cmp("ogt", Term.In(0), Term.Lit(0.0)),
+        Term.In(1),
+        Term.In(2),
+    )
+    return CompositionEntry(
+        name="hypar_upwind_select_const",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _predicate_select_inputs() -> CompositionEntry:
+    """Predicate-controlled input select."""
+    body = Term.Select(T_cap("%pred"), Term.In(0), Term.In(1))
+    return CompositionEntry(
+        name="elemwise_select_inputs",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _minmod_limiter() -> CompositionEntry:
+    """Two-input minmod limiter lowered through select/abs."""
+    a = Term.In(0)
+    b = Term.In(1)
+    abs_a = Term.Select(Term.Cmp("olt", a, Term.Lit(0.0)),
+                        Term.Lit(0.0) - a, a)
+    abs_b = Term.Select(Term.Cmp("olt", b, Term.Lit(0.0)),
+                        Term.Lit(0.0) - b, b)
+    body = Term.Select(
+        Term.Cmp("ole", a * b, Term.Lit(0.0)),
+        Term.Lit(0.0),
+        Term.Select(Term.Cmp("olt", abs_a, abs_b), a, b),
+    )
+    return CompositionEntry(
+        name="hypar_minmod_limiter",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _vanleer_limiter() -> CompositionEntry:
+    """Two-input van Leer limiter."""
+    a = Term.In(0)
+    b = Term.In(1)
+    body = Term.Select(
+        Term.Cmp("ole", a * b, Term.Lit(0.0)),
+        Term.Lit(0.0),
+        ((a * Term.Lit(2.0)) * b) / (a + b),
+    )
+    return CompositionEntry(
+        name="hypar_vanleer_limiter",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _fourth_order_interp() -> CompositionEntry:
+    """Fourth-order central interpolation."""
+    body = ((((Term.Lit(0.0) - Term.In(0)) + (Term.In(1) * Term.Lit(7.0))) +
+             (Term.In(2) * Term.Lit(7.0))) - Term.In(3)) / Term.Lit(12.0)
+    return CompositionEntry(
+        name="interp_fourth_order_central",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _fourth_order_derivative() -> CompositionEntry:
+    """Fourth-order first derivative stencil."""
+    body = (((Term.In(0) - (Term.In(1) * Term.Lit(8.0))) +
+             (Term.In(2) * Term.Lit(8.0))) - Term.In(3)) / Term.Lit(12.0)
+    return CompositionEntry(
+        name="derivative_fourth_order",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _fv4_flux() -> CompositionEntry:
+    """Fourth-order finite-volume flux stencil."""
+    body = ((((Term.Lit(0.0) - Term.In(0)) + (Term.In(1) * Term.Lit(7.0))) -
+             (Term.In(2) * Term.Lit(7.0))) + Term.In(3)) / Term.Lit(12.0)
+    return CompositionEntry(
+        name="fv4_flux",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _cg_update_3out() -> CompositionEntry:
+    """CG update with three vector outputs."""
+    r_new = Term.Out(1) - (T_cap("%alpha") * Term.In(0))
+    body_per_yield = [
+        Term.Out(0) + (T_cap("%alpha") * Term.Out(2)),
+        r_new,
+        r_new + (T_cap("%beta") * Term.Out(2)),
+    ]
+    return CompositionEntry(
+        name="cg_update_3out",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=1, num_outs=3,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _bicgstab_update_2out() -> CompositionEntry:
+    """BiCGSTAB two-output update."""
+    r_mid = Term.Out(1) - (T_cap("%alpha") * Term.In(0))
+    body_per_yield = [
+        Term.Out(0) + ((T_cap("%alpha") * Term.In(1)) +
+                       (T_cap("%omega") * r_mid)),
+        r_mid - (T_cap("%omega") * Term.In(2)),
+    ]
+    return CompositionEntry(
+        name="bicgstab_update_2out",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=3, num_outs=2,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _random_vector_3d() -> CompositionEntry:
+    """HPGMG random-vector affine remap from [0, 1] to [-1, 1]."""
+    body = (T_cap("%rand") * Term.Lit(2.0)) + Term.Lit(-1.0)
+    return CompositionEntry(
+        name="hpgmg_random_vector_3D",
+        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+    )
+
+
+def _color_vector_3d() -> CompositionEntry:
+    """HPGMG color mask from three parity predicates."""
+    sx = Term.Select(T_cap("%px"), Term.Lit(1.0), Term.Lit(0.0))
+    sy = Term.Select(T_cap("%py"), Term.Lit(1.0), Term.Lit(0.0))
+    sz = Term.Select(T_cap("%pz"), Term.Lit(1.0), Term.Lit(0.0))
+    body = (sx * sy) * sz
+    return CompositionEntry(
+        name="hpgmg_color_vector_3D",
+        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+    )
+
+
+def _exasp2_neg_div() -> CompositionEntry:
+    """out = -in / scale."""
+    body = (Term.Lit(0.0) - Term.In(0)) / T_cap("%scale")
+    return CompositionEntry(
+        name="exasp2_neg_div",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _add_out_scalar_1d() -> CompositionEntry:
+    """out += scalar."""
+    body = Term.Out(0) + T_cap("%scalar")
+    return CompositionEntry(
+        name="elemwise_add_out_scalar_1D",
+        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _exasp2_normalize_dense() -> CompositionEntry:
+    """Conditional ExaSP2 dense normalization."""
+    base = (Term.Lit(0.0) - Term.In(0)) / T_cap("%scale")
+    body = Term.Select(T_cap("%pred"), base + T_cap("%shift"), base)
+    return CompositionEntry(
+        name="exasp2_normalize_dense",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _exasp2_update_2x_minus_x2() -> CompositionEntry:
+    """out = 2*out - in."""
+    body = (Term.Out(0) * Term.Lit(2.0)) - Term.In(0)
+    return CompositionEntry(
+        name="exasp2_update_2x_minus_x2",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _exasp2_select_square() -> CompositionEntry:
+    """Conditional ExaSP2 square/select update."""
+    body = Term.Select(
+        T_cap("%pred"),
+        Term.In(0),
+        (Term.Out(0) * Term.Lit(2.0)) - Term.In(1),
+    )
+    return CompositionEntry(
+        name="exasp2_select_square",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _select_mul_or_zero() -> CompositionEntry:
+    """out = pred ? in0 * in1 : 0."""
+    body = Term.Select(T_cap("%pred"), Term.In(0) * Term.In(1), Term.Lit(0.0))
+    return CompositionEntry(
+        name="elemwise_select_mul_or_zero",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _burgers_upwind() -> CompositionEntry:
+    """Burgers upwind/Rusanov flux."""
+    a = Term.In(0)
+    b = Term.In(1)
+    abs_a = Term.Select(Term.Cmp("olt", a, Term.Lit(0.0)),
+                        Term.Lit(0.0) - a, a)
+    abs_b = Term.Select(Term.Cmp("olt", b, Term.Lit(0.0)),
+                        Term.Lit(0.0) - b, b)
+    wavespeed = Term.Select(Term.Cmp("ogt", abs_a, abs_b), abs_a, abs_b)
+    body = ((Term.In(2) + Term.In(3)) - (wavespeed * (b - a))) * Term.Lit(0.5)
+    return CompositionEntry(
+        name="burgers_upwind_flux",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+    )
+
+
+def _superbee_limiter() -> CompositionEntry:
+    """Two-input Superbee limiter."""
+    a = Term.In(0)
+    b = Term.In(1)
+    abs_a = Term.Select(Term.Cmp("olt", a, Term.Lit(0.0)),
+                        Term.Lit(0.0) - a, a)
+    abs_b = Term.Select(Term.Cmp("olt", b, Term.Lit(0.0)),
+                        Term.Lit(0.0) - b, b)
+    m1 = Term.Select(Term.Cmp("olt", abs_a * Term.Lit(2.0), abs_b),
+                     abs_a * Term.Lit(2.0), abs_b)
+    m2 = Term.Select(Term.Cmp("olt", abs_a, abs_b * Term.Lit(2.0)),
+                     abs_a, abs_b * Term.Lit(2.0))
+    mag = Term.Select(Term.Cmp("ogt", m1, m2), m1, m2)
+    body = Term.Select(
+        Term.Cmp("ole", a * b, Term.Lit(0.0)),
+        Term.Lit(0.0),
+        Term.Select(Term.Cmp("olt", a, Term.Lit(0.0)),
+                    Term.Lit(0.0) - mag, mag),
+    )
+    return CompositionEntry(
+        name="hypar_superbee_limiter",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _muscl_interp_minmod() -> CompositionEntry:
+    """Second-order MUSCL interpolation using the minmod limiter."""
+    left = Term.In(0) - Term.In(1)
+    right = Term.In(2) - Term.In(0)
+    abs_left = Term.Select(Term.Cmp("olt", left, Term.Lit(0.0)),
+                           Term.Lit(0.0) - left, left)
+    abs_right = Term.Select(Term.Cmp("olt", right, Term.Lit(0.0)),
+                            Term.Lit(0.0) - right, right)
+    limited = Term.Select(
+        Term.Cmp("ole", left * right, Term.Lit(0.0)),
+        Term.Lit(0.0),
+        Term.Select(Term.Cmp("olt", abs_left, abs_right), left, right),
+    )
+    body = Term.In(0) - (limited * Term.Lit(0.5))
+    return CompositionEntry(
+        name="hypar_muscl_minmod_interp",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _miniamr_pointwise_update_tensor() -> CompositionEntry:
+    """miniAMR pointwise nonlinear update."""
+    body = Term.Out(0) + (
+        Term.Out(0) * ((Term.In(0) + Term.In(1)) -
+                       (T_cap("%alpha") * Term.Out(0)))
+    )
+    return CompositionEntry(
+        name="miniamr_pointwise_update_tensor",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_gsrb_smooth_7pt_tensor() -> CompositionEntry:
+    """HPGMG red/black smoother guarded by a color predicate."""
+    c = Term.Out(0)
+    lap = ((((((c * Term.Lit(6.0)) - Term.In(0)) - Term.In(1)) -
+             Term.In(2)) - Term.In(3)) - Term.In(4)) - Term.In(5)
+    apply = (T_cap("%alpha") * c) + (T_cap("%beta") * lap)
+    update = c + (Term.In(6) * (Term.In(7) - apply))
+    body = Term.Select(T_cap("%color"), update, c)
+    return CompositionEntry(
+        name="hpgmg_gsrb_smooth_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=8, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _miniamr_weighted_27pt_tensor() -> CompositionEntry:
+    """miniAMR 27-point weighted stencil as the raised four-step composition."""
+    zero = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=0,
+    )
+    ident_r1 = CompositionStep(
+        body=Term.Out(0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=1,
+    )
+    ident_r2 = CompositionStep(
+        body=Term.Out(0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=2,
+    )
+    accum = CompositionStep(
+        body=Term.Out(0) + (Term.In(0) * Term.In(1)),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=3,
+    )
+    return CompositionEntry(
+        name="miniamr_weighted_27pt_tensor",
+        steps=[zero, ident_r1, ident_r2, accum],
+        form="tensor",
+    )
+
+
+def _hpgmg_apply_op_27pt_tensor() -> CompositionEntry:
+    """HPGMG 27-point operator as scale + reduction composition."""
+    scale = CompositionStep(
+        body=T_cap("%alpha") * Term.In(0),
+        num_ins=1, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=0,
+    )
+    ident_r1 = CompositionStep(
+        body=Term.Out(0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=1,
+    )
+    ident_r2 = CompositionStep(
+        body=Term.Out(0),
+        num_ins=0, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=2,
+    )
+    accum = CompositionStep(
+        body=Term.Out(0) + (Term.In(0) * Term.In(1)),
+        num_ins=2, num_outs=1,
+        parallel_dim_count=3, reduction_dim_count=3,
+    )
+    return CompositionEntry(
+        name="hpgmg_apply_op_27pt_tensor",
+        steps=[scale, ident_r1, ident_r2, accum],
+        form="tensor",
+    )
+
+
+def _cufft_z2z_1d_tensor() -> CompositionEntry:
+    """Direct 1D complex DFT over interleaved real/imag tensors.
+
+    The second step uses a structural special predicate because the scalar Term
+    language intentionally does not model trigonometric identities. The
+    rewriter recovers forward/inverse from the sign of the captured 2*pi
+    constant and emits a cuFFT launch over the full tensor.
+    """
+    zero = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0,
+        num_outs=1,
+        parallel_dim_count=2,
+        reduction_dim_count=0,
+    )
+    dft = CompositionStep(
+        body=Term.Out(0),
+        num_ins=2,
+        num_outs=1,
+        parallel_dim_count=2,
+        reduction_dim_count=1,
+        special="dft1d_z2z",
+    )
+    return CompositionEntry(
+        name="cufftZ2Z_1D_tensor",
+        steps=[zero, dft],
+        form="tensor",
+    )
+
+
+def _hpgmg_interpolation_p1_tensor() -> CompositionEntry:
+    """HPGMG interpolation p1 weighted scalar-load stencil."""
+    body = T_cap("%scale") * Term.Out(0)
+    weights = [
+        0.421875,
+        0.140625, 0.140625, 0.140625,
+        0.046875, 0.046875, 0.046875,
+        0.015625,
+    ]
+    for idx, weight in enumerate(weights):
+        body = body + (T_cap(f"%v{idx}") * Term.Lit(weight))
+    return CompositionEntry(
+        name="hpgmg_interpolation_p1",
+        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="any",
+    )
+
+
+def _hpgmg_interpolation_p2_tensor() -> CompositionEntry:
+    """HPGMG interpolation p2 weighted scalar-load stencil."""
+    neigh_sum = T_cap("%v0")
+    for idx in range(1, 6):
+        neigh_sum = neigh_sum + T_cap(f"%v{idx}")
+    body = (T_cap("%center") * Term.Lit(0.5)) + \
+           (neigh_sum * Term.Lit(0.08333333333333333))
+    return CompositionEntry(
+        name="hpgmg_interpolation_p2",
+        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="any",
+    )
+
+
+def _generalized_minmod_limiter() -> CompositionEntry:
+    """HyPar generalized minmod limiter."""
+    a = Term.In(0)
+    b = Term.In(1)
+    theta = T_cap("%theta")
+    mid = (a + b) * Term.Lit(0.5)
+    ta = theta * a
+    tb = theta * b
+    abs_ta = Term.Select(Term.Cmp("olt", ta, Term.Lit(0.0)),
+                         Term.Lit(0.0) - ta, ta)
+    abs_mid = Term.Select(Term.Cmp("olt", mid, Term.Lit(0.0)),
+                          Term.Lit(0.0) - mid, mid)
+    abs_tb = Term.Select(Term.Cmp("olt", tb, Term.Lit(0.0)),
+                         Term.Lit(0.0) - tb, tb)
+    min_mid_tb = Term.Select(Term.Cmp("olt", abs_mid, abs_tb), abs_mid, abs_tb)
+    mag = Term.Select(Term.Cmp("olt", abs_ta, min_mid_tb), abs_ta, min_mid_tb)
+    same_sign = Term.Select(
+        Term.Cmp("ogt", ta * mid, Term.Lit(0.0)),
+        Term.Select(Term.Cmp("ogt", mid * tb, Term.Lit(0.0)),
+                    Term.Lit(1.0), Term.Lit(0.0)),
+        Term.Lit(0.0),
+    )
+    signed_mag = Term.Select(Term.Cmp("olt", ta, Term.Lit(0.0)),
+                             Term.Lit(0.0) - mag, mag)
+    body = Term.Select(
+        Term.Cmp("oeq", same_sign, Term.Lit(0.0)),
+        Term.Lit(0.0),
+        signed_mag,
+    )
+    return CompositionEntry(
+        name="hypar_generalized_minmod_limiter",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _upwind_var_flux() -> CompositionEntry:
+    """HyPar variable-coefficient upwind/Rusanov flux selector."""
+    a0 = Term.In(0)
+    a1 = Term.In(5)
+    abs_a0 = Term.Select(Term.Cmp("olt", a0, Term.Lit(0.0)),
+                         Term.Lit(0.0) - a0, a0)
+    abs_a1 = Term.Select(Term.Cmp("olt", a1, Term.Lit(0.0)),
+                         Term.Lit(0.0) - a1, a1)
+    wavespeed = Term.Select(Term.Cmp("ogt", abs_a0, abs_a1), abs_a0, abs_a1)
+    fallback = ((Term.In(6) + Term.In(7)) -
+                (wavespeed * (Term.In(8) - Term.In(9)))) * Term.Lit(0.5)
+    positive = Term.Select(
+        Term.Cmp("ogt", a0, Term.Lit(0.0)),
+        Term.Cmp("ogt", Term.In(1), Term.Lit(0.0)),
+        T_cap("%false"),
+    )
+    negative = Term.Select(
+        Term.Cmp("olt", a0, Term.Lit(0.0)),
+        Term.Cmp("olt", Term.In(3), Term.Lit(0.0)),
+        T_cap("%false"),
+    )
+    body = Term.Select(
+        positive,
+        Term.In(2),
+        Term.Select(negative, Term.In(4), fallback),
+    )
+    return CompositionEntry(
+        name="hypar_upwind_var_flux",
+        steps=[CompositionStep(body=body, num_ins=10, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _weno_interp5() -> CompositionEntry:
+    """HyPar fifth-order WENO interpolation from three nonlinear weights."""
+    p0 = (((Term.In(0) * Term.Lit(2.0)) -
+           (Term.In(1) * Term.Lit(7.0))) +
+          (Term.In(2) * Term.Lit(11.0))) / Term.Lit(6.0)
+    p1 = (((Term.Lit(0.0) - Term.In(1)) +
+           (Term.In(2) * Term.Lit(5.0))) +
+          (Term.In(3) * Term.Lit(2.0))) / Term.Lit(6.0)
+    p2 = (((Term.In(2) * Term.Lit(2.0)) +
+           (Term.In(3) * Term.Lit(5.0))) -
+          Term.In(4)) / Term.Lit(6.0)
+    body = (Term.In(5) * p0) + (Term.In(6) * p1) + (Term.In(7) * p2)
+    return CompositionEntry(
+        name="hypar_weno_interp5",
+        steps=[CompositionStep(body=body, num_ins=8, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+    )
+
+
+def _weno_weights_js() -> CompositionEntry:
+    """Jiang-Shu WENO weights for three stencils."""
+    eps = T_cap("%eps")
+    s0 = (Term.In(0) - (Term.In(1) * Term.Lit(2.0))) + Term.In(2)
+    t0 = (Term.In(0) - (Term.In(1) * Term.Lit(4.0))) + \
+         (Term.In(2) * Term.Lit(3.0))
+    b0 = (((s0 * Term.Lit(1.0833333333333333)) * s0) +
+          ((t0 * Term.Lit(0.25)) * t0)) + eps
+
+    s1 = (Term.In(1) - (Term.In(2) * Term.Lit(2.0))) + Term.In(3)
+    t1 = Term.In(1) - Term.In(3)
+    b1 = (((s1 * Term.Lit(1.0833333333333333)) * s1) +
+          ((t1 * Term.Lit(0.25)) * t1)) + eps
+
+    s2 = (Term.In(2) - (Term.In(3) * Term.Lit(2.0))) + Term.In(4)
+    t2 = ((Term.In(2) * Term.Lit(3.0)) -
+          (Term.In(3) * Term.Lit(4.0))) + Term.In(4)
+    b2 = (((s2 * Term.Lit(1.0833333333333333)) * s2) +
+          ((t2 * Term.Lit(0.25)) * t2)) + eps
+
+    a0 = Term.Lit(0.1) / (b0 * b0)
+    a1 = Term.Lit(0.6) / (b1 * b1)
+    a2 = Term.Lit(0.3) / (b2 * b2)
+    denom = (a0 + a1) + a2
+    body_per_yield = [a0 / denom, a1 / denom, a2 / denom]
+    return CompositionEntry(
+        name="hypar_weno_weights_js",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=5, num_outs=3,
+                                parallel_dim_count=2,
+                                reduction_dim_count=0)],
+    )
+
+
+def _euler1d_flux() -> CompositionEntry:
+    """HyPar Euler 1D physical flux."""
+    rho = Term.In(0)
+    mom = Term.In(1)
+    energy = Term.In(2)
+    vel = mom / rho
+    kinetic = ((rho * Term.Lit(0.5)) * vel) * vel
+    pressure = T_cap("%gamma_minus_one") * (energy - kinetic)
+    body_per_yield = [
+        mom,
+        (mom * vel) + pressure,
+        (energy + pressure) * vel,
+    ]
+    return CompositionEntry(
+        name="hypar_euler1d_flux",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=3, num_outs=3,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _euler2d_flux_x() -> CompositionEntry:
+    """HyPar Euler 2D physical flux in x."""
+    rho = Term.In(0)
+    mx = Term.In(1)
+    my = Term.In(2)
+    energy = Term.In(3)
+    ux = mx / rho
+    uy = my / rho
+    kinetic = (rho * Term.Lit(0.5)) * ((ux * ux) + (uy * uy))
+    pressure = T_cap("%gamma_minus_one") * (energy - kinetic)
+    body_per_yield = [
+        mx,
+        (mx * ux) + pressure,
+        my * ux,
+        (energy + pressure) * ux,
+    ]
+    return CompositionEntry(
+        name="hypar_euler2d_flux_x",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=4, num_outs=4,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _euler2d_flux_y() -> CompositionEntry:
+    """HyPar Euler 2D physical flux in y."""
+    rho = Term.In(0)
+    mx = Term.In(1)
+    my = Term.In(2)
+    energy = Term.In(3)
+    ux = mx / rho
+    uy = my / rho
+    kinetic = (rho * Term.Lit(0.5)) * ((ux * ux) + (uy * uy))
+    pressure = T_cap("%gamma_minus_one") * (energy - kinetic)
+    body_per_yield = [
+        my,
+        mx * uy,
+        (my * uy) + pressure,
+        (energy + pressure) * uy,
+    ]
+    return CompositionEntry(
+        name="hypar_euler2d_flux_y",
+        steps=[CompositionStep(body=body_per_yield[0],
+                                body_per_yield=body_per_yield,
+                                num_ins=4, num_outs=4,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _reduce_sum_1d() -> CompositionEntry:
+    """scalar += in[i]."""
+    body = Term.Out(0) + Term.In(0)
+    return CompositionEntry(
+        name="reduce_sum_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_weighted_sum_1d() -> CompositionEntry:
+    """scalar += alpha * in[i]."""
+    body = Term.Out(0) + (Term.In(0) * T_cap("%alpha"))
+    return CompositionEntry(
+        name="reduce_weighted_sum_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_scaled_square_diff_1d() -> CompositionEntry:
+    """scalar += alpha * (x[i] - y[i])^2."""
+    diff = Term.In(0) - Term.In(1)
+    body = Term.Out(0) + ((diff * diff) * T_cap("%alpha"))
+    return CompositionEntry(
+        name="reduce_scaled_square_diff_1D",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_max_abs_1d() -> CompositionEntry:
+    """scalar = max(scalar, abs(in[i])) with abs lowered as select."""
+    abs_v = Term.Select(
+        Term.Cmp("olt", Term.In(0), Term.Lit(0.0)),
+        Term.Lit(0.0) - Term.In(0),
+        Term.In(0),
+    )
+    body = Term.Select(Term.Cmp("ogt", abs_v, Term.Out(0)), abs_v, Term.Out(0))
+    return CompositionEntry(
+        name="reduce_max_abs_1D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
 def _reduce_sum_axis() -> CompositionEntry:
     """out[j] = sum_i in[?, ?]  — reduce across one axis. 1 parallel + 1 reduction."""
     body = Term.Out(0) + Term.In(0)
@@ -1649,6 +2598,56 @@ def _softmax_3step_out_tensor() -> CompositionEntry:
     )
 
 
+def _softmax_3step_out_tensor_mul_inv() -> CompositionEntry:
+    """Out-of-place softmax where the final normalize phase is written as
+    `out *= inv_sum` after scalar code computes `inv_sum = 1.0 / sum`.
+
+    The body shape alone would also match arbitrary vector scaling, so the
+    entry carries a scalar-chain postcondition proving `%inv_sum` is the
+    reciprocal of the previous softmax sum result.
+    """
+    entry = _softmax_3step_out_tensor()
+    steps = list(entry.steps)
+    steps[2] = CompositionStep(
+        body=Term.Out(0) * T_cap("%inv_sum"),
+        num_ins=0, num_outs=1,
+        reduction_dim_count=0, parallel_dim_count=1,
+    )
+    return CompositionEntry(
+        name=entry.name,
+        steps=steps,
+        form=entry.form,
+        scalar_relation="softmax_out_mul_inv_sum",
+    )
+
+
+def _whisper_exp_shift_sum_tensor() -> CompositionEntry:
+    """Whisper helper:
+
+        out[i] = exp(x[i] - max_val)
+        sum += out[i]
+
+    This is not full normalized softmax; it returns the denominator so the
+    caller can decide how/when to normalize. Keep it as a distinct library
+    symbol instead of mapping it to cudnnSoftmaxForward.
+    """
+    exp_intermediate = Term.Exp(Term.In(0) - T_cap("%max"))
+    step = CompositionStep(
+        body=exp_intermediate,
+        body_per_yield=[
+            exp_intermediate,
+            Term.Out(1) + exp_intermediate,
+        ],
+        num_ins=1, num_outs=2,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    return CompositionEntry(
+        name="whisperExpShiftSum_f32_tensor",
+        steps=[step],
+        form="tensor",
+    )
+
+
 def _rmsnorm_family() -> list[CompositionEntry]:
     """RMSNorm family — 1D root-mean-square normalize + optional scale terms.
 
@@ -1731,6 +2730,30 @@ def _rmsnorm_family() -> list[CompositionEntry]:
             1,
         ),
     ]
+
+
+def _gelu_tanh_f32_tensor() -> CompositionEntry:
+    """Approximate GELU:
+
+        out = 0.5*x*(1 + tanh(0.79788456*(x + 0.044715*x^3)))
+
+    Coefficients are Cap wildcards constrained to scalar captures/literals by
+    `_unify`, so f32 spelling/rounding differences still match while tensor
+    operands cannot masquerade as constants.
+    """
+    x = Term.In(0)
+    x3_scaled = ((x * T_cap("%cube_coeff")) * x) * x
+    inner = (x + x3_scaled) * T_cap("%sqrt_2_over_pi")
+    body = (x * T_cap("%half")) * (
+        Term.Tanh(inner) + T_cap("%one")
+    )
+    return CompositionEntry(
+        name="gelu_tanh_f32_tensor",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=1,
+                                reduction_dim_count=0)],
+        form="tensor",
+    )
 
 
 def _llama_add_f32_tensor() -> CompositionEntry:
@@ -1887,6 +2910,123 @@ def _heat_3d_7pt_tensor() -> CompositionEntry:
     )
 
 
+def _miniamr_weighted_7pt_tensor() -> CompositionEntry:
+    """miniAMR 7-point variable-coefficient update:
+       out = center + coeff * (sum(six axial neighbours) - 6 * center).
+
+    Unlike `_heat_3d_7pt_tensor`, the coefficient is a tensor input rather
+    than a scalar capture.
+    """
+    c = Term.In(0)
+    neigh_sum = (((((Term.In(1) + Term.In(2)) + Term.In(3)) + Term.In(4))
+                  + Term.In(5)) + Term.In(6))
+    body = c + (Term.In(7) * (neigh_sum - (c * Term.Lit(6.0))))
+    return CompositionEntry(
+        name="miniamr_weighted_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=8, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _miniamr_directional_stencil_tensor() -> CompositionEntry:
+    """miniAMR directional 3-point update with two scalar coefficients."""
+    c = Term.In(1)
+    body = (c + (T_cap("%alpha") * ((Term.In(0) - (c * Term.Lit(2.0))) +
+                                     Term.In(2)))) + \
+           (T_cap("%beta") * (Term.In(2) - Term.In(0)))
+    return CompositionEntry(
+        name="miniamr_directional_stencil_tensor",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _miniamr_average_7pt_tensor() -> CompositionEntry:
+    """miniAMR 7-point average."""
+    body = Term.In(0)
+    for idx in range(1, 7):
+        body = body + Term.In(idx)
+    body = body / Term.Lit(7.0)
+    return CompositionEntry(
+        name="miniamr_average_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=7, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_apply_op_7pt_tensor() -> CompositionEntry:
+    """HPGMG 7-point operator: a*center + b*(6*center - neighbours)."""
+    c = Term.In(0)
+    lap = ((((((c * Term.Lit(6.0)) - Term.In(1)) - Term.In(2)) -
+             Term.In(3)) - Term.In(4)) - Term.In(5)) - Term.In(6)
+    body = (T_cap("%alpha") * c) + (T_cap("%beta") * lap)
+    return CompositionEntry(
+        name="hpgmg_apply_op_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=7, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_residual_7pt_tensor() -> CompositionEntry:
+    """HPGMG residual: rhs - apply_op_7pt(x)."""
+    c = Term.In(0)
+    lap = ((((((c * Term.Lit(6.0)) - Term.In(1)) - Term.In(2)) -
+             Term.In(3)) - Term.In(4)) - Term.In(5)) - Term.In(6)
+    apply = (T_cap("%alpha") * c) + (T_cap("%beta") * lap)
+    body = Term.In(7) - apply
+    return CompositionEntry(
+        name="hpgmg_residual_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=8, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_jacobi_smooth_7pt_tensor() -> CompositionEntry:
+    """HPGMG Jacobi smooth: x + lambda*diag_inv*(rhs - apply_op_7pt(x))."""
+    c = Term.In(0)
+    lap = ((((((c * Term.Lit(6.0)) - Term.In(1)) - Term.In(2)) -
+             Term.In(3)) - Term.In(4)) - Term.In(5)) - Term.In(6)
+    apply = (T_cap("%alpha") * c) + (T_cap("%beta") * lap)
+    body = c + ((T_cap("%lambda") * Term.In(7)) * (Term.In(8) - apply))
+    return CompositionEntry(
+        name="hpgmg_jacobi_smooth_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_restriction_face_tensor() -> CompositionEntry:
+    """HPGMG face restriction: average four fine-grid values."""
+    body = (((Term.In(0) + Term.In(1)) + Term.In(2)) + Term.In(3)) * \
+           Term.Lit(0.25)
+    return CompositionEntry(
+        name="hpgmg_restriction_face_tensor",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _hpgmg_restriction_cell_tensor() -> CompositionEntry:
+    """HPGMG cell restriction: average eight fine-grid values."""
+    body = Term.In(0)
+    for idx in range(1, 8):
+        body = body + Term.In(idx)
+    body = body * Term.Lit(0.125)
+    return CompositionEntry(
+        name="hpgmg_restriction_cell_tensor",
+        steps=[CompositionStep(body=body, num_ins=8, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
 def _fdtd_update_2in() -> CompositionEntry:
     """FDTD H-field update: out -= coef * (in0 - in1).
     Used for both H_x and H_y in fdtd-2d's per-time-step body."""
@@ -1987,6 +3127,40 @@ def _copy_input_tensor() -> CompositionEntry:
     )
 
 
+def _copy_input_2d_tensor() -> CompositionEntry:
+    """Rank-2 tensor copy. Kept separate from cublasDcopy_tensor because the
+    cuBLAS ABI template is 1D-only."""
+    body = Term.In(0)
+    return CompositionEntry(
+        name="tensor_copy_2D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _copy_input_3d_tensor() -> CompositionEntry:
+    """Rank-3 tensor copy/transpose-style pack/unpack."""
+    body = Term.In(0)
+    return CompositionEntry(
+        name="tensor_copy_3D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _copy_input_6d_tensor() -> CompositionEntry:
+    """Rank-6 tensor copy exposed by HPGMG interpolation extraction."""
+    body = Term.In(0)
+    return CompositionEntry(
+        name="tensor_copy_6D",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=6, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
 def _axpby() -> CompositionEntry:
     """out = α*in0 + β*out  — gesummv combine step (cublasDaxpby)."""
     body = T_cap("%alpha") * Term.In(0) + T_cap("%beta") * Term.Out(0)
@@ -2040,6 +3214,9 @@ def composition_library() -> list[CompositionEntry]:
         # longer one wanted.
         _cudnn_conv_bias_relu_add_fused(),  # 5-step: init + conv + bias + residual + relu
         _cublaslt_gemm_bias_relu_fused(),   # 4-step: init + gemm + bias + relu (cublasLt)
+        _miniamr_weighted_27pt_tensor(),     # 4-step: zero + identity reductions + 27pt accum
+        _hpgmg_apply_op_27pt_tensor(),       # 4-step: scale + identity reductions + 27pt accum
+        _cufft_z2z_1d_tensor(),              # 2-step: zero + direct complex DFT
         _darknet_im2col_gemm_fused(),       # 3-step: zero + guarded im2col + sgemm
         _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv
         _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
@@ -2050,12 +3227,19 @@ def composition_library() -> list[CompositionEntry]:
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 
         # 1-step BLAS with α capture.
+        _gemm_no_alpha(),
         _gemm_alpha_only(),
+        _gemv_accumulate(),
         _gemv_alpha_accumulate(),
         _axpby(),               # α*in + β*out  — most specific 2-cap form
+        _axpby_inputs_1d(),     # α*in0 + β*in1 — out-of-place combine
         _axpy(),
         _scal_1d(),
         _scal_2d(),
+        _scale_input_1d(),
+        _mul_inputs_scaled_1d(),
+        _add_scalar_1d(),
+        _div_scalar_by_input_1d(),
 
         # Triangular / masked / specialty (must come before generic gemm/gemv).
         _syr2k_composition(),
@@ -2063,11 +3247,20 @@ def composition_library() -> list[CompositionEntry]:
         _trmm_masked(),
         _rank_two_update(),
         _centered_sum_squares(),
+        _reduce_scaled_square_diff_1d(),
+        _cg_update_3out(),
+        _bicgstab_update_2out(),
+        _weno_weights_js(),
+        _euler2d_flux_x(),
+        _euler2d_flux_y(),
+        _euler1d_flux(),
 
         # Stencils (Bucket 2).
         _softmax_3step(),       # 3-step composition, max + exp+sum (multi-yield) + div.
         _softmax_3step_tensor(),
+        _softmax_3step_out_tensor_mul_inv(),
         _softmax_3step_out_tensor(),
+        _whisper_exp_shift_sum_tensor(),
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.
@@ -2087,6 +3280,18 @@ def composition_library() -> list[CompositionEntry]:
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
                                 #         come before jacobi_2d_5pt (5 ins)
                                 #         since both target 2D parallel iter.
+        _hpgmg_gsrb_smooth_7pt_tensor(),
+        _hpgmg_jacobi_smooth_7pt_tensor(),
+        _hpgmg_residual_7pt_tensor(),
+        _hpgmg_apply_op_7pt_tensor(),
+        _miniamr_pointwise_update_tensor(),
+        _miniamr_weighted_7pt_tensor(),
+        _miniamr_directional_stencil_tensor(),
+        _miniamr_average_7pt_tensor(),
+        _hpgmg_interpolation_p1_tensor(),
+        _hpgmg_interpolation_p2_tensor(),
+        _hpgmg_restriction_cell_tensor(),
+        _hpgmg_restriction_face_tensor(),
         _heat_3d_7pt(),       # 7 ins
         _fdtd_E_update(),     # 4 ins
         _jacobi_2d_5pt(),     # 5 ins
@@ -2101,6 +3306,9 @@ def composition_library() -> list[CompositionEntry]:
         _jacobi_2d_5pt_tensor(),
         _jacobi_1d_3pt_tensor(),
         _fdtd_update_2in_tensor(),
+        _copy_input_6d_tensor(),
+        _copy_input_3d_tensor(),
+        _copy_input_2d_tensor(),
         _copy_input_tensor(),
 
         # 1-step BLAS, no α.
@@ -2109,13 +3317,43 @@ def composition_library() -> list[CompositionEntry]:
         _llama_swiglu_f32_tensor(),
         _llama_mask_select_f32_tensor(),
         _llama_add_f32_tensor(),
-        _gemv_accumulate(),
-        _gemm_no_alpha(),
+        _gelu_tanh_f32_tensor(),
         _sgemm_broadcast3d_memref(),
         _dot(),
         _asum(),
+        _reduce_max_abs_1d(),
+        _reduce_sum_1d(),
+        _reduce_weighted_sum_1d(),
         _reduce_sum_axis(),     # 1 in, 1 out, P=1+R=1: separate from gemv (2 ins)
         _vector_add_no_alpha(), # P=1+R=0
+        _mul_inputs_pointwise(),
+        _avg2_pointwise(),
+        _half_diff_pointwise(),
+        _linear_reaction_pointwise(),
+        _hypar_reaction_update(),
+        _llf_flux_2d(),
+        _burgers_advection_1d(),
+        _burgers_upwind(),
+        _upwind_select_const(),
+        _predicate_select_inputs(),
+        _minmod_limiter(),
+        _vanleer_limiter(),
+        _superbee_limiter(),
+        _generalized_minmod_limiter(),
+        _muscl_interp_minmod(),
+        _upwind_var_flux(),
+        _weno_interp5(),
+        _fourth_order_interp(),
+        _fourth_order_derivative(),
+        _fv4_flux(),
+        _random_vector_3d(),
+        _color_vector_3d(),
+        _exasp2_normalize_dense(),
+        _exasp2_neg_div(),
+        _add_out_scalar_1d(),
+        _exasp2_update_2x_minus_x2(),
+        _exasp2_select_square(),
+        _select_mul_or_zero(),
         _copy_input(),          # out = in0 (1 in, 1 out)
         _fma3(),                # in0*in1 + in2 (3 ins)
         _divf_scalar(),
@@ -2169,13 +3407,67 @@ def _parse_term(s: str):
     if not s:
         return None
 
+    def _paren_delta(text: str) -> int:
+        return text.count("(") - text.count(")")
+
+    def _split_egglog_lets(text: str) -> tuple[list[tuple[str, str]], str]:
+        """Split egglog's pretty-printed let form into definitions + body.
+
+        Reused subexpressions print as:
+
+            _Term_1 = Term.Select(...)
+            Term.Select(Term.Cmp("ogt", _Term_1, ...), _Term_1, ...)
+
+        The structural matcher wants the fully inlined AST. This splitter is
+        deliberately small: it recognizes only the `_Term_N = ...` shape that
+        egglog emits for Term aliases, preserving multi-line RHS expressions.
+        """
+        lines = text.splitlines()
+        if not lines or not re.match(r"\s*_Term_\d+\s*=", lines[0]):
+            return [], text
+
+        defs: list[tuple[str, str]] = []
+        final: list[str] = []
+        cur_name: Optional[str] = None
+        cur_lines: list[str] = []
+        depth = 0
+
+        for line in lines:
+            m = re.match(r"\s*(_Term_\d+)\s*=\s*(.*)$", line)
+            if m:
+                if cur_name is not None:
+                    defs.append((cur_name, "\n".join(cur_lines).strip()))
+                cur_name = m.group(1)
+                cur_lines = [m.group(2)]
+                depth = _paren_delta(m.group(2))
+                continue
+
+            if cur_name is not None and depth > 0:
+                cur_lines.append(line)
+                depth += _paren_delta(line)
+                continue
+
+            if cur_name is not None:
+                defs.append((cur_name, "\n".join(cur_lines).strip()))
+                cur_name = None
+                cur_lines = []
+                depth = 0
+            final.append(line)
+
+        if cur_name is not None:
+            defs.append((cur_name, "\n".join(cur_lines).strip()))
+        return defs, "\n".join(final).strip()
+
+    let_defs, s = _split_egglog_lets(s)
+    let_env: dict[str, object] = {}
+
     def parse_expr(i: int):
         """Returns (node, next_index)."""
         # Skip whitespace
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
                 j, args = i + len(tag), []
@@ -2246,6 +3538,8 @@ def _parse_term(s: str):
     def parse_expr_str(t: str):
         # Strip wrapping parens.
         t = t.strip()
+        if t in let_env:
+            return let_env[t], len(t)
         while t.startswith('(') and t.endswith(')'):
             # Only strip if these parens match outermost.
             depth = 0
@@ -2279,7 +3573,7 @@ def _parse_term(s: str):
                 op_name = {"+": "Add", "-": "Sub", "*": "Mul", "/": "Div"}[op_char]
                 return (op_name, lhs, rhs), len(t)
         # Otherwise try parsing as a Term.Ctor leaf.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if t.startswith(tag) and t.endswith(")"):
                 inner = t[len(tag):-1]
@@ -2289,9 +3583,13 @@ def _parse_term(s: str):
                     if c == '(': depth += 1
                     elif c == ')': depth -= 1
                     elif c == ',' and depth == 0:
-                        args.append(inner[start:k].strip())
+                        arg = inner[start:k].strip()
+                        if arg:
+                            args.append(arg)
                         start = k + 1
-                args.append(inner[start:].strip())
+                arg = inner[start:].strip()
+                if arg:
+                    args.append(arg)
                 parsed_args = []
                 for a in args:
                     if a.startswith('"') and a.endswith('"'):
@@ -2306,6 +3604,8 @@ def _parse_term(s: str):
                 return (ctor, *parsed_args), len(t)
         return None, 0
 
+    for name, rhs in let_defs:
+        let_env[name], _ = parse_expr_str(rhs)
     node, _ = parse_expr_str(s)
     return node
 
@@ -2493,6 +3793,272 @@ def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     return _unify(factored, tmpl_ast, {})
 
 
+def _ast_is_lit(node, value: float, eps: float = 1.0e-12) -> bool:
+    return (
+        isinstance(node, tuple)
+        and len(node) == 2
+        and node[0] == "Lit"
+        and isinstance(node[1], (int, float))
+        and abs(float(node[1]) - value) <= eps
+    )
+
+
+def _ast_is_zero(node) -> bool:
+    return _ast_is_lit(node, 0.0)
+
+
+def _ast_match_mul_pair(node) -> Optional[tuple[object, object]]:
+    if isinstance(node, tuple) and len(node) == 3 and node[0] == "Mul":
+        return node[1], node[2]
+    return None
+
+
+def _ast_match_mul_lit(node, value: float) -> Optional[object]:
+    pair = _ast_match_mul_pair(node)
+    if pair is None:
+        return None
+    a, b = pair
+    if _ast_is_lit(a, value):
+        return b
+    if _ast_is_lit(b, value):
+        return a
+    return None
+
+
+def _ast_match_abs(node) -> Optional[object]:
+    """Recognize select(x < 0, 0 - x, x)."""
+    if not (isinstance(node, tuple) and len(node) == 4 and node[0] == "Select"):
+        return None
+    pred, true_value, false_value = node[1], node[2], node[3]
+    if not (
+        isinstance(pred, tuple)
+        and len(pred) == 4
+        and pred[0] == "Cmp"
+        and pred[1] == "olt"
+        and _ast_is_zero(pred[3])
+    ):
+        return None
+    x = pred[2]
+    neg_x = ("Sub", ("Lit", 0.0), x)
+    if true_value == neg_x and false_value == x:
+        return x
+    return None
+
+
+def _ast_match_minmod(node) -> Optional[tuple[object, object]]:
+    """Recognize minmod(a, b) in lowered cmp/select/abs form."""
+    if not (isinstance(node, tuple) and len(node) == 4 and node[0] == "Select"):
+        return None
+    pred, true_value, false_value = node[1], node[2], node[3]
+    if not _ast_is_zero(true_value):
+        return None
+    if not (
+        isinstance(pred, tuple)
+        and len(pred) == 4
+        and pred[0] == "Cmp"
+        and pred[1] == "ole"
+        and _ast_is_zero(pred[3])
+    ):
+        return None
+    pair = _ast_match_mul_pair(pred[2])
+    if pair is None:
+        return None
+    a, b = pair
+    if not (
+        isinstance(false_value, tuple)
+        and len(false_value) == 4
+        and false_value[0] == "Select"
+    ):
+        return None
+    inner_pred, inner_true, inner_false = false_value[1], false_value[2], false_value[3]
+    if not (
+        isinstance(inner_pred, tuple)
+        and len(inner_pred) == 4
+        and inner_pred[0] == "Cmp"
+        and inner_pred[1] == "olt"
+    ):
+        return None
+    abs_l = _ast_match_abs(inner_pred[2])
+    abs_r = _ast_match_abs(inner_pred[3])
+    if abs_l == a and abs_r == b and inner_true == a and inner_false == b:
+        return a, b
+    if abs_l == b and abs_r == a and inner_true == b and inner_false == a:
+        return b, a
+    return None
+
+
+def _ast_match_slope_minmod_args(a, b) -> Optional[tuple[object, object, object]]:
+    """Recognize minmod(center - left, right - center)."""
+    if not (
+        isinstance(a, tuple)
+        and len(a) == 3
+        and a[0] == "Sub"
+        and isinstance(b, tuple)
+        and len(b) == 3
+        and b[0] == "Sub"
+    ):
+        return None
+    center, left = a[1], a[2]
+    right, center2 = b[1], b[2]
+    if center == center2:
+        return left, center, right
+    return None
+
+
+def _semantic_external_ast(ast, g: GenericBody):
+    """Normalize selected elementwise scalar trees to semantic External nodes.
+
+    This deliberately runs only as a fallback after exact composition matching.
+    It is for pure all-parallel elementwise bodies where recognizing a
+    semantic root is enough to emit one fused kernel launch or leave residual
+    Linalg. Reductions/contractions/stencils stay on the existing structural
+    matcher path.
+    """
+    minmod_args = _ast_match_minmod(ast)
+    if minmod_args is not None:
+        a, b = minmod_args
+        slope = _ast_match_slope_minmod_args(a, b)
+        if slope is None:
+            # minmod is symmetric, so try the swapped argument order too.
+            slope = _ast_match_slope_minmod_args(b, a)
+        if slope is not None:
+            return ("External", "slope_minmod", slope)
+        return ("External", "minmod", minmod_args)
+
+    if isinstance(ast, tuple) and len(ast) == 4 and ast[0] == "Select":
+        pred, true_value, false_value = ast[1], ast[2], ast[3]
+        if (
+            isinstance(pred, tuple)
+            and pred[0] == "Cap"
+            and true_value == ("In", 0)
+            and isinstance(false_value, tuple)
+            and len(false_value) == 3
+            and false_value[0] == "Sub"
+        ):
+            doubled = _ast_match_mul_lit(false_value[1], 2.0)
+            if (
+                doubled == ("In", 1)
+                and false_value[2] == ("In", 2)
+                and len(g.ins_arg_names) >= 3
+            ):
+                return ("External", "sp2_select_inputs", (pred, true_value, doubled))
+    return None
+
+
+def match_elementwise_semantic(
+    g: GenericBody,
+    body_term: Term,
+    form: str = "tensor",
+) -> Optional[CompositionEntry]:
+    """Fallback semantic recognition for all-parallel elementwise bodies."""
+    if form != "tensor":
+        return None
+    if not g.iterator_types or any(it != "parallel" for it in g.iterator_types):
+        return None
+    if len(g.outs_arg_names) != 1:
+        return None
+    ast = _parse_term(_term_repr(body_term))
+    semantic = _semantic_external_ast(ast, g)
+    if semantic is None:
+        return None
+    _, name, _args = semantic
+    if name == "slope_minmod" and len(g.ins_arg_names) == 3:
+        return CompositionEntry(
+            name="hypar_slope_minmod",
+            steps=[CompositionStep(
+                body=body_term,
+                num_ins=3,
+                num_outs=1,
+                parallel_dim_count=len(g.iterator_types),
+                reduction_dim_count=0,
+            )],
+            form=form,
+        )
+    if name == "sp2_select_inputs" and len(g.ins_arg_names) == 3:
+        return CompositionEntry(
+            name="exasp2_select_square_inputs",
+            steps=[CompositionStep(
+                body=body_term,
+                num_ins=3,
+                num_outs=1,
+                parallel_dim_count=len(g.iterator_types),
+                reduction_dim_count=0,
+            )],
+            form=form,
+        )
+    return None
+
+
+def _iter_ast_subterms(ast, path: tuple[int, ...] = ()):
+    """Yield `(path, sub_ast)` for semantic subexpression discovery.
+
+    Paths use child indexes in the tuple AST produced by `_parse_term`. The
+    operator tag is index 0 and is never traversed as a child. For comparisons,
+    index 1 is the predicate string and is also skipped.
+    """
+    yield path, ast
+    if not isinstance(ast, tuple):
+        return
+    op = ast[0] if ast else None
+    if op in ("Add", "Mul", "Sub", "Div") and len(ast) == 3:
+        child_indices = (1, 2)
+    elif op in ("Sqrt", "Abs", "Exp", "Tanh") and len(ast) == 2:
+        child_indices = (1,)
+    elif op == "Select" and len(ast) == 4:
+        child_indices = (1, 2, 3)
+    elif op == "Cmp" and len(ast) == 4:
+        child_indices = (2, 3)
+    else:
+        child_indices = ()
+    for idx in child_indices:
+        yield from _iter_ast_subterms(ast[idx], path + (idx,))
+
+
+def elementwise_semantic_candidates(
+    g: GenericBody,
+    body_term: Term,
+    body_index: int,
+    form: str = "tensor",
+) -> list[SemanticCandidate]:
+    """Return semantic nodes recognized in an all-parallel elementwise body.
+
+    This generalizes `match_elementwise_semantic`: instead of only asking
+    whether the *whole* body can become one known semantic entry, walk every
+    scalar subterm and report matches. The rewrite stage can later decide
+    whether a partial match is worth splitting/lowering.
+    """
+    if form != "tensor":
+        return []
+    if not g.iterator_types or any(it != "parallel" for it in g.iterator_types):
+        return []
+    if len(g.outs_arg_names) != 1:
+        return []
+
+    root = _parse_term(_term_repr(body_term))
+    candidates: list[SemanticCandidate] = []
+    seen: set[tuple[str, tuple[int, ...]]] = set()
+    for path, sub_ast in _iter_ast_subterms(root):
+        semantic = _semantic_external_ast(sub_ast, g)
+        if semantic is None:
+            continue
+        _, name, args = semantic
+        key = (name, path)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(SemanticCandidate(
+            name=name,
+            body_indices=(body_index,),
+            match_kind="whole" if path == () else "subterm",
+            coverage="whole" if path == () else "partial",
+            bindings={"args": args},
+            defaults=(),
+            subterm_path=path,
+            source="elementwise_external",
+        ))
+    return candidates
+
+
 def _weighted_sum_template(ntaps: int) -> Term:
     body = Term.In(0) * T_cap("%w0")
     for i in range(1, ntaps):
@@ -2621,6 +4187,73 @@ def _is_guarded_im2col_body(g: GenericBody) -> bool:
             body.count("scf.yield") >= 2)
 
 
+def _is_dft1d_z2z_body(g: GenericBody) -> bool:
+    """Return true for the raised direct 1D complex DFT reduction.
+
+    This is a semantic gateway to cuFFT. We do not try to prove arbitrary FFT
+    algorithms here; this only recognizes the canonical direct-DFT shape:
+      out[k][component] += select(component == 0,
+                                  re*cos - im*sin,
+                                  re*sin + im*cos)
+    with iterator domain (k, component, n).
+    """
+    if len(g.ins_arg_names) != 2 or len(g.outs_arg_names) != 1:
+        return False
+    if sum(1 for it in g.iterator_types if it == "parallel") != 2:
+        return False
+    if sum(1 for it in g.iterator_types if it == "reduction") != 1:
+        return False
+    if len(g.yield_values) != 1:
+        return False
+    body = "\n".join(g.body_lines)
+    required = [
+        "linalg.index 0",
+        "linalg.index 1",
+        "linalg.index 2",
+        "math.cos",
+        "math.sin",
+        "arith.cmpi eq",
+        "arith.select",
+        "arith.addf",
+        "arith.mulf",
+        "arith.subf",
+    ]
+    if not all(tok in body for tok in required):
+        return False
+    return body.count("math.cos") == 1 and body.count("math.sin") == 1
+
+
+def _check_scalar_relation(entry: CompositionEntry,
+                           body_objs: list[GenericBody],
+                           start: int,
+                           bindings: dict) -> bool:
+    """Validate optional cross-generic scalar relationships.
+
+    These checks intentionally stay narrow. Most matching remains local to
+    linalg.generic bodies; this hook is for cases where a composition variant
+    would otherwise be ambiguous without a scalar use-def proof.
+    """
+    if entry.scalar_relation is None:
+        return True
+    if entry.scalar_relation == "softmax_out_mul_inv_sum":
+        inv_bound = bindings.get("%inv_sum")
+        if not (isinstance(inv_bound, tuple) and len(inv_bound) == 2 and
+                inv_bound[0] == "Cap"):
+            return False
+        # Step 1 is the multi-yield exp+sum generic. Its second tensor/scalar
+        # result is the accumulated softmax denominator.
+        if start + 1 >= len(body_objs):
+            return False
+        sum_results = body_objs[start + 1].result_names or []
+        if len(sum_results) < 2:
+            return False
+        expected = Term.Lit(1.0) / Term.Cap(sum_results[1])
+        scalar_defs = body_objs[start].scalar_defs or {}
+        actual = scalar_defs.get(inv_bound[1])
+        return actual is not None and equivalent(actual, expected)
+    return False
+
+
 def match_composition(
     body_objs: list[GenericBody],
     body_terms: list[Term],
@@ -2691,6 +4324,11 @@ def match_composition(
                     if b is None:
                         ok = False
                         break
+                elif step.special == "dft1d_z2z":
+                    if not _is_dft1d_z2z_body(g):
+                        ok = False
+                        break
+                    b = {}
                 else:
                     ok = False
                     break
@@ -2731,8 +4369,107 @@ def match_composition(
             if not ok:
                 break
         if ok:
+            if not _check_scalar_relation(entry, body_objs, start, merged):
+                continue
             return entry, start, merged
     return None
+
+
+def composition_semantic_candidates(
+    body_objs: list[GenericBody],
+    body_terms: list[Term],
+    compositions: list[CompositionEntry],
+    start: int = 0,
+    body_forms: list[str] | None = None,
+) -> list[SemanticCandidate]:
+    """Try every registered composition at `start` and return all hits.
+
+    This is the candidate-producing version of `match_composition`. It calls
+    the existing matcher with a single entry at a time, preserving all of its
+    shape gates, special predicates, scalar-relation checks, and form checks.
+    """
+    out: list[SemanticCandidate] = []
+    for entry in compositions:
+        n = len(entry.steps)
+        if start + n > len(body_terms):
+            continue
+        if any(t is None for t in body_terms[start : start + n]):
+            continue
+        m = match_composition(
+            body_objs, body_terms, [entry], start=start, body_forms=body_forms
+        )
+        if m is None:
+            continue
+        matched_entry, _, bindings = m
+        out.append(SemanticCandidate(
+            name=matched_entry.name,
+            body_indices=tuple(range(start, start + n)),
+            match_kind="composition" if n > 1 else "whole",
+            coverage="whole",
+            bindings=bindings,
+            entry=matched_entry,
+            defaults=(),
+            source="composition_library",
+        ))
+    return out
+
+
+def _completion_candidates(candidates: list[SemanticCandidate]) -> list[SemanticCandidate]:
+    """Derive specialization/completion candidates from semantic matches.
+
+    These are not separate scalar patterns. They express the relation between
+    a recognized semantic node and a more general backend-capable node. The
+    first concrete case is a 7-point 3D average stencil as a sparse 3x3x3
+    convolution, with the 20 missing taps explicitly defaulted to zero.
+    """
+    out: list[SemanticCandidate] = []
+    for cand in candidates:
+        if cand.name == "miniamr_average_7pt_tensor" and cand.coverage == "whole":
+            out.append(SemanticCandidate(
+                name="conv3d_sparse_3x3x3",
+                body_indices=cand.body_indices,
+                match_kind="completion",
+                coverage="whole",
+                bindings=dict(cand.bindings),
+                entry=None,
+                defaults=(
+                    ("missing_filter_taps", "20 zeros"),
+                    ("nonzero_filter_taps", "center + six axial neighbors"),
+                    ("tap_scale", "1/7"),
+                ),
+                source=cand.name,
+            ))
+    return out
+
+
+def enumerate_semantic_candidates(
+    body_objs: list[GenericBody],
+    body_terms: list[Optional[Term]],
+    compositions: list[CompositionEntry],
+    start: int = 0,
+    body_forms: list[str] | None = None,
+) -> list[SemanticCandidate]:
+    """Enumerate semantic candidates for a linalg body index.
+
+    This is the architecture-facing API: it lists exact/composition matches,
+    subterm semantic nodes, and completion/specialization candidates. Lowering
+    selection happens after this step.
+    """
+    if start >= len(body_objs) or start >= len(body_terms):
+        return []
+    body_term = body_terms[start]
+    if body_term is None:
+        return []
+
+    candidates = composition_semantic_candidates(
+        body_objs, body_terms, compositions, start=start, body_forms=body_forms
+    )
+    form = body_forms[start] if body_forms is not None else "tensor"
+    candidates.extend(elementwise_semantic_candidates(
+        body_objs[start], body_term, start, form=form
+    ))
+    candidates.extend(_completion_candidates(candidates))
+    return candidates
 
 
 # ---------------------------------------------------------------------------

@@ -26,8 +26,125 @@ sys.path.insert(0, str(Path(__file__).parent))
 from kernel_match import (
     parse_constants, parse_generics, encode_body,
     match_composition, composition_library,
+    match_elementwise_semantic, enumerate_semantic_candidates,
     _AFFINE_MAP_RE,
 )
+
+
+# Keep this in sync with lib/polygeist/Passes/LowerKernelLaunchToCuBLAS.cpp.
+# The matcher may semantically recognize many more kernels than the ABI/runtime
+# layer can execute today. Only emit kernel.launch for symbols that the lowering
+# pass currently knows how to turn into a runtime call; leave the rest as
+# residual Linalg so the normal MLIR lowering path preserves semantics.
+ABI_LOWERABLE_KERNELS = {
+    "cublasDgemm",
+    "cublasDgemm_simple",
+    "cublasDgemm_alpha_only",
+    "cublasSgemm_broadcast3d_simple",
+    "cublasSgemm_broadcast3d_memref",
+    "cublasDgeam_scale2D",
+    "memset_zero_2D",
+    "memset_zero_2D_f32",
+    "memset_zero_1D",
+    "memset_zero_1D_f32",
+    "cublasDgemv",
+    "cublasDgemv_T",
+    "cublasSgemv",
+    "cublasSgemv_T",
+    "cublasDgemv_alpha",
+    "cublasDaxpby",
+    "cublasDaxpy_unit",
+    "cublasDger_rank2",
+    "cudnnConvolution2D_9tap",
+    "cudnnConvolution2D_9tap_f32",
+    "cudnnConvolution2D_9tap_f16",
+    "cudnnConvolution2D_9tap_bf16",
+    "cudnnConvolution2D_9tap_i32",
+    "cudnnConvolution2D_25tap",
+    "cudnnConvolution2D_25tap_f32",
+    "cudnnConvolution2D_ntap",
+    "cudnnConvolution2D_ntap_f32",
+    "cudnnConvolution2D_ntap_tensor",
+    "cudnnConvolution2D_ntap_f32_tensor",
+    "cudnnConvolution3D_ntap_tensor",
+    "cudnnConvolution3D_ntap_f32_tensor",
+    "cufftZ2Z_1D_tensor",
+    "cufftC2C_1D_tensor",
+    "cudnnConvolutionFwd_batched",
+    "cudnnConvolutionFwd_im2col_gemm",
+    "cudnnMaxPoolFwd_batched",
+    "cudnnBatchNormalizationForwardInference",
+    "cudnnAddTensor_batched",
+    "cudnnConvBnReluFwdFused",
+    "cudnnConvBiasReluAddFwdFused",
+    "rmsnorm_f32",
+    "rmsnorm_f32_tensor",
+    "rmsnorm_unweighted_f32_tensor",
+    "gelu_tanh_f32_tensor",
+    "whisperExpShiftSum_f32_tensor",
+    "cublasDdot",
+    "cudnnSoftmaxForward",
+    "cudnnSoftmaxForward_tensor",
+    "cudnnSoftmaxForwardOut_tensor",
+    "cudaCopy1D_f32_tensor",
+    "cudaCopy2D_f32_tensor",
+    "cudaCopy3D_f32_tensor",
+    "cudaCopy6D_f32_tensor",
+    "cudaAdd_f32_tensor",
+    "cudaMaskSelect_f32_tensor",
+    "cudaSwiGLU_f32_tensor",
+    "cudaRopeMulMulSub_f32_tensor",
+    "cudaRopeMulMulAdd_f32_tensor",
+    "cublasLtMatmulBiasReluFused",
+    "cublasDsyrk_alias",
+    "cublasGemmFor1x1Conv",
+}
+
+
+SEMANTIC_BACKEND_HINTS = {
+    # The semantic node is lowered by a custom rewrite into this ABI symbol.
+    "miniamr_weighted_27pt_tensor": "cudnnConvolution3D_ntap_tensor",
+    # Candidate completion: not emitted yet, but this is the intended backend
+    # route once the sparse filter materialization rule is implemented.
+    "conv3d_sparse_3x3x3": "cudnnConvolution3D_ntap_tensor",
+}
+
+
+def _candidate_backend(cand) -> str | None:
+    backend = SEMANTIC_BACKEND_HINTS.get(cand.name)
+    if cand.name in ABI_LOWERABLE_KERNELS:
+        return cand.name
+    if backend in ABI_LOWERABLE_KERNELS:
+        return backend
+    return None
+
+
+def _format_candidate_for_report(cand, include_semantic_only: bool = False) -> str:
+    backend = _candidate_backend(cand)
+    if cand.name in ABI_LOWERABLE_KERNELS:
+        status = "abi-lowerable"
+    elif backend in ABI_LOWERABLE_KERNELS:
+        status = "backend-candidate"
+    elif include_semantic_only:
+        status = "semantic-debug"
+    else:
+        status = "unusable"
+    parts = [
+        cand.name,
+        f"kind={cand.match_kind}",
+        f"coverage={cand.coverage}",
+        f"status={status}",
+    ]
+    if backend:
+        parts.append(f"backend={backend}")
+    if cand.source:
+        parts.append(f"source={cand.source}")
+    if cand.subterm_path:
+        parts.append("path=" + ".".join(str(i) for i in cand.subterm_path))
+    if cand.defaults:
+        defaults = ";".join(f"{k}={v}" for k, v in cand.defaults)
+        parts.append(f"defaults={defaults}")
+    return "  ".join(parts)
 
 
 # Match each linalg.generic at the IR level, capturing the full block so
@@ -37,7 +154,8 @@ from kernel_match import (
 # (no SSA prefix, no return type; the op is void and mutates `outs` in place).
 # The leading SSA `%X =` and the trailing `-> type` are both optional.
 _GENERIC_BLOCK_RE = re.compile(
-    r"(\s*)(?:(%[\w_]+)\s*=\s*)?linalg\.generic\s*\{[^}]*\}\s*"
+    r"(\s*)(?:(%[\w_]+)(?::(\d+))?\s*=\s*)?"
+    r"linalg\.generic\s*\{[^}]*\}\s*"
     r"(?:ins\(([^)]*)\)\s*)?"
     r"outs\(([^)]*)\)\s*"
     # linalg.yield captures one OR MORE comma-separated SSA operands —
@@ -54,6 +172,7 @@ _GENERIC_BLOCK_RE = re.compile(
 class LinalgInstance:
     """A single linalg.generic op extracted from the MLIR text."""
     result_ssa: str | None  # %12 etc., or None for memref-form (void)
+    result_count: int       # MLIR multi-result count (`%x:2 = ...`)
     ins_part: str           # "%10, %11 : tensor<?x...>, tensor<...>"
     outs_part: str          # "%9 : tensor<...>" or "%9 : memref<...>"
     result_type: str | None # the type after `->`, or None for memref-form
@@ -115,6 +234,11 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
     # SSA names since cgeist emits things like `%c-8_i32` for negatives.
     for cm in re.finditer(r'(%[\w\-]+)\s*=\s*arith\.constant\s+\S+\s*:\s*(\S+)', text):
         out[cm.group(1)] = cm.group(2)
+    for bm in re.finditer(
+            r'(%[\w\-]+)\s*=\s*arith\.constant\s+(?:true|false)\s*$',
+            text,
+            re.MULTILINE):
+        out[bm.group(1)] = "i1"
     # affine.load on a scalar memref: "%X = affine.load %alloca[] : memref<f32>"
     # The result type is the element type of the memref. Softmax binds its
     # max/sum captures via this pattern (the loop reduces into a memref<f32>,
@@ -189,9 +313,12 @@ def collect_generics_with_spans(text: str) -> list[LinalgInstance]:
     """Return every linalg.generic in `text`, in source order, with span."""
     out: list[LinalgInstance] = []
     for m in _GENERIC_BLOCK_RE.finditer(text):
-        indent, result_ssa, ins, outs, rty = m.groups()
+        indent, result_ssa, result_count, ins, outs, rty = m.groups()
         out.append(LinalgInstance(
             result_ssa=result_ssa,
+            result_count=int(result_count) if result_count else (
+                1 if result_ssa else 0
+            ),
             ins_part=(ins or "").strip(),
             outs_part=outs.strip(),
             result_type=rty.strip() if rty else None,
@@ -316,6 +443,24 @@ def _dynamic_tensor_type(ty: str) -> str | None:
     return "tensor<" + "x".join("?" for _ in dims) + "x" + elem + ">"
 
 
+def _complex1d_tensor_type(ty: str) -> str | None:
+    """Return tensor<?x2xT> for tensor<Nx2xT>; reject other layouts."""
+    if not ty.startswith("tensor<"):
+        return None
+    m = re.match(r"tensor<(.+)>", ty.strip())
+    if not m:
+        return None
+    shaped = m.group(1).strip()
+    if "<" in shaped or "x" not in shaped:
+        return None
+    elem = shaped.rsplit("x", 1)[-1].strip()
+    dims = shaped[:-(len(elem) + 1)].split("x")
+    dims = [d.strip() for d in dims if d.strip()]
+    if len(dims) != 2 or dims[1] != "2":
+        return None
+    return f"tensor<?x2x{elem}>"
+
+
 def _normalize_tensor_operands(
     operands: list[str], operand_types: list[str] | None, indent: str
 ) -> tuple[list[str], list[str], list[str]]:
@@ -332,6 +477,31 @@ def _normalize_tensor_operands(
             new_types.append(ty)
             continue
         cast_ssa = _derived_ssa_name(ssa, f"tc{idx}")
+        cast_lines.append(
+            f"{indent}{cast_ssa} = tensor.cast {ssa} : {ty} to {target}"
+        )
+        new_ssas.append(cast_ssa)
+        new_types.append(target)
+    return cast_lines, new_ssas, new_types
+
+
+def _normalize_complex1d_tensor_operands(
+    operands: list[str], operand_types: list[str], indent: str
+) -> tuple[list[str], list[str], list[str]] | None:
+    if len(operands) != len(operand_types):
+        return None
+    cast_lines: list[str] = []
+    new_ssas: list[str] = []
+    new_types: list[str] = []
+    for idx, (ssa, ty) in enumerate(zip(operands, operand_types)):
+        target = _complex1d_tensor_type(ty)
+        if target is None:
+            return None
+        if target == ty:
+            new_ssas.append(ssa)
+            new_types.append(ty)
+            continue
+        cast_ssa = _derived_ssa_name(ssa, f"fft_tc{idx}")
         cast_lines.append(
             f"{indent}{cast_ssa} = tensor.cast {ssa} : {ty} to {target}"
         )
@@ -376,6 +546,155 @@ def _parse_static_extract_slice_offset(
         return m.group(1), (int(pieces[0]), int(pieces[1]))
     except ValueError:
         return None
+
+
+def _constant_index_value(text: str, ssa: str) -> int | None:
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*arith\.constant\s+(-?\d+)\s*:\s*index\s*$",
+        text,
+        re.MULTILINE,
+    )
+    return int(m.group(1)) if m else None
+
+
+def _type_payload(mlir_type: str, prefix: str) -> str | None:
+    if not mlir_type.startswith(prefix + "<") or not mlir_type.endswith(">"):
+        return None
+    return mlir_type[len(prefix) + 1:-1]
+
+
+def _top_level_first_type_piece(payload: str) -> str:
+    depth = 0
+    cur: list[str] = []
+    for c in payload:
+        if c == "," and depth == 0:
+            break
+        if c in "<(":
+            depth += 1
+        elif c in ">)":
+            depth -= 1
+        cur.append(c)
+    return "".join(cur).strip()
+
+
+def _memref_to_tensor_type(memref_ty: str) -> str | None:
+    payload = _type_payload(memref_ty.strip(), "memref")
+    if payload is None:
+        return None
+    shaped = _top_level_first_type_piece(payload)
+    if not shaped:
+        return None
+    return f"tensor<{shaped}>"
+
+
+def _infer_tensor_type(text: str, ssa: str) -> str | None:
+    """Best-effort SSA→tensor type inference for custom launch rendering."""
+    # Function argument or explicit tensor operand.
+    for fm in re.finditer(r"func\.func\s+@\w+\s*\(([^)]*)\)", text):
+        params = fm.group(1)
+        for pm in re.finditer(r"(%[\w_\-]+)\s*:\s*(tensor<[^,)]+>)", params):
+            if pm.group(1) == ssa:
+                return pm.group(2).strip()
+
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.cast\s+.*?\s+to\s+(tensor<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return m.group(1).strip()
+
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.extract_slice\s+.*?\s+to\s+(tensor<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return m.group(1).strip()
+
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.insert_slice\s+.*?\s+into\s+(tensor<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return m.group(1).strip()
+
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submap\(.*?\)\s*"
+        rf"\{{[^}}]*\}}\s*:\s*\([^)]*\)\s*->\s*(tensor<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return m.group(1).strip()
+
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*bufferization\.to_tensor\s+%[\w_\-]+\s*:\s*(memref<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return _memref_to_tensor_type(m.group(1).strip())
+
+    return None
+
+
+def _parse_polygeist_submap_window(
+    text: str, ssa: str
+) -> tuple[str, list[str]] | None:
+    m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submap\s*"
+        rf"\(\s*(%[\w_\-]+)\s*,\s*([^)]+)\)\s*\{{[^}}]*\}}\s*:",
+        text,
+        re.MULTILINE,
+    )
+    if not m:
+        return None
+    sizes = [p.strip() for p in m.group(2).split(",") if p.strip()]
+    return m.group(1), sizes
+
+
+def _miniamr_weighted27_window_info(
+    text: str,
+    weight_names: list[str],
+    weight_types: list[str],
+) -> tuple[str, str, str, int] | None:
+    """Return (input_base, input_type, weight_ssa, K) for 3D 27pt conv."""
+    def _rank(ty: str) -> int:
+        if not ty.startswith("tensor<"):
+            return -1
+        inside = ty[ty.find("<") + 1:ty.rfind(">")]
+        shape = inside.rsplit("x", 1)[0]
+        return shape.count("x") + 1 if shape else 0
+
+    weight_ssa = None
+    window_ssa = None
+    for name, ty in zip(weight_names, weight_types):
+        rank = _rank(ty)
+        if rank == 3 and weight_ssa is None:
+            weight_ssa = name
+        elif rank == 6 and window_ssa is None:
+            window_ssa = name
+    if weight_ssa is None or window_ssa is None:
+        return None
+
+    window = _parse_polygeist_submap_window(text, window_ssa)
+    if window is None:
+        return None
+    input_base, sizes = window
+    if len(sizes) < 6:
+        return None
+    k_values = [_constant_index_value(text, s) for s in sizes[-3:]]
+    if any(v is None for v in k_values) or len(set(k_values)) != 1:
+        return None
+    K = k_values[0]
+    if K is None or K < 3 or K % 2 == 0:
+        return None
+    input_type = _infer_tensor_type(text, input_base)
+    if input_type is None:
+        return None
+    return input_base, input_type, weight_ssa, K
 
 
 def _conv2d_ntap_grid_info(
@@ -651,6 +970,138 @@ def _render_ntap_conv_tensor_launch(
     return "\n".join(lines)
 
 
+def _render_ntap_conv3d_tensor_launch(
+    name: str,
+    result_ssa: str,
+    result_type: str,
+    input_ssa: str,
+    input_type: str,
+    out_ssa: str,
+    out_type: str,
+    weight_ssa: str,
+    weight_type: str,
+    width: int,
+    indent: str,
+) -> str:
+    cast_lines, tensors, tensor_types = _normalize_tensor_operands(
+        [input_ssa, out_ssa, weight_ssa],
+        [input_type, out_type, weight_type],
+        indent,
+    )
+    prefix = _derived_ssa_name(result_ssa, "conv3d")
+    k_ssa = f"{prefix}_k"
+    lines = list(cast_lines)
+    lines.append(f"{indent}{k_ssa} = arith.constant {width} : i32")
+    dyn_result_type = _dynamic_tensor_type(result_type) or result_type
+    launch_result_ssa = result_ssa
+    result_cast = ""
+    if dyn_result_type != result_type:
+        launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
+            f"{dyn_result_type} to {result_type}"
+        )
+    operands = [tensors[0], tensors[1], tensors[2], k_ssa]
+    sig_types = [tensor_types[0], tensor_types[1], tensor_types[2], "i32"]
+    lines.append(
+        f"{indent}{launch_result_ssa} = kernel.launch @{name}"
+        f"({', '.join(operands)}) : ({', '.join(sig_types)}) -> "
+        f"{dyn_result_type}{result_cast}"
+    )
+    return "\n".join(lines)
+
+
+def _render_cufft_1d_tensor_launch(
+    name: str,
+    result_ssa: str,
+    result_type: str,
+    input_ssa: str,
+    input_type: str,
+    out_ssa: str,
+    out_type: str,
+    inverse: int,
+    indent: str,
+) -> str | None:
+    normalized = _normalize_complex1d_tensor_operands(
+        [input_ssa, out_ssa], [input_type, out_type], indent
+    )
+    if normalized is None:
+        return None
+    cast_lines, tensors, tensor_types = normalized
+    result_dyn_type = _complex1d_tensor_type(result_type)
+    if result_dyn_type is None:
+        return None
+    prefix = _derived_ssa_name(result_ssa, "fft")
+    inv_ssa = f"{prefix}_inverse"
+    launch_result_ssa = result_ssa
+    result_cast = ""
+    lines = list(cast_lines)
+    lines.append(f"{indent}{inv_ssa} = arith.constant {inverse} : i32")
+    if result_dyn_type != result_type:
+        launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
+            f"{result_dyn_type} to {result_type}"
+        )
+    operands = [tensors[0], tensors[1], inv_ssa]
+    sig_types = [tensor_types[0], tensor_types[1], "i32"]
+    lines.append(
+        f"{indent}{launch_result_ssa} = kernel.launch @{name}"
+        f"({', '.join(operands)}) : ({', '.join(sig_types)}) -> "
+        f"{result_dyn_type}{result_cast}"
+    )
+    return "\n".join(lines)
+
+
+def _find_insert_slice_of_result(
+    text: str,
+    search_from: int,
+    source_ssa: str,
+) -> tuple[str, str, tuple[int, int]] | None:
+    pat = re.compile(
+        rf"(\n[ \t]*)(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+        rf"{re.escape(source_ssa)}\s+into\s+[^\n]*\s+:\s+"
+        rf"tensor<[^>]+>\s+into\s+(tensor<[^\n]+>)",
+        re.MULTILINE,
+    )
+    m = pat.search(text, search_from)
+    if not m:
+        return None
+    return m.group(2), m.group(3).strip(), (m.start(), m.end())
+
+
+def _dft1d_inverse_flag(body_constants: dict[str, float]) -> int | None:
+    two_pi = 6.283185307179586
+    candidates = [
+        v for v in body_constants.values()
+        if abs(abs(v) - two_pi) < 1.0e-9
+    ]
+    if not candidates:
+        return None
+    return 1 if candidates[0] > 0.0 else 0
+
+
+def _render_whisper_exp_shift_sum_launch(
+    name: str,
+    result_ssa: str,
+    result_count: int,
+    result_type: str,
+    operands: list[str],
+    operand_types: list[str],
+    indent: str,
+) -> str:
+    cast_lines, operands, operand_types = _normalize_tensor_operands(
+        operands, operand_types, indent
+    )
+    operand_str = ", ".join(operands)
+    sig = f"({', '.join(operand_types)})"
+    cast_prefix = "\n".join(cast_lines) + ("\n" if cast_lines else "")
+    return (
+        f"{cast_prefix}{indent}{result_ssa}:{result_count} = "
+        f"kernel.launch @{name}({operand_str}) : {sig} -> {result_type}"
+    )
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -658,7 +1109,8 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   scalar_type_map: dict[str, str] | None = None,
                   inline_weights: list[list[str] | None] | None = None,
                   inline_weight_type: str = "f64",
-                  body_constants: dict[str, float] | None = None) -> str:
+                  body_constants: dict[str, float] | None = None,
+                  result_count: int = 1) -> str:
     """Build a `kernel.launch` op line in MLIR text.
 
     When `result_ssa` and `result_type` are None, emit a void-returning
@@ -818,17 +1270,23 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
         return f"{cast_prefix}{indent}kernel.launch @{name}({operand_str}) : {sig} -> ()"
     launch_result_ssa = result_ssa
     launch_result_type = result_type
+    result_bind = result_ssa if result_count <= 1 else f"{result_ssa}:{result_count}"
     result_cast = ""
     dyn_result_type = _dynamic_tensor_type(result_type)
     if dyn_result_type is not None and dyn_result_type != result_type:
         launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
         launch_result_type = dyn_result_type
+        result_bind = (
+            launch_result_ssa
+            if result_count <= 1
+            else f"{launch_result_ssa}:{result_count}"
+        )
         result_cast = (
             f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
             f"{dyn_result_type} to {result_type}"
         )
     return (
-        f"{cast_prefix}{indent}{launch_result_ssa} = kernel.launch "
+        f"{cast_prefix}{indent}{result_bind} = kernel.launch "
         f"@{name}({operand_str}) : {sig} -> {launch_result_type}"
         f"{result_cast}"
     )
@@ -838,6 +1296,8 @@ def rewrite_mlir(
     text: str,
     dry_run: bool = False,
     roundtrip_markers: bool = False,
+    show_candidates: bool = False,
+    show_semantic_only: bool = False,
 ) -> tuple[str, list[tuple]]:
     """Run the matcher on `text` and return (rewritten_text, match_report).
 
@@ -879,6 +1339,22 @@ def rewrite_mlir(
 
     # Walk bodies front-to-back, greedy-match compositions.
     report: list[tuple] = []
+    if dry_run and show_candidates:
+        for cand_i in range(len(body_terms)):
+            for cand in enumerate_semantic_candidates(
+                bodies, body_terms, comps, start=cand_i, body_forms=body_forms
+            ):
+                has_backend = _candidate_backend(cand) is not None
+                if not has_backend and not show_semantic_only:
+                    continue
+                report.append((
+                    "kernel_candidate" if has_backend else "semantic_debug",
+                    list(cand.body_indices),
+                    _format_candidate_for_report(
+                        cand, include_semantic_only=show_semantic_only
+                    ),
+                ))
+
     edits: list[tuple[int, int, str]] = []   # (start, end, replacement)
     i = 0
     while i < len(body_terms):
@@ -889,11 +1365,18 @@ def rewrite_mlir(
         m = match_composition(bodies, body_terms, comps, start=i,
                               body_forms=body_forms)
         if m is None:
-            report.append(("no_match", i, "?"))
-            i += 1
-            continue
-        entry, _, binds = m
-        n = len(entry.steps)
+            entry = match_elementwise_semantic(
+                bodies[i], body_terms[i], body_forms[i]
+            )
+            if entry is None:
+                report.append(("no_match", i, "?"))
+                i += 1
+                continue
+            binds = {}
+            n = 1
+        else:
+            entry, _, binds = m
+            n = len(entry.steps)
         report.append(("match", list(range(i, i + n)), entry.name))
 
         # Build a single kernel.launch covering instances[i..i+n-1].
@@ -956,6 +1439,7 @@ def rewrite_mlir(
         emit_name = entry.name
         replace_full_span = False
         custom_launch_line: str | None = None
+        custom_edit_span: tuple[int, int] | None = None
         if entry.name == "cublasDcopy" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
             # rank-0 memref: starts with `memref<` and the chunk before the
@@ -988,6 +1472,23 @@ def rewrite_mlir(
                     i += 1
                     continue
 
+        if entry.name in ("tensor_copy_2D", "tensor_copy_3D",
+                          "tensor_copy_6D"):
+            expected_rank = {
+                "tensor_copy_2D": 2,
+                "tensor_copy_3D": 3,
+                "tensor_copy_6D": 6,
+            }[entry.name]
+            elem = _sniff_elem_type(all_tensor_in_types[0]) if all_tensor_in_types else None
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            if elem == "f32" and len(ranks) == 2 and ranks == [
+                    expected_rank, expected_rank]:
+                emit_name = f"cudaCopy{expected_rank}D_f32_tensor"
+            else:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one
         # template fires for f64, f32, f16, bf16 bodies. We emit a
@@ -1019,6 +1520,7 @@ def rewrite_mlir(
             # The fused memref launch mutates the original flat output buffer.
             last = LinalgInstance(
                 result_ssa=None,
+                result_count=0,
                 ins_part=last.ins_part,
                 outs_part=last.outs_part,
                 result_type=None,
@@ -1080,6 +1582,7 @@ def rewrite_mlir(
             else:
                 last = LinalgInstance(
                     result_ssa=None,
+                    result_count=0,
                     ins_part=last.ins_part,
                     outs_part=last.outs_part,
                     result_type=None,
@@ -1108,6 +1611,7 @@ def rewrite_mlir(
             else:
                 last = LinalgInstance(
                     result_ssa=None,
+                    result_count=0,
                     ins_part=last.ins_part,
                     outs_part=last.outs_part,
                     result_type=None,
@@ -1134,6 +1638,47 @@ def rewrite_mlir(
             operand_types = [score_types[0], out_types[0]]
             binds = {}
             replace_full_span = True
+
+        if entry.name == "whisperExpShiftSum_f32_tensor":
+            inst = instances[i]
+            x_names = _extract_ssa_names(inst.ins_part)
+            x_types = _extract_ssa_types(inst.ins_part)
+            out_names = _extract_ssa_names(inst.outs_part)
+            out_types = _extract_ssa_types(inst.outs_part)
+            max_bound = binds.get("%max")
+            max_ssa = (
+                max_bound[1]
+                if isinstance(max_bound, tuple) and len(max_bound) == 2 and
+                max_bound[0] == "Cap"
+                else None
+            )
+            if (len(x_names) != 1 or len(out_names) != 2 or
+                    inst.result_ssa is None or inst.result_count != 2 or
+                    inst.result_type is None or max_ssa is None or
+                    not x_types or len(out_types) != 2 or
+                    _sniff_elem_type(x_types[0]) != "f32" or
+                    _sniff_elem_type(out_types[0]) != "f32" or
+                    _sniff_elem_type(out_types[1]) != "f32"):
+                report.append(("exp_shift_sum_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [x_names[0], out_names[0], out_names[1], max_ssa]
+            operand_types = [
+                x_types[0],
+                out_types[0],
+                out_types[1],
+                scalar_types.get(max_ssa, "f32"),
+            ]
+            binds = {}
+            custom_launch_line = _render_whisper_exp_shift_sum_launch(
+                entry.name,
+                inst.result_ssa,
+                inst.result_count,
+                inst.result_type,
+                operands,
+                operand_types,
+                inst.indent,
+            )
 
         if entry.name == "cudaMaskSelect_f32_tensor":
             pos = _extract_cmpi_rhs_i32(bodies[i].body_lines)
@@ -1177,14 +1722,135 @@ def rewrite_mlir(
                 i += 1
                 continue
 
-        if entry.name == "elemwise_div_scalar":
-            # This template is useful for algebraic recognition, but the ABI
-            # lowering path does not have a runtime shim for it. Keep the
-            # linalg.generic in place so downstream MLIR lowering handles it
-            # as ordinary residual tensor code.
+        if entry.name in ("elemwise_div_scalar", "elemwise_scale_input_1D",
+                          "elemwise_axpby_inputs_1D"):
+            # These templates are useful for algebraic recognition, but the
+            # current ABI lowering path does not have a complete runtime shim
+            # for them. In particular elemwise_scale_input_1D's matched launch
+            # does not yet surface the scalar scale factor as an operand, so
+            # lowering it would lose semantics. Keep the linalg.generic in
+            # place so downstream MLIR lowering handles it as residual tensor
+            # code.
             report.append(("unsupported_abi_reject", i, entry.name))
             i += 1
             continue
+
+        if entry.name == "miniamr_weighted_27pt_tensor":
+            accum_inst = instances[i + n - 1]
+            accum_ins = _extract_ssa_names(accum_inst.ins_part)
+            accum_in_types = _extract_ssa_types(accum_inst.ins_part)
+            out_names = _extract_ssa_names(instances[i].outs_part)
+            out_types = _extract_ssa_types(instances[i].outs_part)
+            elem = _sniff_elem_type(out_types[0]) if out_types else None
+            if (accum_inst.result_ssa is None or accum_inst.result_type is None
+                    or len(out_names) != 1 or not out_types
+                    or elem not in ("f32", "f64")):
+                report.append(("conv3d_ntap_reject", i, entry.name))
+                i += 1
+                continue
+            window = _miniamr_weighted27_window_info(
+                text, accum_ins, accum_in_types
+            )
+            if window is None:
+                report.append(("conv3d_ntap_reject", i, entry.name))
+                i += 1
+                continue
+            input_base, input_type, weight_ssa, width = window
+            try:
+                weight_idx = accum_ins.index(weight_ssa)
+            except ValueError:
+                report.append(("conv3d_ntap_reject", i, entry.name))
+                i += 1
+                continue
+            weight_type = accum_in_types[weight_idx]
+            if (_sniff_elem_type(input_type) != elem
+                    or _sniff_elem_type(weight_type) != elem):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+            emit_name = (
+                "cudnnConvolution3D_ntap_f32_tensor"
+                if elem == "f32" else "cudnnConvolution3D_ntap_tensor"
+            )
+            replace_full_span = True
+            binds = {}
+            custom_launch_line = _render_ntap_conv3d_tensor_launch(
+                emit_name,
+                accum_inst.result_ssa,
+                accum_inst.result_type,
+                input_base,
+                input_type,
+                out_names[0],
+                out_types[0],
+                weight_ssa,
+                weight_type,
+                width,
+                accum_inst.indent,
+            )
+
+        if entry.name == "cufftZ2Z_1D_tensor":
+            dft_inst = instances[i + n - 1]
+            in_names = _extract_ssa_names(dft_inst.ins_part)
+            in_types = _extract_ssa_types(dft_inst.ins_part)
+            zero_out_names = _extract_ssa_names(instances[i].outs_part)
+            zero_out_types = _extract_ssa_types(instances[i].outs_part)
+            if (dft_inst.result_ssa is None or dft_inst.result_type is None
+                    or len(in_names) != 2 or len(in_types) != 2
+                    or len(zero_out_names) != 1 or len(zero_out_types) != 1):
+                report.append(("cufft_reject", i, entry.name))
+                i += 1
+                continue
+            parsed_inputs = [
+                _parse_static_extract_slice_offset(text, name)
+                for name in in_names
+            ]
+            if any(p is None for p in parsed_inputs):
+                report.append(("cufft_reject", i, entry.name))
+                i += 1
+                continue
+            input_base0, off0 = parsed_inputs[0]
+            input_base1, off1 = parsed_inputs[1]
+            if input_base0 != input_base1 or sorted([off0, off1]) != [(0, 0), (0, 1)]:
+                report.append(("cufft_reject", i, entry.name))
+                i += 1
+                continue
+            input_type = _infer_tensor_type(text, input_base0)
+            output_ssa = zero_out_names[0]
+            output_type = zero_out_types[0]
+            elem = _sniff_elem_type(output_type)
+            inverse_flag = _dft1d_inverse_flag(bodies[i + n - 1].constants)
+            inserted = _find_insert_slice_of_result(
+                text, dft_inst.span[1], dft_inst.result_ssa
+            )
+            if (input_type is None or elem not in ("f32", "f64")
+                    or _sniff_elem_type(input_type) != elem
+                    or inverse_flag is None or inserted is None):
+                report.append(("cufft_reject", i, entry.name))
+                i += 1
+                continue
+            result_ssa, result_type, insert_span = inserted
+            emit_name = (
+                "cufftC2C_1D_tensor" if elem == "f32"
+                else "cufftZ2Z_1D_tensor"
+            )
+            custom_launch_line = _render_cufft_1d_tensor_launch(
+                emit_name,
+                result_ssa,
+                result_type,
+                input_base0,
+                input_type,
+                output_ssa,
+                output_type,
+                inverse_flag,
+                dft_inst.indent,
+            )
+            if custom_launch_line is None:
+                report.append(("cufft_reject", i, entry.name))
+                i += 1
+                continue
+            replace_full_span = True
+            custom_edit_span = (start, insert_span[1])
+            binds = {}
 
         if entry.name in ("cudnnConvolution2D_ntap",
                           "cudnnConvolution2D_ntap_tensor"):
@@ -1311,7 +1977,23 @@ def rewrite_mlir(
                     return m.group(1) if m else None
                 base0 = _resolve_submap_base(gemm_ins[0]) or gemm_ins[0]
                 base1 = _resolve_submap_base(gemm_ins[1]) or gemm_ins[1]
-                if base0 == base1:
+                def _map_outputs(txt: str) -> list[str]:
+                    mm = re.search(r"->\s*\(([^)]*)\)>", txt)
+                    return [s.strip() for s in mm.group(1).split(",")] if mm else []
+                maps = bodies[i + n - 1].indexing_maps
+                in0_dims = _map_outputs(maps[0]) if len(maps) >= 2 else []
+                in1_dims = _map_outputs(maps[1]) if len(maps) >= 2 else []
+                # Same-base GEMM is not automatically SYRK. A true symmetric
+                # rank-k update has both inputs using the reduction dim in the
+                # same coordinate position, e.g. A[i,k] * A[j,k] or
+                # A[k,i] * A[k,j]. A dense square A[i,k] * A[k,j] is a normal
+                # GEMM even though both operands resolve to the same base.
+                same_base_syrk = (
+                    base0 == base1 and len(in0_dims) == 2 and len(in1_dims) == 2
+                    and (in0_dims[1] == in1_dims[1] or
+                         in0_dims[0] == in1_dims[0])
+                )
+                if same_base_syrk:
                     emit_name = "cublasDsyrk_alias"
             elem = _sniff_elem_type(operand_types[0]) if operand_types else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
@@ -1371,6 +2053,12 @@ def rewrite_mlir(
             else:
                 emit_name = "cublasDgemv_T" if transposed else "cublasDgemv"
 
+        if emit_name not in ABI_LOWERABLE_KERNELS:
+            report.append(("unsupported_abi_reject", list(range(i, i + n)),
+                           emit_name))
+            i += n
+            continue
+
         if custom_launch_line is not None:
             launch_line = custom_launch_line
         else:
@@ -1402,6 +2090,7 @@ def rewrite_mlir(
                 # materialise summed-constant ops for the polybench conv3d
                 # multi-coefficient case.
                 body_constants=bodies[i].constants if inline_weights else None,
+                result_count=last.result_count,
             )
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser
@@ -1425,7 +2114,8 @@ def rewrite_mlir(
         else:
             replacement = launch_line
         if replace_full_span:
-            edits.append((start, end, replacement))
+            edit_start, edit_end = custom_edit_span or (start, end)
+            edits.append((edit_start, edit_end, replacement))
         elif n == 1:
             # Single-step composition: one generic, one launch. No
             # intervening ops to preserve.
@@ -1458,6 +2148,13 @@ def main():
     ap.add_argument("input", help="Path to MLIR file (debuferized linalg form).")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report matches; don't emit rewritten MLIR.")
+    ap.add_argument("--show-candidates", action="store_true",
+                    help=("With --dry-run, list backend-capable kernel "
+                          "definition candidates found at each linalg body."))
+    ap.add_argument("--show-semantic-only", action="store_true",
+                    help=("With --dry-run --show-candidates, also list "
+                          "semantic-only debug matches that do not currently "
+                          "have a backend route."))
     ap.add_argument("--with-roundtrip-markers", action="store_true",
                     help=("Embed the original linalg.generic span as a "
                           "// POLYGEIST-MATCH-BEGIN/-END comment block above "
@@ -1470,14 +2167,25 @@ def main():
         text,
         dry_run=args.dry_run,
         roundtrip_markers=args.with_roundtrip_markers,
+        show_candidates=args.show_candidates,
+        show_semantic_only=args.show_semantic_only,
     )
     if args.dry_run:
         print(f"== match report for {args.input} ==", file=sys.stderr)
         for kind, idx, name in report:
             print(f"  {kind:<14} body#{idx}  {name}", file=sys.stderr)
         matched = sum(1 for k, _, _ in report if k == "match")
-        total = len(report)
+        candidates = sum(1 for k, _, _ in report if k == "kernel_candidate")
+        semantic_debug = sum(1 for k, _, _ in report if k == "semantic_debug")
+        total = sum(
+            1 for k, _, _ in report
+            if k not in ("kernel_candidate", "semantic_debug")
+        )
         print(f"  total: {matched} matched / {total} bodies", file=sys.stderr)
+        if candidates:
+            print(f"  kernel candidates: {candidates}", file=sys.stderr)
+        if semantic_debug:
+            print(f"  semantic debug matches: {semantic_debug}", file=sys.stderr)
     else:
         sys.stdout.write(rewritten)
 
