@@ -30,6 +30,14 @@ extern "C" {
 void polygeist_cublas_init(void);
 void polygeist_cublas_destroy(void);
 
+// Pipeline scope. The compiler inserts these around a group/function containing
+// lowered library calls. They are currently conservative hooks: CPU is a no-op,
+// CUDA initializes the backend on begin and synchronizes at outermost end.
+// Future runtime cache/device-residency policies should hang off this scope
+// instead of changing every per-kernel shim ABI.
+void polygeist_cublas_pipeline_begin(void);
+void polygeist_cublas_pipeline_end(void);
+
 // GEMM (cublasDgemm equivalent, row-major):
 //   C = alpha * A * B + beta * C
 // where A is MxK, B is KxN, C is MxN.
@@ -188,6 +196,55 @@ void polygeist_cudnn_conv2d_ntap_f64(
 void polygeist_cudnn_conv2d_ntap_f32(
     int32_t M, int32_t N, int32_t K,
     const float *W, const float *A, float *B);
+
+// Generalized packed-weight Conv3D stencil. A is dense input with dimensions
+// inD x inH x inW, B is dense output with dimensions outD x outH x outW, and
+// W is a row-major K x K x K cross-correlation filter.
+void polygeist_cudnn_conv3d_ntap_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const double *W, const double *A, double *B);
+
+void polygeist_cudnn_conv3d_ntap_f32(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const float *W, const float *A, float *B);
+
+// Custom structured 3D 7-point stencil over seven flattened tap tensors.
+// `extra` and `coeff` may be NULL. The computation is:
+//   base = base0 * a0 + base_extra * extra
+//   inner = c0*a0 + c1*a1 + ... + c6*a6 + coeff_extra * extra
+//   out = base + (coeff ? coeff[i] : 1) * inner
+void polygeist_custom_stencil3d_7pt_flat_f64(
+    int32_t N,
+    const double *a0, const double *a1, const double *a2,
+    const double *a3, const double *a4, const double *a5,
+    const double *a6, const double *extra, const double *coeff,
+    double *out,
+    double base0, double base_extra, double coeff_extra,
+    double c0, double c1, double c2, double c3,
+    double c4, double c5, double c6);
+
+void polygeist_custom_stencil3d_7pt_flat_f32(
+    int32_t N,
+    const float *a0, const float *a1, const float *a2,
+    const float *a3, const float *a4, const float *a5,
+    const float *a6, const float *extra, const float *coeff,
+    float *out,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6);
+
+// Basic 1D complex-to-complex FFT shims. Complex values are represented as
+// interleaved real/imag pairs: A[2*i+0], A[2*i+1]. `inverse != 0` selects the
+// inverse transform. Like cuFFT, the inverse is not normalized by N.
+void polygeist_cufft_z2z_1d(
+    int32_t N, int32_t inverse, const double *A, double *B);
+
+void polygeist_cufft_c2c_1d(
+    int32_t N, int32_t inverse, const float *A, float *B);
 
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
@@ -444,6 +501,14 @@ void polygeist_cudnn_conv_bn_relu_fused(
 //   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
 void polygeist_rmsnorm_f32(
     int32_t N, const float *X, const float *Weight, float *Out);
+void polygeist_rmsnorm_unweighted_f32(
+    int32_t N, const float *X, float *Out);
+void polygeist_cublas_dot_f32(
+    int32_t N, const float *X, const float *Y, float *Out);
+void polygeist_cuda_gelu_tanh_f32(
+    int32_t N, const float *X, float *Out);
+void polygeist_whisper_exp_shift_sum_f32(
+    int32_t N, const float *X, float max_val, float *Out, float *Sum);
 
 // llama2.c row softmax, FP32, in-place:
 //   X[i] = exp(X[i] - max(X)) / sum_j exp(X[j] - max(X))

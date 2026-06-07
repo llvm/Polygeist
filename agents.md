@@ -1161,3 +1161,84 @@
   - HPGMG, HyPar, and current SWFFT proxy reports have zero backend-capable
     candidates in the default view because their current recognitions do not
     yet have real backend definitions/lowerings.
+
+### Custom CUDA 7-Point Stencil Library
+
+- 2026-06-06 added and wired a standalone custom CUDA library directory:
+  `custom_library/cuda`.
+- Added:
+  - `custom_library/cuda/polygeist_stencil3d_7pt.h`
+  - `custom_library/cuda/polygeist_stencil3d_7pt.cu`
+  - `custom_library/cuda/README.md`
+- The exported C ABI has f64/f32 structured launch wrappers:
+  - `polygeist_custom_stencil3d_7pt_f64`
+  - `polygeist_custom_stencil3d_7pt_f32`
+- It also has flat f64/f32 wrappers used by the current compiler/runtime ABI:
+  - `polygeist_custom_stencil3d_7pt_flat_f64`
+  - `polygeist_custom_stencil3d_7pt_flat_f32`
+- The structured wrappers are device-pointer based and stride-aware. The flat
+  wrappers are host-pointer compatible: they allocate/copy seven tap buffers
+  plus optional `extra`/`coeff` to device, launch a flattened CUDA kernel, copy
+  output back, and free temporary buffers. This is correct for the current
+  host-pointer runtime ABI but not the final optimized data-resident path.
+- Kernel computation:
+  - Inputs are an interior `input_center` pointer, optional `extra`, optional
+    per-cell `coeff`, and output.
+  - Strides are in elements and can represent halo-backed C arrays or tensor
+    slices.
+  - Computation:
+    `base = base_center * center + base_extra * extra`
+    `inner = coeff_center * center + coeff_xm*xm + coeff_xp*xp +
+             coeff_ym*ym + coeff_yp*yp + coeff_zm*zm + coeff_zp*zp +
+             coeff_extra * extra`
+    `out = base + (coeff ? coeff[i,j,k] : 1) * inner`
+- Intended one-kernel coverage:
+  - MiniAMR `miniamr_average_7pt_tensor`
+  - MiniAMR `miniamr_weighted_7pt_tensor`
+  - HPGMG `hpgmg_apply_op_7pt_tensor`
+  - HPGMG `hpgmg_residual_7pt_tensor`
+  - HPGMG weighted-Jacobi-style smoother
+  - PolyBench-style 3D heat/Jacobi 7-point stencils
+- Compiler/runtime integration now complete for MiniAMR f64 tensor 7-point
+  bodies:
+  - `generic_solver/kernel_library_phase2.mlir` declares
+    `customStencil3D7pt_f64_tensor`,
+    `customStencil3D7ptCoeff_f64_tensor`, and
+    `customStencil3D7ptExtra_f64_tensor`.
+  - `scripts/correctness/kernel_match_rewrite.py` emits:
+    - `miniamr_average_7pt_tensor -> customStencil3D7pt_f64_tensor`
+      with coefficients `[0, 0, 0, 1/7, ..., 1/7]`;
+    - `miniamr_weighted_7pt_tensor -> customStencil3D7ptCoeff_f64_tensor`
+      with coefficients `[1, 0, 0, -6, 1, 1, 1, 1, 1, 1]`.
+  - `lib/polygeist/Passes/LowerKernelLaunchToCuBLAS.cpp` lowers those
+    `kernel.launch` ops to `polygeist_custom_stencil3d_7pt_flat_f64`.
+  - `runtime/polygeist_cublas_rt_cpu.c` has CPU reference implementations.
+  - `runtime/polygeist_cublas_rt_cuda.c` has weak CPU fallback implementations
+    so Jetson binaries still link/run even when the CUDA object is not linked.
+  - `scripts/correctness/polygeist_build.sh` accepts
+    `POLYGEIST_CUSTOM_CUDA_OBJ` / `POLYGEIST_CUSTOM_CUDA_OBJS`; a strong CUDA
+    object overrides the weak fallback at link time.
+- Validation:
+  - `cc -fsyntax-only -I custom_library/cuda -include
+    polygeist_stencil3d_7pt.h -xc /dev/null` passed.
+  - `git diff --check -- custom_library/cuda/...` passed.
+  - `ninja -C build polygeist-opt` passed.
+  - Host MiniAMR proxy build emitted 3 launches / 3 shim calls and produced
+    checksum `miniamr 49.901192783357`, `total 83.800132012080`.
+  - Jetson cross-build without custom object passed; the two 7-point calls ran
+    through weak fallback and the 27-point call ran through cuDNN. Log:
+    `scripts/correctness/logs/miniamr_custom7_20260606_212752.silicon.log`.
+  - Compiled `polygeist_stencil3d_7pt.cu` on Jetson with
+    `/usr/local/cuda/bin/nvcc` and copied the aarch64 object back to
+    `/tmp/polygeist_stencil3d_7pt_jetson.o`.
+  - Jetson cross-build with
+    `POLYGEIST_CUSTOM_CUDA_OBJ=/tmp/polygeist_stencil3d_7pt_jetson.o` passed.
+    The run produced the same checksum and no `_cpu_fallback` timing lines for
+    the 7-point calls, confirming the strong CUDA object overrode the weak
+    fallback. Log:
+    `scripts/correctness/logs/miniamr_custom7_cuda_20260606_212940.silicon.log`.
+- Remaining optimization:
+  - add timing output inside the custom CUDA flat wrappers if we want per-call
+    device/host timing for the 7-point kernels;
+  - replace flat host-copy wrappers with a device-resident/runtime-managed path
+    so adjacent library calls do not reallocate/copy every operand.

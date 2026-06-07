@@ -68,6 +68,9 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnConvolution2D_ntap_f32_tensor",
     "cudnnConvolution3D_ntap_tensor",
     "cudnnConvolution3D_ntap_f32_tensor",
+    "customStencil3D7pt_f64_tensor",
+    "customStencil3D7ptCoeff_f64_tensor",
+    "customStencil3D7ptExtra_f64_tensor",
     "cufftZ2Z_1D_tensor",
     "cufftC2C_1D_tensor",
     "cudnnConvolutionFwd_batched",
@@ -107,6 +110,8 @@ SEMANTIC_BACKEND_HINTS = {
     # Candidate completion: not emitted yet, but this is the intended backend
     # route once the sparse filter materialization rule is implemented.
     "conv3d_sparse_3x3x3": "cudnnConvolution3D_ntap_tensor",
+    "miniamr_average_7pt_tensor": "customStencil3D7pt_f64_tensor",
+    "miniamr_weighted_7pt_tensor": "customStencil3D7ptCoeff_f64_tensor",
 }
 
 
@@ -1102,6 +1107,54 @@ def _render_whisper_exp_shift_sum_launch(
     )
 
 
+def _render_custom_stencil3d7pt_launch(
+    name: str,
+    result_ssa: str,
+    result_type: str,
+    operands: list[str],
+    operand_types: list[str],
+    coeffs: list[float],
+    indent: str,
+) -> str:
+    if len(coeffs) != 10:
+        raise ValueError("custom stencil3d7pt launch expects 10 coefficients")
+    cast_lines, operands, operand_types = _normalize_tensor_operands(
+        operands, operand_types, indent
+    )
+    scalar_names = []
+    scalar_lines = []
+    for idx, value in enumerate(coeffs):
+        ssa = _derived_ssa_name(result_ssa, f"stencil7_c{idx}")
+        lit = repr(float(value))
+        if "." not in lit and "e" not in lit and "E" not in lit:
+            lit += ".0"
+        scalar_lines.append(f"{indent}{ssa} = arith.constant {lit} : f64")
+        scalar_names.append(ssa)
+    all_operands = operands + scalar_names
+    all_types = operand_types + ["f64"] * len(scalar_names)
+    cast_prefix = "\n".join(cast_lines + scalar_lines)
+    if cast_prefix:
+        cast_prefix += "\n"
+    operand_str = ", ".join(all_operands)
+    sig = f"({', '.join(all_types)})"
+    dyn_result_type = _dynamic_tensor_type(result_type)
+    launch_result_ssa = result_ssa
+    launch_result_type = result_type
+    result_cast = ""
+    if dyn_result_type is not None and dyn_result_type != result_type:
+        launch_result_ssa = _derived_ssa_name(result_ssa, "tdyn")
+        launch_result_type = dyn_result_type
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result_ssa} : "
+            f"{dyn_result_type} to {result_type}"
+        )
+    return (
+        f"{cast_prefix}{indent}{launch_result_ssa} = kernel.launch "
+        f"@{name}({operand_str}) : {sig} -> {launch_result_type}"
+        f"{result_cast}"
+    )
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -1786,6 +1839,50 @@ def rewrite_mlir(
                 weight_type,
                 width,
                 accum_inst.indent,
+            )
+
+        if entry.name in ("miniamr_average_7pt_tensor",
+                          "miniamr_weighted_7pt_tensor"):
+            inst = instances[i]
+            in_names = _extract_ssa_names(inst.ins_part)
+            in_types = _extract_ssa_types(inst.ins_part)
+            out_names = _extract_ssa_names(inst.outs_part)
+            out_types = _extract_ssa_types(inst.outs_part)
+            expected_inputs = 7 if entry.name == "miniamr_average_7pt_tensor" else 8
+            elem = _sniff_elem_type(out_types[0]) if out_types else None
+            ranks = [_tensor_rank(t) for t in in_types + out_types]
+            if (inst.result_ssa is None or inst.result_type is None
+                    or len(in_names) != expected_inputs or len(out_names) != 1
+                    or elem != "f64"
+                    or len(ranks) != expected_inputs + 1
+                    or any(_sniff_elem_type(t) != "f64"
+                           for t in in_types + out_types)
+                    or any(rank != 3 for rank in ranks)):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+
+            if entry.name == "miniamr_average_7pt_tensor":
+                emit_name = "customStencil3D7pt_f64_tensor"
+                launch_operands = in_names + out_names
+                launch_types = in_types + out_types
+                coeffs = [0.0, 0.0, 0.0] + [1.0 / 7.0] * 7
+            else:
+                emit_name = "customStencil3D7ptCoeff_f64_tensor"
+                # Preserve the matched body order: first seven tensors are the
+                # center/six-neighbor taps, input 7 is the cell coefficient.
+                launch_operands = in_names[:7] + [in_names[7]] + out_names
+                launch_types = in_types[:7] + [in_types[7]] + out_types
+                coeffs = [1.0, 0.0, 0.0, -6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            binds = {}
+            custom_launch_line = _render_custom_stencil3d7pt_launch(
+                emit_name,
+                inst.result_ssa,
+                inst.result_type,
+                launch_operands,
+                launch_types,
+                coeffs,
+                inst.indent,
             )
 
         if entry.name == "cufftZ2Z_1D_tensor":

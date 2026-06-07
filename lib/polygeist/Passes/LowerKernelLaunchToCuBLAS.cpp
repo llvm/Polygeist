@@ -112,6 +112,18 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_ntap_f64";
   if (libSym == "cudnnConvolution2D_ntap_f32_tensor")
     return "polygeist_cudnn_conv2d_ntap_f32";
+  if (libSym == "cudnnConvolution3D_ntap_tensor")
+    return "polygeist_cudnn_conv3d_ntap_f64";
+  if (libSym == "cudnnConvolution3D_ntap_f32_tensor")
+    return "polygeist_cudnn_conv3d_ntap_f32";
+  if (libSym == "customStencil3D7pt_f64_tensor" ||
+      libSym == "customStencil3D7ptCoeff_f64_tensor" ||
+      libSym == "customStencil3D7ptExtra_f64_tensor")
+    return "polygeist_custom_stencil3d_7pt_flat_f64";
+  if (libSym == "cufftZ2Z_1D_tensor")
+    return "polygeist_cufft_z2z_1d";
+  if (libSym == "cufftC2C_1D_tensor")
+    return "polygeist_cufft_c2c_1d";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -139,6 +151,14 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_rmsnorm_f32";
   if (libSym == "rmsnorm_f32_tensor")
     return "polygeist_rmsnorm_f32";
+  if (libSym == "rmsnorm_unweighted_f32_tensor")
+    return "polygeist_rmsnorm_unweighted_f32";
+  if (libSym == "gelu_tanh_f32_tensor")
+    return "polygeist_cuda_gelu_tanh_f32";
+  if (libSym == "whisperExpShiftSum_f32_tensor")
+    return "polygeist_whisper_exp_shift_sum_f32";
+  if (libSym == "cublasDdot")
+    return "polygeist_cublas_dot_f32";
   if (libSym == "cudnnSoftmaxForward")
     return "polygeist_cudnn_softmax_forward_f32";
   if (libSym == "cudnnSoftmaxForward_tensor")
@@ -146,7 +166,9 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cudnnSoftmaxForwardOut_tensor")
     return "polygeist_cudnn_softmax_forward_out_f32";
   if (libSym == "cudaCopy1D_f32_tensor" ||
-      libSym == "cudaCopy2D_f32_tensor")
+      libSym == "cudaCopy2D_f32_tensor" ||
+      libSym == "cudaCopy3D_f32_tensor" ||
+      libSym == "cudaCopy6D_f32_tensor")
     return "polygeist_cuda_copy_f32";
   if (libSym == "cudaAdd_f32_tensor")
     return "polygeist_cuda_add_f32";
@@ -756,6 +778,231 @@ static LogicalResult lowerCudnnConv2DNtapTensor(LaunchOp launch,
       memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
   Value updatedBase = tensorForSliceSource(b, loc, C);
   rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudnnConv3DNtapTensor(LaunchOp launch,
+                                                ModuleOp module,
+                                                StringRef shimSymbol) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError("cudnnConvolution3D_ntap_tensor: expected 4 "
+                            "operands (input, output, weights, K); got ")
+           << launch.getNumOperands();
+  if (launch.getNumResults() != 1)
+    return launch.emitError(
+        "cudnnConvolution3D_ntap_tensor: expected 1 tensor result");
+
+  Value A = launch.getOperand(0);
+  Value C = launch.getOperand(1);
+  Value W = launch.getOperand(2);
+  Value K = launch.getOperand(3);
+
+  auto aTy = dyn_cast<RankedTensorType>(A.getType());
+  auto cTy = dyn_cast<RankedTensorType>(C.getType());
+  auto wTy = dyn_cast<RankedTensorType>(W.getType());
+  auto resTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
+  if (!aTy || !cTy || !wTy || !resTy)
+    return launch.emitError(
+        "cudnnConvolution3D_ntap_tensor: operands/result must be tensors");
+  if (aTy.getRank() != 3 || cTy.getRank() != 3 || wTy.getRank() != 3 ||
+      resTy.getRank() != 3)
+    return launch.emitError(
+        "cudnnConvolution3D_ntap_tensor: expected 3D input/output/weights");
+  Type elemTy = aTy.getElementType();
+  if (cTy.getElementType() != elemTy || wTy.getElementType() != elemTy ||
+      resTy.getElementType() != elemTy)
+    return launch.emitError(
+        "cudnnConvolution3D_ntap_tensor: input/output/weights dtypes must match");
+  if (!(elemTy.isF64() || elemTy.isF32()))
+    return launch.emitError(
+        "cudnnConvolution3D_ntap_tensor: only f64/f32 weights are supported");
+  if (!K.getType().isInteger(32))
+    return launch.emitError("cudnnConvolution3D_ntap_tensor: K must be i32");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value C_mr = valueToMemrefPreservingSlice(b, loc, C);
+  Value W_mr = valueToMemrefPreservingSlice(b, loc, W);
+
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+  Value W_ptr = memrefBasePtr(b, loc, W_mr);
+
+  Value oneI32 = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(1));
+  Value border = b.create<arith::SubIOp>(loc, K, oneI32);
+  Value outD = memrefDimAsI32(b, loc, C_mr, 0);
+  Value outH = memrefDimAsI32(b, loc, C_mr, 1);
+  Value outW = memrefDimAsI32(b, loc, C_mr, 2);
+  Value inD = b.create<arith::AddIOp>(loc, outD, border);
+  Value inH = b.create<arith::AddIOp>(loc, outH, border);
+  Value inW = b.create<arith::AddIOp>(loc, outW, border);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{inD, inH, inW, outD, outH, outW, K, W_ptr, A_ptr, C_ptr});
+
+  Value updatedView =
+      memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
+  Value updatedBase = tensorForSliceSource(b, loc, C);
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCustomStencil3D7ptF64Tensor(LaunchOp launch,
+                                                      ModuleOp module,
+                                                      StringRef libSym) {
+  bool hasCoeff = libSym == "customStencil3D7ptCoeff_f64_tensor";
+  bool hasExtra = libSym == "customStencil3D7ptExtra_f64_tensor";
+  unsigned expected = hasCoeff || hasExtra ? 19 : 18;
+  if (launch.getNumOperands() != expected)
+    return launch.emitError("customStencil3D7pt lowering: expected ")
+           << expected << " operands, got " << launch.getNumOperands();
+  if (launch.getNumResults() != 1)
+    return launch.emitError("customStencil3D7pt lowering: expected 1 result");
+
+  SmallVector<Value> taps;
+  taps.reserve(7);
+  for (unsigned i = 0; i < 7; ++i)
+    taps.push_back(launch.getOperand(i));
+  unsigned idx = 7;
+  Value extra;
+  Value coeff;
+  if (hasExtra)
+    extra = launch.getOperand(idx++);
+  if (hasCoeff)
+    coeff = launch.getOperand(idx++);
+  Value out = launch.getOperand(idx++);
+  SmallVector<Value> scalars;
+  for (; idx < launch.getNumOperands(); ++idx)
+    scalars.push_back(launch.getOperand(idx));
+  if (scalars.size() != 10)
+    return launch.emitError("customStencil3D7pt lowering: expected 10 scalar "
+                            "coefficients");
+
+  auto outTy = dyn_cast<RankedTensorType>(out.getType());
+  auto resTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
+  if (!outTy || !resTy || outTy.getRank() != 3 || resTy.getRank() != 3 ||
+      !outTy.getElementType().isF64() || !resTy.getElementType().isF64())
+    return launch.emitError(
+        "customStencil3D7pt lowering: output/result must be rank-3 f64 tensors");
+  for (Value tap : taps) {
+    auto ty = dyn_cast<RankedTensorType>(tap.getType());
+    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
+      return launch.emitError(
+          "customStencil3D7pt lowering: all tap operands must be rank-3 f64 tensors");
+  }
+  if (hasExtra) {
+    auto ty = dyn_cast<RankedTensorType>(extra.getType());
+    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
+      return launch.emitError(
+          "customStencil3D7pt lowering: extra operand must be rank-3 f64 tensor");
+  }
+  if (hasCoeff) {
+    auto ty = dyn_cast<RankedTensorType>(coeff.getType());
+    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
+      return launch.emitError(
+          "customStencil3D7pt lowering: coeff operand must be rank-3 f64 tensor");
+  }
+  for (Value s : scalars)
+    if (!s.getType().isF64())
+      return launch.emitError(
+          "customStencil3D7pt lowering: scalar coefficients must be f64");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  Value nullPtr = b.create<LLVM::ZeroOp>(loc, ptrTy);
+  Value N = numElementsForTensorOrMemref(b, loc, out);
+
+  SmallVector<Value> callOperands;
+  callOperands.push_back(N);
+  for (Value tap : taps)
+    callOperands.push_back(pointerForTensorOrMemref(b, loc, tap));
+  callOperands.push_back(hasExtra ? pointerForTensorOrMemref(b, loc, extra)
+                                  : nullPtr);
+  callOperands.push_back(hasCoeff ? pointerForTensorOrMemref(b, loc, coeff)
+                                  : nullPtr);
+  callOperands.push_back(pointerForTensorOrMemref(b, loc, out));
+  callOperands.append(scalars.begin(), scalars.end());
+
+  SmallVector<Type> argTypes;
+  argTypes.push_back(b.getI32Type());
+  for (unsigned i = 0; i < 10; ++i)
+    argTypes.push_back(ptrTy);
+  for (unsigned i = 0; i < 10; ++i)
+    argTypes.push_back(b.getF64Type());
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_custom_stencil3d_7pt_flat_f64", argTypes, b);
+  b.create<func::CallOp>(loc, shim, callOperands);
+
+  Value updatedBase = tensorForSliceSource(b, loc, out);
+  Value updated = updatedBase ? Value()
+      : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
+                       launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCufftC2C1DTensor(LaunchOp launch, ModuleOp module,
+                                           StringRef shimSymbol) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError(
+        "cufft 1D tensor: expected operands (input, output, inverse)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cufft 1D tensor: expected 1 tensor result");
+
+  Value A = launch.getOperand(0);
+  Value C = launch.getOperand(1);
+  Value inverse = launch.getOperand(2);
+  auto aTy = dyn_cast<RankedTensorType>(A.getType());
+  auto cTy = dyn_cast<RankedTensorType>(C.getType());
+  auto rTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
+  if (!aTy || !cTy || !rTy || aTy.getRank() != 2 || cTy.getRank() != 2 ||
+      rTy.getRank() != 2)
+    return launch.emitError(
+        "cufft 1D tensor: input/output/result must be rank-2 tensors");
+  if (aTy.getDimSize(1) != 2 || cTy.getDimSize(1) != 2 ||
+      rTy.getDimSize(1) != 2)
+    return launch.emitError(
+        "cufft 1D tensor: trailing dimension must be static size 2");
+  Type elemTy = aTy.getElementType();
+  if (cTy.getElementType() != elemTy || rTy.getElementType() != elemTy)
+    return launch.emitError(
+        "cufft 1D tensor: input/output/result element types must match");
+  if (!(elemTy.isF64() || elemTy.isF32()))
+    return launch.emitError("cufft 1D tensor: only f64/f32 supported");
+  if (!inverse.getType().isInteger(32))
+    return launch.emitError("cufft 1D tensor: inverse flag must be i32");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value C_mr = valueToMemrefPreservingSlice(b, loc, C);
+  Value N = memrefDimAsI32(b, loc, A_mr, 0);
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, inverse, A_ptr, C_ptr});
+
+  Value updated =
+      memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
+  Value updatedBase = tensorForSliceSource(b, loc, C);
+  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
   launch.erase();
   return success();
 }
@@ -1904,6 +2151,180 @@ static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+// @rmsnorm_unweighted_f32_tensor(%x, %out), FP32 1D tensor operands.
+// Runtime computes:
+//   out[i] = x[i] * rsqrt(sum_j x[j]^2 / N + 1e-5)
+static LogicalResult lowerRmsnormUnweightedF32(LaunchOp launch,
+                                               ModuleOp module) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError(
+        "rmsnorm_unweighted: expected 2 operands (x, out)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("rmsnorm_unweighted: expected one result");
+
+  Value x = resolveSubmapBase(launch.getOperand(0));
+  Value out = resolveSubmapBase(launch.getOperand(1));
+
+  ShapedType xTy = getRankedShapedType(x);
+  ShapedType oTy = getRankedShapedType(out);
+  if (!xTy || !oTy || xTy.getRank() != 1 || oTy.getRank() != 1)
+    return launch.emitError("rmsnorm_unweighted: x/out must be ranked 1D");
+  if (!xTy.getElementType().isF32() ||
+      oTy.getElementType() != xTy.getElementType())
+    return launch.emitError("rmsnorm_unweighted: only f32 supported");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemrefPreservingSlice(b, loc, x);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_rmsnorm_unweighted_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCublasDotF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError("cublasDdot: expected 3 operands (x, y, out)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("cublasDdot: expected one result");
+
+  Value x = resolveSubmapBase(launch.getOperand(0));
+  Value y = resolveSubmapBase(launch.getOperand(1));
+  Value out = resolveSubmapBase(launch.getOperand(2));
+
+  ShapedType xTy = getRankedShapedType(x);
+  ShapedType yTy = getRankedShapedType(y);
+  ShapedType oTy = getRankedShapedType(out);
+  if (!xTy || !yTy || !oTy || xTy.getRank() != 1 || yTy.getRank() != 1 ||
+      oTy.getRank() != 0)
+    return launch.emitError("cublasDdot: x/y must be 1D and out rank-0");
+  if (!xTy.getElementType().isF32() ||
+      yTy.getElementType() != xTy.getElementType() ||
+      oTy.getElementType() != xTy.getElementType())
+    return launch.emitError("cublasDdot: only f32 supported in this ABI");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemrefPreservingSlice(b, loc, x);
+  Value yMr = valueToMemrefPreservingSlice(b, loc, y);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value yPtr = memrefBasePtr(b, loc, yMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cublas_dot_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, yPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireLaunchResult(launch, updated);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerGeluTanhF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError("gelu_tanh_f32: expected 2 operands (x, out)");
+  if (launch.getNumResults() != 1)
+    return launch.emitError("gelu_tanh_f32: expected one result");
+
+  Value x = launch.getOperand(0);
+  Value out = launch.getOperand(1);
+  auto xTy = dyn_cast<RankedTensorType>(x.getType());
+  auto oTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!xTy || !oTy || xTy.getRank() != 1 || oTy.getRank() != 1 ||
+      !xTy.getElementType().isF32() || !oTy.getElementType().isF32())
+    return launch.emitError("gelu_tanh_f32: operands must be 1D f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemrefPreservingSlice(b, loc, x);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_cuda_gelu_tanh_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, oPtr});
+
+  Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updated,
+                                tensorForSliceSource(b, loc, out));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerWhisperExpShiftSumF32(LaunchOp launch,
+                                                ModuleOp module) {
+  if (launch.getNumOperands() != 4)
+    return launch.emitError(
+        "whisperExpShiftSum: expected 4 operands (x, out, sum, max)");
+  if (launch.getNumResults() != 2)
+    return launch.emitError("whisperExpShiftSum: expected two results");
+
+  Value x = launch.getOperand(0);
+  Value out = launch.getOperand(1);
+  Value sum = launch.getOperand(2);
+  Value maxVal = launch.getOperand(3);
+
+  ShapedType xTy = getRankedShapedType(x);
+  ShapedType oTy = getRankedShapedType(out);
+  ShapedType sTy = getRankedShapedType(sum);
+  if (!xTy || !oTy || !sTy || xTy.getRank() != 1 || oTy.getRank() != 1 ||
+      sTy.getRank() != 0)
+    return launch.emitError(
+        "whisperExpShiftSum: x/out must be 1D and sum must be rank-0");
+  if (!xTy.getElementType().isF32() ||
+      oTy.getElementType() != xTy.getElementType() ||
+      sTy.getElementType() != xTy.getElementType() ||
+      !maxVal.getType().isF32())
+    return launch.emitError("whisperExpShiftSum: only f32 supported");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemrefPreservingSlice(b, loc, x);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value sMr = valueToMemrefPreservingSlice(b, loc, sum);
+  Value N = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+  Value sPtr = memrefBasePtr(b, loc, sMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), ptrTy, b.getF32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_whisper_exp_shift_sum_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+                         ValueRange{N, xPtr, maxVal, oPtr, sPtr});
+
+  Value updatedOut = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(launch, updatedOut,
+                                tensorForSliceSource(b, loc, out));
+  Value updatedSum = memrefToTensor(b, loc, sMr, launch.getResult(1).getType());
+  launch.getResult(1).replaceAllUsesWith(updatedSum);
+  launch.erase();
+  return success();
+}
+
 // @cudnnSoftmaxForward(%x), FP32 1D in-place row softmax.
 // Tensor form returns the updated tensor after the same in-place shim call.
 static LogicalResult lowerCudnnSoftmaxForwardF32(LaunchOp launch,
@@ -2543,6 +2964,16 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution2D_ntap_tensor" ||
                  libSym == "cudnnConvolution2D_ntap_f32_tensor") {
         r = lowerCudnnConv2DNtapTensor(launch, module, shim);
+      } else if (libSym == "cudnnConvolution3D_ntap_tensor" ||
+                 libSym == "cudnnConvolution3D_ntap_f32_tensor") {
+        r = lowerCudnnConv3DNtapTensor(launch, module, shim);
+      } else if (libSym == "customStencil3D7pt_f64_tensor" ||
+                 libSym == "customStencil3D7ptCoeff_f64_tensor" ||
+                 libSym == "customStencil3D7ptExtra_f64_tensor") {
+        r = lowerCustomStencil3D7ptF64Tensor(launch, module, libSym);
+      } else if (libSym == "cufftZ2Z_1D_tensor" ||
+                 libSym == "cufftC2C_1D_tensor") {
+        r = lowerCufftC2C1DTensor(launch, module, shim);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {
@@ -2560,6 +2991,14 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "rmsnorm_f32" ||
                  libSym == "rmsnorm_f32_tensor") {
         r = lowerRmsnormF32(launch, module);
+      } else if (libSym == "rmsnorm_unweighted_f32_tensor") {
+        r = lowerRmsnormUnweightedF32(launch, module);
+      } else if (libSym == "gelu_tanh_f32_tensor") {
+        r = lowerGeluTanhF32(launch, module);
+      } else if (libSym == "whisperExpShiftSum_f32_tensor") {
+        r = lowerWhisperExpShiftSumF32(launch, module);
+      } else if (libSym == "cublasDdot") {
+        r = lowerCublasDotF32(launch, module);
       } else if (libSym == "cudnnSoftmaxForward" ||
                  libSym == "cudnnSoftmaxForward_tensor") {
         r = lowerCudnnSoftmaxForwardF32(launch, module);
@@ -2569,6 +3008,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudaCopyF32(launch, module, /*expectedRank=*/1);
       } else if (libSym == "cudaCopy2D_f32_tensor") {
         r = lowerCudaCopyF32(launch, module, /*expectedRank=*/2);
+      } else if (libSym == "cudaCopy3D_f32_tensor") {
+        r = lowerCudaCopyF32(launch, module, /*expectedRank=*/3);
+      } else if (libSym == "cudaCopy6D_f32_tensor") {
+        r = lowerCudaCopyF32(launch, module, /*expectedRank=*/6);
       } else if (libSym == "cudaAdd_f32_tensor") {
         r = lowerCudaAddF32(launch, module);
       } else if (libSym == "cudaMaskSelect_f32_tensor") {

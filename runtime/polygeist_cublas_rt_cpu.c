@@ -12,8 +12,14 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
+
 void polygeist_cublas_init(void) { /* no-op */ }
 void polygeist_cublas_destroy(void) { /* no-op */ }
+void polygeist_cublas_pipeline_begin(void) { /* no-op */ }
+void polygeist_cublas_pipeline_end(void) { /* no-op */ }
 
 void polygeist_cublas_dgemm(
     int32_t M, int32_t N, int32_t K,
@@ -295,6 +301,136 @@ void polygeist_cudnn_conv2d_ntap_f32(
                  A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
       B[(size_t)i * (size_t)N + (size_t)j] = acc;
     }
+  }
+}
+
+void polygeist_cudnn_conv3d_ntap_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const double *W, const double *A, double *B) {
+  for (int32_t z = 0; z < outD; ++z) {
+    for (int32_t y = 0; y < outH; ++y) {
+      for (int32_t x = 0; x < outW; ++x) {
+        double acc = 0.0;
+        for (int32_t dz = 0; dz < K; ++dz)
+          for (int32_t dy = 0; dy < K; ++dy)
+            for (int32_t dx = 0; dx < K; ++dx)
+              acc += W[((size_t)dz * (size_t)K + (size_t)dy) *
+                           (size_t)K + (size_t)dx] *
+                     A[((size_t)(z + dz) * (size_t)inH +
+                        (size_t)(y + dy)) * (size_t)inW +
+                       (size_t)(x + dx)];
+        B[((size_t)z * (size_t)outH + (size_t)y) * (size_t)outW +
+          (size_t)x] = acc;
+      }
+    }
+  }
+}
+
+void polygeist_cudnn_conv3d_ntap_f32(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const float *W, const float *A, float *B) {
+  for (int32_t z = 0; z < outD; ++z) {
+    for (int32_t y = 0; y < outH; ++y) {
+      for (int32_t x = 0; x < outW; ++x) {
+        float acc = 0.0f;
+        for (int32_t dz = 0; dz < K; ++dz)
+          for (int32_t dy = 0; dy < K; ++dy)
+            for (int32_t dx = 0; dx < K; ++dx)
+              acc += W[((size_t)dz * (size_t)K + (size_t)dy) *
+                           (size_t)K + (size_t)dx] *
+                     A[((size_t)(z + dz) * (size_t)inH +
+                        (size_t)(y + dy)) * (size_t)inW +
+                       (size_t)(x + dx)];
+        B[((size_t)z * (size_t)outH + (size_t)y) * (size_t)outW +
+          (size_t)x] = acc;
+      }
+    }
+  }
+}
+
+void polygeist_custom_stencil3d_7pt_flat_f64(
+    int32_t N,
+    const double *a0, const double *a1, const double *a2,
+    const double *a3, const double *a4, const double *a5,
+    const double *a6, const double *extra, const double *coeff,
+    double *out,
+    double base0, double base_extra, double coeff_extra,
+    double c0, double c1, double c2, double c3,
+    double c4, double c5, double c6) {
+  for (int32_t i = 0; i < N; ++i) {
+    double extra_v = extra ? extra[i] : 0.0;
+    double scale = coeff ? coeff[i] : 1.0;
+    double base = base0 * a0[i] + (extra ? base_extra * extra_v : 0.0);
+    double inner = c0 * a0[i] + c1 * a1[i] + c2 * a2[i] +
+                   c3 * a3[i] + c4 * a4[i] + c5 * a5[i] +
+                   c6 * a6[i] + (extra ? coeff_extra * extra_v : 0.0);
+    out[i] = base + scale * inner;
+  }
+}
+
+void polygeist_custom_stencil3d_7pt_flat_f32(
+    int32_t N,
+    const float *a0, const float *a1, const float *a2,
+    const float *a3, const float *a4, const float *a5,
+    const float *a6, const float *extra, const float *coeff,
+    float *out,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6) {
+  for (int32_t i = 0; i < N; ++i) {
+    float extra_v = extra ? extra[i] : 0.0f;
+    float scale = coeff ? coeff[i] : 1.0f;
+    float base = base0 * a0[i] + (extra ? base_extra * extra_v : 0.0f);
+    float inner = c0 * a0[i] + c1 * a1[i] + c2 * a2[i] +
+                  c3 * a3[i] + c4 * a4[i] + c5 * a5[i] +
+                  c6 * a6[i] + (extra ? coeff_extra * extra_v : 0.0f);
+    out[i] = base + scale * inner;
+  }
+}
+
+void polygeist_cufft_z2z_1d(
+    int32_t N, int32_t inverse, const double *A, double *B) {
+  if (N <= 0) return;
+  const double sign = inverse ? 1.0 : -1.0;
+  for (int32_t k = 0; k < N; ++k) {
+    double sum_re = 0.0;
+    double sum_im = 0.0;
+    for (int32_t n = 0; n < N; ++n) {
+      double angle = sign * 2.0 * M_PI * (double)k * (double)n / (double)N;
+      double c = cos(angle);
+      double s = sin(angle);
+      double ar = A[(size_t)2 * (size_t)n + 0];
+      double ai = A[(size_t)2 * (size_t)n + 1];
+      sum_re += ar * c - ai * s;
+      sum_im += ar * s + ai * c;
+    }
+    B[(size_t)2 * (size_t)k + 0] = sum_re;
+    B[(size_t)2 * (size_t)k + 1] = sum_im;
+  }
+}
+
+void polygeist_cufft_c2c_1d(
+    int32_t N, int32_t inverse, const float *A, float *B) {
+  if (N <= 0) return;
+  const float sign = inverse ? 1.0f : -1.0f;
+  for (int32_t k = 0; k < N; ++k) {
+    float sum_re = 0.0f;
+    float sum_im = 0.0f;
+    for (int32_t n = 0; n < N; ++n) {
+      float angle = sign * 2.0f * (float)M_PI * (float)k * (float)n / (float)N;
+      float c = cosf(angle);
+      float s = sinf(angle);
+      float ar = A[(size_t)2 * (size_t)n + 0];
+      float ai = A[(size_t)2 * (size_t)n + 1];
+      sum_re += ar * c - ai * s;
+      sum_im += ar * s + ai * c;
+    }
+    B[(size_t)2 * (size_t)k + 0] = sum_re;
+    B[(size_t)2 * (size_t)k + 1] = sum_im;
   }
 }
 
@@ -895,6 +1031,45 @@ void polygeist_rmsnorm_f32(
   float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
   for (int32_t i = 0; i < N; ++i)
     Out[i] = Weight[i] * (scale * X[i]);
+}
+
+void polygeist_rmsnorm_unweighted_f32(
+    int32_t N, const float *X, float *Out) {
+  float ss = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    ss += X[i] * X[i];
+  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = scale * X[i];
+}
+
+void polygeist_cublas_dot_f32(
+    int32_t N, const float *X, const float *Y, float *Out) {
+  float acc = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    acc += X[i] * Y[i];
+  *Out = acc;
+}
+
+void polygeist_cuda_gelu_tanh_f32(
+    int32_t N, const float *X, float *Out) {
+  for (int32_t i = 0; i < N; ++i) {
+    float v = X[i];
+    float inner = 0.7978845608028654f *
+                  (v + 0.044715f * v * v * v);
+    Out[i] = 0.5f * v * (1.0f + tanhf(inner));
+  }
+}
+
+void polygeist_whisper_exp_shift_sum_f32(
+    int32_t N, const float *X, float max_val, float *Out, float *Sum) {
+  float sum = 0.0f;
+  for (int32_t i = 0; i < N; ++i) {
+    float v = expf(X[i] - max_val);
+    Out[i] = v;
+    sum += v;
+  }
+  *Sum = sum;
 }
 
 void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X) {

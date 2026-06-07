@@ -229,6 +229,44 @@ def LowerKernelLaunch : Pass<"lower-kernel-launch", "::mlir::ModuleOp"> {
   ];
 }
 
+def WrapKernelLaunchPipeline
+    : Pass<"wrap-kernel-launch-pipeline", "::mlir::ModuleOp"> {
+  let summary =
+      "Insert runtime pipeline begin/end calls around matched kernel dispatches";
+  let description = [{
+    Inserts calls to a runtime pipeline-scope ABI around functions that contain
+    matched kernel dispatches. This gives the runtime one explicit scope for a
+    sequence of lowered library calls, so backend implementations can keep
+    host mappings, temporary device allocations, streams, descriptors, and
+    future device-resident buffers alive across adjacent calls.
+
+    By default the pass targets the cuBLAS/cuDNN CUDA runtime ABI:
+
+      * `polygeist_cublas_pipeline_begin`
+      * `polygeist_cublas_pipeline_end`
+
+    The pass recognizes both pre-lowering `kernel.launch` ops and post-lowering
+    runtime `func.call`s with Polygeist CUDA/cuBLAS/cuDNN shim prefixes. Running
+    it after `--lower-kernel-launch-to-cublas` is the safest execution path
+    because the pass then only scopes launches that actually lowered to CUDA
+    runtime calls.
+  }];
+  let constructor =
+      "mlir::polygeist::createWrapKernelLaunchPipelinePass()";
+  let dependentDialects = [
+    "func::FuncDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+  let options = [
+    Option<"beginSymbol", "begin-symbol", "std::string",
+           /*default=*/"\"polygeist_cublas_pipeline_begin\"",
+           "Runtime function called at pipeline-scope entry.">,
+    Option<"endSymbol", "end-symbol", "std::string",
+           /*default=*/"\"polygeist_cublas_pipeline_end\"",
+           "Runtime function called at pipeline-scope exit.">
+  ];
+}
+
 def LowerKernelLaunchToCuBLAS
     : Pass<"lower-kernel-launch-to-cublas", "::mlir::ModuleOp"> {
   let summary = "Lower kernel.launch ops to runtime-shim func.calls (cuBLAS ABI)";

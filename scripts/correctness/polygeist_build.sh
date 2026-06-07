@@ -123,7 +123,11 @@ if [ -z "$FUNCTION" ]; then
 fi
 
 WORK=$(mktemp -d)
-trap "rm -rf $WORK" EXIT
+if [ "${POLYGEIST_KEEP_WORK:-0}" != "0" ]; then
+  echo "[polygeist] keeping workdir: $WORK"
+else
+  trap "rm -rf $WORK" EXIT
+fi
 
 echo "[polygeist] input=$INPUT  function=$FUNCTION  target=$TARGET  output=$OUT"
 echo "[polygeist] harness=$HARNESS_INPUT"
@@ -164,13 +168,9 @@ $PYTHON $SCRIPTS/kernel_match_rewrite.py \
   $WORK/linalg.mlir > $WORK/matched.mlir 2>$WORK/match.err
 N_LAUNCH=$(grep -c 'kernel\.launch' $WORK/matched.mlir || true)
 echo "         matched $N_LAUNCH kernel.launch op(s)"
-[ "${N_LAUNCH:-0}" -ge 1 ] || {
-  echo "ERROR: matcher found no kernel pattern in $INPUT::$FUNCTION." >&2
-  echo "       Either the kernel body's shape isn't in our library, or" >&2
-  echo "       the lift didn't produce a clean linalg.generic." >&2
-  echo "       Matcher report at $WORK/match.err" >&2
-  exit 1
-}
+if [ "${N_LAUNCH:-0}" -eq 0 ]; then
+  echo "         no ABI-lowerable matches; continuing with residual Linalg"
+fi
 
 # ─── Step 4: inject canonical kernel.defn declarations ──────────────────
 # The matched MLIR references @cublasDgemm / @cudnnConvolution2D_9tap / etc.
@@ -190,10 +190,14 @@ awk -v defns="$DEFNS" '
 
 # ─── Step 5: ABI lowering kernel.launch → func.call to runtime shim ─────
 echo "  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)"
-polygeist-opt --lower-kernel-launch-to-cublas \
+ABI_PASSES=(--lower-kernel-launch-to-cublas)
+if [ "${POLYGEIST_WRAP_KERNEL_PIPELINE:-0}" != "0" ]; then
+  ABI_PASSES+=(--wrap-kernel-launch-pipeline)
+fi
+polygeist-opt "${ABI_PASSES[@]}" \
   $WORK/with_defns.mlir -o $WORK/abi.mlir 2>$WORK/abi.err || {
     echo "ERROR: ABI lowering failed; see $WORK/abi.err" >&2; cat $WORK/abi.err >&2; exit 1; }
-N_CALL=$(grep -cE 'call @polygeist_(cublas|cudnn|cuda|rmsnorm)' $WORK/abi.mlir || true)
+N_CALL=$(grep -cE 'call @polygeist_' $WORK/abi.mlir || true)
 echo "         emitted $N_CALL func.call to runtime shim"
 
 # ─── Step 6: lower to LLVM dialect + translate to LLVM IR ───────────────
@@ -217,6 +221,7 @@ $MLIR_OPT --convert-math-to-llvm \
   --one-shot-bufferize=bufferize-function-boundaries \
   --convert-linalg-to-loops --convert-scf-to-cf \
   --expand-strided-metadata \
+  --lower-affine \
   --convert-arith-to-llvm --convert-index-to-llvm --finalize-memref-to-llvm \
   --convert-func-to-llvm --reconcile-unrealized-casts \
   $WORK/abi_canon.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
@@ -254,7 +259,8 @@ else
   CLANG_TARGET_ARGS="--target=aarch64-linux-gnu --gcc-toolchain=/usr"
   RT_SRC=$RT/polygeist_cublas_rt_cuda.c
   RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB \
-           -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+           -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
+           -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
 fi
 
@@ -268,7 +274,8 @@ $CC -O2 "${GCC_PASSTHROUGH[@]}" -c $WORK/wrapper.c -o $WORK/wrapper.o
 # selected kernel, weaken that symbol so the lifted+matched wrapper wins.
 # Separate harness files only declare/call the kernel, so no weakening is
 # needed and the compiler cannot inline the original body into main.
-$CC -O2 "${GCC_PASSTHROUGH[@]}" -c "$HARNESS_INPUT" -o $WORK/harness_full.o
+$CC -O0 -fno-inline -fno-inline-functions "${GCC_PASSTHROUGH[@]}" \
+  -c "$HARNESS_INPUT" -o $WORK/harness_full.o
 NM_TOOL=nm
 if [ "$TARGET" = "jetson" ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
   NM_TOOL=aarch64-linux-gnu-nm
@@ -287,8 +294,10 @@ fi
 # Runtime shim. For jetson target we also need cuda + cudnn headers.
 if [ "$TARGET" = "host" ]; then
   $CC -O2 -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 else
   $CC -O2 -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 fi
 
 # Polybench utility .c — only if the harness uses POLYBENCH macros and the
@@ -311,11 +320,26 @@ if grep -q '#include\s*<polybench.h>\|#include\s*"polybench.h"' "$HARNESS_INPUT"
   fi
 fi
 
+CUSTOM_CUDA_OBJS=()
+CUSTOM_CUDA_OBJ_LIST="${POLYGEIST_CUSTOM_CUDA_OBJS:-${POLYGEIST_CUSTOM_CUDA_OBJ:-}}"
+if [ -n "$CUSTOM_CUDA_OBJ_LIST" ]; then
+  read -r -a CUSTOM_CUDA_OBJS <<< "$CUSTOM_CUDA_OBJ_LIST"
+  for obj in "${CUSTOM_CUDA_OBJS[@]}"; do
+    [ -f "$obj" ] || {
+      echo "ERROR: custom CUDA object $obj not found" >&2
+      exit 1
+    }
+  done
+  echo "         + custom CUDA object(s): ${CUSTOM_CUDA_OBJS[*]}"
+fi
+
 # ─── Step 9: link ───────────────────────────────────────────────────────
 echo "  [9/9] link → $OUT"
 $CC -O2 \
   $WORK/kernel.o $WORK/wrapper.o $WORK/harness.o $WORK/rt.o \
+  $WORK/mlir_runner_utils.o \
   "${POLYBENCH_OBJS[@]}" \
+  "${CUSTOM_CUDA_OBJS[@]}" \
   $RT_LIBS \
   -o "$OUT"
 

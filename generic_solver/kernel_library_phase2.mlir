@@ -141,6 +141,55 @@ module {
     kernel.yield %out : tensor<?xf32>
   }
 
+  kernel.defn @rmsnorm_unweighted_f32_tensor(
+      %x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  kernel.defn @gelu_tanh_f32_tensor(
+      %x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  kernel.defn @cublasDdot(
+      %x: tensor<?xf32>, %y: tensor<?xf32>,
+      %out: tensor<f32>) -> tensor<f32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> ()>
+      ],
+      iterator_types = ["reduction"]
+    } ins(%x, %y : tensor<?xf32>, tensor<?xf32>) outs(%out : tensor<f32>) {
+    ^bb0(%xv: f32, %yv: f32, %ov: f32):
+      %p = arith.mulf %xv, %yv : f32
+      %s = arith.addf %ov, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<f32>
+    kernel.yield %result : tensor<f32>
+  }
+
+  kernel.defn @whisperExpShiftSum_f32_tensor(
+      %x: tensor<?xf32>, %out: tensor<?xf32>, %sum: tensor<f32>,
+      %max: f32) -> (tensor<?xf32>, tensor<f32>) {
+    %result:2 = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> ()>
+      ],
+      iterator_types = ["reduction"]
+    } ins(%x : tensor<?xf32>) outs(%out, %sum : tensor<?xf32>, tensor<f32>) {
+    ^bb0(%xv: f32, %ov: f32, %sumv: f32):
+      %shifted = arith.subf %xv, %max : f32
+      %e = math.exp %shifted : f32
+      %acc = arith.addf %sumv, %e : f32
+      linalg.yield %e, %acc : f32, f32
+    } -> (tensor<?xf32>, tensor<f32>)
+    kernel.yield %result#0, %result#1 : tensor<?xf32>, tensor<f32>
+  }
+
   // llama2.c row softmax in-place:
   //   x = exp(x - max(x)) / sum(exp(x - max(x)))
   // ABI lowering maps this to cudnnSoftmaxForward for FP32.
@@ -187,6 +236,42 @@ module {
       linalg.yield %sv : f32
     } -> tensor<?x?xf32>
     kernel.yield %result : tensor<?x?xf32>
+  }
+
+  kernel.defn @cudaCopy3D_f32_tensor(
+      %src: tensor<?x?x?xf32>,
+      %out: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "parallel", "parallel"]
+    } ins(%src : tensor<?x?x?xf32>) outs(%out : tensor<?x?x?xf32>) {
+    ^bb0(%sv: f32, %ov: f32):
+      linalg.yield %sv : f32
+    } -> tensor<?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?xf32>
+  }
+
+  kernel.defn @cudaCopy6D_f32_tensor(
+      %src: tensor<?x?x?x?x?x?xf32>,
+      %out: tensor<?x?x?x?x?x?xf32>) -> tensor<?x?x?x?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d2, d3, d4, d5)>,
+        affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d2, d3, d4, d5)>
+      ],
+      iterator_types = [
+        "parallel", "parallel", "parallel",
+        "parallel", "parallel", "parallel"
+      ]
+    } ins(%src : tensor<?x?x?x?x?x?xf32>)
+      outs(%out : tensor<?x?x?x?x?x?xf32>) {
+    ^bb0(%sv: f32, %ov: f32):
+      linalg.yield %sv : f32
+    } -> tensor<?x?x?x?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?x?x?x?xf32>
   }
 
   kernel.defn @cudaAdd_f32_tensor(
@@ -1324,6 +1409,81 @@ module {
       %W: tensor<?xf32>,
       %K: i32) -> tensor<?x?xf32> {
     kernel.yield %C : tensor<?x?xf32>
+  }
+
+  // Generalized packed-weight Conv3D stencil. The matcher proves the raised
+  // reduction uses a dense rank-6 window view, then passes the haloed 3D input
+  // tensor, dense 3D output tensor, rank-3 filter tensor, and filter width.
+  kernel.defn @cudnnConvolution3D_ntap_tensor(
+      %A: tensor<?x?x?xf64>,
+      %C: tensor<?x?x?xf64>,
+      %W: tensor<?x?x?xf64>,
+      %K: i32) -> tensor<?x?x?xf64> {
+    kernel.yield %C : tensor<?x?x?xf64>
+  }
+
+  kernel.defn @cudnnConvolution3D_ntap_f32_tensor(
+      %A: tensor<?x?x?xf32>,
+      %C: tensor<?x?x?xf32>,
+      %W: tensor<?x?x?xf32>,
+      %K: i32) -> tensor<?x?x?xf32> {
+    kernel.yield %C : tensor<?x?x?xf32>
+  }
+
+  // Custom structured 3D 7-point stencil definitions. These operate on the
+  // raised form directly: seven same-shaped tap tensors plus an output tensor.
+  // The lowering maps all variants to one runtime ABI and passes null pointers
+  // for missing optional operands.
+  kernel.defn @customStencil3D7pt_f64_tensor(
+      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
+      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
+      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
+      %a6: tensor<?x?x?xf64>, %out: tensor<?x?x?xf64>,
+      %base0: f64, %base_extra: f64, %coeff_extra: f64,
+      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
+      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
+    kernel.yield %out : tensor<?x?x?xf64>
+  }
+
+  kernel.defn @customStencil3D7ptCoeff_f64_tensor(
+      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
+      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
+      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
+      %a6: tensor<?x?x?xf64>, %coeff: tensor<?x?x?xf64>,
+      %out: tensor<?x?x?xf64>,
+      %base0: f64, %base_extra: f64, %coeff_extra: f64,
+      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
+      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
+    kernel.yield %out : tensor<?x?x?xf64>
+  }
+
+  kernel.defn @customStencil3D7ptExtra_f64_tensor(
+      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
+      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
+      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
+      %a6: tensor<?x?x?xf64>, %extra: tensor<?x?x?xf64>,
+      %out: tensor<?x?x?xf64>,
+      %base0: f64, %base_extra: f64, %coeff_extra: f64,
+      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
+      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
+    kernel.yield %out : tensor<?x?x?xf64>
+  }
+
+  // 1D complex FFT ABI declarations. Complex values are represented as
+  // interleaved real/imag pairs in the trailing dimension of size 2. The
+  // runtime follows cuFFT semantics: inverse transforms are unnormalized.
+  kernel.defn @cufftZ2Z_1D_tensor(
+      %A: tensor<?x2xf64>,
+      %C: tensor<?x2xf64>,
+      %inverse: i32) -> tensor<?x2xf64> {
+    kernel.yield %C : tensor<?x2xf64>
+  }
+
+  kernel.defn @cufftC2C_1D_tensor(
+      %A: tensor<?x2xf32>,
+      %C: tensor<?x2xf32>,
+      %inverse: i32) -> tensor<?x2xf32> {
+    kernel.yield %C : tensor<?x2xf32>
   }
 
   kernel.defn @cudnnConvolution2D_9tap_f16(
