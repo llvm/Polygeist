@@ -37,6 +37,10 @@
 #                       CBLAS calls for BLAS-like symbols and link OpenBLAS by
 #                       default. Override with POLYGEIST_CPU_BLAS_CFLAGS and
 #                       POLYGEIST_CPU_BLAS_LIBS for MKL/BLIS/ArmPL/NVPL.
+#   POLYGEIST_CUTENSORNET_ROOT=/path/to/cuquantum
+#                       Jetson target only. The root must contain
+#                       include/cutensornet.h and lib/libcutensornet.so for
+#                       aarch64. Enables the cuTensorNet tensor-product shim.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -279,6 +283,17 @@ else
            -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+  if [ -n "${POLYGEIST_CUTENSORNET_ROOT:-}" ]; then
+    CUTENSORNET_ROOT=$POLYGEIST_CUTENSORNET_ROOT
+    [ -f "$CUTENSORNET_ROOT/include/cutensornet.h" ] || {
+      echo "ERROR: $CUTENSORNET_ROOT/include/cutensornet.h not found" >&2
+      exit 1
+    }
+    RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSORNET"
+               "-I$CUTENSORNET_ROOT/include")
+    RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor $RT_LIBS"
+    echo "         + cuTensorNet runtime from $CUTENSORNET_ROOT"
+  fi
 fi
 
 # Kernel (lifted) — use Polygeist clang for both host and cross.
@@ -313,7 +328,8 @@ if [ "$TARGET" = "host" ]; then
   $CC -O2 "${RT_CFLAGS[@]}" -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 else
-  $CC -O2 -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 "${RT_CFLAGS[@]}" -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC \
+    -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 fi
 

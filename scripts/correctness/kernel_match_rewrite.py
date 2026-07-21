@@ -73,6 +73,7 @@ ABI_LOWERABLE_KERNELS = {
     "customStencil3D7ptExtra_f64_tensor",
     "cufftZ2Z_1D_tensor",
     "cufftC2C_1D_tensor",
+    "cutensornetTensorProduct3D_f32_tensor",
     "cudnnConvolutionFwd_batched",
     "cudnnConvolutionFwd_im2col_gemm",
     "cudnnMaxPoolFwd_batched",
@@ -1947,6 +1948,33 @@ def rewrite_mlir(
                 continue
             replace_full_span = True
             custom_edit_span = (start, insert_span[1])
+
+        if entry.name == "cutensornetTensorProduct3D_f32_tensor":
+            contract_inst = instances[i + n - 1]
+            in_names = _extract_ssa_names(contract_inst.ins_part)
+            in_types = _extract_ssa_types(contract_inst.ins_part)
+            out_names = _extract_ssa_names(contract_inst.outs_part)
+            out_types = _extract_ssa_types(contract_inst.outs_part)
+            ranks = [_tensor_rank(t) for t in in_types + out_types]
+            elems = [_sniff_elem_type(t) for t in in_types + out_types]
+            if (contract_inst.result_ssa is None or
+                    contract_inst.result_type is None or
+                    len(in_names) != 4 or len(out_names) != 1 or
+                    ranks != [6, 6, 6, 6, 6] or
+                    elems != ["f32"] * 5):
+                report.append(("cutensornet_reject", i, entry.name))
+                i += 1
+                continue
+            # Keep the matched zero initializer in place: it proves that the
+            # accumulator has beta=0 semantics. Replace only the contraction
+            # and pass its rank-6 views; the MLIR lowering unwraps those views
+            # to the original psi/u/out buffers and derives KQ/KP from dims.
+            operands = in_names + out_names
+            operand_types = in_types + out_types
+            binds = {}
+            last = contract_inst
+            replace_full_span = True
+            custom_edit_span = contract_inst.span
             binds = {}
 
         if entry.name in ("cudnnConvolution2D_ntap",

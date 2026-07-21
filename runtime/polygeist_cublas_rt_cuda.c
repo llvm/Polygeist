@@ -41,6 +41,12 @@
 #ifndef POLYGEIST_HAS_CUFFT
 #  define POLYGEIST_HAS_CUFFT 0
 #endif
+#if defined(POLYGEIST_ENABLE_CUTENSORNET)
+#  include <cutensornet.h>
+#  define POLYGEIST_HAS_CUTENSORNET 1
+#else
+#  define POLYGEIST_HAS_CUTENSORNET 0
+#endif
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -124,6 +130,17 @@ static size_t g_deferred_host_free_cap = 0;
     if (s != CUFFT_SUCCESS) {                                                \
       fprintf(stderr, "%s:%d cufft error: %d\n", __FILE__, __LINE__,         \
               (int)s);                                                       \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
+#endif
+
+#if POLYGEIST_HAS_CUTENSORNET
+#define CUTENSORNET_CHECK(call) do {                                         \
+    cutensornetStatus_t s = (call);                                          \
+    if (s != CUTENSORNET_STATUS_SUCCESS) {                                   \
+      fprintf(stderr, "%s:%d cuTensorNet error: %s\n", __FILE__, __LINE__, \
+              cutensornetGetErrorString(s));                                 \
       abort();                                                               \
     }                                                                        \
   } while (0)
@@ -1779,6 +1796,116 @@ void polygeist_cufft_c2c_1d(
   DEVICE_FREE(dB);
 #else
   polygeist_dft_c2c_1d_cpu(N, inverse, A, B);
+#endif
+}
+
+void polygeist_cutensornet_tensor_product_3d_f32(
+    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out) {
+#if POLYGEIST_HAS_CUTENSORNET
+  if (KQ <= 0 || KP <= 0) return;
+  polygeist_cublas_init();
+
+  size_t psiBytes = (size_t)KQ * (size_t)KP * sizeof(float);
+  size_t uBytes = (size_t)KP * (size_t)KP * (size_t)KP * sizeof(float);
+  size_t outBytes = (size_t)KQ * (size_t)KQ * (size_t)KQ * sizeof(float);
+  float *dPsi = (float *)register_host_safe((void *)psi, psiBytes);
+  float *dU = (float *)register_host_safe((void *)u, uBytes);
+  float *dOut = (float *)register_host_safe(out, outBytes);
+
+  cutensornetHandle_t handle = NULL;
+  cutensornetNetworkDescriptor_t network = NULL;
+  cutensornetContractionOptimizerConfig_t config = NULL;
+  cutensornetContractionOptimizerInfo_t info = NULL;
+  cutensornetWorkspaceDescriptor_t workspace = NULL;
+  void *scratch = NULL;
+
+  // Row-major mode layouts for ai,bj,ck,ijk->abc.
+  const int64_t psiExtents[2] = {KQ, KP};
+  const int64_t uExtents[3] = {KP, KP, KP};
+  const int64_t outExtents[3] = {KQ, KQ, KQ};
+  const int64_t psiStrides[2] = {KP, 1};
+  const int64_t uStrides[3] = {(int64_t)KP * KP, KP, 1};
+  const int64_t outStrides[3] = {(int64_t)KQ * KQ, KQ, 1};
+  const int32_t modesPsiA[2] = {'a', 'i'};
+  const int32_t modesPsiB[2] = {'b', 'j'};
+  const int32_t modesPsiC[2] = {'c', 'k'};
+  const int32_t modesU[3] = {'i', 'j', 'k'};
+  const int32_t modesOut[3] = {'a', 'b', 'c'};
+  int64_t tensorIds[4] = {-1, -1, -1, -1};
+
+  CUTENSORNET_CHECK(cutensornetCreate(&handle));
+  CUTENSORNET_CHECK(cutensornetCreateNetwork(handle, &network));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, 2, psiExtents, modesPsiA, NULL, CUDA_R_32F,
+      &tensorIds[0]));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, 2, psiExtents, modesPsiB, NULL, CUDA_R_32F,
+      &tensorIds[1]));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, 2, psiExtents, modesPsiC, NULL, CUDA_R_32F,
+      &tensorIds[2]));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, 3, uExtents, modesU, NULL, CUDA_R_32F,
+      &tensorIds[3]));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensor(
+      handle, network, 3, modesOut, CUDA_R_32F));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[0], dPsi, psiStrides));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[1], dPsi, psiStrides));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[2], dPsi, psiStrides));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[3], dU, uStrides));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensorMemory(
+      handle, network, dOut, outStrides));
+  CUTENSORNET_CHECK(
+      cutensornetCreateContractionOptimizerConfig(handle, &config));
+  CUTENSORNET_CHECK(
+      cutensornetCreateContractionOptimizerInfo(handle, network, &info));
+  const uint64_t workspaceLimit = UINT64_C(256) * 1024 * 1024;
+  CUTENSORNET_CHECK(cutensornetContractionOptimize(
+      handle, network, config, workspaceLimit, info));
+  CUTENSORNET_CHECK(
+      cutensornetNetworkSetOptimizerInfo(handle, network, info));
+  CUTENSORNET_CHECK(cutensornetCreateWorkspaceDescriptor(handle, &workspace));
+  CUTENSORNET_CHECK(cutensornetWorkspaceComputeContractionSizes(
+      handle, network, info, workspace));
+  int64_t scratchBytes = 0;
+  CUTENSORNET_CHECK(cutensornetWorkspaceGetMemorySize(
+      handle, workspace, CUTENSORNET_WORKSIZE_PREF_RECOMMENDED,
+      CUTENSORNET_MEMSPACE_DEVICE, CUTENSORNET_WORKSPACE_SCRATCH,
+      &scratchBytes));
+  if (scratchBytes > 0)
+    scratch = pipeline_device_malloc((size_t)scratchBytes);
+  CUTENSORNET_CHECK(cutensornetWorkspaceSetMemory(
+      handle, workspace, CUTENSORNET_MEMSPACE_DEVICE,
+      CUTENSORNET_WORKSPACE_SCRATCH, scratch, scratchBytes));
+  CUTENSORNET_CHECK(
+      cutensornetNetworkPrepareContraction(handle, network, workspace));
+  CUTENSORNET_CHECK(cutensornetNetworkContract(
+      handle, network, 0, workspace, NULL, g_stream));
+
+  // The network objects are currently per-call, so contraction must finish
+  // before their destruction. A future shape-keyed plan cache can remove
+  // this synchronization and recover pipeline overlap.
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  pipeline_device_free(scratch);
+  CUTENSORNET_CHECK(cutensornetDestroyWorkspaceDescriptor(workspace));
+  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerInfo(info));
+  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerConfig(config));
+  CUTENSORNET_CHECK(cutensornetDestroyNetwork(network));
+  CUTENSORNET_CHECK(cutensornetDestroy(handle));
+  unregister_host_safe((void *)psi);
+  unregister_host_safe((void *)u);
+  unregister_host_safe(out);
+#else
+  (void)KQ; (void)KP; (void)psi; (void)u; (void)out;
+  fprintf(stderr,
+          "polygeist runtime: cuTensorNet support was not enabled at build "
+          "time (define POLYGEIST_ENABLE_CUTENSORNET and link "
+          "-lcutensornet -lcutensor)\n");
+  abort();
 #endif
 }
 

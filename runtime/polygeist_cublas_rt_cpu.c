@@ -493,6 +493,23 @@ void polygeist_cufft_c2c_1d(
   }
 }
 
+void polygeist_cutensornet_tensor_product_3d_f32(
+    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out) {
+  for (int32_t a = 0; a < KQ; ++a)
+    for (int32_t b = 0; b < KQ; ++b)
+      for (int32_t c = 0; c < KQ; ++c) {
+        float sum = 0.0f;
+        for (int32_t i = 0; i < KP; ++i)
+          for (int32_t j = 0; j < KP; ++j)
+            for (int32_t k = 0; k < KP; ++k)
+              sum += psi[(size_t)a * KP + i] *
+                     psi[(size_t)b * KP + j] *
+                     psi[(size_t)c * KP + k] *
+                     u[((size_t)i * KP + j) * KP + k];
+        out[((size_t)a * KQ + b) * KQ + c] = sum;
+      }
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the

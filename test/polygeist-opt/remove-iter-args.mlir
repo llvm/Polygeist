@@ -713,3 +713,17 @@ func.func @dist(%m: index, %n: index, %A: memref<?xf64>) -> f64 {
   return %total : f64
 }
 
+// -----
+
+// The unchanged load/store cleanup must not cross an intervening write. The
+// final store restores the value loaded before that write and is observable.
+// CHECK-LABEL: func.func @preserve_restore_after_write
+// CHECK: %[[OLD:.+]] = affine.load %[[A:.+]][0] : memref<?xf64>
+// CHECK: affine.store %{{.+}}, %[[A]][0] : memref<?xf64>
+// CHECK: affine.store %[[OLD]], %[[A]][0] : memref<?xf64>
+func.func @preserve_restore_after_write(%a: memref<?xf64>, %replacement: f64) {
+  %old = affine.load %a[0] : memref<?xf64>
+  affine.store %replacement, %a[0] : memref<?xf64>
+  affine.store %old, %a[0] : memref<?xf64>
+  return
+}

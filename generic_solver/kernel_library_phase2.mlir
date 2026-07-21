@@ -1486,6 +1486,18 @@ module {
     kernel.yield %C : tensor<?x2xf32>
   }
 
+  // Separable 3D tensor product: ai,bj,ck,ijk->abc. The operands are the
+  // rank-6 broadcast/submap views produced by raising; ABI lowering unwraps
+  // them to the shared psi buffer, the u buffer, and the output buffer.
+  kernel.defn @cutensornetTensorProduct3D_f32_tensor(
+      %psiA: tensor<?x?x?x?x?x?xf32>,
+      %psiB: tensor<?x?x?x?x?x?xf32>,
+      %psiC: tensor<?x?x?x?x?x?xf32>,
+      %u: tensor<?x?x?x?x?x?xf32>,
+      %out: tensor<?x?x?x?x?x?xf32>) -> tensor<?x?x?x?x?x?xf32> {
+    kernel.yield %out : tensor<?x?x?x?x?x?xf32>
+  }
+
   kernel.defn @cudnnConvolution2D_9tap_f16(
       %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
       %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,

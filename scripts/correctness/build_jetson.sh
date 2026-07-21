@@ -47,6 +47,32 @@ mkdir -p "$OUT_DIR"
 # Pre-built .o files are linked as-is. Use this for polybench-style defines.
 HARNESS_CFLAGS="${HARNESS_CFLAGS:--O3}"
 
+# Optional cuTensorNet cross package. NVIDIA's Python wheels use separate
+# cuquantum/ and cutensor/ roots, so callers may either provide the three
+# explicit directories or a common extraction root with that layout.
+CUTENSORNET_ROOT="${POLYGEIST_CUTENSORNET_ROOT:-}"
+CUTENSORNET_INC="${POLYGEIST_CUTENSORNET_INCLUDE:-}"
+CUTENSORNET_LIB="${POLYGEIST_CUTENSORNET_LIBDIR:-}"
+CUTENSOR_LIB="${POLYGEIST_CUTENSOR_LIBDIR:-}"
+if [ -n "$CUTENSORNET_ROOT" ]; then
+  CUTENSORNET_INC="${CUTENSORNET_INC:-$CUTENSORNET_ROOT/cuquantum/include}"
+  CUTENSORNET_LIB="${CUTENSORNET_LIB:-$CUTENSORNET_ROOT/cuquantum/lib}"
+  CUTENSOR_LIB="${CUTENSOR_LIB:-$CUTENSORNET_ROOT/cutensor/lib}"
+fi
+CUTENSORNET_ENABLED=0
+if [ -n "$CUTENSORNET_INC" ] || [ -n "$CUTENSORNET_LIB" ] || \
+   [ -n "$CUTENSOR_LIB" ]; then
+  for required in "$CUTENSORNET_INC/cutensornet.h" \
+                  "$CUTENSORNET_LIB/libcutensornet.so.2" \
+                  "$CUTENSOR_LIB/libcutensor.so.2"; do
+    [ -f "$required" ] || {
+      echo "ERROR: cuTensorNet cross-build input missing: $required" >&2
+      exit 1
+    }
+  done
+  CUTENSORNET_ENABLED=1
+fi
+
 # ─── Cross toolchain (host: x86_64; target: aarch64 + Jetson CUDA) ─────────
 # Override these via env vars if the cross-toolkit lives elsewhere.
 CUDA_CROSS_VER=${CUDA_CROSS_VER:-12.6}
@@ -55,6 +81,7 @@ AARCH64_CC=${AARCH64_CC:-aarch64-linux-gnu-gcc}
 AARCH64_READELF=${AARCH64_READELF:-aarch64-linux-gnu-readelf}
 MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
 MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
+POLYGEIST_OPT=$REPO_ROOT/build/bin/polygeist-opt
 CLANG=$REPO_ROOT/llvm-project/build/bin/clang
 RT=$REPO_ROOT/runtime
 
@@ -88,11 +115,16 @@ fi
 WORK=$(mktemp -d)
 trap "rm -rf $WORK" EXIT
 
-echo "  [1/6] copy + canonicalise input MLIR"
+echo "  [1/6] lower Polygeist views + canonicalise input MLIR"
+# Tensor-form matcher results can retain polygeist.submap/submapInverse around
+# an already ABI-lowered runtime call. Lower those repository-specific ops
+# before handing the module to upstream mlir-opt, which does not register the
+# Polygeist dialect.
+$POLYGEIST_OPT --lower-polygeist-submap "$INPUT" -o $WORK/no_submap.mlir
 # Mark to_tensor results as `restrict` so one-shot-bufferize keeps the
 # in-place semantics (same trick gemm_kernel_e2e.sh uses).
 sed 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
-    "$INPUT" > $WORK/abi.mlir
+    $WORK/no_submap.mlir > $WORK/abi.mlir
 
 echo "  [2/6] one-shot-bufferize + lower to LLVM dialect (host-side, on this VM)"
 $MLIR_OPT --one-shot-bufferize=bufferize-function-boundaries \
@@ -122,8 +154,28 @@ echo "  [5/6] cross-compile runtime shim + any harness .c files"
 # aarch64 cross-dev location, separate from CUDA's include path.
 CUDNN_INC=${CUDNN_INC:-/usr/include/aarch64-linux-gnu}
 CUDNN_LIB=${CUDNN_LIB:-/usr/lib/aarch64-linux-gnu}
-$AARCH64_CC -O3 -I$CUDA/include -I$CUDNN_INC -c \
-            $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt.o
+RT_EXTRA_CFLAGS=()
+RT_EXTRA_LIBS=()
+RT_LINK_FLAGS=()
+ACCEL_LIBS=(-lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver)
+if [ "${POLYGEIST_MINIMAL_RUNTIME:-0}" != "0" ]; then
+  # Put every runtime entry point in its own ELF section and discard entries
+  # unreachable from this executable. This lets a cuTensorNet-only binary run
+  # on minimal JetPack images that do not install cuDNN/cuFFT.
+  RT_EXTRA_CFLAGS+=("-ffunction-sections" "-fdata-sections")
+  RT_LINK_FLAGS+=("-Wl,--gc-sections")
+  ACCEL_LIBS=(-lcublasLt -lcublas -lcusolver)
+  echo "       minimal runtime: dead-strip unused library shims"
+fi
+if [ "$CUTENSORNET_ENABLED" -eq 1 ]; then
+  RT_EXTRA_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSORNET" "-I$CUTENSORNET_INC")
+  RT_EXTRA_LIBS+=("-L$CUTENSORNET_LIB" "-L$CUTENSOR_LIB"
+                 "-l:libcutensornet.so.2" "-l:libcutensor.so.2")
+  echo "       cuTensorNet: $CUTENSORNET_LIB"
+  echo "       cuTENSOR:    $CUTENSOR_LIB"
+fi
+$AARCH64_CC -O3 -I$CUDA/include -I$CUDNN_INC "${RT_EXTRA_CFLAGS[@]}" \
+            -c $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt.o
 HARNESS_OBJS=()
 for item in "${HARNESS[@]}"; do
   case "$item" in
@@ -151,8 +203,11 @@ echo "  [6/6] link against aarch64 cuBLAS + cudart stubs"
 $AARCH64_CC -O2 \
     $WORK/kernel.o $WORK/rt.o "${HARNESS_OBJS[@]}" \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
-    -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
-    -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu \
+    "${RT_EXTRA_LIBS[@]}" \
+    "${ACCEL_LIBS[@]}" -lcudart \
+    "${RT_LINK_FLAGS[@]}" \
+    -lm -lpthread -ldl \
+    '-Wl,-rpath,$ORIGIN:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu' \
     -o "$OUT_EXE"
 
 echo ""

@@ -2043,6 +2043,35 @@ def _cufft_z2z_1d_tensor() -> CompositionEntry:
     )
 
 
+def _cutensornet_tensor_product_3d_f32_tensor() -> CompositionEntry:
+    """Separable 3D tensor product: ai,bj,ck,ijk->abc.
+
+    Requiring the explicit zero-fill step makes it safe for the cuTensorNet
+    runtime to overwrite the output even though the contraction generic is
+    represented as an accumulation into its output argument.
+    """
+    zero = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0,
+        num_outs=1,
+        parallel_dim_count=3,
+        reduction_dim_count=0,
+    )
+    contraction = CompositionStep(
+        body=(Term.Out(0) +
+              (((Term.In(0) * Term.In(1)) * Term.In(2)) * Term.In(3))),
+        num_ins=4,
+        num_outs=1,
+        parallel_dim_count=3,
+        reduction_dim_count=3,
+    )
+    return CompositionEntry(
+        name="cutensornetTensorProduct3D_f32_tensor",
+        steps=[zero, contraction],
+        form="tensor",
+    )
+
+
 def _hpgmg_interpolation_p1_tensor() -> CompositionEntry:
     """HPGMG interpolation p1 weighted scalar-load stencil."""
     body = T_cap("%scale") * Term.Out(0)
@@ -3216,6 +3245,7 @@ def composition_library() -> list[CompositionEntry]:
         _cublaslt_gemm_bias_relu_fused(),   # 4-step: init + gemm + bias + relu (cublasLt)
         _miniamr_weighted_27pt_tensor(),     # 4-step: zero + identity reductions + 27pt accum
         _hpgmg_apply_op_27pt_tensor(),       # 4-step: scale + identity reductions + 27pt accum
+        _cutensornet_tensor_product_3d_f32_tensor(),  # 2-step: zero + ai,bj,ck,ijk->abc
         _cufft_z2z_1d_tensor(),              # 2-step: zero + direct complex DFT
         _darknet_im2col_gemm_fused(),       # 3-step: zero + guarded im2col + sgemm
         _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv

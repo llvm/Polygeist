@@ -124,6 +124,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cufft_z2z_1d";
   if (libSym == "cufftC2C_1D_tensor")
     return "polygeist_cufft_c2c_1d";
+  if (libSym == "cutensornetTensorProduct3D_f32_tensor")
+    return "polygeist_cutensornet_tensor_product_3d_f32";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -1003,6 +1005,71 @@ static LogicalResult lowerCufftC2C1DTensor(LaunchOp launch, ModuleOp module,
       memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
   Value updatedBase = tensorForSliceSource(b, loc, C);
   rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  launch.erase();
+  return success();
+}
+
+// Tensor-product contraction
+//   out[a,b,c] = sum(i,j,k) psi[a,i] psi[b,j] psi[c,k] u[i,j,k]
+// reaches the matcher as five rank-6 submap views over three flat buffers.
+// The first three views share the psi base.  Unwrap all views and let the
+// cuTensorNet shim express the full Einstein contraction directly.
+static LogicalResult lowerCutensornetTensorProduct3DF32(LaunchOp launch,
+                                                        ModuleOp module) {
+  if (launch.getNumOperands() != 5 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "cuTensorNet tensor product: expected 5 operands and 1 result");
+
+  for (Value operand : launch.getOperands()) {
+    auto ty = dyn_cast<RankedTensorType>(operand.getType());
+    if (!ty || ty.getRank() != 6 || !ty.getElementType().isF32())
+      return launch.emitError(
+          "cuTensorNet tensor product: operands must be rank-6 f32 tensors");
+    auto submap = operand.getDefiningOp<polygeist::SubmapOp>();
+    if (!submap || submap.getSizes().size() != 6)
+      return launch.emitError(
+          "cuTensorNet tensor product: operands must be rank-6 submaps");
+  }
+
+  Value psi0 = resolveSubmapBase(launch.getOperand(0));
+  Value psi1 = resolveSubmapBase(launch.getOperand(1));
+  Value psi2 = resolveSubmapBase(launch.getOperand(2));
+  Value u = resolveSubmapBase(launch.getOperand(3));
+  Value out = resolveSubmapBase(launch.getOperand(4));
+  if (psi0 != psi1 || psi0 != psi2)
+    return launch.emitError(
+        "cuTensorNet tensor product: first three views must share psi base");
+
+  auto psiTy = dyn_cast<RankedTensorType>(psi0.getType());
+  auto uTy = dyn_cast<RankedTensorType>(u.getType());
+  auto outTy = dyn_cast<RankedTensorType>(out.getType());
+  if (!psiTy || !uTy || !outTy || !psiTy.getElementType().isF32() ||
+      !uTy.getElementType().isF32() || !outTy.getElementType().isF32())
+    return launch.emitError(
+        "cuTensorNet tensor product: submap bases must be f32 tensors");
+
+  auto firstView = launch.getOperand(0).getDefiningOp<polygeist::SubmapOp>();
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value KQ = valueAsI32(b, loc, firstView.getSizes()[0]);
+  Value KP = valueAsI32(b, loc, firstView.getSizes()[3]);
+  Value psiMr = tensorToMemref(b, loc, psi0);
+  Value uMr = tensorToMemref(b, loc, u);
+  Value outMr = tensorToMemref(b, loc, out);
+  Value psiPtr = memrefBasePtr(b, loc, psiMr);
+  Value uPtr = memrefBasePtr(b, loc, uMr);
+  Value outPtr = memrefBasePtr(b, loc, outMr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(), ptrTy,
+                                ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cutensornet_tensor_product_3d_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+                         ValueRange{KQ, KP, psiPtr, uPtr, outPtr});
+
+  Value updatedOut = memrefToTensor(b, loc, outMr, out.getType());
+  rewireLaunchResult(launch, updatedOut);
   launch.erase();
   return success();
 }
@@ -2974,6 +3041,8 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cufftZ2Z_1D_tensor" ||
                  libSym == "cufftC2C_1D_tensor") {
         r = lowerCufftC2C1DTensor(launch, module, shim);
+      } else if (libSym == "cutensornetTensorProduct3D_f32_tensor") {
+        r = lowerCutensornetTensorProduct3DF32(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {

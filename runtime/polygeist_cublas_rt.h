@@ -247,6 +247,12 @@ void polygeist_cufft_z2z_1d(
 void polygeist_cufft_c2c_1d(
     int32_t N, int32_t inverse, const float *A, float *B);
 
+// Separable 3D tensor product, expressed to cuTensorNet as
+// ai,bj,ck,ijk->abc. psi is row-major [KQ,KP], u is [KP,KP,KP], and out is
+// [KQ,KQ,KQ].
+void polygeist_cutensornet_tensor_product_3d_f32(
+    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out);
+
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
 // `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI
