@@ -19,6 +19,8 @@ Output:
   /tmp/ir_viewer/index.html   (entrypoint — open this)
   /tmp/ir_viewer/<k>.html     (per-kernel IR preview)
 """
+import csv
+import html
 import json
 import os
 import re
@@ -70,6 +72,18 @@ ATEN_C_ROOT = env_path(
 ATEN_C_MLIR_DIR = env_path(
     "POLYGEIST_ATEN_C_MLIR_DIR",
     "/tmp/aten_c_kernel_raise",
+)
+MFEM_C_ROOT = env_path(
+    "POLYGEIST_MFEM_C_ROOT",
+    REPO_ROOT / "issues/mfem_c_kernels",
+)
+MFEM_RESULTS_DIR = env_path(
+    "POLYGEIST_MFEM_RESULTS_DIR",
+    MFEM_C_ROOT / "results",
+)
+MFEM_MATCH_RESULTS_DIR = env_path(
+    "POLYGEIST_MFEM_MATCH_RESULTS_DIR",
+    MFEM_C_ROOT / "match_results",
 )
 STENCIL_CONV2D_ROOT = env_path(
     "POLYGEIST_STENCIL_CONV2D_ROOT",
@@ -1522,13 +1536,8 @@ def build_ce_state(c_src: str, c_kernel_dir: Path, mlir_src: str) -> dict:
     }
 
 
-def ce_link(kernel: str, mlir_dir: Path = MLIR_DIR,
-            kset: str = "polybench") -> str | None:
-    """Construct the CE deep-link URL for a kernel; None if sources missing."""
-    if kset == "whisper_ops" and kernel in WHISPER_OPS_IR_ONLY:
-        return None
-    c_path = find_kernel_c(kernel, kset=kset)
-    mlir_path = mlir_dir / f"{kernel}.mlir"
+def ce_link_from_paths(c_path: Path | None, mlir_path: Path) -> str | None:
+    """Construct a CE deep link from an explicit C/MLIR artifact pair."""
     if not c_path or not mlir_path.exists():
         return None
     c_src = c_path.read_text()
@@ -1543,6 +1552,17 @@ def ce_link(kernel: str, mlir_dir: Path = MLIR_DIR,
     state = build_ce_state(c_src, c_path.parent, mlir_src)
     payload = json.dumps(state, separators=(',', ':'))
     return CE_BASE + "#" + urllib.parse.quote(payload, safe='')
+
+
+def ce_link(kernel: str, mlir_dir: Path = MLIR_DIR,
+            kset: str = "polybench") -> str | None:
+    """Construct the CE deep-link URL for a kernel; None if sources missing."""
+    if kset == "whisper_ops" and kernel in WHISPER_OPS_IR_ONLY:
+        return None
+    return ce_link_from_paths(
+        find_kernel_c(kernel, kset=kset),
+        mlir_dir / f"{kernel}.mlir",
+    )
 
 
 def render_html(title: str, body_html: str, css: str) -> str:
@@ -1790,7 +1810,7 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         'a shape-compatible match that the flat runtime ABI cannot implement '
         'correctly. '
         'The newly available cuTensorNet tensor-product definition produced '
-        'no additional ATen match: none of these ten kernels has its rank-6 '
+        'no additional ATen match: none of these kernels has its rank-6 '
         'separable 3D tensor-product signature. Existing cuBLAS, cuDNN, and '
         'custom CUDA definitions remain the correct matches. These are '
         'standalone C extractions of ATen mathematics, not the unmodified '
@@ -1800,6 +1820,174 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         '<table><thead><tr><th>kernel</th><th>Linalg ops</th>'
         '<th>residual loops</th><th>launches</th><th>status</th>'
         '<th>matched implementation</th><th>assessment</th>'
+        '</tr></thead><tbody>'
+        + "\n".join(rows)
+        + '</tbody></table>'
+    )
+
+
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open(newline="") as stream:
+        return list(csv.DictReader(stream))
+
+
+def build_mfem_pages() -> list[dict]:
+    """Render stored MFEM frontend/raise/matcher artifacts.
+
+    MFEM uses a manifest-driven artifact layout rather than the conventional
+    <kernel>[_linalg|_debuf].mlir layout used by the other explorer suites.
+    Keep the stored results authoritative so the page reports semantic matches
+    without rerunning (or accidentally legitimizing) the current ABI-unsafe
+    matcher rewrites.
+    """
+    manifest = _read_csv(MFEM_C_ROOT / "manifest.csv")
+    raise_rows = {
+        (row["id"], row["variant"]): row
+        for row in _read_csv(MFEM_RESULTS_DIR / "summary.csv")
+    }
+    match_rows = {
+        row["id"]: row
+        for row in _read_csv(MFEM_MATCH_RESULTS_DIR / "summary.csv")
+    }
+    stats = []
+    for row in manifest:
+        ident = row["id"]
+        variant = row["variant"]
+        artifact_stem = f"{ident}__{variant}"
+        frontend = MFEM_RESULTS_DIR / f"{artifact_stem}.frontend.mlir"
+        raised = MFEM_RESULTS_DIR / f"{artifact_stem}.raised.mlir"
+        match_dir = MFEM_MATCH_RESULTS_DIR / ident
+        debufferized = match_dir / "debufferized.mlir"
+        matched = match_dir / "matched.mlir"
+        source = MFEM_C_ROOT / row["source"]
+        raise_row = raise_rows.get((ident, variant), {})
+        match_row = match_rows.get(ident, {}) if variant == "normalized" else {}
+
+        stage_paths = [
+            ("frontend", "cgeist output (pre-raise MLIR)", frontend),
+            ("raised", "raised Linalg IR", raised),
+            ("debufferized", "debufferized tensor Linalg (matcher input)",
+             debufferized),
+            ("matched", "semantic matcher output (not ABI-legality filtered)",
+             matched),
+        ]
+        blocks = []
+        css = ""
+        for anchor, title, path in stage_paths:
+            if not path.exists():
+                continue
+            highlighted, css = syntax_highlight(path.read_text())
+            blocks.append(
+                f'<h2 id="{anchor}">{title}</h2>'
+                f'<div class="container">{highlighted}</div>'
+            )
+
+        launches = int(match_row.get("kernel_launches", "0") or 0)
+        symbols = [
+            value for value in match_row.get("launch_symbols", "").split(",")
+            if value
+        ]
+        linalg_ops = int(raise_row.get("linalg_ops", "0") or 0)
+        residual_loops = int(raise_row.get("residual_loops", "0") or 0)
+        fully_raised = raise_row.get("fully_raised") == "true"
+        ce_url = ce_link_from_paths(source if source.exists() else None, frontend)
+        open_link = (
+            f'<a href="{ce_url}" target="_blank" '
+            'style="margin-left:12px; color:#0366d6;">'
+            'open in Compiler Explorer →</a>'
+        ) if ce_url else ""
+        title = html.escape(ident)
+        summary = (
+            '<div class="summary" style="padding:8px 20px; '
+            'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+            f'<b>{linalg_ops}</b> Linalg op(s) &nbsp;·&nbsp; '
+            f'<b>{residual_loops}</b> residual loop(s) &nbsp;·&nbsp; '
+            f'<b>{launches}</b> semantic match(es) &nbsp;·&nbsp; '
+            '<b>0</b> ABI-legal executable library calls'
+            '</div>'
+        )
+        header = (
+            '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
+            f'&nbsp; {title} <small>({html.escape(variant)})</small>'
+            f'{open_link}</h1></div>'
+        )
+        page_filename = f"mfem_{ident}.html"
+        OUTPUT_DIR.joinpath(page_filename).write_text(
+            render_html(f"MFEM: {ident}", header + summary + "\n".join(blocks), css)
+        )
+        stats.append({
+            **row,
+            "page_filename": page_filename,
+            "linalg_ops": linalg_ops,
+            "residual_loops": residual_loops,
+            "fully_raised": fully_raised,
+            "launches": launches,
+            "matched_symbols": symbols,
+        })
+    return stats
+
+
+def _mfem_section(mfem_stats: list[dict]) -> str:
+    rows = []
+    for stats in mfem_stats:
+        ident = html.escape(stats["id"])
+        page = html.escape(stats["page_filename"])
+        name = f'<a class="kernel" href="{page}">{ident}</a>'
+        variant = stats["variant"]
+        launches = stats["launches"]
+        if variant == "original":
+            status_class, status = "partial", "RESIDUAL"
+        elif launches:
+            status_class, status = "partial", "SEMANTIC"
+        else:
+            status_class, status = "pass", "RAISED"
+        symbols = ", ".join(
+            f"<code>@{html.escape(symbol)}</code>"
+            for symbol in stats["matched_symbols"]
+        ) or "—"
+        rows.append(
+            f"<tr><td>{name}</td>"
+            f"<td>{html.escape(stats['family'])}</td>"
+            f"<td>{html.escape(stats['dimension'])}D</td>"
+            f"<td>{html.escape(variant)}</td>"
+            f"<td>{stats['linalg_ops']}</td>"
+            f"<td>{stats['residual_loops']}</td>"
+            f"<td>{launches}</td>"
+            f'<td class="{status_class}">{status}</td>'
+            f"<td>{symbols}</td><td>0</td></tr>"
+        )
+
+    originals = [row for row in mfem_stats if row["variant"] == "original"]
+    normalized = [row for row in mfem_stats if row["variant"] == "normalized"]
+    total_linalg = sum(row["linalg_ops"] for row in mfem_stats)
+    fully_raised = sum(row["fully_raised"] for row in mfem_stats)
+    matched_kernels = sum(row["launches"] > 0 for row in normalized)
+    total_matches = sum(row["launches"] for row in normalized)
+    return (
+        '<a name="mfem"></a>'
+        '<div class="section-header"><h2 class="section-title">'
+        'MFEM finite-element kernels</h2></div>'
+        '<div class="intro">'
+        f'<b>{len(mfem_stats)} tracked kernels:</b> {len(originals)} faithful '
+        f'originals and {len(normalized)} structurally normalized equivalents. '
+        f'The raising pipeline produced {total_linalg} Linalg operations; '
+        f'{fully_raised}/{len(mfem_stats)} kernels are loop-free, including '
+        f'all {len(normalized)}/{len(normalized)} normalized variants. '
+        f'The matcher recognized {total_matches} contraction/pointwise stages '
+        f'across {matched_kernels}/{len(normalized)} normalized kernels. '
+        '<b>These are semantic candidates, not deployable library mappings:</b> '
+        'the current cuBLAS/cuDNN definitions reject their f64 ranks/ABIs, '
+        'and several rewritten 3D modules also reuse generated SSA names. '
+        'Accordingly, executable-library coverage is 0. Each row links to the '
+        'stored frontend, raised, debufferized, and matcher-rewritten IR plus '
+        'a Compiler Explorer deep link.'
+        '</div>'
+        '<table><thead><tr><th>kernel</th><th>family</th><th>dim</th>'
+        '<th>variant</th><th>Linalg ops</th><th>residual loops</th>'
+        '<th>semantic matches</th><th>status</th>'
+        '<th>matched implementation</th><th>executable</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -2882,6 +3070,7 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
+                     mfem_stats: list[dict],
                      llama_forward_stats: dict[str, dict],
                      whisper_ops_stats: dict[str, dict],
                      stencil_conv2d_stats: dict[str, dict],
@@ -3088,6 +3277,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<div style="margin-top:6px; font-size:13px;">'
             '<a href="index.html">Overview</a> &middot; '
             '<a href="numerical.html">Numerical + ATen</a> &middot; '
+            '<a href="mfem.html">MFEM</a> &middot; '
             '<a href="ai.html">AI kernels</a> &middot; '
             '<a href="vision.html">Vision + fusion</a> &middot; '
             '<a href="pva.html">PVA backend</a>'
@@ -3126,6 +3316,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + card("numerical.html", "Numerical + ATen",
                len(polybench_stats) + len(aten_stats),
                "PolyBench/C and extracted ATen numerical kernels.")
+        + card("mfem.html", "MFEM finite elements", len(mfem_stats),
+               "Original and normalized FEM kernels with stage-level matching.")
         + card("ai.html", "AI kernels",
                len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
                "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")
@@ -3139,6 +3331,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + _build_taxonomy_panel()
     )
     numerical = nav() + polybench_section + _aten_section(aten_stats)
+    mfem = nav() + _mfem_section(mfem_stats)
     ai = nav() + llama_forward_section + whisper_ops_section + llmc_section
     vision = (
         nav() + stencil_conv2d_section + darknet_section
@@ -3151,6 +3344,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "numerical.html": render_html(
             "Polygeist: numerical + ATen", numerical, extra_css
         ),
+        "mfem.html": render_html("Polygeist: MFEM kernels", mfem, extra_css),
         "ai.html": render_html("Polygeist: AI kernels", ai, extra_css),
         "vision.html": render_html(
             "Polygeist: vision + fusion", vision, extra_css
@@ -3166,6 +3360,8 @@ def main():
     for stale in OUTPUT_DIR.glob("whisper_*.html"):
         stale.unlink()
     for stale in OUTPUT_DIR.glob("aten_*.html"):
+        stale.unlink()
+    for stale in OUTPUT_DIR.glob("mfem_*.html"):
         stale.unlink()
 
     # PolyBench set.
@@ -3194,6 +3390,11 @@ def main():
         aten_stats[k] = build_kernel_page(
             k, mlir_dir=ATEN_C_MLIR_DIR, kset="aten_c", file_prefix="",
         )
+
+    # MFEM finite-element extractions use a manifest-driven artifact layout.
+    print("Rendering MFEM original and normalized kernels...", flush=True)
+    mfem_stats = build_mfem_pages()
+    print(f"  [MFEM] rendered {len(mfem_stats)} kernels", flush=True)
 
     # Llama forward fixtures extracted as C benchmarks.
     llama_forward_kernels_from_files = discover_kernels(LLAMA_FORWARD_MLIR_DIR)
@@ -3354,7 +3555,7 @@ def main():
         )
 
     pages = build_site_pages(
-        pb_stats, aten_stats, llama_forward_stats, whisper_ops_stats,
+        pb_stats, aten_stats, mfem_stats, llama_forward_stats, whisper_ops_stats,
         stencil_conv2d_stats, llmc_stats, darknet_stats, ex_darknet_stats,
         fopt_stats,
     )

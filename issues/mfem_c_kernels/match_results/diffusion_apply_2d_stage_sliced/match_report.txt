@@ -1,0 +1,19 @@
+== match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/diffusion_apply_2d_stage_sliced/debufferized.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  no_match       body#12  ?
+  no_match       body#13  ?
+  no_match       body#14  ?
+  no_match       body#15  ?
+  no_match       body#16  ?
+  total: 0 matched / 17 bodies

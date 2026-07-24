@@ -1,0 +1,5 @@
+== match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_value_3d_scratch_sliced/debufferized.mlir ==
+  match          body#[0, 1]  cublasGemmFor1x1Conv
+  match          body#[2, 3]  cublasGemmFor1x1Conv
+  match          body#[4, 5]  cublasGemmFor1x1Conv
+  total: 3 matched / 3 bodies

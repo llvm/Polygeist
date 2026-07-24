@@ -1,0 +1,38 @@
+/* Component-specialized, stage-sliced 3D H(div) div-div operator. */
+enum { D1D=4,Q1D=5,EDGE=3,NE=2,N3=108 };
+#define V(v,e) ((v)+N3*(e))
+#define O(x,y,z,e) ((x)+Q1D*((y)+Q1D*((z)+Q1D*(e))))
+void mfem_pa_divdiv_apply_3d_stage_sliced(const double *Bo,const double *Bot,
+ const double *Gc,const double *Gct,const double *op,const double *X,double *Y){
+  double a0[NE][D1D][D1D][Q1D],a1[NE][D1D][D1D][Q1D],a2[NE][D1D][D1D][Q1D];
+  double b0[NE][D1D][Q1D][Q1D],b1[NE][D1D][Q1D][Q1D],b2[NE][D1D][Q1D][Q1D];
+  double d0[NE][Q1D][Q1D][Q1D],d1[NE][Q1D][Q1D][Q1D],d2[NE][Q1D][Q1D][Q1D];
+  double h[NE][Q1D][Q1D][Q1D];
+  double r0[NE][Q1D][Q1D][D1D],r1[NE][Q1D][Q1D][D1D],r2[NE][Q1D][Q1D][D1D];
+  double s0[NE][Q1D][D1D][D1D],s1[NE][Q1D][D1D][D1D],s2[NE][Q1D][D1D][D1D];
+  double u0[NE][D1D][D1D][D1D],u1[NE][D1D][D1D][D1D],u2[NE][D1D][D1D][D1D];
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int dy=0;dy<EDGE;++dy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dx=0;dx<D1D;++dx)v+=X[V(dx+D1D*(dy+EDGE*dz),e)]*Gc[qx*D1D+dx];a0[e][dz][dy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dy=0;dy<EDGE;++dy)v+=a0[e][dz][dy][qx]*Bo[qy*EDGE+dy];b0[e][dz][qy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dz=0;dz<EDGE;++dz)v+=b0[e][dz][qy][qx]*Bo[qz*EDGE+dz];d0[e][qz][qy][qx]=v;}
+  const int o1=D1D*EDGE*EDGE;
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int dy=0;dy<D1D;++dy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dx=0;dx<EDGE;++dx)v+=X[V(o1+dx+EDGE*(dy+D1D*dz),e)]*Bo[qx*EDGE+dx];a1[e][dz][dy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dy=0;dy<D1D;++dy)v+=a1[e][dz][dy][qx]*Gc[qy*D1D+dy];b1[e][dz][qy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dz=0;dz<EDGE;++dz)v+=b1[e][dz][qy][qx]*Bo[qz*EDGE+dz];d1[e][qz][qy][qx]=v;}
+  const int o2=2*D1D*EDGE*EDGE;
+  for(int e=0;e<NE;++e)for(int dz=0;dz<D1D;++dz)for(int dy=0;dy<EDGE;++dy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dx=0;dx<EDGE;++dx)v+=X[V(o2+dx+EDGE*(dy+EDGE*dz),e)]*Bo[qx*EDGE+dx];a2[e][dz][dy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<D1D;++dz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dy=0;dy<EDGE;++dy)v+=a2[e][dz][dy][qx]*Bo[qy*EDGE+dy];b2[e][dz][qy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dz=0;dz<D1D;++dz)v+=b2[e][dz][qy][qx]*Gc[qz*D1D+dz];d2[e][qz][qy][qx]=v;}
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx)h[e][qz][qy][qx]=op[O(qx,qy,qz,e)]*(d0[e][qz][qy][qx]+d1[e][qz][qy][qx]+d2[e][qz][qy][qx]);
+#define XR(R,NX,M) for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int dx=0;dx<NX;++dx){double v=0.;for(int qx=0;qx<Q1D;++qx)v+=h[e][qz][qy][qx]*M[dx*Q1D+qx];R[e][qz][qy][dx]=v;}
+  XR(r0,D1D,Gct) XR(r1,EDGE,Bot) XR(r2,EDGE,Bot)
+#undef XR
+#define YR(S,R,NY,M) for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int dy=0;dy<NY;++dy)for(int dx=0;dx<D1D;++dx){double v=0.;for(int qy=0;qy<Q1D;++qy)v+=R[e][qz][qy][dx]*M[dy*Q1D+qy];S[e][qz][dy][dx]=v;}
+  YR(s0,r0,EDGE,Bot)
+#undef YR
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int dy=0;dy<D1D;++dy)for(int dx=0;dx<EDGE;++dx){double v=0.;for(int qy=0;qy<Q1D;++qy)v+=r1[e][qz][qy][dx]*Gct[dy*Q1D+qy];s1[e][qz][dy][dx]=v;}
+  for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int dy=0;dy<EDGE;++dy)for(int dx=0;dx<EDGE;++dx){double v=0.;for(int qy=0;qy<Q1D;++qy)v+=r2[e][qz][qy][dx]*Bot[dy*Q1D+qy];s2[e][qz][dy][dx]=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int dy=0;dy<EDGE;++dy)for(int dx=0;dx<D1D;++dx){double v=0.;for(int qz=0;qz<Q1D;++qz)v+=s0[e][qz][dy][dx]*Bot[dz*Q1D+qz];u0[e][dz][dy][dx]=v;Y[V(dx+D1D*(dy+EDGE*dz),e)]+=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int dy=0;dy<D1D;++dy)for(int dx=0;dx<EDGE;++dx){double v=0.;for(int qz=0;qz<Q1D;++qz)v+=s1[e][qz][dy][dx]*Bot[dz*Q1D+qz];u1[e][dz][dy][dx]=v;Y[V(o1+dx+EDGE*(dy+D1D*dz),e)]+=v;}
+  for(int e=0;e<NE;++e)for(int dz=0;dz<D1D;++dz)for(int dy=0;dy<EDGE;++dy)for(int dx=0;dx<EDGE;++dx){double v=0.;for(int qz=0;qz<Q1D;++qz)v+=s2[e][qz][dy][dx]*Gct[dz*Q1D+qz];u2[e][dz][dy][dx]=v;Y[V(o2+dx+EDGE*(dy+EDGE*dz),e)]+=v;}
+  (void)u0;(void)u1;(void)u2;
+}

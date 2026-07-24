@@ -1,0 +1,9 @@
+== match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/mass_apply_3d_stage_sliced/debufferized.mlir ==
+  match          body#[0, 1]  cublasGemmFor1x1Conv
+  match          body#[2, 3]  cublasGemmFor1x1Conv
+  match          body#[4, 5]  cublasGemmFor1x1Conv
+  no_match       body#6  ?
+  match          body#[7, 8]  cublasGemmFor1x1Conv
+  match          body#[9, 10]  cublasGemmFor1x1Conv
+  no_match       body#11  ?
+  total: 5 matched / 7 bodies
