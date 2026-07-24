@@ -63,6 +63,14 @@ WHISPER_OPS_MLIR_DIR = env_path(
     "POLYGEIST_WHISPER_OPS_MLIR_DIR",
     "/tmp/whisper_ops_mlir",
 )
+ATEN_C_ROOT = env_path(
+    "POLYGEIST_ATEN_C_ROOT",
+    REPO_ROOT / "issues/aten_c_kernels",
+)
+ATEN_C_MLIR_DIR = env_path(
+    "POLYGEIST_ATEN_C_MLIR_DIR",
+    "/tmp/aten_c_kernel_raise",
+)
 STENCIL_CONV2D_ROOT = env_path(
     "POLYGEIST_STENCIL_CONV2D_ROOT",
     REPO_ROOT / "third_party/cnn-extracted",
@@ -191,6 +199,18 @@ WHISPER_OPS_KERNELS: dict[str, tuple[str, str]] = {
     "whisper_rms_norm":     ("whisper_ops.c", "kernel_whisper_rms_norm"),
     "whisper_gelu":         ("whisper_ops.c", "kernel_whisper_gelu"),
     "whisper_conv1d":       ("whisper_ops.c", "kernel_whisper_conv1d"),
+    "whisper_quantize_q4_0_ref": (
+        "../whisper.cpp/ggml/src/ggml-quants.c",
+        "quantize_row_q4_0_ref",
+    ),
+    "whisper_decode_residue": (
+        "../whisper.cpp/examples/stb_vorbis.c",
+        "decode_residue",
+    ),
+    "whisper_inverse_mdct": (
+        "../whisper.cpp/examples/stb_vorbis.c",
+        "inverse_mdct",
+    ),
 }
 
 WHISPER_OPS_ORDER = list(WHISPER_OPS_KERNELS.keys())
@@ -202,6 +222,44 @@ WHISPER_OPS_DISPLAY_NAMES: dict[str, str] = {
     "whisper_rms_norm":     "RMSNorm",
     "whisper_gelu":         "GELU",
     "whisper_conv1d":       "1D convolution",
+    "whisper_quantize_q4_0_ref": "q4_0 quantize ref",
+    "whisper_decode_residue":    "Vorbis residue decode",
+    "whisper_inverse_mdct":      "Vorbis inverse MDCT",
+}
+
+ATEN_C_KERNELS: dict[str, tuple[str, str]] = {
+    p.stem: (p.name, p.stem) for p in sorted(ATEN_C_ROOT.glob("aten_*.c"))
+}
+
+ATEN_C_ORDER = list(ATEN_C_KERNELS.keys())
+
+ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
+    "aten_adaptive_avg_pool2d": "no average-pooling definition",
+    "aten_avg_pool2d": "no average-pooling definition",
+    "aten_bmm": "no true batched-GEMM definition",
+    "aten_cross": "three elementwise stages; no cross-product composition",
+    "aten_gelu": "valid custom CUDA GELU route",
+    "aten_im2col": "unsafe copy false-positive: flat-copy ABI cannot implement window gather",
+    "aten_layer_norm": "mean/variance/affine composition not in library",
+    "aten_mean": "reduction-plus-scale composition not in library",
+    "aten_mse_loss": "square-difference plus mean composition not in library",
+    "aten_outer": "partial: only output zero-initialization matched",
+    "aten_relu": "no standalone ReLU definition",
+    "aten_silu": "no standalone SiLU definition",
+    "aten_sum": "partial: only output zero-initialization matched",
+    "aten_transpose_copy": "unsafe copy false-positive: flat-copy ABI cannot transpose",
+    "aten_upsample_nearest2d": "no nearest-neighbor resampling definition",
+}
+
+ATEN_C_UNSAFE_MATCHES = {"aten_im2col", "aten_transpose_copy"}
+
+# These probes come from large upstream source files. Keep them in the IR
+# explorer, but avoid embedding the full original files in Compiler Explorer
+# deep links, which makes the generated index impractically large.
+WHISPER_OPS_IR_ONLY: set[str] = {
+    "whisper_quantize_q4_0_ref",
+    "whisper_decode_residue",
+    "whisper_inverse_mdct",
 }
 
 STENCIL_CONV2D_KERNELS: dict[str, tuple[str, str]] = {
@@ -474,6 +532,18 @@ WHISPER_OPS_NOTES: dict[str, tuple[str, str]] = {
     "whisper_rms_norm":     ("partial parallel", "mean-square reduction followed by parallel scale; RMSNorm-style normalization"),
     "whisper_gelu":         ("highly parallel",  "elementwise transformer activation; raises through math.tanh into tensor linalg"),
     "whisper_conv1d":       ("highly parallel",  "valid 1D convolution shape representing Whisper encoder-side audio conv"),
+    "whisper_quantize_q4_0_ref": (
+        "partial parallel",
+        "GGML q4_0 reference quantizer: blockwise max reduction plus fp16 scale and packed 4-bit stores",
+    ),
+    "whisper_decode_residue": (
+        "partial parallel",
+        "Vorbis residue decode: codebook-driven channel residue reconstruction with dynamic classifications",
+    ),
+    "whisper_inverse_mdct": (
+        "partial parallel",
+        "Vorbis inverse MDCT transform with twiddle-factor pointer loops and staged butterfly helpers",
+    ),
 }
 
 STENCIL_CONV2D_NOTES: dict[str, tuple[str, str]] = {
@@ -611,8 +681,12 @@ BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
                           "cgeist itself doesn't parse the C cleanly (bit-heavy / struct-heavy / fn-pointer code)"),
     "debuf-bug":         ("debuf dominance bug",
                           "raise OK but debufferize hits the gramschmidt-class tensor.empty dominance issue"),
+    "raise-fail":        ("raise pipeline failure",
+                          "cgeist emits MLIR, but polygeist-opt fails before producing a raised linalg artifact"),
     "raise-crash":       ("polygeist-opt crash during raise",
                           "polygeist-opt segfaults in the raise pipeline; needs deeper investigation"),
+    "no-linalg":         ("no linalg form",
+                          "the function compiles, but the current raise path leaves imperative/control-flow or low-level LLVM structure instead of producing linalg.generic"),
     "ext-math-call":     ("math.h ext call in body (FIXABLE)",
                           "loop body calls tanhf / logf / coshf etc.; raise refuses to lift a generic whose body contains an external call. Fixable by teaching the frontend or a pre-pass to rewrite known math.h calls to math.* dialect ops"),
     "cudnn-dtype-gap":   ("cuDNN dtype not supported",
@@ -1178,10 +1252,22 @@ LLAMA_FORWARD_BLOCKERS: dict[str, tuple[str, str]] = {
 WHISPER_OPS_BLOCKERS: dict[str, tuple[str, str]] = {
     "whisper_vec_dot":      ("none", "Raises to tensor linalg and matches the current dot-product template."),
     "whisper_vec_softmax":  ("matcher-gap", "Raises to tensor linalg in the scalar path. Direct ggml vec.cpp hits SIMD frontend issues, so this fixture captures the canonical math body."),
-    "whisper_softmax_full": ("matcher-gap", "Raises as the expected max-reduce + exp/sum + normalize sequence; today only the normalize/scal tail matches, leaving max/exp-sum residual linalg."),
+    "whisper_softmax_full": ("none", "Raises as max-reduce + exp/sum + normalize and matches the out-of-place cuDNN softmax template, including the multiply-by-reciprocal normalize spelling."),
     "whisper_rms_norm":     ("runtime-gap", "Matches the RMSNorm family as unweighted RMSNorm and emits the tensor launch form; runtime/library lowering for the unweighted ABI is still follow-up work."),
-    "whisper_gelu":         ("matcher-gap", "Raises to one elementwise tensor linalg.generic with math.tanh; no GELU matcher/library template is wired yet."),
+    "whisper_gelu":         ("runtime-gap", "Raises to one elementwise tensor linalg.generic with math.tanh and matches the GELU template; ABI lowering/runtime support for the GELU launch is still follow-up work."),
     "whisper_conv1d":       ("matcher-gap", "Raises and matches the per-output inner dot, but still leaves one output-position loop; full 1D conv composition/library routing is future matcher work."),
+    "whisper_quantize_q4_0_ref": (
+        "no-linalg",
+        "Compiles and reaches the raise pipeline, but the result has no linalg.generic and still contains loops/ifs plus fp16 conversion, struct stores, and bit-packing.",
+    ),
+    "whisper_decode_residue": (
+        "raise-fail",
+        "cgeist emits MLIR, but raise fails on a mixed LLVM/memref load: llvm.load result must be an LLVM type with size, got memref<?xi8>.",
+    ),
+    "whisper_inverse_mdct": (
+        "no-linalg",
+        "The source is an algorithmic IMDCT kernel, but the current selected artifact contains no useful raised function body or linalg.generic.",
+    ),
 }
 
 STENCIL_CONV2D_BLOCKERS: dict[str, tuple[str, str]] = {
@@ -1268,6 +1354,13 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
             return None
         srcname, _fn = info
         p = WHISPER_OPS_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "aten_c":
+        info = ATEN_C_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = ATEN_C_ROOT / srcname
         return p if p.exists() else None
     if kset == "stencil_conv2d":
         info = STENCIL_CONV2D_KERNELS.get(name)
@@ -1432,6 +1525,8 @@ def build_ce_state(c_src: str, c_kernel_dir: Path, mlir_src: str) -> dict:
 def ce_link(kernel: str, mlir_dir: Path = MLIR_DIR,
             kset: str = "polybench") -> str | None:
     """Construct the CE deep-link URL for a kernel; None if sources missing."""
+    if kset == "whisper_ops" and kernel in WHISPER_OPS_IR_ONLY:
+        return None
     c_path = find_kernel_c(kernel, kset=kset)
     mlir_path = mlir_dir / f"{kernel}.mlir"
     if not c_path or not mlir_path.exists():
@@ -1529,16 +1624,36 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     raised = mlir_dir / f"{kernel}_linalg.mlir"
     debuf = mlir_dir / f"{kernel}_debuf.mlir"
     debuf_mr = mlir_dir / f"{kernel}_debuf_mr.mlir"
+    cgeist_mlir = mlir_dir / f"{kernel}.mlir"
 
     pages: dict[str, str] = {}
     css = ""
     n_for = 0
+    n_linalg = 0
+    matched_symbols: list[str] = []
     report = [("launches", 0), ("residual_lg", 0)]
 
+    if cgeist_mlir.exists():
+        cgeist_text = cgeist_mlir.read_text()
+        html, css = syntax_highlight(cgeist_text)
+        pages["cgeist"] = html
+        if not raised.exists() and not debuf.exists() and not debuf_mr.exists():
+            n_for = count_for_loops(cgeist_text)
+            report = [
+                ("launches", 0),
+                ("residual_lg", len(re.findall(r"linalg\.generic", cgeist_text))),
+            ]
     if raised.exists():
         raised_text = raised.read_text()
+        n_linalg = len(re.findall(r"\blinalg\.generic\b", raised_text))
         html, css = syntax_highlight(raised_text)
         pages["raised"] = html
+        if not debuf.exists() and not debuf_mr.exists():
+            n_for = count_for_loops(raised_text)
+            report = [
+                ("launches", 0),
+                ("residual_lg", len(re.findall(r"linalg\.generic", raised_text))),
+            ]
         if kset == "stencil_conv2d" and not debuf.exists():
             n_for = count_for_loops(raised_text)
             rewritten, report = run_rewriter(raised)
@@ -1550,6 +1665,9 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         html, css = syntax_highlight(debuf_text)
         pages["debuf"] = html
         rewritten, report = run_rewriter(debuf)
+        matched_symbols = sorted(set(
+            re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
+        ))
         html, css = syntax_highlight(rewritten)
         pages["matched"] = html
     if debuf_mr.exists():
@@ -1563,6 +1681,9 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         if not debuf.exists() and not debuf_mr_text.lstrip().startswith("//"):
             n_for = count_for_loops(debuf_mr_text)
             rewritten, report = run_rewriter(debuf_mr)
+            matched_symbols = sorted(set(
+                re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
+            ))
             html, css = syntax_highlight(rewritten)
             pages["matched"] = html
 
@@ -1579,7 +1700,8 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'<b>{n_launches}</b> kernel.launch op(s) emitted &nbsp;·&nbsp; '
         f'<b>{n_resid}</b> residual linalg.generic &nbsp;·&nbsp; '
         f'<b>{n_for}</b> residual for-loop(s) &nbsp;|&nbsp; '
-        f'jump to: <a href="#raised">raised</a> · '
+        f'jump to: <a href="#cgeist">cgeist</a> · '
+        f'<a href="#raised">raised</a> · '
         f'<a href="#debuf">debuferized</a> · '
         f'<a href="#debuf_mr">debuf multi-root</a> · '
         f'<a href="#matched">kernel.launch output</a>'
@@ -1592,6 +1714,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     )
     body_blocks = []
     for stage, title in [
+        ("cgeist",   "cgeist output (pre-raise MLIR)"),
         ("raised",   "raised (memref linalg, before debuferize)"),
         ("debuf",    "debuferized (tensor linalg, matcher input)"),
         ("debuf_mr", "debuferized — multi-root (--linalg-debufferize=use-multi-root=true)"),
@@ -1607,11 +1730,80 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     OUTPUT_DIR.joinpath(f"{file_prefix}{kernel}.html").write_text(render_html(kernel, body, css))
     return {
         "launches": report[0][1],
+        "linalg_ops": n_linalg,
+        "matched_symbols": matched_symbols,
         "residual": report[1][1],
         "residual_for": n_for,
         "ce_url": ce_url,
+        "ce_suppressed": kset == "whisper_ops" and kernel in WHISPER_OPS_IR_ONLY,
         "page_filename": f"{file_prefix}{kernel}.html",
     }
+
+
+def _aten_section(aten_stats: dict[str, dict]) -> str:
+    rows = []
+    for kernel in ATEN_C_ORDER:
+        stats = aten_stats.get(kernel, {})
+        page = stats.get("page_filename", "")
+        if page:
+            name = f'<a class="kernel" href="{page}">{kernel}</a>'
+        else:
+            name = f'<span>{kernel}</span>'
+        symbols = stats.get("matched_symbols", [])
+        symbol_html = ", ".join(f"<code>@{s}</code>" for s in symbols) or "—"
+        launches = stats.get("launches", 0)
+        residual = stats.get("residual", 0)
+        loops = stats.get("residual_for", 0)
+        if kernel in ATEN_C_UNSAFE_MATCHES:
+            status_class, status = "none", "UNSAFE"
+        elif launches and residual == 0 and loops == 0:
+            status_class, status = "pass", "FULL"
+        elif launches:
+            status_class, status = "partial", "PARTIAL"
+        else:
+            status_class, status = "none", "NONE"
+        assessment = ATEN_C_MATCH_ASSESSMENT.get(kernel, "")
+        rows.append(
+            f"<tr><td>{name}</td>"
+            f"<td>{stats.get('linalg_ops', 0)}</td>"
+            f"<td>{loops}</td><td>{launches}</td>"
+            f'<td class="{status_class}">{status}</td>'
+            f"<td>{symbol_html}</td><td>{assessment}</td></tr>"
+        )
+    total_linalg = sum(s.get("linalg_ops", 0) for s in aten_stats.values())
+    total_launches = sum(s.get("launches", 0) for s in aten_stats.values())
+    fully_raised = sum(
+        s.get("residual_for", 0) == 0 and s.get("linalg_ops", 0) > 0
+        for s in aten_stats.values()
+    )
+    matched_kernels = sum(s.get("launches", 0) > 0 for s in aten_stats.values())
+    return (
+        '<a name="aten-c"></a>'
+        '<div class="section-header"><h2 class="section-title">'
+        'ATen extracted C numerical kernels</h2></div>'
+        '<div class="intro">'
+        f'<b>{fully_raised}/{len(aten_stats)} fully raised:</b> {total_linalg} '
+        f'<code>linalg.generic</code> operations, zero residual loops. '
+        f'The current matcher emitted {total_launches} launches across '
+        f'{matched_kernels}/{len(aten_stats)} kernels. '
+        'FULL/PARTIAL/NONE describe semantic matcher coverage; UNSAFE marks '
+        'a shape-compatible match that the flat runtime ABI cannot implement '
+        'correctly. '
+        'The newly available cuTensorNet tensor-product definition produced '
+        'no additional ATen match: none of these ten kernels has its rank-6 '
+        'separable 3D tensor-product signature. Existing cuBLAS, cuDNN, and '
+        'custom CUDA definitions remain the correct matches. These are '
+        'standalone C extractions of ATen mathematics, not the unmodified '
+        'PyTorch C++ translation units (whose direct 224-file sweep produced '
+        '0 Linalg operations).'
+        '</div>'
+        '<table><thead><tr><th>kernel</th><th>Linalg ops</th>'
+        '<th>residual loops</th><th>launches</th><th>status</th>'
+        '<th>matched implementation</th><th>assessment</th>'
+        '</tr></thead><tbody>'
+        + "\n".join(rows)
+        + '</tbody></table>'
+    )
 
 
 # Map blocker tag to a CSS class so the table cell can be colour-coded.
@@ -1631,7 +1823,9 @@ _BLOCKER_CSS = {
     "serial-recurrence": "none",
     "non-affine":        "none",
     "cgeist-frontend":   "none",
+    "raise-fail":        "none",
     "raise-crash":       "none",
+    "no-linalg":         "none",
     "ext-math-call":     "partial",
     # Pipeline is correct; the gap is downstream (library / frontend). Mark
     # as "partial" — matcher / lowering still validate end-to-end.
@@ -1721,6 +1915,7 @@ def _render_section_rows(kernel_stats: dict[str, dict],
         ordered = sorted(kernel_stats)
     for k in ordered:
         s = kernel_stats[k]
+        page_file = s.get("page_filename", f"{k}.html")
         l = s["launches"]; r = s["residual"]; f = s["residual_for"]
         if l > 0 and r == 0 and f == 0:
             cls = "pass"; status = "FULL"
@@ -1730,11 +1925,12 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             cls = "none"; status = "NONE"
         for_cls = "none" if f > 0 else "pass"
 
-        if s["ce_url"]:
-            label = (display_names or {}).get(k, k)
-            kernel_link = f'<a class="kernel" href="{s["ce_url"]}" target="_blank">{label}</a>'
+        label = (display_names or {}).get(k, k)
+        if page_file:
+            kernel_link = f'<a class="kernel" href="{page_file}">{label}</a>'
+        elif s.get("ce_suppressed"):
+            kernel_link = f'<span class="nope">{label} (IR only)</span>'
         else:
-            label = (display_names or {}).get(k, k)
             kernel_link = f'<span class="nope">{label} (no source)</span>'
 
         note_tag, note_blurb = notes.get(k, ("", ""))
@@ -1761,17 +1957,12 @@ def _render_section_rows(kernel_stats: dict[str, dict],
         else:
             block_cell = (
                 f'<td class="{block_cls}" style="white-space:nowrap; font-size:12px">'
-                f'<a href="#taxonomy" style="color:inherit; text-decoration:none">'
+                f'<a href="index.html#taxonomy" style="color:inherit; text-decoration:none">'
                 f'<b>{block_label}</b></a></td>'
                 f'<td style="font-size:12px; color:#555">{block_blurb}</td>'
             )
 
-        page_file = s.get("page_filename", f"{k}.html")
-        kernel_cell = (
-            f'<td>{kernel_link}'
-            f'<a class="viewer" href="{page_file}" style="margin-left:12px">[IR preview]</a>'
-            f'</td>'
-        )
+        kernel_cell = f'<td>{kernel_link}</td>'
         match_cells = (
             f'<td>{l}</td><td>{r}</td><td class="{for_cls}">{f}</td>'
             f'<td class="{cls}">{status}</td>'
@@ -2689,21 +2880,21 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
     )
 
 
-def build_index(polybench_stats: dict[str, dict],
-                 llama_forward_stats: dict[str, dict],
-                 whisper_ops_stats: dict[str, dict],
-                 stencil_conv2d_stats: dict[str, dict],
-                 llmc_stats: dict[str, dict],
-                 darknet_stats: dict[str, dict],
-                 ex_darknet_stats: dict[str, dict],
-                 fopt_stats: dict[str, dict]) -> str:
+def build_site_pages(polybench_stats: dict[str, dict],
+                     aten_stats: dict[str, dict],
+                     llama_forward_stats: dict[str, dict],
+                     whisper_ops_stats: dict[str, dict],
+                     stencil_conv2d_stats: dict[str, dict],
+                     llmc_stats: dict[str, dict],
+                     darknet_stats: dict[str, dict],
+                     ex_darknet_stats: dict[str, dict],
+                     fopt_stats: dict[str, dict]) -> dict[str, str]:
     common_legend = (
-        '  Click a kernel name to open the full Polygeist pipeline in '
-        '  Compiler Explorer: C source on the left feeds cgeist; the affine '
-        '  MLIR on the right feeds <code>polygeist-opt</code> with an '
-        '  <em>Opt Pipeline</em> pane showing every internal pass. '
-        '  The <code>[IR preview]</code> link opens a static snapshot of the '
-        '  raised / debuferized / matcher-rewritten IR for that kernel.'
+        '  Click a kernel name to open its static raised / debuferized / '
+        '  matcher-rewritten IR snapshot. Each snapshot has an '
+        '  <em>open in Compiler Explorer</em> link containing the full C and '
+        '  MLIR source; keeping those large URLs off this suite page makes '
+        '  the tracker load quickly.'
         '  The <em>residual for-loops</em> column counts imperative-loop ops '
         '  (<code>affine.for</code>, <code>scf.for</code>, '
         '  <code>scf.while</code>, <code>affine.parallel</code>, '
@@ -2711,7 +2902,7 @@ def build_index(polybench_stats: dict[str, dict],
         '  + debuferize — a measure of how much of the kernel remains '
         '  imperative rather than expressed as linalg / kernel.launch.'
         '  The <em>blocker</em> column links to the '
-        '  <a href="#taxonomy">algorithm taxonomy</a>: yellow tags are '
+        '  <a href="index.html#taxonomy">algorithm taxonomy</a>: yellow tags are '
         '  fixable pipeline gaps, red tags are fundamental cross-iteration '
         '  dependencies that no transformation can remove.'
         '  The <em>parallelism</em> column classifies the kernel by its GPU '
@@ -2890,40 +3081,82 @@ def build_index(polybench_stats: dict[str, dict],
         blockers=DARKNET_BLOCKERS,
     )
 
-    body = (
-        '<div class="header"><h1>Polygeist IR explorer</h1>'
-        '<div style="margin-top:6px; font-size:13px;">'
-        '  Jump to: '
-        '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
-        '  <a href="#polybench">PolyBench</a> &middot; '
-        '  <a href="#llama-forward">Llama forward fixtures</a> &middot; '
-        '  <a href="#whisper-ops">Whisper extracted kernels</a> &middot; '
-        '  <a href="#stencil-conv2d">Stencil Conv2D</a> &middot; '
-        '  <a href="#llmc">llm.c</a> &middot; '
-        '  <a href="#darknet">darknet</a> &middot; '
-        '  <a href="#extracted-darknet">extracted darknet</a> &middot; '
-        '  <a href="#fusion-opt">Fusion optimization</a> &middot; '
-        '  <a href="#pva">PVA backend</a>'
-        '</div></div>'
-        + _build_taxonomy_panel()
-        + polybench_section
-        + llama_forward_section
-        + whisper_ops_section
-        + stencil_conv2d_section
-        + llmc_section
-        + darknet_section
-        + _extracted_darknet_section(ex_darknet_stats)
-        + _fusion_opt_section(fopt_stats)
-        + _pva_section()
-    )
-    # Extra CSS for section headers.
+    def nav() -> str:
+        return (
+            '<div class="header"><h1><a href="index.html">'
+            'Polygeist IR explorer</a></h1>'
+            '<div style="margin-top:6px; font-size:13px;">'
+            '<a href="index.html">Overview</a> &middot; '
+            '<a href="numerical.html">Numerical + ATen</a> &middot; '
+            '<a href="ai.html">AI kernels</a> &middot; '
+            '<a href="vision.html">Vision + fusion</a> &middot; '
+            '<a href="pva.html">PVA backend</a>'
+            '</div></div>'
+        )
+
+    def card(href: str, title: str, count: int, description: str) -> str:
+        return (
+            f'<a class="suite-card" href="{href}">'
+            f'<b>{title}</b><span>{count} tracked rows</span>'
+            f'<small>{description}</small></a>'
+        )
+
     extra_css = (
         '.section-header { background: #eaeefa; padding: 8px 20px; '
         'border-top: 2px solid #c4cce0; border-bottom: 1px solid #c4cce0; '
         'margin-top: 24px; } '
-        '.section-title { margin: 0; font-size: 16px; color: #1f2d3d; }'
+        '.section-title { margin: 0; font-size: 16px; color: #1f2d3d; } '
+        '.suite-grid { display:grid; grid-template-columns:repeat(auto-fit, '
+        'minmax(240px,1fr)); gap:14px; padding:18px 20px; max-width:1100px; } '
+        '.suite-card { border:1px solid #d8dee8; border-radius:8px; padding:16px; '
+        'text-decoration:none; color:#1f2d3d; background:#fafbfc; } '
+        '.suite-card:hover { border-color:#7b91bd; background:#f3f6fc; } '
+        '.suite-card b,.suite-card span,.suite-card small { display:block; } '
+        '.suite-card span { color:#1a7f37; margin-top:5px; font-size:13px; } '
+        '.suite-card small { color:#555; margin-top:8px; line-height:1.35; }'
     )
-    return render_html("Polygeist IR explorer", body, extra_css)
+
+    landing = (
+        nav()
+        + '<div class="intro"><b>Raising and library-matching tracker.</b> '
+          'The explorer is split into focused pages so the large Compiler '
+          'Explorer deep-links are loaded only for the suite being inspected. '
+          'Each kernel still has a static IR preview and a full CE link.</div>'
+        + '<div class="suite-grid">'
+        + card("numerical.html", "Numerical + ATen",
+               len(polybench_stats) + len(aten_stats),
+               "PolyBench/C and extracted ATen numerical kernels.")
+        + card("ai.html", "AI kernels",
+               len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
+               "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")
+        + card("vision.html", "Vision + fusion",
+               len(stencil_conv2d_stats) + len(darknet_stats)
+               + len(ex_darknet_stats) + len(fopt_stats),
+               "Stencil Conv2D, darknet, extracted CNN blocks, and fusion experiments.")
+        + card("pva.html", "PVA backend", len(PVA_KERNELS),
+               "PVA lowering coverage and executable backend experiments.")
+        + '</div>'
+        + _build_taxonomy_panel()
+    )
+    numerical = nav() + polybench_section + _aten_section(aten_stats)
+    ai = nav() + llama_forward_section + whisper_ops_section + llmc_section
+    vision = (
+        nav() + stencil_conv2d_section + darknet_section
+        + _extracted_darknet_section(ex_darknet_stats)
+        + _fusion_opt_section(fopt_stats)
+    )
+    pva = nav() + _pva_section()
+    return {
+        "index.html": render_html("Polygeist IR explorer", landing, extra_css),
+        "numerical.html": render_html(
+            "Polygeist: numerical + ATen", numerical, extra_css
+        ),
+        "ai.html": render_html("Polygeist: AI kernels", ai, extra_css),
+        "vision.html": render_html(
+            "Polygeist: vision + fusion", vision, extra_css
+        ),
+        "pva.html": render_html("Polygeist: PVA backend", pva, extra_css),
+    }
 
 
 def main():
@@ -2931,6 +3164,8 @@ def main():
     for stale in OUTPUT_DIR.glob("llama_*.html"):
         stale.unlink()
     for stale in OUTPUT_DIR.glob("whisper_*.html"):
+        stale.unlink()
+    for stale in OUTPUT_DIR.glob("aten_*.html"):
         stale.unlink()
 
     # PolyBench set.
@@ -2941,6 +3176,24 @@ def main():
         print(f"  [PB {i:2d}/{len(pb_kernels)}] {k}", flush=True)
         pb_stats[k] = build_kernel_page(k, mlir_dir=MLIR_DIR,
                                          kset="polybench", file_prefix="")
+
+    # Standalone C extractions of representative ATen numerical kernels.
+    aten_stats = {}
+    print(f"Rendering {len(ATEN_C_ORDER)} ATen C kernels...", flush=True)
+    for i, k in enumerate(ATEN_C_ORDER, 1):
+        print(f"  [ATEN {i:2d}/{len(ATEN_C_ORDER)}] {k}", flush=True)
+        has_any = any((ATEN_C_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir"))
+        if not has_any:
+            aten_stats[k] = {
+                "launches": 0, "linalg_ops": 0, "matched_symbols": [],
+                "residual": 0, "residual_for": 0, "ce_url": None,
+                "page_filename": "",
+            }
+            continue
+        aten_stats[k] = build_kernel_page(
+            k, mlir_dir=ATEN_C_MLIR_DIR, kset="aten_c", file_prefix="",
+        )
 
     # Llama forward fixtures extracted as C benchmarks.
     llama_forward_kernels_from_files = discover_kernels(LLAMA_FORWARD_MLIR_DIR)
@@ -3100,11 +3353,15 @@ def main():
             file_prefix="fopt_",
         )
 
-    OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, llama_forward_stats, whisper_ops_stats,
-                    stencil_conv2d_stats,
-                    llmc_stats, darknet_stats, ex_darknet_stats, fopt_stats))
-    print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
+    pages = build_site_pages(
+        pb_stats, aten_stats, llama_forward_stats, whisper_ops_stats,
+        stencil_conv2d_stats, llmc_stats, darknet_stats, ex_darknet_stats,
+        fopt_stats,
+    )
+    for filename, html in pages.items():
+        OUTPUT_DIR.joinpath(filename).write_text(html)
+    print(f"\nWrote {len(pages)} explorer pages.")
+    print(f"Done. Open {OUTPUT_DIR}/index.html.")
 
 
 if __name__ == "__main__":
