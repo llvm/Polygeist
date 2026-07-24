@@ -51,6 +51,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Debug.h"
 
+#include <optional>
+
 #define DEBUG_TYPE "lower-kernel-launch-to-cublas"
 
 using namespace mlir;
@@ -126,6 +128,12 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cufft_c2c_1d";
   if (libSym == "cutensornetTensorProduct3D_f32_tensor")
     return "polygeist_cutensornet_tensor_product_3d_f32";
+  if (libSym == "cutensornetTensorProduct3D_f64_tensor")
+    return "polygeist_cutensornet_tensor_product_3d_f64";
+  if (libSym == "cutensornetContraction2_f64_r4r5r4" ||
+      libSym == "cutensornetContraction2_f64_r5r4r4" ||
+      libSym == "cutensornetContraction2_f64_r5r5r4")
+    return "polygeist_cutensornet_contraction2_f64";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -1014,17 +1022,20 @@ static LogicalResult lowerCufftC2C1DTensor(LaunchOp launch, ModuleOp module,
 // reaches the matcher as five rank-6 submap views over three flat buffers.
 // The first three views share the psi base.  Unwrap all views and let the
 // cuTensorNet shim express the full Einstein contraction directly.
-static LogicalResult lowerCutensornetTensorProduct3DF32(LaunchOp launch,
-                                                        ModuleOp module) {
+static LogicalResult lowerCutensornetTensorProduct3D(LaunchOp launch,
+                                                     ModuleOp module,
+                                                     bool useF64) {
   if (launch.getNumOperands() != 5 || launch.getNumResults() != 1)
     return launch.emitError(
         "cuTensorNet tensor product: expected 5 operands and 1 result");
 
   for (Value operand : launch.getOperands()) {
     auto ty = dyn_cast<RankedTensorType>(operand.getType());
-    if (!ty || ty.getRank() != 6 || !ty.getElementType().isF32())
+    if (!ty || ty.getRank() != 6 ||
+        (useF64 ? !ty.getElementType().isF64()
+                : !ty.getElementType().isF32()))
       return launch.emitError(
-          "cuTensorNet tensor product: operands must be rank-6 f32 tensors");
+          "cuTensorNet tensor product: operands have wrong rank or type");
     auto submap = operand.getDefiningOp<polygeist::SubmapOp>();
     if (!submap || submap.getSizes().size() != 6)
       return launch.emitError(
@@ -1043,10 +1054,15 @@ static LogicalResult lowerCutensornetTensorProduct3DF32(LaunchOp launch,
   auto psiTy = dyn_cast<RankedTensorType>(psi0.getType());
   auto uTy = dyn_cast<RankedTensorType>(u.getType());
   auto outTy = dyn_cast<RankedTensorType>(out.getType());
-  if (!psiTy || !uTy || !outTy || !psiTy.getElementType().isF32() ||
-      !uTy.getElementType().isF32() || !outTy.getElementType().isF32())
+  if (!psiTy || !uTy || !outTy ||
+      (useF64 ? (!psiTy.getElementType().isF64() ||
+                 !uTy.getElementType().isF64() ||
+                 !outTy.getElementType().isF64())
+              : (!psiTy.getElementType().isF32() ||
+                 !uTy.getElementType().isF32() ||
+                 !outTy.getElementType().isF32())))
     return launch.emitError(
-        "cuTensorNet tensor product: submap bases must be f32 tensors");
+        "cuTensorNet tensor product: submap bases have wrong type");
 
   auto firstView = launch.getOperand(0).getDefiningOp<polygeist::SubmapOp>();
   OpBuilder b(launch);
@@ -1063,13 +1079,227 @@ static LogicalResult lowerCutensornetTensorProduct3DF32(LaunchOp launch,
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(), ptrTy,
                                 ptrTy, ptrTy};
-  func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_cutensornet_tensor_product_3d_f32", argTypes, b);
+  StringRef shimName = useF64
+                           ? "polygeist_cutensornet_tensor_product_3d_f64"
+                           : "polygeist_cutensornet_tensor_product_3d_f32";
+  func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim,
                          ValueRange{KQ, KP, psiPtr, uPtr, outPtr});
 
   Value updatedOut = memrefToTensor(b, loc, outMr, out.getType());
   rewireLaunchResult(launch, updatedOut);
+  launch.erase();
+  return success();
+}
+
+// Return the constant coefficient of affine dimension `dim` in a linear
+// affine expression. MFEM's polygeist.submap views are flattened row-major
+// maps such as d4 + d0 * 64 + d1 * 16 + d2 * 4. Their coefficients are the
+// physical element strides needed by cuTensorNet. Reject non-linear
+// floor/mod expressions rather than guessing a layout.
+static std::optional<int64_t>
+constantAffineDimCoefficient(AffineExpr expr, unsigned dim) {
+  if (auto d = expr.dyn_cast<AffineDimExpr>())
+    return d.getPosition() == dim ? 1 : 0;
+  if (expr.isa<AffineConstantExpr>() || expr.isa<AffineSymbolExpr>())
+    return 0;
+  auto binary = expr.dyn_cast<AffineBinaryOpExpr>();
+  if (!binary)
+    return std::nullopt;
+  if (binary.getKind() == AffineExprKind::Add) {
+    auto lhs = constantAffineDimCoefficient(binary.getLHS(), dim);
+    auto rhs = constantAffineDimCoefficient(binary.getRHS(), dim);
+    if (!lhs || !rhs)
+      return std::nullopt;
+    return *lhs + *rhs;
+  }
+  if (binary.getKind() == AffineExprKind::Mul) {
+    if (auto c = binary.getLHS().dyn_cast<AffineConstantExpr>()) {
+      auto rhs = constantAffineDimCoefficient(binary.getRHS(), dim);
+      return rhs ? std::optional<int64_t>(c.getValue() * *rhs)
+                 : std::nullopt;
+    }
+    if (auto c = binary.getRHS().dyn_cast<AffineConstantExpr>()) {
+      auto lhs = constantAffineDimCoefficient(binary.getLHS(), dim);
+      return lhs ? std::optional<int64_t>(c.getValue() * *lhs)
+                 : std::nullopt;
+    }
+  }
+  return std::nullopt;
+}
+
+struct ContractionViewMetadata {
+  Value base;
+  SmallVector<Value, 5> extents;
+  SmallVector<Value, 5> strides;
+  SmallVector<int64_t, 5> modes;
+};
+
+static Value shapedDimAsI64(OpBuilder &b, Location loc, Value value,
+                            unsigned dim) {
+  auto shaped = cast<ShapedType>(value.getType());
+  if (!shaped.isDynamicDim(dim))
+    return b.create<arith::ConstantOp>(
+        loc, b.getI64Type(), b.getI64IntegerAttr(shaped.getDimSize(dim)));
+  Value axis = b.create<arith::ConstantIndexOp>(loc, dim);
+  Value extent;
+  if (isa<RankedTensorType>(value.getType()))
+    extent = b.create<tensor::DimOp>(loc, value, axis);
+  else
+    extent = b.create<memref::DimOp>(loc, value, axis);
+  return integerLikeAsI64(b, loc, extent);
+}
+
+static FailureOr<ContractionViewMetadata>
+buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
+                             AffineMap accessMap) {
+  auto operandType = dyn_cast<RankedTensorType>(operand.getType());
+  if (!operandType || !operandType.getElementType().isF64() ||
+      operandType.getRank() > 5 ||
+      accessMap.getNumResults() != (unsigned)operandType.getRank())
+    return failure();
+
+  SmallVector<int64_t, 5> logicalModes;
+  for (AffineExpr result : accessMap.getResults()) {
+    auto dim = result.dyn_cast<AffineDimExpr>();
+    if (!dim)
+      return failure();
+    logicalModes.push_back(dim.getPosition());
+  }
+
+  Value stripped = stripTensorCasts(operand);
+  SmallVector<Value, 5> logicalExtents;
+  SmallVector<Value, 5> logicalStrides;
+  Value base = resolveSubmapBase(stripped);
+  if (auto submap = stripped.getDefiningOp<polygeist::SubmapOp>()) {
+    auto baseType = dyn_cast<RankedTensorType>(base.getType());
+    if (!baseType || baseType.getRank() != 1 ||
+        submap.getMap().getNumResults() != 1 ||
+        submap.getSizes().size() != (unsigned)operandType.getRank())
+      return failure();
+    AffineExpr flatExpr = submap.getMap().getResult(0);
+    for (unsigned dim = 0; dim < (unsigned)operandType.getRank(); ++dim) {
+      logicalExtents.push_back(
+          integerLikeAsI64(b, loc, submap.getSizes()[dim]));
+      auto coefficient = constantAffineDimCoefficient(flatExpr, dim);
+      if (!coefficient || *coefficient < 0)
+        return failure();
+      logicalStrides.push_back(b.create<arith::ConstantOp>(
+          loc, b.getI64Type(), b.getI64IntegerAttr(*coefficient)));
+    }
+  } else {
+    base = stripped;
+    for (unsigned dim = 0; dim < (unsigned)operandType.getRank(); ++dim)
+      logicalExtents.push_back(shapedDimAsI64(b, loc, stripped, dim));
+    Value stride = b.create<arith::ConstantOp>(
+        loc, b.getI64Type(), b.getI64IntegerAttr(1));
+    logicalStrides.resize(operandType.getRank());
+    for (int64_t dim = operandType.getRank() - 1; dim >= 0; --dim) {
+      logicalStrides[dim] = stride;
+      stride = b.create<arith::MulIOp>(loc, stride, logicalExtents[dim]);
+    }
+  }
+
+  ContractionViewMetadata metadata;
+  metadata.base = base;
+  for (unsigned dim = 0; dim < logicalModes.size(); ++dim) {
+    // A zero physical stride is a broadcasted logical mode. cuTensorNet and
+    // cuTENSOR represent broadcasting by omitting that mode from the tensor,
+    // rather than by passing an illegal zero stride.
+    llvm::APInt staticStride;
+    if (matchPattern(logicalStrides[dim], m_ConstantInt(&staticStride)) &&
+        staticStride.isZero())
+      continue;
+    metadata.extents.push_back(logicalExtents[dim]);
+    metadata.strides.push_back(logicalStrides[dim]);
+    metadata.modes.push_back(logicalModes[dim]);
+  }
+  return metadata;
+}
+
+// Generic two-input FP64 Einstein contraction for MFEM's mode-wise
+// sum-factorization stages. Metadata layout (all i64):
+//   [rankA, rankB, rankC,
+//    A.extent[5], A.stride[5], A.mode[5],
+//    B.extent[5], B.stride[5], B.mode[5],
+//    C.extent[5], C.stride[5], C.mode[5]]
+// Unused slots are extent=1, stride=0, mode=-1.
+static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
+                                                     ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "cuTensorNet contraction: expected A/B/C operands and one result");
+  auto mapsAttr = launch->getAttrOfType<ArrayAttr>("contraction_maps");
+  if (!mapsAttr || mapsAttr.size() != 3)
+    return launch.emitError(
+        "cuTensorNet contraction: expected three contraction_maps");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  SmallVector<ContractionViewMetadata, 3> metadata;
+  for (unsigned i = 0; i < 3; ++i) {
+    auto mapAttr = dyn_cast<AffineMapAttr>(mapsAttr[i]);
+    if (!mapAttr)
+      return launch.emitError(
+          "cuTensorNet contraction: contraction_maps must be affine maps");
+    auto view =
+        buildContractionViewMetadata(b, loc, launch.getOperand(i),
+                                     mapAttr.getValue());
+    if (failed(view))
+      return launch.emitError(
+          "cuTensorNet contraction: unsupported operand view/map layout");
+    metadata.push_back(*view);
+  }
+  if (metadata[2].modes.size() != 4)
+    return launch.emitError(
+        "cuTensorNet contraction: output must have four non-broadcast modes");
+
+  constexpr int64_t kMaxRank = 5;
+  constexpr int64_t kFieldsPerTensor = 3 * kMaxRank;
+  constexpr int64_t kMetadataSize = 3 + 3 * kFieldsPerTensor;
+  auto metadataType = MemRefType::get({kMetadataSize}, b.getI64Type());
+  Value metadataBuffer = b.create<memref::AllocaOp>(loc, metadataType);
+  auto storeMetadata = [&](int64_t index, Value value) {
+    Value slot = b.create<arith::ConstantIndexOp>(loc, index);
+    b.create<memref::StoreOp>(loc, value, metadataBuffer, slot);
+  };
+  auto constantI64 = [&](int64_t value) -> Value {
+    return b.create<arith::ConstantOp>(
+        loc, b.getI64Type(), b.getI64IntegerAttr(value));
+  };
+  for (unsigned tensor = 0; tensor < 3; ++tensor) {
+    storeMetadata(tensor, constantI64(metadata[tensor].modes.size()));
+    int64_t baseOffset = 3 + tensor * kFieldsPerTensor;
+    for (int64_t dim = 0; dim < kMaxRank; ++dim) {
+      bool present = dim < (int64_t)metadata[tensor].modes.size();
+      storeMetadata(baseOffset + dim,
+                    present ? metadata[tensor].extents[dim] : constantI64(1));
+      storeMetadata(baseOffset + kMaxRank + dim,
+                    present ? metadata[tensor].strides[dim] : constantI64(0));
+      storeMetadata(baseOffset + 2 * kMaxRank + dim,
+                    constantI64(present ? metadata[tensor].modes[dim] : -1));
+    }
+  }
+
+  SmallVector<Value, 3> memrefs;
+  SmallVector<Value, 3> pointers;
+  for (const ContractionViewMetadata &view : metadata) {
+    Value memref = valueToMemref(b, loc, view.base);
+    memrefs.push_back(memref);
+    pointers.push_back(memrefBasePtr(b, loc, memref));
+  }
+  Value metadataPtr = memrefBasePtr(b, loc, metadataBuffer);
+  auto ptrType = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes(4, ptrType);
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cutensornet_contraction2_f64", argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{pointers[0], pointers[1], pointers[2], metadataPtr});
+
+  Value updatedOutput =
+      memrefToTensor(b, loc, memrefs[2], metadata[2].base.getType());
+  rewireLaunchResult(launch, updatedOutput);
   launch.erase();
   return success();
 }
@@ -3041,8 +3271,15 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cufftZ2Z_1D_tensor" ||
                  libSym == "cufftC2C_1D_tensor") {
         r = lowerCufftC2C1DTensor(launch, module, shim);
-      } else if (libSym == "cutensornetTensorProduct3D_f32_tensor") {
-        r = lowerCutensornetTensorProduct3DF32(launch, module);
+      } else if (libSym == "cutensornetTensorProduct3D_f32_tensor" ||
+                 libSym == "cutensornetTensorProduct3D_f64_tensor") {
+        r = lowerCutensornetTensorProduct3D(
+            launch, module,
+            libSym == "cutensornetTensorProduct3D_f64_tensor");
+      } else if (libSym == "cutensornetContraction2_f64_r4r5r4" ||
+                 libSym == "cutensornetContraction2_f64_r5r4r4" ||
+                 libSym == "cutensornetContraction2_f64_r5r5r4") {
+        r = lowerCutensornetContraction2F64(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolutionFwd_im2col_gemm") {

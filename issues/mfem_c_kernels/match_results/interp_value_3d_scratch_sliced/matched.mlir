@@ -23,26 +23,33 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f16, dense<16> : 
     %4 = tensor.empty() : tensor<2x4x4x5xf64>
     %6 = polygeist.submap(%2, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %7 = polygeist.submap(%1, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v4_tc2 = tensor.cast %4 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v4_contract_8_tc2 = tensor.cast %4 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v8_tdyn = kernel.launch @cublasGemmFor1x1Conv(%7, %6, %v4_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v8_tdyn = kernel.launch @cutensornetContraction2_f64_r5r5r4(%7, %6, %v4_contract_8_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>]} : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %8 = tensor.cast %v8_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x4x5xf64>
     %10 = polygeist.submap(%1, %c2, %c4, %c5, %c5, %c4) {map = #map2} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v8_tc1 = tensor.cast %8 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v8_contract_11_tc0 = tensor.cast %8 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v3_tc2 = tensor.cast %3 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v3_contract_11_tc2 = tensor.cast %3 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v11_tdyn = kernel.launch @cublasGemmFor1x1Conv(%10, %v8_tc1, %v3_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v11_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v8_contract_11_tc0, %10, %v3_contract_11_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %11 = tensor.cast %v11_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x5x5xf64>
     %12 = polygeist.submap(%0, %c2, %c5, %c5, %c5) {map = #map8} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
+    %13 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%12 : tensor<?x?x?x?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst : f64
+    } -> tensor<?x?x?x?xf64>
     %14 = polygeist.submapInverse(%0, %13, %c2, %c5, %c5, %c5) {map = #map8} : (tensor<?xf64>, tensor<?x?x?x?xf64>, index, index, index, index) -> tensor<?xf64>
     %15 = polygeist.submap(%1, %c2, %c5, %c5, %c5, %c4) {map = #map9} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %16 = polygeist.submap(%14, %c2, %c5, %c5, %c5, %c4) {map = #map10} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v11_tc1 = tensor.cast %11 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
-
-    %17 = kernel.launch @cublasGemmFor1x1Conv(%15, %v11_tc1, %12) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?x?xf64>
+    %17 = linalg.generic {doc = "", indexing_maps = [#map11, #map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%11, %15 : tensor<2x4x5x5xf64>, tensor<?x?x?x?x?xf64>) outs(%16 : tensor<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_0: f64, %out: f64):
+      %20 = arith.mulf %in, %in_0 : f64
+      %21 = arith.addf %out, %20 : f64
+      linalg.yield %21 : f64
+    } -> tensor<?x?x?x?x?xf64>
     %18 = polygeist.submapInverse(%14, %17, %c2, %c5, %c5, %c5, %c4) {map = #map10} : (tensor<?xf64>, tensor<?x?x?x?x?xf64>, index, index, index, index, index) -> tensor<?xf64>
     %19 = bufferization.to_memref %18 : memref<?xf64>
     memref.copy %19, %arg2 : memref<?xf64> to memref<?xf64>

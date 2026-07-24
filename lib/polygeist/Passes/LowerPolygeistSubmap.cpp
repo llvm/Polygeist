@@ -5,6 +5,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/IRMapping.h"
@@ -131,6 +132,181 @@ static bool hasAnyNonZeroOffset(const DecomposedMap &d) {
   }
   return false;
 }
+
+static std::optional<int64_t> getConstantIndex(Value v) {
+  if (auto c = v.getDefiningOp<arith::ConstantIndexOp>())
+    return c.value();
+  return std::nullopt;
+}
+
+static std::optional<SmallVector<int64_t>>
+getStaticSizeOperands(ValueRange sizes) {
+  SmallVector<int64_t> staticSizes;
+  staticSizes.reserve(sizes.size());
+  for (Value size : sizes) {
+    auto c = getConstantIndex(size);
+    if (!c)
+      return std::nullopt;
+    staticSizes.push_back(*c);
+  }
+  return staticSizes;
+}
+
+static bool accumulateLinearDimCoefficients(AffineExpr e,
+                                            SmallVectorImpl<int64_t> &coeffs,
+                                            int64_t &constant,
+                                            int64_t scale = 1) {
+  if (auto d = e.dyn_cast<AffineDimExpr>()) {
+    unsigned pos = d.getPosition();
+    if (pos >= coeffs.size())
+      return false;
+    coeffs[pos] += scale;
+    return true;
+  }
+  if (auto c = e.dyn_cast<AffineConstantExpr>()) {
+    constant += scale * c.getValue();
+    return true;
+  }
+  if (auto bin = e.dyn_cast<AffineBinaryOpExpr>()) {
+    if (bin.getKind() == AffineExprKind::Add) {
+      return accumulateLinearDimCoefficients(bin.getLHS(), coeffs, constant,
+                                             scale) &&
+             accumulateLinearDimCoefficients(bin.getRHS(), coeffs, constant,
+                                             scale);
+    }
+    if (bin.getKind() == AffineExprKind::Mul) {
+      if (auto c = bin.getLHS().dyn_cast<AffineConstantExpr>())
+        return accumulateLinearDimCoefficients(bin.getRHS(), coeffs, constant,
+                                               scale * c.getValue());
+      if (auto c = bin.getRHS().dyn_cast<AffineConstantExpr>())
+        return accumulateLinearDimCoefficients(bin.getLHS(), coeffs, constant,
+                                               scale * c.getValue());
+    }
+  }
+  return false;
+}
+
+static bool parseSingleDimConstantStride(AffineExpr e, unsigned numDims,
+                                         unsigned &dim, int64_t &stride,
+                                         int64_t &offset) {
+  SmallVector<int64_t> coeffs(numDims, 0);
+  int64_t constant = 0;
+  if (!accumulateLinearDimCoefficients(e, coeffs, constant))
+    return false;
+  int64_t seenDim = -1;
+  for (auto it : llvm::enumerate(coeffs)) {
+    if (it.value() == 0)
+      continue;
+    if (seenDim != -1)
+      return false;
+    seenDim = it.index();
+    stride = it.value();
+  }
+  if (seenDim == -1 || stride <= 0)
+    return false;
+  dim = static_cast<unsigned>(seenDim);
+  offset = constant;
+  return true;
+}
+
+static bool isRowMajorLinearizedMap(AffineMap map,
+                                    ArrayRef<int64_t> staticSizes) {
+  if (map.getNumResults() != 1 || map.getNumDims() != staticSizes.size())
+    return false;
+  SmallVector<int64_t> coeffs(staticSizes.size(), 0);
+  int64_t constant = 0;
+  if (!accumulateLinearDimCoefficients(map.getResult(0), coeffs, constant))
+    return false;
+  if (constant != 0)
+    return false;
+  int64_t expectedStride = 1;
+  for (int64_t i = static_cast<int64_t>(staticSizes.size()) - 1; i >= 0; --i) {
+    if (staticSizes[i] <= 0 || coeffs[i] != expectedStride)
+      return false;
+    expectedStride *= staticSizes[i];
+  }
+  return true;
+}
+
+static bool isLeadingDimProjection(AffineMap map, unsigned projectedRank) {
+  if (map.getNumResults() != projectedRank || map.getNumDims() < projectedRank)
+    return false;
+  for (unsigned i = 0; i < projectedRank; ++i) {
+    auto dim = map.getResult(i).dyn_cast<AffineDimExpr>();
+    if (!dim || dim.getPosition() != i)
+      return false;
+  }
+  return true;
+}
+
+static int64_t product(ArrayRef<int64_t> values) {
+  int64_t prod = 1;
+  for (int64_t v : values)
+    prod *= v;
+  return prod;
+}
+
+static SmallVector<ReassociationIndices>
+getSingleSourceReassociation(unsigned resultRank) {
+  SmallVector<ReassociationIndices> reassociation(1);
+  reassociation[0].reserve(resultRank);
+  for (unsigned i = 0; i < resultRank; ++i)
+    reassociation[0].push_back(i);
+  return reassociation;
+}
+
+static std::optional<SmallVector<OpFoldResult>>
+getMixedSizeOperands(ValueRange sizes, unsigned rank, OpBuilder &builder) {
+  if (sizes.size() < rank)
+    return std::nullopt;
+  SmallVector<OpFoldResult> mixedSizes;
+  mixedSizes.reserve(rank);
+  for (unsigned i = 0; i < rank; ++i) {
+    if (auto c = getConstantIndex(sizes[i])) {
+      mixedSizes.push_back(builder.getIndexAttr(*c));
+      continue;
+    }
+    mixedSizes.push_back(sizes[i]);
+  }
+  return mixedSizes;
+}
+
+static bool sameTrailingOperands(ValueRange lhs, ValueRange rhs) {
+  if (lhs.size() != rhs.size())
+    return false;
+  for (auto [l, r] : llvm::zip(lhs, rhs))
+    if (l != r)
+      return false;
+  return true;
+}
+
+static Value stripTensorCasts(Value v) {
+  while (auto cast = v.getDefiningOp<tensor::CastOp>())
+    v = cast.getSource();
+  return v;
+}
+
+struct FoldIdentitySubmapInverse : public OpRewritePattern<SubmapInverseOp> {
+  FoldIdentitySubmapInverse(MLIRContext *context)
+      : OpRewritePattern<SubmapInverseOp>(context, /*benefit=*/2) {}
+
+  LogicalResult matchAndRewrite(SubmapInverseOp inv,
+                                PatternRewriter &rewriter) const final {
+    auto submap = inv.getViewModified().getDefiningOp<SubmapOp>();
+    if (!submap)
+      return failure();
+    if (stripTensorCasts(submap.getBase()) !=
+        stripTensorCasts(inv.getBaseOriginal()))
+      return failure();
+    if (submap.getMap() != inv.getMap())
+      return failure();
+    if (!sameTrailingOperands(submap->getOperands().drop_front(1),
+                              inv->getOperands().drop_front(2)))
+      return failure();
+    rewriter.replaceOp(inv, inv.getBaseOriginal());
+    return success();
+  }
+};
 
 // Rewrites a linalg.generic's submap-defined operands. For each operand
 // defined by a polygeist.submap whose map decomposes via
@@ -422,16 +598,91 @@ struct LowerSymbolBearingSubmapToExtractSlice
     if (!outTy || !baseTy) return failure();
     if (submapMap.getNumResults() != (unsigned)baseTy.getRank())
       return failure();
+
+    SmallVector<SubmapInverseOp> identityInverseUsers;
+    for (Operation *user : submap->getUsers()) {
+      auto inv = dyn_cast<SubmapInverseOp>(user);
+      if (!inv)
+        continue;
+      if (stripTensorCasts(inv.getBaseOriginal()) !=
+          stripTensorCasts(submap.getBase()))
+        continue;
+      if (inv.getMap() != submap.getMap())
+        continue;
+      if (!sameTrailingOperands(submap->getOperands().drop_front(1),
+                                inv->getOperands().drop_front(2)))
+        continue;
+      identityInverseUsers.push_back(inv);
+    }
+    if (!identityInverseUsers.empty()) {
+      for (SubmapInverseOp inv : identityInverseUsers)
+        rewriter.replaceOp(inv, submap.getBase());
+      if (submap->use_empty())
+        rewriter.eraseOp(submap);
+      return success();
+    }
+
     bool anyNonPureDim = false;
     for (AffineExpr e : submapMap.getResults()) {
       if (!e.isa<AffineDimExpr>()) { anyNonPureDim = true; break; }
     }
-    if (submapMap.getNumSymbols() == 0 && !anyNonPureDim) return failure();
+    if (submapMap.getNumSymbols() == 0 && !anyNonPureDim &&
+        outTy.getRank() <= baseTy.getRank()) return failure();
 
     Location loc = submap.getLoc();
     ValueRange symbols = submap.getSymbols();
     ValueRange sizes = submap.getSizes();
     unsigned numViewDims = submapMap.getNumDims();
+
+    if (baseTy.getRank() == 1 && outTy.getRank() == (int64_t)numViewDims) {
+      auto staticSizes = getStaticSizeOperands(sizes);
+      if (staticSizes && isRowMajorLinearizedMap(submapMap, *staticSizes)) {
+        int64_t flatSize = product(*staticSizes);
+        auto staticBaseTy =
+            RankedTensorType::get({flatSize}, baseTy.getElementType());
+        Value baseForExpand = submap.getBase();
+        if (baseForExpand.getType() != staticBaseTy)
+          baseForExpand =
+              rewriter.create<tensor::CastOp>(loc, staticBaseTy, baseForExpand);
+
+        auto staticOutTy =
+            RankedTensorType::get(*staticSizes, baseTy.getElementType());
+        auto reassociation = getSingleSourceReassociation(numViewDims);
+        Value expanded = rewriter.create<tensor::ExpandShapeOp>(
+            loc, staticOutTy, baseForExpand, reassociation);
+        if (expanded.getType() != outTy)
+          expanded = rewriter.create<tensor::CastOp>(loc, outTy, expanded);
+        rewriter.replaceOp(submap, expanded);
+        return success();
+      }
+    }
+
+    if (submapMap.getNumSymbols() == 0 &&
+        outTy.getRank() == (int64_t)numViewDims &&
+        outTy.getRank() > baseTy.getRank()) {
+      auto mixedSizes = getMixedSizeOperands(sizes, numViewDims, rewriter);
+      if (mixedSizes) {
+        Value empty = rewriter.create<tensor::EmptyOp>(
+            loc, *mixedSizes, outTy.getElementType());
+        AffineMap outMap =
+            AffineMap::getMultiDimIdentityMap(numViewDims, submap.getContext());
+        SmallVector<AffineMap> indexingMaps{submapMap, outMap};
+        SmallVector<utils::IteratorType> iteratorTypes(
+            numViewDims, utils::IteratorType::parallel);
+        SmallVector<Type> resultTypes{empty.getType()};
+        auto generic = rewriter.create<linalg::GenericOp>(
+            loc, TypeRange(resultTypes), ValueRange{submap.getBase()},
+            ValueRange{empty}, indexingMaps, iteratorTypes,
+            [&](OpBuilder &nested, Location nestedLoc, ValueRange args) {
+              nested.create<linalg::YieldOp>(nestedLoc, args[0]);
+            });
+        Value result = generic->getResult(0);
+        if (result.getType() != outTy)
+          result = rewriter.create<tensor::CastOp>(loc, outTy, result);
+        rewriter.replaceOp(submap, result);
+        return success();
+      }
+    }
 
     SmallVector<OpFoldResult> offsets, subSizes, strides;
     SmallVector<int64_t> viewDimToBaseDim(numViewDims, -1);
@@ -439,17 +690,30 @@ struct LowerSymbolBearingSubmapToExtractSlice
     OpFoldResult oneAttr = rewriter.getIndexAttr(1);
 
     auto classify = [&](AffineExpr e, OpFoldResult &offset, bool &hasViewDim,
-                        unsigned &viewDim) -> bool {
+                        unsigned &viewDim, OpFoldResult &stride) -> bool {
       if (auto s = e.dyn_cast<AffineSymbolExpr>()) {
         unsigned si = s.getPosition();
         if (si >= symbols.size()) return false;
         offset = symbols[si];
         hasViewDim = false;
+        stride = oneAttr;
         return true;
       }
       if (auto c = e.dyn_cast<AffineConstantExpr>()) {
         offset = rewriter.getIndexAttr(c.getValue());
         hasViewDim = false;
+        stride = oneAttr;
+        return true;
+      }
+      unsigned di;
+      int64_t strideInt;
+      int64_t offsetInt;
+      if (parseSingleDimConstantStride(e, numViewDims, di, strideInt,
+                                       offsetInt)) {
+        offset = rewriter.getIndexAttr(offsetInt);
+        hasViewDim = true;
+        viewDim = di;
+        stride = rewriter.getIndexAttr(strideInt);
         return true;
       }
       if (auto d = e.dyn_cast<AffineDimExpr>()) {
@@ -458,6 +722,7 @@ struct LowerSymbolBearingSubmapToExtractSlice
         offset = zeroAttr;
         hasViewDim = true;
         viewDim = di;
+        stride = oneAttr;
         return true;
       }
       if (auto add = e.dyn_cast<AffineBinaryOpExpr>()) {
@@ -485,6 +750,7 @@ struct LowerSymbolBearingSubmapToExtractSlice
         }
         hasViewDim = true;
         viewDim = di;
+        stride = oneAttr;
         return true;
       }
       return false;
@@ -495,12 +761,13 @@ struct LowerSymbolBearingSubmapToExtractSlice
       OpFoldResult offset;
       bool hasViewDim;
       unsigned viewDim = 0;
-      if (!classify(e, offset, hasViewDim, viewDim)) return failure();
+      OpFoldResult stride = oneAttr;
+      if (!classify(e, offset, hasViewDim, viewDim, stride)) return failure();
       offsets.push_back(offset);
       if (hasViewDim) {
         if (viewDim >= sizes.size()) return failure();
         subSizes.push_back(sizes[viewDim]);
-        strides.push_back(oneAttr);
+        strides.push_back(stride);
         viewDimToBaseDim[viewDim] = k;
       } else {
         subSizes.push_back(oneAttr);
@@ -556,8 +823,64 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
 
     Location loc = inv.getLoc();
     ValueRange symbols = inv.getSymbols();
-    ValueRange sizes = inv.getSizes();
     unsigned numViewDims = m.getNumDims();
+    ValueRange sizes =
+        inv.getOperands().slice(m.getNumSymbols() + 2, numViewDims);
+
+    if (baseTy.getRank() == 1 && viewTy.getRank() == (int64_t)numViewDims) {
+      auto staticSizes = getStaticSizeOperands(sizes);
+      if (staticSizes && isRowMajorLinearizedMap(m, *staticSizes)) {
+        auto staticViewTy =
+            RankedTensorType::get(*staticSizes, viewTy.getElementType());
+        Value viewForCollapse = view;
+        if (viewForCollapse.getType() != staticViewTy)
+          viewForCollapse =
+              rewriter.create<tensor::CastOp>(loc, staticViewTy,
+                                              viewForCollapse);
+
+        int64_t flatSize = product(*staticSizes);
+        auto staticOutTy =
+            RankedTensorType::get({flatSize}, viewTy.getElementType());
+        auto reassociation = getSingleSourceReassociation(numViewDims);
+        Value collapsed = rewriter.create<tensor::CollapseShapeOp>(
+            loc, staticOutTy, viewForCollapse, reassociation);
+        if (collapsed.getType() != outTy)
+          collapsed = rewriter.create<tensor::CastOp>(loc, outTy, collapsed);
+        rewriter.replaceOp(inv, collapsed);
+        return success();
+      }
+    }
+
+    if (numViewDims > (unsigned)baseTy.getRank() &&
+        viewTy.getRank() == (int64_t)numViewDims &&
+        isLeadingDimProjection(m, baseTy.getRank())) {
+      SmallVector<OpFoldResult> offsets, sliceSizes, strides;
+      offsets.reserve(numViewDims);
+      sliceSizes.reserve(numViewDims);
+      strides.reserve(numViewDims);
+      OpFoldResult zeroAttr = rewriter.getIndexAttr(0);
+      OpFoldResult oneAttr = rewriter.getIndexAttr(1);
+      for (unsigned i = 0; i < numViewDims; ++i) {
+        offsets.push_back(zeroAttr);
+        if (i < (unsigned)baseTy.getRank()) {
+          if (i >= sizes.size())
+            return failure();
+          sliceSizes.push_back(sizes[i]);
+        } else {
+          sliceSizes.push_back(oneAttr);
+        }
+        strides.push_back(oneAttr);
+      }
+      SmallVector<int64_t> resultShape(baseTy.getRank(),
+                                       ShapedType::kDynamic);
+      auto sliceTy = RankedTensorType::get(resultShape, viewTy.getElementType());
+      Value sliced = rewriter.create<tensor::ExtractSliceOp>(
+          loc, sliceTy, view, offsets, sliceSizes, strides);
+      if (sliced.getType() != outTy)
+        sliced = rewriter.create<tensor::CastOp>(loc, outTy, sliced);
+      rewriter.replaceOp(inv, sliced);
+      return success();
+    }
 
     SmallVector<OpFoldResult> offsets, subSizes, strides;
     SmallVector<int64_t> viewDimSeen(numViewDims, 0);
@@ -565,17 +888,30 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     OpFoldResult oneAttr = rewriter.getIndexAttr(1);
 
     auto classify = [&](AffineExpr e, OpFoldResult &offset, bool &hasViewDim,
-                        unsigned &viewDim) -> bool {
+                        unsigned &viewDim, OpFoldResult &stride) -> bool {
       if (auto s = e.dyn_cast<AffineSymbolExpr>()) {
         unsigned si = s.getPosition();
         if (si >= symbols.size()) return false;
         offset = symbols[si];
         hasViewDim = false;
+        stride = oneAttr;
         return true;
       }
       if (auto c = e.dyn_cast<AffineConstantExpr>()) {
         offset = rewriter.getIndexAttr(c.getValue());
         hasViewDim = false;
+        stride = oneAttr;
+        return true;
+      }
+      unsigned di;
+      int64_t strideInt;
+      int64_t offsetInt;
+      if (parseSingleDimConstantStride(e, numViewDims, di, strideInt,
+                                       offsetInt)) {
+        offset = rewriter.getIndexAttr(offsetInt);
+        hasViewDim = true;
+        viewDim = di;
+        stride = rewriter.getIndexAttr(strideInt);
         return true;
       }
       if (auto d = e.dyn_cast<AffineDimExpr>()) {
@@ -584,6 +920,7 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         offset = zeroAttr;
         hasViewDim = true;
         viewDim = di;
+        stride = oneAttr;
         return true;
       }
       if (auto add = e.dyn_cast<AffineBinaryOpExpr>()) {
@@ -611,6 +948,7 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         }
         hasViewDim = true;
         viewDim = di;
+        stride = oneAttr;
         return true;
       }
       return false;
@@ -621,12 +959,13 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       OpFoldResult offset;
       bool hasViewDim;
       unsigned viewDim = 0;
-      if (!classify(e, offset, hasViewDim, viewDim)) return failure();
+      OpFoldResult stride = oneAttr;
+      if (!classify(e, offset, hasViewDim, viewDim, stride)) return failure();
       offsets.push_back(offset);
       if (hasViewDim) {
         if (viewDim >= sizes.size()) return failure();
         subSizes.push_back(sizes[viewDim]);
-        strides.push_back(oneAttr);
+        strides.push_back(stride);
         viewDimSeen[viewDim] = 1;
       } else {
         subSizes.push_back(oneAttr);
@@ -659,7 +998,8 @@ struct LowerPolygeistSubmapPass
           LowerPolygeistSubmapPass> {
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.add<ComposeSubmapIntoLinalgGeneric,
+    patterns.add<FoldIdentitySubmapInverse,
+                 ComposeSubmapIntoLinalgGeneric,
                  LowerSymbolBearingSubmapToSubview,
                  LowerSymbolBearingSubmapToExtractSlice,
                  LowerSubmapInverse>(&getContext());

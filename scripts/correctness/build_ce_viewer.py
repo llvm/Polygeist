@@ -71,7 +71,7 @@ ATEN_C_ROOT = env_path(
 )
 ATEN_C_MLIR_DIR = env_path(
     "POLYGEIST_ATEN_C_MLIR_DIR",
-    "/tmp/aten_c_kernel_raise",
+    ATEN_C_ROOT / "results",
 )
 MFEM_C_ROOT = env_path(
     "POLYGEIST_MFEM_C_ROOT",
@@ -249,23 +249,48 @@ ATEN_C_ORDER = list(ATEN_C_KERNELS.keys())
 
 ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_adaptive_avg_pool2d": "no average-pooling definition",
+    "aten_adaptive_avg_pool3d": "no 3D average-pooling definition",
     "aten_avg_pool2d": "no average-pooling definition",
+    "aten_avg_pool3d": "no 3D average-pooling definition",
+    "aten_binary_cross_entropy": "external logf calls retain a residual loop",
     "aten_bmm": "no true batched-GEMM definition",
+    "aten_channel_shuffle": "layout transform; correctly rejected as flat copy",
+    "aten_clamp": "no standalone clamp definition",
+    "aten_conv1d": "no 1D-convolution definition",
+    "aten_conv3d": "shape/template gap in current 3D-convolution definitions",
+    "aten_conv_transpose2d": "no transposed-convolution definition",
     "aten_cross": "three elementwise stages; no cross-product composition",
+    "aten_cumsum": "loop-carried scan raises, but no scan definition",
+    "aten_elu": "no standalone ELU definition",
+    "aten_embedding": "indexed gather retains residual loops",
     "aten_gelu": "valid custom CUDA GELU route",
-    "aten_im2col": "unsafe copy false-positive: flat-copy ABI cannot implement window gather",
+    "aten_hardsigmoid": "no standalone hard-sigmoid definition",
+    "aten_hardswish": "no standalone hard-swish definition",
+    "aten_hardtanh": "no standalone hard-tanh definition",
+    "aten_im2col": "window gather correctly rejected as flat copy",
+    "aten_l1_loss": "no L1 reduction composition",
     "aten_layer_norm": "mean/variance/affine composition not in library",
+    "aten_leaky_relu": "no standalone leaky-ReLU definition",
+    "aten_lerp": "no linear-interpolation definition",
     "aten_mean": "reduction-plus-scale composition not in library",
     "aten_mse_loss": "square-difference plus mean composition not in library",
     "aten_outer": "partial: only output zero-initialization matched",
+    "aten_pixel_shuffle": "layout transform correctly rejected as flat copy",
+    "aten_prod": "no product-reduction definition",
+    "aten_reflection_pad2d": "no reflection-padding definition",
     "aten_relu": "no standalone ReLU definition",
+    "aten_replication_pad2d": "no replication-padding definition",
+    "aten_sigmoid": "no standalone sigmoid definition",
     "aten_silu": "no standalone SiLU definition",
+    "aten_softplus": "external logf/expf and branch retain a residual loop",
     "aten_sum": "partial: only output zero-initialization matched",
-    "aten_transpose_copy": "unsafe copy false-positive: flat-copy ABI cannot transpose",
+    "aten_tanh": "no standalone tanh definition",
+    "aten_transpose_copy": "permuted indexing map correctly rejected as flat copy",
+    "aten_upsample_bilinear2d": "no bilinear-resampling definition",
     "aten_upsample_nearest2d": "no nearest-neighbor resampling definition",
 }
 
-ATEN_C_UNSAFE_MATCHES = {"aten_im2col", "aten_transpose_copy"}
+ATEN_C_UNSAFE_MATCHES: set[str] = set()
 
 # These probes come from large upstream source files. Keep them in the IR
 # explorer, but avoid embedding the full original files in Compiler Explorer
@@ -1792,6 +1817,9 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         )
     total_linalg = sum(s.get("linalg_ops", 0) for s in aten_stats.values())
     total_launches = sum(s.get("launches", 0) for s in aten_stats.values())
+    total_residual_loops = sum(
+        s.get("residual_for", 0) for s in aten_stats.values()
+    )
     fully_raised = sum(
         s.get("residual_for", 0) == 0 and s.get("linalg_ops", 0) > 0
         for s in aten_stats.values()
@@ -1803,12 +1831,13 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         'ATen extracted C numerical kernels</h2></div>'
         '<div class="intro">'
         f'<b>{fully_raised}/{len(aten_stats)} fully raised:</b> {total_linalg} '
-        f'<code>linalg.generic</code> operations, zero residual loops. '
+        f'<code>linalg.generic</code> operations and {total_residual_loops} '
+        f'residual loops. '
         f'The current matcher emitted {total_launches} launches across '
         f'{matched_kernels}/{len(aten_stats)} kernels. '
-        'FULL/PARTIAL/NONE describe semantic matcher coverage; UNSAFE marks '
-        'a shape-compatible match that the flat runtime ABI cannot implement '
-        'correctly. '
+        'FULL/PARTIAL/NONE describe semantic matcher coverage. Copy matching '
+        'now proves compatible indexing maps and rejects transpose, gather, '
+        'and shuffle false-positives. '
         'The newly available cuTensorNet tensor-product definition produced '
         'no additional ATen match: none of these kernels has its rank-6 '
         'separable 3D tensor-product signature. Existing cuBLAS, cuDNN, and '

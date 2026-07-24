@@ -211,7 +211,7 @@ extern "C" void polygeist_custom_stencil3d_7pt_f64(
       cuda_stream);
 }
 
-extern "C" void polygeist_custom_stencil3d_7pt_flat_f64(
+extern "C" void polygeist_custom_stencil3d_7pt_flat_f64_device(
     int32_t N,
     const double *a0, const double *a1, const double *a2,
     const double *a3, const double *a4, const double *a5,
@@ -219,43 +219,12 @@ extern "C" void polygeist_custom_stencil3d_7pt_flat_f64(
     double *out,
     double base0, double base_extra, double coeff_extra,
     double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6) {
-  size_t bytes = (size_t)N * sizeof(double);
-  double *d0 = nullptr, *d1 = nullptr, *d2 = nullptr, *d3 = nullptr;
-  double *d4 = nullptr, *d5 = nullptr, *d6 = nullptr, *dextra = nullptr;
-  double *dcoeff = nullptr, *dout = nullptr;
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d0, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d1, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d2, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d3, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d4, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d5, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d6, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dout, bytes));
-  if (extra)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dextra, bytes));
-  if (coeff)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dcoeff, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d0, a0, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d1, a1, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d2, a2, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d3, a3, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d4, a4, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d5, a5, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d6, a6, bytes, cudaMemcpyHostToDevice));
-  if (extra)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(dextra, extra, bytes, cudaMemcpyHostToDevice));
-  if (coeff)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(dcoeff, coeff, bytes, cudaMemcpyHostToDevice));
+    double c4, double c5, double c6,
+    void *cuda_stream) {
   launch_stencil3d_7pt_flat<double>(
-      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
+      N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
       base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6,
-      /*cuda_stream=*/nullptr);
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(out, dout, bytes, cudaMemcpyDeviceToHost));
-  cudaFree(d0); cudaFree(d1); cudaFree(d2); cudaFree(d3);
-  cudaFree(d4); cudaFree(d5); cudaFree(d6); cudaFree(dout);
-  if (dextra) cudaFree(dextra);
-  if (dcoeff) cudaFree(dcoeff);
+      cuda_stream);
 }
 
 extern "C" void polygeist_custom_stencil3d_7pt_f32(
@@ -292,7 +261,7 @@ extern "C" void polygeist_custom_stencil3d_7pt_f32(
       cuda_stream);
 }
 
-extern "C" void polygeist_custom_stencil3d_7pt_flat_f32(
+extern "C" void polygeist_custom_stencil3d_7pt_flat_f32_device(
     int32_t N,
     const float *a0, const float *a1, const float *a2,
     const float *a3, const float *a4, const float *a5,
@@ -300,41 +269,10 @@ extern "C" void polygeist_custom_stencil3d_7pt_flat_f32(
     float *out,
     float base0, float base_extra, float coeff_extra,
     float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6) {
-  size_t bytes = (size_t)N * sizeof(float);
-  float *d0 = nullptr, *d1 = nullptr, *d2 = nullptr, *d3 = nullptr;
-  float *d4 = nullptr, *d5 = nullptr, *d6 = nullptr, *dextra = nullptr;
-  float *dcoeff = nullptr, *dout = nullptr;
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d0, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d1, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d2, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d3, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d4, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d5, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&d6, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dout, bytes));
-  if (extra)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dextra, bytes));
-  if (coeff)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&dcoeff, bytes));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d0, a0, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d1, a1, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d2, a2, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d3, a3, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d4, a4, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d5, a5, bytes, cudaMemcpyHostToDevice));
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(d6, a6, bytes, cudaMemcpyHostToDevice));
-  if (extra)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(dextra, extra, bytes, cudaMemcpyHostToDevice));
-  if (coeff)
-    POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(dcoeff, coeff, bytes, cudaMemcpyHostToDevice));
+    float c4, float c5, float c6,
+    void *cuda_stream) {
   launch_stencil3d_7pt_flat<float>(
-      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
+      N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
       base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6,
-      /*cuda_stream=*/nullptr);
-  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMemcpy(out, dout, bytes, cudaMemcpyDeviceToHost));
-  cudaFree(d0); cudaFree(d1); cudaFree(d2); cudaFree(d3);
-  cudaFree(d4); cudaFree(d5); cudaFree(d6); cudaFree(dout);
-  if (dextra) cudaFree(dextra);
-  if (dcoeff) cudaFree(dcoeff);
+      cuda_stream);
 }

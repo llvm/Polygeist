@@ -17,11 +17,11 @@ device-accessible structured pointers:
 - `polygeist_custom_stencil3d_7pt_f64`
 - `polygeist_custom_stencil3d_7pt_f32`
 
-It also provides flat seven-tensor wrappers used by the current
-`kernel.launch` lowering path:
+It also provides flat seven-tensor device launchers used by the current
+`kernel.launch` lowering path after the runtime shim maps host pointers:
 
-- `polygeist_custom_stencil3d_7pt_flat_f64`
-- `polygeist_custom_stencil3d_7pt_flat_f32`
+- `polygeist_custom_stencil3d_7pt_flat_f64_device`
+- `polygeist_custom_stencil3d_7pt_flat_f32_device`
 
 The kernel computes a structured center-plus-six-neighbor 3D stencil with
 optional extra input and optional per-cell coefficient:
@@ -50,11 +50,12 @@ The structured API intentionally uses strides in elements and assumes
 lets a future lowering pass halo-backed interiors directly without
 materializing a dense filter.
 
-The flat ABI mirrors the current raised Linalg lowering: it receives seven
-same-shaped tap tensors plus optional `extra`/`coeff` pointers. The CUDA object
-copies those host pointers to device buffers, launches a one-thread-per-cell
-kernel, and copies the output back. That is correct for today’s host-pointer
-runtime ABI, but it is not yet the final zero-copy/device-resident path.
+The flat device ABI mirrors the current raised Linalg lowering: it receives
+seven same-shaped tap tensors plus optional `extra`/`coeff` pointers. The CUDA
+object does not allocate, copy, or synchronize. The runtime shim
+`polygeist_custom_stencil3d_7pt_flat_f64` owns pointer registration/data
+residency, timing, and pipeline-scope synchronization, then calls the linked
+`*_device` launcher.
 
 Example standalone build, when `nvcc` is available:
 
@@ -79,5 +80,6 @@ Current integration status:
    bodies to those definitions.
 3. `LowerKernelLaunchToCuBLAS.cpp` lowers them to
    `polygeist_custom_stencil3d_7pt_flat_f64`.
-4. `runtime/polygeist_cublas_rt_{cpu,cuda}.c` provide CPU/weak fallback
-   implementations so builds run even without the CUDA object.
+4. `runtime/polygeist_cublas_rt_{cpu,cuda}.c` provide the public runtime shim.
+   The CUDA shim calls the device launcher when a custom CUDA object is linked,
+   otherwise it falls back to the CPU reference loop.

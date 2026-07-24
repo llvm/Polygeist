@@ -510,6 +510,88 @@ void polygeist_cutensornet_tensor_product_3d_f32(
       }
 }
 
+void polygeist_cutensornet_tensor_product_3d_f64(
+    int32_t KQ, int32_t KP, const double *psi, const double *u, double *out) {
+  for (int32_t a = 0; a < KQ; ++a)
+    for (int32_t b = 0; b < KQ; ++b)
+      for (int32_t c = 0; c < KQ; ++c) {
+        double sum = 0.0;
+        for (int32_t i = 0; i < KP; ++i)
+          for (int32_t j = 0; j < KP; ++j)
+            for (int32_t k = 0; k < KP; ++k)
+              sum += psi[(size_t)a * KP + i] *
+                     psi[(size_t)b * KP + j] *
+                     psi[(size_t)c * KP + k] *
+                     u[((size_t)i * KP + j) * KP + k];
+        out[((size_t)a * KQ + b) * KQ + c] = sum;
+      }
+}
+
+void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata) {
+  enum { MAX_RANK = 5, TENSOR_FIELDS = 3 * MAX_RANK };
+  int64_t ranks[3] = {metadata[0], metadata[1], metadata[2]};
+  int64_t extents[3][MAX_RANK];
+  int64_t strides[3][MAX_RANK];
+  int64_t modes[3][MAX_RANK];
+  int64_t modeExtents[MAX_RANK] = {1, 1, 1, 1, 1};
+  int present[3][MAX_RANK] = {{0}};
+
+  for (int tensor = 0; tensor < 3; ++tensor) {
+    if (ranks[tensor] < 0 || ranks[tensor] > MAX_RANK) {
+      fprintf(stderr, "polygeist runtime: invalid contraction rank\n");
+      return;
+    }
+    int64_t base = 3 + (int64_t)tensor * TENSOR_FIELDS;
+    for (int64_t dim = 0; dim < ranks[tensor]; ++dim) {
+      extents[tensor][dim] = metadata[base + dim];
+      strides[tensor][dim] = metadata[base + MAX_RANK + dim];
+      modes[tensor][dim] = metadata[base + 2 * MAX_RANK + dim];
+      int64_t mode = modes[tensor][dim];
+      int64_t extent = extents[tensor][dim];
+      if (mode < 0 || mode >= MAX_RANK || extent <= 0) {
+        fprintf(stderr, "polygeist runtime: invalid contraction metadata\n");
+        return;
+      }
+      if (modeExtents[mode] != 1 && modeExtents[mode] != extent) {
+        fprintf(stderr,
+                "polygeist runtime: inconsistent contraction mode extent\n");
+        return;
+      }
+      modeExtents[mode] = extent;
+      present[tensor][mode] = 1;
+    }
+  }
+
+  int64_t total = 1;
+  for (int mode = 0; mode < MAX_RANK; ++mode)
+    total *= modeExtents[mode];
+  for (int64_t linear = 0; linear < total; ++linear) {
+    int64_t coordinates[MAX_RANK];
+    int64_t remaining = linear;
+    for (int mode = MAX_RANK - 1; mode >= 0; --mode) {
+      coordinates[mode] = remaining % modeExtents[mode];
+      remaining /= modeExtents[mode];
+    }
+
+    int64_t offsets[3] = {0, 0, 0};
+    for (int tensor = 0; tensor < 3; ++tensor)
+      for (int64_t dim = 0; dim < ranks[tensor]; ++dim)
+        offsets[tensor] +=
+            coordinates[modes[tensor][dim]] * strides[tensor][dim];
+
+    int firstReductionPoint = 1;
+    for (int mode = 0; mode < MAX_RANK; ++mode)
+      if (!present[2][mode] &&
+          (present[0][mode] || present[1][mode]) &&
+          coordinates[mode] != 0)
+        firstReductionPoint = 0;
+    if (firstReductionPoint)
+      C[offsets[2]] = 0.0;
+    C[offsets[2]] += A[offsets[0]] * B[offsets[1]];
+  }
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the

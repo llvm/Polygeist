@@ -88,14 +88,18 @@ void polygeist_custom_stencil3d_7pt_f32(
     void *cuda_stream);
 
 /*
- * Flat seven-tensor ABI used by current raised Linalg lowering. `extra` and
- * `coeff` may be NULL. This mirrors the formula above but each tap is already
- * presented as a same-shaped tensor:
+ * Flat seven-tensor device ABI used by current raised Linalg lowering after
+ * the runtime shim has mapped host pointers to device-accessible pointers.
+ * `extra` and `coeff` may be NULL. This mirrors the formula above but each
+ * tap is already presented as a same-shaped tensor:
  *   out = base0*a0 + base_extra*extra
  *       + (coeff ? coeff[i] : 1) *
  *         (c0*a0 + ... + c6*a6 + coeff_extra*extra)
+ *
+ * These functions do not allocate, copy, or synchronize. The runtime shim owns
+ * pointer registration/data residency and passes the stream.
  */
-void polygeist_custom_stencil3d_7pt_flat_f64(
+void polygeist_custom_stencil3d_7pt_flat_f64_device(
     int32_t N,
     const double *a0, const double *a1, const double *a2,
     const double *a3, const double *a4, const double *a5,
@@ -103,9 +107,10 @@ void polygeist_custom_stencil3d_7pt_flat_f64(
     double *out,
     double base0, double base_extra, double coeff_extra,
     double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6);
+    double c4, double c5, double c6,
+    void *cuda_stream);
 
-void polygeist_custom_stencil3d_7pt_flat_f32(
+void polygeist_custom_stencil3d_7pt_flat_f32_device(
     int32_t N,
     const float *a0, const float *a1, const float *a2,
     const float *a3, const float *a4, const float *a5,
@@ -113,7 +118,8 @@ void polygeist_custom_stencil3d_7pt_flat_f32(
     float *out,
     float base0, float base_extra, float coeff_extra,
     float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6);
+    float c4, float c5, float c6,
+    void *cuda_stream);
 
 #ifdef __cplusplus
 }

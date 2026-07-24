@@ -55,7 +55,8 @@ def parse_signature(c_text: str, kernel_name: str):
     """
     # The signature can be split across many lines. Find the function head.
     m = re.search(
-        rf"void\s+{re.escape(kernel_name)}\s*\((.*?)\)\s*(?:\n)?\s*\{{",
+        rf"(?:void|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}"
+        rf"\s*\((.*?)\)\s*(?:\n)?\s*\{{",
         c_text,
         re.DOTALL,
     )
@@ -120,6 +121,21 @@ def parse_signature(c_text: str, kernel_name: str):
             kind, name, dims = _parse_plain_c_array(a)
             out.append((kind, name, *dims))
             plain_array_indices.append(len(out) - 1)
+        elif _is_plain_c_pointer(a):
+            # Extracted kernels often use pointer signatures instead of fixed
+            # C arrays. Infer the 1D memref extent from common scalar args.
+            name, is_const = _parse_plain_c_pointer(a)
+            if name == "out" and "n" in scalar_ints and "k" in scalar_ints:
+                size = "(n - k + 1)"
+            elif name in ("filter", "kernel", "weights") and "k" in scalar_ints:
+                size = "k"
+            elif "n" in scalar_ints:
+                size = "n"
+            elif "N" in c_text:
+                size = "N"
+            else:
+                raise ValueError(f"Couldn't infer pointer extent for arg: {a}")
+            out.append(('1D', name, size))
         elif re.match(r"^\s*DATA_TYPE\b", a) or re.match(r"^\s*float\b", a) \
                 or re.match(r"^\s*double\b", a):
             # Scalar (alpha, beta, etc.).
@@ -138,14 +154,25 @@ def parse_signature(c_text: str, kernel_name: str):
     return out
 
 
+def parse_return_type(c_text: str, kernel_name: str, dtype: str) -> str:
+    m = re.search(
+        rf"\b(void|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}\s*\(",
+        c_text,
+    )
+    if not m:
+        raise ValueError(f"Couldn't find function {kernel_name}")
+    ret = m.group(1)
+    return dtype if ret == "DATA_TYPE" else ret
+
+
 def _is_plain_c_array(a: str) -> bool:
     """True iff `a` looks like a plain C array parameter declaration
     (e.g. 'double A[NI][NJ]' or 'int A[N]' or 'short A[NI][NJ][NK]').
     Distinguishable from a pointer-to-scalar (`double *alpha`) because
     array params always have a square-bracket dim list."""
-    if not re.match(r"^\s*(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
+    if not re.match(r"^\s*(?:const\s+)?(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
         return False
-    return re.search(r"\[\s*\w+\s*\]\s*(?:\[\s*\w+\s*\])*\s*$", a) is not None
+    return re.search(r"\[\s*[^\]]+\s*\]\s*(?:\[\s*[^\]]+\s*\])*\s*$", a) is not None
 
 
 def _parse_plain_c_array(a: str):
@@ -155,14 +182,14 @@ def _parse_plain_c_array(a: str):
     it identically to the POLYBENCH macro form.
     """
     m = re.match(
-        r"^\s*(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
-        r"\s+(\w+)((?:\s*\[\s*\w+\s*\])+)\s*$",
+        r"^\s*(?:const\s+)?(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
+        r"\s+(\w+)((?:\s*\[\s*[^\]]+\s*\])+)\s*$",
         a,
     )
     if not m:
         raise ValueError(f"Couldn't parse plain-C-array arg: {a!r}")
     name = m.group(1)
-    dims = re.findall(r"\[\s*(\w+)\s*\]", m.group(2))
+    dims = [d.strip() for d in re.findall(r"\[\s*([^\]]+)\s*\]", m.group(2))]
     if len(dims) == 1:
         return ('1D', name, dims)
     if len(dims) == 2:
@@ -173,7 +200,23 @@ def _parse_plain_c_array(a: str):
                      f"gen_wrapper only handles 1D/2D/3D: {a!r}")
 
 
-def gen_wrapper(kernel_name: str, args, dtype: str = 'double', prelude: str = ''):
+def _is_plain_c_pointer(a: str) -> bool:
+    return re.match(
+        r"^\s*(?:const\s+)?(?:double|float|DATA_TYPE)\s*\*\s*\w+\s*$", a
+    ) is not None
+
+
+def _parse_plain_c_pointer(a: str):
+    m = re.match(
+        r"^\s*(const\s+)?(?:double|float|DATA_TYPE)\s*\*\s*(\w+)\s*$", a
+    )
+    if not m:
+        raise ValueError(f"Couldn't parse pointer arg: {a!r}")
+    return m.group(2), bool(m.group(1))
+
+
+def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
+                prelude: str = '', return_type: str = 'void'):
     """Emit wrapper C source for `kernel_name`."""
     extern_args, wrapper_args, call_args = [], [], []
     for a in args:
@@ -221,15 +264,22 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double', prelude: str = ''
             raise ValueError(f"Unknown kind {k}")
 
     extern = (
-        f"extern void {kernel_name}_impl(\n    "
+        f"extern {return_type} {kernel_name}_impl(\n    "
         + ",\n    ".join(extern_args)
         + ");"
     )
-    wrapper = (
-        f"void {kernel_name}({', '.join(wrapper_args)}) {{\n"
-        f"  {kernel_name}_impl(\n      "
+    call = (
+        f"{kernel_name}_impl(\n      "
         + ",\n      ".join(call_args)
-        + ");\n}"
+        + ")"
+    )
+    if return_type == 'void':
+        body = f"  {call};"
+    else:
+        body = f"  return {call};"
+    wrapper = (
+        f"{return_type} {kernel_name}({', '.join(wrapper_args)}) {{\n"
+        f"{body}\n}}"
     )
     prefix = "#include <stdint.h>"
     if prelude:
@@ -244,8 +294,10 @@ def main():
     src, name = sys.argv[1], sys.argv[2]
     with open(src) as f:
         text = f.read()
+    dtype = infer_dtype(text)
     args = parse_signature(text, name)
-    print(gen_wrapper(name, args, infer_dtype(text), extract_macro_prelude(text)))
+    ret = parse_return_type(text, name, dtype)
+    print(gen_wrapper(name, args, dtype, extract_macro_prelude(text), ret))
 
 
 if __name__ == "__main__":

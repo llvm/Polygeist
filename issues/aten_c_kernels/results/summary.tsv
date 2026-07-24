@@ -1,0 +1,51 @@
+kernel	status	linalg_ops	residual_loops	kernel_launches	matched_symbols
+aten_adaptive_avg_pool2d	pass	2	0	0	
+aten_adaptive_avg_pool3d	pass	2	0	0	
+aten_add	pass	1	0	1	cudnnAddTensor_batched
+aten_addmm	pass	2	0	1	cublasDgemm
+aten_avg_pool2d	pass	2	0	0	
+aten_avg_pool3d	pass	2	0	0	
+aten_batch_norm	pass	1	0	1	cudnnBatchNormalizationForwardInference
+aten_binary_cross_entropy	pass	0	1	0	
+aten_bmm	pass	2	0	0	
+aten_channel_shuffle	pass	1	0	0	
+aten_clamp	pass	1	0	0	
+aten_conv1d	pass	2	0	0	
+aten_conv2d	pass	2	0	1	cudnnConvolutionFwd_batched
+aten_conv3d	pass	2	0	0	
+aten_conv_transpose2d	pass	2	0	0	
+aten_cross	pass	3	0	0	
+aten_cumsum	pass	1	0	0	
+aten_dot	pass	1	0	1	cublasDdot
+aten_elu	pass	1	0	0	
+aten_embedding	pass	0	2	0	
+aten_gelu	pass	1	0	1	gelu_tanh_f32_tensor
+aten_hardsigmoid	pass	1	0	0	
+aten_hardswish	pass	1	0	0	
+aten_hardtanh	pass	1	0	0	
+aten_im2col	pass	1	0	0	
+aten_l1_loss	pass	1	0	0	
+aten_layer_norm	pass	3	0	0	
+aten_leaky_relu	pass	1	0	0	
+aten_lerp	pass	1	0	0	
+aten_max_pool2d	pass	2	0	1	cudnnMaxPoolFwd_batched
+aten_mean	pass	1	0	0	
+aten_mm	pass	2	0	2	cublasDgemm_simple,memset_zero_2D
+aten_mse_loss	pass	2	0	0	
+aten_mv	pass	1	0	1	cublasDgemv
+aten_outer	pass	2	0	1	memset_zero_2D
+aten_pixel_shuffle	pass	1	0	0	
+aten_prod	pass	1	0	0	
+aten_reflection_pad2d	pass	1	0	0	
+aten_relu	pass	1	0	0	
+aten_replication_pad2d	pass	1	0	0	
+aten_rms_norm	pass	2	0	1	rmsnorm_f32_tensor
+aten_sigmoid	pass	1	0	0	
+aten_silu	pass	1	0	0	
+aten_softmax	pass	3	0	1	cudnnSoftmaxForward_tensor
+aten_softplus	pass	0	1	0	
+aten_sum	pass	2	0	1	memset_zero_1D
+aten_tanh	pass	1	0	0	
+aten_transpose_copy	pass	1	0	0	
+aten_upsample_bilinear2d	pass	1	0	0	
+aten_upsample_nearest2d	pass	1	0	0	

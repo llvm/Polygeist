@@ -48,7 +48,8 @@ def process(row):
     if drc:
         result["error"] = next((x for x in derr.splitlines() if "error:" in x), derr[:300])
         return result
-    text = debuf.read_text()
+    text = debuf.read_text().rstrip() + "\n"
+    debuf.write_text(text)
     result["linalg_ops"] = text.count("linalg.")
     rrc, report, rerr = run([str(PYTHON), str(MATCHER), str(debuf), "--dry-run"])
     combined_report = report + rerr
@@ -64,7 +65,7 @@ def process(row):
     result["matched_symbols"] = ",".join(sorted(set(symbols)))
 
     mrc, rewritten, merr = run([str(PYTHON), str(MATCHER), str(debuf)])
-    matched.write_text(rewritten)
+    matched.write_text(rewritten.rstrip() + "\n")
     match_log.write_text(merr)
     result["matcher_ok"] = mrc == 0
     launches = LAUNCH_RE.findall(rewritten)
@@ -88,7 +89,9 @@ def main():
                   flush=True)
     results.sort(key=lambda r: r["id"])
     with (OUT/"summary.csv").open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(results[0]))
+        writer = csv.DictWriter(
+            f, fieldnames=list(results[0]), lineterminator="\n"
+        )
         writer.writeheader(); writer.writerows(results)
     matched = [r for r in results if r["matched_groups"]]
     with (OUT/"SUMMARY.md").open("w") as f:
@@ -99,5 +102,38 @@ def main():
         f.write(f"- matched stage groups: {sum(r['matched_groups'] for r in results)}\n")
         f.write(f"- emitted kernel.launch operations: {sum(r['kernel_launches'] for r in results)}\n\n")
         f.write("Matches are stage-level unless a report explicitly names a whole composition.\n")
+        f.write("""
+
+## FP64 contraction lowering
+
+- 88 matches are ABI-legal two-input FP64 contractions:
+  - 64 rank `4 x 5 -> 4`
+  - 4 rank `5 x 4 -> 4`
+  - 20 rank `5 x 5 -> 4`
+- All 88 lower to `polygeist_cutensornet_contraction2_f64`, with the original
+  affine indexing maps and physical `polygeist.submap` strides encoded as
+  extent/stride/mode metadata.
+- 4 former `cublasGemmFor1x1Conv` hits are now rejected because their
+  reduction dimension occurs in the output map, so they are not contractions.
+- The remaining 6 emitted launches are older structural matches (5
+  `cublasDaxpby`, 1 `cudnnAddTensor_batched`) and are not included in the
+  cuTensorNet lowering count.
+
+Host compilation, focused pass tests, and the CPU reference contraction test
+pass.
+
+## Silicon validation
+
+On 2026-07-24, all three compiler-generated FP64 variants ran through
+cuTensorNet on an aarch64 Tegra target:
+
+- `r4 x r5 -> r4`: `max_error=0`
+- `r5 x r4 -> r4`: `max_error=0`
+- `r5 x r5 -> r4` with compacted broadcast modes: `max_error=0`
+
+The first call paid cuTensorNet/CUDA initialization and planning cost. The
+subsequent two small contractions took about `0.085-0.088 ms` of device time.
+See `../silicon_results/2026-07-24_cutensornet_variants.log`.
+""")
 
 if __name__ == "__main__": main()

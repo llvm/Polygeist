@@ -1173,14 +1173,16 @@
 - The exported C ABI has f64/f32 structured launch wrappers:
   - `polygeist_custom_stencil3d_7pt_f64`
   - `polygeist_custom_stencil3d_7pt_f32`
-- It also has flat f64/f32 wrappers used by the current compiler/runtime ABI:
-  - `polygeist_custom_stencil3d_7pt_flat_f64`
-  - `polygeist_custom_stencil3d_7pt_flat_f32`
+- It also has flat f64/f32 device launchers used by the current
+  compiler/runtime ABI after the runtime shim maps pointers:
+  - `polygeist_custom_stencil3d_7pt_flat_f64_device`
+  - `polygeist_custom_stencil3d_7pt_flat_f32_device`
 - The structured wrappers are device-pointer based and stride-aware. The flat
-  wrappers are host-pointer compatible: they allocate/copy seven tap buffers
-  plus optional `extra`/`coeff` to device, launch a flattened CUDA kernel, copy
-  output back, and free temporary buffers. This is correct for the current
-  host-pointer runtime ABI but not the final optimized data-resident path.
+  device launchers are also device-pointer based: they do not allocate, copy,
+  or synchronize. The public runtime ABI symbols
+  `polygeist_custom_stencil3d_7pt_flat_{f64,f32}` live in
+  `runtime/polygeist_cublas_rt_cuda.c`; they use `register_host_safe` like the
+  other Jetson CUDA shims, then call the linked custom CUDA device launcher.
 - Kernel computation:
   - Inputs are an interior `input_center` pointer, optional `extra`, optional
     per-cell `coeff`, and output.
@@ -1213,8 +1215,10 @@
   - `lib/polygeist/Passes/LowerKernelLaunchToCuBLAS.cpp` lowers those
     `kernel.launch` ops to `polygeist_custom_stencil3d_7pt_flat_f64`.
   - `runtime/polygeist_cublas_rt_cpu.c` has CPU reference implementations.
-  - `runtime/polygeist_cublas_rt_cuda.c` has weak CPU fallback implementations
-    so Jetson binaries still link/run even when the CUDA object is not linked.
+  - `runtime/polygeist_cublas_rt_cuda.c` has public runtime shims. Each shim
+    uses the linked custom CUDA `*_device` launcher if present, otherwise falls
+    back to the CPU reference loop so Jetson binaries still link/run without
+    the custom object.
   - `scripts/correctness/polygeist_build.sh` accepts
     `POLYGEIST_CUSTOM_CUDA_OBJ` / `POLYGEIST_CUSTOM_CUDA_OBJS`; a strong CUDA
     object overrides the weak fallback at link time.
@@ -1231,14 +1235,34 @@
   - Compiled `polygeist_stencil3d_7pt.cu` on Jetson with
     `/usr/local/cuda/bin/nvcc` and copied the aarch64 object back to
     `/tmp/polygeist_stencil3d_7pt_jetson.o`.
-  - Jetson cross-build with
-    `POLYGEIST_CUSTOM_CUDA_OBJ=/tmp/polygeist_stencil3d_7pt_jetson.o` passed.
-    The run produced the same checksum and no `_cpu_fallback` timing lines for
-    the 7-point calls, confirming the strong CUDA object overrode the weak
-    fallback. Log:
-    `scripts/correctness/logs/miniamr_custom7_cuda_20260606_212940.silicon.log`.
+  - Earlier Jetson cross-build with the pre-split custom object passed, but
+    that object overrode the runtime shim and did its own per-call
+    `cudaMalloc/cudaMemcpy/cudaFree`. This was fixed after the commit by
+    renaming the custom CUDA exports to `*_device` and moving pointer mapping
+    back into the runtime shim.
 - Remaining optimization:
-  - add timing output inside the custom CUDA flat wrappers if we want per-call
-    device/host timing for the 7-point kernels;
-  - replace flat host-copy wrappers with a device-resident/runtime-managed path
-    so adjacent library calls do not reallocate/copy every operand.
+  - 2026-06-07 rebuilt the custom CUDA object on Jetson after the `*_device`
+    split. New object:
+    `/tmp/polygeist_stencil3d_7pt_device_jetson.o`.
+  - Verified the object exports only:
+    `polygeist_custom_stencil3d_7pt_flat_f64_device` and
+    `polygeist_custom_stencil3d_7pt_flat_f32_device`; it no longer exports the
+    public runtime shim symbol.
+  - Cross-built MiniAMR with
+    `POLYGEIST_WRAP_KERNEL_PIPELINE=1` and
+    `POLYGEIST_CUSTOM_CUDA_OBJ=/tmp/polygeist_stencil3d_7pt_device_jetson.o`.
+    The ABI MLIR had exactly one scoped sequence:
+    `polygeist_cublas_pipeline_begin`, two
+    `polygeist_custom_stencil3d_7pt_flat_f64` calls, one
+    `polygeist_cudnn_conv3d_ntap_f64` call, then
+    `polygeist_cublas_pipeline_end`.
+  - Jetson silicon run passed with checksum
+    `miniamr 49.901192783357`, `total 83.800132012080`.
+    Timing labels were `customStencil3D7pt_f64` rather than
+    `_cpu_fallback`, proving the runtime shim called the custom CUDA device
+    launcher. Log:
+    `scripts/correctness/logs/miniamr_custom7_device_20260607_075129.silicon.log`.
+- Remaining optimization:
+  - timing inside a pipeline scope intentionally reports `device_ms=0` because
+    the runtime does not synchronize per op inside the scope; add aggregate
+    scope timing if needed for performance reporting.

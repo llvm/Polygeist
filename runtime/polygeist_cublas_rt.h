@@ -253,6 +253,16 @@ void polygeist_cufft_c2c_1d(
 void polygeist_cutensornet_tensor_product_3d_f32(
     int32_t KQ, int32_t KP, const float *psi, const float *u, float *out);
 
+void polygeist_cutensornet_tensor_product_3d_f64(
+    int32_t KQ, int32_t KP, const double *psi, const double *u, double *out);
+
+// General two-input FP64 Einstein contraction used by normalized MFEM stages.
+// `metadata` contains three ranks followed by extent/stride/mode arrays for
+// A, B, and C; see LowerKernelLaunchToCuBLAS.cpp for the fixed 48-element
+// layout. Broadcast modes are omitted before this ABI is called.
+void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata);
+
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
 // `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI

@@ -1498,6 +1498,41 @@ module {
     kernel.yield %out : tensor<?x?x?x?x?x?xf32>
   }
 
+  kernel.defn @cutensornetTensorProduct3D_f64_tensor(
+      %psiA: tensor<?x?x?x?x?x?xf64>,
+      %psiB: tensor<?x?x?x?x?x?xf64>,
+      %psiC: tensor<?x?x?x?x?x?xf64>,
+      %u: tensor<?x?x?x?x?x?xf64>,
+      %out: tensor<?x?x?x?x?x?xf64>) -> tensor<?x?x?x?x?x?xf64> {
+    kernel.yield %out : tensor<?x?x?x?x?x?xf64>
+  }
+
+  // Layout-aware two-input FP64 Einstein contractions. The matcher attaches
+  // the original linalg indexing maps to each launch; ABI lowering combines
+  // them with polygeist.submap strides and routes the operation to
+  // cuTensorNet. Separate symbols are required because kernel.defn signatures
+  // are rank-static even though the runtime metadata ABI is shared.
+  kernel.defn @cutensornetContraction2_f64_r4r5r4(
+      %A: tensor<?x?x?x?xf64>,
+      %B: tensor<?x?x?x?x?xf64>,
+      %C: tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64> {
+    kernel.yield %C : tensor<?x?x?x?xf64>
+  }
+
+  kernel.defn @cutensornetContraction2_f64_r5r4r4(
+      %A: tensor<?x?x?x?x?xf64>,
+      %B: tensor<?x?x?x?xf64>,
+      %C: tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64> {
+    kernel.yield %C : tensor<?x?x?x?xf64>
+  }
+
+  kernel.defn @cutensornetContraction2_f64_r5r5r4(
+      %A: tensor<?x?x?x?x?xf64>,
+      %B: tensor<?x?x?x?x?xf64>,
+      %C: tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64> {
+    kernel.yield %C : tensor<?x?x?x?xf64>
+  }
+
   kernel.defn @cudnnConvolution2D_9tap_f16(
       %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
       %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,

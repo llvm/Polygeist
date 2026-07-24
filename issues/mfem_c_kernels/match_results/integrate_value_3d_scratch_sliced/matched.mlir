@@ -20,17 +20,17 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<270>, d
     %4 = tensor.empty() : tensor<2x5x5x4xf64>
     %6 = polygeist.submap(%2, %c2, %c5, %c4, %c5, %c5) {map = #map1} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %7 = polygeist.submap(%1, %c2, %c5, %c4, %c5, %c5) {map = #map2} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v4_tc2 = tensor.cast %4 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
+    %v4_contract_8_tc2 = tensor.cast %4 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
 
-    %v8_tdyn = kernel.launch @cublasGemmFor1x1Conv(%6, %7, %v4_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v8_tdyn = kernel.launch @cutensornetContraction2_f64_r5r5r4(%6, %7, %v4_contract_8_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2)>]} : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %8 = tensor.cast %v8_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x5x4xf64>
     %10 = polygeist.submap(%1, %c2, %c4, %c4, %c5, %c5) {map = #map5} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v8_tc1 = tensor.cast %8 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
+    %v8_contract_11_tc0 = tensor.cast %8 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
 
-    %v3_tc2 = tensor.cast %3 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
+    %v3_contract_11_tc2 = tensor.cast %3 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
 
-    %v11_tdyn = kernel.launch @cublasGemmFor1x1Conv(%10, %v8_tc1, %v3_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v11_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v8_contract_11_tc0, %10, %v3_contract_11_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d2, d1, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %11 = tensor.cast %v11_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x4x4xf64>
     %12 = polygeist.submap(%1, %c2, %c4, %c4, %c4, %c5) {map = #map5} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>

@@ -1639,7 +1639,29 @@ void polygeist_cudnn_conv3d_ntap_f32(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
-__attribute__((weak)) void polygeist_custom_stencil3d_7pt_flat_f64(
+extern void polygeist_custom_stencil3d_7pt_flat_f64_device(
+    int32_t N,
+    const double *a0, const double *a1, const double *a2,
+    const double *a3, const double *a4, const double *a5,
+    const double *a6, const double *extra, const double *coeff,
+    double *out,
+    double base0, double base_extra, double coeff_extra,
+    double c0, double c1, double c2, double c3,
+    double c4, double c5, double c6,
+    void *cuda_stream) __attribute__((weak));
+
+extern void polygeist_custom_stencil3d_7pt_flat_f32_device(
+    int32_t N,
+    const float *a0, const float *a1, const float *a2,
+    const float *a3, const float *a4, const float *a5,
+    const float *a6, const float *extra, const float *coeff,
+    float *out,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6,
+    void *cuda_stream) __attribute__((weak));
+
+static void polygeist_custom_stencil3d_7pt_flat_f64_cpu(
     int32_t N,
     const double *a0, const double *a1, const double *a2,
     const double *a3, const double *a4, const double *a5,
@@ -1667,7 +1689,7 @@ __attribute__((weak)) void polygeist_custom_stencil3d_7pt_flat_f64(
   }
 }
 
-__attribute__((weak)) void polygeist_custom_stencil3d_7pt_flat_f32(
+static void polygeist_custom_stencil3d_7pt_flat_f32_cpu(
     int32_t N,
     const float *a0, const float *a1, const float *a2,
     const float *a3, const float *a4, const float *a5,
@@ -1693,6 +1715,116 @@ __attribute__((weak)) void polygeist_custom_stencil3d_7pt_flat_f32(
             N, wall_time_ms() - host_start_ms);
     fflush(timing_file());
   }
+}
+
+void polygeist_custom_stencil3d_7pt_flat_f64(
+    int32_t N,
+    const double *a0, const double *a1, const double *a2,
+    const double *a3, const double *a4, const double *a5,
+    const double *a6, const double *extra, const double *coeff,
+    double *out,
+    double base0, double base_extra, double coeff_extra,
+    double c0, double c1, double c2, double c3,
+    double c4, double c5, double c6) {
+  if (!polygeist_custom_stencil3d_7pt_flat_f64_device) {
+    polygeist_custom_stencil3d_7pt_flat_f64_cpu(
+        N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
+        base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6);
+    return;
+  }
+  if (N <= 0)
+    return;
+
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(double);
+
+  double *d0 = (double *)register_host_safe((void *)a0, bytes);
+  double *d1 = (double *)register_host_safe((void *)a1, bytes);
+  double *d2 = (double *)register_host_safe((void *)a2, bytes);
+  double *d3 = (double *)register_host_safe((void *)a3, bytes);
+  double *d4 = (double *)register_host_safe((void *)a4, bytes);
+  double *d5 = (double *)register_host_safe((void *)a5, bytes);
+  double *d6 = (double *)register_host_safe((void *)a6, bytes);
+  double *dextra =
+      extra ? (double *)register_host_safe((void *)extra, bytes) : NULL;
+  double *dcoeff =
+      coeff ? (double *)register_host_safe((void *)coeff, bytes) : NULL;
+  double *dout = (double *)register_host_safe(out, bytes);
+
+  timing_gpu_begin();
+  polygeist_custom_stencil3d_7pt_flat_f64_device(
+      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
+      base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6, g_stream);
+  timing_gpu_end("customStencil3D7pt_f64", N, 1, 7, host_start_ms);
+
+  unregister_host_safe((void *)a0);
+  unregister_host_safe((void *)a1);
+  unregister_host_safe((void *)a2);
+  unregister_host_safe((void *)a3);
+  unregister_host_safe((void *)a4);
+  unregister_host_safe((void *)a5);
+  unregister_host_safe((void *)a6);
+  if (extra)
+    unregister_host_safe((void *)extra);
+  if (coeff)
+    unregister_host_safe((void *)coeff);
+  unregister_host_safe(out);
+}
+
+void polygeist_custom_stencil3d_7pt_flat_f32(
+    int32_t N,
+    const float *a0, const float *a1, const float *a2,
+    const float *a3, const float *a4, const float *a5,
+    const float *a6, const float *extra, const float *coeff,
+    float *out,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6) {
+  if (!polygeist_custom_stencil3d_7pt_flat_f32_device) {
+    polygeist_custom_stencil3d_7pt_flat_f32_cpu(
+        N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
+        base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6);
+    return;
+  }
+  if (N <= 0)
+    return;
+
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(float);
+
+  float *d0 = (float *)register_host_safe((void *)a0, bytes);
+  float *d1 = (float *)register_host_safe((void *)a1, bytes);
+  float *d2 = (float *)register_host_safe((void *)a2, bytes);
+  float *d3 = (float *)register_host_safe((void *)a3, bytes);
+  float *d4 = (float *)register_host_safe((void *)a4, bytes);
+  float *d5 = (float *)register_host_safe((void *)a5, bytes);
+  float *d6 = (float *)register_host_safe((void *)a6, bytes);
+  float *dextra =
+      extra ? (float *)register_host_safe((void *)extra, bytes) : NULL;
+  float *dcoeff =
+      coeff ? (float *)register_host_safe((void *)coeff, bytes) : NULL;
+  float *dout = (float *)register_host_safe(out, bytes);
+
+  timing_gpu_begin();
+  polygeist_custom_stencil3d_7pt_flat_f32_device(
+      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
+      base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6, g_stream);
+  timing_gpu_end("customStencil3D7pt_f32", N, 1, 7, host_start_ms);
+
+  unregister_host_safe((void *)a0);
+  unregister_host_safe((void *)a1);
+  unregister_host_safe((void *)a2);
+  unregister_host_safe((void *)a3);
+  unregister_host_safe((void *)a4);
+  unregister_host_safe((void *)a5);
+  unregister_host_safe((void *)a6);
+  if (extra)
+    unregister_host_safe((void *)extra);
+  if (coeff)
+    unregister_host_safe((void *)coeff);
+  unregister_host_safe(out);
 }
 
 static void polygeist_dft_z2z_1d_cpu(
@@ -1799,18 +1931,19 @@ void polygeist_cufft_c2c_1d(
 #endif
 }
 
-void polygeist_cutensornet_tensor_product_3d_f32(
-    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out) {
+static void polygeist_cutensornet_tensor_product_3d_impl(
+    int32_t KQ, int32_t KP, const void *psi, const void *u, void *out,
+    size_t elementBytes, cudaDataType_t dataType) {
 #if POLYGEIST_HAS_CUTENSORNET
   if (KQ <= 0 || KP <= 0) return;
   polygeist_cublas_init();
 
-  size_t psiBytes = (size_t)KQ * (size_t)KP * sizeof(float);
-  size_t uBytes = (size_t)KP * (size_t)KP * (size_t)KP * sizeof(float);
-  size_t outBytes = (size_t)KQ * (size_t)KQ * (size_t)KQ * sizeof(float);
-  float *dPsi = (float *)register_host_safe((void *)psi, psiBytes);
-  float *dU = (float *)register_host_safe((void *)u, uBytes);
-  float *dOut = (float *)register_host_safe(out, outBytes);
+  size_t psiBytes = (size_t)KQ * (size_t)KP * elementBytes;
+  size_t uBytes = (size_t)KP * (size_t)KP * (size_t)KP * elementBytes;
+  size_t outBytes = (size_t)KQ * (size_t)KQ * (size_t)KQ * elementBytes;
+  void *dPsi = register_host_safe((void *)psi, psiBytes);
+  void *dU = register_host_safe((void *)u, uBytes);
+  void *dOut = register_host_safe(out, outBytes);
 
   cutensornetHandle_t handle = NULL;
   cutensornetNetworkDescriptor_t network = NULL;
@@ -1836,19 +1969,19 @@ void polygeist_cutensornet_tensor_product_3d_f32(
   CUTENSORNET_CHECK(cutensornetCreate(&handle));
   CUTENSORNET_CHECK(cutensornetCreateNetwork(handle, &network));
   CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, 2, psiExtents, modesPsiA, NULL, CUDA_R_32F,
+      handle, network, 2, psiExtents, modesPsiA, NULL, dataType,
       &tensorIds[0]));
   CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, 2, psiExtents, modesPsiB, NULL, CUDA_R_32F,
+      handle, network, 2, psiExtents, modesPsiB, NULL, dataType,
       &tensorIds[1]));
   CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, 2, psiExtents, modesPsiC, NULL, CUDA_R_32F,
+      handle, network, 2, psiExtents, modesPsiC, NULL, dataType,
       &tensorIds[2]));
   CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, 3, uExtents, modesU, NULL, CUDA_R_32F,
+      handle, network, 3, uExtents, modesU, NULL, dataType,
       &tensorIds[3]));
   CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensor(
-      handle, network, 3, modesOut, CUDA_R_32F));
+      handle, network, 3, modesOut, dataType));
   CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
       handle, network, tensorIds[0], dPsi, psiStrides));
   CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
@@ -1901,11 +2034,191 @@ void polygeist_cutensornet_tensor_product_3d_f32(
   unregister_host_safe(out);
 #else
   (void)KQ; (void)KP; (void)psi; (void)u; (void)out;
+  (void)elementBytes; (void)dataType;
   fprintf(stderr,
           "polygeist runtime: cuTensorNet support was not enabled at build "
           "time (define POLYGEIST_ENABLE_CUTENSORNET and link "
           "-lcutensornet -lcutensor)\n");
   abort();
+#endif
+}
+
+void polygeist_cutensornet_tensor_product_3d_f32(
+    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out) {
+  polygeist_cutensornet_tensor_product_3d_impl(
+      KQ, KP, psi, u, out, sizeof(float), CUDA_R_32F);
+}
+
+void polygeist_cutensornet_tensor_product_3d_f64(
+    int32_t KQ, int32_t KP, const double *psi, const double *u, double *out) {
+  polygeist_cutensornet_tensor_product_3d_impl(
+      KQ, KP, psi, u, out, sizeof(double), CUDA_R_64F);
+}
+
+static int polygeist_parse_contraction2_f64_metadata(
+    const int64_t *metadata, int64_t ranks[3],
+    int64_t extents[3][5], int64_t strides[3][5],
+    int32_t modes[3][5], int present[3][5],
+    int64_t modeExtents[5]) {
+  enum { MAX_RANK = 5, TENSOR_FIELDS = 15 };
+  for (int mode = 0; mode < MAX_RANK; ++mode)
+    modeExtents[mode] = 1;
+  memset(present, 0, 3 * MAX_RANK * sizeof(int));
+
+  for (int tensor = 0; tensor < 3; ++tensor) {
+    ranks[tensor] = metadata[tensor];
+    if (ranks[tensor] < 0 || ranks[tensor] > MAX_RANK)
+      return 0;
+    int64_t base = 3 + (int64_t)tensor * TENSOR_FIELDS;
+    for (int64_t dim = 0; dim < ranks[tensor]; ++dim) {
+      extents[tensor][dim] = metadata[base + dim];
+      strides[tensor][dim] = metadata[base + MAX_RANK + dim];
+      int64_t mode = metadata[base + 2 * MAX_RANK + dim];
+      if (mode < 0 || mode >= MAX_RANK || extents[tensor][dim] <= 0 ||
+          strides[tensor][dim] < 0)
+        return 0;
+      if (modeExtents[mode] != 1 &&
+          modeExtents[mode] != extents[tensor][dim])
+        return 0;
+      modes[tensor][dim] = (int32_t)mode;
+      modeExtents[mode] = extents[tensor][dim];
+      present[tensor][mode] = 1;
+    }
+  }
+  return 1;
+}
+
+static void polygeist_contraction2_f64_cpu(
+    const double *A, const double *B, double *C,
+    const int64_t ranks[3], const int64_t extents[3][5],
+    const int64_t strides[3][5], const int32_t modes[3][5],
+    const int present[3][5], const int64_t modeExtents[5]) {
+  int64_t total = 1;
+  for (int mode = 0; mode < 5; ++mode)
+    total *= modeExtents[mode];
+  for (int64_t linear = 0; linear < total; ++linear) {
+    int64_t coordinates[5];
+    int64_t remaining = linear;
+    for (int mode = 4; mode >= 0; --mode) {
+      coordinates[mode] = remaining % modeExtents[mode];
+      remaining /= modeExtents[mode];
+    }
+    int64_t offsets[3] = {0, 0, 0};
+    for (int tensor = 0; tensor < 3; ++tensor)
+      for (int64_t dim = 0; dim < ranks[tensor]; ++dim)
+        offsets[tensor] +=
+            coordinates[modes[tensor][dim]] * strides[tensor][dim];
+    int firstReductionPoint = 1;
+    for (int mode = 0; mode < 5; ++mode)
+      if (!present[2][mode] &&
+          (present[0][mode] || present[1][mode]) &&
+          coordinates[mode] != 0)
+        firstReductionPoint = 0;
+    if (firstReductionPoint)
+      C[offsets[2]] = 0.0;
+    C[offsets[2]] += A[offsets[0]] * B[offsets[1]];
+  }
+}
+
+void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata) {
+  int64_t ranks[3];
+  int64_t extents[3][5] = {{0}};
+  int64_t strides[3][5] = {{0}};
+  int32_t modes[3][5] = {{0}};
+  int present[3][5];
+  int64_t modeExtents[5];
+  if (!polygeist_parse_contraction2_f64_metadata(
+          metadata, ranks, extents, strides, modes, present, modeExtents)) {
+    fprintf(stderr, "polygeist runtime: invalid contraction metadata\n");
+    abort();
+  }
+
+#if POLYGEIST_HAS_CUTENSORNET
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  polygeist_cublas_init();
+  size_t elements[3] = {1, 1, 1};
+  for (int tensor = 0; tensor < 3; ++tensor)
+    for (int64_t dim = 0; dim < ranks[tensor]; ++dim)
+      elements[tensor] +=
+          (size_t)(extents[tensor][dim] - 1) *
+          (size_t)strides[tensor][dim];
+  double *dA =
+      (double *)register_host_safe((void *)A, elements[0] * sizeof(double));
+  double *dB =
+      (double *)register_host_safe((void *)B, elements[1] * sizeof(double));
+  double *dC =
+      (double *)register_host_safe((void *)C, elements[2] * sizeof(double));
+
+  cutensornetHandle_t handle = NULL;
+  cutensornetNetworkDescriptor_t network = NULL;
+  cutensornetContractionOptimizerConfig_t config = NULL;
+  cutensornetContractionOptimizerInfo_t info = NULL;
+  cutensornetWorkspaceDescriptor_t workspace = NULL;
+  void *scratch = NULL;
+  int64_t tensorIds[2] = {-1, -1};
+
+  CUTENSORNET_CHECK(cutensornetCreate(&handle));
+  CUTENSORNET_CHECK(cutensornetCreateNetwork(handle, &network));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, (int32_t)ranks[0], extents[0], modes[0], NULL,
+      CUDA_R_64F, &tensorIds[0]));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      handle, network, (int32_t)ranks[1], extents[1], modes[1], NULL,
+      CUDA_R_64F, &tensorIds[1]));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensor(
+      handle, network, (int32_t)ranks[2], modes[2], CUDA_R_64F));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[0], dA, strides[0]));
+  CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
+      handle, network, tensorIds[1], dB, strides[1]));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensorMemory(
+      handle, network, dC, strides[2]));
+
+  CUTENSORNET_CHECK(
+      cutensornetCreateContractionOptimizerConfig(handle, &config));
+  CUTENSORNET_CHECK(
+      cutensornetCreateContractionOptimizerInfo(handle, network, &info));
+  const uint64_t workspaceLimit = UINT64_C(256) * 1024 * 1024;
+  CUTENSORNET_CHECK(cutensornetContractionOptimize(
+      handle, network, config, workspaceLimit, info));
+  CUTENSORNET_CHECK(
+      cutensornetNetworkSetOptimizerInfo(handle, network, info));
+  CUTENSORNET_CHECK(cutensornetCreateWorkspaceDescriptor(handle, &workspace));
+  CUTENSORNET_CHECK(cutensornetWorkspaceComputeContractionSizes(
+      handle, network, info, workspace));
+  int64_t scratchBytes = 0;
+  CUTENSORNET_CHECK(cutensornetWorkspaceGetMemorySize(
+      handle, workspace, CUTENSORNET_WORKSIZE_PREF_RECOMMENDED,
+      CUTENSORNET_MEMSPACE_DEVICE, CUTENSORNET_WORKSPACE_SCRATCH,
+      &scratchBytes));
+  if (scratchBytes > 0)
+    scratch = pipeline_device_malloc((size_t)scratchBytes);
+  CUTENSORNET_CHECK(cutensornetWorkspaceSetMemory(
+      handle, workspace, CUTENSORNET_MEMSPACE_DEVICE,
+      CUTENSORNET_WORKSPACE_SCRATCH, scratch, scratchBytes));
+  CUTENSORNET_CHECK(
+      cutensornetNetworkPrepareContraction(handle, network, workspace));
+  timing_gpu_begin();
+  CUTENSORNET_CHECK(cutensornetNetworkContract(
+      handle, network, 0, workspace, NULL, g_stream));
+  timing_gpu_end("cutensornetContraction2_f64",
+                 (int32_t)modeExtents[0], (int32_t)modeExtents[1],
+                 (int32_t)modeExtents[4], host_start_ms);
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  pipeline_device_free(scratch);
+  CUTENSORNET_CHECK(cutensornetDestroyWorkspaceDescriptor(workspace));
+  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerInfo(info));
+  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerConfig(config));
+  CUTENSORNET_CHECK(cutensornetDestroyNetwork(network));
+  CUTENSORNET_CHECK(cutensornetDestroy(handle));
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+#else
+  polygeist_contraction2_f64_cpu(
+      A, B, C, ranks, extents, strides, modes, present, modeExtents);
 #endif
 }
 

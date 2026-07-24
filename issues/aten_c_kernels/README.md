@@ -37,9 +37,32 @@ The second batch adds fifteen structurally distinct operations:
 - data movement: materialized transpose, `im2col`, nearest-neighbor upsample
 - vector algebra: batched three-component `cross`
 
+The third batch adds twenty-five more native numerical families:
+
+- activations: sigmoid, tanh, leaky-ReLU, ELU, softplus, hard-sigmoid,
+  hard-swish, hard-tanh, and clamp
+- elementwise/loss/reduction: lerp, L1 loss, binary cross entropy, product,
+  and cumulative sum
+- indexing/layout: embedding, channel shuffle, pixel shuffle, reflection
+  padding, and replication padding
+- pooling/convolution/resampling: 3D average and adaptive-average pooling,
+  1D and 3D convolution, 2D transposed convolution, and bilinear upsampling
+
+This is a 50-family numerical extraction corpus, not a claim that ATen has only
+50 operations. The exhaustive direct translation-unit sweep is archived in
+`notes/polygeist_raise_to_linalg/aten_raise_sweep_2026_07_21`: it covers all
+224 portable `aten/src/ATen/native` C/C++ translation units selected at the
+pinned revision. Only 8 emitted a target function and none raised to Linalg,
+primarily because cgeist cannot yet lower ATen's C++ dispatch, temporary, and
+cleanup machinery. The standalone files isolate the numerical algorithms
+behind that frontend boundary.
+
 Run the complete corpus with:
 
 ```sh
-ATEN_C_SWEEP_OUT=/tmp/aten_c_kernel_raise \
-  bash scripts/correctness/aten_c_kernel_sweep.sh
+bash scripts/correctness/aten_c_kernel_sweep.sh
 ```
+
+The default output is the checked-in `results/` directory. Each kernel keeps
+`orig.mlir`, `raised.mlir`, `debuf.mlir`, `matched.mlir`, and diagnostics; flat
+MLIR aliases are also generated for the IR explorer.

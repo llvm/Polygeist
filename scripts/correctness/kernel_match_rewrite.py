@@ -74,6 +74,7 @@ ABI_LOWERABLE_KERNELS = {
     "cufftZ2Z_1D_tensor",
     "cufftC2C_1D_tensor",
     "cutensornetTensorProduct3D_f32_tensor",
+    "cutensornetTensorProduct3D_f64_tensor",
     "cudnnConvolutionFwd_batched",
     "cudnnConvolutionFwd_im2col_gemm",
     "cudnnMaxPoolFwd_batched",
@@ -102,6 +103,9 @@ ABI_LOWERABLE_KERNELS = {
     "cublasLtMatmulBiasReluFused",
     "cublasDsyrk_alias",
     "cublasGemmFor1x1Conv",
+    "cutensornetContraction2_f64_r4r5r4",
+    "cutensornetContraction2_f64_r5r4r4",
+    "cutensornetContraction2_f64_r5r5r4",
 }
 
 
@@ -1346,6 +1350,65 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     )
 
 
+def _render_contraction_launch(
+    name: str,
+    result_ssa: str,
+    result_type: str,
+    operands: list[str],
+    operand_types: list[str],
+    indexing_maps: list[str],
+    indent: str,
+) -> str:
+    """Render a contraction launch while preserving its affine access maps.
+
+    The ABI lowering uses these maps together with polygeist.submap metadata
+    to recover the physical strides and cuTensorNet mode labels. Keeping the
+    maps on the launch is what makes this route layout-aware rather than the
+    old body-shape-only cublasGemmFor1x1Conv guess.
+    """
+    # A source tensor can feed several matched contractions. Include the
+    # result SSA in each normalization-cast name so those launches do not
+    # emit duplicate SSA definitions such as `%v47_tc0`.
+    unique = re.sub(r"\W", "_", result_ssa.lstrip("%"))
+    lines: list[str] = []
+    normalized_operands: list[str] = []
+    normalized_types: list[str] = []
+    for idx, (operand, operand_type) in enumerate(
+            zip(operands, operand_types)):
+        target = _dynamic_tensor_type(operand_type)
+        if target is not None and target != operand_type:
+            cast_ssa = _derived_ssa_name(
+                operand, f"contract_{unique}_tc{idx}"
+            )
+            lines.append(
+                f"{indent}{cast_ssa} = tensor.cast {operand} : "
+                f"{operand_type} to {target}"
+            )
+            normalized_operands.append(cast_ssa)
+            normalized_types.append(target)
+        else:
+            normalized_operands.append(operand)
+            normalized_types.append(operand_type)
+
+    attrs = "{contraction_maps = [" + ", ".join(indexing_maps) + "]}"
+    dynamic_result_type = _dynamic_tensor_type(result_type) or result_type
+    launch_result = result_ssa
+    result_cast = ""
+    if dynamic_result_type != result_type:
+        launch_result = _derived_ssa_name(result_ssa, "tdyn")
+        result_cast = (
+            f"\n{indent}{result_ssa} = tensor.cast {launch_result} : "
+            f"{dynamic_result_type} to {result_type}"
+        )
+    lines.append(
+        f"{indent}{launch_result} = kernel.launch @{name}"
+        f"({', '.join(normalized_operands)}) {attrs} : "
+        f"({', '.join(normalized_types)}) -> {dynamic_result_type}"
+        f"{result_cast}"
+    )
+    return "\n".join(lines)
+
+
 def rewrite_mlir(
     text: str,
     dry_run: bool = False,
@@ -1494,6 +1557,31 @@ def rewrite_mlir(
         replace_full_span = False
         custom_launch_line: str | None = None
         custom_edit_span: tuple[int, int] | None = None
+
+        def _tensor_copy_layout_is_legal() -> bool:
+            """Conservatively prove that a semantic `yield %in` is memcpy.
+
+            Body equivalence alone also matches transpose, pixel-shuffle, and
+            view-gather operations.  The CUDA copy shims are flat contiguous
+            copies, so require identical indexing maps and identical shaped
+            tensor types, and reject sources produced by polygeist.submap.
+            """
+            copy_body = bodies[i]
+            if (len(copy_body.indexing_maps) != 2 or
+                    copy_body.indexing_maps[0] != copy_body.indexing_maps[1]):
+                return False
+            if (len(all_tensor_in_types) != 1 or len(outs0_types) != 1 or
+                    all_tensor_in_types[0] != outs0_types[0]):
+                return False
+            source = all_tensor_ins[0] if all_tensor_ins else ""
+            if source:
+                prefix = text[:instances[i].span[0]]
+                if re.search(
+                        rf"^\s*{re.escape(source)}\s*=\s*polygeist\.submap\b",
+                        prefix, re.MULTILINE):
+                    return False
+            return True
+
         if entry.name == "cublasDcopy" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
             # rank-0 memref: starts with `memref<` and the chunk before the
@@ -1504,6 +1592,10 @@ def rewrite_mlir(
                     emit_name = "broadcast_scalar_to_vec"
         # Tensor-form twin of the same dispatch (multi-root debufferize).
         if entry.name == "cublasDcopy_tensor" and n == 1:
+            if not _tensor_copy_layout_is_legal():
+                report.append(("copy_layout_reject", i, entry.name))
+                i += 1
+                continue
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
             if in0_ty.startswith("tensor<"):
                 inside = in0_ty[len("tensor<"):].split(",", 1)[0]
@@ -1528,6 +1620,10 @@ def rewrite_mlir(
 
         if entry.name in ("tensor_copy_2D", "tensor_copy_3D",
                           "tensor_copy_6D"):
+            if not _tensor_copy_layout_is_legal():
+                report.append(("copy_layout_reject", i, entry.name))
+                i += 1
+                continue
             expected_rank = {
                 "tensor_copy_2D": 2,
                 "tensor_copy_3D": 3,
@@ -1542,6 +1638,94 @@ def rewrite_mlir(
                 report.append(("rank_or_dtype_reject", i, entry.name))
                 i += 1
                 continue
+
+        if entry.name == "cublasGemmFor1x1Conv":
+            # This algebraic template is broader than a 1x1 convolution: MFEM
+            # sum-factorization stages also have four parallel iterators and
+            # one reduction. Route FP64 tensor contractions through a
+            # layout-aware cuTensorNet ABI, but only after proving that the
+            # affine maps describe a real contraction. In particular, the
+            # reduction dimension must occur in both inputs and not in the
+            # output. This rejects the historical false positives whose
+            # "reduction" iterator actually indexes the output.
+            contraction_inst = instances[i + n - 1]
+            contraction_body = bodies[i + n - 1]
+            contraction_ins = _extract_ssa_names(
+                contraction_inst.ins_part
+            )
+            contraction_in_types = _extract_ssa_types(
+                contraction_inst.ins_part
+            )
+            contraction_outs = _extract_ssa_names(
+                instances[i].outs_part
+            )
+            contraction_out_types = _extract_ssa_types(
+                instances[i].outs_part
+            )
+            maps = contraction_body.indexing_maps
+
+            def _pure_dim_outputs(map_text: str) -> list[int] | None:
+                match = re.fullmatch(
+                    r"affine_map<\([^)]*\)\s*->\s*\(([^)]*)\)>",
+                    map_text.strip(),
+                )
+                if not match:
+                    return None
+                outputs = []
+                for expr in match.group(1).split(","):
+                    dim = re.fullmatch(r"\s*d(\d+)\s*", expr)
+                    if not dim:
+                        return None
+                    outputs.append(int(dim.group(1)))
+                return outputs
+
+            map_dims = (
+                [_pure_dim_outputs(map_text) for map_text in maps]
+                if len(maps) == 3 else []
+            )
+            elem_types = [
+                _sniff_elem_type(ty)
+                for ty in contraction_in_types + contraction_out_types
+            ]
+            ranks = [
+                _tensor_rank(ty)
+                for ty in contraction_in_types + contraction_out_types
+            ]
+            legal_maps = (
+                len(map_dims) == 3
+                and all(dims is not None for dims in map_dims)
+                and 4 in map_dims[0] and 4 in map_dims[1]
+                and 4 not in map_dims[2]
+                and sorted(map_dims[2]) == [0, 1, 2, 3]
+                and all(len(dims) == len(set(dims)) for dims in map_dims)
+            )
+            legal_types = (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and elem_types == ["f64", "f64", "f64"]
+                and ranks in ([4, 5, 4], [5, 4, 4], [5, 5, 4])
+                and last.result_type is not None
+                and _tensor_rank(last.result_type) == 4
+            )
+            if not legal_maps or not legal_types:
+                report.append(("contraction_abi_reject", i, entry.name))
+                i += n
+                continue
+
+            emit_name = {
+                (4, 5, 4): "cutensornetContraction2_f64_r4r5r4",
+                (5, 4, 4): "cutensornetContraction2_f64_r5r4r4",
+                (5, 5, 4): "cutensornetContraction2_f64_r5r5r4",
+            }[tuple(ranks)]
+            # Preserve source operand order: contraction_maps correspond
+            # positionally to these operands, so the generic rank-based
+            # commutative reordering is intentionally bypassed.
+            operands = contraction_ins + contraction_outs
+            operand_types = contraction_in_types + contraction_out_types
+            custom_launch_line = _render_contraction_launch(
+                emit_name, last.result_ssa, last.result_type,
+                operands, operand_types, maps, last.indent,
+            )
 
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one
@@ -1961,10 +2145,12 @@ def rewrite_mlir(
                     contract_inst.result_type is None or
                     len(in_names) != 4 or len(out_names) != 1 or
                     ranks != [6, 6, 6, 6, 6] or
-                    elems != ["f32"] * 5):
+                    elems not in (["f32"] * 5, ["f64"] * 5)):
                 report.append(("cutensornet_reject", i, entry.name))
                 i += 1
                 continue
+            emit_name = ("cutensornetTensorProduct3D_f64_tensor"
+                         if elems[0] == "f64" else entry.name)
             # Keep the matched zero initializer in place: it proves that the
             # accumulator has beta=0 semantics. Replace only the contraction
             # and pass its rank-6 views; the MLIR lowering unwraps those views

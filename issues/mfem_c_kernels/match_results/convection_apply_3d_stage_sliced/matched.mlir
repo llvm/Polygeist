@@ -40,64 +40,64 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %16 = tensor.empty() : tensor<2x4x4x5xf64>
     %18 = polygeist.submap(%5, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %19 = polygeist.submap(%1, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v16_tc2 = tensor.cast %16 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v16_contract_20_tc2 = tensor.cast %16 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v20_tdyn = kernel.launch @cublasGemmFor1x1Conv(%19, %18, %v16_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v20_tdyn = kernel.launch @cutensornetContraction2_f64_r5r5r4(%19, %18, %v16_contract_20_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>]} : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %20 = tensor.cast %v20_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x4x5xf64>
     %22 = polygeist.submap(%4, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %23 = polygeist.submap(%1, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v15_tc2 = tensor.cast %15 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v15_contract_24_tc2 = tensor.cast %15 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v24_tdyn = kernel.launch @cublasGemmFor1x1Conv(%23, %22, %v15_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v24_tdyn = kernel.launch @cutensornetContraction2_f64_r5r5r4(%23, %22, %v15_contract_24_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>]} : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %24 = tensor.cast %v24_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x4x5xf64>
     %26 = polygeist.submap(%5, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v24_tc1 = tensor.cast %24 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v24_contract_27_tc0 = tensor.cast %24 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v14_tc2 = tensor.cast %14 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v14_contract_27_tc2 = tensor.cast %14 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v27_tdyn = kernel.launch @cublasGemmFor1x1Conv(%26, %v24_tc1, %v14_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v27_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v24_contract_27_tc0, %26, %v14_contract_27_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %27 = tensor.cast %v27_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x5x5xf64>
     %29 = polygeist.submap(%4, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v20_tc1 = tensor.cast %20 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v20_contract_30_tc0 = tensor.cast %20 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v13_tc2 = tensor.cast %13 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v13_contract_30_tc2 = tensor.cast %13 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v30_tdyn = kernel.launch @cublasGemmFor1x1Conv(%29, %v20_tc1, %v13_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v30_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v20_contract_30_tc0, %29, %v13_contract_30_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %30 = tensor.cast %v30_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x5x5xf64>
     %32 = polygeist.submap(%5, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v20_tc1 = tensor.cast %20 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
+    %v20_contract_33_tc0 = tensor.cast %20 : tensor<2x4x4x5xf64> to tensor<?x?x?x?xf64>
 
-    %v12_tc2 = tensor.cast %12 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v12_contract_33_tc2 = tensor.cast %12 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v33_tdyn = kernel.launch @cublasGemmFor1x1Conv(%32, %v20_tc1, %v12_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v33_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v20_contract_33_tc0, %32, %v12_contract_33_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %33 = tensor.cast %v33_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x5x5xf64>
     %35 = polygeist.submap(%5, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v27_tc1 = tensor.cast %27 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v27_contract_36_tc0 = tensor.cast %27 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v11_tc2 = tensor.cast %11 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
+    %v11_contract_36_tc2 = tensor.cast %11 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v36_tdyn = kernel.launch @cublasGemmFor1x1Conv(%35, %v27_tc1, %v11_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v36_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v27_contract_36_tc0, %35, %v11_contract_36_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %36 = tensor.cast %v36_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x5x5xf64>
     %38 = polygeist.submap(%5, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v30_tc1 = tensor.cast %30 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v30_contract_39_tc0 = tensor.cast %30 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v10_tc2 = tensor.cast %10 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
+    %v10_contract_39_tc2 = tensor.cast %10 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v39_tdyn = kernel.launch @cublasGemmFor1x1Conv(%38, %v30_tc1, %v10_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v39_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v30_contract_39_tc0, %38, %v10_contract_39_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %39 = tensor.cast %v39_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x5x5xf64>
     %41 = polygeist.submap(%4, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v33_tc1 = tensor.cast %33 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
+    %v33_contract_42_tc0 = tensor.cast %33 : tensor<2x4x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v9_tc2 = tensor.cast %9 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
+    %v9_contract_42_tc2 = tensor.cast %9 : tensor<2x5x5x5xf64> to tensor<?x?x?x?xf64>
 
-    %v42_tdyn = kernel.launch @cublasGemmFor1x1Conv(%41, %v33_tc1, %v9_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v42_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v33_contract_42_tc0, %41, %v9_contract_42_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %42 = tensor.cast %v42_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x5x5xf64>
     %43 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%8 : tensor<2x5x5x4xf64>) {
@@ -120,19 +120,19 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
       linalg.yield %65 : f64
     } -> tensor<2x5x5x4xf64>
     %50 = polygeist.submap(%3, %c2, %c5, %c4, %c4, %c5) {map = #map14} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v48_tc1 = tensor.cast %48 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
+    %v48_contract_51_tc0 = tensor.cast %48 : tensor<2x5x5x4xf64> to tensor<?x?x?x?xf64>
 
-    %v7_tc2 = tensor.cast %7 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
+    %v7_contract_51_tc2 = tensor.cast %7 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
 
-    %v51_tdyn = kernel.launch @cublasGemmFor1x1Conv(%50, %v48_tc1, %v7_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v51_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v48_contract_51_tc0, %50, %v7_contract_51_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %51 = tensor.cast %v51_tdyn : tensor<?x?x?x?xf64> to tensor<2x5x4x4xf64>
     %53 = polygeist.submap(%3, %c2, %c4, %c4, %c4, %c5) {map = #map15} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %v51_tc1 = tensor.cast %51 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
+    %v51_contract_54_tc0 = tensor.cast %51 : tensor<2x5x4x4xf64> to tensor<?x?x?x?xf64>
 
-    %v6_tc2 = tensor.cast %6 : tensor<2x4x4x4xf64> to tensor<?x?x?x?xf64>
+    %v6_contract_54_tc2 = tensor.cast %6 : tensor<2x4x4x4xf64> to tensor<?x?x?x?xf64>
 
-    %v54_tdyn = kernel.launch @cublasGemmFor1x1Conv(%53, %v51_tc1, %v6_tc2) : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    %v54_tdyn = kernel.launch @cutensornetContraction2_f64_r4r5r4(%v51_contract_54_tc0, %53, %v6_contract_54_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2)>]} : (tensor<?x?x?x?xf64>, tensor<?x?x?x?x?xf64>, tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
 
     %54 = tensor.cast %v54_tdyn : tensor<?x?x?x?xf64> to tensor<2x4x4x4xf64>
     %55 = polygeist.submap(%0, %c2, %c4, %c4, %c4) {map = #map16} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
