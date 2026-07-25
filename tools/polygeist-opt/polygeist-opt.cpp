@@ -27,6 +27,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -65,6 +66,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::cf::ControlFlowDialect>();
   registry.insert<mlir::linalg::LinalgDialect>();
   registry.insert<mlir::bufferization::BufferizationDialect>();
+  registry.insert<mlir::tensor::TensorDialect>();
   registry.insert<mlir::polygeist::PolygeistDialect>();
   registry.insert<mlir::polygeist::kernel::KernelDialect>();
   registry.insert<DLTIDialect>();

@@ -1031,6 +1031,32 @@ def _conv1x1_as_gemm_batched() -> CompositionEntry:
     )
 
 
+def _generic_two_input_sum_contraction_tensor() -> CompositionEntry:
+    """Rank- and iterator-count-independent two-input sum contraction.
+
+    This deliberately recognizes only the scalar computation here.  The
+    rewrite layer subsequently proves the Einstein-map legality, element type,
+    physical broadcast layout, and ABI support before emitting a launch.  In
+    particular, leaving the iterator counts unconstrained lets the same entry
+    cover both MFEM's 2D (three parallel modes) and 3D (four parallel modes)
+    sum-factorization stages.
+    """
+    zero = CompositionStep(
+        body=Term.Lit(0.0),
+        num_ins=0, num_outs=1,
+        reduction_dim_count=0,
+    )
+    contraction = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2, num_outs=1,
+    )
+    return CompositionEntry(
+        name="cutensornetContraction2_f64",
+        steps=[zero, contraction],
+        form="tensor",
+    )
+
+
 def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
     """Fused matmul + bias + relu — transformer-FFN-shape op.
     4-step composition:
@@ -3253,6 +3279,10 @@ def composition_library() -> list[CompositionEntry]:
         _gemm_composition(),
         _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
+        _generic_two_input_sum_contraction_tensor(),
+                                               # 2-step: rank-generic FP64
+                                               # Einstein contraction; map
+                                               # legality is proved by rewrite
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 

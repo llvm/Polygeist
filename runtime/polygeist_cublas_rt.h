@@ -258,8 +258,9 @@ void polygeist_cutensornet_tensor_product_3d_f64(
 
 // General two-input FP64 Einstein contraction used by normalized MFEM stages.
 // `metadata` contains three ranks followed by extent/stride/mode arrays for
-// A, B, and C; see LowerKernelLaunchToCuBLAS.cpp for the fixed 48-element
-// layout. Broadcast modes are omitted before this ABI is called.
+// A, B, and C; see LowerKernelLaunchToCuBLAS.cpp for the fixed 579-element
+// layout (64 modes per tensor). Broadcast modes are omitted before this ABI
+// is called.
 void polygeist_cutensornet_contraction2_f64(
     const double *A, const double *B, double *C, const int64_t *metadata);
 

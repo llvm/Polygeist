@@ -16,18 +16,17 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
     %1 = bufferization.to_tensor %arg1 : memref<?xf64>
     %2 = bufferization.to_tensor %arg0 : memref<?xf64>
     %3 = tensor.empty() : tensor<2x5x4xf64>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel"], library_call = ""} outs(%3 : tensor<2x5x4xf64>) {
-    ^bb0(%out: f64):
-      linalg.yield %cst : f64
-    } -> tensor<2x5x4xf64>
     %5 = polygeist.submap(%2, %c2, %c5, %c4, %c5) {map = #map1} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
     %6 = polygeist.submap(%1, %c2, %c5, %c4, %c5) {map = #map2} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
-    %7 = linalg.generic {doc = "", indexing_maps = [#map3, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%5, %6 : tensor<?x?x?x?xf64>, tensor<?x?x?x?xf64>) outs(%4 : tensor<2x5x4xf64>) {
-    ^bb0(%in: f64, %in_0: f64, %out: f64):
-      %13 = arith.mulf %in, %in_0 : f64
-      %14 = arith.addf %out, %13 : f64
-      linalg.yield %14 : f64
-    } -> tensor<2x5x4xf64>
+    %v5_contract_7_tc0 = tensor.cast %5 : tensor<?x?x?x?xf64> to tensor<*xf64>
+
+    %v6_contract_7_tc1 = tensor.cast %6 : tensor<?x?x?x?xf64> to tensor<*xf64>
+
+    %v3_contract_7_tc2 = tensor.cast %3 : tensor<2x5x4xf64> to tensor<*xf64>
+
+    %v7_tdyn = kernel.launch @cutensornetContraction2_f64(%v5_contract_7_tc0, %v6_contract_7_tc1, %v3_contract_7_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+
+    %7 = tensor.cast %v7_tdyn : tensor<*xf64> to tensor<2x5x4xf64>
     %8 = polygeist.submap(%1, %c2, %c4, %c4, %c5) {map = #map5} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
     %9 = polygeist.submap(%0, %c2, %c4, %c4, %c5) {map = #map6} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
     %10 = linalg.generic {doc = "", indexing_maps = [#map7, #map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%7, %8 : tensor<2x5x4xf64>, tensor<?x?x?x?xf64>) outs(%9 : tensor<?x?x?x?xf64>) {

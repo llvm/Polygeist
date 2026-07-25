@@ -5,9 +5,6 @@
   match          body#[6, 7]  cublasGemmFor1x1Conv
   match          body#[8, 9]  cublasGemmFor1x1Conv
   match          body#[10, 11]  cublasGemmFor1x1Conv
-  contraction_abi_reject body#10  cublasGemmFor1x1Conv
   match          body#[12, 13]  cublasGemmFor1x1Conv
-  contraction_abi_reject body#12  cublasGemmFor1x1Conv
   match          body#[14, 15]  cublasGemmFor1x1Conv
-  contraction_abi_reject body#14  cublasGemmFor1x1Conv
-  total: 8 matched / 11 bodies
+  total: 8 matched / 8 bodies

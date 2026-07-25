@@ -74,12 +74,15 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<272>, d
     %28 = polygeist.submapInverse(%0, %27, %c2, %c5, %c5, %c5) {map = #map7} : (tensor<?xf64>, tensor<?x?x?x?xf64>, index, index, index, index) -> tensor<?xf64>
     %29 = polygeist.submap(%2, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %30 = polygeist.submap(%28, %c2, %c5, %c5, %c5, %c4) {map = #map9} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %31 = linalg.generic {doc = "", indexing_maps = [#map10, #map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%19, %29 : tensor<2x4x5x5xf64>, tensor<?x?x?x?x?xf64>) outs(%30 : tensor<?x?x?x?x?xf64>) {
-    ^bb0(%in: f64, %in_0: f64, %out: f64):
-      %48 = arith.mulf %in, %in_0 : f64
-      %49 = arith.addf %out, %48 : f64
-      linalg.yield %49 : f64
-    } -> tensor<?x?x?x?x?xf64>
+    %v19_contract_31_tc0 = tensor.cast %19 : tensor<2x4x5x5xf64> to tensor<*xf64>
+
+    %v29_contract_31_tc1 = tensor.cast %29 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v30_contract_31_tc2 = tensor.cast %30 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v31_tdyn = kernel.launch @cutensornetContraction2_f64(%v19_contract_31_tc0, %v29_contract_31_tc1, %v30_contract_31_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+
+    %31 = tensor.cast %v31_tdyn : tensor<*xf64> to tensor<?x?x?x?x?xf64>
     %32 = polygeist.submapInverse(%28, %31, %c2, %c5, %c5, %c5, %c4) {map = #map9} : (tensor<?xf64>, tensor<?x?x?x?x?xf64>, index, index, index, index, index) -> tensor<?xf64>
     %33 = polygeist.submap(%32, %c2, %c5, %c5, %c5) {map = #map11} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
     %34 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%33 : tensor<?x?x?x?xf64>) {
@@ -89,12 +92,15 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<272>, d
     %35 = polygeist.submapInverse(%32, %34, %c2, %c5, %c5, %c5) {map = #map11} : (tensor<?xf64>, tensor<?x?x?x?xf64>, index, index, index, index) -> tensor<?xf64>
     %36 = polygeist.submap(%2, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %37 = polygeist.submap(%35, %c2, %c5, %c5, %c5, %c4) {map = #map12} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %38 = linalg.generic {doc = "", indexing_maps = [#map10, #map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%22, %36 : tensor<2x4x5x5xf64>, tensor<?x?x?x?x?xf64>) outs(%37 : tensor<?x?x?x?x?xf64>) {
-    ^bb0(%in: f64, %in_0: f64, %out: f64):
-      %48 = arith.mulf %in, %in_0 : f64
-      %49 = arith.addf %out, %48 : f64
-      linalg.yield %49 : f64
-    } -> tensor<?x?x?x?x?xf64>
+    %v22_contract_38_tc0 = tensor.cast %22 : tensor<2x4x5x5xf64> to tensor<*xf64>
+
+    %v36_contract_38_tc1 = tensor.cast %36 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v37_contract_38_tc2 = tensor.cast %37 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v38_tdyn = kernel.launch @cutensornetContraction2_f64(%v22_contract_38_tc0, %v36_contract_38_tc1, %v37_contract_38_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+
+    %38 = tensor.cast %v38_tdyn : tensor<*xf64> to tensor<?x?x?x?x?xf64>
     %39 = polygeist.submapInverse(%35, %38, %c2, %c5, %c5, %c5, %c4) {map = #map12} : (tensor<?xf64>, tensor<?x?x?x?x?xf64>, index, index, index, index, index) -> tensor<?xf64>
     %40 = polygeist.submap(%39, %c2, %c5, %c5, %c5) {map = #map13} : (tensor<?xf64>, index, index, index, index) -> tensor<?x?x?x?xf64>
     %41 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%40 : tensor<?x?x?x?xf64>) {
@@ -104,12 +110,15 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<272>, d
     %42 = polygeist.submapInverse(%39, %41, %c2, %c5, %c5, %c5) {map = #map13} : (tensor<?xf64>, tensor<?x?x?x?xf64>, index, index, index, index) -> tensor<?xf64>
     %43 = polygeist.submap(%1, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
     %44 = polygeist.submap(%42, %c2, %c5, %c5, %c5, %c4) {map = #map14} : (tensor<?xf64>, index, index, index, index, index) -> tensor<?x?x?x?x?xf64>
-    %45 = linalg.generic {doc = "", indexing_maps = [#map10, #map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"], library_call = ""} ins(%25, %43 : tensor<2x4x5x5xf64>, tensor<?x?x?x?x?xf64>) outs(%44 : tensor<?x?x?x?x?xf64>) {
-    ^bb0(%in: f64, %in_0: f64, %out: f64):
-      %48 = arith.mulf %in, %in_0 : f64
-      %49 = arith.addf %out, %48 : f64
-      linalg.yield %49 : f64
-    } -> tensor<?x?x?x?x?xf64>
+    %v25_contract_45_tc0 = tensor.cast %25 : tensor<2x4x5x5xf64> to tensor<*xf64>
+
+    %v43_contract_45_tc1 = tensor.cast %43 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v44_contract_45_tc2 = tensor.cast %44 : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+
+    %v45_tdyn = kernel.launch @cutensornetContraction2_f64(%v25_contract_45_tc0, %v43_contract_45_tc1, %v44_contract_45_tc2) {contraction_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d1, d2)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d1, d2, d4)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+
+    %45 = tensor.cast %v45_tdyn : tensor<*xf64> to tensor<?x?x?x?x?xf64>
     %46 = polygeist.submapInverse(%42, %45, %c2, %c5, %c5, %c5, %c4) {map = #map14} : (tensor<?xf64>, tensor<?x?x?x?x?xf64>, index, index, index, index, index) -> tensor<?xf64>
     %47 = bufferization.to_memref %46 : memref<?xf64>
     memref.copy %47, %arg3 : memref<?xf64> to memref<?xf64>

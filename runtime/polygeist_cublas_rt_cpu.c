@@ -529,13 +529,15 @@ void polygeist_cutensornet_tensor_product_3d_f64(
 
 void polygeist_cutensornet_contraction2_f64(
     const double *A, const double *B, double *C, const int64_t *metadata) {
-  enum { MAX_RANK = 5, TENSOR_FIELDS = 3 * MAX_RANK };
+  enum { MAX_RANK = 64, TENSOR_FIELDS = 3 * MAX_RANK };
   int64_t ranks[3] = {metadata[0], metadata[1], metadata[2]};
   int64_t extents[3][MAX_RANK];
   int64_t strides[3][MAX_RANK];
   int64_t modes[3][MAX_RANK];
-  int64_t modeExtents[MAX_RANK] = {1, 1, 1, 1, 1};
+  int64_t modeExtents[MAX_RANK];
   int present[3][MAX_RANK] = {{0}};
+  for (int mode = 0; mode < MAX_RANK; ++mode)
+    modeExtents[mode] = 1;
 
   for (int tensor = 0; tensor < 3; ++tensor) {
     if (ranks[tensor] < 0 || ranks[tensor] > MAX_RANK) {

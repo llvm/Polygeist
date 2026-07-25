@@ -2,24 +2,27 @@
 
 - kernels: 20
 - matcher successes: 20
-- kernels with at least one match: 12
-- matched stage groups: 98
-- emitted kernel.launch operations: 94
+- kernels with at least one match: 18
+- matched stage groups: 134
+- emitted kernel.launch operations: 134
 
 Matches are stage-level unless a report explicitly names a whole composition.
 
 
 ## FP64 contraction lowering
 
-- 88 matches are ABI-legal two-input FP64 contractions:
+- 128 matches are ABI-legal two-input FP64 contractions:
   - 64 rank `4 x 5 -> 4`
   - 4 rank `5 x 4 -> 4`
   - 20 rank `5 x 5 -> 4`
-- All 88 lower to `polygeist_cutensornet_contraction2_f64`, with the original
+- 40 iterator/rank-generic launches, comprising all 36 2D contraction stages
+  plus 4 3D stages whose physical output views compact a broadcast mode
+- All 128 lower to `polygeist_cutensornet_contraction2_f64`, with the original
   affine indexing maps and physical `polygeist.submap` strides encoded as
   extent/stride/mode metadata.
-- 4 former `cublasGemmFor1x1Conv` hits are now rejected because their
-  reduction dimension occurs in the output map, so they are not contractions.
+- A reduction dimension may occur in the logical output map only when its
+  physical `polygeist.submap` stride is proven zero; ABI lowering then omits
+  that broadcast mode from the output descriptor.
 - The remaining 6 emitted launches are older structural matches (5
   `cublasDaxpby`, 1 `cudnnAddTensor_batched`) and are not included in the
   cuTensorNet lowering count.

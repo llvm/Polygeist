@@ -27,6 +27,13 @@ module {
     kernel.yield %c : tensor<?x?x?x?xf64>
   }
 
+  kernel.defn @cutensornetContraction2_f64(
+      %a: tensor<*xf64>,
+      %b: tensor<*xf64>,
+      %c: tensor<*xf64>) -> tensor<*xf64> {
+    kernel.yield %c : tensor<*xf64>
+  }
+
   func.func @tensor_product_f64(
       %psi: tensor<?xf64>, %u: tensor<?xf64>, %out: tensor<?xf64>,
       %kq: index, %kp: index) -> tensor<?xf64> {
@@ -76,6 +83,22 @@ module {
            tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
     return %r : tensor<?x?x?x?xf64>
   }
+
+  func.func @contraction_f64_generic_2d(
+      %a: tensor<?x?x?x?xf64>, %b: tensor<?x?x?x?xf64>,
+      %c: tensor<?x?x?xf64>) -> tensor<?x?x?xf64> {
+    %au = tensor.cast %a : tensor<?x?x?x?xf64> to tensor<*xf64>
+    %bu = tensor.cast %b : tensor<?x?x?x?xf64> to tensor<*xf64>
+    %cu = tensor.cast %c : tensor<?x?x?xf64> to tensor<*xf64>
+    %ru = kernel.launch @cutensornetContraction2_f64(%au, %bu, %cu)
+        {contraction_maps = [
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>]}
+        : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+    %r = tensor.cast %ru : tensor<*xf64> to tensor<?x?x?xf64>
+    return %r : tensor<?x?x?xf64>
+  }
 }
 
 // CHECK-LABEL: func.func @tensor_product_f64
@@ -86,6 +109,11 @@ module {
 // CHECK-NOT: polygeist.submapInverse
 
 // CHECK-LABEL: func.func @contraction_f64
-// CHECK: memref.alloca() : memref<48xi64>
+// CHECK: memref.alloca() : memref<579xi64>
+// CHECK: call @polygeist_cutensornet_contraction2_f64
+// CHECK-NOT: kernel.launch
+
+// CHECK-LABEL: func.func @contraction_f64_generic_2d
+// CHECK: memref.alloca() : memref<579xi64>
 // CHECK: call @polygeist_cutensornet_contraction2_f64
 // CHECK-NOT: kernel.launch

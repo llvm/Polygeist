@@ -103,6 +103,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasLtMatmulBiasReluFused",
     "cublasDsyrk_alias",
     "cublasGemmFor1x1Conv",
+    "cutensornetContraction2_f64",
     "cutensornetContraction2_f64_r4r5r4",
     "cutensornetContraction2_f64_r5r4r4",
     "cutensornetContraction2_f64_r5r5r4",
@@ -1358,6 +1359,7 @@ def _render_contraction_launch(
     operand_types: list[str],
     indexing_maps: list[str],
     indent: str,
+    unranked_abi: bool = False,
 ) -> str:
     """Render a contraction launch while preserving its affine access maps.
 
@@ -1375,7 +1377,10 @@ def _render_contraction_launch(
     normalized_types: list[str] = []
     for idx, (operand, operand_type) in enumerate(
             zip(operands, operand_types)):
-        target = _dynamic_tensor_type(operand_type)
+        target = (
+            f"tensor<*x{_sniff_elem_type(operand_type)}>"
+            if unranked_abi else _dynamic_tensor_type(operand_type)
+        )
         if target is not None and target != operand_type:
             cast_ssa = _derived_ssa_name(
                 operand, f"contract_{unique}_tc{idx}"
@@ -1391,7 +1396,10 @@ def _render_contraction_launch(
             normalized_types.append(operand_type)
 
     attrs = "{contraction_maps = [" + ", ".join(indexing_maps) + "]}"
-    dynamic_result_type = _dynamic_tensor_type(result_type) or result_type
+    dynamic_result_type = (
+        f"tensor<*x{_sniff_elem_type(result_type)}>"
+        if unranked_abi else (_dynamic_tensor_type(result_type) or result_type)
+    )
     launch_result = result_ssa
     result_cast = ""
     if dynamic_result_type != result_type:
@@ -1639,15 +1647,14 @@ def rewrite_mlir(
                 i += 1
                 continue
 
-        if entry.name == "cublasGemmFor1x1Conv":
-            # This algebraic template is broader than a 1x1 convolution: MFEM
-            # sum-factorization stages also have four parallel iterators and
-            # one reduction. Route FP64 tensor contractions through a
-            # layout-aware cuTensorNet ABI, but only after proving that the
-            # affine maps describe a real contraction. In particular, the
-            # reduction dimension must occur in both inputs and not in the
-            # output. This rejects the historical false positives whose
-            # "reduction" iterator actually indexes the output.
+        if entry.name in (
+                "cublasGemmFor1x1Conv",
+                "cutensornetContraction2_f64"):
+            # Route two-input FP64 sum contractions through a layout-aware
+            # cuTensorNet ABI, but only after proving their Einstein semantics.
+            # The generic entry intentionally has no fixed iterator counts:
+            # reduction modes and output modes are derived from the actual
+            # linalg.generic rather than assuming the historical 3D d4 case.
             contraction_inst = instances[i + n - 1]
             contraction_body = bodies[i + n - 1]
             contraction_ins = _extract_ssa_names(
@@ -1656,12 +1663,21 @@ def rewrite_mlir(
             contraction_in_types = _extract_ssa_types(
                 contraction_inst.ins_part
             )
-            contraction_outs = _extract_ssa_names(
-                instances[i].outs_part
+            actual_contraction_outs = _extract_ssa_names(
+                contraction_inst.outs_part
             )
-            contraction_out_types = _extract_ssa_types(
-                instances[i].outs_part
+            init_results = (
+                [instances[i].result_ssa]
+                if instances[i].result_ssa else []
             )
+            direct_init_chain = actual_contraction_outs == init_results
+            # When the contraction consumes the zero generic directly, pass
+            # the zero generic's destination to the beta=0 runtime and erase
+            # the redundant zero result.  Re-viewed scratch outputs must keep
+            # their intermediate chain and use the contraction's actual view.
+            output_inst = instances[i] if direct_init_chain else contraction_inst
+            contraction_outs = _extract_ssa_names(output_inst.outs_part)
+            contraction_out_types = _extract_ssa_types(output_inst.outs_part)
             maps = contraction_body.indexing_maps
 
             def _pure_dim_outputs(map_text: str) -> list[int] | None:
@@ -1683,6 +1699,66 @@ def rewrite_mlir(
                 [_pure_dim_outputs(map_text) for map_text in maps]
                 if len(maps) == 3 else []
             )
+            reduction_dims = {
+                dim for dim, role in enumerate(contraction_body.iterator_types)
+                if role == "reduction"
+            }
+
+            def _resolve_affine_map(map_ref: str) -> str | None:
+                map_ref = map_ref.strip()
+                if map_ref.startswith("affine_map<"):
+                    return map_ref
+                if not map_ref.startswith("#"):
+                    return None
+                match = re.search(
+                    rf"(?m)^\s*{re.escape(map_ref)}\s*=\s*"
+                    r"(affine_map<.*?>)\s*$",
+                    text,
+                )
+                return match.group(1) if match else None
+
+            def _physical_broadcast_modes(
+                    operand: str, access_dims: list[int] | None) -> set[int]:
+                """Return access modes proved to have zero physical stride.
+
+                A polygeist.submap flattened map that omits an operand
+                dimension gives that logical dimension stride zero.  This is
+                how scratch-sliced MFEM represents an output whose apparent
+                Linalg rank still contains a reduction dimension.
+                """
+                if access_dims is None:
+                    return set()
+                definition = re.search(
+                    rf"(?s){re.escape(operand)}\s*=\s*polygeist\.submap"
+                    r"\([^)]*\)\s*\{map\s*=\s*([^}]+)\}",
+                    text,
+                )
+                if not definition:
+                    return set()
+                flat_map = _resolve_affine_map(definition.group(1))
+                if not flat_map:
+                    return set()
+                result = re.search(r"->\s*\((.*)\)\s*>", flat_map)
+                if not result:
+                    return set()
+                flat_expr = result.group(1)
+                return {
+                    mode for axis, mode in enumerate(access_dims)
+                    if not re.search(rf"\bd{axis}\b", flat_expr)
+                }
+
+            output_broadcast_modes = (
+                _physical_broadcast_modes(
+                    contraction_outs[0],
+                    map_dims[2] if len(map_dims) == 3 else None,
+                )
+                if contraction_outs else set()
+            )
+            compact_output_dims = (
+                [mode for mode in map_dims[2]
+                 if mode not in output_broadcast_modes]
+                if len(map_dims) == 3 and map_dims[2] is not None else []
+            )
             elem_types = [
                 _sniff_elem_type(ty)
                 for ty in contraction_in_types + contraction_out_types
@@ -1694,29 +1770,46 @@ def rewrite_mlir(
             legal_maps = (
                 len(map_dims) == 3
                 and all(dims is not None for dims in map_dims)
-                and 4 in map_dims[0] and 4 in map_dims[1]
-                and 4 not in map_dims[2]
-                and sorted(map_dims[2]) == [0, 1, 2, 3]
+                and bool(reduction_dims)
+                and all(
+                    red in map_dims[0] or red in map_dims[1]
+                    for red in reduction_dims
+                )
+                and all(red not in compact_output_dims
+                        for red in reduction_dims)
+                and all(
+                    mode in map_dims[0] or mode in map_dims[1]
+                    for mode in compact_output_dims
+                )
                 and all(len(dims) == len(set(dims)) for dims in map_dims)
+                and len(compact_output_dims) ==
+                    len(set(compact_output_dims))
             )
             legal_types = (
                 len(contraction_ins) == 2
                 and len(contraction_outs) == 1
                 and elem_types == ["f64", "f64", "f64"]
-                and ranks in ([4, 5, 4], [5, 4, 4], [5, 5, 4])
+                and all(rank is not None and 0 < rank <= 64
+                        for rank in ranks)
                 and last.result_type is not None
-                and _tensor_rank(last.result_type) == 4
+                and _sniff_elem_type(last.result_type) == "f64"
             )
             if not legal_maps or not legal_types:
                 report.append(("contraction_abi_reject", i, entry.name))
                 i += n
                 continue
 
-            emit_name = {
+            legacy_names = {
                 (4, 5, 4): "cutensornetContraction2_f64_r4r5r4",
                 (5, 4, 4): "cutensornetContraction2_f64_r5r4r4",
                 (5, 5, 4): "cutensornetContraction2_f64_r5r5r4",
-            }[tuple(ranks)]
+            }
+            emit_name = (
+                legacy_names[tuple(ranks)]
+                if entry.name == "cublasGemmFor1x1Conv"
+                and tuple(ranks) in legacy_names
+                else "cutensornetContraction2_f64"
+            )
             # Preserve source operand order: contraction_maps correspond
             # positionally to these operands, so the generic rank-based
             # commutative reordering is intentionally bypassed.
@@ -1725,7 +1818,17 @@ def rewrite_mlir(
             custom_launch_line = _render_contraction_launch(
                 emit_name, last.result_ssa, last.result_type,
                 operands, operand_types, maps, last.indent,
+                unranked_abi=(emit_name ==
+                              "cutensornetContraction2_f64"),
             )
+            # Some scratch-sliced stages re-view the zero-initialized tensor
+            # before contracting into it.  Keep that initialization chain
+            # alive (the runtime still overwrites with beta=0) and replace
+            # only the contraction.  Direct init->contraction chains retain
+            # the old optimization that removes the redundant zero generic.
+            if not direct_init_chain:
+                replace_full_span = True
+                custom_edit_span = contraction_inst.span
 
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one

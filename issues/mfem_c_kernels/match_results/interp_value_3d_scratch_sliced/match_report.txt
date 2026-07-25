@@ -2,5 +2,4 @@
   match          body#[0, 1]  cublasGemmFor1x1Conv
   match          body#[2, 3]  cublasGemmFor1x1Conv
   match          body#[4, 5]  cublasGemmFor1x1Conv
-  contraction_abi_reject body#4  cublasGemmFor1x1Conv
-  total: 3 matched / 4 bodies
+  total: 3 matched / 3 bodies

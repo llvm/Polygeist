@@ -1510,8 +1510,15 @@ module {
   // Layout-aware two-input FP64 Einstein contractions. The matcher attaches
   // the original linalg indexing maps to each launch; ABI lowering combines
   // them with polygeist.submap strides and routes the operation to
-  // cuTensorNet. Separate symbols are required because kernel.defn signatures
-  // are rank-static even though the runtime metadata ABI is shared.
+  // cuTensorNet. The unranked signature is the generic route; ranked legacy
+  // symbols remain accepted for compatibility with existing matched files.
+  kernel.defn @cutensornetContraction2_f64(
+      %A: tensor<*xf64>,
+      %B: tensor<*xf64>,
+      %C: tensor<*xf64>) -> tensor<*xf64> {
+    kernel.yield %C : tensor<*xf64>
+  }
+
   kernel.defn @cutensornetContraction2_f64_r4r5r4(
       %A: tensor<?x?x?x?xf64>,
       %B: tensor<?x?x?x?x?xf64>,

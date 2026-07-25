@@ -130,7 +130,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cutensornet_tensor_product_3d_f32";
   if (libSym == "cutensornetTensorProduct3D_f64_tensor")
     return "polygeist_cutensornet_tensor_product_3d_f64";
-  if (libSym == "cutensornetContraction2_f64_r4r5r4" ||
+  if (libSym == "cutensornetContraction2_f64" ||
+      libSym == "cutensornetContraction2_f64_r4r5r4" ||
       libSym == "cutensornetContraction2_f64_r5r4r4" ||
       libSym == "cutensornetContraction2_f64_r5r5r4")
     return "polygeist_cutensornet_contraction2_f64";
@@ -1130,10 +1131,12 @@ constantAffineDimCoefficient(AffineExpr expr, unsigned dim) {
 
 struct ContractionViewMetadata {
   Value base;
-  SmallVector<Value, 5> extents;
-  SmallVector<Value, 5> strides;
-  SmallVector<int64_t, 5> modes;
+  SmallVector<Value, 8> extents;
+  SmallVector<Value, 8> strides;
+  SmallVector<int64_t, 8> modes;
 };
+
+static constexpr int64_t kContractionMaxModes = 64;
 
 static Value shapedDimAsI64(OpBuilder &b, Location loc, Value value,
                             unsigned dim) {
@@ -1153,23 +1156,23 @@ static Value shapedDimAsI64(OpBuilder &b, Location loc, Value value,
 static FailureOr<ContractionViewMetadata>
 buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
                              AffineMap accessMap) {
-  auto operandType = dyn_cast<RankedTensorType>(operand.getType());
+  Value stripped = stripTensorCasts(operand);
+  auto operandType = dyn_cast<RankedTensorType>(stripped.getType());
   if (!operandType || !operandType.getElementType().isF64() ||
-      operandType.getRank() > 5 ||
+      operandType.getRank() > kContractionMaxModes ||
       accessMap.getNumResults() != (unsigned)operandType.getRank())
     return failure();
 
-  SmallVector<int64_t, 5> logicalModes;
+  SmallVector<int64_t, 8> logicalModes;
   for (AffineExpr result : accessMap.getResults()) {
     auto dim = result.dyn_cast<AffineDimExpr>();
-    if (!dim)
+    if (!dim || dim.getPosition() >= kContractionMaxModes)
       return failure();
     logicalModes.push_back(dim.getPosition());
   }
 
-  Value stripped = stripTensorCasts(operand);
-  SmallVector<Value, 5> logicalExtents;
-  SmallVector<Value, 5> logicalStrides;
+  SmallVector<Value, 8> logicalExtents;
+  SmallVector<Value, 8> logicalStrides;
   Value base = resolveSubmapBase(stripped);
   if (auto submap = stripped.getDefiningOp<polygeist::SubmapOp>()) {
     auto baseType = dyn_cast<RankedTensorType>(base.getType());
@@ -1220,9 +1223,9 @@ buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
 // Generic two-input FP64 Einstein contraction for MFEM's mode-wise
 // sum-factorization stages. Metadata layout (all i64):
 //   [rankA, rankB, rankC,
-//    A.extent[5], A.stride[5], A.mode[5],
-//    B.extent[5], B.stride[5], B.mode[5],
-//    C.extent[5], C.stride[5], C.mode[5]]
+//    A.extent[64], A.stride[64], A.mode[64],
+//    B.extent[64], B.stride[64], B.mode[64],
+//    C.extent[64], C.stride[64], C.mode[64]]
 // Unused slots are extent=1, stride=0, mode=-1.
 static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
                                                      ModuleOp module) {
@@ -1250,11 +1253,30 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
           "cuTensorNet contraction: unsupported operand view/map layout");
     metadata.push_back(*view);
   }
-  if (metadata[2].modes.size() != 4)
+  if (metadata[2].modes.empty())
     return launch.emitError(
-        "cuTensorNet contraction: output must have four non-broadcast modes");
+        "cuTensorNet contraction: scalar/fully-broadcast outputs are not yet "
+        "supported");
 
-  constexpr int64_t kMaxRank = 5;
+  llvm::SmallSet<int64_t, 16> inputModes;
+  llvm::SmallSet<int64_t, 16> outputModes;
+  for (int64_t mode : metadata[0].modes)
+    inputModes.insert(mode);
+  for (int64_t mode : metadata[1].modes)
+    inputModes.insert(mode);
+  for (int64_t mode : metadata[2].modes) {
+    if (!inputModes.contains(mode))
+      return launch.emitError(
+          "cuTensorNet contraction: output mode is absent from both inputs");
+    outputModes.insert(mode);
+  }
+  bool hasReduction = llvm::any_of(
+      inputModes, [&](int64_t mode) { return !outputModes.contains(mode); });
+  if (!hasReduction)
+    return launch.emitError(
+        "cuTensorNet contraction: expected at least one reduced mode");
+
+  constexpr int64_t kMaxRank = kContractionMaxModes;
   constexpr int64_t kFieldsPerTensor = 3 * kMaxRank;
   constexpr int64_t kMetadataSize = 3 + 3 * kFieldsPerTensor;
   auto metadataType = MemRefType::get({kMetadataSize}, b.getI64Type());
@@ -1299,6 +1321,27 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
 
   Value updatedOutput =
       memrefToTensor(b, loc, memrefs[2], metadata[2].base.getType());
+  if (isa<UnrankedTensorType>(launch.getResult(0).getType())) {
+    SmallVector<tensor::CastOp> resultCasts;
+    for (Operation *user : launch.getResult(0).getUsers())
+      if (auto cast = dyn_cast<tensor::CastOp>(user))
+        resultCasts.push_back(cast);
+    for (tensor::CastOp cast : resultCasts) {
+      SmallVector<polygeist::SubmapInverseOp> inverses;
+      for (Operation *user : cast.getResult().getUsers())
+        if (auto inverse = dyn_cast<polygeist::SubmapInverseOp>(user))
+          inverses.push_back(inverse);
+      for (polygeist::SubmapInverseOp inverse : inverses) {
+        inverse.getResult().replaceAllUsesWith(updatedOutput);
+        inverse.erase();
+      }
+      if (!cast.getResult().use_empty() &&
+          cast.getResult().getType() == updatedOutput.getType())
+        cast.getResult().replaceAllUsesWith(updatedOutput);
+      if (cast.getResult().use_empty())
+        cast.erase();
+    }
+  }
   rewireLaunchResult(launch, updatedOutput);
   launch.erase();
   return success();
@@ -3276,7 +3319,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCutensornetTensorProduct3D(
             launch, module,
             libSym == "cutensornetTensorProduct3D_f64_tensor");
-      } else if (libSym == "cutensornetContraction2_f64_r4r5r4" ||
+      } else if (libSym == "cutensornetContraction2_f64" ||
+                 libSym == "cutensornetContraction2_f64_r4r5r4" ||
                  libSym == "cutensornetContraction2_f64_r5r4r4" ||
                  libSym == "cutensornetContraction2_f64_r5r5r4") {
         r = lowerCutensornetContraction2F64(launch, module);

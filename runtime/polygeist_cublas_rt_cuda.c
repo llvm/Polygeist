@@ -2055,12 +2055,19 @@ void polygeist_cutensornet_tensor_product_3d_f64(
       KQ, KP, psi, u, out, sizeof(double), CUDA_R_64F);
 }
 
+enum { POLYGEIST_CONTRACTION_MAX_MODES = 64 };
+
 static int polygeist_parse_contraction2_f64_metadata(
     const int64_t *metadata, int64_t ranks[3],
-    int64_t extents[3][5], int64_t strides[3][5],
-    int32_t modes[3][5], int present[3][5],
-    int64_t modeExtents[5]) {
-  enum { MAX_RANK = 5, TENSOR_FIELDS = 15 };
+    int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    int32_t modes[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    int present[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    int64_t modeExtents[POLYGEIST_CONTRACTION_MAX_MODES]) {
+  enum {
+    MAX_RANK = POLYGEIST_CONTRACTION_MAX_MODES,
+    TENSOR_FIELDS = 3 * POLYGEIST_CONTRACTION_MAX_MODES
+  };
   for (int mode = 0; mode < MAX_RANK; ++mode)
     modeExtents[mode] = 1;
   memset(present, 0, 3 * MAX_RANK * sizeof(int));
@@ -2090,16 +2097,20 @@ static int polygeist_parse_contraction2_f64_metadata(
 
 static void polygeist_contraction2_f64_cpu(
     const double *A, const double *B, double *C,
-    const int64_t ranks[3], const int64_t extents[3][5],
-    const int64_t strides[3][5], const int32_t modes[3][5],
-    const int present[3][5], const int64_t modeExtents[5]) {
+    const int64_t ranks[3],
+    const int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int32_t modes[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int present[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int64_t modeExtents[POLYGEIST_CONTRACTION_MAX_MODES]) {
   int64_t total = 1;
-  for (int mode = 0; mode < 5; ++mode)
+  for (int mode = 0; mode < POLYGEIST_CONTRACTION_MAX_MODES; ++mode)
     total *= modeExtents[mode];
   for (int64_t linear = 0; linear < total; ++linear) {
-    int64_t coordinates[5];
+    int64_t coordinates[POLYGEIST_CONTRACTION_MAX_MODES];
     int64_t remaining = linear;
-    for (int mode = 4; mode >= 0; --mode) {
+    for (int mode = POLYGEIST_CONTRACTION_MAX_MODES - 1;
+         mode >= 0; --mode) {
       coordinates[mode] = remaining % modeExtents[mode];
       remaining /= modeExtents[mode];
     }
@@ -2109,7 +2120,7 @@ static void polygeist_contraction2_f64_cpu(
         offsets[tensor] +=
             coordinates[modes[tensor][dim]] * strides[tensor][dim];
     int firstReductionPoint = 1;
-    for (int mode = 0; mode < 5; ++mode)
+    for (int mode = 0; mode < POLYGEIST_CONTRACTION_MAX_MODES; ++mode)
       if (!present[2][mode] &&
           (present[0][mode] || present[1][mode]) &&
           coordinates[mode] != 0)
@@ -2123,11 +2134,11 @@ static void polygeist_contraction2_f64_cpu(
 void polygeist_cutensornet_contraction2_f64(
     const double *A, const double *B, double *C, const int64_t *metadata) {
   int64_t ranks[3];
-  int64_t extents[3][5] = {{0}};
-  int64_t strides[3][5] = {{0}};
-  int32_t modes[3][5] = {{0}};
-  int present[3][5];
-  int64_t modeExtents[5];
+  int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES] = {{0}};
+  int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES] = {{0}};
+  int32_t modes[3][POLYGEIST_CONTRACTION_MAX_MODES] = {{0}};
+  int present[3][POLYGEIST_CONTRACTION_MAX_MODES];
+  int64_t modeExtents[POLYGEIST_CONTRACTION_MAX_MODES];
   if (!polygeist_parse_contraction2_f64_metadata(
           metadata, ranks, extents, strides, modes, present, modeExtents)) {
     fprintf(stderr, "polygeist runtime: invalid contraction metadata\n");
@@ -2202,9 +2213,14 @@ void polygeist_cutensornet_contraction2_f64(
   timing_gpu_begin();
   CUTENSORNET_CHECK(cutensornetNetworkContract(
       handle, network, 0, workspace, NULL, g_stream));
+  int64_t reductionExtent = 1;
+  for (int mode = 0; mode < POLYGEIST_CONTRACTION_MAX_MODES; ++mode)
+    if (!present[2][mode] &&
+        (present[0][mode] || present[1][mode]))
+      reductionExtent *= modeExtents[mode];
   timing_gpu_end("cutensornetContraction2_f64",
                  (int32_t)modeExtents[0], (int32_t)modeExtents[1],
-                 (int32_t)modeExtents[4], host_start_ms);
+                 (int32_t)reductionExtent, host_start_ms);
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
 
   pipeline_device_free(scratch);

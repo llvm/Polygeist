@@ -1,11 +1,7 @@
 == match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_grad_2d_stage_sliced/debufferized.mlir ==
-  no_match       body#0  ?
-  no_match       body#1  ?
-  no_match       body#2  ?
-  no_match       body#3  ?
-  no_match       body#4  ?
-  no_match       body#5  ?
-  no_match       body#6  ?
-  no_match       body#7  ?
+  match          body#[0, 1]  cutensornetContraction2_f64
+  match          body#[2, 3]  cutensornetContraction2_f64
+  match          body#[4, 5]  cutensornetContraction2_f64
+  match          body#[6, 7]  cutensornetContraction2_f64
   no_match       body#8  ?
-  total: 0 matched / 9 bodies
+  total: 4 matched / 5 bodies
