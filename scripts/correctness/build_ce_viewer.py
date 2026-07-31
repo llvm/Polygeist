@@ -85,6 +85,23 @@ MFEM_MATCH_RESULTS_DIR = env_path(
     "POLYGEIST_MFEM_MATCH_RESULTS_DIR",
     MFEM_C_ROOT / "match_results",
 )
+MFEM_APPLICATIONS_DIR = env_path(
+    "POLYGEIST_MFEM_APPLICATIONS_DIR",
+    MFEM_C_ROOT / "applications",
+)
+MFEM_APPLICATION_EXTRACTIONS_DIR = env_path(
+    "POLYGEIST_MFEM_APPLICATION_EXTRACTIONS_DIR",
+    MFEM_C_ROOT / "application_extractions",
+)
+MFEM_APPLICATION_EXTRACTION_RESULTS_DIR = env_path(
+    "POLYGEIST_MFEM_APPLICATION_EXTRACTION_RESULTS_DIR",
+    MFEM_APPLICATION_EXTRACTIONS_DIR / "results",
+)
+MFEM_UPSTREAM_ROOT = env_path(
+    "POLYGEIST_MFEM_UPSTREAM_ROOT",
+    REPO_ROOT / "third_party/mfem",
+)
+MFEM_UPSTREAM_COMMIT = "951cf8886b9c0c33fb36a2f0ede268c8d6a0d8b5"
 STENCIL_CONV2D_ROOT = env_path(
     "POLYGEIST_STENCIL_CONV2D_ROOT",
     REPO_ROOT / "third_party/cnn-extracted",
@@ -1663,6 +1680,35 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     return out, [("launches", n_launch), ("residual_lg", n_lg)]
 
 
+_LIBRARY_PLAN_RE = re.compile(
+    r"^\s+kernel_candidate\s+body#(.*?)\s{2,}"
+    r"(\S+).*?\bstatus=library-plan\b(.*)$"
+)
+
+
+def run_library_planner(path: Path) -> tuple[str, list[str]]:
+    """Return the selected cost-gated vendor-library plans for one module."""
+    res = subprocess.run(
+        [PYTHON, str(REWRITER), str(path), "--dry-run", "--show-candidates"],
+        capture_output=True, text=True, timeout=120,
+    )
+    if res.returncode != 0:
+        raise RuntimeError(
+            f"kernel candidate planner failed for {path} with {PYTHON}:\n"
+            f"{res.stderr}"
+        )
+    plans = []
+    symbols = []
+    for line in (res.stdout + res.stderr).splitlines():
+        match = _LIBRARY_PLAN_RE.match(line)
+        if match is None:
+            continue
+        body, symbol, details = match.groups()
+        symbols.append(symbol)
+        plans.append(f"body#{body}  {symbol}{details}")
+    return "\n".join(plans) + ("\n" if plans else ""), symbols
+
+
 def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
                        kset: str = "polybench",
                        file_prefix: str = "") -> dict:
@@ -1862,14 +1908,58 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream))
 
 
+def _extract_c_function(text: str, function: str) -> str:
+    """Extract one named C function, including a directly preceding comment."""
+    match = re.search(rf"\b{re.escape(function)}\s*\(", text)
+    if not match:
+        return text
+    opening = text.find("{", match.end())
+    if opening < 0:
+        return text
+    depth = 0
+    end = opening
+    while end < len(text):
+        if text[end] == "{":
+            depth += 1
+        elif text[end] == "}":
+            depth -= 1
+            if depth == 0:
+                end += 1
+                break
+        end += 1
+    start = text.rfind("\n", 0, match.start()) + 1
+    # Include contiguous // comments immediately above the declaration.
+    while start > 0:
+        previous_end = start - 1
+        previous_start = text.rfind("\n", 0, previous_end) + 1
+        if not text[previous_start:previous_end].lstrip().startswith("//"):
+            break
+        start = previous_start
+    return text[start:end].strip() + "\n"
+
+
+def _mfem_upstream_line(upstream_file: str, upstream_symbol: str) -> int | None:
+    path = MFEM_UPSTREAM_ROOT / upstream_file
+    if not path.exists():
+        return None
+    # Manifest spellings such as ElasticityAddMultPA_<2> denote a template
+    # specialization; the source definition is ElasticityAddMultPA_.
+    symbol = re.sub(r"<[^>]+>$", "", upstream_symbol)
+    definition = re.compile(rf"\b{re.escape(symbol)}\s*\(")
+    for line_number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        if definition.search(line):
+            return line_number
+    return None
+
+
 def build_mfem_pages() -> list[dict]:
     """Render stored MFEM frontend/raise/matcher artifacts.
 
     MFEM uses a manifest-driven artifact layout rather than the conventional
     <kernel>[_linalg|_debuf].mlir layout used by the other explorer suites.
-    Keep the stored results authoritative so the page reports semantic matches
-    without rerunning (or accidentally legitimizing) the current ABI-unsafe
-    matcher rewrites.
+    Keep stored rewritten IR authoritative for executable launches.  Candidate
+    planning is read-only and rerun on debufferized IR so cost-gated cuTENSOR
+    pointwise plans are visible without presenting them as executable calls.
     """
     manifest = _read_csv(MFEM_C_ROOT / "manifest.csv")
     raise_rows = {
@@ -1894,16 +1984,82 @@ def build_mfem_pages() -> list[dict]:
         raise_row = raise_rows.get((ident, variant), {})
         match_row = match_rows.get(ident, {}) if variant == "normalized" else {}
 
+        blocks = []
+        css = ""
+        source_text = ""
+        if source.exists():
+            source_text = _extract_c_function(source.read_text(), row["function"])
+            highlighted, css = syntax_highlight(source_text, "c")
+            source_label = html.escape(row["source"])
+            function_label = html.escape(row["function"])
+            blocks.append(
+                '<h2 id="extracted-c">extracted C lowered by cgeist</h2>'
+                '<div class="summary" style="padding:8px 20px; '
+                'border:1px solid #eee; background:#fafafa; font-size:13px;">'
+                f'<b>Corpus source:</b> <code>{source_label}</code> &nbsp;·&nbsp; '
+                f'<b>function:</b> <code>{function_label}</code></div>'
+                f'<div class="container">{highlighted}</div>'
+            )
+
+        upstream_file = row["upstream_file"]
+        upstream_symbol = row["upstream_symbol"]
+        upstream_line = _mfem_upstream_line(upstream_file, upstream_symbol)
+        line_fragment = f"#L{upstream_line}" if upstream_line else ""
+        upstream_url = (
+            "https://github.com/mfem/mfem/blob/"
+            f"{MFEM_UPSTREAM_COMMIT}/{upstream_file}{line_fragment}"
+        )
+        local_pointer = f"third_party/mfem/{upstream_file}"
+        if upstream_line:
+            local_pointer += f":{upstream_line}"
+        c_page_filename = f"mfem_c_{ident}.html"
+        if source_text:
+            c_highlighted, c_css = syntax_highlight(source_text, "c")
+            c_header = (
+                '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
+                f'&nbsp; extracted C: {html.escape(ident)} '
+                f'<small>({html.escape(variant)})</small></h1></div>'
+            )
+            c_provenance = (
+                '<div class="summary" style="padding:10px 20px; '
+                'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+                f'<b>Corpus source:</b> <code>{html.escape(row["source"])}</code><br>'
+                f'<b>Function lowered:</b> <code>{html.escape(row["function"])}</code><br>'
+                f'<b>Upstream symbol:</b> <code>{html.escape(upstream_symbol)}</code><br>'
+                f'<b>Pinned source:</b> <a href="{html.escape(upstream_url)}" '
+                f'target="_blank"><code>{html.escape(local_pointer)}</code></a><br>'
+                f'<b>MFEM commit:</b> <code>{MFEM_UPSTREAM_COMMIT}</code> &nbsp;·&nbsp; '
+                f'<a href="mfem_{html.escape(ident)}.html">view lowering IR →</a>'
+                '</div>'
+            )
+            OUTPUT_DIR.joinpath(c_page_filename).write_text(
+                render_html(
+                    f"MFEM extracted C: {ident}",
+                    c_header + c_provenance
+                    + '<h2>exact extracted function lowered by cgeist</h2>'
+                    + f'<div class="container">{c_highlighted}</div>',
+                    c_css,
+                )
+            )
+        blocks.append(
+            '<h2 id="provenance">MFEM extraction provenance</h2>'
+            '<div class="summary" style="padding:10px 20px; '
+            'border:1px solid #eee; background:#fafafa; font-size:13px;">'
+            f'<b>Upstream symbol:</b> <code>{html.escape(upstream_symbol)}</code><br>'
+            f'<b>Pinned source:</b> <a href="{html.escape(upstream_url)}" '
+            f'target="_blank"><code>{html.escape(local_pointer)}</code></a><br>'
+            f'<b>MFEM commit:</b> <code>{MFEM_UPSTREAM_COMMIT}</code>'
+            '</div>'
+        )
+
         stage_paths = [
             ("frontend", "cgeist output (pre-raise MLIR)", frontend),
             ("raised", "raised Linalg IR", raised),
             ("debufferized", "debufferized tensor Linalg (matcher input)",
              debufferized),
-            ("matched", "semantic matcher output (not ABI-legality filtered)",
+            ("matched", "executable matcher output (kernel.launch)",
              matched),
         ]
-        blocks = []
-        css = ""
         for anchor, title, path in stage_paths:
             if not path.exists():
                 continue
@@ -1912,6 +2068,23 @@ def build_mfem_pages() -> list[dict]:
                 f'<h2 id="{anchor}">{title}</h2>'
                 f'<div class="container">{highlighted}</div>'
             )
+
+        library_plan_text = ""
+        library_plan_symbols: list[str] = []
+        if variant == "normalized" and debufferized.exists():
+            library_plan_text, library_plan_symbols = run_library_planner(
+                debufferized
+            )
+            if library_plan_text:
+                highlighted, css = syntax_highlight(
+                    "// Selected vendor-library plans (not emitted)\n"
+                    "// Higher-order executable matches have already won.\n"
+                    + library_plan_text
+                )
+                blocks.append(
+                    '<h2 id="library-plan">cost-gated cuTENSOR pointwise plan</h2>'
+                    '<div class="container">' + highlighted + '</div>'
+                )
 
         launches = int(match_row.get("kernel_launches", "0") or 0)
         symbols = [
@@ -1927,20 +2100,24 @@ def build_mfem_pages() -> list[dict]:
             'style="margin-left:12px; color:#0366d6;">'
             'open in Compiler Explorer →</a>'
         ) if ce_url else ""
+        c_link = (
+            f'<a href="{c_page_filename}" style="margin-left:12px; '
+            'color:#0366d6;">view extracted C →</a>'
+        ) if source_text else ""
         title = html.escape(ident)
         summary = (
             '<div class="summary" style="padding:8px 20px; '
             'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
             f'<b>{linalg_ops}</b> Linalg op(s) &nbsp;·&nbsp; '
             f'<b>{residual_loops}</b> residual loop(s) &nbsp;·&nbsp; '
-            f'<b>{launches}</b> semantic match(es) &nbsp;·&nbsp; '
-            '<b>0</b> ABI-legal executable library calls'
+            f'<b>{launches}</b> executable library launch(es) &nbsp;·&nbsp; '
+            f'<b>{len(library_plan_symbols)}</b> cost-gated pointwise plan(s)'
             '</div>'
         )
         header = (
             '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
             f'&nbsp; {title} <small>({html.escape(variant)})</small>'
-            f'{open_link}</h1></div>'
+            f'{c_link}{open_link}</h1></div>'
         )
         page_filename = f"mfem_{ident}.html"
         OUTPUT_DIR.joinpath(page_filename).write_text(
@@ -1949,13 +2126,258 @@ def build_mfem_pages() -> list[dict]:
         stats.append({
             **row,
             "page_filename": page_filename,
+            "c_page_filename": c_page_filename,
+            "upstream_line": upstream_line,
+            "upstream_url": upstream_url,
+            "upstream_pointer": local_pointer,
             "linalg_ops": linalg_ops,
             "residual_loops": residual_loops,
             "fully_raised": fully_raised,
             "launches": launches,
             "matched_symbols": symbols,
+            "library_plans": len(library_plan_symbols),
+            "library_plan_symbols": sorted(set(library_plan_symbols)),
         })
     return stats
+
+
+def build_mfem_application_pages() -> list[dict]:
+    """Render MFEM example hot-operator ports and measured status."""
+    stats = []
+    for row in _read_csv(MFEM_APPLICATIONS_DIR / "summary.csv"):
+        ident = row["id"]
+        harness = MFEM_APPLICATIONS_DIR / row["harness"]
+        normalized = (MFEM_APPLICATIONS_DIR / row["normalized"]).resolve()
+        blocks = []
+        css = ""
+        for anchor, title, path in (
+            ("harness", "application hot-operator harness", harness),
+            ("normalized", "stage-sliced implementation", normalized),
+        ):
+            if not path.exists():
+                continue
+            highlighted, css = syntax_highlight(path.read_text())
+            blocks.append(
+                f'<h2 id="{anchor}">{title}</h2>'
+                f'<div class="container">{highlighted}</div>'
+            )
+
+        status = html.escape(row["raised_status"])
+        kernel_page = f'mfem_{html.escape(row["kernel_id"])}.html'
+        summary = (
+            '<div class="summary" style="padding:10px 20px; '
+            'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+            f'<b>{html.escape(row["application"])}</b> &nbsp;·&nbsp; '
+            f'{html.escape(row["operator"])} &nbsp;·&nbsp; '
+            f'{html.escape(row["dimension"])}D &nbsp;·&nbsp; '
+            f'<b>{html.escape(row["speedup"])}x</b> stage-sliced C speedup '
+            f'({html.escape(row["reference_us"])} us → '
+            f'{html.escape(row["sliced_us"])} us) &nbsp;·&nbsp; '
+            f'max error <b>{html.escape(row["max_error"])}</b><br>'
+            f'<b>Library-backed status:</b> {status}; '
+            f'{html.escape(row["library_launches"])} structural launch(es). '
+            f'<b>Blocker:</b> {html.escape(row["blocker"])}. '
+            f'<a href="{kernel_page}">Open the kernel IR and matches →</a>'
+            '</div>'
+        )
+        header = (
+            '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
+            f'&nbsp; {html.escape(ident)}</h1></div>'
+        )
+        page_filename = f"mfem_app_{ident}.html"
+        OUTPUT_DIR.joinpath(page_filename).write_text(
+            render_html(
+                f"MFEM application: {ident}",
+                header + summary + "\n".join(blocks),
+                css,
+            )
+        )
+        stats.append({**row, "page_filename": page_filename})
+    return stats
+
+
+def build_mfem_application_extraction_pages() -> list[dict]:
+    """Render raised hot paths extracted from larger MFEM applications."""
+    stats = []
+    summary = _read_csv(MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / "summary.csv")
+    for row in summary:
+        function = row["function"]
+        source = MFEM_APPLICATION_EXTRACTIONS_DIR / row["source"]
+        frontend = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.frontend.mlir"
+        raised = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.raised.mlir"
+        debufferized = (
+            MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.debufferized.mlir"
+        )
+        matched = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.matched.mlir"
+        log = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.log"
+        blocks = []
+        css = ""
+
+        for anchor, title, path, language in (
+            ("source", "extracted C application hot path", source, "c"),
+            ("frontend", "cgeist output (pre-raise MLIR)", frontend, None),
+            ("raised", "raised Linalg IR", raised, None),
+            ("debufferized", "debufferized tensor Linalg", debufferized, None),
+            ("matched", "matcher-rewritten candidate launches", matched, None),
+            ("matcher-report", "raising and matcher report", log, None),
+        ):
+            if not path.exists():
+                continue
+            highlighted, css = syntax_highlight(path.read_text(), language)
+            blocks.append(
+                f'<h2 id="{anchor}">{title}</h2>'
+                f'<div class="container">{highlighted}</div>'
+            )
+
+        upstream_file = row["upstream_file"]
+        upstream_lines = row["upstream_lines"]
+        first_line = re.match(r"\d+", upstream_lines)
+        fragment = f"#L{first_line.group(0)}" if first_line else ""
+        upstream_url = (
+            "https://github.com/mfem/mfem/blob/"
+            f"{MFEM_UPSTREAM_COMMIT}/{upstream_file}{fragment}"
+        )
+        local_pointer = f"third_party/mfem/{upstream_file}:{upstream_lines}"
+        missing = row.get("missing_operator", "") or "none"
+        loops = int(row.get("residual_loops", "0") or 0)
+        coverage_class = "pass" if missing == "none" else "partial"
+        status_class = "pass" if loops == 0 else "partial"
+        ce_url = ce_link_from_paths(source if source.exists() else None, frontend)
+        ce_link = (
+            f'<a href="{ce_url}" target="_blank" style="margin-left:12px; '
+            'color:#0366d6;">open in Compiler Explorer →</a>'
+        ) if ce_url else ""
+        summary_html = (
+            '<div class="summary" style="padding:10px 20px; '
+            'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+            f'<b>Application:</b> {html.escape(row["application"])} &nbsp;·&nbsp; '
+            f'<b>coverage:</b> <span class="{coverage_class}">'
+            f'{html.escape(row["coverage"])}</span> &nbsp;·&nbsp; '
+            f'<b>{html.escape(row["linalg_ops"])}</b> Linalg op(s) &nbsp;·&nbsp; '
+            f'<b class="{status_class}">{html.escape(row["residual_loops"])}</b> '
+            f'residual loop(s) &nbsp;·&nbsp; '
+            f'<b>{html.escape(row["matched_groups"])}</b> semantic match group(s) '
+            f'&nbsp;·&nbsp; <b>{html.escape(row["launches"])}</b> candidate launch(es)<br>'
+            f'<b>Missing operator families:</b> {html.escape(missing)}<br>'
+            f'<b>Extracted C:</b> <code>{html.escape(row["source"])}</code> &nbsp;·&nbsp; '
+            f'<b>function:</b> <code>{html.escape(function)}</code><br>'
+            f'<b>Upstream:</b> <a href="{html.escape(upstream_url)}" target="_blank">'
+            f'<code>{html.escape(local_pointer)}</code></a> &nbsp;·&nbsp; '
+            f'<b>MFEM commit:</b> <code>{MFEM_UPSTREAM_COMMIT}</code>'
+            '</div>'
+        )
+        page_filename = f"mfem_benchmark_{function}.html"
+        header = (
+            '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
+            f'&nbsp; {html.escape(function)}{ce_link}</h1></div>'
+        )
+        OUTPUT_DIR.joinpath(page_filename).write_text(
+            render_html(
+                f"MFEM benchmark: {function}",
+                header + summary_html + "\n".join(blocks),
+                css,
+            )
+        )
+        stats.append({
+            **row,
+            "page_filename": page_filename,
+            "upstream_url": upstream_url,
+            "upstream_pointer": local_pointer,
+            "linalg_ops_int": int(row.get("linalg_ops", "0") or 0),
+            "residual_loops_int": loops,
+            "matches_int": int(row.get("matched_groups", "0") or 0),
+            "launches_int": int(row.get("launches", "0") or 0),
+        })
+    return stats
+
+
+def _mfem_application_extraction_section(stats: list[dict]) -> str:
+    rows = []
+    for row in stats:
+        missing = row.get("missing_operator", "") or "none"
+        coverage_class = "pass" if missing == "none" else "partial"
+        raised_class = "pass" if row["residual_loops_int"] == 0 else "partial"
+        name = (
+            f'<a class="kernel" href="{html.escape(row["page_filename"])}">'
+            f'{html.escape(row["function"])}</a>'
+        )
+        upstream = (
+            f'<a href="{html.escape(row["upstream_url"])}" target="_blank">'
+            f'<code>{html.escape(row["upstream_pointer"])}</code></a>'
+        )
+        rows.append(
+            f'<tr><td>{name}</td><td>{html.escape(row["application"])}</td>'
+            f'<td class="{coverage_class}">{html.escape(row["coverage"])}</td>'
+            f'<td>{upstream}</td><td>{row["linalg_ops_int"]}</td>'
+            f'<td class="{raised_class}">{row["residual_loops_int"]}</td>'
+            f'<td>{row["matches_int"]}</td><td>{row["launches_int"]}</td>'
+            f'<td>{html.escape(missing)}</td></tr>'
+        )
+    total_linalg = sum(row["linalg_ops_int"] for row in stats)
+    total_matches = sum(row["matches_int"] for row in stats)
+    loop_free = sum(row["residual_loops_int"] == 0 for row in stats)
+    applications = len({row["application"] for row in stats})
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Larger MFEM application C extractions</h2></div>'
+        '<div class="intro">'
+        f'<b>{len(stats)} concrete operator paths</b> from <b>{applications} larger '
+        f'applications</b>. All passed cgeist and raising; {loop_free}/{len(stats)} '
+        f'are loop-free, producing {total_linalg} Linalg operations and '
+        f'{total_matches} semantic library matches. These are numerical hot paths, '
+        'not translations of MPI, mesh, or solver-control code. Candidate launches '
+        'still require ABI, correctness, and profitability validation.'
+        '</div>'
+        '<table><thead><tr><th>extracted entry</th><th>application</th>'
+        '<th>coverage</th><th>upstream MFEM call site</th><th>Linalg ops</th>'
+        '<th>residual loops</th><th>matches</th><th>candidate launches</th>'
+        '<th>missing families</th></tr></thead><tbody>'
+        + "\n".join(rows)
+        + '</tbody></table>'
+    )
+
+
+def _mfem_application_section(app_stats: list[dict]) -> str:
+    rows = []
+    for stats in app_stats:
+        status = stats["raised_status"]
+        status_class = "pass" if status == "VALIDATED" else "partial"
+        name = (
+            f'<a class="kernel" href="{html.escape(stats["page_filename"])}">'
+            f'{html.escape(stats["id"])}</a>'
+        )
+        rows.append(
+            f'<tr><td>{name}</td>'
+            f'<td>{html.escape(stats["application"])}</td>'
+            f'<td>{html.escape(stats["operator"])}</td>'
+            f'<td>{html.escape(stats["dimension"])}D</td>'
+            f'<td>{html.escape(stats["max_error"])}</td>'
+            f'<td>{html.escape(stats["reference_us"])}</td>'
+            f'<td>{html.escape(stats["sliced_us"])}</td>'
+            f'<td>{html.escape(stats["speedup"])}x</td>'
+            f'<td>{html.escape(stats["library_launches"])}</td>'
+            f'<td class="{status_class}">{html.escape(status)}</td>'
+            f'<td>{html.escape(stats["blocker"])}</td></tr>'
+        )
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'MFEM application hot-operator ports</h2></div>'
+        '<div class="intro">'
+        f'<b>{len(app_stats)} application operators</b> from MFEM examples '
+        '1, 3, 4, and 9. CPU timings compare faithful extracted C with the '
+        'equivalent stage-sliced C over 10,000 warmed two-element applies. '
+        '<b>These CPU speedups are normalization results, not GPU/library '
+        'speedups.</b> Library-backed status is shown separately and silicon '
+        'execution remains gated on end-to-end correctness.'
+        '</div>'
+        '<table><thead><tr><th>port</th><th>application</th><th>operator</th>'
+        '<th>dim</th><th>max error</th><th>faithful C (us)</th>'
+        '<th>stage-sliced C (us)</th><th>CPU speedup</th>'
+        '<th>structural launches</th><th>library-backed status</th>'
+        '<th>blocker</th></tr></thead><tbody>'
+        + "\n".join(rows)
+        + '</tbody></table>'
+    )
 
 
 def _mfem_section(mfem_stats: list[dict]) -> str:
@@ -1964,28 +2386,46 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         ident = html.escape(stats["id"])
         page = html.escape(stats["page_filename"])
         name = f'<a class="kernel" href="{page}">{ident}</a>'
+        c_page = html.escape(stats["c_page_filename"])
+        extracted_c = (
+            f'<a href="{c_page}"><code>'
+            f'{html.escape(stats["source"])}:{html.escape(stats["function"])}</code></a>'
+        )
+        upstream = (
+            f'<a href="{html.escape(stats["upstream_url"])}" target="_blank">'
+            f'<code>{html.escape(stats["upstream_pointer"])}</code></a>'
+        )
         variant = stats["variant"]
         launches = stats["launches"]
+        plans = stats["library_plans"]
         if variant == "original":
             status_class, status = "partial", "RESIDUAL"
         elif launches:
-            status_class, status = "partial", "SEMANTIC"
+            status_class, status = "pass", "EXECUTABLE"
+        elif plans:
+            status_class, status = "partial", "PLANNED"
         else:
             status_class, status = "pass", "RAISED"
         symbols = ", ".join(
             f"<code>@{html.escape(symbol)}</code>"
             for symbol in stats["matched_symbols"]
         ) or "—"
+        plan_symbols = ", ".join(
+            f"<code>{html.escape(symbol)}</code>"
+            for symbol in stats["library_plan_symbols"]
+        ) or "—"
         rows.append(
             f"<tr><td>{name}</td>"
+            f"<td>{extracted_c}</td><td>{upstream}</td>"
             f"<td>{html.escape(stats['family'])}</td>"
             f"<td>{html.escape(stats['dimension'])}D</td>"
             f"<td>{html.escape(variant)}</td>"
             f"<td>{stats['linalg_ops']}</td>"
             f"<td>{stats['residual_loops']}</td>"
             f"<td>{launches}</td>"
+            f"<td>{plans}</td>"
             f'<td class="{status_class}">{status}</td>'
-            f"<td>{symbols}</td><td>0</td></tr>"
+            f"<td>{symbols}</td><td>{plan_symbols}</td></tr>"
         )
 
     originals = [row for row in mfem_stats if row["variant"] == "original"]
@@ -1994,6 +2434,8 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
     fully_raised = sum(row["fully_raised"] for row in mfem_stats)
     matched_kernels = sum(row["launches"] > 0 for row in normalized)
     total_matches = sum(row["launches"] for row in normalized)
+    planned_kernels = sum(row["library_plans"] > 0 for row in normalized)
+    total_plans = sum(row["library_plans"] for row in normalized)
     return (
         '<a name="mfem"></a>'
         '<div class="section-header"><h2 class="section-title">'
@@ -2004,19 +2446,21 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         f'The raising pipeline produced {total_linalg} Linalg operations; '
         f'{fully_raised}/{len(mfem_stats)} kernels are loop-free, including '
         f'all {len(normalized)}/{len(normalized)} normalized variants. '
-        f'The matcher recognized {total_matches} contraction/pointwise stages '
+        f'The matcher emitted {total_matches} ABI-lowerable library launches '
         f'across {matched_kernels}/{len(normalized)} normalized kernels. '
-        '<b>These are semantic candidates, not deployable library mappings:</b> '
-        'the current cuBLAS/cuDNN definitions reject their f64 ranks/ABIs, '
-        'and several rewritten 3D modules also reuse generated SSA names. '
-        'Accordingly, executable-library coverage is 0. Each row links to the '
+        f'It also found {total_plans} cost-gated cuTENSOR pointwise plans '
+        f'across {planned_kernels}/{len(normalized)} kernels. '
+        '<b>Plans are deliberately distinct from launches:</b> they describe '
+        'legal decompositions into existing cuTENSOR operations, but remain '
+        'unemitted until launch/temporary costs are profitable. Each row links to the '
         'stored frontend, raised, debufferized, and matcher-rewritten IR plus '
         'a Compiler Explorer deep link.'
         '</div>'
-        '<table><thead><tr><th>kernel</th><th>family</th><th>dim</th>'
+        '<table><thead><tr><th>kernel</th><th>extracted C</th>'
+        '<th>upstream MFEM source</th><th>family</th><th>dim</th>'
         '<th>variant</th><th>Linalg ops</th><th>residual loops</th>'
-        '<th>semantic matches</th><th>status</th>'
-        '<th>matched implementation</th><th>executable</th>'
+        '<th>executable launches</th><th>pointwise plans</th><th>status</th>'
+        '<th>matched implementation</th><th>planned implementation</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -3100,6 +3544,8 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
                      mfem_stats: list[dict],
+                     mfem_application_stats: list[dict],
+                     mfem_application_extraction_stats: list[dict],
                      llama_forward_stats: dict[str, dict],
                      whisper_ops_stats: dict[str, dict],
                      stencil_conv2d_stats: dict[str, dict],
@@ -3345,8 +3791,10 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + card("numerical.html", "Numerical + ATen",
                len(polybench_stats) + len(aten_stats),
                "PolyBench/C and extracted ATen numerical kernels.")
-        + card("mfem.html", "MFEM finite elements", len(mfem_stats),
-               "Original and normalized FEM kernels with stage-level matching.")
+        + card("mfem.html", "MFEM finite elements",
+               len(mfem_stats) + len(mfem_application_stats)
+               + len(mfem_application_extraction_stats),
+               "Original/normalized FEM kernels and larger application hot paths.")
         + card("ai.html", "AI kernels",
                len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
                "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")
@@ -3360,7 +3808,12 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + _build_taxonomy_panel()
     )
     numerical = nav() + polybench_section + _aten_section(aten_stats)
-    mfem = nav() + _mfem_section(mfem_stats)
+    mfem = (nav()
+            + _mfem_application_extraction_section(
+                mfem_application_extraction_stats
+            )
+            + _mfem_application_section(mfem_application_stats)
+            + _mfem_section(mfem_stats))
     ai = nav() + llama_forward_section + whisper_ops_section + llmc_section
     vision = (
         nav() + stencil_conv2d_section + darknet_section
@@ -3383,7 +3836,33 @@ def build_site_pages(polybench_stats: dict[str, dict],
 
 
 def main():
+    mfem_only = "--mfem-only" in sys.argv[1:]
+    unknown_args = [arg for arg in sys.argv[1:] if arg != "--mfem-only"]
+    if unknown_args:
+        raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if mfem_only:
+        for stale in OUTPUT_DIR.glob("mfem_*.html"):
+            stale.unlink()
+        print("Rendering MFEM original and normalized kernels...", flush=True)
+        mfem_stats = build_mfem_pages()
+        mfem_application_stats = build_mfem_application_pages()
+        mfem_application_extraction_stats = (
+            build_mfem_application_extraction_pages()
+        )
+        pages = build_site_pages(
+            {}, {}, mfem_stats, mfem_application_stats,
+            mfem_application_extraction_stats, {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("mfem.html").write_text(pages["mfem.html"])
+        print(
+            f"  [MFEM] rendered {len(mfem_stats)} kernels and "
+            f"{len(mfem_application_stats)} application ports and "
+            f"{len(mfem_application_extraction_stats)} larger application paths",
+            flush=True,
+        )
+        print(f"Done. Open {OUTPUT_DIR}/mfem.html.")
+        return
     for stale in OUTPUT_DIR.glob("llama_*.html"):
         stale.unlink()
     for stale in OUTPUT_DIR.glob("whisper_*.html"):
@@ -3424,6 +3903,17 @@ def main():
     print("Rendering MFEM original and normalized kernels...", flush=True)
     mfem_stats = build_mfem_pages()
     print(f"  [MFEM] rendered {len(mfem_stats)} kernels", flush=True)
+    mfem_application_stats = build_mfem_application_pages()
+    print(
+        f"  [MFEM applications] rendered {len(mfem_application_stats)} ports",
+        flush=True,
+    )
+    mfem_application_extraction_stats = build_mfem_application_extraction_pages()
+    print(
+        "  [MFEM larger applications] rendered "
+        f"{len(mfem_application_extraction_stats)} paths",
+        flush=True,
+    )
 
     # Llama forward fixtures extracted as C benchmarks.
     llama_forward_kernels_from_files = discover_kernels(LLAMA_FORWARD_MLIR_DIR)
@@ -3584,7 +4074,9 @@ def main():
         )
 
     pages = build_site_pages(
-        pb_stats, aten_stats, mfem_stats, llama_forward_stats, whisper_ops_stats,
+        pb_stats, aten_stats, mfem_stats, mfem_application_stats,
+        mfem_application_extraction_stats,
+        llama_forward_stats, whisper_ops_stats,
         stencil_conv2d_stats, llmc_stats, darknet_stats, ex_darknet_stats,
         fopt_stats,
     )
