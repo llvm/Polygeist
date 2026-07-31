@@ -2238,6 +2238,34 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             f"{MFEM_UPSTREAM_COMMIT}/{upstream_file}{fragment}"
         )
         local_pointer = f"third_party/mfem/{upstream_file}:{upstream_lines}"
+        page_filename = f"mfem_benchmark_{function}.html"
+        c_page_filename = f"mfem_benchmark_c_{function}.html"
+        if source.exists():
+            c_highlighted, c_css = syntax_highlight(source.read_text(), "c")
+            c_header = (
+                '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
+                f'&nbsp; extracted C: {html.escape(function)}</h1></div>'
+            )
+            c_provenance = (
+                '<div class="summary" style="padding:10px 20px; '
+                'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+                f'<b>Application:</b> {html.escape(row["application"])}<br>'
+                f'<b>Corpus source:</b> <code>{html.escape(row["source"])}</code><br>'
+                f'<b>Function lowered:</b> <code>{html.escape(function)}</code><br>'
+                f'<b>Upstream:</b> <a href="{html.escape(upstream_url)}" '
+                f'target="_blank"><code>{html.escape(local_pointer)}</code></a><br>'
+                f'<a href="{html.escape(page_filename)}">view lowering IR →</a>'
+                '</div>'
+            )
+            OUTPUT_DIR.joinpath(c_page_filename).write_text(
+                render_html(
+                    f"MFEM application extracted C: {function}",
+                    c_header + c_provenance
+                    + '<h2>exact application hot-path C lowered by cgeist</h2>'
+                    + f'<div class="container">{c_highlighted}</div>',
+                    c_css,
+                )
+            )
         missing = row.get("missing_operator", "") or "none"
         loops = int(row.get("residual_loops", "0") or 0)
         coverage_class = "pass" if missing == "none" else "partial"
@@ -2259,14 +2287,14 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             f'<b>{html.escape(row["matched_groups"])}</b> semantic match group(s) '
             f'&nbsp;·&nbsp; <b>{html.escape(row["launches"])}</b> candidate launch(es)<br>'
             f'<b>Missing operator families:</b> {html.escape(missing)}<br>'
-            f'<b>Extracted C:</b> <code>{html.escape(row["source"])}</code> &nbsp;·&nbsp; '
+            f'<b>Extracted C:</b> <a href="{html.escape(c_page_filename)}">'
+            f'<code>{html.escape(row["source"])}</code></a> &nbsp;·&nbsp; '
             f'<b>function:</b> <code>{html.escape(function)}</code><br>'
             f'<b>Upstream:</b> <a href="{html.escape(upstream_url)}" target="_blank">'
             f'<code>{html.escape(local_pointer)}</code></a> &nbsp;·&nbsp; '
             f'<b>MFEM commit:</b> <code>{MFEM_UPSTREAM_COMMIT}</code>'
             '</div>'
         )
-        page_filename = f"mfem_benchmark_{function}.html"
         header = (
             '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
             f'&nbsp; {html.escape(function)}{ce_link}</h1></div>'
@@ -2281,6 +2309,7 @@ def build_mfem_application_extraction_pages() -> list[dict]:
         stats.append({
             **row,
             "page_filename": page_filename,
+            "c_page_filename": c_page_filename,
             "upstream_url": upstream_url,
             "upstream_pointer": local_pointer,
             "linalg_ops_int": int(row.get("linalg_ops", "0") or 0),
@@ -2301,12 +2330,17 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<a class="kernel" href="{html.escape(row["page_filename"])}">'
             f'{html.escape(row["function"])}</a>'
         )
+        extracted_c = (
+            f'<a href="{html.escape(row["c_page_filename"])}"><code>'
+            f'{html.escape(row["source"])}:{html.escape(row["function"])}</code></a>'
+        )
         upstream = (
             f'<a href="{html.escape(row["upstream_url"])}" target="_blank">'
             f'<code>{html.escape(row["upstream_pointer"])}</code></a>'
         )
         rows.append(
-            f'<tr><td>{name}</td><td>{html.escape(row["application"])}</td>'
+            f'<tr><td>{name}</td><td>{extracted_c}</td>'
+            f'<td>{html.escape(row["application"])}</td>'
             f'<td class="{coverage_class}">{html.escape(row["coverage"])}</td>'
             f'<td>{upstream}</td><td>{row["linalg_ops_int"]}</td>'
             f'<td class="{raised_class}">{row["residual_loops_int"]}</td>'
@@ -2328,7 +2362,8 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         'not translations of MPI, mesh, or solver-control code. Candidate launches '
         'still require ABI, correctness, and profitability validation.'
         '</div>'
-        '<table><thead><tr><th>extracted entry</th><th>application</th>'
+        '<table><thead><tr><th>extracted entry</th><th>extracted C</th>'
+        '<th>application</th>'
         '<th>coverage</th><th>upstream MFEM call site</th><th>Linalg ops</th>'
         '<th>residual loops</th><th>matches</th><th>candidate launches</th>'
         '<th>missing families</th></tr></thead><tbody>'
