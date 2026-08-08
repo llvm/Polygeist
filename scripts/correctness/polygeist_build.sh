@@ -41,6 +41,14 @@
 #                       Jetson target only. The root must contain
 #                       include/cutensornet.h and lib/libcutensornet.so for
 #                       aarch64. Enables the cuTensorNet tensor-product shim.
+#   POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME=1
+#                       Jetson target only. For contraction-only binaries,
+#                       discard unused runtime sections and avoid DT_NEEDED
+#                       entries for unrelated cuDNN/cuFFT/cuSPARSE libraries.
+#   POLYGEIST_DISABLE_LIBRARY_MATCHING=1
+#                       Preserve residual Linalg instead of emitting any
+#                       kernel.launch operations. Useful for isolating raising
+#                       correctness from matcher/ABI/runtime correctness.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -157,11 +165,20 @@ cgeist "$INPUT" --function="$FUNCTION" \
 # ─── Step 2: raise affine → linalg + debufferize ────────────────────────
 if [ "$DEBUFFERIZE" -eq 1 ]; then
   echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
+  # Joint multi-root reconstruction preserves coupled results from one
+  # multi-output generic.  The older recursive mode can silently retain only
+  # one root (as exposed by the MFEM H(curl)/H(div) applications), so keep it
+  # only as an explicit diagnostic opt-out.
+  DEBUFFERIZE_PASS=(--linalg-debufferize)
+  if [ "${POLYGEIST_DEBUFFERIZE_MULTI_ROOT:-1}" != "0" ]; then
+    DEBUFFERIZE_PASS=(--linalg-debufferize=use-multi-root=true)
+    echo "         using joint multi-root debufferization"
+  fi
   polygeist-opt --select-func=func-name="$FUNCTION" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline \
     --lower-polygeist-submap \
-    --linalg-debufferize \
+    "${DEBUFFERIZE_PASS[@]}" \
     $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
       echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
 else
@@ -176,8 +193,24 @@ fi
 
 # ─── Step 3: matcher (linalg.generic → kernel.launch) ───────────────────
 echo "  [3/9] matcher: linalg.generic → kernel.launch"
-$PYTHON $SCRIPTS/kernel_match_rewrite.py \
-  $WORK/linalg.mlir > $WORK/matched.mlir 2>$WORK/match.err
+MATCHER_ARGS=()
+if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
+  MATCHER_ARGS+=(--disable-pointwise-matching)
+  echo "         generic pointwise matching disabled"
+fi
+if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != "0" ]; then
+  cp $WORK/linalg.mlir $WORK/matched.mlir
+  : > $WORK/match.err
+  echo "         all library matching disabled; preserving residual Linalg"
+else
+  if [ -n "${POLYGEIST_MATCH_MAX_LAUNCHES:-}" ]; then
+    MATCHER_ARGS+=(--max-launches "${POLYGEIST_MATCH_MAX_LAUNCHES}")
+    echo "         limiting emitted launches to ${POLYGEIST_MATCH_MAX_LAUNCHES}"
+  fi
+  $PYTHON $SCRIPTS/kernel_match_rewrite.py \
+    "${MATCHER_ARGS[@]}" \
+    $WORK/linalg.mlir > $WORK/matched.mlir 2>$WORK/match.err
+fi
 N_LAUNCH=$(grep -c 'kernel\.launch' $WORK/matched.mlir || true)
 echo "         matched $N_LAUNCH kernel.launch op(s)"
 if [ "${N_LAUNCH:-0}" -eq 0 ]; then
@@ -202,8 +235,18 @@ awk -v defns="$DEFNS" '
 
 # ─── Step 5: ABI lowering kernel.launch → func.call to runtime shim ─────
 echo "  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)"
-ABI_PASSES=(--lower-kernel-launch-to-cublas)
-if [ "${POLYGEIST_WRAP_KERNEL_PIPELINE:-0}" != "0" ]; then
+if [ "${POLYGEIST_DEVICE_RESIDENT_ABI:-0}" != "0" ]; then
+  ABI_PASSES=(--lower-kernel-launch-to-cublas=device-resident-cutensornet=true)
+else
+  ABI_PASSES=(--lower-kernel-launch-to-cublas)
+fi
+WRAP_KERNEL_PIPELINE="${POLYGEIST_WRAP_KERNEL_PIPELINE:-}"
+if [ -z "$WRAP_KERNEL_PIPELINE" ]; then
+  if [ "$TARGET" = "jetson" ]; then WRAP_KERNEL_PIPELINE=1
+  else WRAP_KERNEL_PIPELINE=0
+  fi
+fi
+if [ "$WRAP_KERNEL_PIPELINE" != "0" ]; then
   ABI_PASSES+=(--wrap-kernel-launch-pipeline)
 fi
 polygeist-opt "${ABI_PASSES[@]}" \
@@ -218,7 +261,15 @@ echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
 # especially when a matched launch consumed one view but the neighboring CPU
 # residual linalg still uses another. Clean those up with polygeist-opt before
 # handing the IR to upstream mlir-opt, which does not load the Polygeist dialect.
-polygeist-opt --canonicalize --cse --lower-polygeist-submap --canonicalize --cse \
+# Run the targeted view cleanup before CSE.  Broad canonicalization here can
+# fold a rank-expanding tensor view through a residual DPS linalg.generic and
+# temporarily replace its ranked output operand with the flat base, producing
+# invalid IR.  LowerPolygeistSubmap handles identity views explicitly.
+# Do not CSE tensor.empty roots here.  Distinct C scratch allocas from
+# sequential inlined stages can canonicalize to one tensor.empty SSA value;
+# one-shot bufferization may then select the same physical buffer for results
+# that are simultaneously live.  View lowering does not require CSE.
+polygeist-opt --lower-polygeist-submap \
   $WORK/abi.mlir -o $WORK/abi_canon.mlir 2>>$WORK/abi.err || {
     echo "ERROR: polygeist submap cleanup failed; see $WORK/abi.err" >&2
     cat $WORK/abi.err >&2
@@ -293,6 +344,18 @@ else
                "-I$CUTENSORNET_ROOT/include")
     RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor $RT_LIBS"
     echo "         + cuTensorNet runtime from $CUTENSORNET_ROOT"
+    if [ "${POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME:-0}" != "0" ]; then
+      # With function-section GC, a contraction-only executable does not need
+      # the cuDNN/cuFFT/cuSPARSE portions of the shared runtime object.  Avoid
+      # recording those unrelated DSOs in DT_NEEDED; this is useful on lean
+      # Jetson installations that provide CUDA/cuBLAS but not every toolkit
+      # component.
+      RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor \
+               -L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+               -lcudnn -lcusolver -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+               -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+      echo "         + contraction-only runtime linkage"
+    fi
   fi
 fi
 
@@ -325,10 +388,12 @@ fi
 
 # Runtime shim. For jetson target we also need cuda + cudnn headers.
 if [ "$TARGET" = "host" ]; then
-  $CC -O2 "${RT_CFLAGS[@]}" -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 -ffunction-sections -fdata-sections "${RT_CFLAGS[@]}" \
+    -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 else
-  $CC -O2 "${RT_CFLAGS[@]}" -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC \
+  $CC -O2 -ffunction-sections -fdata-sections "${RT_CFLAGS[@]}" \
+    -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC \
     -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
 fi
@@ -374,6 +439,7 @@ $CC -O2 \
   "${POLYBENCH_OBJS[@]}" \
   "${CUSTOM_CUDA_OBJS[@]}" \
   $RT_LIBS \
+  -Wl,--gc-sections \
   -o "$OUT"
 
 echo ""

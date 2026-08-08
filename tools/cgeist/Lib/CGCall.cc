@@ -57,6 +57,17 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
   return callerArg;
 }
 
+static mlir::Value castIntegerToWidth(mlir::Location loc, mlir::Value value,
+                                      mlir::IntegerType dstTy,
+                                      mlir::OpBuilder &builder) {
+  auto srcTy = value.getType().cast<mlir::IntegerType>();
+  if (srcTy == dstTy)
+    return value;
+  if (srcTy.getWidth() < dstTy.getWidth())
+    return builder.create<arith::ExtUIOp>(loc, dstTy, value);
+  return builder.create<arith::TruncIOp>(loc, dstTy, value);
+}
+
 /// Typecast the caller args to match the callee's signature. Mismatches that
 /// cannot be resolved by given rules won't raise exceptions, e.g., if the
 /// expected type for an arg is memref<10xi8> while the provided is
@@ -79,6 +90,12 @@ static void castCallerArgs(mlir::func::FuncOp callee,
 
     if (calleeArgType.isa<MemRefType>())
       args[i] = castCallerMemRefArg(args[i], calleeArgType, b);
+
+    if (auto callerIntTy = dyn_cast<mlir::IntegerType>(callerArgType))
+      if (auto calleeIntTy = dyn_cast<mlir::IntegerType>(calleeArgType))
+        if (callerIntTy != calleeIntTy)
+          args[i] =
+              castIntegerToWidth(args[i].getLoc(), args[i], calleeIntTy, b);
   }
 }
 
@@ -191,7 +208,7 @@ ValueCategory MLIRScanner::CallHelper(
         if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
           auto ipostTy = expectedType.cast<mlir::IntegerType>();
           if (prevTy != ipostTy)
-            val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+            val = castIntegerToWidth(loc, val, ipostTy, builder);
         }
       }
     } else {

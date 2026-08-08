@@ -75,6 +75,7 @@ static cudaStream_t     g_stream;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
+static int            g_atexit_registered = 0;
 static int            g_pipeline_depth = 0;
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
@@ -96,6 +97,10 @@ static size_t g_deferred_device_free_cap = 0;
 static void **g_deferred_host_frees = NULL;
 static size_t g_deferred_host_free_count = 0;
 static size_t g_deferred_host_free_cap = 0;
+
+#if POLYGEIST_HAS_CUTENSORNET
+static void destroy_cutensornet_contraction_cache(void);
+#endif
 
 #define CUDA_CHECK(call) do {                                                \
     cudaError_t err = (call);                                                \
@@ -412,14 +417,23 @@ static void ensure_cublaslt(void) {
 // stays live for the rest of the program. Each shim call's first action
 // is a fast no-op "already registered" check.
 //
-// Cache implementation: small open-addressed hash table keyed on host
-// pointer. Size of 256 entries handles every benchmark we care about
-// (polybench has ≤ 12 distinct buffers per kernel).
+// Cache implementation: a small linear table keyed on host range.  Larger
+// raised application graphs can create more than 256 temporary tensor
+// snapshots over their lifetime, so a full cache evicts its least-recently
+// used registration instead of aborting.  Calls synchronize the CUDA stream
+// before returning, which makes an entry from an earlier call safe to evict;
+// a still-live tensor is simply registered again on its next use.
 
 #define HOSTREG_CACHE_CAP 256
-struct hostreg_entry { void *host; void *dev; size_t bytes; };
+struct hostreg_entry {
+  void *host;
+  void *dev;
+  size_t bytes;
+  uint64_t last_use;
+};
 static struct hostreg_entry g_hostreg_cache[HOSTREG_CACHE_CAP];
 static int g_hostreg_count = 0;
+static uint64_t g_hostreg_clock = 0;
 
 static int range_contains(void *outer, size_t outer_bytes,
                           void *inner, size_t inner_bytes) {
@@ -442,6 +456,7 @@ static void *hostreg_cache_lookup(void *ptr, size_t bytes) {
   for (int i = 0; i < g_hostreg_count; ++i) {
     struct hostreg_entry *e = &g_hostreg_cache[i];
     if (range_contains(e->host, e->bytes, ptr, bytes)) {
+      e->last_use = ++g_hostreg_clock;
       uintptr_t delta = (uintptr_t)ptr - (uintptr_t)e->host;
       return (void *)((uintptr_t)e->dev + delta);
     }
@@ -469,13 +484,28 @@ static void hostreg_cache_remove_overlaps(void *ptr, size_t bytes) {
 
 static void hostreg_cache_insert(void *host, void *dev, size_t bytes) {
   if (g_hostreg_count >= HOSTREG_CACHE_CAP) {
-    fprintf(stderr, "polygeist runtime: hostreg cache full (cap=%d)\n",
-            HOSTREG_CACHE_CAP);
-    abort();
+    int victim = 0;
+    for (int i = 1; i < g_hostreg_count; ++i) {
+      if (g_hostreg_cache[i].last_use < g_hostreg_cache[victim].last_use)
+        victim = i;
+    }
+    cudaError_t err = cudaHostUnregister(g_hostreg_cache[victim].host);
+    if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
+      fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
+              __FILE__, __LINE__, g_hostreg_cache[victim].host,
+              cudaGetErrorString(err));
+      abort();
+    }
+    g_hostreg_cache[victim].host = host;
+    g_hostreg_cache[victim].dev = dev;
+    g_hostreg_cache[victim].bytes = bytes;
+    g_hostreg_cache[victim].last_use = ++g_hostreg_clock;
+    return;
   }
   g_hostreg_cache[g_hostreg_count].host = host;
   g_hostreg_cache[g_hostreg_count].dev  = dev;
   g_hostreg_cache[g_hostreg_count].bytes = bytes;
+  g_hostreg_cache[g_hostreg_count].last_use = ++g_hostreg_clock;
   g_hostreg_count++;
 }
 
@@ -603,6 +633,15 @@ void polygeist_cublas_init(void) {
   CUDA_CHECK(cudaEventCreate(&g_ev_begin));
   CUDA_CHECK(cudaEventCreate(&g_ev_end));
   g_initialized = 1;
+  // Register after CUDA has initialized its own process-exit hooks. atexit
+  // runs in reverse order, so our cache/stream teardown happens first.
+  if (!g_atexit_registered) {
+    if (atexit(polygeist_cublas_destroy) != 0) {
+      fprintf(stderr, "polygeist runtime: failed to register CUDA cleanup\n");
+      abort();
+    }
+    g_atexit_registered = 1;
+  }
 }
 
 void polygeist_cublas_destroy(void) {
@@ -612,6 +651,9 @@ void polygeist_cublas_destroy(void) {
   }
   if (!g_initialized) return;
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
+#if POLYGEIST_HAS_CUTENSORNET
+  destroy_cutensornet_contraction_cache();
+#endif
   destroy_deferred_device_free_list();
   destroy_deferred_host_free_list();
   destroy_device_temp_cache();
@@ -707,6 +749,74 @@ void polygeist_cublas_sgemm(
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t stride_A = (size_t)M * (size_t)K;
+  size_t stride_C = (size_t)M * (size_t)N;
+  float *dA = (float *)register_host_safe(
+      (void *)A, (size_t)batch * stride_A * sizeof(float));
+  float *dB = (float *)register_host_safe(
+      (void *)B, (size_t)K * (size_t)N * sizeof(float));
+  float *dC = (float *)register_host_safe(
+      C, (size_t)batch * stride_C * sizeof(float));
+  const float one = 1.0f;
+  const float zero = 0.0f;
+
+  // Row-major C_b=A_b*B is column-major C_b^T=B^T*A_b^T.  A zero
+  // stride for B broadcasts the same right-hand matrix to every batch.
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemmStridedBatched(
+      g_handle, CUBLAS_OP_N, CUBLAS_OP_N,
+      /*m=*/N, /*n=*/M, /*k=*/K,
+      &one,
+      dB, /*ldb=*/N, /*strideB=*/0,
+      dA, /*lda=*/K, /*strideA=*/(long long)stride_A,
+      &zero,
+      dC, /*ldc=*/N, /*strideC=*/(long long)stride_C,
+      batch));
+  timing_gpu_end("cublasSgemmStridedBatched_broadcast_rhs",
+                 batch * M, N, K, host_start_ms);
+
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_dgemm_outer_product(
+    int32_t M, int32_t N,
+    const double *u, const double *v, double *C) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  double *du = (double *)register_host_safe(
+      (void *)u, (size_t)M * sizeof(double));
+  double *dv = (double *)register_host_safe(
+      (void *)v, (size_t)N * sizeof(double));
+  double *dC = (double *)register_host_safe(
+      C, (size_t)M * (size_t)N * sizeof(double));
+  const double one = 1.0;
+  const double zero = 0.0;
+
+  // C(row-major MxN)^T = v(Nx1) * u^T(1xM).  beta=0 gives overwrite
+  // semantics without a separate zero-fill launch.
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDgemm(g_handle,
+                           CUBLAS_OP_N, CUBLAS_OP_N,
+                           /*m=*/N, /*n=*/M, /*k=*/1,
+                           &one,
+                           dv, /*lda=*/N,
+                           du, /*ldb=*/1,
+                           &zero,
+                           dC, /*ldc=*/N));
+  timing_gpu_end("cublasDgemm_outer_product", M, N, 1, host_start_ms);
+
+  unregister_host_safe((void *)u);
+  unregister_host_safe((void *)v);
   unregister_host_safe(C);
 }
 
@@ -2095,6 +2205,219 @@ static int polygeist_parse_contraction2_f64_metadata(
   return 1;
 }
 
+#if POLYGEIST_HAS_CUTENSORNET
+
+// A prepared cuTensorNet network is shape/layout specific but data-pointer
+// independent: NetworkSet{Input,Output}TensorMemory may update the buffers
+// before each contraction.  Keep the expensive optimizer and preparation
+// result alive and only rebind pointers on a cache hit.
+#define POLYGEIST_CONTRACTION_CACHE_CAP 64
+
+typedef struct {
+  int device;
+  int64_t ranks[3];
+  int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES];
+  int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES];
+  int32_t modes[3][POLYGEIST_CONTRACTION_MAX_MODES];
+} PolygeistContractionKey;
+
+typedef struct {
+  int valid;
+  uint64_t hash;
+  uint64_t last_use;
+  PolygeistContractionKey key;
+  cutensornetNetworkDescriptor_t network;
+  cutensornetContractionOptimizerConfig_t config;
+  cutensornetContractionOptimizerInfo_t info;
+  cutensornetWorkspaceDescriptor_t workspace;
+  int64_t tensor_ids[2];
+  void *scratch;
+  int64_t scratch_bytes;
+} PolygeistContractionCacheEntry;
+
+static cutensornetHandle_t g_cutensornet_handle = NULL;
+static PolygeistContractionCacheEntry
+    g_contraction_cache[POLYGEIST_CONTRACTION_CACHE_CAP];
+static uint64_t g_contraction_cache_clock = 0;
+static uint64_t g_contraction_cache_hits = 0;
+static uint64_t g_contraction_cache_misses = 0;
+static uint64_t g_contraction_cache_evictions = 0;
+
+static int contraction_cache_enabled(void) {
+  const char *value = getenv("POLYGEIST_CUTENSORNET_PLAN_CACHE");
+  return !value || !*value || strcmp(value, "0") != 0;
+}
+
+static int contraction_cache_stats_enabled(void) {
+  const char *value = getenv("POLYGEIST_RT_CACHE_STATS");
+  return value && *value && strcmp(value, "0") != 0;
+}
+
+static uint64_t hash_contraction_key(const PolygeistContractionKey *key) {
+  const unsigned char *bytes = (const unsigned char *)key;
+  uint64_t hash = UINT64_C(1469598103934665603);
+  for (size_t i = 0; i < sizeof(*key); ++i) {
+    hash ^= bytes[i];
+    hash *= UINT64_C(1099511628211);
+  }
+  return hash;
+}
+
+static void make_contraction_key(
+    PolygeistContractionKey *key, const int64_t ranks[3],
+    const int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES],
+    const int32_t modes[3][POLYGEIST_CONTRACTION_MAX_MODES]) {
+  memset(key, 0, sizeof(*key));
+  CUDA_CHECK(cudaGetDevice(&key->device));
+  for (int tensor = 0; tensor < 3; ++tensor) {
+    key->ranks[tensor] = ranks[tensor];
+    for (int64_t dim = 0; dim < ranks[tensor]; ++dim) {
+      key->extents[tensor][dim] = extents[tensor][dim];
+      key->strides[tensor][dim] = strides[tensor][dim];
+      key->modes[tensor][dim] = modes[tensor][dim];
+    }
+  }
+}
+
+static void ensure_cutensornet_handle(void) {
+  if (!g_cutensornet_handle)
+    CUTENSORNET_CHECK(cutensornetCreate(&g_cutensornet_handle));
+}
+
+static void destroy_contraction_cache_entry(
+    PolygeistContractionCacheEntry *entry) {
+  if (!entry->valid)
+    return;
+  if (entry->scratch)
+    CUDA_CHECK(cudaFree(entry->scratch));
+  if (entry->workspace)
+    CUTENSORNET_CHECK(
+        cutensornetDestroyWorkspaceDescriptor(entry->workspace));
+  if (entry->info)
+    CUTENSORNET_CHECK(
+        cutensornetDestroyContractionOptimizerInfo(entry->info));
+  if (entry->config)
+    CUTENSORNET_CHECK(
+        cutensornetDestroyContractionOptimizerConfig(entry->config));
+  if (entry->network)
+    CUTENSORNET_CHECK(cutensornetDestroyNetwork(entry->network));
+  memset(entry, 0, sizeof(*entry));
+}
+
+static PolygeistContractionCacheEntry *create_contraction_cache_entry(
+    PolygeistContractionCacheEntry *entry,
+    const PolygeistContractionKey *key, uint64_t hash) {
+  memset(entry, 0, sizeof(*entry));
+  entry->hash = hash;
+  entry->key = *key;
+  entry->tensor_ids[0] = -1;
+  entry->tensor_ids[1] = -1;
+  ensure_cutensornet_handle();
+
+  CUTENSORNET_CHECK(
+      cutensornetCreateNetwork(g_cutensornet_handle, &entry->network));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      g_cutensornet_handle, entry->network, (int32_t)key->ranks[0],
+      key->extents[0], key->modes[0], NULL, CUDA_R_64F,
+      &entry->tensor_ids[0]));
+  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
+      g_cutensornet_handle, entry->network, (int32_t)key->ranks[1],
+      key->extents[1], key->modes[1], NULL, CUDA_R_64F,
+      &entry->tensor_ids[1]));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensor(
+      g_cutensornet_handle, entry->network, (int32_t)key->ranks[2],
+      key->modes[2], CUDA_R_64F));
+
+  CUTENSORNET_CHECK(cutensornetCreateContractionOptimizerConfig(
+      g_cutensornet_handle, &entry->config));
+  CUTENSORNET_CHECK(cutensornetCreateContractionOptimizerInfo(
+      g_cutensornet_handle, entry->network, &entry->info));
+  const uint64_t workspace_limit = UINT64_C(256) * 1024 * 1024;
+  CUTENSORNET_CHECK(cutensornetContractionOptimize(
+      g_cutensornet_handle, entry->network, entry->config,
+      workspace_limit, entry->info));
+  CUTENSORNET_CHECK(cutensornetNetworkSetOptimizerInfo(
+      g_cutensornet_handle, entry->network, entry->info));
+  CUTENSORNET_CHECK(cutensornetCreateWorkspaceDescriptor(
+      g_cutensornet_handle, &entry->workspace));
+  CUTENSORNET_CHECK(cutensornetWorkspaceComputeContractionSizes(
+      g_cutensornet_handle, entry->network, entry->info, entry->workspace));
+  CUTENSORNET_CHECK(cutensornetWorkspaceGetMemorySize(
+      g_cutensornet_handle, entry->workspace,
+      CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, CUTENSORNET_MEMSPACE_DEVICE,
+      CUTENSORNET_WORKSPACE_SCRATCH, &entry->scratch_bytes));
+  if (entry->scratch_bytes > 0)
+    CUDA_CHECK(cudaMalloc(&entry->scratch, (size_t)entry->scratch_bytes));
+  CUTENSORNET_CHECK(cutensornetWorkspaceSetMemory(
+      g_cutensornet_handle, entry->workspace, CUTENSORNET_MEMSPACE_DEVICE,
+      CUTENSORNET_WORKSPACE_SCRATCH, entry->scratch, entry->scratch_bytes));
+  CUTENSORNET_CHECK(cutensornetNetworkPrepareContraction(
+      g_cutensornet_handle, entry->network, entry->workspace));
+  entry->valid = 1;
+  entry->last_use = ++g_contraction_cache_clock;
+  return entry;
+}
+
+static PolygeistContractionCacheEntry *get_contraction_cache_entry(
+    const PolygeistContractionKey *key) {
+  const uint64_t hash = hash_contraction_key(key);
+  for (int i = 0; i < POLYGEIST_CONTRACTION_CACHE_CAP; ++i) {
+    PolygeistContractionCacheEntry *entry = &g_contraction_cache[i];
+    if (entry->valid && entry->hash == hash &&
+        memcmp(&entry->key, key, sizeof(*key)) == 0) {
+      g_contraction_cache_hits++;
+      entry->last_use = ++g_contraction_cache_clock;
+      return entry;
+    }
+  }
+
+  g_contraction_cache_misses++;
+  int slot = -1;
+  for (int i = 0; i < POLYGEIST_CONTRACTION_CACHE_CAP; ++i) {
+    if (!g_contraction_cache[i].valid) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    slot = 0;
+    for (int i = 1; i < POLYGEIST_CONTRACTION_CACHE_CAP; ++i)
+      if (g_contraction_cache[i].last_use <
+          g_contraction_cache[slot].last_use)
+        slot = i;
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    destroy_contraction_cache_entry(&g_contraction_cache[slot]);
+    g_contraction_cache_evictions++;
+  }
+  return create_contraction_cache_entry(&g_contraction_cache[slot], key,
+                                        hash);
+}
+
+static void destroy_cutensornet_contraction_cache(void) {
+  for (int i = 0; i < POLYGEIST_CONTRACTION_CACHE_CAP; ++i)
+    destroy_contraction_cache_entry(&g_contraction_cache[i]);
+  if (g_cutensornet_handle) {
+    CUTENSORNET_CHECK(cutensornetDestroy(g_cutensornet_handle));
+    g_cutensornet_handle = NULL;
+  }
+  if (contraction_cache_stats_enabled()) {
+    fprintf(stderr,
+            "POLYGEIST_RT_CACHE_STATS\thits=%llu\tmisses=%llu\t"
+            "evictions=%llu\n",
+            (unsigned long long)g_contraction_cache_hits,
+            (unsigned long long)g_contraction_cache_misses,
+            (unsigned long long)g_contraction_cache_evictions);
+  }
+  memset(g_contraction_cache, 0, sizeof(g_contraction_cache));
+  g_contraction_cache_clock = 0;
+  g_contraction_cache_hits = 0;
+  g_contraction_cache_misses = 0;
+  g_contraction_cache_evictions = 0;
+}
+
+#endif // POLYGEIST_HAS_CUTENSORNET
+
 static void polygeist_contraction2_f64_cpu(
     const double *A, const double *B, double *C,
     const int64_t ranks[3],
@@ -2131,8 +2454,9 @@ static void polygeist_contraction2_f64_cpu(
   }
 }
 
-void polygeist_cutensornet_contraction2_f64(
-    const double *A, const double *B, double *C, const int64_t *metadata) {
+static void polygeist_cutensornet_contraction2_f64_impl(
+    const double *A, const double *B, double *C, const int64_t *metadata,
+    int device_pointers) {
   int64_t ranks[3];
   int64_t extents[3][POLYGEIST_CONTRACTION_MAX_MODES] = {{0}};
   int64_t strides[3][POLYGEIST_CONTRACTION_MAX_MODES] = {{0}};
@@ -2154,65 +2478,39 @@ void polygeist_cutensornet_contraction2_f64(
       elements[tensor] +=
           (size_t)(extents[tensor][dim] - 1) *
           (size_t)strides[tensor][dim];
-  double *dA =
-      (double *)register_host_safe((void *)A, elements[0] * sizeof(double));
-  double *dB =
-      (double *)register_host_safe((void *)B, elements[1] * sizeof(double));
-  double *dC =
-      (double *)register_host_safe((void *)C, elements[2] * sizeof(double));
+  double *dA = device_pointers
+                    ? (double *)A
+                    : (double *)register_host_safe(
+                          (void *)A, elements[0] * sizeof(double));
+  double *dB = device_pointers
+                    ? (double *)B
+                    : (double *)register_host_safe(
+                          (void *)B, elements[1] * sizeof(double));
+  double *dC = device_pointers
+                    ? C
+                    : (double *)register_host_safe(
+                          (void *)C, elements[2] * sizeof(double));
 
-  cutensornetHandle_t handle = NULL;
-  cutensornetNetworkDescriptor_t network = NULL;
-  cutensornetContractionOptimizerConfig_t config = NULL;
-  cutensornetContractionOptimizerInfo_t info = NULL;
-  cutensornetWorkspaceDescriptor_t workspace = NULL;
-  void *scratch = NULL;
-  int64_t tensorIds[2] = {-1, -1};
-
-  CUTENSORNET_CHECK(cutensornetCreate(&handle));
-  CUTENSORNET_CHECK(cutensornetCreateNetwork(handle, &network));
-  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, (int32_t)ranks[0], extents[0], modes[0], NULL,
-      CUDA_R_64F, &tensorIds[0]));
-  CUTENSORNET_CHECK(cutensornetNetworkAppendTensor(
-      handle, network, (int32_t)ranks[1], extents[1], modes[1], NULL,
-      CUDA_R_64F, &tensorIds[1]));
-  CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensor(
-      handle, network, (int32_t)ranks[2], modes[2], CUDA_R_64F));
+  PolygeistContractionKey key;
+  make_contraction_key(&key, ranks, extents, strides, modes);
+  PolygeistContractionCacheEntry uncached_entry;
+  const int use_cache = contraction_cache_enabled();
+  PolygeistContractionCacheEntry *entry =
+      use_cache ? get_contraction_cache_entry(&key)
+                : create_contraction_cache_entry(
+                      &uncached_entry, &key, hash_contraction_key(&key));
   CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
-      handle, network, tensorIds[0], dA, strides[0]));
+      g_cutensornet_handle, entry->network, entry->tensor_ids[0], dA,
+      strides[0]));
   CUTENSORNET_CHECK(cutensornetNetworkSetInputTensorMemory(
-      handle, network, tensorIds[1], dB, strides[1]));
+      g_cutensornet_handle, entry->network, entry->tensor_ids[1], dB,
+      strides[1]));
   CUTENSORNET_CHECK(cutensornetNetworkSetOutputTensorMemory(
-      handle, network, dC, strides[2]));
-
-  CUTENSORNET_CHECK(
-      cutensornetCreateContractionOptimizerConfig(handle, &config));
-  CUTENSORNET_CHECK(
-      cutensornetCreateContractionOptimizerInfo(handle, network, &info));
-  const uint64_t workspaceLimit = UINT64_C(256) * 1024 * 1024;
-  CUTENSORNET_CHECK(cutensornetContractionOptimize(
-      handle, network, config, workspaceLimit, info));
-  CUTENSORNET_CHECK(
-      cutensornetNetworkSetOptimizerInfo(handle, network, info));
-  CUTENSORNET_CHECK(cutensornetCreateWorkspaceDescriptor(handle, &workspace));
-  CUTENSORNET_CHECK(cutensornetWorkspaceComputeContractionSizes(
-      handle, network, info, workspace));
-  int64_t scratchBytes = 0;
-  CUTENSORNET_CHECK(cutensornetWorkspaceGetMemorySize(
-      handle, workspace, CUTENSORNET_WORKSIZE_PREF_RECOMMENDED,
-      CUTENSORNET_MEMSPACE_DEVICE, CUTENSORNET_WORKSPACE_SCRATCH,
-      &scratchBytes));
-  if (scratchBytes > 0)
-    scratch = pipeline_device_malloc((size_t)scratchBytes);
-  CUTENSORNET_CHECK(cutensornetWorkspaceSetMemory(
-      handle, workspace, CUTENSORNET_MEMSPACE_DEVICE,
-      CUTENSORNET_WORKSPACE_SCRATCH, scratch, scratchBytes));
-  CUTENSORNET_CHECK(
-      cutensornetNetworkPrepareContraction(handle, network, workspace));
+      g_cutensornet_handle, entry->network, dC, strides[2]));
   timing_gpu_begin();
   CUTENSORNET_CHECK(cutensornetNetworkContract(
-      handle, network, 0, workspace, NULL, g_stream));
+      g_cutensornet_handle, entry->network, 0, entry->workspace, NULL,
+      g_stream));
   int64_t reductionExtent = 1;
   for (int mode = 0; mode < POLYGEIST_CONTRACTION_MAX_MODES; ++mode)
     if (!present[2][mode] &&
@@ -2221,21 +2519,33 @@ void polygeist_cutensornet_contraction2_f64(
   timing_gpu_end("cutensornetContraction2_f64",
                  (int32_t)modeExtents[0], (int32_t)modeExtents[1],
                  (int32_t)reductionExtent, host_start_ms);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-
-  pipeline_device_free(scratch);
-  CUTENSORNET_CHECK(cutensornetDestroyWorkspaceDescriptor(workspace));
-  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerInfo(info));
-  CUTENSORNET_CHECK(cutensornetDestroyContractionOptimizerConfig(config));
-  CUTENSORNET_CHECK(cutensornetDestroyNetwork(network));
-  CUTENSORNET_CHECK(cutensornetDestroy(handle));
-  unregister_host_safe((void *)A);
-  unregister_host_safe((void *)B);
-  unregister_host_safe(C);
+  if (use_cache) {
+    sync_stream_if_outside_pipeline();
+  } else {
+    // The uncached debug path owns descriptors and scratch only for this
+    // invocation, so execution must finish before they are destroyed.
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    destroy_contraction_cache_entry(entry);
+  }
+  if (!device_pointers) {
+    unregister_host_safe((void *)A);
+    unregister_host_safe((void *)B);
+    unregister_host_safe(C);
+  }
 #else
   polygeist_contraction2_f64_cpu(
       A, B, C, ranks, extents, strides, modes, present, modeExtents);
 #endif
+}
+
+void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata) {
+  polygeist_cutensornet_contraction2_f64_impl(A, B, C, metadata, 0);
+}
+
+void polygeist_cutensornet_contraction2_f64_device(
+    const double *A, const double *B, double *C, const int64_t *metadata) {
+  polygeist_cutensornet_contraction2_f64_impl(A, B, C, metadata, 1);
 }
 
 // FP16 variant. cuDNN tensor cores light up here on Ampere+ (Orin) when the
@@ -2614,6 +2924,103 @@ void polygeist_cudnn_conv2d_batched(
   cudnnDestroyTensorDescriptor(out_desc);
   cudnnDestroyFilterDescriptor(f_desc);
   cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+void polygeist_cudnn_conv3d_channels_f32(
+    int32_t IC, int32_t inD, int32_t inH, int32_t inW,
+    int32_t OC, int32_t kD, int32_t kH, int32_t kW,
+    const float *input, const float *filter, const float *bias, float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  const int32_t outD = inD - kD + 1;
+  const int32_t outH = inH - kH + 1;
+  const int32_t outW = inW - kW + 1;
+
+  size_t inputBytes = (size_t)IC * inD * inH * inW * sizeof(float);
+  size_t filterBytes =
+      (size_t)OC * IC * kD * kH * kW * sizeof(float);
+  size_t outputBytes =
+      (size_t)OC * outD * outH * outW * sizeof(float);
+  float *dInput = (float *)register_host_safe((void *)input, inputBytes);
+  float *dFilter = (float *)register_host_safe((void *)filter, filterBytes);
+  float *dOutput = (float *)register_host_safe(output, outputBytes);
+  float *dBias = bias ? (float *)register_host_safe(
+                           (void *)bias, (size_t)OC * sizeof(float))
+                      : NULL;
+
+  cudnnTensorDescriptor_t inputDesc, outputDesc, biasDesc = NULL;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  int inputDims[5] = {1, IC, inD, inH, inW};
+  int inputStrides[5] = {IC * inD * inH * inW, inD * inH * inW,
+                         inH * inW, inW, 1};
+  int outputDims[5] = {1, OC, outD, outH, outW};
+  int outputStrides[5] = {OC * outD * outH * outW, outD * outH * outW,
+                          outH * outW, outW, 1};
+  int filterDims[5] = {OC, IC, kD, kH, kW};
+  int pad[3] = {0, 0, 0};
+  int stride[3] = {1, 1, 1};
+  int dilation[3] = {1, 1, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      inputDesc, CUDNN_DATA_FLOAT, 5, inputDims, inputStrides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, filterDims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      convDesc, 3, pad, stride, dilation,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      outputDesc, CUDNN_DATA_FLOAT, 5, outputDims, outputStrides));
+
+  cudnnConvolutionFwdAlgoPerf_t algoPerf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc,
+      1, &returned, &algoPerf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN channel Conv3D: no forward algorithm available\n");
+    abort();
+  }
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc,
+      algoPerf.algo, &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+
+  float one = 1.0f, zero = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &one, inputDesc, dInput, filterDesc, dFilter, convDesc,
+      algoPerf.algo, workspace, workspaceBytes, &zero, outputDesc, dOutput));
+  if (dBias) {
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&biasDesc));
+    int biasDims[5] = {1, OC, 1, 1, 1};
+    int biasStrides[5] = {OC, 1, 1, 1, 1};
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+        biasDesc, CUDNN_DATA_FLOAT, 5, biasDims, biasStrides));
+    CUDNN_CHECK(cudnnAddTensor(
+        g_cudnn, &one, biasDesc, dBias, &one, outputDesc, dOutput));
+  }
+  timing_gpu_end("cudnnConvolution3D_channels_f32",
+                 OC * outD, outH * outW, IC * kD * kH * kW,
+                 host_start_ms);
+  sync_stream_if_outside_pipeline();
+
+  if (workspace) DEVICE_FREE(workspace);
+  if (biasDesc) cudnnDestroyTensorDescriptor(biasDesc);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+  unregister_host_safe((void *)input);
+  unregister_host_safe((void *)filter);
+  if (bias) unregister_host_safe((void *)bias);
+  unregister_host_safe(output);
 }
 
 void polygeist_cudnn_conv2d_im2col_gemm_f32(
@@ -3614,6 +4021,24 @@ void polygeist_cublas_dot_f32(
   timing_gpu_begin();
   CUBLAS_CHECK(cublasSdot(g_handle, N, dX, 1, dY, 1, Out));
   timing_gpu_end("cublasSdot", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cublas_dot_f64(
+    int32_t N, const double *X, const double *Y, double *Out) {
+  if (N <= 0) {
+    *Out = 0.0;
+    return;
+  }
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  size_t bytes = (size_t)N * sizeof(double);
+  double *dX = (double *)register_host_safe((void *)X, bytes);
+  double *dY = (double *)register_host_safe((void *)Y, bytes);
+
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDdot(g_handle, N, dX, 1, dY, 1, Out));
+  timing_gpu_end("cublasDdot", N, 1, 0, host_start_ms);
 }
 
 void polygeist_cuda_gelu_tanh_f32(

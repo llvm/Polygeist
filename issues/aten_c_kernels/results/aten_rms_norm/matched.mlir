@@ -5,12 +5,12 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %cst = arith.constant 0.000000e+00 : f32
     %cst_0 = arith.constant 1.000000e+00 : f32
     %cst_1 = arith.constant 1.280000e+02 : f32
-    %0 = bufferization.to_tensor %arg2 : memref<?xf32>
+    %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = bufferization.to_tensor %arg0 : memref<?xf32>
+    %2 = bufferization.to_tensor %arg2 : memref<?xf32>
     %3 = tensor.empty() : tensor<f32>
     %inserted = tensor.insert %cst into %3[] : tensor<f32>
-    %9 = kernel.launch @rmsnorm_f32_tensor(%2, %1, %0) : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+    %9 = kernel.launch @rmsnorm_f32_tensor(%0, %1, %2) : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %10 = bufferization.to_memref %9 : memref<?xf32>
     memref.copy %10, %arg2 : memref<?xf32> to memref<?xf32>
     return

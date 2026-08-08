@@ -1,11 +1,25 @@
 /* aten::conv2d, NCHW, stride 1, valid padding. */
+#ifndef B
 #define B 2
+#endif
+#ifndef IC
 #define IC 4
+#endif
+#ifndef OC
 #define OC 8
+#endif
+#ifndef H
 #define H 16
+#endif
+#ifndef W
 #define W 16
+#endif
+#ifndef KH
 #define KH 3
+#endif
+#ifndef KW
 #define KW 3
+#endif
 #define OH (H - KH + 1)
 #define OW (W - KW + 1)
 

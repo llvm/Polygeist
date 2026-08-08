@@ -121,6 +121,20 @@ struct UseChainAnalysis {
           return false;
         }
 
+        // Pulling the multiply into the loop also moves the use of its
+        // invariant operand.  A value computed *after* the loop is invariant
+        // in the dependence sense, but it does not dominate the new use.
+        // Reject the distributive fast path in that case and let the
+        // consumer-blind alloca fallback materialize the iter_arg instead.
+        if (Operation *def = invariantOp.getDefiningOp()) {
+          DominanceInfo dom(loopOp->getParentOp());
+          if (!dom.dominates(def, loopOp)) {
+            LLVM_DEBUG(llvm::dbgs()
+                       << "    ✗ Invariant operand does not dominate loop\n");
+            return false;
+          }
+        }
+
         LLVM_DEBUG(llvm::dbgs()
                    << "    ✓ Can pull multiply into loop (distributivity)\n");
         opsChain.push_back({user, invariantOp});

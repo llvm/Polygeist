@@ -73,6 +73,19 @@ ATEN_C_MLIR_DIR = env_path(
     "POLYGEIST_ATEN_C_MLIR_DIR",
     ATEN_C_ROOT / "results",
 )
+ATEN_SILICON_RESULTS = env_path(
+    "POLYGEIST_ATEN_SILICON_RESULTS",
+    ATEN_C_ROOT / "silicon_results/large_problem_comparison.csv",
+)
+ATEN_CUDA_LIBRARY_AUDIT = env_path(
+    "POLYGEIST_ATEN_CUDA_LIBRARY_AUDIT",
+    ATEN_C_ROOT / "cuda_library_audit.csv",
+)
+ATEN_UPSTREAM_ROOT = env_path(
+    "POLYGEIST_ATEN_UPSTREAM_ROOT",
+    REPO_ROOT / "third_party/pytorch",
+)
+ATEN_UPSTREAM_COMMIT = "d7af122d81a49b1fa7a31ba52bd57c026f092646"
 MFEM_C_ROOT = env_path(
     "POLYGEIST_MFEM_C_ROOT",
     REPO_ROOT / "issues/mfem_c_kernels",
@@ -84,6 +97,10 @@ MFEM_RESULTS_DIR = env_path(
 MFEM_MATCH_RESULTS_DIR = env_path(
     "POLYGEIST_MFEM_MATCH_RESULTS_DIR",
     MFEM_C_ROOT / "match_results",
+)
+MFEM_SILICON_RESULTS_DIR = env_path(
+    "POLYGEIST_MFEM_SILICON_RESULTS_DIR",
+    MFEM_C_ROOT / "silicon_results",
 )
 MFEM_APPLICATIONS_DIR = env_path(
     "POLYGEIST_MFEM_APPLICATIONS_DIR",
@@ -102,6 +119,103 @@ MFEM_UPSTREAM_ROOT = env_path(
     REPO_ROOT / "third_party/mfem",
 )
 MFEM_UPSTREAM_COMMIT = "951cf8886b9c0c33fb36a2f0ede268c8d6a0d8b5"
+
+# Correctness-gated application runs on the attached Jetson.  These are kept
+# separate from the structural matcher counts: a candidate launch is not a
+# performance result until the complete application agrees with its -O3 CPU
+# reference.  `process_wall_s` includes CUDA/cuTensorNet initialization and
+# is diagnostic only.  The harness reports timing only after correctness;
+# all ten harness-supported executable paths now pass this gate.
+MFEM_APPLICATION_JETSON_RUNS: dict[str, dict[str, str]] = {
+    "mfem_app_mtop_iso_elasticity_dfem_2d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "NE=1024 max_abs=max_rel=5.551115e-17",
+        "runtime": "NE=1024 apples-to-apples: CPU -O3 935.686403 us; warm raised Jetson 17465.791991 us; speedup 0.053573x (raised is 18.666x slower)",
+        "calls": "12 cuTensorNet launches/application",
+        "params": "f64; NE=1024; D1D=4; Q1D=5; B/G=20; x/y=32768; lambda/mu=25600; J=102400; weights=25; median of warm process runs 2-4",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_ex35p_hcurl_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=4.857226e-17",
+        "runtime": "CPU -O3 62.732794 us; warm raised Jetson 58184.332796 us; speedup 0.001078x",
+        "calls": "29 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; Bo/Bot=15; Bc/Bct/G/Gt=20; operators=1500; x/y=288",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_dfem_minimal_surface_2d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=8.673617e-19",
+        "runtime": "CPU -O3 0.876817 us; warm raised Jetson 11099.043209 us; speedup 0.000079x",
+        "calls": "6 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; B/G=20; field/y=32; Jacobian=100; weights=25",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_ex35p_h1_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=6.938894e-18",
+        "runtime": "CPU -O3 5.427189 us; warm raised Jetson 36668.323190 us; speedup 0.000148x",
+        "calls": "19 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; B/G/Bt/Gt=20; diffusion=1500; mass=250; x/y=128",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_ex35p_hdiv_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=4.857226e-17",
+        "runtime": "CPU -O3 42.969594 us; warm raised Jetson 22730.832011 us; speedup 0.001890x",
+        "calls": "12 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; Bo/Bot=15; Bc/Bct/G/Gt=20; div=250; mass=1500; x/y=216",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_ex9p_mass_convection_2d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=6.938894e-18",
+        "runtime": "CPU -O3 0.671996 us; warm raised Jetson 14588.060789 us; speedup 0.000046x",
+        "calls": "9 library launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; B/G/Bt=20; mass=50; convection=100; vector extents=32",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_grad_div_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=4.857226e-17",
+        "runtime": "CPU -O3 42.947195 us; warm raised Jetson 22724.332800 us; speedup 0.001890x",
+        "calls": "12 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; Bo/Bot=15; Bc/Bct/G/Gt=20; div=250; mass=1500; x/y=216",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_abs_l1_mass_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=6.938894e-18",
+        "runtime": "CPU -O3 1.407997 us; warm raised Jetson 9253.155184 us; speedup 0.000152x",
+        "calls": "5 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; B/Bt=20; D=250; x/y=128; one untimed warm-up; 10 timed warm iterations; final Y += contraction remains residual Linalg",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_abs_l1_diffusion_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=2.710505e-20",
+        "runtime": "CPU -O3 4.047994 us; warm raised Jetson 26162.835187 us; speedup 0.000155x",
+        "calls": "14 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; B/G/Bt/Gt=20; operator=1500; x/y=128",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_abs_l1_curlcurl_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "max_abs=max_rel=4.857226e-17",
+        "runtime": "CPU -O3 60.716807 us; warm raised Jetson 57165.744016 us; speedup 0.001062x",
+        "calls": "29 cuTensorNet launches/application",
+        "params": "f64; NE=2; D1D=4; Q1D=5; Bo/Bot=15; Bc/Bct/G/Gt=20; operators=1500; x/y=288",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 CPU reference",
+    },
+    "mfem_app_navier_tgv_pa_operators_3d": {
+        "outcome": "CORRECTNESS PASS",
+        "correctness": "NE=2 max_abs=max_rel=4.163336e-17; NE=1024 max_abs=max_rel=8.326673e-17; residual loops 26 -> 0",
+        "runtime": "NE=2: CPU 0.947853 ms, warm Jetson 142.371238 ms, 0.006658x. NE=1024: CPU 491.086496 ms, warm Jetson 1402.250182 ms, 0.350213x",
+        "calls": "70 cuTensorNet launches/application",
+        "params": "f64; D1D=4; Q1D=5; NE compile-time scalable. NE=1024: velocity=196608, pressure=65536, largest operator=2304000 doubles; vector mass + vector diffusion + nonlinear convection + pressure diffusion + divergence + gradient; one untimed raised warm-up; 5 timed warm iterations",
+        "hardware": "Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet; independent aarch64 -O3 direct C reference",
+    },
+}
 STENCIL_CONV2D_ROOT = env_path(
     "POLYGEIST_STENCIL_CONV2D_ROOT",
     REPO_ROOT / "third_party/cnn-extracted",
@@ -264,6 +378,75 @@ ATEN_C_KERNELS: dict[str, tuple[str, str]] = {
 
 ATEN_C_ORDER = list(ATEN_C_KERNELS.keys())
 
+# Pinned provenance for the standalone numerical C fixtures.  The second
+# tuple member is a source token used only to add a useful line anchor; when a
+# stable token is unavailable, the link intentionally targets the whole file.
+# These are implementation-family links, not a claim that the C fixtures are
+# textual copies: ATen dispatch/TensorIterator/template machinery was removed.
+ATEN_C_PROVENANCE: dict[str, tuple[str, str | None]] = {
+    "aten_adaptive_avg_pool2d": ("aten/src/ATen/native/AdaptiveAveragePooling.cpp", "adaptive_avg_pool2d"),
+    "aten_adaptive_avg_pool3d": ("aten/src/ATen/native/AdaptiveAveragePooling3d.cpp", "adaptive_avg_pool3d"),
+    "aten_add": ("aten/src/ATen/native/CPUBlas.cpp", "void axpy"),
+    "aten_addmm": ("aten/src/ATen/native/LinearAlgebra.cpp", "static void addmm_impl_cpu_"),
+    "aten_avg_pool2d": ("aten/src/ATen/native/AveragePool2d.cpp", "avg_pool2d"),
+    "aten_avg_pool3d": ("aten/src/ATen/native/AveragePool3d.cpp", "avg_pool3d"),
+    "aten_batch_norm": ("aten/src/ATen/native/cpu/batch_norm_kernel.cpp", "batch_norm_cpu_kernel"),
+    "aten_binary_cross_entropy": ("aten/src/ATen/native/Loss.cpp", "binary_cross_entropy"),
+    "aten_bmm": ("aten/src/ATen/native/LinearAlgebra.cpp", "bmm"),
+    "aten_channel_shuffle": ("aten/src/ATen/native/ChanelShuffle.cpp", "channel_shuffle"),
+    "aten_clamp": ("aten/src/ATen/native/TensorCompare.cpp", "clamp"),
+    "aten_conv1d": ("aten/src/ATen/native/Convolution.cpp", "conv1d"),
+    "aten_conv2d": ("aten/src/ATen/native/ConvolutionMM2d.cpp", "slow_conv2d"),
+    "aten_conv3d": ("aten/src/ATen/native/Convolution.cpp", "conv3d"),
+    "aten_conv_transpose2d": ("aten/src/ATen/native/NaiveConvolutionTranspose2d.cpp", "slow_conv_transpose2d"),
+    "aten_cross": ("aten/src/ATen/native/Cross.cpp", "cross"),
+    "aten_cumsum": ("aten/src/ATen/native/cpu/ReduceOpsKernel.cpp", "cumsum_cpu_kernel"),
+    "aten_dot": ("aten/src/ATen/native/Blas.cpp", "Tensor dot"),
+    "aten_elu": ("aten/src/ATen/native/cpu/Activation.cpp", "elu_kernel"),
+    "aten_embedding": ("aten/src/ATen/native/Embedding.cpp", "embedding"),
+    "aten_gelu": ("aten/src/ATen/native/Activation.cpp", "gelu"),
+    "aten_hardsigmoid": ("aten/src/ATen/native/cpu/Activation.cpp", "hardsigmoid_kernel"),
+    "aten_hardswish": ("aten/src/ATen/native/cpu/Activation.cpp", "hardswish_kernel"),
+    "aten_hardtanh": ("aten/src/ATen/native/Activation.cpp", "Tensor hardtanh"),
+    "aten_im2col": ("aten/src/ATen/native/Im2Col.cpp", "im2col"),
+    "aten_l1_loss": ("aten/src/ATen/native/Loss.cpp", "l1_loss"),
+    "aten_layer_norm": ("aten/src/ATen/native/layer_norm.cpp", "layer_norm"),
+    "aten_leaky_relu": ("aten/src/ATen/native/cpu/Activation.cpp", "leaky_relu_kernel"),
+    "aten_lerp": ("aten/src/ATen/native/cpu/LerpKernel.cpp", "lerp_kernel"),
+    "aten_max_pool2d": ("aten/src/ATen/native/cpu/MaxPoolKernel.cpp", "max_pool2d"),
+    "aten_mean": ("aten/src/ATen/native/ReduceOps.cpp", "mean"),
+    "aten_mm": ("aten/src/ATen/native/LinearAlgebra.cpp", "TORCH_IMPL_FUNC(mm_out_cpu)"),
+    "aten_mse_loss": ("aten/src/ATen/native/Loss.cpp", "mse_loss"),
+    "aten_mv": ("aten/src/ATen/native/Blas.cpp", "Tensor &mv_out"),
+    "aten_outer": ("aten/src/ATen/native/LinearAlgebra.cpp", "outer"),
+    "aten_pixel_shuffle": ("aten/src/ATen/native/PixelShuffle.cpp", "pixel_shuffle"),
+    "aten_prod": ("aten/src/ATen/native/cpu/ReduceOpsKernel.cpp", "prod_kernel"),
+    "aten_reflection_pad2d": ("aten/src/ATen/native/ReflectionPad.cpp", "reflection_pad2d"),
+    "aten_relu": ("aten/src/ATen/native/Activation.cpp", "relu"),
+    "aten_replication_pad2d": ("aten/src/ATen/native/ReplicationPadding.cpp", "replication_pad2d"),
+    "aten_rms_norm": ("aten/src/ATen/native/layer_norm.cpp", "rms_norm_composite"),
+    "aten_sigmoid": ("aten/src/ATen/native/cpu/UnaryOpsKernel.cpp", "sigmoid_kernel"),
+    "aten_silu": ("aten/src/ATen/native/Activation.cpp", "silu"),
+    "aten_softmax": ("aten/src/ATen/native/cpu/SoftMaxKernel.cpp", "softmax"),
+    "aten_softplus": ("aten/src/ATen/native/cpu/Activation.cpp", "softplus_kernel"),
+    "aten_sum": ("aten/src/ATen/native/ReduceOps.cpp", "sum"),
+    "aten_tanh": ("aten/src/ATen/native/cpu/UnaryOpsKernel.cpp", "tanh_kernel"),
+    "aten_transpose_copy": ("aten/src/ATen/native/TensorShape.cpp", "transpose"),
+    "aten_upsample_bilinear2d": ("aten/src/ATen/native/UpSampleBilinear2d.cpp", "upsample_bilinear2d"),
+    "aten_upsample_nearest2d": ("aten/src/ATen/native/UpSampleNearest2d.cpp", "upsample_nearest2d"),
+}
+
+# Mechanically generated scalar specializations keep their provenance in a
+# CSV so adding an extraction does not require editing this viewer by hand.
+for _aten_generated_provenance in sorted(
+    ATEN_C_ROOT.glob("generated*_provenance.csv")
+):
+    with _aten_generated_provenance.open(newline="") as _stream:
+        for _row in csv.DictReader(_stream):
+            ATEN_C_PROVENANCE[_row["kernel"]] = (
+                _row["source"], _row.get("token") or None
+            )
+
 ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_adaptive_avg_pool2d": "no average-pooling definition",
     "aten_adaptive_avg_pool3d": "no 3D average-pooling definition",
@@ -307,7 +490,7 @@ ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_upsample_nearest2d": "no nearest-neighbor resampling definition",
 }
 
-ATEN_C_UNSAFE_MATCHES: set[str] = set()
+ATEN_C_UNSAFE_MATCHES: set[str] = {"aten_pixel_shuffle"}
 
 # These probes come from large upstream source files. Keep them in the IR
 # explorer, but avoid embedding the full original files in Compiler Explorer
@@ -1668,7 +1851,7 @@ def count_for_loops(text: str) -> int:
 def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     res = subprocess.run(
         [PYTHON, str(REWRITER), str(path)],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=10,
     )
     if res.returncode != 0:
         raise RuntimeError(
@@ -1678,35 +1861,6 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     n_launch = len(re.findall(r"kernel\.launch", out))
     n_lg = len(re.findall(r"linalg\.generic", out))
     return out, [("launches", n_launch), ("residual_lg", n_lg)]
-
-
-_LIBRARY_PLAN_RE = re.compile(
-    r"^\s+kernel_candidate\s+body#(.*?)\s{2,}"
-    r"(\S+).*?\bstatus=library-plan\b(.*)$"
-)
-
-
-def run_library_planner(path: Path) -> tuple[str, list[str]]:
-    """Return the selected cost-gated vendor-library plans for one module."""
-    res = subprocess.run(
-        [PYTHON, str(REWRITER), str(path), "--dry-run", "--show-candidates"],
-        capture_output=True, text=True, timeout=120,
-    )
-    if res.returncode != 0:
-        raise RuntimeError(
-            f"kernel candidate planner failed for {path} with {PYTHON}:\n"
-            f"{res.stderr}"
-        )
-    plans = []
-    symbols = []
-    for line in (res.stdout + res.stderr).splitlines():
-        match = _LIBRARY_PLAN_RE.match(line)
-        if match is None:
-            continue
-        body, symbol, details = match.groups()
-        symbols.append(symbol)
-        plans.append(f"body#{body}  {symbol}{details}")
-    return "\n".join(plans) + ("\n" if plans else ""), symbols
 
 
 def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
@@ -1755,7 +1909,18 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         n_for = count_for_loops(debuf_text)
         html, css = syntax_highlight(debuf_text)
         pages["debuf"] = html
-        rewritten, report = run_rewriter(debuf)
+        # The exhaustive ATen sweep stores the authoritative matcher output
+        # beside its diagnostics. Reuse it instead of starting one Egglog
+        # process per page (hundreds of avoidable process launches).
+        stored_match = mlir_dir / kernel / "matched.mlir"
+        if kset == "aten_c" and stored_match.exists():
+            rewritten = stored_match.read_text()
+            report = [
+                ("launches", len(re.findall(r"kernel\.launch\s+@", rewritten))),
+                ("residual_lg", len(re.findall(r"\blinalg\.generic\b", rewritten))),
+            ]
+        else:
+            rewritten, report = run_rewriter(debuf)
         matched_symbols = sorted(set(
             re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
         ))
@@ -1798,8 +1963,13 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'<a href="#matched">kernel.launch output</a>'
         f'</div>'
     )
+    back_href, back_label = "index.html", "index"
+    if kset == "polybench":
+        back_href, back_label = "polybench.html", "PolyBench"
+    elif kset == "aten_c":
+        back_href, back_label = "numerical.html", "ATen"
     header = (
-        f'<div class="header"><h1><a href="index.html">← index</a> '
+        f'<div class="header"><h1><a href="{back_href}">← {back_label}</a> '
         f'&nbsp; {kernel}{open_link}</h1></div>'
         + summary
     )
@@ -1831,15 +2001,135 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     }
 
 
-def _aten_section(aten_stats: dict[str, dict]) -> str:
-    rows = []
+def _aten_upstream_info(kernel: str) -> dict[str, object]:
+    """Resolve the pinned ATen implementation-family URL and local pointer."""
+    upstream_file, token = ATEN_C_PROVENANCE[kernel]
+    source = ATEN_UPSTREAM_ROOT / upstream_file
+    upstream_line = None
+    if token and source.exists():
+        for line_no, line in enumerate(source.read_text().splitlines(), 1):
+            if token in line:
+                upstream_line = line_no
+                break
+    fragment = f"#L{upstream_line}" if upstream_line else ""
+    upstream_url = (
+        "https://github.com/pytorch/pytorch/blob/"
+        f"{ATEN_UPSTREAM_COMMIT}/{upstream_file}{fragment}"
+    )
+    local_pointer = f"third_party/pytorch/{upstream_file}"
+    if upstream_line:
+        local_pointer += f":{upstream_line}"
+    return {
+        "upstream_file": upstream_file,
+        "upstream_line": upstream_line,
+        "upstream_url": upstream_url,
+        "upstream_pointer": local_pointer,
+    }
+
+
+def build_aten_c_source_pages(aten_stats: dict[str, dict]) -> None:
+    """Render a C-only page with pinned PyTorch provenance for every fixture."""
     for kernel in ATEN_C_ORDER:
+        source = find_kernel_c(kernel, kset="aten_c")
+        if source is None or not source.exists():
+            continue
+        provenance = _aten_upstream_info(kernel)
+        c_page_filename = f"aten_c_{kernel}.html"
+        highlighted, css = syntax_highlight(source.read_text(), "c")
+        lowering_page = aten_stats.get(kernel, {}).get("page_filename", "")
+        lowering_link = (
+            f'<a href="{html.escape(lowering_page)}">view lowering IR →</a>'
+            if lowering_page else "lowering IR unavailable"
+        )
+        header = (
+            '<div class="header"><h1><a href="numerical.html">← ATen</a> '
+            f'&nbsp; standalone C: {html.escape(kernel)}</h1></div>'
+        )
+        provenance_html = (
+            '<div class="summary" style="padding:10px 20px; '
+            'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
+            f'<b>Standalone fixture:</b> <code>{html.escape(str(source.relative_to(REPO_ROOT)))}</code><br>'
+            f'<b>Original ATen implementation family:</b> '
+            f'<a href="{html.escape(str(provenance["upstream_url"]))}" target="_blank">'
+            f'<code>{html.escape(str(provenance["upstream_pointer"]))}</code></a><br>'
+            f'<b>PyTorch commit:</b> <code>{ATEN_UPSTREAM_COMMIT}</code><br>'
+            '<b>Extraction:</b> numerical algorithm isolated into fixed-shape C; '
+            'ATen Tensor/dispatch/template machinery removed.<br>'
+            f'{lowering_link}'
+            '</div>'
+        )
+        OUTPUT_DIR.joinpath(c_page_filename).write_text(
+            render_html(
+                f"ATen standalone C: {kernel}",
+                header + provenance_html
+                + '<h2>standalone C form lowered by cgeist</h2>'
+                + f'<div class="container">{highlighted}</div>',
+                css,
+            )
+        )
+        aten_stats.setdefault(kernel, {}).update(
+            {
+                "c_page_filename": c_page_filename,
+                **provenance,
+            }
+        )
+
+
+ATEN_PAGE_SIZE = 20
+
+
+def _aten_page_filename(sort_by: str, page: int) -> str:
+    prefix = "numerical" if sort_by == "alphabetical" else "numerical-correctness"
+    return f"{prefix}.html" if page == 1 else f"{prefix}-{page}.html"
+
+
+def _aten_sorted_kernels(sort_by: str) -> list[str]:
+    if sort_by == "alphabetical":
+        return sorted(ATEN_C_ORDER)
+    performance = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_SILICON_RESULTS)
+    }
+    correctness_rank = {"PASS": 0, "FAIL": 1, "—": 2, "": 2}
+    return sorted(
+        ATEN_C_ORDER,
+        key=lambda kernel: (
+            correctness_rank.get(
+                performance.get(kernel, {}).get("correctness", "—"), 2
+            ),
+            kernel,
+        ),
+    )
+
+
+def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
+                  sort_by: str, page: int, page_count: int) -> str:
+    performance = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_SILICON_RESULTS)
+    }
+    cuda_audit = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
+    }
+    rows = []
+    for kernel in kernels:
         stats = aten_stats.get(kernel, {})
-        page = stats.get("page_filename", "")
-        if page:
-            name = f'<a class="kernel" href="{page}">{kernel}</a>'
+        kernel_page = stats.get("page_filename", "")
+        if kernel_page:
+            name = f'<a class="kernel" href="{kernel_page}">{kernel}</a>'
         else:
             name = f'<span>{kernel}</span>'
+        c_page = stats.get("c_page_filename", "")
+        extracted_c = (
+            f'<a class="viewer" href="{html.escape(c_page)}">'
+            f'<code>{html.escape(ATEN_C_KERNELS[kernel][0])}</code></a>'
+            if c_page else "—"
+        )
+        upstream_url = stats.get("upstream_url", "")
+        upstream_pointer = stats.get("upstream_pointer", "")
+        upstream = (
+            f'<a class="viewer" href="{html.escape(str(upstream_url))}" '
+            f'target="_blank"><code>{html.escape(str(upstream_pointer))}</code></a>'
+            if upstream_url else "—"
+        )
         symbols = stats.get("matched_symbols", [])
         symbol_html = ", ".join(f"<code>@{s}</code>" for s in symbols) or "—"
         launches = stats.get("launches", 0)
@@ -1854,12 +2144,56 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         else:
             status_class, status = "none", "NONE"
         assessment = ATEN_C_MATCH_ASSESSMENT.get(kernel, "")
+        perf = performance.get(kernel, {})
+        execution = html.escape(perf.get("executable_status", "—"))
+        correctness = html.escape(perf.get("correctness", "—"))
+        problem = html.escape(perf.get("problem", "—"))
+        raised_us = html.escape(perf.get("raised_us", "—"))
+        resident_us = html.escape(perf.get("resident_cuda_us", "—"))
+        ratio = perf.get("raised_over_resident", "—")
+        ratio = html.escape(f"{ratio}×" if ratio not in ("", "—") else "—")
+        baseline = html.escape(perf.get("baseline", "—"))
+        audit = cuda_audit.get(kernel, {})
+        library = audit.get("candidate_library", "")
+        api = audit.get("candidate_api", "")
+        evidence = audit.get("evidence_url", "")
+        if library:
+            candidate_text = (
+                f'<b>{html.escape(library)}</b><br><code>{html.escape(api)}</code>'
+            )
+            candidate = (
+                f'<a class="viewer" href="{html.escape(evidence)}" target="_blank">'
+                f'{candidate_text}</a>' if evidence else candidate_text
+            )
+        else:
+            candidate = '<span class="none">no tensor-library API</span>'
+        implementation_form = html.escape(
+            audit.get("implementation_form", "—").replace("_", " ")
+        )
+        audit_finding = html.escape(
+            audit.get("compiler_gap", "—").replace("_", " ")
+        )
+        audit_reason = html.escape(audit.get("rationale", ""))
+        audit_scope = html.escape(
+            audit.get("current_match_scope", "—").replace("_", " ")
+        )
+        execution_class = "pass" if execution == "EXECUTED" else "none"
+        correctness_class = "pass" if correctness == "PASS" else "none"
         rows.append(
             f"<tr><td>{name}</td>"
+            f"<td>{upstream}</td><td>{extracted_c}</td>"
             f"<td>{stats.get('linalg_ops', 0)}</td>"
             f"<td>{loops}</td><td>{launches}</td>"
             f'<td class="{status_class}">{status}</td>'
-            f"<td>{symbol_html}</td><td>{assessment}</td></tr>"
+            f"<td>{symbol_html}</td>"
+            f"<td>{audit_scope}</td><td>{candidate}</td>"
+            f"<td>{implementation_form}</td>"
+            f"<td><b>{audit_finding}</b><br>{audit_reason}</td>"
+            f'<td class="{execution_class}">{execution}</td>'
+            f'<td class="{correctness_class}">{correctness}</td>'
+            f"<td><code>{problem}</code></td><td>{raised_us}</td>"
+            f"<td>{resident_us}</td><td>{ratio}</td><td>{baseline}</td>"
+            f"<td>{assessment}</td></tr>"
         )
     total_linalg = sum(s.get("linalg_ops", 0) for s in aten_stats.values())
     total_launches = sum(s.get("launches", 0) for s in aten_stats.values())
@@ -1871,6 +2205,35 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         for s in aten_stats.values()
     )
     matched_kernels = sum(s.get("launches", 0) > 0 for s in aten_stats.values())
+    complete_matches = sum(
+        row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+        for row in cuda_audit.values()
+    )
+    partial_matches = sum(
+        row.get("current_match_scope") == "PARTIAL_STAGE_ONLY"
+        for row in cuda_audit.values()
+    )
+    sort_links = (
+        f'<b>Sort:</b> <a href="{_aten_page_filename("alphabetical", 1)}">'
+        f'{"<b>alphabetical</b>" if sort_by == "alphabetical" else "alphabetical"}</a> &middot; '
+        f'<a href="{_aten_page_filename("correctness", 1)}">'
+        f'{"<b>correctness</b>" if sort_by == "correctness" else "correctness"}</a>'
+    )
+    page_links = " &middot; ".join(
+        (
+            f'<b>{number}</b>' if number == page else
+            f'<a href="{_aten_page_filename(sort_by, number)}">{number}</a>'
+        )
+        for number in range(1, page_count + 1)
+    )
+    controls = (
+        '<div class="intro" style="padding-top:10px;padding-bottom:10px">'
+        f'{sort_links}<span style="margin-left:24px"><b>Page:</b> '
+        f'{page_links}</span><span style="margin-left:24px">Showing '
+        f'{(page - 1) * ATEN_PAGE_SIZE + 1}–'
+        f'{(page - 1) * ATEN_PAGE_SIZE + len(kernels)} of '
+        f'{len(ATEN_C_ORDER)}</span></div>'
+    )
     return (
         '<a name="aten-c"></a>'
         '<div class="section-header"><h2 class="section-title">'
@@ -1880,21 +2243,36 @@ def _aten_section(aten_stats: dict[str, dict]) -> str:
         f'<code>linalg.generic</code> operations and {total_residual_loops} '
         f'residual loops. '
         f'The current matcher emitted {total_launches} launches across '
-        f'{matched_kernels}/{len(aten_stats)} kernels. '
+        f'{matched_kernels}/{len(aten_stats)} kernels, but exhaustive residual-IR '
+        f'checking finds only {complete_matches} complete rewrite candidates and '
+        f'{partial_matches} partial stage matches. '
         'FULL/PARTIAL/NONE describe semantic matcher coverage. Copy matching '
-        'now proves compatible indexing maps and rejects transpose, gather, '
-        'and shuffle false-positives. '
+        'rejects known transpose and gather false-positives; the remaining '
+        'pixel-shuffle view candidate is explicitly marked unsafe until its '
+        'submap layout is proven by the runtime ABI. '
         'The newly available cuTensorNet tensor-product definition produced '
         'no additional ATen match: none of these kernels has its rank-6 '
         'separable 3D tensor-product signature. Existing cuBLAS, cuDNN, and '
         'custom CUDA definitions remain the correct matches. These are '
         'standalone C extractions of ATen mathematics, not the unmodified '
         'PyTorch C++ translation units (whose direct 224-file sweep produced '
-        '0 Linalg operations).'
+        '0 Linalg operations). Large-problem silicon results use a Jetson '
+        'Orin in MAXN mode. Raised time is the current host-pointer ABI; the '
+        'resident baseline keeps operands on the GPU and times only the '
+        'cuBLAS/cuDNN or fused CUDA operation. Both columns are warm medians '
+        'of process runs 2–4 and are shown only after correctness passes.'
         '</div>'
-        '<table><thead><tr><th>kernel</th><th>Linalg ops</th>'
+        + controls
+        +
+        '<table><thead><tr><th>kernel</th><th>original ATen CPU implementation</th>'
+        '<th>standalone C form</th><th>Linalg ops</th>'
         '<th>residual loops</th><th>launches</th><th>status</th>'
-        '<th>matched implementation</th><th>assessment</th>'
+        '<th>matched implementation</th><th>current match scope</th>'
+        '<th>NVIDIA library candidate</th><th>implementation form</th>'
+        '<th>audit finding</th><th>execution</th><th>correctness</th>'
+        '<th>large problem</th><th>raised warm (µs)</th>'
+        '<th>resident CUDA (µs)</th><th>raised / resident</th>'
+        '<th>resident baseline</th><th>assessment</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -1957,9 +2335,7 @@ def build_mfem_pages() -> list[dict]:
 
     MFEM uses a manifest-driven artifact layout rather than the conventional
     <kernel>[_linalg|_debuf].mlir layout used by the other explorer suites.
-    Keep stored rewritten IR authoritative for executable launches.  Candidate
-    planning is read-only and rerun on debufferized IR so cost-gated cuTENSOR
-    pointwise plans are visible without presenting them as executable calls.
+    Stored rewritten IR is authoritative for executable launches.
     """
     manifest = _read_csv(MFEM_C_ROOT / "manifest.csv")
     raise_rows = {
@@ -1969,6 +2345,12 @@ def build_mfem_pages() -> list[dict]:
     match_rows = {
         row["id"]: row
         for row in _read_csv(MFEM_MATCH_RESULTS_DIR / "summary.csv")
+    }
+    silicon_rows = {
+        row["id"]: row
+        for row in _read_csv(
+            MFEM_SILICON_RESULTS_DIR / "native_vs_raised_large_ne.csv"
+        )
     }
     stats = []
     for row in manifest:
@@ -1983,6 +2365,7 @@ def build_mfem_pages() -> list[dict]:
         source = MFEM_C_ROOT / row["source"]
         raise_row = raise_rows.get((ident, variant), {})
         match_row = match_rows.get(ident, {}) if variant == "normalized" else {}
+        silicon_row = silicon_rows.get(ident, {}) if variant == "normalized" else {}
 
         blocks = []
         css = ""
@@ -2069,23 +2452,6 @@ def build_mfem_pages() -> list[dict]:
                 f'<div class="container">{highlighted}</div>'
             )
 
-        library_plan_text = ""
-        library_plan_symbols: list[str] = []
-        if variant == "normalized" and debufferized.exists():
-            library_plan_text, library_plan_symbols = run_library_planner(
-                debufferized
-            )
-            if library_plan_text:
-                highlighted, css = syntax_highlight(
-                    "// Selected vendor-library plans (not emitted)\n"
-                    "// Higher-order executable matches have already won.\n"
-                    + library_plan_text
-                )
-                blocks.append(
-                    '<h2 id="library-plan">cost-gated cuTENSOR pointwise plan</h2>'
-                    '<div class="container">' + highlighted + '</div>'
-                )
-
         launches = int(match_row.get("kernel_launches", "0") or 0)
         symbols = [
             value for value in match_row.get("launch_symbols", "").split(",")
@@ -2110,8 +2476,7 @@ def build_mfem_pages() -> list[dict]:
             'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
             f'<b>{linalg_ops}</b> Linalg op(s) &nbsp;·&nbsp; '
             f'<b>{residual_loops}</b> residual loop(s) &nbsp;·&nbsp; '
-            f'<b>{launches}</b> executable library launch(es) &nbsp;·&nbsp; '
-            f'<b>{len(library_plan_symbols)}</b> cost-gated pointwise plan(s)'
+            f'<b>{launches}</b> executable library launch(es)'
             '</div>'
         )
         header = (
@@ -2135,8 +2500,7 @@ def build_mfem_pages() -> list[dict]:
             "fully_raised": fully_raised,
             "launches": launches,
             "matched_symbols": symbols,
-            "library_plans": len(library_plan_symbols),
-            "library_plan_symbols": sorted(set(library_plan_symbols)),
+            "silicon": silicon_row,
         })
     return stats
 
@@ -2200,9 +2564,19 @@ def build_mfem_application_extraction_pages() -> list[dict]:
     """Render raised hot paths extracted from larger MFEM applications."""
     stats = []
     summary = _read_csv(MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / "summary.csv")
+    comparison_rows = {
+        row["function"]: row
+        for row in _read_csv(
+            MFEM_SILICON_RESULTS_DIR
+            / "application_native_vs_raised_large_ne.csv"
+        )
+    }
     for row in summary:
         function = row["function"]
         source = MFEM_APPLICATION_EXTRACTIONS_DIR / row["source"]
+        support_source = None
+        if row.get("support_source"):
+            support_source = MFEM_APPLICATION_EXTRACTIONS_DIR / row["support_source"]
         frontend = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.frontend.mlir"
         raised = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.raised.mlir"
         debufferized = (
@@ -2215,13 +2589,15 @@ def build_mfem_application_extraction_pages() -> list[dict]:
 
         for anchor, title, path, language in (
             ("source", "extracted C application hot path", source, "c"),
+            ("support-source", "extracted supporting operator kernels",
+             support_source, "c"),
             ("frontend", "cgeist output (pre-raise MLIR)", frontend, None),
             ("raised", "raised Linalg IR", raised, None),
             ("debufferized", "debufferized tensor Linalg", debufferized, None),
             ("matched", "matcher-rewritten candidate launches", matched, None),
             ("matcher-report", "raising and matcher report", log, None),
         ):
-            if not path.exists():
+            if path is None or not path.exists():
                 continue
             highlighted, css = syntax_highlight(path.read_text(), language)
             blocks.append(
@@ -2242,6 +2618,16 @@ def build_mfem_application_extraction_pages() -> list[dict]:
         c_page_filename = f"mfem_benchmark_c_{function}.html"
         if source.exists():
             c_highlighted, c_css = syntax_highlight(source.read_text(), "c")
+            support_html = ""
+            if support_source is not None and support_source.exists():
+                support_highlighted, _ = syntax_highlight(
+                    support_source.read_text(), "c"
+                )
+                support_html = (
+                    '<h2>supporting extracted operator kernels: '
+                    f'<code>{html.escape(row["support_source"])}</code></h2>'
+                    f'<div class="container">{support_highlighted}</div>'
+                )
             c_header = (
                 '<div class="header"><h1><a href="mfem.html">← MFEM</a> '
                 f'&nbsp; extracted C: {html.escape(function)}</h1></div>'
@@ -2262,12 +2648,87 @@ def build_mfem_application_extraction_pages() -> list[dict]:
                     f"MFEM application extracted C: {function}",
                     c_header + c_provenance
                     + '<h2>exact application hot-path C lowered by cgeist</h2>'
-                    + f'<div class="container">{c_highlighted}</div>',
+                    + f'<div class="container">{c_highlighted}</div>'
+                    + support_html,
                     c_css,
                 )
             )
         missing = row.get("missing_operator", "") or "none"
+        families = row.get("operator_families", "") or "—"
         loops = int(row.get("residual_loops", "0") or 0)
+        matched_symbols = []
+        if matched.exists():
+            matched_symbols = sorted(set(re.findall(
+                r"kernel\.launch\s+@([A-Za-z0-9_.$-]+)",
+                matched.read_text(),
+            )))
+        matched_implementations = ", ".join(
+            f"<code>@{html.escape(symbol)}</code>"
+            for symbol in matched_symbols
+        ) or "—"
+        comparison = comparison_rows.get(function)
+        silicon = MFEM_APPLICATION_JETSON_RUNS.get(function)
+        if comparison:
+            raised_us = comparison.get("raised_runtime_us", "")
+            native_us = comparison.get("mfem_native_runtime_us", "")
+            ratio = comparison.get("raised_over_native", "")
+            runtime_parts = []
+            if raised_us:
+                runtime_parts.append(f"raised {float(raised_us) / 1000.0:.6f} ms")
+            if native_us:
+                runtime_parts.append(
+                    f"MFEM native {float(native_us) / 1000.0:.6f} ms"
+                )
+            if ratio:
+                runtime_parts.append(f"raised/native {ratio}x")
+            correctness = comparison.get("correctness", "NOT RUN")
+            outcome = (
+                "CORRECTNESS PASS" if correctness == "PASS"
+                else "CORRECTNESS FAIL"
+            )
+            silicon = {
+                "outcome": outcome,
+                "correctness": comparison.get("comparison_scope", ""),
+                "runtime": "; ".join(runtime_parts) or "timing withheld",
+                "calls": (
+                    f'{row.get("launches", "0")} raised candidate launches; '
+                    f'native components: {comparison.get("native_components", "—")}'
+                ),
+                "params": (
+                    f'NE={comparison.get("ne", "—")}; '
+                    f'D1D={comparison.get("d1d", "—")}; '
+                    f'Q1D={comparison.get("q1d", "—")}; '
+                    f'raised iterations={comparison.get("raised_iterations", "—")}; '
+                    f'native iterations={comparison.get("native_iterations", "—") or "n/a"}; '
+                    f'{comparison.get("measurement_statistic", "")}; '
+                    f'comparison={comparison.get("comparison_quality", "—")}'
+                ),
+                "hardware": comparison.get("hardware", ""),
+                "test_label": "large-problem raised/native comparison",
+            }
+        if silicon:
+            silicon_class = (
+                "pass" if "PASS" in silicon["outcome"] else "partial"
+            )
+            test_label = silicon.get("test_label", "Jetson silicon test")
+            hardware = silicon.get(
+                "hardware",
+                "attached Jetson tegra-ubuntu, MAXN, CUDA 12.6, cuTensorNet",
+            )
+            silicon_html = (
+                f'<br><b>{html.escape(test_label)}:</b> '
+                f'<span class="{silicon_class}">{html.escape(silicon["outcome"])}</span>; '
+                f'{html.escape(silicon["correctness"])}<br>'
+                f'<b>Runtime:</b> {html.escape(silicon["runtime"])}<br>'
+                f'<b>Per-launch diagnostics:</b> {html.escape(silicon["calls"])}<br>'
+                f'<b>Test parameters:</b> {html.escape(silicon["params"])}<br>'
+                f'<b>Hardware:</b> {html.escape(hardware)}'
+            )
+        else:
+            silicon_html = (
+                '<br><b>Jetson silicon test:</b> <span class="partial">NOT RUN</span>; '
+                'no runtime measurement'
+            )
         coverage_class = "pass" if missing == "none" else "partial"
         status_class = "pass" if loops == 0 else "partial"
         ce_url = ce_link_from_paths(source if source.exists() else None, frontend)
@@ -2286,6 +2747,8 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             f'residual loop(s) &nbsp;·&nbsp; '
             f'<b>{html.escape(row["matched_groups"])}</b> semantic match group(s) '
             f'&nbsp;·&nbsp; <b>{html.escape(row["launches"])}</b> candidate launch(es)<br>'
+            f'<b>Matched implementations:</b> {matched_implementations}<br>'
+            f'<b>Extracted operator families:</b> {html.escape(families)}<br>'
             f'<b>Missing operator families:</b> {html.escape(missing)}<br>'
             f'<b>Extracted C:</b> <a href="{html.escape(c_page_filename)}">'
             f'<code>{html.escape(row["source"])}</code></a> &nbsp;·&nbsp; '
@@ -2293,6 +2756,7 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             f'<b>Upstream:</b> <a href="{html.escape(upstream_url)}" target="_blank">'
             f'<code>{html.escape(local_pointer)}</code></a> &nbsp;·&nbsp; '
             f'<b>MFEM commit:</b> <code>{MFEM_UPSTREAM_COMMIT}</code>'
+            f'{silicon_html}'
             '</div>'
         )
         header = (
@@ -2316,6 +2780,9 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             "residual_loops_int": loops,
             "matches_int": int(row.get("matched_groups", "0") or 0),
             "launches_int": int(row.get("launches", "0") or 0),
+            "matched_symbols": matched_symbols,
+            "silicon": silicon,
+            "comparison": comparison,
         })
     return stats
 
@@ -2338,6 +2805,49 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<a href="{html.escape(row["upstream_url"])}" target="_blank">'
             f'<code>{html.escape(row["upstream_pointer"])}</code></a>'
         )
+        matched_implementations = ", ".join(
+            f"<code>@{html.escape(symbol)}</code>"
+            for symbol in row["matched_symbols"]
+        ) or "—"
+        comparison = row.get("comparison")
+        if comparison:
+            correctness = comparison.get("correctness", "NOT RUN")
+            silicon_class = "pass" if correctness == "PASS" else "fail"
+            silicon_outcome = (
+                f'<span class="{silicon_class}">{html.escape(correctness)}</span>'
+            )
+            raised_us = comparison.get("raised_runtime_us", "")
+            native_us = comparison.get("mfem_native_runtime_us", "")
+            ratio = comparison.get("raised_over_native", "")
+            raised_runtime = (
+                f'{float(raised_us) / 1000.0:.6f} ms' if raised_us else "—"
+            )
+            native_runtime = (
+                f'{float(native_us) / 1000.0:.6f} ms' if native_us else "—"
+            )
+            ratio_text = f'{html.escape(ratio)}x' if ratio else "—"
+            quality = comparison.get("comparison_quality", "—")
+            quality_class = (
+                "pass" if quality == "EXACT_OPERATOR" else "partial"
+            )
+            comparison_scope = (
+                f'<span class="{quality_class}">{html.escape(quality)}</span><br>'
+                f'<small>{html.escape(comparison.get("comparison_scope", ""))}</small>'
+            )
+            silicon_params = (
+                f'NE={html.escape(comparison.get("ne", "—"))}; '
+                f'D1D={html.escape(comparison.get("d1d", "—"))}; '
+                f'Q1D={html.escape(comparison.get("q1d", "—"))}; '
+                f'raised iterations={html.escape(comparison.get("raised_iterations", "—"))}; '
+                f'native iterations={html.escape(comparison.get("native_iterations", "") or "n/a")}'
+            )
+        else:
+            silicon_outcome = '<span class="partial">NOT RUN</span>'
+            raised_runtime = "—"
+            native_runtime = "—"
+            ratio_text = "—"
+            comparison_scope = "—"
+            silicon_params = "—"
         rows.append(
             f'<tr><td>{name}</td><td>{extracted_c}</td>'
             f'<td>{html.escape(row["application"])}</td>'
@@ -2345,7 +2855,10 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<td>{upstream}</td><td>{row["linalg_ops_int"]}</td>'
             f'<td class="{raised_class}">{row["residual_loops_int"]}</td>'
             f'<td>{row["matches_int"]}</td><td>{row["launches_int"]}</td>'
-            f'<td>{html.escape(missing)}</td></tr>'
+            f'<td>{matched_implementations}</td>'
+            f'<td>{silicon_outcome}</td><td>{raised_runtime}</td>'
+            f'<td>{native_runtime}</td><td>{ratio_text}</td>'
+            f'<td>{comparison_scope}</td><td>{silicon_params}</td></tr>'
         )
     total_linalg = sum(row["linalg_ops_int"] for row in stats)
     total_matches = sum(row["matches_int"] for row in stats)
@@ -2359,14 +2872,24 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         f'applications</b>. All passed cgeist and raising; {loop_free}/{len(stats)} '
         f'are loop-free, producing {total_linalg} Linalg operations and '
         f'{total_matches} semantic library matches. These are numerical hot paths, '
-        'not translations of MPI, mesh, or solver-control code. Candidate launches '
-        'still require ABI, correctness, and profitability validation.'
+        'not translations of MPI, mesh, or solver-control code. All rows were rebuilt '
+        'at <b>NE=1024, D1D=4, Q1D=5</b> and run on the Jetson Orin in MAXN mode. '
+        'Ten paths pass correctness; the minimal-surface path fails at this larger '
+        'size and is intentionally not timed. Raised values are medians of warm '
+        'process runs 2–4. <b>EXACT_OPERATOR</b> is a directly paired native MFEM '
+        'CUDA operator. <b>COMPONENT_SUM</b> sums separately measured resident MFEM '
+        'CUDA PA kernels and is a conservative component baseline, not a fused '
+        'whole-application timing. PARTIAL_COMPONENT_SUM omits the ex9 PCG algebra. '
+        'UNAVAILABLE means this MFEM revision exposes no equivalent native CUDA '
+        'microbenchmark path.'
         '</div>'
         '<table><thead><tr><th>extracted entry</th><th>extracted C</th>'
         '<th>application</th>'
         '<th>coverage</th><th>upstream MFEM call site</th><th>Linalg ops</th>'
         '<th>residual loops</th><th>matches</th><th>candidate launches</th>'
-        '<th>missing families</th></tr></thead><tbody>'
+        '<th>matched implementation</th><th>correctness</th>'
+        '<th>raised warm</th><th>MFEM native CUDA</th><th>raised/native</th>'
+        '<th>comparison scope</th><th>test parameters</th></tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
     )
@@ -2432,23 +2955,41 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         )
         variant = stats["variant"]
         launches = stats["launches"]
-        plans = stats["library_plans"]
         if variant == "original":
             status_class, status = "partial", "RESIDUAL"
         elif launches:
             status_class, status = "pass", "EXECUTABLE"
-        elif plans:
-            status_class, status = "partial", "PLANNED"
         else:
             status_class, status = "pass", "RAISED"
         symbols = ", ".join(
             f"<code>@{html.escape(symbol)}</code>"
             for symbol in stats["matched_symbols"]
         ) or "—"
-        plan_symbols = ", ".join(
-            f"<code>{html.escape(symbol)}</code>"
-            for symbol in stats["library_plan_symbols"]
-        ) or "—"
+        silicon = stats.get("silicon", {})
+        if silicon:
+            correctness = html.escape(silicon["correctness"])
+            correctness_class = "pass" if correctness == "PASS" else "none"
+            raised_runtime = _fmt_seconds(
+                float(silicon["raised_runtime_us"]) / 1.0e6
+            )
+            native_runtime = _fmt_seconds(
+                float(silicon["mfem_native_runtime_us"]) / 1.0e6
+            )
+            ratio = float(silicon["raised_over_native"])
+            ratio_cell = f'MFEM <b>{ratio:.1f}&times;</b> faster'
+            before_cache = silicon.get("raised_runtime_us_before_plan_cache", "")
+            cache_speedup = silicon.get("plan_cache_speedup", "")
+            if before_cache and cache_speedup:
+                optimization_cell = (
+                    f'<b>{float(cache_speedup):.2f}&times;</b> faster<br>'
+                    f'<small>before: {_fmt_seconds(float(before_cache) / 1.0e6)}</small>'
+                )
+            else:
+                optimization_cell = "—"
+        else:
+            correctness = raised_runtime = native_runtime = ratio_cell = "—"
+            optimization_cell = "—"
+            correctness_class = ""
         rows.append(
             f"<tr><td>{name}</td>"
             f"<td>{extracted_c}</td><td>{upstream}</td>"
@@ -2458,9 +2999,12 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
             f"<td>{stats['linalg_ops']}</td>"
             f"<td>{stats['residual_loops']}</td>"
             f"<td>{launches}</td>"
-            f"<td>{plans}</td>"
             f'<td class="{status_class}">{status}</td>'
-            f"<td>{symbols}</td><td>{plan_symbols}</td></tr>"
+            f"<td>{symbols}</td>"
+            f'<td class="{correctness_class}">{correctness}</td>'
+            f"<td>{raised_runtime}</td><td>{optimization_cell}</td>"
+            f"<td>{native_runtime}</td>"
+            f"<td>{ratio_cell}</td></tr>"
         )
 
     originals = [row for row in mfem_stats if row["variant"] == "original"]
@@ -2469,8 +3013,6 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
     fully_raised = sum(row["fully_raised"] for row in mfem_stats)
     matched_kernels = sum(row["launches"] > 0 for row in normalized)
     total_matches = sum(row["launches"] for row in normalized)
-    planned_kernels = sum(row["library_plans"] > 0 for row in normalized)
-    total_plans = sum(row["library_plans"] for row in normalized)
     return (
         '<a name="mfem"></a>'
         '<div class="section-header"><h2 class="section-title">'
@@ -2483,19 +3025,31 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         f'all {len(normalized)}/{len(normalized)} normalized variants. '
         f'The matcher emitted {total_matches} ABI-lowerable library launches '
         f'across {matched_kernels}/{len(normalized)} normalized kernels. '
-        f'It also found {total_plans} cost-gated cuTENSOR pointwise plans '
-        f'across {planned_kernels}/{len(normalized)} kernels. '
-        '<b>Plans are deliberately distinct from launches:</b> they describe '
-        'legal decompositions into existing cuTENSOR operations, but remain '
-        'unemitted until launch/temporary costs are profitable. Each row links to the '
+        'Each row links to the '
         'stored frontend, raised, debufferized, and matcher-rewritten IR plus '
         'a Compiler Explorer deep link.'
+        '<br><b>Silicon comparison:</b> all 18 matcher-covered normalized '
+        'kernels (ten PA operators plus eight DFEM interpolation/integration '
+        'maps) use f64, NE=1024, D1D=4, Q1D=5, and 20 warm iterations on '
+        'Jetson Orin sm_87 in MAXN mode with CUDA 12.6. The raised value is '
+        'the median of '
+        'process runs 2–4 so the first cold CUDA process is excluded. '
+        '“Raised” is the current cached host-pointer ABI (including '
+        'host-mapping, correctness snapshots, and synchronization overhead); '
+        'prepared cuTensorNet plans, workspaces, and scratch are reused. '
+        '“MFEM CUDA” is a synchronized '
+        'resident-device native MFEM launch. This intentionally records the '
+        'performance gap in the current end-to-end lowering and is not a '
+        'kernel-only claim.'
         '</div>'
         '<table><thead><tr><th>kernel</th><th>extracted C</th>'
         '<th>upstream MFEM source</th><th>family</th><th>dim</th>'
         '<th>variant</th><th>Linalg ops</th><th>residual loops</th>'
-        '<th>executable launches</th><th>pointwise plans</th><th>status</th>'
-        '<th>matched implementation</th><th>planned implementation</th>'
+        '<th>executable launches</th><th>status</th>'
+        '<th>matched implementation</th>'
+        '<th>silicon correctness</th><th>raised current ABI</th>'
+        '<th>plan-cache improvement</th>'
+        '<th>MFEM native CUDA</th><th>runtime difference</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -3786,7 +4340,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             'Polygeist IR explorer</a></h1>'
             '<div style="margin-top:6px; font-size:13px;">'
             '<a href="index.html">Overview</a> &middot; '
-            '<a href="numerical.html">Numerical + ATen</a> &middot; '
+            '<a href="polybench.html">PolyBench</a> &middot; '
+            '<a href="numerical.html">ATen</a> &middot; '
             '<a href="mfem.html">MFEM</a> &middot; '
             '<a href="ai.html">AI kernels</a> &middot; '
             '<a href="vision.html">Vision + fusion</a> &middot; '
@@ -3823,9 +4378,10 @@ def build_site_pages(polybench_stats: dict[str, dict],
           'Explorer deep-links are loaded only for the suite being inspected. '
           'Each kernel still has a static IR preview and a full CE link.</div>'
         + '<div class="suite-grid">'
-        + card("numerical.html", "Numerical + ATen",
-               len(polybench_stats) + len(aten_stats),
-               "PolyBench/C and extracted ATen numerical kernels.")
+        + card("polybench.html", "PolyBench/C", len(polybench_stats),
+               "Dense linear algebra, stencils, and data-mining kernels.")
+        + card("numerical.html", "ATen numerical kernels", len(aten_stats),
+               "Extracted ATen C algorithms and Jetson comparisons.")
         + card("mfem.html", "MFEM finite elements",
                len(mfem_stats) + len(mfem_application_stats)
                + len(mfem_application_extraction_stats),
@@ -3842,7 +4398,22 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + '</div>'
         + _build_taxonomy_panel()
     )
-    numerical = nav() + polybench_section + _aten_section(aten_stats)
+    polybench = nav() + polybench_section
+    numerical_pages: dict[str, str] = {}
+    for sort_by in ("alphabetical", "correctness"):
+        ordered = _aten_sorted_kernels(sort_by)
+        page_count = max(1, (len(ordered) + ATEN_PAGE_SIZE - 1) // ATEN_PAGE_SIZE)
+        for page in range(1, page_count + 1):
+            begin = (page - 1) * ATEN_PAGE_SIZE
+            subset = ordered[begin:begin + ATEN_PAGE_SIZE]
+            filename = _aten_page_filename(sort_by, page)
+            numerical_pages[filename] = render_html(
+                "Polygeist: ATen numerical kernels",
+                nav() + _aten_section(
+                    aten_stats, subset, sort_by, page, page_count
+                ),
+                extra_css,
+            )
     mfem = (nav()
             + _mfem_application_extraction_section(
                 mfem_application_extraction_stats
@@ -3856,10 +4427,10 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + _fusion_opt_section(fopt_stats)
     )
     pva = nav() + _pva_section()
-    return {
+    pages = {
         "index.html": render_html("Polygeist IR explorer", landing, extra_css),
-        "numerical.html": render_html(
-            "Polygeist: numerical + ATen", numerical, extra_css
+        "polybench.html": render_html(
+            "Polygeist: PolyBench/C", polybench, extra_css
         ),
         "mfem.html": render_html("Polygeist: MFEM kernels", mfem, extra_css),
         "ai.html": render_html("Polygeist: AI kernels", ai, extra_css),
@@ -3868,13 +4439,22 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "pva.html": render_html("Polygeist: PVA backend", pva, extra_css),
     }
+    pages.update(numerical_pages)
+    return pages
 
 
 def main():
     mfem_only = "--mfem-only" in sys.argv[1:]
-    unknown_args = [arg for arg in sys.argv[1:] if arg != "--mfem-only"]
+    aten_only = "--aten-only" in sys.argv[1:]
+    polybench_only = "--polybench-only" in sys.argv[1:]
+    unknown_args = [
+        arg for arg in sys.argv[1:]
+        if arg not in ("--mfem-only", "--aten-only", "--polybench-only")
+    ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
+    if sum((mfem_only, aten_only, polybench_only)) > 1:
+        raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     if mfem_only:
         for stale in OUTPUT_DIR.glob("mfem_*.html"):
@@ -3897,6 +4477,64 @@ def main():
             flush=True,
         )
         print(f"Done. Open {OUTPUT_DIR}/mfem.html.")
+        return
+    if aten_only:
+        for stale in OUTPUT_DIR.glob("aten_*.html"):
+            stale.unlink()
+        aten_stats = {}
+        print(f"Rendering {len(ATEN_C_ORDER)} ATen C kernels...", flush=True)
+        for i, kernel in enumerate(ATEN_C_ORDER, 1):
+            print(
+                f"  [ATEN {i:2d}/{len(ATEN_C_ORDER)}] {kernel}",
+                flush=True,
+            )
+            has_any = any(
+                (ATEN_C_MLIR_DIR / f"{kernel}{suffix}").exists()
+                for suffix in (".mlir", "_linalg.mlir", "_debuf.mlir")
+            )
+            if not has_any:
+                aten_stats[kernel] = {
+                    "launches": 0, "linalg_ops": 0, "matched_symbols": [],
+                    "residual": 0, "residual_for": 0, "ce_url": None,
+                    "page_filename": "",
+                }
+                continue
+            aten_stats[kernel] = build_kernel_page(
+                kernel, mlir_dir=ATEN_C_MLIR_DIR,
+                kset="aten_c", file_prefix="",
+            )
+        build_aten_c_source_pages(aten_stats)
+        pages = build_site_pages(
+            {}, aten_stats, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        for filename, page_html in pages.items():
+            if filename.startswith("numerical"):
+                OUTPUT_DIR.joinpath(filename).write_text(page_html)
+        print(f"Done. Open {OUTPUT_DIR}/numerical.html.")
+        return
+    if polybench_only:
+        polybench_kernels = discover_kernels(MLIR_DIR)
+        polybench_stats = {}
+        print(
+            f"Rendering {len(polybench_kernels)} PolyBench kernels...",
+            flush=True,
+        )
+        for i, kernel in enumerate(polybench_kernels, 1):
+            print(
+                f"  [PB {i:2d}/{len(polybench_kernels)}] {kernel}",
+                flush=True,
+            )
+            polybench_stats[kernel] = build_kernel_page(
+                kernel, mlir_dir=MLIR_DIR,
+                kset="polybench", file_prefix="",
+            )
+        pages = build_site_pages(
+            polybench_stats, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("polybench.html").write_text(
+            pages["polybench.html"]
+        )
+        print(f"Done. Open {OUTPUT_DIR}/polybench.html.")
         return
     for stale in OUTPUT_DIR.glob("llama_*.html"):
         stale.unlink()
@@ -3933,6 +4571,7 @@ def main():
         aten_stats[k] = build_kernel_page(
             k, mlir_dir=ATEN_C_MLIR_DIR, kset="aten_c", file_prefix="",
         )
+    build_aten_c_source_pages(aten_stats)
 
     # MFEM finite-element extractions use a manifest-driven artifact layout.
     print("Rendering MFEM original and normalized kernels...", flush=True)

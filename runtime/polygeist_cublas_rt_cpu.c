@@ -74,6 +74,37 @@ void polygeist_cublas_sgemm(
   }
 }
 
+void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C) {
+  for (int32_t b = 0; b < batch; ++b) {
+    const float *Ab = A + (size_t)b * (size_t)M * (size_t)K;
+    float *Cb = C + (size_t)b * (size_t)M * (size_t)N;
+#ifdef POLYGEIST_CPU_USE_CBLAS
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                M, N, K, 1.0f, Ab, K, B, N, 0.0f, Cb, N);
+#else
+    for (int32_t i = 0; i < M; ++i) {
+      for (int32_t j = 0; j < N; ++j) {
+        float acc = 0.0f;
+        for (int32_t k = 0; k < K; ++k)
+          acc += Ab[(size_t)i * (size_t)K + (size_t)k] *
+                 B[(size_t)k * (size_t)N + (size_t)j];
+        Cb[(size_t)i * (size_t)N + (size_t)j] = acc;
+      }
+    }
+#endif
+  }
+}
+
+void polygeist_cublas_dgemm_outer_product(
+    int32_t M, int32_t N,
+    const double *u, const double *v, double *C) {
+  for (int32_t i = 0; i < M; ++i)
+    for (int32_t j = 0; j < N; ++j)
+      C[(size_t)i * (size_t)N + (size_t)j] = u[i] * v[j];
+}
+
 void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
                                        double *A, int32_t lda) {
   for (int32_t i = 0; i < M; ++i) {
@@ -594,6 +625,13 @@ void polygeist_cutensornet_contraction2_f64(
   }
 }
 
+void polygeist_cutensornet_contraction2_f64_device(
+    const double *A, const double *B, double *C, const int64_t *metadata) {
+  // The CPU runtime has no distinct device address space. Keep the symbol
+  // available so lowering/link tests can exercise the ABI.
+  polygeist_cutensornet_contraction2_f64(A, B, C, metadata);
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the
@@ -991,6 +1029,33 @@ void polygeist_cudnn_conv2d_batched(
         }
 }
 
+void polygeist_cudnn_conv3d_channels_f32(
+    int32_t IC, int32_t inD, int32_t inH, int32_t inW,
+    int32_t OC, int32_t kD, int32_t kH, int32_t kW,
+    const float *input, const float *filter, const float *bias, float *output) {
+  const int32_t outD = inD - kD + 1;
+  const int32_t outH = inH - kH + 1;
+  const int32_t outW = inW - kW + 1;
+  for (int32_t oc = 0; oc < OC; ++oc)
+    for (int32_t od = 0; od < outD; ++od)
+      for (int32_t oh = 0; oh < outH; ++oh)
+        for (int32_t ow = 0; ow < outW; ++ow) {
+          float acc = bias ? bias[oc] : 0.0f;
+          for (int32_t ic = 0; ic < IC; ++ic)
+            for (int32_t kd = 0; kd < kD; ++kd)
+              for (int32_t kh = 0; kh < kH; ++kh)
+                for (int32_t kw = 0; kw < kW; ++kw) {
+                  size_t inIdx = (((size_t)ic * inD + (od + kd)) * inH +
+                                  (oh + kh)) * inW + (ow + kw);
+                  size_t fIdx = ((((size_t)oc * IC + ic) * kD + kd) * kH +
+                                 kh) * kW + kw;
+                  acc += input[inIdx] * filter[fIdx];
+                }
+          output[((size_t)oc * outD + od) * outH * outW +
+                 (size_t)oh * outW + ow] = acc;
+        }
+}
+
 void polygeist_cudnn_conv2d_im2col_gemm_f32(
     int32_t IC, int32_t H, int32_t W, int32_t OC,
     int32_t K, int32_t S, int32_t P,
@@ -1230,6 +1295,14 @@ void polygeist_rmsnorm_unweighted_f32(
 void polygeist_cublas_dot_f32(
     int32_t N, const float *X, const float *Y, float *Out) {
   float acc = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    acc += X[i] * Y[i];
+  *Out = acc;
+}
+
+void polygeist_cublas_dot_f64(
+    int32_t N, const double *X, const double *Y, double *Out) {
+  double acc = 0.0;
   for (int32_t i = 0; i < N; ++i)
     acc += X[i] * Y[i];
   *Out = acc;

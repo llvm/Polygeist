@@ -52,6 +52,8 @@ def parse_signature(c_text: str, kernel_name: str):
       ('1D', name, size_var)
       ('2D', name, d0_var, d1_var)
       ('3D', name, d0_var, d1_var, d2_var)
+      ('4D', name, d0_var, d1_var, d2_var, d3_var)
+      ... (plain C arrays support arbitrary positive rank)
     """
     # The signature can be split across many lines. Find the function head.
     m = re.search(
@@ -76,6 +78,22 @@ def parse_signature(c_text: str, kernel_name: str):
             depth -= 1
         cur.append(c)
     args.append(''.join(cur).strip())
+
+    # Pointer-only extraction signatures lose their C array bounds.  Allow a
+    # source to preserve those bounds without changing the function ABI:
+    #   // polygeist-arg-extents function_name: A=20, X=128, Y=128
+    extent_map = {}
+    annotation = re.search(
+        rf"^\s*//\s*polygeist-arg-extents\s+{re.escape(kernel_name)}\s*:\s*(.+)$",
+        c_text,
+        re.MULTILINE,
+    )
+    if annotation:
+        for item in annotation.group(1).split(','):
+            name, separator, extent = item.strip().partition('=')
+            if not separator or not re.fullmatch(r"[A-Za-z_]\w*", name):
+                raise ValueError(f"Malformed pointer extent annotation: {item!r}")
+            extent_map[name] = extent.strip()
 
     out = []
     plain_array_indices = []
@@ -125,7 +143,9 @@ def parse_signature(c_text: str, kernel_name: str):
             # Extracted kernels often use pointer signatures instead of fixed
             # C arrays. Infer the 1D memref extent from common scalar args.
             name, is_const = _parse_plain_c_pointer(a)
-            if name == "out" and "n" in scalar_ints and "k" in scalar_ints:
+            if name in extent_map:
+                size = extent_map[name]
+            elif name == "out" and "n" in scalar_ints and "k" in scalar_ints:
                 size = "(n - k + 1)"
             elif name in ("filter", "kernel", "weights") and "k" in scalar_ints:
                 size = "k"
@@ -190,14 +210,9 @@ def _parse_plain_c_array(a: str):
         raise ValueError(f"Couldn't parse plain-C-array arg: {a!r}")
     name = m.group(1)
     dims = [d.strip() for d in re.findall(r"\[\s*([^\]]+)\s*\]", m.group(2))]
-    if len(dims) == 1:
-        return ('1D', name, dims)
-    if len(dims) == 2:
-        return ('2D', name, dims)
-    if len(dims) == 3:
-        return ('3D', name, dims)
-    raise ValueError(f"Plain-C-array arg has {len(dims)} dims; "
-                     f"gen_wrapper only handles 1D/2D/3D: {a!r}")
+    if not dims:
+        raise ValueError(f"Plain-C-array arg has no dimensions: {a!r}")
+    return (f'{len(dims)}D', name, dims)
 
 
 def _is_plain_c_pointer(a: str) -> bool:
@@ -229,37 +244,28 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
             extern_args.append(f"{dtype} {a[1]}")
             wrapper_args.append(f"{dtype} {a[1]}")
             call_args.append(a[1])
-        elif k == '1D':
-            name, sz = a[1], a[2]
-            extern_args.extend([
-                f"{dtype} *{name}_b", f"{dtype} *{name}_a",
-                f"int64_t {name}_off", f"int64_t {name}_s0", f"int64_t {name}_t0",
-            ])
-            wrapper_args.append(f"{dtype} *{name}")
-            call_args.append(f"{name}, {name}, 0, {sz}, 1")
-        elif k == '2D':
-            name, d0, d1 = a[1], a[2], a[3]
+        elif re.fullmatch(r'[1-9][0-9]*D', k):
+            rank = int(k[:-1])
+            name = a[1]
+            dims = list(a[2:])
+            if len(dims) != rank:
+                raise ValueError(
+                    f"{k} argument {name} has {len(dims)} dimensions")
             extern_args.extend([
                 f"{dtype} *{name}_b", f"{dtype} *{name}_a",
                 f"int64_t {name}_off",
-                f"int64_t {name}_s0", f"int64_t {name}_s1",
-                f"int64_t {name}_t0", f"int64_t {name}_t1",
+                *(f"int64_t {name}_s{i}" for i in range(rank)),
+                *(f"int64_t {name}_t{i}" for i in range(rank)),
             ])
             wrapper_args.append(f"{dtype} *{name}")
-            call_args.append(f"{name}, {name}, 0, {d0}, {d1}, {d1}, 1")
-        elif k == '3D':
-            name, d0, d1, d2 = a[1], a[2], a[3], a[4]
-            extern_args.extend([
-                f"{dtype} *{name}_b", f"{dtype} *{name}_a",
-                f"int64_t {name}_off",
-                f"int64_t {name}_s0", f"int64_t {name}_s1", f"int64_t {name}_s2",
-                f"int64_t {name}_t0", f"int64_t {name}_t1", f"int64_t {name}_t2",
-            ])
-            wrapper_args.append(f"{dtype} *{name}")
-            # Row-major stride: t0 = d1*d2, t1 = d2, t2 = 1.
-            call_args.append(
-                f"{name}, {name}, 0, {d0}, {d1}, {d2}, ({d1}) * ({d2}), {d2}, 1"
-            )
+            strides = []
+            for i in range(rank):
+                trailing = dims[i + 1:]
+                strides.append(
+                    " * ".join(f"({d})" for d in trailing) if trailing else "1"
+                )
+            descriptor = [name, name, "0", *dims, *strides]
+            call_args.append(", ".join(descriptor))
         else:
             raise ValueError(f"Unknown kind {k}")
 

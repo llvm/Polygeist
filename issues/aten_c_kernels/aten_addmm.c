@@ -1,7 +1,13 @@
 /* aten::addmm: C = beta*C + alpha*(A@B). */
+#ifndef M
 #define M 16
+#endif
+#ifndef N
 #define N 16
+#endif
+#ifndef K
 #define K 16
+#endif
 
 void aten_addmm(double A[M][K], double B[K][N], double C[M][N],
                 double beta, double alpha) {

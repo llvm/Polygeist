@@ -272,6 +272,8 @@ public:
 
   ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
 
+  ValueCategory VisitCXXNullPtrLiteralExpr(clang::CXXNullPtrLiteralExpr *expr);
+
   ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
   ValueCategory VisitCXXTryStmt(clang::CXXTryStmt *stmt);

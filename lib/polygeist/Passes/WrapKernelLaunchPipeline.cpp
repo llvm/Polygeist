@@ -39,9 +39,40 @@ static bool isCudaShimCall(func::CallOp call) {
     return false;
   return callee.startswith("polygeist_cublas_") ||
          callee.startswith("polygeist_cudnn_") ||
+         callee.startswith("polygeist_cutensornet_") ||
          callee.startswith("polygeist_cuda_") ||
          callee.startswith("polygeist_rmsnorm_") ||
          callee.startswith("polygeist_whisper_");
+}
+
+// Operations that only construct scalar metadata or tensor/memref views may
+// remain between asynchronous library calls.  Anything capable of executing
+// host-side tensor computation is a boundary: the stream must be synchronized
+// before that operation can consume a preceding GPU result.
+static bool isPipelineTransparent(Operation *op, StringRef beginSymbol,
+                                  StringRef endSymbol) {
+  if (auto call = dyn_cast<func::CallOp>(op))
+    return isCudaShimCall(call) ||
+           isRuntimePipelineCall(call, beginSymbol, endSymbol);
+
+  StringRef name = op->getName().getStringRef();
+  if (name.startswith("arith.") || name.startswith("shape."))
+    return true;
+  if (name == "tensor.empty" || name == "tensor.cast" ||
+      name == "tensor.dim" || name == "tensor.extract_slice" ||
+      name == "tensor.collapse_shape" || name == "tensor.expand_shape")
+    return true;
+  if (name == "bufferization.to_tensor" ||
+      name == "bufferization.to_memref")
+    return true;
+  if (name == "memref.cast" || name == "memref.subview" ||
+      name == "memref.reinterpret_cast" || name == "memref.dim")
+    return true;
+  if (name == "polygeist.submap")
+    return true;
+  if (name == "builtin.unrealized_conversion_cast")
+    return true;
+  return false;
 }
 
 static bool containsRawKernelLaunch(func::FuncOp func) {
@@ -119,18 +150,44 @@ struct WrapKernelLaunchPipelinePass
           !containsRawKernelLaunch(func))
         continue;
 
-      Block &entry = func.getBody().front();
-      OpBuilder entryBuilder(ctx);
-      entryBuilder.setInsertionPointToStart(&entry);
-      entryBuilder.create<func::CallOp>(func.getLoc(), beginSymbol,
-                                        TypeRange{}, ValueRange{});
+      // Form maximal GPU-only regions independently in every block. This is
+      // conservative across control-flow edges but remains correct: a region
+      // always ends before host computation or a block terminator.
+      SmallVector<Block *> blocks;
+      func.walk([&](Operation *op) {
+        for (Region &region : op->getRegions())
+          for (Block &block : region)
+            blocks.push_back(&block);
+      });
+      for (Block *block : blocks) {
+        SmallVector<Operation *> operations;
+        for (Operation &op : *block)
+          operations.push_back(&op);
 
-      SmallVector<func::ReturnOp> returns;
-      func.walk([&](func::ReturnOp ret) { returns.push_back(ret); });
-      for (func::ReturnOp ret : returns) {
-        OpBuilder retBuilder(ret);
-        retBuilder.create<func::CallOp>(ret.getLoc(), endSymbol, TypeRange{},
-                                        ValueRange{});
+        bool active = false;
+        for (Operation *op : operations) {
+          auto call = dyn_cast<func::CallOp>(op);
+          bool cudaCall = call && isCudaShimCall(call);
+          if (cudaCall && !active) {
+            OpBuilder beginBuilder(op);
+            beginBuilder.create<func::CallOp>(op->getLoc(), beginSymbol,
+                                              TypeRange{}, ValueRange{});
+            active = true;
+          }
+          if (active && !cudaCall &&
+              !isPipelineTransparent(op, beginSymbol, endSymbol)) {
+            OpBuilder endBuilder(op);
+            endBuilder.create<func::CallOp>(op->getLoc(), endSymbol,
+                                            TypeRange{}, ValueRange{});
+            active = false;
+          }
+        }
+        if (active) {
+          Operation *terminator = block->getTerminator();
+          OpBuilder endBuilder(terminator);
+          endBuilder.create<func::CallOp>(terminator->getLoc(), endSymbol,
+                                          TypeRange{}, ValueRange{});
+        }
       }
     }
   }

@@ -165,3 +165,104 @@ Third-batch summary:
 
 All sources and every intermediate/result are stored under this directory;
 `results/summary.tsv` is the machine-readable aggregate.
+
+## 2026-08-07 executable revalidation
+
+A fresh 50-kernel sweep supersedes the older matcher counts above:
+
+- frontend/pipeline success: 50/50
+- completely raised: 47/50
+- 69 Linalg operations and 4 residual loops
+- 13 launches in 13 kernels
+- 11 valid whole-kernel routes, all passing large-shape Jetson correctness
+- one partial route (`sum` initialization)
+- one unsafe route (`pixel_shuffle` rank-6 copy), withheld from execution
+
+The eleven executable kernels are add, addmm, batch norm, conv2d, dot, GELU,
+max-pool2d, mm, mv, RMSNorm, and softmax. Performance and exact problem sizes
+are in `silicon_results/large_problem_comparison.csv`. Raised and resident
+CUDA values are warm medians of process runs 2--4 on Jetson Orin `sm_87` in
+MAXN mode. The resident baseline uses cuBLAS/cuDNN or a fused CUDA kernel with
+device-resident operands; the raised path uses the current registered-host-
+pointer ABI.
+
+## 2026-08-07 scalar extraction expansion
+
+Thirty additional fixed-f32 scalar specializations were generated from the
+pinned ATen TensorIterator implementations and swept with the same pipeline.
+
+- frontend/pipeline success: 80/80 total
+- completely raised: 77/80 total
+- total Linalg operations: 99
+- residual loops: 4 (unchanged from the 50-kernel corpus)
+- matcher launches: 13 in 13 kernels (unchanged)
+- new scalar batch: 30/30 completely raised, 30 Linalg operations
+
+The lack of new matcher launches is expected: these are small pointwise
+formulas and the current policy does not emit one library call per scalar
+operation. Raising coverage increased; whole-kernel library coverage did not.
+
+The pinned 224-file source inventory currently classifies translation units as:
+
+- 37 with at least one standalone-C extraction
+- 18 additional TensorIterator numerical-body candidates
+- 123 additional explicit-loop candidates
+- 15 dispatch-only wrappers
+- 31 files with no local numerical body
+
+These are source-file counts, not operator counts or claims of complete
+operator coverage within the 37 represented files. The authoritative
+per-source accounting is extraction_inventory.csv.
+
+The CE ATen tracker is split into 20-row static pages. numerical.html is the
+alphabetical ordering; numerical-correctness.html is correctness-first. Both
+orderings contain all 80 kernels across four pages.
+
+## 2026-08-07 exhaustive 224-file completion
+
+This section supersedes the earlier incremental corpus totals.
+
+- Standalone C fixtures: 598
+- Pinned translation units accounted: 224/224
+- Named iterative bodies accounted: 834/834 (`NEEDS_PORT = 0`)
+- Concrete CPU dispatch registrations: 358; 357 extracted and one upstream
+  null implementation (`mean_stub`)
+- cgeist frontend success: 598/598
+- raise-pass success: 598/598
+- completed `linalg-debufferize` and matcher: 526/598
+- stopped at `linalg-debufferize`: 72/598
+- raised Linalg operations in successful pipelines: 434
+- residual affine/SCF loops in successful pipelines: 424
+- emitted library launches: 89 in 86 fixtures
+- distinct matched implementation symbols: 18
+- launch element-type/ABI mismatches: 0
+
+The 72 debufferization failures are retained as results, not removed from the
+corpus. They are concentrated in nested reductions, arg-reductions, pooled
+forward reductions, normalization statistics, selection/sorting, and
+scatter-accumulation forms. Their C, frontend MLIR, raised MLIR, and diagnostic
+logs remain available in the per-kernel result directories.
+
+During this completion pass, `RemoveIterArgs` was fixed to reject a
+distributive rewrite when an allegedly invariant epilogue operand is defined
+after the loop and therefore does not dominate the proposed in-loop use. The
+alloca fallback now handles that case; the regression is covered by
+`test/polygeist-opt/remove-iter-args.mlir`. Closed-form output indices also
+remove artificial loop-carried counters from triangular, combinations, and
+pair-distance extractions. Consequently the final corpus has no raise failure.
+
+Dot-product matching is now element-type gated. f32 reductions emit
+`cublasSdot` and lower to `polygeist_cublas_dot_f32`; f64 reductions emit
+`cublasDdot` and lower to `polygeist_cublas_dot_f64`. The exhaustive launch
+audit found no remaining f32/f64 ABI mismatch.
+
+The CE ATen tracker now has 30 pages per ordering (20 rows per page):
+`numerical.html` is alphabetical and `numerical-correctness.html` is
+correctness-first. Both contain all 598 fixtures, with upstream implementation
+and standalone-C links.
+
+Executable revalidation fixed the cuDNN definition set, batch-normalization
+operand order, FP64 dot ABI, GEMV accumulator beta, rank-N wrapper generation,
+and softmax slice-to-base SSA provenance. The resident benchmark source is
+`benchmarks/aten_resident_cuda_baseline.cu`; raised correctness uses
+`benchmarks/aten_raised_jetson_harness.c`.

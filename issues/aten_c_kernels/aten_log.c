@@ -1,0 +1,13 @@
+/* Fixed-shape scalar specialization extracted from pinned ATen. */
+#ifndef N
+#define N 4096
+#endif
+#define ATEN_CONST __attribute__((const))
+extern ATEN_CONST float logf(float);
+void aten_log(float x[N], float out[N]) {
+#pragma scop
+  for (int i = 0; i < N; ++i) {
+    out[i] = logf(x[i]);
+  }
+#pragma endscop
+}

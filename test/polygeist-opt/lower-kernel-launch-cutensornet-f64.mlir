@@ -9,6 +9,8 @@
                          (d0 * 60 + d1 * 20 + d3 * 5 + d4)>
 #contract_b = affine_map<(d0, d1, d2, d3, d4) ->
                          (d2 * 15 + d3 * 5 + d4)>
+#contract_c = affine_map<(d0, d1, d2, d3) ->
+                         (d0 * 125 + d1 * 25 + d2 * 5 + d3)>
 
 module {
   kernel.defn @cutensornetTensorProduct3D_f64_tensor(
@@ -99,6 +101,44 @@ module {
     %r = tensor.cast %ru : tensor<*xf64> to tensor<?x?x?xf64>
     return %r : tensor<?x?x?xf64>
   }
+
+  func.func @contraction_f64_device(
+      %a: tensor<?x?x?x?xf64>, %b: tensor<?x?x?x?xf64>,
+      %c: tensor<?x?x?xf64>) -> tensor<?x?x?xf64> {
+    %au = tensor.cast %a : tensor<?x?x?x?xf64> to tensor<*xf64>
+    %bu = tensor.cast %b : tensor<?x?x?x?xf64> to tensor<*xf64>
+    %cu = tensor.cast %c : tensor<?x?x?xf64> to tensor<*xf64>
+    %ru = kernel.launch @cutensornetContraction2_f64(%au, %bu, %cu)
+        {contraction_maps = [
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>],
+         polygeist.device_resident = true}
+        : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+    %r = tensor.cast %ru : tensor<*xf64> to tensor<?x?x?xf64>
+    return %r : tensor<?x?x?xf64>
+  }
+
+  // Regression: the runtime updates the rank-1 backing allocation of %cv,
+  // but an ordinary consumer of the launch result expects its rank-4 view.
+  // Lowering must reconstruct that view instead of replacing %r with the
+  // flattened base tensor.
+  func.func @contraction_f64_direct_output_view(
+      %a: tensor<?x?x?x?x?xf64>, %b: tensor<?x?x?x?x?xf64>,
+      %c: tensor<?xf64>, %n0: index, %n1: index, %n2: index,
+      %n3: index) -> tensor<?x?x?x?xf64> {
+    %cv = polygeist.submap(%c, %n0, %n1, %n2, %n3)
+        {map = #contract_c} : (tensor<?xf64>, index, index, index, index) ->
+                              tensor<?x?x?x?xf64>
+    %r = kernel.launch @cutensornetContraction2_f64_r5r5r4(%a, %b, %cv)
+        {contraction_maps = [
+          affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>,
+          affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>,
+          affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>]}
+        : (tensor<?x?x?x?x?xf64>, tensor<?x?x?x?x?xf64>,
+           tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64>
+    return %r : tensor<?x?x?x?xf64>
+  }
 }
 
 // CHECK-LABEL: func.func @tensor_product_f64
@@ -116,4 +156,16 @@ module {
 // CHECK-LABEL: func.func @contraction_f64_generic_2d
 // CHECK: memref.alloca() : memref<579xi64>
 // CHECK: call @polygeist_cutensornet_contraction2_f64
+// CHECK-NOT: kernel.launch
+
+// CHECK-LABEL: func.func @contraction_f64_device
+// CHECK: call @polygeist_cutensornet_contraction2_f64_device
+// CHECK-NOT: call @polygeist_cutensornet_contraction2_f64(
+// CHECK-NOT: memref.copy
+// CHECK-NOT: kernel.launch
+
+// CHECK-LABEL: func.func @contraction_f64_direct_output_view
+// CHECK: call @polygeist_cutensornet_contraction2_f64
+// CHECK: %[[UPDATED_VIEW:.*]] = polygeist.submap(%{{.*}}, %arg3, %arg4, %arg5, %arg6) {map = #{{.*}}}
+// CHECK: return %[[UPDATED_VIEW]] : tensor<?x?x?x?xf64>
 // CHECK-NOT: kernel.launch

@@ -1,9 +1,11 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -13,6 +15,8 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
+
+#include <set>
 
 #define DEBUG_TYPE "lower-polygeist-submap"
 
@@ -152,10 +156,70 @@ getStaticSizeOperands(ValueRange sizes) {
   return staticSizes;
 }
 
+static bool accumulateLinearDimCoefficients(
+    AffineExpr e, SmallVectorImpl<int64_t> &coeffs, int64_t &constant,
+    int64_t scale = 1);
+
+// Prove injectivity by enumerating a bounded static view domain.  This is an
+// exact check for the small fixed-shape tensor-product views produced by the
+// current MFEM corpus.  Large or dynamic domains deliberately return
+// std::nullopt: callers must not turn "unknown" into an ordinary scatter.
+static std::optional<bool>
+isInjectiveOnStaticDomain(AffineMap map, ArrayRef<int64_t> sizes) {
+  if (map.getNumDims() != sizes.size())
+    return std::nullopt;
+
+  constexpr int64_t kEnumerationLimit = 1'000'000;
+  int64_t domainSize = 1;
+  for (int64_t size : sizes) {
+    if (size <= 0 || domainSize > kEnumerationLimit / size)
+      return std::nullopt;
+    domainSize *= size;
+  }
+
+  SmallVector<SmallVector<int64_t>> resultCoefficients;
+  SmallVector<int64_t> resultConstants;
+  resultCoefficients.reserve(map.getNumResults());
+  resultConstants.reserve(map.getNumResults());
+  for (AffineExpr result : map.getResults()) {
+    SmallVector<int64_t> coefficients(map.getNumDims(), 0);
+    int64_t constant = 0;
+    if (!accumulateLinearDimCoefficients(result, coefficients, constant))
+      return std::nullopt;
+    resultCoefficients.push_back(std::move(coefficients));
+    resultConstants.push_back(constant);
+  }
+
+  std::set<SmallVector<int64_t>> image;
+  SmallVector<int64_t> coordinates(map.getNumDims(), 0);
+  for (int64_t linear = 0; linear < domainSize; ++linear) {
+    int64_t remaining = linear;
+    for (int64_t dim = static_cast<int64_t>(sizes.size()) - 1; dim >= 0;
+         --dim) {
+      coordinates[dim] = remaining % sizes[dim];
+      remaining /= sizes[dim];
+    }
+
+    SmallVector<int64_t> destination;
+    destination.reserve(map.getNumResults());
+    for (auto [coefficients, constant] :
+         llvm::zip(resultCoefficients, resultConstants)) {
+      int64_t value = constant;
+      for (auto [coefficient, coordinate] :
+           llvm::zip(coefficients, coordinates))
+        value += coefficient * coordinate;
+      destination.push_back(value);
+    }
+    if (!image.insert(std::move(destination)).second)
+      return false;
+  }
+  return true;
+}
+
 static bool accumulateLinearDimCoefficients(AffineExpr e,
                                             SmallVectorImpl<int64_t> &coeffs,
                                             int64_t &constant,
-                                            int64_t scale = 1) {
+                                            int64_t scale) {
   if (auto d = e.dyn_cast<AffineDimExpr>()) {
     unsigned pos = d.getPosition();
     if (pos >= coeffs.size())
@@ -308,6 +372,166 @@ struct FoldIdentitySubmapInverse : public OpRewritePattern<SubmapInverseOp> {
   }
 };
 
+// Rank-reduce a symbol-free, aliasing output submap of a linalg.generic.
+// Unlike the slice-oriented pattern below, this also handles flattened
+// strided maps such as
+//   (d0,d1,d2,d3,d4) -> d3 + 64*d0 + 16*d1 + 4*d2
+// by constructing an equivalent rank-4 output submap and changing the output
+// indexing map to (d0,d1,d2,d3).  The dropped d4 remains a real Linalg
+// reduction iterator, while the new submap is injective and can safely be
+// scattered back after debufferization.
+struct ComposeAffineSubmapIntoLinalgGeneric
+    : public OpRewritePattern<linalg::GenericOp> {
+  ComposeAffineSubmapIntoLinalgGeneric(MLIRContext *context)
+      : OpRewritePattern<linalg::GenericOp>(context, /*benefit=*/2) {}
+
+  LogicalResult matchAndRewrite(linalg::GenericOp generic,
+                                PatternRewriter &rewriter) const final {
+    SmallVector<AffineMap> maps(generic.getIndexingMapsArray());
+    struct WorkItem {
+      unsigned operandNumber;
+      SubmapOp submap;
+      AffineMap reducedSubmapMap;
+      AffineMap outputIndexingMap;
+      SmallVector<Value> sizes;
+      MemRefType type;
+    };
+    SmallVector<WorkItem> work;
+    unsigned numInputs = generic.getNumDpsInputs();
+    unsigned numLoops = generic.getNumLoops();
+    auto iteratorTypes = generic.getIteratorTypesArray();
+
+    for (OpOperand &operand : generic->getOpOperands()) {
+      // Keep input submaps as shaped views for now: their projected maps are
+      // often what Linalg uses to infer reduction-loop bounds.  The semantic
+      // bug addressed here is specifically an aliasing output submap.
+      if (operand.getOperandNumber() < numInputs)
+        continue;
+      auto submap = operand.get().getDefiningOp<SubmapOp>();
+      if (!submap || submap.getMap().getNumSymbols() != 0)
+        continue;
+      if (!isa<MemRefType>(submap.getBase().getType()) ||
+          !isa<MemRefType>(submap.getType()))
+        continue;
+      if (submap.getMap().getNumResults() !=
+          cast<MemRefType>(submap.getBase().getType()).getRank())
+        continue;
+
+      AffineMap operandMap = maps[operand.getOperandNumber()];
+      if (operandMap.getNumSymbols() != 0 ||
+          operandMap.getNumResults() != submap.getMap().getNumDims())
+        continue;
+      AffineMap composed = submap.getMap().compose(operandMap);
+
+      // Recover which original view dimension supplies each loop bound.  A
+      // projected permutation is sufficient for the canonical reduction
+      // outputs produced by RaiseToLinalg and lets us carry the exact dynamic
+      // size SSA values into the reduced view.
+      SmallVector<int64_t> loopToView(numLoops, -1);
+      for (auto [viewDim, expr] : llvm::enumerate(operandMap.getResults())) {
+        auto dim = expr.dyn_cast<AffineDimExpr>();
+        if (!dim || dim.getPosition() >= numLoops ||
+            loopToView[dim.getPosition()] != -1)
+          return rewriter.notifyMatchFailure(
+              generic, "output indexing map is not a projected permutation");
+        loopToView[dim.getPosition()] = viewDim;
+      }
+
+      // An output may omit loop dimensions only when those dimensions are
+      // reductions.  Conversely, a reduction iterator must not select a
+      // distinct output element.  This is the legality condition that turns
+      // a non-injective memref view into a canonical Linalg reduction.
+      SmallVector<bool> used(numLoops, false);
+      for (AffineExpr result : composed.getResults())
+        result.walk([&](AffineExpr expr) {
+          if (auto dim = expr.dyn_cast<AffineDimExpr>())
+            if (dim.getPosition() < numLoops)
+              used[dim.getPosition()] = true;
+        });
+
+      SmallVector<unsigned> retainedLoops;
+      for (unsigned dim = 0; dim < numLoops; ++dim) {
+        bool isReduction =
+            iteratorTypes[dim] == utils::IteratorType::reduction;
+        if (used[dim] == isReduction)
+          return rewriter.notifyMatchFailure(
+              generic, "submap output collisions do not agree with "
+                       "Linalg reduction iterators");
+        if (!isReduction)
+          retainedLoops.push_back(dim);
+      }
+      if (submap.getMap().getNumDims() == retainedLoops.size())
+        continue;
+
+      MLIRContext *ctx = generic.getContext();
+      SmallVector<AffineExpr> loopReplacements(
+          numLoops, getAffineConstantExpr(0, ctx));
+      SmallVector<AffineExpr> outputResults;
+      SmallVector<Value> reducedSizes;
+      SmallVector<int64_t> reducedShape;
+      ValueRange oldSizes = submap.getSizes();
+      for (auto [newDim, loopDim] : llvm::enumerate(retainedLoops)) {
+        if (loopToView[loopDim] < 0 ||
+            static_cast<unsigned>(loopToView[loopDim]) >= oldSizes.size())
+          return rewriter.notifyMatchFailure(
+              generic, "cannot recover a size for a retained output loop");
+        loopReplacements[loopDim] = getAffineDimExpr(newDim, ctx);
+        outputResults.push_back(getAffineDimExpr(loopDim, ctx));
+        Value size = oldSizes[loopToView[loopDim]];
+        reducedSizes.push_back(size);
+        auto constant = getConstantIndex(size);
+        reducedShape.push_back(constant ? *constant : ShapedType::kDynamic);
+      }
+
+      SmallVector<AffineExpr> reducedBaseResults;
+      for (AffineExpr result : composed.getResults())
+        reducedBaseResults.push_back(
+            result.replaceDimsAndSymbols(loopReplacements, {}));
+      AffineMap reducedSubmapMap = AffineMap::get(
+          retainedLoops.size(), 0, reducedBaseResults, ctx);
+      AffineMap outputIndexingMap =
+          AffineMap::get(numLoops, 0, outputResults, ctx);
+      auto oldType = cast<MemRefType>(submap.getType());
+      auto reducedType = MemRefType::get(reducedShape,
+                                         oldType.getElementType());
+      work.push_back({operand.getOperandNumber(), submap,
+                      reducedSubmapMap, outputIndexingMap,
+                      std::move(reducedSizes), reducedType});
+    }
+    if (work.empty())
+      return failure();
+
+    SmallVector<AffineMap> tentativeMaps(maps);
+    for (WorkItem &item : work)
+      tentativeMaps[item.operandNumber] = item.outputIndexingMap;
+
+    // Keep Linalg loop-bound inference well-defined: every loop dimension
+    // must remain represented by at least one operand after composition.
+    SmallVector<bool> covered(numLoops, false);
+    for (AffineMap map : tentativeMaps)
+      for (AffineExpr result : map.getResults())
+        result.walk([&](AffineExpr expr) {
+          if (auto dim = expr.dyn_cast<AffineDimExpr>())
+            if (dim.getPosition() < numLoops)
+              covered[dim.getPosition()] = true;
+        });
+    if (!llvm::all_of(covered, [](bool value) { return value; }))
+      return rewriter.notifyMatchFailure(
+          generic, "submap composition loses a Linalg loop dimension");
+
+    rewriter.setInsertionPoint(generic);
+    for (WorkItem &item : work) {
+      auto reducedSubmap = rewriter.create<SubmapOp>(
+          item.submap.getLoc(), item.type, item.submap.getBase(), item.sizes,
+          item.reducedSubmapMap);
+      generic->setOperand(item.operandNumber, reducedSubmap.getResult());
+    }
+    generic.setIndexingMapsAttr(
+        rewriter.getAffineMapArrayAttr(tentativeMaps));
+    return success();
+  }
+};
+
 // Rewrites a linalg.generic's submap-defined operands. For each operand
 // defined by a polygeist.submap whose map decomposes via
 // decomposeMapForLowering:
@@ -337,6 +561,14 @@ struct ComposeSubmapIntoLinalgGeneric
     for (OpOperand &opd : genOp->getOpOperands()) {
       auto submap = opd.get().getDefiningOp<SubmapOp>();
       if (!submap) continue;
+      // This rewrite changes a view operand to its base (or memref.subview)
+      // and is only type-correct for the buffer form.  Tensor submaps must be
+      // materialized by the tensor-specific patterns below; replacing a
+      // ranked tensor output with its differently-ranked base would leave
+      // the linalg result type inconsistent with its output operand.
+      if (!isa<MemRefType>(submap.getType()) ||
+          !isa<MemRefType>(submap.getBase().getType()))
+        continue;
       auto decomp = decomposeMapForLowering(submap.getMap(),
                                              submap.getSymbols(),
                                              rewriter);
@@ -352,8 +584,16 @@ struct ComposeSubmapIntoLinalgGeneric
     // group needs one, force a subview for all of them so iter-bounds are
     // consistent across the linalg.
     bool anyNeeds = false;
-    for (auto &w : work)
-      if (hasAnyNonZeroOffset(w.decomp)) { anyNeeds = true; break; }
+    for (auto &w : work) {
+      // Even at offset zero, replacing a smaller logical view with its full
+      // base changes the loop bound (for example memref<2xf64> over
+      // memref<10xf64>).  Preserve such extents with a real subview.
+      if (hasAnyNonZeroOffset(w.decomp) ||
+          w.submap.getType() != w.submap.getBase().getType()) {
+        anyNeeds = true;
+        break;
+      }
+    }
     for (auto &w : work)
       w.needsSubview = anyNeeds;
 
@@ -569,6 +809,17 @@ struct LowerSymbolBearingSubmapToSubview : public OpRewritePattern<SubmapOp> {
     MemRefType inferredTy = cast<MemRefType>(
         memref::SubViewOp::inferRankReducedResultType(
             resultShape, baseTy, offsets, subSizes, strides));
+
+    // A polygeist.submap's logical result type does not always encode the
+    // physical stride selected from the base.  For example, fixing the last
+    // component of an [..., 3] coordinate tensor and varying the preceding
+    // dimension produces stride 3, which cannot be memref.cast to an
+    // identity-layout memref.  Leave those maps in semantic submap form for
+    // the general affine lowering instead of constructing invalid IR.
+    if (inferredTy != outTy &&
+        !memref::CastOp::areCastCompatible(inferredTy, outTy))
+      return failure();
+
     Value sub = rewriter.create<memref::SubViewOp>(
         loc, inferredTy, submap.getBase(), offsets, subSizes, strides);
 
@@ -627,17 +878,51 @@ struct LowerSymbolBearingSubmapToExtractSlice
       if (!e.isa<AffineDimExpr>()) { anyNonPureDim = true; break; }
     }
     if (submapMap.getNumSymbols() == 0 && !anyNonPureDim &&
-        outTy.getRank() <= baseTy.getRank()) return failure();
+        outTy.getRank() <= baseTy.getRank()) {
+      // The stage pipeline frequently leaves exact identity views around
+      // scratch tensors after a neighboring library launch has consumed the
+      // inverse.  Eliminate the type-identical case directly so cleanup does
+      // not depend on the broad canonicalizer (which may fold rank-expanding
+      // DPS output views through linalg.generic incorrectly).
+      if (submapMap.isIdentity() && submap.getBase().getType() == outTy) {
+        rewriter.replaceOp(submap, submap.getBase());
+        return success();
+      }
+      return failure();
+    }
 
     Location loc = submap.getLoc();
     ValueRange symbols = submap.getSymbols();
     ValueRange sizes = submap.getSizes();
     unsigned numViewDims = submapMap.getNumDims();
 
-    if (baseTy.getRank() == 1 && outTy.getRank() == (int64_t)numViewDims) {
+    // Do not represent a rank-expanding DPS output view as tensor.expand_shape.
+    // Canonicalizing that reshape through linalg.generic can replace the
+    // output operand with its rank-1 base while leaving the generic's ranked
+    // result unchanged.  The generic materialization path below preserves a
+    // type-consistent logical output tensor and is also the right semantics
+    // for reading an existing accumulator before an `Y += contraction` stage.
+    bool isLinalgDpsOutput = llvm::any_of(
+        submap->getUses(), [&](OpOperand &use) {
+          auto generic = dyn_cast<linalg::GenericOp>(use.getOwner());
+          return generic &&
+                 use.getOperandNumber() >= generic.getNumDpsInputs();
+        });
+
+    if (!isLinalgDpsOutput && baseTy.getRank() == 1 &&
+        outTy.getRank() == (int64_t)numViewDims) {
       auto staticSizes = getStaticSizeOperands(sizes);
-      if (staticSizes && isRowMajorLinearizedMap(submapMap, *staticSizes)) {
+      if (staticSizes && isRowMajorLinearizedMap(submapMap, *staticSizes) &&
+          !baseTy.isDynamicDim(0) &&
+          baseTy.getDimSize(0) == product(*staticSizes)) {
         int64_t flatSize = product(*staticSizes);
+        // A row-major address map proves that the view itself is contiguous;
+        // it does not prove that it covers the entire flat base.  Casting a
+        // dynamic tensor<...> base to tensor<flatSize...> used to truncate
+        // partial views (and could create an invalid tensor<100> ->
+        // tensor<25> cast).  Use the reshape fast path only when full coverage
+        // is statically proven; the generic materialization below handles
+        // partial/dynamic bases.
         auto staticBaseTy =
             RankedTensorType::get({flatSize}, baseTy.getElementType());
         Value baseForExpand = submap.getBase();
@@ -826,10 +1111,12 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     unsigned numViewDims = m.getNumDims();
     ValueRange sizes =
         inv.getOperands().slice(m.getNumSymbols() + 2, numViewDims);
+    auto staticSizes = getStaticSizeOperands(sizes);
 
     if (baseTy.getRank() == 1 && viewTy.getRank() == (int64_t)numViewDims) {
-      auto staticSizes = getStaticSizeOperands(sizes);
-      if (staticSizes && isRowMajorLinearizedMap(m, *staticSizes)) {
+      if (staticSizes && isRowMajorLinearizedMap(m, *staticSizes) &&
+          !baseTy.isDynamicDim(0) &&
+          baseTy.getDimSize(0) == product(*staticSizes)) {
         auto staticViewTy =
             RankedTensorType::get(*staticSizes, viewTy.getElementType());
         Value viewForCollapse = view;
@@ -839,6 +1126,10 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
                                               viewForCollapse);
 
         int64_t flatSize = product(*staticSizes);
+        // Contiguity is not full-base coverage.  In particular, writing the
+        // first 32 elements of a dynamic 64-element application output must
+        // retain the untouched suffix for a later +32 view.  Fall through to
+        // affine write-back unless the base extent is statically identical.
         auto staticOutTy =
             RankedTensorType::get({flatSize}, viewTy.getElementType());
         auto reassociation = getSingleSourceReassociation(numViewDims);
@@ -851,7 +1142,13 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       }
     }
 
-    if (numViewDims > (unsigned)baseTy.getRank() &&
+    bool projectedDimsAreUnit = false;
+    if (staticSizes && numViewDims > (unsigned)baseTy.getRank()) {
+      projectedDimsAreUnit = llvm::all_of(
+          ArrayRef<int64_t>(*staticSizes).drop_front(baseTy.getRank()),
+          [](int64_t size) { return size == 1; });
+    }
+    if (numViewDims > (unsigned)baseTy.getRank() && projectedDimsAreUnit &&
         viewTy.getRank() == (int64_t)numViewDims &&
         isLeadingDimProjection(m, baseTy.getRank())) {
       SmallVector<OpFoldResult> offsets, sliceSizes, strides;
@@ -881,6 +1178,76 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       rewriter.replaceOp(inv, sliced);
       return success();
     }
+
+    // A general affine submap is not necessarily a rectangular slice.  For
+    // example, a rank-4 view of one component of a flattened vector may have
+    // row-major strides within each element but a gap between elements.  Such
+    // maps cannot be represented by tensor.insert_slice after collapsing the
+    // view.  Preserve their exact semantics with an elementwise affine
+    // write-back.  One-shot bufferization subsequently turns the loop-carried
+    // tensor into indexed stores, so this is a correctness fallback rather
+    // than a new runtime abstraction.
+    auto lowerElementwiseAffineWriteback = [&]() -> LogicalResult {
+      if (viewTy.getRank() != (int64_t)numViewDims ||
+          sizes.size() != numViewDims)
+        return failure();
+      if (!staticSizes)
+        return rewriter.notifyMatchFailure(
+            inv, "affine write-back injectivity is unknown for dynamic sizes");
+      std::optional<bool> isInjective =
+          isInjectiveOnStaticDomain(m, *staticSizes);
+      if (!isInjective || !*isInjective)
+        return rewriter.notifyMatchFailure(
+            inv, "affine write-back map is not proven injective");
+
+      Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      SmallVector<Value> inductionVars;
+
+      auto emitLoopNest = [&](auto &&self, unsigned depth,
+                              Value destination) -> Value {
+        auto loop = rewriter.create<scf::ForOp>(
+            loc, zero, sizes[depth], one, ValueRange{destination});
+        if (!loop.getBody()->empty())
+          rewriter.eraseOp(loop.getBody()->getTerminator());
+
+        OpBuilder::InsertionGuard guard(rewriter);
+        rewriter.setInsertionPointToStart(loop.getBody());
+        inductionVars.push_back(loop.getInductionVar());
+
+        Value updated;
+        if (depth + 1 < numViewDims) {
+          updated = self(self, depth + 1, loop.getRegionIterArg(0));
+        } else {
+          Value element = rewriter.create<tensor::ExtractOp>(
+              loc, view, inductionVars);
+          SmallVector<Value> mapOperands(inductionVars.begin(),
+                                         inductionVars.end());
+          mapOperands.append(symbols.begin(), symbols.end());
+          SmallVector<Value> baseIndices;
+          baseIndices.reserve(m.getNumResults());
+          for (AffineExpr resultExpr : m.getResults()) {
+            AffineMap resultMap = AffineMap::get(
+                m.getNumDims(), m.getNumSymbols(), resultExpr,
+                rewriter.getContext());
+            baseIndices.push_back(rewriter.create<affine::AffineApplyOp>(
+                loc, resultMap, mapOperands));
+          }
+          updated = rewriter.create<tensor::InsertOp>(
+              loc, element, loop.getRegionIterArg(0), baseIndices);
+        }
+
+        inductionVars.pop_back();
+        rewriter.create<scf::YieldOp>(loc, updated);
+        return loop.getResult(0);
+      };
+
+      if (numViewDims == 0)
+        return failure();
+      Value result = emitLoopNest(emitLoopNest, 0, base);
+      rewriter.replaceOp(inv, result);
+      return success();
+    };
 
     SmallVector<OpFoldResult> offsets, subSizes, strides;
     SmallVector<int64_t> viewDimSeen(numViewDims, 0);
@@ -960,10 +1327,12 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       bool hasViewDim;
       unsigned viewDim = 0;
       OpFoldResult stride = oneAttr;
-      if (!classify(e, offset, hasViewDim, viewDim, stride)) return failure();
+      if (!classify(e, offset, hasViewDim, viewDim, stride))
+        return lowerElementwiseAffineWriteback();
       offsets.push_back(offset);
       if (hasViewDim) {
-        if (viewDim >= sizes.size()) return failure();
+        if (viewDim >= sizes.size())
+          return lowerElementwiseAffineWriteback();
         subSizes.push_back(sizes[viewDim]);
         strides.push_back(stride);
         viewDimSeen[viewDim] = 1;
@@ -973,7 +1342,8 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       }
     }
     for (unsigned j = 0; j < numViewDims; ++j)
-      if (!viewDimSeen[j]) return failure();
+      if (!viewDimSeen[j])
+        return lowerElementwiseAffineWriteback();
 
     // If the view's rank differs from the slice's rank (because of symbol-
     // only base-dims that rank-reduced on the way in), we need to reshape
@@ -984,7 +1354,7 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       if (!m.getResult(k).isa<AffineSymbolExpr>())
         ++numDimBearingBaseDims;
     if (numDimBearingBaseDims != (unsigned)viewTy.getRank())
-      return failure();
+      return lowerElementwiseAffineWriteback();
 
     Value result = rewriter.create<tensor::InsertSliceOp>(
         loc, view, base, offsets, subSizes, strides);
@@ -996,9 +1366,15 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
 struct LowerPolygeistSubmapPass
     : public mlir::polygeist::LowerPolygeistSubmapBase<
           LowerPolygeistSubmapPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<affine::AffineDialect, arith::ArithDialect,
+                    scf::SCFDialect, tensor::TensorDialect>();
+  }
+
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.add<FoldIdentitySubmapInverse,
+                 ComposeAffineSubmapIntoLinalgGeneric,
                  ComposeSubmapIntoLinalgGeneric,
                  LowerSymbolBearingSubmapToSubview,
                  LowerSymbolBearingSubmapToExtractSlice,

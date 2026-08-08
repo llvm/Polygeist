@@ -1,0 +1,835 @@
+source,symbol,line,textual_loops,tensor_iterator_sites,parallel_sites,exact_fixtures,source_has_fixture,status,final_status,rationale
+aten/src/ATen/native/Activation.cpp,_rrelu_with_noise_train,579,1,0,0,aten_relu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AdaptiveAveragePooling3d.cpp,adaptive_avg_pool3d_out_frame,26,7,0,1,aten_adaptive_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AdaptiveAveragePooling3d.cpp,adaptive_avg_pool3d_out_cpu_template,86,2,0,1,aten_adaptive_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AdaptiveAveragePooling3d.cpp,adaptive_avg_pool3d_backward_out_frame,178,7,0,1,aten_adaptive_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AdaptiveAveragePooling3d.cpp,adaptive_avg_pool3d_backward_out_cpu_template,230,1,0,1,aten_adaptive_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AutogradComposite.cpp,_new_zeros_with_same_feature_meta,42,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,autograd metadata allocation
+aten/src/ATen/native/AveragePool3d.cpp,avg_pool3d_out_cpu,248,1,0,1,aten_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/AveragePool3d.cpp,avg_pool3d_backward_out_cpu,420,1,0,1,aten_avg_pool3d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BatchLinearAlgebra.cpp,apply_cholesky_solve,1738,1,0,0,,no,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_cholesky,39,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_reflect_conj_tri_single,74,4,0,1,aten_reflect_conj_tri_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_cholesky_inverse,108,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,linalg_eig_make_complex_eigenvectors_cpu_impl,145,4,0,0,aten_eig_complex_vectors_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_linalg_eig,221,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_lapack_eigh,299,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_geqrf,402,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_orgqr,466,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_ormqr,721,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_triangular_solve,795,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_ldl_factor,833,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_ldl_solve,898,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_lu_factor,987,1,0,1,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_lu_solve,1052,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,apply_svd,1114,1,0,0,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/BatchLinearAlgebraKernel.cpp,unpack_pivots_cpu_kernel,1194,2,0,0,aten_unpack_pivots_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,fp16_gemv_notrans_fp16_arith,147,2,0,0,"aten_blas_gemv_generic_cpu,aten_fp16_gemv_f16arith_cpu,aten_fp16_gemv_notrans_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,fp16_gemv_notrans_fp32_arith,162,3,0,0,"aten_blas_gemv_generic_cpu,aten_fp16_gemv_f32arith_cpu,aten_fp16_gemv_notrans_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,fp16_gemv_notrans,193,4,0,0,"aten_blas_gemv_generic_cpu,aten_fp16_gemv_f16arith_cpu,aten_fp16_gemv_f32arith_cpu,aten_fp16_gemv_notrans_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,gemv,541,6,0,0,"aten_blas_gemv_generic_cpu,aten_fp16_gemv_f16arith_cpu,aten_fp16_gemv_f32arith_cpu,aten_fp16_gemv_notrans_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,constexpr,597,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/BlasKernel.cpp,dot_naive,653,1,0,0,aten_blas_dot_naive_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Bucketization.cpp,cus_lower_bound,48,1,0,0,aten_lower_bound_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Bucketization.cpp,cus_upper_bound,69,1,0,0,aten_upper_bound_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Bucketization.cpp,searchsorted_cpu_contiguous,87,1,0,1,aten_searchsorted_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm,341,4,0,0,"aten_cpu_blas_gemm_batched_cpu,aten_cpu_blas_gemm_cpu,aten_cpu_blas_gemm_strided_batched_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm,401,4,0,0,"aten_cpu_blas_gemm_batched_cpu,aten_cpu_blas_gemm_cpu,aten_cpu_blas_gemm_strided_batched_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm_batched_mkl_impl,584,1,0,0,aten_cpu_blas_gemm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm_batched_generic,608,1,0,0,"aten_cpu_blas_gemm_batched_cpu,aten_cpu_blas_gemm_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm_batched_with_stride_generic,650,1,0,0,"aten_cpu_blas_gemm_cpu,aten_cpu_blas_gemm_strided_batched_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,gemm_batched_with_stride,667,1,0,0,"aten_cpu_blas_gemm_cpu,aten_cpu_blas_gemm_strided_batched_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/CPUBlas.cpp,constexpr,680,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/CPUFallback.cpp,to_cpu,24,2,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,device fallback and argument traversal
+aten/src/ATen/native/CPUFallback.cpp,compute_target_device,61,2,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,device fallback and argument traversal
+aten/src/ATen/native/CPUFallback.cpp,validate_tensor_list,79,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,device fallback and argument traversal
+aten/src/ATen/native/CPUFallback.cpp,cpu_fallback,90,11,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,device fallback and argument traversal
+aten/src/ATen/native/Col2Im.cpp,col2im_out_cpu_template,74,1,0,0,aten_col2im_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Convolution.cpp,is_output_padding_big,323,1,0,0,,yes,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Convolution.cpp,check_shape_forward,664,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/Convolution.cpp,convolution_same,1056,3,0,0,,yes,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Convolution.cpp,_convolution,1541,1,0,0,,yes,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Convolution.cpp,_convolution_double_backward,1796,4,0,0,,yes,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Convolution.cpp,convolution_backward,2051,2,0,0,,yes,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ConvolutionMM2d.cpp,compute_columns2d,29,1,0,1,aten_conv2d_columns_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM2d.cpp,slow_conv2d_shape_check,97,1,0,0,aten_conv2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM2d.cpp,slow_conv2d_backward_out_cpu_template,360,1,0,1,aten_conv2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM2d.cpp,slow_conv2d_backward_weight_out_cpu_template,484,1,0,0,aten_conv2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM2d.cpp,slow_conv2d_forward_out_cpu,540,1,0,1,aten_conv2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM3d.cpp,compute_columns3d,32,1,0,1,aten_conv3d_columns_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM3d.cpp,slow_conv3d_backward_out_cpu_template,397,1,0,1,aten_slow_conv3d_backward_input_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM3d.cpp,slow_conv3d_backward_parameters_out_cpu_template,519,1,0,0,aten_slow_conv3d_backward_weight_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionMM3d.cpp,slow_conv3d_forward_out_cpu,581,1,0,1,aten_slow_conv3d_forward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionTBC.cpp,conv_tbc,19,1,0,0,"aten_conv_tbc_backward_cpu,aten_conv_tbc_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ConvolutionTBC.cpp,conv_tbc_backward,71,2,0,0,"aten_conv_tbc_backward_cpu,aten_conv_tbc_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Copy.cpp,AT_WRAP,62,6,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Copy.cpp,copy_impl,140,0,0,2,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Cross.cpp,_default_cross_dim,44,1,0,0,aten_cross,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,sample_poisson,80,2,0,0,aten_sample_poisson_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_standard_gamma_grad_cpu,390,0,1,0,aten_standard_gamma_grad_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_dirichlet_grad_cpu,405,0,1,0,aten_dirichlet_grad_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_s_binomial_cpu,425,0,1,0,aten_binomial_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_s_poisson_cpu,458,0,1,0,aten_poisson_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_s_gamma_cpu,475,0,1,0,aten_gamma_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Distributions.cpp,_s_dirichlet_cpu,505,0,2,0,aten_dirichlet_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Dropout.cpp,make_feature_noise,29,1,0,0,aten_dropout_feature_noise_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Embedding.cpp,embedding_symint,37,1,0,0,aten_embedding,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Embedding.cpp,embedding_dense_backward_cpu,112,3,0,1,aten_embedding,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Embedding.cpp,embedding_renorm_cpu_,181,1,0,0,aten_embedding,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,fbgemm_spmdm_report_error_,160,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/EmbeddingBag.cpp,constexpr,286,1,0,0,,yes,NEEDS_REVIEW,PARSER_ARTIFACT,not a function symbol
+aten/src/ATen/native/EmbeddingBag.cpp,constexpr,668,1,0,0,,yes,NEEDS_REVIEW,PARSER_ARTIFACT,not a function symbol
+aten/src/ATen/native/EmbeddingBag.cpp,embedding_bag_cpu_max_out,1064,2,0,0,aten_embedding_bag_max_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,_embedding_bag_dense_backward_cpu_max,1454,1,0,0,aten_embedding_bag_backward_max_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,compute_counts,1472,1,0,0,"aten_embedding_bag_counts_cpu,aten_embedding_bag_counts_uniq_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,compute_counts_uniq,1493,1,0,0,"aten_embedding_bag_counts_cpu,aten_embedding_bag_counts_uniq_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,_embedding_bag_dense_backward_cpu_sum_mean,1512,2,0,1,aten_embedding_bag_backward_sum_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/EmbeddingBag.cpp,_embedding_bag_per_sample_weights_backward_cpu_template,1648,1,0,1,aten_embedding_bag_per_sample_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Fill.cpp,fill_diagonal_,96,2,0,0,aten_fill_diagonal_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_clone_slow,372,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_copy_list_kernel_slow_,386,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_ternary_lerp_slow,437,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_ternary_lerp_slow_,450,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_lerp_scalarlist_kernel_slow,460,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_lerp_scalarlist_kernel_slow_,473,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_zero_slow_,483,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_norm_slow,491,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_powsum_slow,524,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_tensor_max_slow,537,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,foreach_scalar_pow_list_kernel_slow,550,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/ForeachOpsKernels.cpp,_foreach_mm,562,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/FractionalMaxPool2d.cpp,fractional_max_pool2d_out_single_batch_frame,132,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool2d.cpp,fractional_max_pool2d_out_frame,190,1,0,1,aten_fractional_max_pool2d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool2d.cpp,fractional_max_pool2d_backward_out_single_batch_frame,222,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool2d.cpp,fractional_max_pool2d_backward_out_frame,249,1,0,1,aten_fractional_max_pool2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool3d.cpp,fractional_max_pool3d_out_single_batch_frame,101,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool3d.cpp,fractional_max_pool3d_out_frame,171,1,0,1,aten_fractional_max_pool3d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool3d.cpp,fractional_max_pool3d_backward_out_single_batch_frame,259,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FractionalMaxPool3d.cpp,fractional_max_pool3d_backward_out_frame,289,1,0,1,aten_fractional_max_pool3d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/FusedAdagrad.cpp,_fused_adagrad_kernel_cpu_,16,1,0,0,,no,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FusedAdam.cpp,_fused_adam_kernel_cpu_,19,1,0,0,,no,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FusedAdam.cpp,_fused_adamw_kernel_cpu_,95,1,0,0,,no,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/FusedSGD.cpp,_fused_sgd_kernel_cpu_,18,1,0,0,,no,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/GridSampler.cpp,grid_sampler_3d_cpu_impl,42,6,0,1,aten_grid_sampler_3d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/GridSampler.cpp,grid_sampler_3d_backward_cpu_impl,205,6,0,1,aten_grid_sampler_3d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/GridSampler.cpp,_grid_sampler_2d_cpu_quantized,448,4,0,1,aten_grid_sampler_2d_quantized_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/GridSampler.cpp,_grid_sampler_2d_cpu_fallback,559,7,0,1,aten_grid_sampler_2d_fallback_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Histogram.cpp,histogramdd_check_inputs,75,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/Histogram.cpp,histogramdd_prepare_out,127,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/Histogram.cpp,allocate_bin_edges_tensors,274,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/Histogram.cpp,histogramdd_out,286,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Histogram.cpp,histogramdd_bin_edges_out,313,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Histogram.cpp,histogramdd_out,345,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/Im2Col.cpp,im2col_out_cpu_template,22,1,0,0,aten_im2col,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/IndexingUtils.cpp,canUse32BitIndexMath,6,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,index-width eligibility check
+aten/src/ATen/native/Integration.cpp,add_padding_to_shape,72,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape padding helper
+aten/src/ATen/native/Itertools.cpp,_triu_mask,24,2,0,0,aten_triu_mask_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Itertools.cpp,cartesian_prod,46,2,0,0,aten_cartesian_prod_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Itertools.cpp,combinations,60,1,0,0,aten_combinations_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LegacyBatching.cpp,remove_existing_batch_dim,48,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,batch-dimension metadata
+aten/src/ATen/native/Linear.cpp,_flatten_nd_linear,52,1,0,0,aten_flatten_nd_linear_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Linear.cpp,sumproduct_pair,166,10,0,0,aten_sumproduct_pair_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Linear.cpp,einsum,287,13,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/Linear.cpp,_trilinear,675,4,0,0,aten_trilinear_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Linear.cpp,bilinear,751,1,0,0,aten_bilinear_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Linear.cpp,tensordot,809,5,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,linalg_matrix_power_impl,634,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,matrix_chain_order,872,4,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,multi_dot_impl,931,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,addbmm_impl_,1551,1,0,0,aten_bmm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,baddbmm_cpu_kernel,1634,4,0,1,aten_bmm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,bmm_out_or_baddbmm_,1732,4,0,2,aten_bmm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,should_fold,1922,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/LinearAlgebra.cpp,compute_T18_scale_square,2577,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,mexp_impl,2648,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/LinearAlgebra.cpp,linalg_vector_norm_out,2860,1,0,0,aten_vector_norm_out_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,linalg__powsum,2929,1,0,0,aten_linalg_powsum_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,KronImpl,3518,1,0,0,aten_kron_impl_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,kron_out,3537,1,0,0,aten_kron_out_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LinearAlgebra.cpp,_int_mm_out_cpu,3741,2,0,1,aten_int_mm_out_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Loss.cpp,binary_cross_entropy_out_cpu,262,0,1,0,aten_binary_cross_entropy,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Loss.cpp,binary_cross_entropy_backward_out_cpu,311,0,1,0,aten_binary_cross_entropy,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossCTC.cpp,ctc_loss_allocate_outputs,57,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/LossCTC.cpp,ctc_loss_cpu_template,133,3,0,1,aten_ctc_loss_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossCTC.cpp,ctc_loss_backward_cpu_template,238,8,0,1,aten_ctc_loss_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiLabelMargin.cpp,multilabel_margin_loss_forward_inner_sum_cpu,27,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiLabelMargin.cpp,multilabel_margin_loss_forward_out_frame,62,2,0,0,aten_multilabel_margin_loss_forward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiLabelMargin.cpp,multilabel_margin_loss_backward_out_frame,157,6,0,0,aten_multilabel_margin_loss_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiMargin.cpp,multi_margin_inner_sum_cpu,21,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiMargin.cpp,multi_margin_loss_cpu_kernel,59,2,0,0,aten_multi_margin_loss_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossMultiMargin.cpp,multi_margin_loss_backward_cpu_kernel,150,5,0,0,aten_multi_margin_loss_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossNLL.cpp,nll_loss_out_frame,165,3,0,1,aten_nll_loss_forward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossNLL.cpp,nll_loss_backward_out_frame,344,2,0,2,aten_nll_loss_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossNLL2d.cpp,nll_loss2d_forward_out_frame,105,6,0,1,aten_nll_loss2d_forward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/LossNLL2d.cpp,nll_loss2d_backward_out_frame,286,5,0,2,aten_nll_loss2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/MaxUnpooling.cpp,max_unpooling2d_forward_out_cpu,17,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,loops dispatch already-extracted backend kernels
+aten/src/ATen/native/MaxUnpooling.cpp,max_unpooling3d_shape_check,86,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/NNPACK.cpp,_nnpack_spatial_convolution,131,1,0,0,,no,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/NaiveConvolutionTranspose2d.cpp,slow_conv_transpose2d_out_cpu_template,244,1,0,1,aten_conv_transpose2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveConvolutionTranspose2d.cpp,slow_conv_transpose2d_backward_out_cpu_template,389,1,0,0,aten_conv_transpose2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveConvolutionTranspose2d.cpp,slow_conv_transpose2d_acc_grad_parameters_cpu,586,1,0,0,aten_conv_transpose2d,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveConvolutionTranspose3d.cpp,slow_conv_transpose3d_out_cpu_template,174,1,0,0,aten_conv_transpose3d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveConvolutionTranspose3d.cpp,slow_conv_transpose3d_backward_out_cpu_template,389,1,0,0,aten_conv_transpose3d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveConvolutionTranspose3d.cpp,slow_conv_transpose3d_acc_grad_parameters_cpu,593,1,0,0,aten_conv_transpose3d_grad_weight_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/NaiveDilatedConvolution.cpp,slow_conv_dilated_all_cpu_template,171,2,0,0,aten_dilated_convolution_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Normalization.cpp,batch_norm_cpu_transform_input_template,134,0,1,0,"aten_batch_norm_cpu_entry,aten_batch_norm_transform_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Normalization.cpp,batch_norm_cpu_update_stats_template,199,2,1,2,"aten_batch_norm_cpu_entry,aten_batch_norm_stats_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Normalization.cpp,batch_norm_cpu_update_stats_template,289,1,0,0,"aten_batch_norm_cpu_entry,aten_batch_norm_stats_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Normalization.cpp,batch_norm_backward_cpu_template,308,2,4,1,aten_batch_norm_backward_template_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Normalization.cpp,batch_norm_cpu,858,1,0,0,"aten_batch_norm_cpu_entry,aten_batch_norm_stats_cpu,aten_batch_norm_transform_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/PackedSequence.cpp,_pack_padded_sequence,34,3,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/PackedSequence.cpp,_pack_padded_sequence_backward_symint,115,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/PackedSequence.cpp,_pad_packed_sequence,142,2,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/PackedSequence.cpp,pad_sequence,206,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/PadNd.cpp,constant_pad_nd,29,4,0,0,aten_constant_pad_nd_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/PadNd.cpp,_pad_circular_symint,110,4,0,0,aten_circular_pad_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Pooling.cpp,adaptive_max_pool1d,54,1,0,0,aten_adaptive_max_pool1d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/QuantizedLinear.cpp,fbgemm_linear_int8_weight_fp32_activation,51,1,0,1,,yes,NEEDS_REVIEW,EXTERNAL_LIBRARY_DELEGATION,batch loop delegates arithmetic to LAPACK/NNPACK/FBGEMM
+aten/src/ATen/native/QuantizedLinear.cpp,CalcColOffsetsTranspose,209,2,0,0,aten_quant_col_offsets_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/QuantizedLinear.cpp,HandleWeightsSaturation,363,1,0,0,aten_quant_saturation_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/RNN.cpp,use_mkldnn,85,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/RNN.cpp,pair_vec,589,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,unpair_vec,601,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,gather_params,613,4,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,project,660,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,operator,857,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,_lstm_impl,1168,2,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,lstm,1528,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,quantized_lstm_input,1752,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RNN.cpp,quantized_lstm_data,1811,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,tensor-list orchestration over RNN primitives
+aten/src/ATen/native/RangeFactories.cpp,logspace_out,87,2,0,2,aten_logspace_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/RangeFactories.cpp,range_out,153,1,0,1,aten_range_out_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,cumprod_backward,542,1,0,0,aten_cumprod_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,cummax_cummin_helper,842,1,0,0,aten_cummax_cummin_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,diff_check_compatible_shape,961,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,diff_helper,999,1,0,0,aten_diff_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,pre_check_gradient,1080,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,gradient_helper,1110,2,0,0,"aten_gradient_cpu,aten_gradient_float_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,gradient_helper_float,1152,1,0,0,"aten_gradient_cpu,aten_gradient_float_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,should_use_acc_buffer,1256,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/ReduceOps.cpp,trace_cpu,1355,1,0,0,aten_trace_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,allany_dims_default,1718,1,0,0,aten_allany_dims_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,std_var_all_cpu,1848,2,0,1,aten_std_var_all_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,cpu_equal,2215,2,0,0,aten_equal_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ReduceOps.cpp,sum_sparse_coo,2316,1,0,0,aten_sum,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Repeat.cpp,compute_cpu,17,2,0,1,aten_repeat_compute_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/RowwisePrune.cpp,_rowwise_prune_helper,20,2,0,0,aten_rowwise_prune_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/ScaledBlas.cpp,get_joint_scaling,194,1,0,0,aten_joint_scaling_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SegmentReduce.cpp,_segment_reduce_lengths_cpu_kernel1,30,6,0,0,aten_segment_reduce_lengths_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SegmentReduce.cpp,_segment_reduce_cpu_lengths_backward_kernel1,182,11,0,0,aten_segment_reduce_lengths_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SobolEngineOps.cpp,_sobol_engine_draw,29,2,0,0,aten_sobol_draw_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SobolEngineOps.cpp,_sobol_engine_ff_,68,2,0,0,aten_sobol_fast_forward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SobolEngineOps.cpp,_sobol_engine_scramble_,95,4,0,0,aten_sobol_scramble_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SobolEngineOps.cpp,_sobol_engine_initialize_state_,134,5,0,0,aten_sobol_initialize_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SoftMax.cpp,host_softmax,151,6,0,1,"aten_host_softmax_backward_cpu,aten_host_softmax_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SoftMax.cpp,host_softmax_backward,244,5,0,1,"aten_host_softmax_backward_cpu,aten_host_softmax_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Sorting.cpp,quick_select_template,128,4,0,0,aten_quick_select_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Sorting.cpp,kthvalue_out_impl_cpu,436,2,0,0,aten_kthvalue_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Sorting.cpp,median_with_indices_impl,523,1,0,0,aten_median_indices_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SparseTensorUtils.cpp,flatten_indices_by_dims,73,1,0,0,aten_sparse_flatten_indices_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SparseTensorUtils.cpp,coo_to_csr,82,2,0,1,aten_sparse_coo_to_csr_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SparseTensorUtils.cpp,full_coo_indices,126,2,0,0,aten_sparse_full_coo_indices_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SpectralOps.cpp,resize_fft_input,153,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/SpectralOps.cpp,canonicalize_fft_shape_and_dim_args,302,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/SpectralOps.cpp,default_alldims,771,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/SpectralOps.cpp,fft_fftshift,786,1,0,0,aten_fftshift_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SpectralOps.cpp,fft_ifftshift,798,1,0,0,aten_ifftshift_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SpectralOps.cpp,as_complex,1026,1,0,0,aten_as_complex_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SpectralOps.cpp,_fft_fill_with_conjugate_symmetry_,1229,3,0,0,aten_fft_conjugate_symmetry_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/SummaryOps.cpp,_bincount_cpu_template,23,2,0,0,aten_bincount_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,build_index_op,477,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,all_strides_match,589,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,make_index_put_iterator,693,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,_unsafe_index,745,1,0,0,aten_unsafe_index_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,_index_put_impl_,962,1,0,0,aten_index_put_impl_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,index_reduce_func_impl,1320,2,0,0,aten_index_reduce_impl_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,check_indexarray_range,1531,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,index_select_out_cpu_dim1_,1547,4,0,0,"aten_index_select_dim1_cpu,aten_index_select_out_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,index_select_out_cpu_,1606,4,0,2,"aten_index_select_dim1_cpu,aten_index_select_out_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,can_use_expanded_index_path,2004,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,_scatter_via_index_put,2155,4,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,masked_scatter_backward_symint,2422,1,0,0,aten_masked_scatter_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,checkDevice,2692,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,_gather_sparse_backward,2735,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,count_nonzero_impl,2776,3,0,0,aten_count_nonzero_impl_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,count_nonzero_cpu,2821,1,0,1,aten_count_nonzero_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorAdvancedIndexing.cpp,nonzero_out_cpu,2871,6,0,2,aten_nonzero_out_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorCompare.cpp,out_device,581,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorConversions.cpp,_to_cpu,586,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorConversions.cpp,compute_strides_for_view_dtype_downsize,809,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorConversions.cpp,compute_strides_for_view_dtype_upsize,835,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorConversions.cpp,convert_indices_from_coo_to_csr_cpu,1852,4,0,1,aten_convert_coo_to_csr_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorConversions.cpp,convert_indices_from_csr_to_coo_cpu,1883,1,0,1,aten_convert_csr_to_coo_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorConversions.cpp,_compressed_to_block_compressed_cpu_kernel,1978,5,0,0,aten_compressed_block_convert_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorConversions.cpp,compressed_count_blocks,2075,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorConversions.cpp,to_meta,2503,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorFactories.cpp,empty_permuted_symint,286,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorFactories.cpp,eye_out_cpu,620,1,0,1,aten_eye_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorFactories.cpp,randperm_cpu,1440,3,0,1,aten_randperm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorFactories.cpp,tril_indices_cpu,1578,1,0,0,aten_tril_indices_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorFactories.cpp,triu_indices_cpu,1634,1,0,0,aten_triu_indices_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorFactories.cpp,zeros_symint,1729,1,0,0,aten_zeros_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorIteratorReduce.cpp,two_pass_reduction,43,0,0,1,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,TensorIterator reduction scheduling
+aten/src/ATen/native/TensorIteratorReduce.cpp,find_split_dim,84,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,TensorIterator reduction scheduling
+aten/src/ATen/native/TensorIteratorReduce.cpp,parallel_dim_reduction,116,0,0,1,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,TensorIterator reduction scheduling
+aten/src/ATen/native/TensorIteratorReduce.cpp,TensorIteratorBase::foreach_reduced_elt,140,2,0,1,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,TensorIterator reduction scheduling
+aten/src/ATen/native/TensorProperties.cpp,is_set_to,148,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,storage alias/property test
+aten/src/ATen/native/TensorShape.cpp,cat_compute_output_memory_format,223,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorShape.cpp,_reshape_from_tensor,353,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,set_storage_meta__symint,399,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorShape.cpp,sparse_broadcast_to,520,5,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,fastCatOutDim0,658,1,0,0,aten_fast_cat_dim0_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,sizes_match_except,785,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,cat_sparse_impl,839,3,0,0,aten_cat_sparse_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,block_diag,972,3,0,0,aten_block_diag_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,tensor_split_sections_symint,1075,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,_tensor_split_indices,1105,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,tensor_split,1143,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,narrow_copy_dense_cpu_out,1529,1,0,0,aten_narrow_copy_dense_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,_permute_size_stride_estimation,1744,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,permute_sparse_coo,1788,2,0,0,aten_permute_sparse_coo_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,repeat,1862,2,0,0,aten_repeat_tensor_shape_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,tile_symint,1924,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,index_select_sparse_cpu,2279,9,0,7,aten_index_select_sparse_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,split,3090,1,0,0,aten_split_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,unsafe_split,3110,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,split_with_sizes,3180,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,unsafe_split_with_sizes,3214,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,get_stack_inputs,3257,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,check_stack_inputs,3317,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,_pad_chunk,3333,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,stack_meta,3376,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/TensorShape.cpp,inferSqueezeGeometry,3819,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,inferSqueezeGeometry,3834,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,inferSqueezeGeometry,3849,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,squeeze_qtensor,3908,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,flatten,4121,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,unbind,4212,1,0,0,aten_unbind_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,meshgrid,4229,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,numpy_T,4319,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,movedim,4502,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,unflatten_dense_tensors,4646,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/TensorShape.cpp,split_copy_Tensor_out,4793,1,0,0,aten_split_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,copy_tensor_array_to_out,4813,1,0,0,aten_copy_tensor_array_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorShape.cpp,unbind_copy_int_out,4857,1,0,0,aten_unbind_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TensorTransformations.cpp,flip,36,2,0,0,aten_flip_tensor_transform_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TestOps.cpp,_test_optional_intlist,32,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,test-only argument materialization
+aten/src/ATen/native/TestOps.cpp,_test_optional_floatlist,50,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,test-only argument materialization
+aten/src/ATen/native/TestOps.cpp,_test_parallel_materialize,116,0,0,1,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,test-only argument materialization
+aten/src/ATen/native/TriangularOps.cpp,apply_triu_tril_single,42,6,0,2,"aten_triu_tril_batch_cpu,aten_triu_tril_single_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TriangularOps.cpp,apply_triu_tril,87,1,0,1,"aten_triu_tril_batch_cpu,aten_triu_tril_single_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/TypeProperties.cpp,result_type,148,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,dtype inference
+aten/src/ATen/native/Unfold3d.cpp,MatCopy,21,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,MatCopy,28,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,MatAdd,48,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,MatAdd,58,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,MatAdd,147,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,MatAdd,162,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,Unfold3dZeroPaddingCopyKernelImpl,179,2,0,1,aten_unfold3d_zero_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,Unfold3dCopyKernelImpl,223,4,0,1,aten_unfold3d_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,Unfold3dZeroPaddingAccKernelImpl,302,5,0,1,aten_unfold3d_zero_acc_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unfold3d.cpp,Unfold3dAccKernelImpl,355,7,0,1,aten_unfold3d_acc_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unique.cpp,unique_cpu_bool_template,35,2,0,2,aten_unique_bool_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unique.cpp,unique_cpu_sorted_template,159,4,0,3,aten_unique_sorted_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unique.cpp,unique_consecutive_cpu_template,270,1,0,0,aten_unique_consecutive_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unique.cpp,_unique_dim_cpu_impl,329,1,0,0,aten_unique_dim_impl_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/Unique.cpp,_unique_dim_cpu_template,361,2,0,0,aten_unique_dim_template_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/UpSample.cpp,compute_output_size,10,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,output-shape calculation
+aten/src/ATen/native/UpSampleBicubic2d.cpp,upsample_bicubic2d_backward_out_frame,107,5,0,1,aten_upsample_bicubic2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,log_sigmoid_cpu_kernel,33,2,0,2,aten_log_sigmoid_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,log_sigmoid_backward_cpu_kernel,99,0,2,0,aten_log_sigmoid_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,threshold_kernel,153,0,2,0,aten_threshold_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,elu_kernel,195,0,2,0,"aten_elu,aten_leaky_relu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,elu_backward_kernel,213,0,2,0,aten_elu_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,GeluKernelImpl,289,0,3,0,"aten_gelu_cpu_exact,aten_gelu_cpu_tanh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,GeluBackwardKernelImpl,345,0,4,0,"aten_gelu_backward_cpu_exact,aten_gelu_backward_cpu_tanh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardsigmoid_kernel,523,0,2,0,aten_hardsigmoid,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardsigmoid_backward_kernel,575,0,2,0,aten_hardsigmoid_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardshrink_kernel,626,0,1,0,aten_hardshrink,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,softshrink_kernel,642,0,2,0,aten_softshrink,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,shrink_backward_kernel,683,0,1,0,aten_shrink_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardtanh_backward_kernel,698,0,2,0,aten_hardtanh_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardswish_kernel,733,0,2,0,aten_hardswish,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,hardswish_backward_kernel,786,0,2,0,aten_hardswish_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,leaky_relu_kernel,871,0,2,0,"aten_elu,aten_leaky_relu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,leaky_relu_backward_kernel,910,0,2,0,aten_elu_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,softplus_kernel,950,0,2,0,aten_softplus,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,softplus_backward_kernel,993,0,2,0,aten_softplus_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,glu_kernel,1041,0,2,0,aten_glu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,glu_jvp_kernel,1076,0,1,0,aten_glu_jvp,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,glu_backward_kernel,1095,0,2,0,aten_glu_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,silu_kernel,1132,0,2,0,aten_silu_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,silu_backward_kernel,1164,0,2,0,aten_silu_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,mish_kernel,1207,0,2,0,aten_mish,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,mish_backward_kernel,1238,0,2,0,aten_mish_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,prelu_kernel,1285,0,1,0,aten_elu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Activation.cpp,prelu_backward_kernel,1299,0,1,0,aten_elu_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool2d,17,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool2d_backward,256,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool2d_backward_channels_last,306,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool3d,412,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool3d_backward,681,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveAvgPoolKernel.cpp,cpu_adaptive_avg_pool3d_backward_channels_last,740,9,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool2d,17,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool2d_backward,341,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool2d_backward_channels_last,387,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool3d,483,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool3d_backward,831,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AdaptiveMaxPoolKernel.cpp,cpu_adaptive_max_pool3d_backward_channels_last,881,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AmpGradScalerKernels.cpp,_amp_foreach_non_finite_check_and_unscale_cpu_kernel,31,1,2,0,aten_masked_scale,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool2d,16,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool2d_channels_last,102,9,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool2d_channels_last,216,10,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool2d_backward,348,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool2d_backward_channels_last,416,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool3d,549,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool3d_channels_last,644,10,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool3d_channels_last,767,11,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool3d_backward,908,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/AvgPoolKernel.cpp,cpu_avg_pool3d_backward_channels_last,985,9,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,add_clamp_kernel,40,0,1,0,aten_add_clamp,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,atan2_kernel,69,0,1,0,aten_atan2,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,AT_EXPAND,111,0,4,0,aten_mul,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,div_true_kernel,168,0,2,0,aten_div,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,div_trunc_kernel,204,0,3,0,aten_div_trunc,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,div_floor_kernel,297,0,3,0,aten_div_floor,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,remainder_kernel,351,0,3,0,aten_remainder,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,bitwise_and_kernel,413,0,2,0,aten_bitwise_and_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,bitwise_or_kernel,426,0,2,0,aten_bitwise_or_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,bitwise_xor_kernel,439,0,2,0,aten_bitwise_xor_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,lshift_kernel,454,0,1,0,aten_lshift_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logical_and_kernel,470,0,2,0,aten_logical_and,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logical_or_kernel,488,0,2,0,aten_logical_or,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logical_xor_kernel,506,0,2,0,aten_logical_xor,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,rshift_kernel,525,0,1,0,aten_rshift_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,lt_kernel,544,0,2,0,aten_lt,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,le_kernel,564,0,2,0,aten_le,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,gt_kernel,584,0,2,0,aten_gt,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,ge_kernel,604,0,2,0,aten_ge,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,eq_kernel,624,0,2,0,aten_eq,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,ne_kernel,643,0,2,0,aten_ne,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,maximum_kernel,662,0,3,0,aten_maximum,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,minimum_kernel,697,0,3,0,aten_minimum,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,fmax_kernel,732,0,1,0,aten_fmax,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,fmin_kernel,749,0,1,0,aten_fmin,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,smooth_l1_kernel,766,0,2,0,aten_smooth_l1_elementwise,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,huber_kernel,818,0,2,0,aten_huber_elementwise,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,sigmoid_backward_kernel,879,0,3,0,aten_sigmoid_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logit_backward_kernel,924,0,2,0,aten_logit_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,tanh_backward_kernel,974,0,3,0,aten_tanh_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,mse_kernel,1021,0,1,0,aten_mse_elementwise,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,fmod_kernel,1036,0,2,0,aten_fmod,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logaddexp_kernel,1062,0,3,0,aten_logaddexp,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,logaddexp2_kernel,1125,0,2,0,aten_logaddexp2,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,gcd_kernel,1186,0,1,0,aten_gcd_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,lcm_kernel,1194,0,1,0,aten_lcm_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,hypot_kernel,1203,0,1,0,aten_hypot,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,igamma_kernel,1217,0,1,0,aten_igamma,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,igammac_kernel,1231,0,1,0,aten_igammac,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,nextafter_kernel,1245,0,2,0,aten_nextafter,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,heaviside_kernel,1266,0,1,0,aten_heaviside,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,copysign_kernel,1275,0,1,0,aten_copysign,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,xlogy_kernel,1288,0,1,0,aten_xlogy,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,xlog1py_kernel,1303,0,1,0,aten_xlog1py,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,zeta_kernel,1318,0,1,0,aten_zeta,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,chebyshev_polynomial_t_kernel,1325,0,1,0,aten_chebyshev_polynomial_t,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,chebyshev_polynomial_u_kernel,1334,0,1,0,aten_chebyshev_polynomial_u,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,chebyshev_polynomial_v_kernel,1343,0,1,0,aten_chebyshev_polynomial_v,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,chebyshev_polynomial_w_kernel,1352,0,1,0,aten_chebyshev_polynomial_w,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,hermite_polynomial_h_kernel,1361,0,1,0,aten_hermite_polynomial_h,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,hermite_polynomial_he_kernel,1370,0,1,0,aten_hermite_polynomial_he,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,laguerre_polynomial_l_kernel,1379,0,1,0,aten_laguerre_polynomial_l,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,legendre_polynomial_p_kernel,1388,0,1,0,aten_legendre_polynomial_p,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,shifted_chebyshev_polynomial_t_kernel,1397,0,1,0,aten_chebyshev_polynomial_t,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,shifted_chebyshev_polynomial_u_kernel,1406,0,1,0,aten_chebyshev_polynomial_u,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,shifted_chebyshev_polynomial_v_kernel,1415,0,1,0,aten_chebyshev_polynomial_v,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,shifted_chebyshev_polynomial_w_kernel,1424,0,1,0,aten_chebyshev_polynomial_w,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BinaryOpsKernel.cpp,ldexp_kernel,1433,0,1,0,aten_ldexp,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,scale_,57,4,0,0,aten_blas_scale_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,sum,79,3,0,0,aten_blas_sum_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_transa_,170,2,0,0,aten_gemm_transa_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_transb_impl,198,4,0,0,aten_gemm_transb_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_transab_,310,2,0,0,aten_gemm_transab_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_notrans_,337,2,0,0,aten_gemm_notrans_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_transa_,377,2,0,1,aten_gemm_transa_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,gemm_transa_,413,2,0,1,aten_gemm_transa_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,cpublas_axpy_impl,520,2,0,0,aten_blas_axpy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/BlasKernel.cpp,cpublas_copy_impl,542,1,0,0,aten_blas_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CatKernel.cpp,cat_serial_kernel_impl,23,5,0,0,aten_cat_serial_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ChannelShuffleKernel.cpp,cpu_channel_shuffle,15,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ChannelShuffleKernel.cpp,cpu_channel_shuffle_cl,60,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ComplexKernel.cpp,complex_kernel,10,0,1,0,aten_complex_scalarized,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ComplexKernel.cpp,polar_kernel,18,0,1,0,aten_polar_scalarized,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CopyKernel.cpp,reduced_float_copy_kernel,50,6,0,2,aten_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CopyKernel.cpp,AT_EXPAND,203,0,6,0,aten_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CopyKernel.cpp,neg_conj_kernel,258,0,1,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CopyKernel.cpp,copy_kernel,286,0,1,0,aten_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/CrossKernel.cpp,apply_cross,17,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DepthwiseConvKernel.cpp,convolution_depthwise3x3_winograd_impl,122,11,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DepthwiseConvKernel.cpp,convolution_depthwise3x3_winograd_impl,337,11,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,run_parallel_pdist,147,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,run_parallel_cdist,203,2,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,backward_down_column_pdist,268,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,run_backward_parallel_pdist,292,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,run_backward_parallel_cdist,356,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistanceOpsKernel.cpp,backward_down_column_cdist,392,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistributionKernels.cpp,bernoulli_scalar_kernel,51,0,0,1,aten_bernoulli_scalar_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/DistributionKernels.cpp,exponential_kernel,115,0,0,1,aten_exponential_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FillKernel.cpp,fill_kernel,39,0,1,0,aten_fill,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,_scale_attn_mask_fusion_kernel,28,38,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,_scale_attn_mask_fusion_kernel,37,38,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,_exp_reduce_sum_fusion_kernel,86,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,_mul_reduce_max_fusion_kernel,151,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,fill_stub,210,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,copy_value_with_pad,254,5,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,pad_remain_row_col_zero,306,4,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,cpu_flash_attention,345,8,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,cpu_flash_attention_backward,795,11,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,constexpr,1026,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FlashAttentionKernel.cpp,constexpr,1082,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FunctionOfAMatrixUtilsKernel.cpp,_compute_linear_combination_cpu_kernel,18,2,0,0,aten_linear_combination_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdagradKernel.cpp,adagrad_math,14,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdagradKernel.cpp,adagrad_math,83,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdagradKernel.cpp,adagrad_fused_step_impl,139,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdamKernel.cpp,adam_math,14,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdamKernel.cpp,adam_math,157,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedAdamKernel.cpp,adam_fused_step_impl,265,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedSGDKernel.cpp,sgd_math,14,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedSGDKernel.cpp,sgd_math,106,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/FusedSGDKernel.cpp,sgd_fused_step_impl,184,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,forward,546,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,backward,594,1,0,0,aten_grid_sampler_2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,forward,734,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,backward,768,1,0,0,aten_grid_sampler_2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,forward,914,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,backward,956,3,0,0,aten_grid_sampler_2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,grid_sample_2d_grid_slice_iterator,1032,5,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,grid_sampler_2d_cpu_kernel_impl,1151,1,0,1,aten_grid_sampler_2d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/GridSamplerKernel.cpp,grid_sampler_2d_backward_cpu_kernel_impl,1216,1,0,1,aten_grid_sampler_2d_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/HistogramKernel.cpp,histogramdd_cpu_contiguous,79,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/HistogramKernel.cpp,histogramdd_out_cpu_template,210,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,get,54,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_take_put_kernel,64,1,0,0,aten_put_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,index_fill_kernel,211,2,0,0,aten_index_fill_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,index_copy_kernel,271,2,0,0,aten_index_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_masked_fill_kernel,334,1,0,0,aten_masked_fill_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_masked_scatter_kernel,361,1,0,0,aten_masked_scatter_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_masked_select_serial_kernel,400,1,0,0,aten_masked_select_serial_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_masked_select_kernel,444,1,0,0,aten_masked_select_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_hflip_vec,488,5,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_vflip_memcpy,551,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,generate_vec_hflip_reg_mask,586,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,vectorized_cpu_hflip_channels_last,598,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,cpu_hflip_channels_last_vec,674,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/IndexKernel.cpp,flip_kernel,723,0,2,0,aten_flip_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/LerpKernel.cpp,lerp_vec_map,30,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/LerpKernel.cpp,lerp_scalar_kernel,63,0,3,0,aten_lerp_scalar_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/LerpKernel.cpp,lerp_tensor_kernel,114,0,3,0,aten_lerp_tensor_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/LinearAlgebraKernel.cpp,addr_kernel,13,0,4,0,aten_addr_elementwise,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPoolKernel.cpp,cpu_max_pool,235,10,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPoolKernel.cpp,cpu_max_pool_channels_last,355,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPoolKernel.cpp,cpu_max_pool_backward,472,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPoolKernel.cpp,cpu_max_pool_backward_channels_last,537,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPooling.cpp,max_pool1d_kernel,13,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxPooling.cpp,max_pool1d_impl,30,1,0,1,aten_max_pool1d_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxUnpoolKernel.cpp,cpu_max_unpool,16,1,0,1,aten_max_unpool_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxUnpoolKernel.cpp,cpu_max_unpool_channels_last,101,2,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/MaxUnpoolKernel.cpp,cpu_max_unpool_backward,164,1,0,1,aten_max_unpool_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/NativeMultiheadAttnKernel.cpp,cpu_transform_bias_rescale_qkv,17,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,copy_stub,98,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,add_stub,114,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,cpu_padding,130,6,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,cpu_padding_channels_last,233,2,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,cpu_padding_backward,311,9,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PaddingKernel.cpp,cpu_padding_backward_channels_last,395,7,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PixelShuffleKernel.cpp,cpu_pixel_shuffle,15,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PixelShuffleKernel.cpp,cpu_pixel_shuffle_channels_last,55,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PixelShuffleKernel.cpp,cpu_pixel_unshuffle,113,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PixelShuffleKernel.cpp,cpu_pixel_unshuffle_channels_last,154,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp,addcmul_cpu_kernel,12,0,2,0,aten_addcmul,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp,addcdiv_cpu_kernel,53,0,2,0,aten_addcdiv,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp,smooth_l1_backward_cpu_kernel,93,0,2,0,aten_smooth_l1_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp,huber_backward_cpu_kernel,181,0,1,0,aten_huber_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp,mse_backward_cpu_kernel,220,0,1,0,aten_mse_backward,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PowKernel.cpp,pow_tensor_tensor_kernel,17,0,2,0,aten_pow,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PowKernel.cpp,pow_tensor_scalar_optimized_kernel,52,0,4,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/PowKernel.cpp,pow_tensor_scalar_kernel,89,0,2,0,aten_pow_tensor_scalar,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/RangeFactoriesKernel.cpp,arange_kernel,21,0,0,1,aten_arange_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/RangeFactoriesKernel.cpp,linspace_kernel,45,0,1,1,aten_linspace,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,reduce_all_impl_vec,23,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,reduce_all_impl,46,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,min_all_kernel_impl,65,0,1,0,aten_min_all_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,max_all_kernel_impl,90,0,1,0,aten_max_all_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,reduce_all_impl_two_outputs,116,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,reduce_all_impl_vec_two_outputs,141,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceAllOpsKernel.cpp,aminmax_allreduce_kernel,170,0,1,0,aten_aminmax_allreduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,cpu_cum_base_kernel,30,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,cumsum_cpu_kernel,79,1,0,0,aten_cumsum,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,cumprod_cpu_kernel,98,1,0,0,aten_cumprod_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,logcumsumexp_cpu_kernel,117,1,0,0,aten_logcumsumexp_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,norm_kernel_tensor_iterator_impl,206,3,0,0,aten_norm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,and_kernel_impl,277,1,0,0,aten_and_reduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,or_kernel_impl,315,1,0,0,aten_or_reduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,argmax_kernel_impl,380,1,0,0,aten_argmax_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,argmin_kernel_impl,404,1,0,0,aten_argmin_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReduceOpsKernel.cpp,powsum_kernel_tensor_iterator_impl,482,3,0,0,aten_powsum_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,reduce,68,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,fp16_dot_with_fp16_arith,82,3,0,0,aten_fp16_dot_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,fp16_gemv_trans_fp16_arith_by_dot_products,104,3,0,3,aten_fp16_gemv_trans_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,reduce,138,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,fp16_gemv_trans_fp32_arith_by_dot_products,394,3,0,3,aten_fp16_gemv_trans_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ReducedPrecisionFloatGemvFastPathKernel.cpp,bf16_gemv_trans_fp32_arith_by_dot_products,449,1,0,1,aten_bf16_gemv_trans_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/RenormKernel.cpp,renorm_scale_factor_impl,13,0,1,0,aten_renorm_scale_factor,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SampledAddmmKernel.cpp,sampled_addmm_sparse_csr_kernel_impl,16,3,0,0,aten_sampled_addmm_sparse_csr_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,113,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,140,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,179,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,279,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,379,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,475,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,operator,570,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,update_prefsum_and_offset_in_range,692,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,radix_sort_kernel,735,5,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,radix_sort_parallel,825,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,cpu_scatter_reduce_expanded_index,909,6,0,4,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/ScatterGatherKernel.cpp,cpu_gather_expanded_index_kernel,1049,3,0,1,aten_gather_expanded_index_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,_vec_log_softmax_lastdim,34,0,0,1,aten_softmax,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,_vec_host_softmax_backward_lastdim,161,1,0,1,aten_softmax,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,apply,616,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,apply,893,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,apply,914,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SoftMaxKernel.cpp,apply,934,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SortingKernel.cpp,_dim_apply,27,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SortingKernel.cpp,parallel_sort1d_kernel,109,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SparseFactories.cpp,_spdiags_kernel_cpu,14,1,1,0,aten_spdiags_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,_update,26,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_kernel_impl,66,3,0,0,aten_spmm_reduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_arg_kernel_impl,162,3,0,1,aten_spmm_reduce_arg_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_backward_input_kernel_impl,241,1,0,1,aten_spmm_reduce_backward_input_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_backward_input_arg_kernel_impl,291,3,0,1,aten_spmm_reduce_backward_input_arg_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_normalize_values_kernel_impl,347,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SpmmReduceKernel.cpp,spmm_reduce_backward_other_arg_kernel_impl,375,4,0,1,aten_spmm_reduce_backward_other_arg_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,load_reduce_vec,18,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,load,145,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,store,293,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,multi_row_sum,345,10,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,row_sum,412,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,vectorized_inner_sum,433,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,scalar_inner_sum,463,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,vectorized_outer_sum,475,4,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,scalar_outer_sum,513,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/SumKernel.cpp,cascade_sum,536,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,compare_base_kernel,74,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,min_kernel_impl,102,1,0,0,aten_min_reduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,max_kernel_impl,135,1,0,0,aten_max_reduce_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,aminmax_kernel,168,1,0,0,aten_aminmax_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,isposinf_kernel_impl,227,0,1,0,aten_isposinf,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,isneginf_kernel_impl,233,0,1,0,aten_isneginf,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,mode_kernel_impl,239,3,0,0,aten_mode_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,isin_default_kernel_cpu,311,1,1,0,aten_isin_default_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,clamp_kernel_impl,342,0,1,0,aten_clamp_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,clamp_scalar_kernel_impl,358,0,1,0,aten_clamp_scalar_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,clamp_max_scalar_kernel_impl,374,0,1,0,aten_clamp_max_scalar_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/TensorCompareKernel.cpp,clamp_min_scalar_kernel_impl,388,0,1,0,aten_clamp_min_scalar_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,sigmoid_kernel,36,0,2,0,aten_sigmoid,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,VmlLog,70,0,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,LogitMKLKernel,93,3,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,logit_kernel,137,0,2,0,aten_logit,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,abs_kernel,195,0,2,0,aten_abs,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,angle_kernel,211,0,1,0,"aten_angle_complex_scalarized,aten_angle_real",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,conj_kernel,221,0,1,0,aten_conj_complex_scalarized,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,bitwise_not_kernel,236,0,2,0,aten_bitwise_not_i32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,frac_kernel,259,0,1,0,aten_frac,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,logical_not_kernel,268,0,1,0,aten_logical_not_f32,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,reciprocal_kernel,280,0,1,0,aten_reciprocal,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,neg_kernel,290,0,1,0,aten_neg,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,sign_kernel,299,0,2,0,aten_sign,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,signbit_kernel,322,0,2,0,aten_signbit,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,sgn_kernel,335,0,2,0,aten_sgn_complex_scalarized,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,sinc_kernel,352,0,1,0,aten_sinc,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,sinh_kernel,368,0,1,0,"aten_asinh,aten_sinh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,cosh_kernel,377,0,1,0,"aten_acosh,aten_cosh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,acosh_kernel,386,0,1,0,"aten_acosh,aten_cosh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,asinh_kernel,394,0,1,0,"aten_asinh,aten_sinh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,atanh_kernel,402,0,1,0,"aten_atanh,aten_tanh",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,digamma_kernel,411,0,1,0,aten_digamma,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,trigamma_kernel,420,0,1,0,aten_trigamma,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,exp2_kernel,428,0,1,0,aten_exp2,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,polygamma_kernel,438,0,1,0,aten_polygamma,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,nan_to_num_kernel,499,0,1,0,aten_nan_to_num,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,kaiser_window_kernel,523,0,1,0,aten_kaiser_window,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,rsqrt_kernel,534,0,1,0,"aten_rsqrt,aten_sqrt",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,entr_kernel,545,0,1,0,aten_entr,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,frexp_kernel,561,0,1,0,aten_exp,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,ndtri_kernel,578,0,1,0,aten_ndtri,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,log_ndtr_kernel,585,0,1,0,aten_log_ndtr,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,i0e_kernel,592,0,1,0,aten_i0e,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,i1_kernel,603,0,1,0,"aten_i1,aten_modified_bessel_i1",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,i1e_kernel,611,0,1,0,aten_i1e,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,erfcx_kernel,619,0,1,0,aten_erfcx,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,round_decimals_kernel,627,0,1,0,aten_round_decimals,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,bessel_j0_kernel,645,0,1,0,aten_bessel_j0,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,bessel_j1_kernel,655,0,1,0,aten_bessel_j1,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,bessel_y0_kernel,665,0,1,0,aten_bessel_y0,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,bessel_y1_kernel,675,0,1,0,aten_bessel_y1,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,modified_bessel_i0_kernel,685,0,1,0,"aten_i0,aten_modified_bessel_i0",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,modified_bessel_i1_kernel,695,0,1,0,"aten_i1,aten_modified_bessel_i1",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,modified_bessel_k0_kernel,705,0,1,0,aten_modified_bessel_k0,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnaryOpsKernel.cpp,modified_bessel_k1_kernel,715,0,1,0,aten_modified_bessel_k1,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Unfold2d.cpp,unfolded2d_acc,36,7,0,1,aten_unfolded2d_acc_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Unfold2d.cpp,unfolded2d_acc_channels_last,115,6,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Unfold2d.cpp,unfolded2d_copy,228,5,0,1,aten_unfolded2d_copy_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/Unfold2d.cpp,unfolded2d_copy_channels_last,329,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UnfoldBackwardKernel.cpp,_unfold_backward_internal_kernel,60,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,eval,66,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,eval,83,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,interpolate_separable_1d_zero_strides,168,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,interpolate_separable_1d,192,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,is_zero_stride,218,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,is_contiguous_stride,227,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,basic_loop_non_separable,297,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,basic_loop_separable_1d_vertical,307,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,basic_loop_separable_1d_horizontal,363,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_nearest_channels_last,465,4,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_linear_channels_last,570,11,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,init_indices_weights,734,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,_compute_indices_min_size_weights_aa,753,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,_compute_indices_min_size_weights,798,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,_compute_index_ranges_weights,864,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,_compute_index_ranges_int16_weights,992,4,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,init_indices_weights,1050,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,compute_indices_weights,1076,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,compute_indices_weights,1126,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,compute_indices_weights,1177,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,compute_indices_weights,1297,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_non_separable_Nd_kernel_impl,1510,4,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_separable_1d,1590,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_separable_Nd_kernel_impl,1674,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleKernel.cpp,upsample_separable_Nd_backward_aa,2052,5,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,nearest_channels_last_acc,17,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,nearest_channels_last_acc,34,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,linear_channels_last_acc,54,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,linear_channels_last_acc,71,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,cpu_upsample_nearest_backward,91,9,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,cpu_upsample_nearest_backward_channels_last,224,7,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,cpu_upsample_linear_backward,421,9,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/UpSampleMoreKernel.cpp,cpu_upsample_linear_backward_channels_last,591,7,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/WeightNormKernel.cpp,weight_norm_first_dim_kernel,17,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/WeightNormKernel.cpp,weight_norm_last_dim_kernel,129,4,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/WeightNormKernel.cpp,weight_norm_backward_first_dim_kernel,181,1,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/WeightNormKernel.cpp,weight_norm_backward_last_dim_kernel,324,5,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/airy_ai.cpp,airy_ai_kernel,12,0,1,0,aten_airy_ai,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/batch_norm_kernel.cpp,batch_norm_cpu_collect_linear_and_constant_terms,30,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/batch_norm_kernel.cpp,batch_norm_cpu_collect_stats_contiguous_internal,829,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/batch_norm_kernel.cpp,batch_norm_cpu_collect_stats_channels_last_internal,902,10,0,2,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/batch_norm_kernel.cpp,batch_norm_cpu_backward_contiguous_internal,996,6,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/batch_norm_kernel.cpp,batch_norm_cpu_backward_channels_last_internal,1120,14,0,3,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/group_norm_kernel.cpp,GroupNormKernelImplInternal,28,4,0,1,aten_group_norm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/group_norm_kernel.cpp,GroupNormKernelImplChannelsLastInternal,283,12,0,3,aten_group_norm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/group_norm_kernel.cpp,GroupNormInputBackward,652,4,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/group_norm_kernel.cpp,CalcInternalGradientsChannelsLast,1236,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/group_norm_kernel.cpp,GroupNormBackwardKernelImplChannelsLastInternal,1357,8,0,3,aten_group_norm_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,tinygemm_kernel,63,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,tinygemm_kernel,213,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,tinygemm_kernel_,390,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,tinygemm_kernel,524,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,weight_to_int4pack_kernel,617,7,0,1,aten_weight_to_int4pack_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,int4pack_mm_kernel_,697,1,0,1,aten_int4pack_mm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,ref_dyn_quant_matmul_4bit_channelwise_kernel_bf16,796,6,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,ref_dyn_quant_matmul_4bit_channelwise_kernel,974,6,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int4mm_kernel.cpp,ref_dyn_quant_matmul_4bit_groupwise_kernel,1141,7,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int8mm_kernel.cpp,tinygemm_kernel,31,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int8mm_kernel.cpp,tinygemm_kernel,113,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int8mm_kernel.cpp,tinygemm_kernel_,226,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int8mm_kernel.cpp,tinygemm_kernel,309,3,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/int8mm_kernel.cpp,int8pack_mm_kernel_,358,1,0,1,aten_int8pack_mm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/layer_norm_kernel.cpp,LayerNormSecondPass,26,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/layer_norm_kernel.cpp,LayerNormKernelImplInternal,57,1,0,1,aten_layer_norm_cpu_backend,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/layer_norm_kernel.cpp,layer_norm_kernel_mixed_type,97,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/layer_norm_kernel.cpp,layer_norm_backward_frame,318,2,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/cpu/layer_norm_kernel.cpp,LayerNormBackwardKernelImplInternal,510,3,0,2,aten_layer_norm_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/scaled_modified_bessel_k0.cpp,scaled_modified_bessel_k0_kernel,12,0,1,0,aten_scaled_modified_bessel_k0,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/scaled_modified_bessel_k1.cpp,scaled_modified_bessel_k1_kernel,12,0,1,0,aten_scaled_modified_bessel_k1,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/cpu/spherical_bessel_j0.cpp,spherical_bessel_j0_kernel,12,0,1,0,aten_spherical_bessel_j0,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/layer_norm.cpp,layer_norm_with_mean_rstd_out,40,2,0,0,aten_layer_norm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/layer_norm.cpp,math_native_layer_norm,205,2,0,0,aten_layer_norm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/layer_norm.cpp,rms_norm_composite,265,1,0,0,aten_rms_norm,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorBackward.cpp,nested_softmax_backward,70,1,0,0,aten_nested_softmax_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorBackward.cpp,_nested_sum_backward_cpu,114,3,0,0,aten_nested_sum_backward_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorBinaryOps.cpp,get_elementwise_nested_tensor_impl,22,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,iterates nested components and delegates arithmetic to dense elementwise operators
+aten/src/ATen/native/nested/NestedTensorBinaryOps.cpp,NestedTensor_elementwise_Tensor,74,1,0,0,,no,NEEDS_REVIEW,COVERED_COMPOSITE_ORCHESTRATION,iterates nested components and delegates arithmetic to dense elementwise operators
+aten/src/ATen/native/nested/NestedTensorFactories.cpp,clone_nested,132,1,0,0,aten_nested_clone_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorFactories.cpp,NestedTensor_unbind,169,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMath.cpp,num_bytes,26,1,0,0,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,pad_tensor_to_shape,41,1,0,0,aten_nested_pad_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,_nested_tensor_from_tensor_list,117,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMath.cpp,nested_from_padded_generic,206,2,0,0,aten_nested_from_padded_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,NestedTensor_to_padded_tensor_generic,246,4,0,0,aten_nested_to_padded_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,NestedTensor_sum_dim_CPU,357,3,0,0,aten_nested_sum_dim_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,select_nested,428,2,0,0,aten_nested_select_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,softmax_nested,505,1,0,0,aten_nested_softmax_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,NestedTensor_all,543,1,0,0,aten_nested_all_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,squeeze_dim_nested,619,2,0,0,aten_nested_squeeze_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMath.cpp,NestedTensor_compute_size_stride,704,7,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/nested/NestedTensorMath.cpp,_nested_view_from_buffer,869,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMath.cpp,reshape_as_nested,960,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMath.cpp,can_cat_nested_sizes,991,2,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/nested/NestedTensorMath.cpp,cat_nested_as_jagged,1017,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMath.cpp,cat_nested_impl,1068,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorMatmul.cpp,bmm_nested,18,2,0,0,aten_nested_bmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMatmul.cpp,matmul_with_bmm_nested,72,3,0,0,aten_nested_bmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMatmul.cpp,matmul_nested_with_broadcasted_dense,186,1,0,0,aten_nested_matmul_broadcast_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorMatmul.cpp,matmul_out_nested,306,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorTransformerFunctions.cpp,NestedTensor_softmax_dropout,144,1,0,0,aten_nested_softmax_dropout_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorTransformerFunctions.cpp,NestedTensor_batch_offsets_from_size_tensor,195,2,0,0,aten_nested_batch_offsets_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorTransformerFunctions.cpp,NestedTensor_to_mask,215,2,0,0,aten_nested_to_mask_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorTransformerFunctions.cpp,_jagged_to_padded_dense_forward_cpu,250,1,0,0,aten_jagged_to_padded_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorTransformerFunctions.cpp,_padded_dense_to_jagged_forward_cpu,304,1,0,0,aten_padded_to_jagged_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorUnaryOps.cpp,NestedTensor_where,49,1,0,0,"aten_nested_where_cpu,aten_nested_where_out_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorUnaryOps.cpp,NestedTensor_where_out,87,1,0,0,"aten_nested_where_cpu,aten_nested_where_out_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/nested/NestedTensorUtils.cpp,NestedTensor_get_max_size_from_size_tensor,35,2,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/nested/NestedTensorUtils.cpp,chunk_nested_tensor,70,2,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/nested/NestedTensorUtils.cpp,split_with_sizes_nested,114,3,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/sparse/FlattenIndicesKernel.cpp,launch,14,0,1,0,aten_flatten_indices_launch_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SoftMax.cpp,get_offsets,43,3,0,0,aten_sparse_softmax_offsets_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SoftMax.cpp,get_pools,106,3,0,0,aten_sparse_softmax_pools_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SoftMax.cpp,cpu_sparse_coo_softmax,157,8,0,1,"aten_sparse_coo_softmax_backward_cpu,aten_sparse_coo_softmax_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SoftMax.cpp,cpu_sparse_coo_softmax_backward,392,7,0,1,"aten_sparse_coo_softmax_backward_cpu,aten_sparse_coo_softmax_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseBinaryOpIntersectionKernel.cpp,launch,13,0,1,0,aten_sparse_intersection_launch_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseBinaryOpIntersectionKernel.cpp,apply,46,2,0,0,aten_sparse_intersection_apply_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseBlasImpl.cpp,addmv_sparse_csr,305,2,0,1,aten_sparse_addmv_csr_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseBlasImpl.cpp,addmv_sparse_bsr,328,3,0,1,aten_sparse_addmv_bsr_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseCsrTensor.cpp,_validate_sparse_compressed_tensor_args_worker,128,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/sparse/SparseCsrTensor.cpp,_estimate_sparse_compressed_tensor_size,528,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/sparse/SparseCsrTensorMath.cpp,addmm_out_sparse_csr_native_cpu,529,2,0,1,aten_sparse_csr_addmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseCsrTensorMath.cpp,add_out_dense_sparse_compressed_cpu,830,3,0,0,aten_sparse_csr_add_dense_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseCsrTensorMath.cpp,reduce_sparse_csr_dim0_cpu_template,1038,1,0,0,aten_sparse_csr_reduce_dim0_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseCsrTensorMath.cpp,reduce_sparse_csr_dim1_cpu_template,1124,3,0,1,aten_sparse_csr_reduce_dim1_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseCsrTensorMath.cpp,reduce_sparse_csr_dim01_cpu_template,1240,1,0,1,aten_sparse_csr_reduce_all_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseMatMul.cpp,csr_to_coo,35,2,0,0,aten_sparse_matmul_csr_to_coo_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseMatMul.cpp,_csr_matmult_maxnnz,52,3,0,0,"aten_sparse_matmul_cpu,aten_sparse_matmul_maxnnz_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseMatMul.cpp,_csr_matmult,87,4,0,0,"aten_sparse_matmul_cpu,aten_sparse_matmul_maxnnz_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensor.cpp,sparse_coo_tensor,289,3,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/sparse/SparseTensor.cpp,_validate_sparse_coo_tensor_args,371,1,0,0,,yes,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/sparse/SparseTensor.cpp,_coalesce_sparse_cpu,627,2,0,0,aten_coalesce_sparse_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,norm_sparse,355,1,0,0,aten_sparse_norm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,add_out_sparse_contiguous,439,4,0,0,aten_sparse_add_values_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,add_dense_sparse_worker_non_hybrid_cpu,595,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,add_dense_sparse_worker_hybrid_cpu,618,3,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,add_dense_sparse_worker_non_coalesced_cpu,649,7,0,1,,yes,COVERED_BY_EXTRACTED_ENTRY,COVERED_BY_EXTRACTED_ENTRY,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,add_out_dense_sparse_cpu,710,2,0,1,aten_dense_sparse_add_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,intersection_binary_op_sparse_dense_out,831,4,0,0,aten_sparse_dense_intersection_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,mul_out_sparse_cpu,1049,4,0,0,aten_sparse_mul_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,s_addmm_out_sparse_dense_worker,1185,1,0,0,aten_sparse_addmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,hspmm_out_sparse_cpu,1406,1,0,0,aten_hspmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,_sspaddmm_out_cpu,1487,3,0,0,aten_sspaddmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,_sparse_sum,1648,3,0,0,"aten_sparse_sum_backward_cpu,aten_sparse_sum_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,_sparse_sum_backward_cpu,1763,5,0,1,"aten_sparse_sum_backward_cpu,aten_sparse_sum_cpu",yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,binary_search_strided_rightmost,1911,1,0,0,aten_binary_search_strided_rightmost_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/SparseTensorMath.cpp,bmm_out_sparse_cpu,1951,1,0,0,aten_sparse_bmm_cpu,yes,EXTRACTED,EXTRACTED,provenance/call-graph evidence
+aten/src/ATen/native/sparse/ValidateCompressedIndicesKernel.cpp,launch,14,0,1,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/sparse/ValidateCompressedIndicesKernel.cpp,launch,27,0,1,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,shape/view/list orchestration; arithmetic is delegated to called operators
+aten/src/ATen/native/transformers/attention.cpp,debug_assert_shape,166,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/transformers/attention.cpp,aligned_tensor,574,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,"shape, validation, dtype, or backend-selection loop"
+aten/src/ATen/native/transformers/sdp_utils_cpp.cpp,use_flash_attention_cpp,36,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,backend selection
+aten/src/ATen/native/transformers/sdp_utils_cpp.cpp,select_sdp_backend_cpp,61,1,0,0,,no,NEEDS_REVIEW,NON_NUMERICAL_PLUMBING,backend selection

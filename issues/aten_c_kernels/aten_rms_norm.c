@@ -1,5 +1,7 @@
 /* aten::rms_norm for one row, with learned elementwise weight. */
+#ifndef N
 #define N 128
+#endif
 extern float sqrtf(float);
 
 void aten_rms_norm(float x[N], float weight[N], float out[N], float eps) {

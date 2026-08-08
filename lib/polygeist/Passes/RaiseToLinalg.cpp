@@ -6,6 +6,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
@@ -19,6 +20,11 @@
 #include "mlir/Transforms/Passes.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/StringSwitch.h"
+
+#include <cstdlib>
+#include <functional>
+#include <limits>
 
 #define DEBUG_TYPE "raise-to-linalg"
 
@@ -27,6 +33,113 @@ using namespace mlir::arith;
 using namespace polygeist;
 using namespace affine;
 using namespace linalg;
+
+// Normalize the side-effect-free C libm calls emitted by Clang/cgeist into
+// MLIR Math operations before analyzing loop purity.  A generic func.call has
+// unknown memory effects, so otherwise an entirely pointwise loop such as
+// load -> cosf -> store cannot be raised even though the operation is pure.
+// Keep the mapping explicit: only standardized functions with exact Math
+// dialect counterparts are assigned read-none semantics here.
+struct KnownLibmCallToMath : public OpRewritePattern<func::CallOp> {
+  using OpRewritePattern<func::CallOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(func::CallOp call,
+                                PatternRewriter &rewriter) const final {
+    if (call.getNumResults() != 1)
+      return failure();
+    StringRef callee = call.getCallee();
+    auto baseName = callee;
+    if (!call.getOperands().empty() &&
+        call.getOperand(0).getType().isF32() && baseName.ends_with("f"))
+      baseName = baseName.drop_back();
+
+    auto unary = [&](auto opTag) -> LogicalResult {
+      using OpTy = decltype(opTag);
+      if (call.getNumOperands() != 1 ||
+          !isa<FloatType>(call.getOperand(0).getType()) ||
+          call.getResult(0).getType() != call.getOperand(0).getType())
+        return failure();
+      rewriter.replaceOpWithNewOp<OpTy>(call, call.getOperand(0));
+      return success();
+    };
+    auto binary = [&](auto opTag) -> LogicalResult {
+      using OpTy = decltype(opTag);
+      if (call.getNumOperands() != 2 ||
+          !isa<FloatType>(call.getOperand(0).getType()) ||
+          call.getOperand(1).getType() != call.getOperand(0).getType() ||
+          call.getResult(0).getType() != call.getOperand(0).getType())
+        return failure();
+      rewriter.replaceOpWithNewOp<OpTy>(
+          call, call.getOperand(0), call.getOperand(1));
+      return success();
+    };
+
+    if (baseName == "atan") return unary(math::AtanOp());
+    if (baseName == "cbrt") return unary(math::CbrtOp());
+    if (baseName == "ceil") return unary(math::CeilOp());
+    if (baseName == "cos") return unary(math::CosOp());
+    if (baseName == "erf") return unary(math::ErfOp());
+    if (baseName == "exp") return unary(math::ExpOp());
+    if (baseName == "exp2") return unary(math::Exp2Op());
+    if (baseName == "expm1") return unary(math::ExpM1Op());
+    if (baseName == "fabs") return unary(math::AbsFOp());
+    if (baseName == "floor") return unary(math::FloorOp());
+    if (baseName == "log") return unary(math::LogOp());
+    if (baseName == "log10") return unary(math::Log10Op());
+    if (baseName == "log1p") return unary(math::Log1pOp());
+    if (baseName == "log2") return unary(math::Log2Op());
+    if (baseName == "round") return unary(math::RoundOp());
+    if (baseName == "sin") return unary(math::SinOp());
+    if (baseName == "sqrt") return unary(math::SqrtOp());
+    if (baseName == "tan") return unary(math::TanOp());
+    if (baseName == "tanh") return unary(math::TanhOp());
+    if (baseName == "trunc") return unary(math::TruncOp());
+    if (baseName == "atan2") return binary(math::Atan2Op());
+    if (baseName == "copysign") return binary(math::CopySignOp());
+    if (baseName == "pow") return binary(math::PowFOp());
+    return failure();
+  }
+};
+
+static bool isKnownPureScalarLibmCall(Operation *op) {
+  auto call = dyn_cast<func::CallOp>(op);
+  if (!call || call.getNumResults() != 1 || call.getNumOperands() == 0)
+    return false;
+  auto isScalar = [](Type type) {
+    return isa<FloatType, IntegerType, IndexType>(type);
+  };
+  if (isScalar(call.getResult(0).getType()) &&
+      llvm::all_of(call.getOperandTypes(), isScalar))
+    if (auto declaration = SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(
+            call, call.getCalleeAttr()))
+      if (declaration->hasAttr("polygeist.pure"))
+        return true;
+  if (call.getNumOperands() > 2 ||
+      !isa<FloatType>(call.getResult(0).getType()))
+    return false;
+  if (!llvm::all_of(call.getOperandTypes(), [](Type type) {
+        return isa<FloatType>(type);
+      }))
+    return false;
+  StringRef name = call.getCallee();
+  if (call.getOperand(0).getType().isF32() && name.ends_with("f"))
+    name = name.drop_back();
+  // ISO C/POSIX libm functions that are pure with respect to program memory.
+  // Floating-point exception flags are not modeled as memory effects in the
+  // source IR, matching MLIR Math operation semantics.
+  return llvm::StringSwitch<bool>(name)
+      .Cases("acos", "acosh", "asin", "asinh", true)
+      .Cases("atan", "atan2", "atanh", "cbrt", true)
+      .Cases("ceil", "copysign", "cos", "cosh", true)
+      .Cases("erf", "erfc", "exp", "exp2", true)
+      .Cases("expm1", "fabs", "floor", "fma", true)
+      .Cases("fmax", "fmin", "fmod", "hypot", true)
+      .Cases("ldexp", "lgamma", "log", "log10", true)
+      .Cases("log1p", "log2", "nextafter", "pow", true)
+      .Cases("remainder", "round", "sin", "sinh", true)
+      .Cases("sqrt", "tan", "tanh", "trunc", true)
+      .Default(false);
+}
 
 // Also want to add support for affine.for ( ) { linalg.generic } -> bigger
 // linalg.generic Also probably want to try to do { linalg.generc1();
@@ -218,7 +331,8 @@ std::optional<int64_t> getConstantFromAffineApply(AffineApplyOp applyOp) {
 Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
                           Value memref_val, Value index, Value bound, AffineApplyOp lower_bound,
                           int firstNDims, ValueRange oldmap_operands,
-                          Value origmemref, bool &check_reduction) {
+                          Value origmemref, bool &check_reduction,
+                          bool projectUnusedInnerDims = false) {
 
   LLVM_DEBUG(llvm::dbgs() << "\n=== remap_in_affine_dim ===\n");
   LLVM_DEBUG(llvm::dbgs() << "  oldmap: " << oldmap << "\n");
@@ -291,6 +405,20 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   // dimension after the existing inner dimensions, which made lowered
   // im2col-style layouts use `(w, h, c)` storage while the body used
   // `(c, h, w)` indices.
+  SmallVector<unsigned> retainedInnerDims;
+  if (projectUnusedInnerDims) {
+    for (unsigned i = 0; i < static_cast<unsigned>(firstNDims); ++i)
+      if (oldmap.isFunctionOfDim(i))
+        retainedInnerDims.push_back(i);
+    auto originalType = dyn_cast<ShapedType>(origmemref.getType());
+    if (!originalType ||
+        retainedInnerDims.size() !=
+            static_cast<unsigned>(originalType.getRank())) {
+      legal = false;
+      return nullptr;
+    }
+  }
+
   SmallVector<AffineExpr> dimReplacements;
   size_t validSims = 0;
   size_t nextInnerDim = 1;
@@ -299,8 +427,16 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   for (int i = 0; i < oldmap.getNumDims(); i++) {
     if (i < firstNDims) {
       assert(i != dimidx);
-      dimReplacements.push_back(builder.getAffineDimExpr(nextInnerDim));
-      nextInnerDim++;
+      if (!projectUnusedInnerDims || oldmap.isFunctionOfDim(i)) {
+        dimReplacements.push_back(builder.getAffineDimExpr(nextInnerDim));
+        nextInnerDim++;
+      } else {
+        // This dimension is a reduction iterator omitted by the output's
+        // indexing map.  Its replacement is immaterial because it cannot
+        // occur in any result expression; use d0 to keep the replacement list
+        // total while leaving it out of the projected view rank.
+        dimReplacements.push_back(builder.getAffineDimExpr(0));
+      }
     } else if (i == dimidx) {
       dimReplacements.push_back(newLoopDim);
     } else {
@@ -343,7 +479,10 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   }
   assert(validSims == operands_without_indices.size());
   auto map2 = oldmap.replaceDimsAndSymbols(dimReplacements, symReplacements,
-                                           firstNDims + 1/*Number of dims in new map*/,
+                                           (projectUnusedInnerDims
+                                                ? retainedInnerDims.size()
+                                                : firstNDims) +
+                                               1/*Number of dims in new map*/,
                                            operands_without_indices.size() /*Number of symbols in new map*/);
   
   LLVM_DEBUG(llvm::dbgs() << "  new map (map2): " << map2 << "\n");
@@ -352,7 +491,10 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
 
   SmallVector<Value> idx_sizes;
   idx_sizes.push_back(bound);
-  for (size_t i = 0; i < firstNDims; i++) {
+  size_t oldViewRank = projectUnusedInnerDims
+                           ? retainedInnerDims.size()
+                           : static_cast<size_t>(firstNDims);
+  for (size_t i = 0; i < oldViewRank; i++) {
     // memref.dimOp captures the size of the memref
     if (auto submap = origmemref.getDefiningOp<polygeist::SubmapOp>())
       idx_sizes.push_back(submap.getSizes()[i]);
@@ -948,13 +1090,20 @@ struct DistributeAffineForOnLinalgGeneric
           continue;
         }
         opToChunk[op] = i;
-        for (Value operand : op->getOperands()) {
-          if (operand == iv) continue;
-          Operation *defOp = operand.getDefiningOp();
-          if (!defOp) continue;             // block arg / outer-scope
-          if (defOp->getBlock() != body) continue;  // outside this body
-          work.push_back(defOp);
-        }
+        // Include values captured by nested regions.  A linalg.generic body
+        // can directly reference an SSA value computed in this affine loop
+        // even though that value is not an operand of the generic op itself.
+        // Missing this edge allowed fission to clone a generic that still
+        // referenced a definition inside the soon-to-be-erased old loop.
+        op->walk([&](Operation *nested) {
+          for (Value operand : nested->getOperands()) {
+            if (operand == iv) continue;
+            Operation *defOp = operand.getDefiningOp();
+            if (!defOp) continue; // block arg / function argument
+            if (defOp->getBlock() != body) continue;
+            work.push_back(defOp);
+          }
+        });
       }
     }
 
@@ -1008,6 +1157,12 @@ struct DistributeAffineForOnLinalgGeneric
       // Leave the builder-inserted affine.yield alone (it terminates the body).
     }
 
+    // The distributed chunks are clones, so every SSA value defined by the
+    // original loop or one of its nested operations is dead now.  Explicitly
+    // sever their internal operand edges before recursive erasure; otherwise
+    // RewriterBase may visit a defining op before its in-region user and
+    // assert even though the entire region is being removed.
+    forOp->dropAllReferences();
     rewriter.eraseOp(forOp);
     return success();
   }
@@ -1016,8 +1171,8 @@ struct DistributeAffineForOnLinalgGeneric
 //===----------------------------------------------------------------------===//
 // PrivatizeScratchAllocaForLoop
 //
-// Looks for a 0-D scalar `memref.alloca` (defined in the enclosing function,
-// outside the loop) that is used as per-iteration scratch by the loop body —
+// Looks for a 0-D scalar `memref.alloca` (either in an enclosing scope or
+// allocated freshly in the loop body) that is used as per-iteration scratch —
 // i.e., every iteration starts by overwriting the scalar before reading it,
 // and nothing outside the loop reads it after the loop. Expands the alloca
 // to `memref<? x T>` with one slot per loop iteration and rewrites every
@@ -1096,15 +1251,28 @@ struct PrivatizeScratchAllocaForLoop
     Block *body = forOp.getBody();
     Value iv = forOp.getInductionVar();
 
-    // Find candidate allocas: any operand inside the body whose defining op
-    // is a `memref.alloca` outside the loop with 0-D scalar type.
+    // Several reductions in one outer iteration may capture scalar results
+    // from earlier stages (batch-norm mean -> variance is the canonical
+    // example).  Hoisting their individual scratch buffers is sound, but the
+    // current fission pass cannot yet materialize that cross-stage SSA value.
+    // Keep those loops intact until stage-graph materialization handles them.
+    unsigned directGenerics = llvm::count_if(
+        body->without_terminator(),
+        [](Operation &op) { return isa<linalg::GenericOp>(op); });
+    if (directGenerics > 1)
+      return failure();
+
+    // Find candidate allocas referenced by the body.  An alloca directly in
+    // this loop body is the canonical C lowering of a private scalar; an
+    // enclosing alloca is accepted by the original form of this pattern.
     SmallVector<memref::AllocaOp> candidates;
     DenseSet<Operation *> seen;
     body->walk([&](Operation *op) {
       for (Value v : op->getOperands()) {
         auto allocaOp = v.getDefiningOp<memref::AllocaOp>();
         if (!allocaOp) continue;
-        if (forOp->isAncestor(allocaOp)) continue; // inside this loop already
+        if (forOp->isAncestor(allocaOp) && allocaOp->getBlock() != body)
+          continue; // belongs to a deeper nested scope
         if (!seen.insert(allocaOp).second) continue;
         auto mrt = dyn_cast<MemRefType>(allocaOp.getType());
         if (!mrt || mrt.getRank() != 0) continue;
@@ -1129,7 +1297,8 @@ struct PrivatizeScratchAllocaForLoop
       for (Operation *user : a->getUsers()) {
         if (!forOp->isAncestor(user)) continue;
         if (!isa<affine::AffineLoadOp, affine::AffineStoreOp, memref::LoadOp,
-                 memref::StoreOp, polygeist::SubmapOp>(user)) {
+                 memref::StoreOp, polygeist::SubmapOp,
+                 linalg::GenericOp>(user)) {
           allHandled = false;
           break;
         }
@@ -1144,16 +1313,16 @@ struct PrivatizeScratchAllocaForLoop
                                       rewriter.getContext());
 
     for (memref::AllocaOp oldAlloca : good) {
-      // Find the ancestor of `forOp` that lives in the same block as
-      // `oldAlloca`. That's where we want to insert: same block as the old
-      // alloca, just before the outermost enclosing loop. This keeps the
-      // new alloca at the scratch's original scope so AffineForOpRaising
-      // can later lift the enclosing loops without hitting dominance
-      // failures on the size operand.
+      // Loop-local scratch must be hoisted immediately before the loop so the
+      // expanded buffer dominates it.  For an already-enclosing allocation,
+      // retain the original scope and insert before the outermost loop at that
+      // scope.
       Block *allocaBlock = oldAlloca->getBlock();
       Operation *insertionAnchor = forOp.getOperation();
-      while (insertionAnchor && insertionAnchor->getBlock() != allocaBlock)
-        insertionAnchor = insertionAnchor->getParentOp();
+      bool loopLocal = allocaBlock == body;
+      if (!loopLocal)
+        while (insertionAnchor && insertionAnchor->getBlock() != allocaBlock)
+          insertionAnchor = insertionAnchor->getParentOp();
       if (!insertionAnchor) continue; // shouldn't happen given precondition
       rewriter.setInsertionPoint(insertionAnchor);
       AffineMap ubMap = forOp.getUpperBoundMap();
@@ -1223,6 +1392,23 @@ struct PrivatizeScratchAllocaForLoop
               submap.getLoc(), submap.getType(), newAlloca, indicesAndSizes,
               newMap);
           rewriter.replaceOp(submap, newSubmap.getResult());
+        } else if (auto generic = dyn_cast<linalg::GenericOp>(user)) {
+          // A reduction raised before its enclosing output loop commonly
+          // names the scalar alloca directly as an `outs` operand.  Give it a
+          // rank-zero view selecting this iteration's private slot.
+          AffineMap scalarMap = AffineMap::get(
+              /*dimCount=*/0, /*symbolCount=*/1,
+              {rewriter.getAffineSymbolExpr(0)}, rewriter.getContext());
+          auto scalarType = MemRefType::get({}, oldAlloca.getType()
+                                                    .cast<MemRefType>()
+                                                    .getElementType());
+          rewriter.setInsertionPoint(generic);
+          auto scalarView = rewriter.create<polygeist::SubmapOp>(
+              generic.getLoc(), scalarType, newAlloca, ValueRange{iv},
+              scalarMap);
+          for (OpOperand &operand : generic->getOpOperands())
+            if (operand.get() == oldAlloca)
+              operand.set(scalarView.getResult());
         } else {
           // Unhandled user. Bail entire pattern by deleting the new alloca
           // and returning failure.
@@ -1237,6 +1423,8 @@ struct PrivatizeScratchAllocaForLoop
           llvm_unreachable("unhandled alloca user in privatization");
         }
       }
+      if (oldAlloca->use_empty())
+        rewriter.eraseOp(oldAlloca);
     }
 
     return success();
@@ -1248,9 +1436,9 @@ struct PrivatizeScratchAllocaForLoop
 //
 // Rank-1 (1-D row) extension of PrivatizeScratchAllocaForLoop. Recognises
 // per-iteration scratch row buffers ("scratch row carries"): an outer
-// `affine.for L` has a `memref.alloca` of static rank-1 `memref<N x T>`
-// defined OUTSIDE L, where each iteration of L writes the full row before
-// any read and nothing outside L observes the buffer.
+// `affine.for L` has a rank-1 `memref.alloca` (static or dynamic, enclosing or
+// loop-local), where each iteration writes the full row before any read and
+// nothing outside L observes the buffer.
 //
 // Canonical example (NPB MG psinv/resid/rprj3):
 //     %r1 = memref.alloca() : memref<35xf64>     // outside both loops
@@ -1261,20 +1449,15 @@ struct PrivatizeScratchAllocaForLoop
 //       }
 //     }
 // Rewrite expands `r1` to `memref<? x N x T>` sized by L's trip count
-// and emits ONE `memref.subview new[%iv, 0] [1, N] [1, 1] -> rank-1`
+// and emits ONE affine `polygeist.submap` selecting `new[%iv, :]`
 // at L's body entry that all in-loop users share. Each iteration of L
 // then writes a disjoint slice, the dep check sees no cross-iteration
 // conflict, and downstream Distribute / AffineForOpRaising can lift L.
 //
-// KNOWN PIPELINE INTEGRATION ISSUE: the strided result type of
-// `memref.subview` (with dynamic offset) makes `AffineForOpRaising`'s
-// polyhedral analysis blow up in practical time on mg_psinv-shaped
-// inputs. See [[row-scratch-privatization-attempt]] for diagnosis. The
-// pattern is enabled here to surface the failure modes for diagnosis,
-// not as a finished feature.
+// Using submap rather than a dynamic-offset memref.subview keeps the outer-IV
+// binding explicit for distribution and avoids introducing a strided view
+// type that the affine raiser cannot compose.
 //===----------------------------------------------------------------------===//
-
-#define PRIV_ROW_DBG(X) llvm::errs() << "[PrivRow] " << X << "\n"
 
 namespace {
 // Walk `body` recursively in pre-order and return the first op that
@@ -1324,19 +1507,27 @@ struct PrivatizeRowScratchAllocaForLoop
     Block *body = forOp.getBody();
     Value iv = forOp.getInductionVar();
 
-    // Collect rank-1 static allocas defined outside this loop.
+    // Collect rank-1 allocas from the enclosing scope or directly in this
+    // loop body. Deeper nested allocations belong to their own loop.
     SmallVector<memref::AllocaOp> candidates;
     DenseSet<Operation *> seen;
     body->walk([&](Operation *op) {
       for (Value v : op->getOperands()) {
         auto allocaOp = v.getDefiningOp<memref::AllocaOp>();
         if (!allocaOp) continue;
-        if (forOp->isAncestor(allocaOp)) continue;
+        if (forOp->isAncestor(allocaOp) && allocaOp->getBlock() != body)
+          continue;
+        // Do not let an inner loop claim scratch allocated in an enclosing
+        // loop; that storage is often a row whose individual elements are
+        // initialized by the inner loop and consumed afterwards.  The
+        // enclosing loop itself will see it as loop-local and privatize it at
+        // the correct dimension. Function-entry scratch remains supported.
+        if (allocaOp->getBlock() != body &&
+            !isa<func::FuncOp>(allocaOp->getBlock()->getParentOp()))
+          continue;
         if (!seen.insert(allocaOp).second) continue;
         auto mrt = dyn_cast<MemRefType>(allocaOp.getType());
         if (!mrt || mrt.getRank() != 1) continue;
-        if (mrt.isDynamicDim(0)) continue;
-        if (allocaOp->getNumOperands() != 0) continue;
         candidates.push_back(allocaOp);
       }
     });
@@ -1390,8 +1581,10 @@ struct PrivatizeRowScratchAllocaForLoop
     for (memref::AllocaOp oldAlloca : good) {
       Block *allocaBlock = oldAlloca->getBlock();
       Operation *insertionAnchor = forOp.getOperation();
-      while (insertionAnchor && insertionAnchor->getBlock() != allocaBlock)
-        insertionAnchor = insertionAnchor->getParentOp();
+      bool loopLocal = allocaBlock == body;
+      if (!loopLocal)
+        while (insertionAnchor && insertionAnchor->getBlock() != allocaBlock)
+          insertionAnchor = insertionAnchor->getParentOp();
       if (!insertionAnchor) continue;
       rewriter.setInsertionPoint(insertionAnchor);
 
@@ -1409,27 +1602,32 @@ struct PrivatizeRowScratchAllocaForLoop
       int64_t N = oldTy.getShape()[0];
       auto newTy = MemRefType::get({ShapedType::kDynamic, N},
                                     oldTy.getElementType());
+      SmallVector<Value> dynamicSizes{tripCount};
+      dynamicSizes.append(oldAlloca.getDynamicSizes().begin(),
+                          oldAlloca.getDynamicSizes().end());
       auto newAlloca = rewriter.create<memref::AllocaOp>(
-          oldAlloca.getLoc(), newTy, tripCount);
+          oldAlloca.getLoc(), newTy, dynamicSizes);
 
-      // ONE subview at forOp's body entry, shared by all in-loop users.
+      // ONE submap at forOp's body entry, shared by all in-loop users:
+      //   (d0)[s0] -> (s0, d0), where s0 is the outer iteration.
       Value rowView;
       {
         OpBuilder::InsertionGuard g(rewriter);
         rewriter.setInsertionPointToStart(forOp.getBody());
-        SmallVector<OpFoldResult> offsets;
-        offsets.push_back(iv);
-        offsets.push_back(rewriter.getIndexAttr(0));
-        SmallVector<OpFoldResult> sizes;
-        sizes.push_back(rewriter.getIndexAttr(1));
-        sizes.push_back(rewriter.getIndexAttr(N));
-        SmallVector<OpFoldResult> strides;
-        strides.push_back(rewriter.getIndexAttr(1));
-        strides.push_back(rewriter.getIndexAttr(1));
-        auto resTy = memref::SubViewOp::inferRankReducedResultType(
-            {N}, newTy, offsets, sizes, strides).cast<MemRefType>();
-        rowView = rewriter.create<memref::SubViewOp>(
-            oldAlloca.getLoc(), resTy, newAlloca, offsets, sizes, strides);
+        Value rowSize;
+        if (oldTy.isDynamicDim(0)) {
+          rowSize = oldAlloca.getDynamicSizes().front();
+        } else {
+          rowSize = rewriter.create<arith::ConstantIndexOp>(
+              oldAlloca.getLoc(), N);
+        }
+        AffineExpr d0 = rewriter.getAffineDimExpr(0);
+        AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
+        AffineMap rowMap = AffineMap::get(1, 1, {s0, d0},
+                                          rewriter.getContext());
+        rowView = rewriter.create<polygeist::SubmapOp>(
+            oldAlloca.getLoc(), oldTy, newAlloca,
+            ValueRange{iv, rowSize}, rowMap);
       }
 
       // Rewrite every in-loop user.
@@ -1538,7 +1736,8 @@ struct BoundMaskInfo {
 };
 
 static bool affineStoresProvablyDisjoint(affine::AffineStoreOp lhs,
-                                         affine::AffineStoreOp rhs) {
+                                         affine::AffineStoreOp rhs,
+                                         affine::AffineForOp loop) {
   if (lhs.getMemref() != rhs.getMemref())
     return true;
 
@@ -1554,13 +1753,149 @@ static bool affineStoresProvablyDisjoint(affine::AffineStoreOp lhs,
       return true;
   }
 
+  // Prove disjoint constant-offset slices such as A[i] and A[i + 25].  The
+  // old check above only handled coordinates that were themselves constants,
+  // so it missed this common flattened-tensor representation.
+  if (!loop.hasConstantLowerBound() || !loop.hasConstantUpperBound() ||
+      lhsMap.getNumDims() != rhsMap.getNumDims() ||
+      lhsMap.getNumSymbols() != rhsMap.getNumSymbols() ||
+      !llvm::equal(lhs.getMapOperands(), rhs.getMapOperands()))
+    return false;
+
+  struct LinearForm {
+    SmallVector<int64_t> coefficients;
+    int64_t constant = 0;
+  };
+
+  auto checkedAdd = [](int64_t a, int64_t b, int64_t &result) {
+    return !__builtin_add_overflow(a, b, &result);
+  };
+  auto checkedMul = [](int64_t a, int64_t b, int64_t &result) {
+    return !__builtin_mul_overflow(a, b, &result);
+  };
+
+  unsigned numOperands = lhsMap.getNumDims() + lhsMap.getNumSymbols();
+  std::function<bool(AffineExpr, LinearForm &)> decompose =
+      [&](AffineExpr expression, LinearForm &form) -> bool {
+    form.coefficients.assign(numOperands, 0);
+    form.constant = 0;
+    if (auto constant = expression.dyn_cast<AffineConstantExpr>()) {
+      form.constant = constant.getValue();
+      return true;
+    }
+    if (auto dim = expression.dyn_cast<AffineDimExpr>()) {
+      form.coefficients[dim.getPosition()] = 1;
+      return true;
+    }
+    if (auto symbol = expression.dyn_cast<AffineSymbolExpr>()) {
+      form.coefficients[lhsMap.getNumDims() + symbol.getPosition()] = 1;
+      return true;
+    }
+    auto binary = expression.dyn_cast<AffineBinaryOpExpr>();
+    if (!binary)
+      return false;
+    if (expression.getKind() == AffineExprKind::Add) {
+      LinearForm left, right;
+      if (!decompose(binary.getLHS(), left) ||
+          !decompose(binary.getRHS(), right))
+        return false;
+      for (unsigned i = 0; i < numOperands; ++i)
+        if (!checkedAdd(left.coefficients[i], right.coefficients[i],
+                        form.coefficients[i]))
+          return false;
+      return checkedAdd(left.constant, right.constant, form.constant);
+    }
+    if (expression.getKind() != AffineExprKind::Mul)
+      return false;
+    auto leftConstant = binary.getLHS().dyn_cast<AffineConstantExpr>();
+    auto rightConstant = binary.getRHS().dyn_cast<AffineConstantExpr>();
+    AffineExpr variableExpression;
+    int64_t scale;
+    if (leftConstant) {
+      scale = leftConstant.getValue();
+      variableExpression = binary.getRHS();
+    } else if (rightConstant) {
+      scale = rightConstant.getValue();
+      variableExpression = binary.getLHS();
+    } else {
+      return false;
+    }
+    LinearForm variable;
+    if (!decompose(variableExpression, variable))
+      return false;
+    for (unsigned i = 0; i < numOperands; ++i)
+      if (!checkedMul(variable.coefficients[i], scale,
+                      form.coefficients[i]))
+        return false;
+    return checkedMul(variable.constant, scale, form.constant);
+  };
+
+  ValueRange operands = lhs.getMapOperands();
+  Value inductionVariable = loop.getInductionVar();
+  for (Value operand : operands) {
+    if (operand == inductionVariable)
+      continue;
+    if (Operation *definition = operand.getDefiningOp()) {
+      if (loop->isAncestor(definition))
+        return false;
+      continue;
+    }
+    auto blockArgument = dyn_cast<BlockArgument>(operand);
+    Operation *parent = blockArgument
+                            ? blockArgument.getOwner()->getParentOp()
+                            : nullptr;
+    if (!parent || parent == loop || loop->isAncestor(parent))
+      return false;
+  }
+
+  int64_t lower = loop.getConstantLowerBound();
+  int64_t upper = loop.getConstantUpperBound();
+  int64_t step = loop.getStep();
+  if (step <= 0 || upper <= lower)
+    return false;
+  int64_t distance, roundedDistance;
+  if (__builtin_sub_overflow(upper, lower, &distance) ||
+      __builtin_add_overflow(distance, step - 1, &roundedDistance))
+    return false;
+  int64_t tripCount = roundedDistance / step;
+  int64_t inductionSpan;
+  if (__builtin_mul_overflow(tripCount - 1, step, &inductionSpan))
+    return false;
+
+  for (auto pair : llvm::zip(lhsMap.getResults(), rhsMap.getResults())) {
+    LinearForm left, right;
+    if (!decompose(std::get<0>(pair), left) ||
+        !decompose(std::get<1>(pair), right) ||
+        left.coefficients != right.coefficients)
+      continue;
+
+    int64_t inductionCoefficient = 0;
+    for (auto [index, operand] : llvm::enumerate(operands))
+      if (operand == inductionVariable &&
+          !checkedAdd(inductionCoefficient, left.coefficients[index],
+                      inductionCoefficient))
+        return false;
+    int64_t coordinateSpan;
+    if (inductionCoefficient == std::numeric_limits<int64_t>::min() ||
+        !checkedMul(std::abs(inductionCoefficient), inductionSpan,
+                    coordinateSpan))
+      return false;
+    int64_t offset;
+    if (__builtin_sub_overflow(left.constant, right.constant, &offset) ||
+        offset == std::numeric_limits<int64_t>::min())
+      return false;
+    if (std::abs(offset) > coordinateSpan)
+      return true;
+  }
+
   return false;
 }
 
-static bool storesProvablyDisjoint(Operation *lhs, Operation *rhs) {
+static bool storesProvablyDisjoint(Operation *lhs, Operation *rhs,
+                                   affine::AffineForOp loop) {
   if (auto lhsAffine = dyn_cast<affine::AffineStoreOp>(lhs)) {
     if (auto rhsAffine = dyn_cast<affine::AffineStoreOp>(rhs))
-      return affineStoresProvablyDisjoint(lhsAffine, rhsAffine);
+      return affineStoresProvablyDisjoint(lhsAffine, rhsAffine, loop);
   }
 
   if (auto lhsStore = dyn_cast<memref::StoreOp>(lhs)) {
@@ -1655,6 +1990,219 @@ collectNestedGenericLoopSizes(linalg::GenericOp generic, OpBuilder &builder,
   return success();
 }
 
+// Fold a private scalar additive reduction into the affine read/modify/write
+// that immediately consumes it:
+//
+//   %scratch = alloca : memref<f64>
+//   store 0, %scratch[]
+//   linalg.generic ... outs(%scratch) { %next = add %acc, %term }
+//   %sum = load %scratch[]
+//   %old = load %output[affine-index]
+//   store (add %old, %sum), %output[affine-index]
+//
+// becomes a reduction whose initial/output value is the selected output
+// element itself.  Once the scalar boundary and epilogue store disappear,
+// AffineForOpRaising can prepend this loop (and its enclosing output loops) as
+// parallel iterator dimensions on the nested generic.
+//
+// This first implementation intentionally handles only the common single-
+// output additive form.  The structural checks below make the transformation
+// independent of loop rank, trip counts, and operand layouts.  Floating-point
+// reductions in this pipeline are already represented as linalg reduction
+// iterators; seeding that reduction with the destination preserves the same
+// mathematical reduction semantics, though—as with other floating-point
+// reduction lowering—it is not a promise of bitwise-identical association.
+struct FuseScalarAddReductionIntoOutput
+    : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(affine::AffineForOp loop,
+                                PatternRewriter &rewriter) const final {
+    if (loop.getNumResults() != 0)
+      return failure();
+
+    Block *body = loop.getBody();
+    SmallVector<linalg::GenericOp> generics;
+    for (Operation &op : body->without_terminator())
+      if (auto generic = dyn_cast<linalg::GenericOp>(op))
+        generics.push_back(generic);
+    if (generics.size() != 1)
+      return failure();
+
+    linalg::GenericOp generic = generics.front();
+    if (generic.getNumDpsInits() != 1 || generic.getNumLoops() == 0)
+      return failure();
+    if (!llvm::all_of(generic.getIteratorTypesArray(),
+                      [](utils::IteratorType iteratorType) {
+          return iteratorType == utils::IteratorType::reduction;
+        }))
+      return failure();
+
+    Value scratchView = generic.getOutputs().front();
+    Operation *scratchViewOp = scratchView.getDefiningOp();
+    Value scratch;
+    if (auto subview = dyn_cast_or_null<memref::SubViewOp>(scratchViewOp)) {
+      if (cast<MemRefType>(subview.getType()).getRank() != 0)
+        return failure();
+      scratch = subview.getSource();
+    } else if (auto submap =
+                   dyn_cast_or_null<polygeist::SubmapOp>(scratchViewOp)) {
+      // AffineForOpRaising represents the rank-zero scratch as a broadcast
+      // submap while it prepends the inner reduction dimensions.  Its result
+      // can therefore have nonzero rank even though every indexing-map result
+      // is constant and the underlying storage remains scalar.
+      scratch = submap.getBase();
+    } else {
+      return failure();
+    }
+    auto scratchAlloca = scratch.getDefiningOp<memref::AllocaOp>();
+    auto scratchType = dyn_cast_or_null<MemRefType>(scratch.getType());
+    if (!scratchAlloca || !scratchType || scratchType.getRank() != 0 ||
+        scratchAlloca->getBlock() != body)
+      return failure();
+
+    // The generic itself must be an additive reduction of its sole output
+    // block argument.
+    Block &genericBody = generic.getRegion().front();
+    if (genericBody.getNumArguments() !=
+        generic.getNumDpsInputs() + generic.getNumDpsInits())
+      return failure();
+    Value accumulator = genericBody.getArguments().back();
+    auto yield = dyn_cast<linalg::YieldOp>(genericBody.getTerminator());
+    if (!yield || yield.getNumOperands() != 1)
+      return failure();
+    Operation *yieldAdd = yield.getOperand(0).getDefiningOp();
+    bool innerIsFloat = isa_and_nonnull<arith::AddFOp>(yieldAdd);
+    bool innerIsInteger = isa_and_nonnull<arith::AddIOp>(yieldAdd);
+    if ((!innerIsFloat && !innerIsInteger) || !accumulator.hasOneUse())
+      return failure();
+
+    // The accumulator may occur below a chain of same-combiner additions,
+    // e.g. yield (((acc + term0) + term1) + term2).  Requiring it to be a
+    // direct operand of the yielded add unnecessarily rejects multi-term
+    // reductions.  Count occurrences through only the matching associative
+    // add tree; exactly one occurrence is the canonical accumulator form.
+    std::function<unsigned(Value)> countAccumulator = [&](Value value) {
+      if (value == accumulator)
+        return 1u;
+      Operation *definition = value.getDefiningOp();
+      if (!definition ||
+          (innerIsFloat && !isa<arith::AddFOp>(definition)) ||
+          (innerIsInteger && !isa<arith::AddIOp>(definition)))
+        return 0u;
+      return countAccumulator(definition->getOperand(0)) +
+             countAccumulator(definition->getOperand(1));
+    };
+    if (countAccumulator(yield.getOperand(0)) != 1)
+      return failure();
+
+    affine::AffineStoreOp initStore;
+    affine::AffineLoadOp scratchLoad;
+    for (Operation *user : scratch.getUsers()) {
+      if (auto store = dyn_cast<affine::AffineStoreOp>(user)) {
+        if (store.getMemref() != scratch || initStore)
+          return failure();
+        initStore = store;
+      } else if (auto load = dyn_cast<affine::AffineLoadOp>(user)) {
+        if (load.getMemref() != scratch || scratchLoad)
+          return failure();
+        scratchLoad = load;
+      } else if (user != scratchViewOp) {
+        return failure();
+      }
+    }
+    if (!initStore || !scratchLoad || initStore->getBlock() != body ||
+        scratchLoad->getBlock() != body || !initStore->isBeforeInBlock(generic) ||
+        !generic->isBeforeInBlock(scratchLoad))
+      return failure();
+
+    // Require the standard additive identity.
+    Value init = initStore.getValueToStore();
+    bool isZero = false;
+    if (auto cst = init.getDefiningOp<arith::ConstantFloatOp>())
+      isZero = cst.value().isZero();
+    else if (auto cst = init.getDefiningOp<arith::ConstantIntOp>())
+      isZero = cst.value() == 0;
+    if (!isZero)
+      return failure();
+
+    if (!scratchLoad->hasOneUse())
+      return failure();
+    Operation *outerAdd = *scratchLoad->getUsers().begin();
+    if (!isa<arith::AddFOp, arith::AddIOp>(outerAdd) ||
+        outerAdd->getNumOperands() != 2 || !outerAdd->getResult(0).hasOneUse())
+      return failure();
+    if ((innerIsFloat && !isa<arith::AddFOp>(outerAdd)) ||
+        (innerIsInteger && !isa<arith::AddIOp>(outerAdd)))
+      return failure();
+
+    Value other = outerAdd->getOperand(0) == scratchLoad.getResult()
+                      ? outerAdd->getOperand(1)
+                      : outerAdd->getOperand(0);
+    auto outputLoad = other.getDefiningOp<affine::AffineLoadOp>();
+    auto outputStore =
+        dyn_cast<affine::AffineStoreOp>(*outerAdd->getUsers().begin());
+    if (!outputLoad || !outputStore || outputLoad->getBlock() != body ||
+        outputStore->getBlock() != body ||
+        outputStore.getValueToStore() != outerAdd->getResult(0) ||
+        !sameAffineLoadStoreAddress(outputLoad, outputStore) ||
+        !outputLoad->hasOneUse())
+      return failure();
+
+    // The scratch view may only be the generic output, and the scalar alloca
+    // may not escape through any path not inspected above.
+    if (!scratchView.hasOneUse() ||
+        *scratchView.getUsers().begin() != generic.getOperation())
+      return failure();
+
+    // Build a rank-zero submap selecting output[affine-index].  Submap keeps
+    // the affine address visible to getLinalgArgMap, allowing each enclosing
+    // affine loop to be prepended to the generic's indexing maps later.
+    AffineMap storeMap = outputStore.getAffineMap();
+    unsigned numDims = storeMap.getNumDims();
+    unsigned numSymbols = storeMap.getNumSymbols();
+    SmallVector<AffineExpr> dimReplacements;
+    SmallVector<AffineExpr> symbolReplacements;
+    for (unsigned i = 0; i < numDims; ++i)
+      dimReplacements.push_back(
+          rewriter.getAffineSymbolExpr(i));
+    for (unsigned i = 0; i < numSymbols; ++i)
+      symbolReplacements.push_back(
+          rewriter.getAffineSymbolExpr(numDims + i));
+    SmallVector<AffineExpr> results;
+    for (AffineExpr expr : storeMap.getResults())
+      results.push_back(expr.replaceDimsAndSymbols(dimReplacements,
+                                                   symbolReplacements));
+    AffineMap scalarMap = AffineMap::get(
+        /*dimCount=*/0, /*symbolCount=*/numDims + numSymbols, results,
+        rewriter.getContext());
+    auto outputType = cast<MemRefType>(outputStore.getMemref().getType());
+    auto scalarType =
+        MemRefType::get({}, outputType.getElementType());
+    rewriter.setInsertionPoint(generic);
+    SmallVector<Value> mapOperands(outputStore.getMapOperands());
+    auto outputView = rewriter.create<polygeist::SubmapOp>(
+        generic.getLoc(), scalarType, outputStore.getMemref(), mapOperands,
+        scalarMap);
+
+    SmallVector<AffineMap> indexingMaps = generic.getIndexingMapsArray();
+    indexingMaps.back() = AffineMap::get(
+        generic.getNumLoops(), /*symbolCount=*/0, /*results=*/{},
+        rewriter.getContext());
+    generic.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(indexingMaps));
+    generic->setOperand(generic.getNumDpsInputs(), outputView.getResult());
+
+    rewriter.eraseOp(outputStore);
+    rewriter.eraseOp(outerAdd);
+    rewriter.eraseOp(outputLoad);
+    rewriter.eraseOp(scratchLoad);
+    rewriter.eraseOp(initStore);
+    rewriter.eraseOp(scratchViewOp);
+    rewriter.eraseOp(scratchAlloca);
+    return success();
+  }
+};
+
 // Hybrid raiser for loop bodies that are semantically elementwise stores but
 // cannot be expressed as pure linalg ins/outs because the value computation
 // contains guarded memory reads (for example im2col padding:
@@ -1678,7 +2226,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     Operation *terminator = loopBody->getTerminator();
 
     affine::AffineStoreOp targetStore;
-    SmallVector<affine::AffineLoadOp> outputLoads;
+    SmallVector<affine::AffineLoadOp> affineLoads;
     bool hasHybridPayload = false;
     bool illegal = false;
 
@@ -1715,7 +2263,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       }
 
       if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
-        outputLoads.push_back(load);
+        affineLoads.push_back(load);
         return WalkResult::advance();
       }
 
@@ -1731,8 +2279,15 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     if (targetStore->getNextNode() != terminator)
       return failure();
 
-    for (affine::AffineLoadOp outputLoad : outputLoads)
-      if (!sameAffineLoadStoreAddress(outputLoad, targetStore))
+    // Only loads from the destination buffer participate in the output
+    // dependence proof.  Affine loads from index/input tensors are ordinary
+    // payload reads (for example gather: idx[i] then input[idx[i]]).
+    for (affine::AffineLoadOp load : affineLoads)
+      if (load.getMemRef() == targetStore.getMemRef() &&
+          !sameAffineLoadStoreAddress(load, targetStore))
+        return failure();
+      else if (load.getMemRef() != targetStore.getMemRef() &&
+               !load.getAffineMap().isProjectedPermutation())
         return failure();
 
     Value storedValue = targetStore.getValueToStore();
@@ -1787,7 +2342,19 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     Value outputArg =
         newBody->addArgument(targetStore.getValueToStore().getType(),
                              targetStore.getLoc());
-    for (affine::AffineLoadOp outputLoad : outputLoads) {
+    for (affine::AffineLoadOp outputLoad : affineLoads) {
+      if (!sameAffineLoadStoreAddress(outputLoad, targetStore)) {
+        SmallVector<Value> indices;
+        for (AffineExpr expr : outputLoad.getAffineMap().getResults()) {
+          auto dim = expr.dyn_cast<AffineDimExpr>();
+          assert(dim && "projected permutation checked before mutation");
+          indices.push_back(outputLoad.getMapOperands()[dim.getPosition()]);
+        }
+        rewriter.setInsertionPoint(outputLoad);
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(
+            outputLoad, outputLoad.getMemRef(), indices);
+        continue;
+      }
       if (storedValue == outputLoad.getResult())
         storedValue = outputArg;
       rewriter.replaceOp(outputLoad, outputArg);
@@ -1822,6 +2389,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       LLVM_DEBUG(llvm::dbgs() << "REJECTED: Loop has results\n\n");
       return failure();
     }
+
+    Block *loopBody = loop.getBody();
 
     SmallVector<std::pair<std::vector<Condition>, AffineLoadOp>> loads;
     SmallVector<std::pair<std::vector<Condition>, AffineStoreOp>> stores;
@@ -1870,6 +2439,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         }
         return WalkResult::advance();
       }
+      if (isKnownPureScalarLibmCall(op))
+        return WalkResult::advance();
       // IsReadNone takes care of apply and subview too?
       if (isReadNone(op)) {
         return WalkResult::advance();
@@ -1927,10 +2498,56 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
           continue;
         if (mayAlias(store.getMemref(), store2.getMemref()) &&
             !storesProvablyDisjoint(store.getOperation(),
-                                    store2.getOperation())) {
+                                    store2.getOperation(), loop)) {
           return failure();
         }
       }
+    }
+
+    // Forward an unconditional load from the latest exact-address store that
+    // precedes it in the same loop iteration.  Treating such a reload as a
+    // separate linalg input reads the pre-iteration value instead.  A common
+    // example is PCG's
+    //
+    //   r[i] = r[i] - alpha * Ap[i];
+    //   z[i] = inv_diag[i] * r[i];
+    //   sum += r[i] * z[i];
+    //
+    // where the second read of r must see the just-computed SSA value.
+    DenseMap<AffineLoadOp, AffineStoreOp> forwardedLoads;
+    for (auto &&[loadConditions, load] : loads) {
+      if (!loadConditions.empty() || load->getBlock() != loopBody)
+        continue;
+      AffineStoreOp latest;
+      for (auto &&[storeConditions, store] : stores) {
+        if (!storeConditions.empty() || store->getBlock() != loopBody ||
+            !store->isBeforeInBlock(load) ||
+            load.getMemref() != store.getMemref() ||
+            load.getAffineMap() != store.getAffineMap() ||
+            load.getIndices() != store.getIndices())
+          continue;
+        if (!latest || latest->isBeforeInBlock(store))
+          latest = store;
+      }
+      if (!latest)
+        continue;
+
+      bool interveningAlias = false;
+      for (auto &&[storeConditions, other] : stores) {
+        if (other == latest || !storeConditions.empty() ||
+            other->getBlock() != loopBody)
+          continue;
+        // This raising already models distinct memref operands as distinct
+        // linalg operands.  Only a later write through the same operand can
+        // invalidate the exact-address value available for forwarding.
+        if (latest->isBeforeInBlock(other) && other->isBeforeInBlock(load) &&
+            other.getMemref() == load.getMemref()) {
+          interveningAlias = true;
+          break;
+        }
+      }
+      if (!interveningAlias)
+        forwardedLoads[load] = latest;
     }
     // Check that any other loads / stores do not alias with any linalg generics
     // We're going to need to upgrade the defn of mayAlias for subviews (aka
@@ -2178,19 +2795,37 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
         size_t firstNDims = lgMap.getNumDims();
         check_reduction = true;
+        bool hasProjectedOutput =
+            lgMap0.getNumResults() != lgMap0.getNumDims();
         
         LLVM_DEBUG(llvm::dbgs() << "  Calling remap_in_affine_dim for output " << (idx - lg.getInputs().size()) << "\n");
         
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize, lbValue,
-            firstNDims, ValueRange(lgOperands), output, check_reduction);
+            firstNDims, ValueRange(lgOperands), output, check_reduction,
+            /*projectUnusedInnerDims=*/hasProjectedOutput);
         if (!legal) {
           LLVM_DEBUG(llvm::dbgs() << "  REJECTED: remap_in_affine_dim returned illegal for output\n");
           return failure();
         }
 
-        auto newAffineMap = rewriter.getMultiDimIdentityMap(firstNDims + 1);
-        // TODO: need to merge previous indexing maps and new affine maps
+        // Preserve the nested output projection.  In particular, a reduction
+        // output map omits reduction iterators; only prepend the newly raised
+        // outer loop dimension instead of turning all iterators into an
+        // identity map.
+        AffineMap newAffineMap;
+        if (hasProjectedOutput) {
+          AffineMap shiftedOutputMap = lgMap0.shiftDims(/*shift=*/1);
+          SmallVector<AffineExpr> outputResults;
+          outputResults.push_back(rewriter.getAffineDimExpr(0));
+          llvm::append_range(outputResults, shiftedOutputMap.getResults());
+          newAffineMap = AffineMap::get(firstNDims + 1,
+                                        shiftedOutputMap.getNumSymbols(),
+                                        outputResults, rewriter.getContext());
+        } else {
+          newAffineMap =
+              rewriter.getMultiDimIdentityMap(firstNDims + 1);
+        }
         affineMaps.push_back(newAffineMap);
         outputs.push_back(newMemref);
       }
@@ -2208,7 +2843,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         return failure();
       }
 
-      if (stores_map.find(load) != stores_map.end()) {
+      if (stores_map.find(load) != stores_map.end() ||
+          forwardedLoads.find(load) != forwardedLoads.end()) {
         // We have a store that represents this load.
         continue;
       }
@@ -2397,6 +3033,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     blk->eraseArguments(0, blk->getNumArguments());
 
     for (auto &&[conds, load] : loads) {
+      auto forwarded = forwardedLoads.find(load);
+      if (forwarded != forwardedLoads.end()) {
+        rewriter.replaceOp(load, forwarded->second.getValueToStore());
+        continue;
+      }
       if (stores_map.find(load) != stores_map.end()) {
         // We have a store that represents this load.
         continue;
@@ -2835,17 +3476,15 @@ void RaiseAffineToLinalg::runOnOperation() {
   {
     LLVM_DEBUG(llvm::dbgs() << "### Step 3: Applying Distribute + AffineForOpRaising ###\n");
     RewritePatternSet raisingPatterns(&getContext());
+    raisingPatterns.add<KnownLibmCallToMath>(&getContext(), /*benefit=*/5);
+    raisingPatterns.add<FuseScalarAddReductionIntoOutput>(&getContext(),
+                                                          /*benefit=*/4);
     raisingPatterns.add<PrivatizeScratchAllocaForLoop>(&getContext(), /*benefit=*/3);
-    // NOT REGISTERED: PrivatizeRowScratchAllocaForLoop is implemented above
-    // but is currently not wired into the pipeline because its rewrite
-    // (memref.subview-based row selection) causes AffineForOpRaising to
-    // stall on the strided dynamic-offset result type. See
-    // notes/row_scratch_privatization_failures.md and
-    // memory/row_scratch_privatization_attempt.md for the diagnosis and
-    // the planned fix (switch to polygeist.submap-based row selection,
-    // mirroring the rank-0 sibling). When that fix lands, uncomment the
-    // line below to re-enable.
-    // raisingPatterns.add<PrivatizeRowScratchAllocaForLoop>(&getContext(), /*benefit=*/3);
+    // Row-scratch privatization remains opt-in until the outer loop raiser can
+    // consume the resulting dynamic affine row view end to end.  The scalar
+    // sibling above is fully integrated and enabled.
+    // raisingPatterns.add<PrivatizeRowScratchAllocaForLoop>(
+    //     &getContext(), /*benefit=*/3);
     raisingPatterns.add<HybridAffineForOpRaising>(&getContext(), /*benefit=*/2);
     raisingPatterns.add<DistributeAffineForOnLinalgGeneric>(&getContext(), /*benefit=*/2);
     raisingPatterns.add<AffineForOpRaising>(&getContext(), /*benefit=*/1);
@@ -2854,6 +3493,32 @@ void RaiseAffineToLinalg::runOnOperation() {
       getOperation()->emitWarning("Distribute+Raising didn't converge, continuing anyway");
     }
     LLVM_DEBUG(llvm::dbgs() << "### Step 3 Complete ###\n\n");
+  }
+
+  // Step 3 creates reduction generics while rewriting loops from the inside
+  // out.  The greedy driver does not necessarily put an unchanged enclosing
+  // loop back on its worklist when a nested loop is replaced, so accumulator
+  // fusion cannot reliably see those newly-created generics in the same
+  // invocation.  Run a small, focused post-raise fixpoint: fuse a compatible
+  // scalar reduction into its destination, then let the ordinary loop raiser
+  // absorb the now-pure parallel output loops.  Keeping this separate avoids
+  // rerunning the more expensive fission/distribution patterns.
+  {
+    LLVM_DEBUG(llvm::dbgs()
+               << "### Step 4: Fusing scalar reduction epilogues ###\n");
+    RewritePatternSet reductionFusionPatterns(&getContext());
+    reductionFusionPatterns.add<FuseScalarAddReductionIntoOutput>(
+        &getContext(), /*benefit=*/2);
+    reductionFusionPatterns.add<AffineForOpRaising>(&getContext(),
+                                                     /*benefit=*/1);
+    if (failed(applyPatternsAndFoldGreedily(
+            getOperation(), std::move(reductionFusionPatterns), config))) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "WARNING: scalar reduction fusion didn't converge\n");
+      getOperation()->emitWarning(
+          "scalar reduction fusion didn't converge, continuing anyway");
+    }
+    LLVM_DEBUG(llvm::dbgs() << "### Step 4 Complete ###\n\n");
   }
 
   LLVM_DEBUG(llvm::dbgs() << "****************************************\n");

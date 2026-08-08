@@ -65,6 +65,24 @@ void polygeist_cublas_sgemm(
     float beta,
     float *C, int32_t ldc);
 
+// C[batch,M,N] = A[batch,M,K] * B[K,N].  B is broadcast across batches;
+// the CUDA implementation uses a zero RHS batch stride and beta=0.
+void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C);
+
+// Overwriting outer product C[M,N] = u[M] * v[N].
+void polygeist_cublas_dgemm_outer_product(
+    int32_t M, int32_t N,
+    const double *u, const double *v, double *C);
+
+// Single-batch, multi-channel valid Conv3D in contiguous NCDHW/OIDHW layout.
+// bias may be NULL; otherwise it contains one value per output channel.
+void polygeist_cudnn_conv3d_channels_f32(
+    int32_t IC, int32_t inD, int32_t inH, int32_t inW,
+    int32_t OC, int32_t kD, int32_t kH, int32_t kW,
+    const float *input, const float *filter, const float *bias, float *output);
+
 void polygeist_cublas_dgemv(
     int32_t M, int32_t N,
     double alpha,
@@ -262,6 +280,12 @@ void polygeist_cutensornet_tensor_product_3d_f64(
 // layout (64 modes per tensor). Broadcast modes are omitted before this ABI
 // is called.
 void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata);
+
+// Device-resident form of the same contraction. A/B/C must be CUDA device
+// pointers; no host registration or mapping is performed. This entry point is
+// legal only for compiler regions with no residual host dereferences.
+void polygeist_cutensornet_contraction2_f64_device(
     const double *A, const double *B, double *C, const int64_t *metadata);
 
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
@@ -523,6 +547,8 @@ void polygeist_rmsnorm_unweighted_f32(
     int32_t N, const float *X, float *Out);
 void polygeist_cublas_dot_f32(
     int32_t N, const float *X, const float *Y, float *Out);
+void polygeist_cublas_dot_f64(
+    int32_t N, const double *X, const double *Y, double *Out);
 void polygeist_cuda_gelu_tanh_f32(
     int32_t N, const float *X, float *Out);
 void polygeist_whisper_exp_shift_sum_f32(

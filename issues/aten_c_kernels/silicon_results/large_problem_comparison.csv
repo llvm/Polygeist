@@ -1,0 +1,51 @@
+kernel,executable_status,correctness,problem,raised_us,resident_cuda_us,raised_over_resident,baseline,statistic,hardware,notes
+aten_adaptive_avg_pool2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_adaptive_avg_pool3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_add,EXECUTED,PASS,B32 C64 H64 W64,109207.046404,542.347229,201.360,cuDNN AddTensor,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements
+aten_addmm,EXECUTED,PASS,M512 N512 K512,12381.132785,3778.838379,3.276,cuBLAS Dgemm beta=.5 alpha=1.25,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64
+aten_avg_pool2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_avg_pool3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_batch_norm,EXECUTED,PASS,B32 C64 H64 W64,109018.361615,392.196808,277.969,cuDNN BatchNormalizationForwardInference,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements; positive inference inv_std
+aten_binary_cross_entropy,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,external logf leaves one residual loop
+aten_bmm,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no batched GEMM route
+aten_channel_shuffle,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,layout transform intentionally rejected as copy
+aten_clamp,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_conv1d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no 1D convolution route
+aten_conv2d,EXECUTED,PASS,B8 IC32 OC64 H64 W64 KH3 KW3,20373.075176,436.988770,46.622,cuDNN ConvolutionForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,valid NCHW f32 convolution
+aten_conv3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; current definition shape gap
+aten_conv_transpose2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no transposed convolution route
+aten_cross,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,3 Linalg ops; no cross-product composition
+aten_cumsum,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,scan raises to Linalg but has no scan route
+aten_dot,EXECUTED,PASS,N8388608,879.110396,766.452759,1.147,cuBLAS Ddot,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f64 elements
+aten_elu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_embedding,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,indexed gather leaves 2 residual loops
+aten_gelu,EXECUTED,PASS,N8388608,13331.315201,437.297546,30.486,fused CUDA GELU kernel,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements
+aten_hardsigmoid,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_hardswish,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_hardtanh,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_im2col,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,window gather intentionally rejected as copy
+aten_l1_loss,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no reduction composition
+aten_layer_norm,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,3 Linalg ops; composition not in library
+aten_leaky_relu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_lerp,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_max_pool2d,EXECUTED,PASS,B32 C64 H64 W64 K2 S2,20836.422406,220.708786,94.407,cuDNN PoolingForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 input elements
+aten_mean,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; reduction-plus-scale composition absent
+aten_mm,EXECUTED,PASS,M512 N512 K512,13279.558392,3772.609863,3.520,cuBLAS Dgemm beta=0,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64; memset plus GEMM route
+aten_mse_loss,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; reduction composition absent
+aten_mv,EXECUTED,PASS,M4096 K4096,74364.140769,814.979126,91.247,cuBLAS Dgemv beta=1,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64 y += A*x
+aten_outer,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_pixel_shuffle,UNSAFE_MATCH_NOT_EXECUTED,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,rank-6 copy candidate does not yet prove the submap layout is preserved by the runtime
+aten_prod,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no product reduction route
+aten_reflection_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no reflection-padding route
+aten_relu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_replication_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no replication-padding route
+aten_rms_norm,EXECUTED,PASS,N1048576,2129.465574,114.238403,18.641,fused CUDA RMSNorm reduction plus scale,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,1M f32 elements
+aten_sigmoid,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_silu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_softmax,EXECUTED,PASS,N1048576,3623.974416,1982.380859,1.828,cuDNN SoftmaxForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,1M f32 elements
+aten_softplus,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,external logf/expf and branch leave one residual loop
+aten_sum,PARTIAL_MATCH_NOT_EXECUTABLE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,only output memset matched
+aten_tanh,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_transpose_copy,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,permuted indexing intentionally rejected as copy
+aten_upsample_bilinear2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no bilinear-resampling route
+aten_upsample_nearest2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no nearest-neighbor route

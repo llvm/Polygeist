@@ -926,6 +926,10 @@ class CompositionEntry:
     name: str
     steps: list[CompositionStep]
     form: str = "tensor"   # "tensor" | "memref" | "any"
+    # Optional scalar element type required in every matched generic body.
+    # This prevents identical algebraic bodies from selecting a library ABI
+    # of the wrong precision (for example f32 dot -> cublasDdot).
+    element_type: Optional[str] = None
     # When True, the rewriter additionally appends the matched body's
     # inline weight constants (one per input block arg) as scalar operands
     # of the emitted kernel.launch op. Use for templates whose body has the
@@ -1494,6 +1498,18 @@ def _dot() -> CompositionEntry:
         name="cublasDdot",
         steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
                                 parallel_dim_count=0, reduction_dim_count=1)],
+        element_type="f64",
+    )
+
+
+def _dot_f32() -> CompositionEntry:
+    """s = sum_i x[i] * y[i], single precision."""
+    body = Term.Out(0) + Term.In(0) * Term.In(1)
+    return CompositionEntry(
+        name="cublasSdot",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                               parallel_dim_count=0, reduction_dim_count=1)],
+        element_type="f32",
     )
 
 
@@ -3294,6 +3310,10 @@ def composition_library() -> list[CompositionEntry]:
         _axpby(),               # α*in + β*out  — most specific 2-cap form
         _axpby_inputs_1d(),     # α*in0 + β*in1 — out-of-place combine
         _axpy(),
+        # Exact identity must precede the algebraically equivalent
+        # `alpha * input` rule (alpha=1), otherwise a legal tensor copy is
+        # hidden behind an elementwise ABI that is intentionally disabled.
+        _copy_input_tensor(),
         _scal_1d(),
         _scal_2d(),
         _scale_input_1d(),
@@ -3380,6 +3400,7 @@ def composition_library() -> list[CompositionEntry]:
         _gelu_tanh_f32_tensor(),
         _sgemm_broadcast3d_memref(),
         _dot(),
+        _dot_f32(),
         _asum(),
         _reduce_max_abs_1d(),
         _reduce_sum_1d(),
@@ -4346,6 +4367,14 @@ def match_composition(
         for j in range(n):
             step = entry.steps[j]
             g = body_objs[start + j]
+            if entry.element_type is not None:
+                scalar_types = set(re.findall(
+                    r"(?:arith\.[A-Za-z0-9_]+|linalg\.yield)\b[^:]*:\s*([A-Za-z0-9]+)",
+                    "\n".join(g.body_lines),
+                ))
+                if entry.element_type not in scalar_types:
+                    ok = False
+                    break
             # Shape gates.
             if step.num_ins is not None and step.num_ins != len(g.ins_arg_names):
                 ok = False

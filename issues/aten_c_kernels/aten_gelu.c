@@ -1,7 +1,9 @@
 /* aten::gelu tanh approximation.
  * Upstream family: aten/src/ATen/native/Activation.cpp.
  */
+#ifndef N
 #define N 256
+#endif
 extern float tanhf(float);
 
 void aten_gelu(float x[N], float out[N]) {

@@ -1,5 +1,7 @@
 /* aten::_softmax over one contiguous row. */
+#ifndef N
 #define N 128
+#endif
 #define NEG_INF (-3.402823466e38f)
 extern float expf(float);
 

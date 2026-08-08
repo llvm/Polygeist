@@ -1,10 +1,22 @@
 /* aten::max_pool2d, NCHW, 2x2 window and stride 2. */
+#ifndef B
 #define B 2
+#endif
+#ifndef C
 #define C 8
+#endif
+#ifndef H
 #define H 16
+#endif
+#ifndef W
 #define W 16
+#endif
+#ifndef K
 #define K 2
+#endif
+#ifndef S
 #define S 2
+#endif
 #define OH ((H - K) / S + 1)
 #define OW ((W - K) / S + 1)
 #define NEG_INF (-3.402823466e38f)

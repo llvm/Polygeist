@@ -51,6 +51,8 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemv_T",
     "cublasSgemv",
     "cublasSgemv_T",
+    "cublasDgemm_outer_product",
+    "cublasSgemm_strided_batched_broadcast_rhs",
     "cublasDgemv_alpha",
     "cublasDaxpby",
     "cublasDaxpy_unit",
@@ -68,6 +70,8 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnConvolution2D_ntap_f32_tensor",
     "cudnnConvolution3D_ntap_tensor",
     "cudnnConvolution3D_ntap_f32_tensor",
+    "cudnnConvolution3D_f32",
+    "cudnnConvolution3D_f32_bias",
     "customStencil3D7pt_f64_tensor",
     "customStencil3D7ptCoeff_f64_tensor",
     "customStencil3D7ptExtra_f64_tensor",
@@ -88,6 +92,7 @@ ABI_LOWERABLE_KERNELS = {
     "gelu_tanh_f32_tensor",
     "whisperExpShiftSum_f32_tensor",
     "cublasDdot",
+    "cublasSdot",
     "cudnnSoftmaxForward",
     "cudnnSoftmaxForward_tensor",
     "cudnnSoftmaxForwardOut_tensor",
@@ -373,6 +378,17 @@ def _sniff_elem_type(memref_or_tensor_ty: str) -> str | None:
     return shaped.rsplit("x", 1)[-1].strip() if "x" in shaped else shaped
 
 
+def _shaped_rank(ty: str) -> int:
+    """Return the rank of a simple tensor/memref spelling, or -1."""
+    if not (ty.startswith("tensor<") or ty.startswith("memref<")):
+        return -1
+    inside = ty[ty.find("<") + 1:ty.rfind(">")]
+    shape_and_elem = inside.split(",", 1)[0]
+    if "x" not in shape_and_elem:
+        return 0
+    return shape_and_elem.rsplit("x", 1)[0].count("x") + 1
+
+
 def _normalize_memref_operands(
     operands: list[str], operand_types: list[str] | None, indent: str
 ) -> tuple[list[str], list[str], list[str]]:
@@ -651,6 +667,29 @@ def _infer_tensor_type(text: str, ssa: str) -> str | None:
     return None
 
 
+def _trace_tensor_storage_base(text: str, ssa: str) -> str:
+    """Trace tensor view/update SSA values to the tensor that owns storage."""
+    for _ in range(16):
+        patterns = (
+            # A slice is a view of its source tensor.
+            rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.extract_slice\s+(%[\w_\-]+)",
+            # An insert_slice updates its destination tensor.
+            rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.insert_slice\s+%[\w_\-]+\s+into\s+(%[\w_\-]+)",
+            # A cast changes only the static type information.
+            rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.cast\s+(%[\w_\-]+)",
+        )
+        next_ssa = None
+        for pat in patterns:
+            match = re.search(pat, text, re.MULTILINE)
+            if match:
+                next_ssa = match.group(1)
+                break
+        if not next_ssa or next_ssa == ssa:
+            break
+        ssa = next_ssa
+    return ssa
+
+
 def _parse_polygeist_submap_window(
     text: str, ssa: str
 ) -> tuple[str, list[str]] | None:
@@ -664,6 +703,34 @@ def _parse_polygeist_submap_window(
         return None
     sizes = [p.strip() for p in m.group(2).split(",") if p.strip()]
     return m.group(1), sizes
+
+
+def _is_forward_conv3d_window(text: str, operand: str) -> bool:
+    """Prove a rank-8 view is the valid-forward Conv3D input window."""
+    definition = re.search(
+        rf"(?s)^\s*{re.escape(operand)}\s*=\s*"
+        r"polygeist\.submap\(.*?\)\s*\{map\s*=\s*([^}]+)\}",
+        text,
+        re.MULTILINE,
+    )
+    if not definition:
+        return False
+    map_text = definition.group(1).strip()
+    if map_text.startswith("#"):
+        resolved = re.search(
+            rf"(?m)^\s*{re.escape(map_text)}\s*=\s*(affine_map<.*?>)\s*$",
+            text,
+        )
+        if not resolved:
+            return False
+        map_text = resolved.group(1)
+    compact = re.sub(r"\s+", "", map_text)
+    return compact in {
+        "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+        "(d4,d5+d1,d6+d2,d7+d3)>",
+        "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+        "(0,d4,d5+d1,d6+d2,d7+d3)>",
+    }
 
 
 def _miniamr_weighted27_window_info(
@@ -1423,6 +1490,7 @@ def rewrite_mlir(
     roundtrip_markers: bool = False,
     show_candidates: bool = False,
     show_semantic_only: bool = False,
+    max_launches: int | None = None,
 ) -> tuple[str, list[tuple]]:
     """Run the matcher on `text` and return (rewritten_text, match_report).
 
@@ -1481,8 +1549,74 @@ def rewrite_mlir(
                 ))
 
     edits: list[tuple[int, int, str]] = []   # (start, end, replacement)
+    emitted_launches = 0
     i = 0
     while i < len(body_terms):
+        # Bias initialization followed by the canonical 3D convolution
+        # contraction is one cuDNN operation.  Egglog intentionally reasons
+        # about scalar bodies and therefore sees the first stage as a copy;
+        # the iterator/access metadata below supplies the missing tensor-level
+        # proof that it is an OC bias broadcast into an NCDHW result.
+        if i + 1 < len(bodies):
+            init_body = bodies[i]
+            conv_body = bodies[i + 1]
+            init_inst = instances[i]
+            conv_inst = instances[i + 1]
+            init_ins = _extract_ssa_names(init_inst.ins_part)
+            init_in_types = _extract_ssa_types(init_inst.ins_part)
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            init_out_types = _extract_ssa_types(init_inst.outs_part)
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_in_types = _extract_ssa_types(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            conv_text = "\n".join(conv_body.body_lines)
+            is_bias_conv3d = (
+                len(init_ins) == len(init_outs) == 1
+                and len(init_body.ins_arg_names) == 1
+                and init_body.yield_values == init_body.ins_arg_names
+                and init_body.iterator_types == ["parallel"] * 4
+                and [_shaped_rank(t) for t in init_in_types] == [1]
+                and [_shaped_rank(t) for t in init_out_types] == [4]
+                and len(conv_ins) == 2 and len(conv_outs) == 1
+                and [_shaped_rank(t) for t in conv_in_types] == [8, 5]
+                and [_shaped_rank(t) for t in
+                     _extract_ssa_types(conv_inst.outs_part)] == [4]
+                and conv_body.iterator_types ==
+                    ["parallel"] * 4 + ["reduction"] * 4
+                and _is_forward_conv3d_window(text, conv_ins[0])
+                and "arith.mulf" in conv_text
+                and "arith.addf" in conv_text
+                and init_inst.result_ssa is not None
+                and conv_outs == [init_inst.result_ssa]
+                and conv_inst.result_ssa is not None
+                and conv_inst.result_type is not None
+                and all(_sniff_elem_type(t) == "f32" for t in
+                        init_in_types + init_out_types + conv_in_types)
+            )
+            if is_bias_conv3d:
+                emit_name = "cudnnConvolution3D_f32_bias"
+                if max_launches is not None and emitted_launches >= max_launches:
+                    report.append(("launch_limit", [i, i + 1], emit_name))
+                    i += 2
+                    continue
+                # The runtime overwrites the original output slice, so pass
+                # the init destination, not the bias-filled SSA result.
+                launch_operands = conv_ins + init_ins + init_outs
+                launch_types = conv_in_types + init_in_types + init_out_types
+                launch_line = render_launch(
+                    emit_name, conv_inst.result_ssa, conv_inst.result_type,
+                    launch_operands, conv_inst.indent, {}, [],
+                    operand_types=launch_types,
+                    scalar_type_map=scalar_types,
+                    result_count=conv_inst.result_count,
+                )
+                edits.append((init_inst.span[0], init_inst.span[1], ""))
+                edits.append((conv_inst.span[0], conv_inst.span[1],
+                              launch_line))
+                report.append(("match", [i, i + 1], emit_name))
+                emitted_launches += 1
+                i += 2
+                continue
         if body_terms[i] is None:
             report.append(("encoder_fail", i, "?"))
             i += 1
@@ -1564,6 +1698,7 @@ def rewrite_mlir(
         emit_name = entry.name
         replace_full_span = False
         custom_launch_line: str | None = None
+        custom_first_launch_line: str | None = None
         custom_edit_span: tuple[int, int] | None = None
 
         def _tensor_copy_layout_is_legal() -> bool:
@@ -1647,6 +1782,66 @@ def rewrite_mlir(
                 i += 1
                 continue
 
+        if entry.name == "cudnnAddTensor_batched":
+            # The runtime wrapper implements cuDNN's NCHW AddTensor path for
+            # rank-4 f32 only.  Elementwise-add semantics also occur in the
+            # FP64 MFEM stages, but cuDNN cannot execute that signature and no
+            # canonical kernel.defn exists for it.  Preserve those adds as
+            # residual Linalg.
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
+            if len(operand_types) != 2 or ranks != [4, 4] or elems != ["f32", "f32"]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += n
+                continue
+
+        if entry.name == "cublasDaxpby":
+            # The semantic template permits implicit unit coefficients, but
+            # the public ABI is exactly (x, y, alpha, beta) over contiguous
+            # rank-1 f64 vectors.  Do not emit the historical two-operand
+            # rank-N launch: it cannot verify against the kernel definition
+            # and flattening a strided tensor would be incorrect.
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
+            if len(operand_types) != 2 or ranks != [1, 1] or elems != ["f64", "f64"]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += n
+                continue
+
+            scalar_names: list[str] = []
+            scalar_lines: list[str] = []
+            for coefficient in ("%alpha", "%beta"):
+                bound = binds.get(coefficient)
+                if (isinstance(bound, tuple) and len(bound) == 2 and
+                        bound[0] == "Cap"):
+                    scalar_names.append(bound[1])
+                    continue
+                if (isinstance(bound, tuple) and len(bound) == 2 and
+                        bound[0] == "Lit"):
+                    suffix = coefficient.lstrip("%")
+                    scalar = _derived_ssa_name(last.result_ssa, suffix)
+                    value = repr(float(bound[1]))
+                    if "." not in value and "e" not in value and "E" not in value:
+                        value += ".0"
+                    scalar_lines.append(
+                        f"{last.indent}{scalar} = arith.constant {value} : f64"
+                    )
+                    scalar_names.append(scalar)
+                    continue
+                report.append(("coefficient_reject", i, entry.name))
+                break
+            if len(scalar_names) != 2:
+                i += n
+                continue
+            rendered = render_launch(
+                entry.name, last.result_ssa, last.result_type,
+                operands + scalar_names, last.indent, {}, [],
+                operand_types=operand_types + ["f64", "f64"],
+                scalar_type_map=scalar_types,
+                result_count=last.result_count,
+            )
+            custom_launch_line = "\n".join(scalar_lines + [rendered])
+
         if entry.name in (
                 "cublasGemmFor1x1Conv",
                 "cutensornetContraction2_f64"):
@@ -1666,6 +1861,37 @@ def rewrite_mlir(
             actual_contraction_outs = _extract_ssa_names(
                 contraction_inst.outs_part
             )
+
+            # An opaque library call currently cannot safely consume a submap
+            # whose base is itself a computed tensor (notably an MFEM
+            # quadrature result assembled through submapInverse).  Converting
+            # that tensor to a raw pointer before one-shot bufferization can
+            # select an earlier aliased buffer.  Keep such contractions as
+            # residual Linalg until the runtime call is represented by a
+            # bufferizable op with explicit read/write effects.
+            prefix = text[:contraction_inst.span[0]]
+
+            def _computed_submap_base(value: str) -> bool:
+                matches = list(re.finditer(
+                    rf"^\s*{re.escape(value)}\s*=\s*polygeist\.submap\(\s*(%[\w.$-]+)",
+                    prefix, re.MULTILINE,
+                ))
+                if not matches:
+                    return False
+                base = matches[-1].group(1)
+                if base.startswith("%arg"):
+                    return False
+                direct_arg_view = re.search(
+                    rf"^\s*{re.escape(base)}\s*=\s*bufferization\.to_tensor\s+%arg\d+\b",
+                    prefix, re.MULTILINE,
+                )
+                return direct_arg_view is None
+
+            if any(_computed_submap_base(value)
+                   for value in contraction_ins[:2]):
+                report.append(("computed_submap_base_reject", i, entry.name))
+                i += n
+                continue
             init_results = (
                 [instances[i].result_ssa]
                 if instances[i].result_ssa else []
@@ -1767,68 +1993,238 @@ def rewrite_mlir(
                 _tensor_rank(ty)
                 for ty in contraction_in_types + contraction_out_types
             ]
-            legal_maps = (
-                len(map_dims) == 3
-                and all(dims is not None for dims in map_dims)
-                and bool(reduction_dims)
-                and all(
-                    red in map_dims[0] or red in map_dims[1]
-                    for red in reduction_dims
-                )
-                and all(red not in compact_output_dims
-                        for red in reduction_dims)
-                and all(
-                    mode in map_dims[0] or mode in map_dims[1]
-                    for mode in compact_output_dims
-                )
-                and all(len(dims) == len(set(dims)) for dims in map_dims)
-                and len(compact_output_dims) ==
-                    len(set(compact_output_dims))
-            )
-            legal_types = (
+
+            # A zero initializer followed by a rank-2 × rank-1 contraction is
+            # GEMV with beta=0.  The shared contraction recognizer reaches this
+            # shape before the one-step GEMV entry, so route it here instead of
+            # rejecting f32 as an unsupported cuTensorNet contraction.  Emit
+            # the zero and GEMV launches as a complete two-call replacement;
+            # the existing GEMV ABI has beta=1 and therefore consumes the
+            # explicitly initialized accumulator.
+            parallel_dims = {
+                dim for dim, role in enumerate(contraction_body.iterator_types)
+                if role == "parallel"
+            }
+            is_gemv = (
                 len(contraction_ins) == 2
                 and len(contraction_outs) == 1
-                and elem_types == ["f64", "f64", "f64"]
-                and all(rank is not None and 0 < rank <= 64
-                        for rank in ranks)
+                and sorted(ranks[:2]) == [1, 2]
+                and ranks[2:] == [1]
+                and len(parallel_dims) == 1
+                and len(reduction_dims) == 1
+                and len(map_dims) == 3
+                and all(dims is not None for dims in map_dims)
+                and elem_types in (["f32"] * 3, ["f64"] * 3)
+                and instances[i].result_ssa is not None
+                and instances[i].result_type is not None
+                and last.result_ssa is not None
                 and last.result_type is not None
-                and _sniff_elem_type(last.result_type) == "f64"
             )
-            if not legal_maps or not legal_types:
-                report.append(("contraction_abi_reject", i, entry.name))
-                i += n
-                continue
+            is_conv3d_f32 = (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and ranks == [8, 5, 4]
+                and elem_types == ["f32", "f32", "f32"]
+                and len(parallel_dims) == 4
+                and len(reduction_dims) == 4
+                and map_dims == [list(range(8)), [0, 4, 5, 6, 7],
+                                 [0, 1, 2, 3]]
+                and _is_forward_conv3d_window(text, contraction_ins[0])
+                and last.result_ssa is not None
+                and last.result_type is not None
+            )
+            if is_conv3d_f32:
+                emit_name = "cudnnConvolution3D_f32"
+                operands = contraction_ins + contraction_outs
+                operand_types = contraction_in_types + contraction_out_types
+                custom_launch_line = render_launch(
+                    emit_name, last.result_ssa, last.result_type,
+                    operands, last.indent, {}, [],
+                    operand_types=operand_types,
+                    scalar_type_map=scalar_types,
+                    result_count=last.result_count,
+                )
+            elif is_gemv:
+                elem = elem_types[0]
+                init_outs = _extract_ssa_names(instances[i].outs_part)
+                init_types = _extract_ssa_types(instances[i].outs_part)
+                if len(init_outs) != 1 or len(init_types) != 1:
+                    report.append(("gemv_init_reject", i, entry.name))
+                    i += n
+                    continue
+                zero_name = ("memset_zero_1D_f32" if elem == "f32"
+                             else "memset_zero_1D")
+                init_line = render_launch(
+                    zero_name, instances[i].result_ssa,
+                    instances[i].result_type, init_outs,
+                    instances[i].indent, {}, [], operand_types=init_types,
+                    scalar_type_map=scalar_types,
+                    result_count=instances[i].result_count,
+                )
+                paired_inputs = sorted(
+                    zip(contraction_in_types, contraction_ins),
+                    key=lambda pair: -_tensor_rank(pair[0]),
+                )
+                gemv_types = [pair[0] for pair in paired_inputs] + [
+                    contraction_out_types[0]
+                ]
+                gemv_operands = [pair[1] for pair in paired_inputs] + [
+                    contraction_outs[0]
+                ]
+                a_dims = map_dims[contraction_ins.index(gemv_operands[0])]
+                y_dims = map_dims[2]
+                transposed = bool(a_dims and y_dims and
+                                  a_dims[0] != y_dims[0])
+                gemv_name = (
+                    ("cublasSgemv_T" if transposed else "cublasSgemv")
+                    if elem == "f32" else
+                    ("cublasDgemv_T" if transposed else "cublasDgemv")
+                )
+                gemv_line = render_launch(
+                    gemv_name, last.result_ssa, last.result_type,
+                    gemv_operands, last.indent, {}, [],
+                    operand_types=gemv_types,
+                    scalar_type_map=scalar_types,
+                    result_count=last.result_count,
+                )
+                emit_name = gemv_name
+                operands = gemv_operands
+                operand_types = gemv_types
+                custom_first_launch_line = init_line
+                custom_launch_line = gemv_line
+            # A pair of vectors contracted without a reduction is an outer
+            # product.  The composition's first generic is a zero fill, so
+            # use an overwrite-mode runtime entry and replace both stages.
+            # Order the vectors by the corresponding output mode rather than
+            # by source operand order so the ABI is always u[M], v[N], C[M,N].
+            elif (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and ranks == [1, 1, 2]
+                and elem_types == ["f64", "f64", "f64"]
+                and len(parallel_dims) == 2
+                and not reduction_dims
+                and len(map_dims) == 3
+                and all(dims is not None for dims in map_dims)
+                and len(map_dims[0]) == len(map_dims[1]) == 1
+                and len(map_dims[2]) == 2
+                and set(map_dims[0] + map_dims[1]) == set(map_dims[2])
+                and map_dims[0][0] != map_dims[1][0]
+                and last.result_ssa is not None
+                and last.result_type is not None
+            ):
+                by_mode = {
+                    map_dims[0][0]: (contraction_ins[0],
+                                     contraction_in_types[0]),
+                    map_dims[1][0]: (contraction_ins[1],
+                                     contraction_in_types[1]),
+                }
+                ordered = [by_mode[mode] for mode in map_dims[2]]
+                operands = [pair[0] for pair in ordered] + contraction_outs
+                operand_types = [pair[1] for pair in ordered] + \
+                    contraction_out_types
+                emit_name = "cublasDgemm_outer_product"
+                custom_launch_line = render_launch(
+                    emit_name, last.result_ssa, last.result_type,
+                    operands, last.indent, {}, [],
+                    operand_types=operand_types,
+                    scalar_type_map=scalar_types,
+                    result_count=last.result_count,
+                )
+            # A[B,M,K] * B[K,N] -> C[B,M,N], with B shared by every
+            # batch, is cublasSgemmStridedBatched with strideB=0.  Keep this
+            # route deliberately strict about mode order: the runtime ABI is
+            # row-major and must not silently reinterpret transposed views.
+            elif (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and ranks == [3, 2, 3]
+                and elem_types == ["f32", "f32", "f32"]
+                and len(parallel_dims) == 3
+                and len(reduction_dims) == 1
+                and len(map_dims) == 3
+                and all(dims is not None for dims in map_dims)
+                and len(map_dims[0]) == 3
+                and len(map_dims[1]) == 2
+                and len(map_dims[2]) == 3
+                and map_dims[0][:2] == map_dims[2][:2]
+                and map_dims[0][2] in reduction_dims
+                and map_dims[1][0] == map_dims[0][2]
+                and map_dims[1][1] == map_dims[2][2]
+                and last.result_ssa is not None
+                and last.result_type is not None
+            ):
+                emit_name = "cublasSgemm_strided_batched_broadcast_rhs"
+                operands = contraction_ins + contraction_outs
+                operand_types = contraction_in_types + contraction_out_types
+                custom_launch_line = render_launch(
+                    emit_name, last.result_ssa, last.result_type,
+                    operands, last.indent, {}, [],
+                    operand_types=operand_types,
+                    scalar_type_map=scalar_types,
+                    result_count=last.result_count,
+                )
+            else:
+                legal_maps = (
+                    len(map_dims) == 3
+                    and all(dims is not None for dims in map_dims)
+                    and bool(reduction_dims)
+                    and all(
+                        red in map_dims[0] or red in map_dims[1]
+                        for red in reduction_dims
+                    )
+                    and all(red not in compact_output_dims
+                            for red in reduction_dims)
+                    and all(
+                        mode in map_dims[0] or mode in map_dims[1]
+                        for mode in compact_output_dims
+                    )
+                    and all(len(dims) == len(set(dims)) for dims in map_dims)
+                    and len(compact_output_dims) ==
+                        len(set(compact_output_dims))
+                )
+                legal_types = (
+                    len(contraction_ins) == 2
+                    and len(contraction_outs) == 1
+                    and elem_types == ["f64", "f64", "f64"]
+                    and all(rank is not None and 0 < rank <= 64
+                            for rank in ranks)
+                    and last.result_type is not None
+                    and _sniff_elem_type(last.result_type) == "f64"
+                )
+                if not legal_maps or not legal_types:
+                    report.append(("contraction_abi_reject", i, entry.name))
+                    i += n
+                    continue
 
-            legacy_names = {
-                (4, 5, 4): "cutensornetContraction2_f64_r4r5r4",
-                (5, 4, 4): "cutensornetContraction2_f64_r5r4r4",
-                (5, 5, 4): "cutensornetContraction2_f64_r5r5r4",
-            }
-            emit_name = (
-                legacy_names[tuple(ranks)]
-                if entry.name == "cublasGemmFor1x1Conv"
-                and tuple(ranks) in legacy_names
-                else "cutensornetContraction2_f64"
-            )
-            # Preserve source operand order: contraction_maps correspond
-            # positionally to these operands, so the generic rank-based
-            # commutative reordering is intentionally bypassed.
-            operands = contraction_ins + contraction_outs
-            operand_types = contraction_in_types + contraction_out_types
-            custom_launch_line = _render_contraction_launch(
-                emit_name, last.result_ssa, last.result_type,
-                operands, operand_types, maps, last.indent,
-                unranked_abi=(emit_name ==
-                              "cutensornetContraction2_f64"),
-            )
-            # Some scratch-sliced stages re-view the zero-initialized tensor
-            # before contracting into it.  Keep that initialization chain
-            # alive (the runtime still overwrites with beta=0) and replace
-            # only the contraction.  Direct init->contraction chains retain
-            # the old optimization that removes the redundant zero generic.
-            if not direct_init_chain:
-                replace_full_span = True
-                custom_edit_span = contraction_inst.span
+                legacy_names = {
+                    (4, 5, 4): "cutensornetContraction2_f64_r4r5r4",
+                    (5, 4, 4): "cutensornetContraction2_f64_r5r4r4",
+                    (5, 5, 4): "cutensornetContraction2_f64_r5r5r4",
+                }
+                emit_name = (
+                    legacy_names[tuple(ranks)]
+                    if entry.name == "cublasGemmFor1x1Conv"
+                    and tuple(ranks) in legacy_names
+                    else "cutensornetContraction2_f64"
+                )
+                # Preserve source operand order: contraction_maps correspond
+                # positionally to these operands, so the generic rank-based
+                # commutative reordering is intentionally bypassed.
+                operands = contraction_ins + contraction_outs
+                operand_types = contraction_in_types + contraction_out_types
+                custom_launch_line = _render_contraction_launch(
+                    emit_name, last.result_ssa, last.result_type,
+                    operands, operand_types, maps, last.indent,
+                    unranked_abi=(emit_name ==
+                                  "cutensornetContraction2_f64"),
+                )
+                # Some scratch-sliced stages re-view the zero-initialized
+                # tensor before contracting into it. Keep that initialization
+                # chain alive and replace only the contraction.
+                if not direct_init_chain:
+                    replace_full_span = True
+                    custom_edit_span = contraction_inst.span
 
         # Dtype-suffix dispatch for cuDNN conv2d. The encoder's Term language
         # is dtype-agnostic (arith.mulf matches any float type), so one
@@ -1944,8 +2340,14 @@ def rewrite_mlir(
                 report.append(("softmax_reject", i, entry.name))
                 i += 1
                 continue
-            operands = [out_names[0]]
-            operand_types = [out_types[0]]
+            vector_base = _trace_tensor_storage_base(text, out_names[0])
+            vector_type = _infer_tensor_type(text, vector_base)
+            if not vector_type:
+                report.append(("softmax_base_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [vector_base]
+            operand_types = [vector_type]
             binds = {}
             if entry.name.endswith("_tensor"):
                 replace_full_span = True
@@ -2506,6 +2908,13 @@ def rewrite_mlir(
                 body_constants=bodies[i].constants if inline_weights else None,
                 result_count=last.result_count,
             )
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", list(range(i, i + n)), emit_name))
+            i += n
+            continue
+        emitted_launches += 1
+        if custom_first_launch_line is not None:
+            emitted_launches += 1
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser
             # captures the line break before the op. Use only the spaces.
@@ -2542,7 +2951,13 @@ def rewrite_mlir(
             # to the empty string.
             for j in range(n - 1):
                 inst_j = instances[i + j]
-                edits.append((inst_j.span[0], inst_j.span[1], ""))
+                earlier_replacement = (
+                    custom_first_launch_line
+                    if j == 0 and custom_first_launch_line is not None
+                    else ""
+                )
+                edits.append((inst_j.span[0], inst_j.span[1],
+                              earlier_replacement))
             last_inst = instances[i + n - 1]
             edits.append((last_inst.span[0], last_inst.span[1], replacement))
         i += n
@@ -2574,6 +2989,10 @@ def main():
                           "// POLYGEIST-MATCH-BEGIN/-END comment block above "
                           "each emitted kernel.launch op so the rewrite is "
                           "reversible by kernel_launch_lower.py."))
+    ap.add_argument("--max-launches", type=int,
+                    help=("Emit at most this many launches, preserving later "
+                          "matches as residual Linalg; useful for correctness "
+                          "bisection."))
     args = ap.parse_args()
 
     text = Path(args.input).read_text()
@@ -2583,6 +3002,7 @@ def main():
         roundtrip_markers=args.with_roundtrip_markers,
         show_candidates=args.show_candidates,
         show_semantic_only=args.show_semantic_only,
+        max_launches=args.max_launches,
     )
     if args.dry_run:
         print(f"== match report for {args.input} ==", file=sys.stderr)

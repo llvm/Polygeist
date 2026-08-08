@@ -1749,6 +1749,18 @@ struct WalkCtx {
   bool didRewrite = false;
 };
 
+// A local allocation may be created inside a region that contains all of its
+// uses (for example, one scalar reduction accumulator per outer-loop
+// iteration).  Its tensor state must not be added as an iter_arg to that
+// enclosing operation: the initial tensor is itself defined in the region and
+// therefore cannot dominate the operation.  Such state is private to the
+// region and can be rewritten in place, then discarded on exit.
+static bool rootIsDefinedInside(Value root, Region &region) {
+  Operation *def = root.getDefiningOp();
+  Operation *owner = region.getParentOp();
+  return def && owner && (owner == def || owner->isProperAncestor(def));
+}
+
 // Holds whichever kind of view chain routed an operand back to the root
 // memref. Exactly one of `submap` or `subview` is non-empty; both empty
 // means the operand IS the root directly (no view at all).
@@ -1766,7 +1778,8 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
   rewriter.setInsertionPoint(generic);
   SmallVector<Value> newInputs, newOutputs;
   SmallVector<Type> resultTypes;
-  int outRootIdx = -1;
+  int outRootResultIdx = -1;
+  SmallVector<int> newResultForOutput;
   RoutedChain outRootChain;
 
   auto routeOperand = [&](Value v) -> std::pair<Value, std::optional<RoutedChain>> {
@@ -1801,9 +1814,17 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
   for (Value out : generic.getOutputs()) {
     auto [nv, chainOpt] = routeOperand(out);
     newOutputs.push_back(nv);
-    resultTypes.push_back(nv.getType());
+    // Linalg permits mixed tensor/memref outputs, but only tensor outputs
+    // produce SSA results.  During per-root conversion another root may still
+    // be a memref, so never put its memref type in the result type list.
+    int resultIdx = -1;
+    if (nv.getType().isa<RankedTensorType>()) {
+      resultIdx = resultTypes.size();
+      resultTypes.push_back(nv.getType());
+    }
+    newResultForOutput.push_back(resultIdx);
     if (chainOpt.has_value()) {
-      outRootIdx = idx;
+      outRootResultIdx = resultIdx;
       outRootChain = *chainOpt;
     }
     ++idx;
@@ -1817,8 +1838,8 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
   rewriter.cloneRegionBefore(generic.getRegion(), newGeneric.getRegion(),
                              newGeneric.getRegion().end());
 
-  if (outRootIdx >= 0) {
-    Value resultSlice = newGeneric.getResult(outRootIdx);
+  if (outRootResultIdx >= 0) {
+    Value resultSlice = newGeneric.getResult(outRootResultIdx);
     if (outRootChain.isEmpty()) {
       ctx.currentTensor = resultSlice;
     } else if (outRootChain.isSubmap()) {
@@ -1832,13 +1853,30 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
     }
   }
 
-  for (auto [oldR, newR] : llvm::zip(generic.getResults(), newGeneric.getResults()))
-    oldR.replaceAllUsesWith(newR);
+  // Existing results correspond to the old tensor outputs in output order.
+  // A newly tensorized output can appear before them, so a plain positional
+  // zip would rewire an old result to the wrong output.
+  unsigned oldResultIdx = 0;
+  for (auto [outIdx, oldOut] : llvm::enumerate(generic.getOutputs())) {
+    if (!oldOut.getType().isa<RankedTensorType>())
+      continue;
+    int newIdx = newResultForOutput[outIdx];
+    assert(newIdx >= 0 && "an existing tensor output must remain a tensor");
+    generic.getResult(oldResultIdx++).replaceAllUsesWith(
+        newGeneric.getResult(newIdx));
+  }
   rewriter.eraseOp(generic);
 }
 
 static void handleScfFor(WalkCtx &ctx, scf::ForOp forOp) {
   PatternRewriter &rewriter = *ctx.rewriter;
+
+  if (rootIsDefinedInside(ctx.root, forOp.getRegion())) {
+    Value saved = ctx.currentTensor;
+    walkBlock(ctx, forOp.getRegion().front());
+    ctx.currentTensor = saved;
+    return;
+  }
 
   // Body only READS root → walk inline; currentTensor unchanged outside.
   // We still recurse to rewrite reads/sub-ops; the outer-scope tensor
@@ -1898,6 +1936,20 @@ static void handleScfFor(WalkCtx &ctx, scf::ForOp forOp) {
 
 static void handleScfIf(WalkCtx &ctx, scf::IfOp ifOp) {
   PatternRewriter &rewriter = *ctx.rewriter;
+
+  bool rootInThen = rootIsDefinedInside(ctx.root, ifOp.getThenRegion());
+  bool rootInElse = !ifOp.getElseRegion().empty() &&
+                    rootIsDefinedInside(ctx.root, ifOp.getElseRegion());
+  if (rootInThen || rootInElse) {
+    Value saved = ctx.currentTensor;
+    if (rootInThen)
+      walkBlock(ctx, ifOp.getThenRegion().front());
+    ctx.currentTensor = saved;
+    if (rootInElse)
+      walkBlock(ctx, ifOp.getElseRegion().front());
+    ctx.currentTensor = saved;
+    return;
+  }
 
   bool thenWrites = regionWritesRoot(ifOp.getThenRegion(), ctx.root);
   bool elseWrites = !ifOp.getElseRegion().empty() &&
@@ -1989,6 +2041,13 @@ static void handleScfIf(WalkCtx &ctx, scf::IfOp ifOp) {
 static void handleAffineFor(WalkCtx &ctx, affine::AffineForOp forOp) {
   PatternRewriter &rewriter = *ctx.rewriter;
 
+  if (rootIsDefinedInside(ctx.root, forOp.getRegion())) {
+    Value saved = ctx.currentTensor;
+    walkBlock(ctx, forOp.getRegion().front());
+    ctx.currentTensor = saved;
+    return;
+  }
+
   if (!regionWritesRoot(forOp.getRegion(), ctx.root)) {
     Value saved = ctx.currentTensor;
     walkBlock(ctx, forOp.getRegion().front());
@@ -2035,6 +2094,19 @@ static void handleAffineFor(WalkCtx &ctx, affine::AffineForOp forOp) {
 
 static void handleScfWhile(WalkCtx &ctx, scf::WhileOp whileOp) {
   PatternRewriter &rewriter = *ctx.rewriter;
+
+  bool rootInBefore = rootIsDefinedInside(ctx.root, whileOp.getBefore());
+  bool rootInAfter = rootIsDefinedInside(ctx.root, whileOp.getAfter());
+  if (rootInBefore || rootInAfter) {
+    Value saved = ctx.currentTensor;
+    if (rootInBefore)
+      walkBlock(ctx, whileOp.getBefore().front());
+    ctx.currentTensor = saved;
+    if (rootInAfter)
+      walkBlock(ctx, whileOp.getAfter().front());
+    ctx.currentTensor = saved;
+    return;
+  }
 
   bool beforeWrites = regionWritesRoot(whileOp.getBefore(), ctx.root);
   bool afterWrites = regionWritesRoot(whileOp.getAfter(), ctx.root);
@@ -2189,21 +2261,27 @@ static void walkBlock(WalkCtx &ctx, Block &block) {
     } else if (auto generic = dyn_cast<linalg::GenericOp>(&op)) {
       // Rewrite only if this generic touches our root via in/out operands.
       bool touches = false;
+      bool writesRoot = false;
+      bool hasTensorOutput = false;
       for (Value v : generic.getInputs()) {
         if (v.getType().isa<MemRefType>() && tracesToRoot(v, ctx.root)) {
           touches = true;
           break;
         }
       }
-      if (!touches) {
-        for (Value v : generic.getOutputs()) {
-          if (v.getType().isa<MemRefType>() && tracesToRoot(v, ctx.root)) {
-            touches = true;
-            break;
-          }
+      for (Value v : generic.getOutputs()) {
+        hasTensorOutput |= v.getType().isa<RankedTensorType>();
+        if (v.getType().isa<MemRefType>() && tracesToRoot(v, ctx.root)) {
+          touches = true;
+          writesRoot = true;
         }
       }
-      if (touches) {
+      // Do not tensorize only an input while every destination is still a
+      // memref.  That transient mixed form is rejected by this Linalg
+      // version's destination-style verifier.  Convert an output root first;
+      // the greedy function pattern will revisit the generic and convert the
+      // remaining input roots once it has a tensor destination.
+      if (touches && (writesRoot || hasTensorOutput)) {
         rewriteLinalgGenericForRoot(ctx, generic);
         ctx.didRewrite = true;
       }
@@ -2759,6 +2837,18 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   funcOp.walk([&](memref::AllocOp op) { roots.push_back(op.getResult()); });
   if (roots.empty()) return failure();
 
+  // The multi-root loop handlers thread every tracked root written in a loop
+  // as an iter_arg.  A root allocated inside that loop cannot be one of those
+  // operands because its definition does not dominate the loop.  Leave such
+  // functions to the region-recursive walker, which deliberately treats
+  // loop-local allocations as private state.
+  Block *entry = &funcOp.getBody().front();
+  for (Value root : roots) {
+    if (Operation *def = root.getDefiningOp())
+      if (def->getBlock() != entry)
+        return failure();
+  }
+
   // Feasibility check WITHOUT touching the IR. Build a "would-be" root
   // set so canHandle can answer questions about it, but don't insert any
   // ops yet. This prevents the create-then-erase ping-pong that re-fires
@@ -2805,17 +2895,49 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   return success();
 }
 
+// A generic that connects independently rooted buffers must be tensorized as
+// one transaction.  Processing one root at a time can legally rewrite the
+// consumer before the producer root, then erase the producer computation as
+// dead buffer work.  Count all memref operands, not just outputs: the common
+// producer-temp-consumer chain has one output root per generic but still
+// carries data across roots.
+static bool hasCrossRootGeneric(func::FuncOp funcOp) {
+  bool found = false;
+  funcOp.walk([&](linalg::GenericOp generic) {
+    SetVector<Value> roots;
+    for (Value operand : generic->getOperands())
+      if (operand.getType().isa<MemRefType>())
+        roots.insert(findRoot(operand));
+    if (roots.size() > 1) {
+      found = true;
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return found;
+}
+
 } // namespace multiroot
 
 struct LinalgDebufferizationMultiRoot
     : public OpRewritePattern<func::FuncOp> {
-  using OpRewritePattern<func::FuncOp>::OpRewritePattern;
+  LinalgDebufferizationMultiRoot(MLIRContext *context,
+                                 PatternBenefit benefit = 1,
+                                 bool onlyWhenRequired = false)
+      : OpRewritePattern<func::FuncOp>(context, benefit),
+        onlyWhenRequired(onlyWhenRequired) {}
   LogicalResult matchAndRewrite(func::FuncOp funcOp,
                                 PatternRewriter &rewriter) const final {
     if (funcOp.isExternal() || funcOp.empty()) return failure();
     if (!llvm::hasSingleElement(funcOp.getBody())) return failure();
+    if (onlyWhenRequired &&
+        !multiroot::hasCrossRootGeneric(funcOp))
+      return failure();
     return multiroot::handleAllRoots(funcOp, rewriter);
   }
+
+private:
+  bool onlyWhenRequired;
 };
 
 struct LinalgDebufferizationRecursive : public OpRewritePattern<func::FuncOp> {
@@ -2855,7 +2977,14 @@ void LinalgDebufferize::runOnOperation() {
   if (useMultiRoot) {
     patterns.insert<LinalgDebufferizationMultiRoot>(&getContext());
   } else if (useRecursive) {
-    patterns.insert<LinalgDebufferizationRecursive>(&getContext());
+    // Cross-root linalg dataflow must be converted atomically.  Prefer the
+    // joint walker when it can handle the whole function; its feasibility
+    // check fails without mutation and lets the recursive implementation
+    // cover richer control flow and loop-local scratch as a safe fallback.
+    patterns.insert<LinalgDebufferizationMultiRoot>(
+        &getContext(), /*benefit=*/2, /*onlyWhenRequired=*/true);
+    patterns.insert<LinalgDebufferizationRecursive>(&getContext(),
+                                                    /*benefit=*/1);
   } else {
     patterns.insert<LinalgDebufferization>(&getContext());
   }

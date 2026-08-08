@@ -19,6 +19,33 @@
 using namespace mlir;
 using namespace mlir::arith;
 
+static mlir::Value castIntegerToWidth(mlir::Location loc, mlir::Value value,
+                                      mlir::IntegerType dstTy,
+                                      mlir::OpBuilder &builder) {
+  auto srcTy = value.getType().cast<mlir::IntegerType>();
+  if (srcTy == dstTy)
+    return value;
+  if (srcTy.getWidth() < dstTy.getWidth())
+    return builder.create<ExtUIOp>(loc, dstTy, value);
+  return builder.create<TruncIOp>(loc, dstTy, value);
+}
+
+static bool compatibleMemRefCast(mlir::MemRefType srcTy,
+                                 mlir::MemRefType dstTy) {
+  if (srcTy.getElementType() != dstTy.getElementType() ||
+      srcTy.getMemorySpace() != dstTy.getMemorySpace() ||
+      srcTy.getRank() != dstTy.getRank())
+    return false;
+  for (int64_t i = 0; i < srcTy.getRank(); ++i) {
+    if (srcTy.getDimSize(i) == dstTy.getDimSize(i))
+      continue;
+    if (srcTy.isDynamicDim(i) || dstTy.isDynamicDim(i))
+      continue;
+    return false;
+  }
+  return true;
+}
+
 static bool isTerminator(Operation *op) {
   return op->mightHaveTrait<OpTrait::IsTerminator>();
 }
@@ -1102,7 +1129,7 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
         auto ipostTy = postTy.cast<mlir::IntegerType>();
         if (prevTy != ipostTy) {
-          val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+          val = castIntegerToWidth(loc, val, ipostTy, builder);
         }
       } else if (val.getType().isa<MemRefType>() &&
                  postTy.isa<LLVM::LLVMPointerType>())
@@ -1110,6 +1137,12 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       else if (val.getType().isa<LLVM::LLVMPointerType>() &&
                postTy.isa<MemRefType>())
         val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
+      else if (auto valMemRefTy = dyn_cast<MemRefType>(val.getType())) {
+        if (auto postMemRefTy = dyn_cast<MemRefType>(postTy)) {
+          if (compatibleMemRefCast(valMemRefTy, postMemRefTy))
+            val = builder.create<memref::CastOp>(loc, postTy, val);
+        }
+      }
       if (postTy != val.getType()) {
         stmt->dump();
         llvm::errs() << " val: " << val << " postTy: " << postTy

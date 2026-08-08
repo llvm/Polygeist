@@ -17,7 +17,22 @@ mkdir -p "$OUT"
 printf 'kernel\tstatus\tlinalg_ops\tresidual_loops\tkernel_launches\tmatched_symbols\n' \
   > "$OUT/summary.tsv"
 
-for src in "$SRC_DIR"/aten_*.c; do
+sources=()
+if (( $# )); then
+  for kernel in "$@"; do
+    kernel="${kernel%.c}"
+    [[ "$kernel" == aten_* ]] || kernel="aten_$kernel"
+    sources+=("$SRC_DIR/$kernel.c")
+  done
+else
+  sources=("$SRC_DIR"/aten_*.c)
+fi
+
+for src in "${sources[@]}"; do
+  if [[ ! -f "$src" ]]; then
+    printf 'missing ATen C fixture: %s\n' "$src" >&2
+    exit 2
+  fi
   fn="$(basename "$src" .c)"
   dir="$OUT/$fn"
   mkdir -p "$dir"
@@ -25,7 +40,7 @@ for src in "$SRC_DIR"/aten_*.c; do
   if ! timeout 60 "$CGEIST" "$src" --function="$fn" \
       --resource-dir="$RESOURCE_DIR" --raise-scf-to-affine -S \
       -o "$dir/orig.mlir" 2>"$dir/cgeist.err"; then
-    printf '%s\tfrontend_failed\t0\t0\t0\t\n' "$fn" | tee -a "$OUT/summary.tsv"
+    printf '%s\tfrontend_failed\t0\t0\t0\t-\n' "$fn" | tee -a "$OUT/summary.tsv"
     continue
   fi
 
@@ -33,20 +48,34 @@ for src in "$SRC_DIR"/aten_*.c; do
       --remove-iter-args --affine-parallelize \
       --raise-affine-to-linalg-pipeline --lower-polygeist-submap \
       "$dir/orig.mlir" -o "$dir/raised.mlir" 2>"$dir/raise.err"; then
-    printf '%s\traise_failed\t0\t0\t0\t\n' "$fn" | tee -a "$OUT/summary.tsv"
+    printf '%s\traise_failed\t0\t0\t0\t-\n' "$fn" | tee -a "$OUT/summary.tsv"
     continue
   fi
 
-  if ! timeout 60 "$OPT" --linalg-debufferize "$dir/raised.mlir" \
+  if ! timeout 15 "$OPT" --linalg-debufferize "$dir/raised.mlir" \
       -o "$dir/debuf.mlir" 2>"$dir/debuf.err"; then
-    printf '%s\tdebufferize_failed\t0\t0\t0\t\n' "$fn" \
-      | tee -a "$OUT/summary.tsv"
-    continue
+    # The default pass automatically selects joint-root conversion for
+    # cross-buffer linalg dataflow. Keep the forced mode as a diagnostic
+    # fallback for unusual cases that the automatic predicate did not cover.
+    if ! timeout 15 "$OPT" '--linalg-debufferize=use-multi-root' \
+        "$dir/raised.mlir" -o "$dir/debuf.mlir" \
+        2>"$dir/debuf-multi-root.err"; then
+      # A small class of already-loop-free multi-output reductions causes the
+      # recursive walkers to revisit the same function without progress.  The
+      # legacy local tensorizer handles these flat functions immediately.
+      if ! timeout 15 "$OPT" '--linalg-debufferize=use-recursive=false' \
+          "$dir/raised.mlir" -o "$dir/debuf.mlir" \
+          2>"$dir/debuf-legacy.err"; then
+        printf '%s\tdebufferize_failed\t0\t0\t0\t-\n' "$fn" \
+          | tee -a "$OUT/summary.tsv"
+        continue
+      fi
+    fi
   fi
 
-  if ! timeout 60 "$MATCH_PYTHON" "$MATCHER" "$dir/debuf.mlir" \
+  if ! timeout 10 "$MATCH_PYTHON" "$MATCHER" "$dir/debuf.mlir" \
       >"$dir/matched.mlir" 2>"$dir/match.err"; then
-    printf '%s\tmatch_failed\t0\t0\t0\t\n' "$fn" | tee -a "$OUT/summary.tsv"
+    printf '%s\tmatch_failed\t0\t0\t0\t-\n' "$fn" | tee -a "$OUT/summary.tsv"
     continue
   fi
 
@@ -63,6 +92,7 @@ for src in "$SRC_DIR"/aten_*.c; do
   symbols="$({ rg -o 'kernel\.launch @[A-Za-z0-9_]+' \
       "$dir/matched.mlir" || true; } \
     | sed 's/kernel.launch @//' | sort -u | paste -sd, -)"
+  symbols="${symbols:--}"
 
   printf '%s\tpass\t%s\t%s\t%s\t%s\n' "$fn" "${linalg_ops:-0}" \
     "${residual_loops:-0}" "${launches:-0}" "$symbols" \

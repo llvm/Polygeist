@@ -5,12 +5,12 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %cst = arith.constant 0.000000e+00 : f32
     %cst_0 = arith.constant 1.000000e+00 : f32
     %cst_1 = arith.constant 1.280000e+02 : f32
-    %0 = bufferization.to_tensor %arg2 : memref<?xf32>
+    %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = bufferization.to_tensor %arg0 : memref<?xf32>
+    %2 = bufferization.to_tensor %arg2 : memref<?xf32>
     %3 = tensor.empty() : tensor<f32>
     %inserted = tensor.insert %cst into %3[] : tensor<f32>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map, #map1], iterator_types = ["reduction"], library_call = ""} ins(%2 : tensor<?xf32>) outs(%inserted : tensor<f32>) {
+    %4 = linalg.generic {doc = "", indexing_maps = [#map, #map1], iterator_types = ["reduction"], library_call = ""} ins(%0 : tensor<?xf32>) outs(%inserted : tensor<f32>) {
     ^bb0(%in: f32, %out: f32):
       %11 = arith.mulf %in, %in : f32
       %12 = arith.addf %out, %11 : f32
@@ -21,7 +21,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %6 = arith.addf %5, %arg3 : f32
     %7 = math.sqrt %6 : f32
     %8 = arith.divf %cst_0, %7 : f32
-    %9 = linalg.generic {doc = "", indexing_maps = [#map, #map, #map], iterator_types = ["parallel"], library_call = ""} ins(%1, %2 : tensor<?xf32>, tensor<?xf32>) outs(%0 : tensor<?xf32>) {
+    %9 = linalg.generic {doc = "", indexing_maps = [#map, #map, #map], iterator_types = ["parallel"], library_call = ""} ins(%1, %0 : tensor<?xf32>, tensor<?xf32>) outs(%2 : tensor<?xf32>) {
     ^bb0(%in: f32, %in_2: f32, %out: f32):
       %11 = arith.mulf %8, %in_2 : f32
       %12 = arith.mulf %in, %11 : f32

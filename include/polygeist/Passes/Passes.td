@@ -299,6 +299,12 @@ def LowerKernelLaunchToCuBLAS
     "tensor::TensorDialect",
     "polygeist::kernel::KernelDialect",
   ];
+  let options = [
+    Option<"deviceResidentCutensornet", "device-resident-cutensornet",
+           "bool", /*default=*/"false",
+           "Lower generic cuTensorNet contractions through the CUDA-device "
+           "pointer ABI. Fails if residual host tensor computation remains.">
+  ];
 }
 
 def LowerKernelLaunchToPVA
@@ -344,10 +350,12 @@ def LinalgDebufferize : Pass<"linalg-debufferize"> {
            "Use the region-recursive (v2) debufferization implementation. "
            "Set to false to fall back to the legacy v1 pattern.">,
     Option<"useMultiRoot", "use-multi-root", "bool", /*default=*/"false",
-           "Use the experimental multi-root walker that processes ALL memref "
+           "Force the multi-root walker that processes ALL memref "
            "args of a function jointly. Handles double-buffer stencils, trmm, "
            "symm, etc. where a single linalg.generic touches operands from "
-           "multiple memref roots. Overrides useRecursive when set.">
+           "multiple memref roots. Cross-root generics select it automatically "
+           "when use-recursive is enabled; this option forces it. Overrides "
+           "useRecursive when set.">
   ];
 }
 

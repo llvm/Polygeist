@@ -17,6 +17,98 @@
 
 module {
 
+  // cuDNN tensor add: output += input (NCHW).
+  kernel.defn @cudnnAddTensor_batched(
+      %input: tensor<?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+      iterator_types = ["parallel", "parallel", "parallel", "parallel"]
+    } ins(%input : tensor<?x?x?x?xf32>)
+      outs(%output : tensor<?x?x?x?xf32>) {
+    ^bb0(%in: f32, %out: f32):
+      %sum = arith.addf %out, %in : f32
+      linalg.yield %sum : f32
+    } -> tensor<?x?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?x?xf32>
+  }
+
+  // cuDNN inference batch normalization with caller-provided reciprocal stddev.
+  kernel.defn @cudnnBatchNormalizationForwardInference(
+      %input: tensor<?x?x?x?xf32>, %weight: tensor<?xf32>,
+      %mean: tensor<?xf32>, %inv_std: tensor<?xf32>,
+      %bias: tensor<?xf32>, %output: tensor<?x?x?x?xf32>)
+      -> tensor<?x?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+        affine_map<(d0, d1, d2, d3) -> (d1)>,
+        affine_map<(d0, d1, d2, d3) -> (d1)>,
+        affine_map<(d0, d1, d2, d3) -> (d1)>,
+        affine_map<(d0, d1, d2, d3) -> (d1)>,
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+      iterator_types = ["parallel", "parallel", "parallel", "parallel"]
+    } ins(%input, %weight, %mean, %inv_std, %bias
+          : tensor<?x?x?x?xf32>, tensor<?xf32>, tensor<?xf32>,
+            tensor<?xf32>, tensor<?xf32>)
+      outs(%output : tensor<?x?x?x?xf32>) {
+    ^bb0(%in: f32, %w: f32, %m: f32, %is: f32, %b: f32, %out: f32):
+      %centered = arith.subf %in, %m : f32
+      %scaled0 = arith.mulf %centered, %is : f32
+      %scaled1 = arith.mulf %w, %scaled0 : f32
+      %value = arith.addf %scaled1, %b : f32
+      linalg.yield %value : f32
+    } -> tensor<?x?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?x?xf32>
+  }
+
+  // cuDNN valid NCHW convolution. The first operand is the rank-7 window
+  // view produced by polygeist.submap: [N, OC, OH, OW, IC, KH, KW].
+  kernel.defn @cudnnConvolutionFwd_batched(
+      %windows: tensor<?x?x?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3, d4, d5, d6) ->
+                   (d0, d1, d2, d3, d4, d5, d6)>,
+        affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d1, d4, d5, d6)>,
+        affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3)>],
+      iterator_types = ["parallel", "parallel", "parallel", "parallel",
+                        "reduction", "reduction", "reduction"]
+    } ins(%windows, %filter
+          : tensor<?x?x?x?x?x?x?xf32>, tensor<?x?x?x?xf32>)
+      outs(%output : tensor<?x?x?x?xf32>) {
+    ^bb0(%in: f32, %f: f32, %out: f32):
+      %product = arith.mulf %in, %f : f32
+      %sum = arith.addf %out, %product : f32
+      linalg.yield %sum : f32
+    } -> tensor<?x?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?x?xf32>
+  }
+
+  // cuDNN max pool. The rank-6 input is [N, C, OH, OW, KH, KW].
+  kernel.defn @cudnnMaxPoolFwd_batched(
+      %windows: tensor<?x?x?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d2, d3, d4, d5)>,
+        affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d2, d3)>],
+      iterator_types = ["parallel", "parallel", "parallel", "parallel",
+                        "reduction", "reduction"]
+    } ins(%windows : tensor<?x?x?x?x?x?xf32>)
+      outs(%output : tensor<?x?x?x?xf32>) {
+    ^bb0(%in: f32, %out: f32):
+      %take_input = arith.cmpf ogt, %in, %out : f32
+      %maximum = arith.select %take_input, %in, %out : f32
+      linalg.yield %maximum : f32
+    } -> tensor<?x?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?x?xf32>
+  }
+
   // GEMM: C = alpha*A*B + beta*C    (standard textbook gemm)
   // Operand order: A, B, C, beta, alpha.
   kernel.defn @cublasDgemm(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
@@ -113,6 +205,29 @@ module {
     kernel.yield
   }
 
+  // Batched FP32 matrix multiplication with one right-hand matrix shared by
+  // every batch: C[b,m,n] = sum_k A[b,m,k] * B[k,n].  The CUDA ABI lowers
+  // this to cublasSgemmStridedBatched with strideB=0 and beta=0.
+  kernel.defn @cublasSgemm_strided_batched_broadcast_rhs(
+      %A: tensor<?x?x?xf32>, %B: tensor<?x?xf32>,
+      %C: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+        affine_map<(d0, d1, d2, d3) -> (d3, d2)>,
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "parallel", "parallel", "reduction"]
+    } ins(%A, %B : tensor<?x?x?xf32>, tensor<?x?xf32>)
+      outs(%C : tensor<?x?x?xf32>) {
+    ^bb0(%a: f32, %b: f32, %out: f32):
+      %p = arith.mulf %a, %b : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<?x?x?xf32>
+    kernel.yield %result : tensor<?x?x?xf32>
+  }
+
   // Darknet-style explicit im2col + SGEMM as one library op. The matcher
   // recognizes the zero-fill, guarded im2col workspace materialization, and
   // following GEMM as a single composition; ABI lowering maps this directly
@@ -152,6 +267,25 @@ module {
   }
 
   kernel.defn @cublasDdot(
+      %x: tensor<?xf64>, %y: tensor<?xf64>,
+      %out: tensor<f64>) -> tensor<f64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> ()>
+      ],
+      iterator_types = ["reduction"]
+    } ins(%x, %y : tensor<?xf64>, tensor<?xf64>) outs(%out : tensor<f64>) {
+    ^bb0(%xv: f64, %yv: f64, %ov: f64):
+      %p = arith.mulf %xv, %yv : f64
+      %s = arith.addf %ov, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<f64>
+    kernel.yield %result : tensor<f64>
+  }
+
+  kernel.defn @cublasSdot(
       %x: tensor<?xf32>, %y: tensor<?xf32>,
       %out: tensor<f32>) -> tensor<f32> {
     %result = linalg.generic {
@@ -549,6 +683,27 @@ module {
       %s1 = arith.addf %out, %p1 : f64
       %s2 = arith.addf %s1, %p2 : f64
       linalg.yield %s2 : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
+
+  // Overwriting outer product: C[i,j] = u[i] * v[j].  Unlike the BLAS GER
+  // update primitive this operation does not consume the old contents of C.
+  kernel.defn @cublasDgemm_outer_product(
+      %u: tensor<?xf64>, %v: tensor<?xf64>,
+      %C: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%u, %v : tensor<?xf64>, tensor<?xf64>)
+      outs(%C : tensor<?x?xf64>) {
+    ^bb0(%uv: f64, %vv: f64, %out: f64):
+      %p = arith.mulf %uv, %vv : f64
+      linalg.yield %p : f64
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
   }
@@ -1428,6 +1583,23 @@ module {
       %W: tensor<?x?x?xf32>,
       %K: i32) -> tensor<?x?x?xf32> {
     kernel.yield %C : tensor<?x?x?xf32>
+  }
+
+  // Multi-channel, single-batch valid Conv3D. The rank-8 operand is the
+  // logical [OC,OD,OH,OW,IC,KD,KH,KW] window; ABI lowering recovers the
+  // underlying rank-4/5 NCDHW input before calling cuDNN.
+  kernel.defn @cudnnConvolution3D_f32(
+      %window: tensor<?x?x?x?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?x?xf32>,
+      %out: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    kernel.yield %out : tensor<?x?x?x?xf32>
+  }
+
+  kernel.defn @cudnnConvolution3D_f32_bias(
+      %window: tensor<?x?x?x?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?x?xf32>, %bias: tensor<?xf32>,
+      %out: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    kernel.yield %out : tensor<?x?x?x?xf32>
   }
 
   // Custom structured 3D 7-point stencil definitions. These operate on the

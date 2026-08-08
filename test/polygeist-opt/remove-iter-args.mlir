@@ -727,3 +727,31 @@ func.func @preserve_restore_after_write(%a: memref<?xf64>, %replacement: f64) {
   affine.store %old, %a[0] : memref<?xf64>
   return
 }
+
+// -----
+
+// A post-loop scale load is mathematically loop-invariant, but it is defined
+// after the loop and cannot be pulled into the loop without violating SSA
+// dominance. The distributive fast path must defer to the alloca fallback.
+// CHECK-LABEL: func.func @post_loop_scale
+// CHECK:         %[[SLOT:.+]] = memref.alloca() : memref<f32>
+// CHECK:         affine.for {{.*}} {
+// CHECK-NOT:       iter_args
+// CHECK:         }
+// CHECK:         %[[SUM:.+]] = affine.load %[[SLOT]][] : memref<f32>
+// CHECK:         %[[SCALE:.+]] = affine.load %{{.*}}[0] : memref<?xf32>
+// CHECK:         %[[SCALED:.+]] = arith.mulf %[[SUM]], %[[SCALE]] : f32
+// CHECK:         affine.store %[[SCALED]], %{{.*}}[0] : memref<?xf32>
+func.func @post_loop_scale(%n: index, %x: memref<?xf32>,
+                           %scale: memref<?xf32>, %out: memref<?xf32>) {
+  %zero = arith.constant 0.000000e+00 : f32
+  %sum = affine.for %i = 0 to %n iter_args(%acc = %zero) -> (f32) {
+    %v = affine.load %x[%i] : memref<?xf32>
+    %next = arith.addf %acc, %v : f32
+    affine.yield %next : f32
+  }
+  %s = affine.load %scale[0] : memref<?xf32>
+  %scaled = arith.mulf %sum, %s : f32
+  affine.store %scaled, %out[0] : memref<?xf32>
+  return
+}
