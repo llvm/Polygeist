@@ -4,10 +4,18 @@
 // avoiding solver structs, MPI state, dynamically dispatched operators, and
 // pointer-rich grid metadata.
 
+#ifndef HX
 #define HX 12
+#endif
+#ifndef HY
 #define HY 10
+#endif
+#ifndef HZ
 #define HZ 8
-#define HV 960
+#endif
+#ifndef HV
+#define HV (HX * HY * HZ)
+#endif
 
 void hpgmg_pipeline_easy(double x[HX + 2][HY + 2][HZ + 2],
                          const double rhs[HX][HY][HZ],

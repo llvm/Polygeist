@@ -7,9 +7,15 @@
 //   - no double **** pointer chasing
 //   - no local scalar alloca accumulator for the unweighted 27-point average
 
+#ifndef MX
 #define MX 12
+#endif
+#ifndef MY
 #define MY 10
+#endif
+#ifndef MZ
 #define MZ 8
+#endif
 
 void miniamr_pipeline_easy(double grid[MX + 2][MY + 2][MZ + 2],
                            const double x_in[MX + 2][MY][MZ],

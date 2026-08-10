@@ -513,9 +513,33 @@ static void hostreg_cache_insert(void *host, void *dev, size_t bytes) {
 // to cuBLAS — fails with illegal-memory-access. cuBLAS requires the
 // buffer to be registered (or device-allocated) even on a Tegra SoC
 // where the iGPU can technically reach any DRAM page.
+static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+  struct cudaPointerAttributes attrs;
+  cudaError_t err = cudaPointerGetAttributes(&attrs, ptr);
+  if (err != cudaSuccess) {
+    // Unregistered malloc pointers normally report cudaErrorInvalidValue.
+    // Clear the sticky runtime error before the registration path below.
+    (void)cudaGetLastError();
+    return 0;
+  }
+#if CUDART_VERSION >= 10000
+  if (attrs.type != cudaMemoryTypeDevice &&
+      attrs.type != cudaMemoryTypeManaged)
+    return 0;
+#else
+  if (attrs.memoryType != cudaMemoryTypeDevice)
+    return 0;
+#endif
+  *device_ptr = attrs.devicePointer ? attrs.devicePointer : ptr;
+  return 1;
+}
+
 static void *register_host_safe(void *ptr, size_t bytes) {
   void *cached = hostreg_cache_lookup(ptr, bytes);
   if (cached) return cached;
+  void *device_ptr = NULL;
+  if (pointer_is_device_resident(ptr, &device_ptr))
+    return device_ptr;
   hostreg_cache_remove_overlaps(ptr, bytes);
   cudaError_t err = cudaHostRegister(ptr, bytes, cudaHostRegisterMapped);
   if (err != cudaSuccess && err != cudaErrorHostMemoryAlreadyRegistered) {
@@ -820,11 +844,20 @@ void polygeist_cublas_dgemm_outer_product(
   unregister_host_safe(C);
 }
 
-// Host-side memset. In the current no-hoisting model the array lives on
-// host between launches; pulling it to device just to zero is wasteful.
+// Zero mapped host buffers on the CPU, but preserve device residency when the
+// caller supplies a cudaMalloc/cudaMallocManaged allocation.
 void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
                                        double *A, int32_t lda) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *device_ptr = NULL;
+  if (pointer_is_device_resident(A, &device_ptr)) {
+    polygeist_cublas_init();
+    timing_gpu_begin();
+    CUDA_CHECK(cudaMemset2DAsync(device_ptr, (size_t)lda * sizeof(double), 0,
+                                 (size_t)N * sizeof(double), M, g_stream));
+    timing_gpu_end("cuda_memset_zero_2d_f64", M, N, 0, host_start_ms);
+    return;
+  }
   if (lda == N) {
     // Contiguous: one memset.
     memset(A, 0, (size_t)M * (size_t)N * sizeof(double));
@@ -895,16 +928,36 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
   unregister_host_safe((void *)v2);
 }
 
-// Host-side 1D memset. Same justification as the 2D variant — host copy
-// to device just to zero is wasteful.
+// Preserve the zero-copy host behavior for ordinary C allocations, but also
+// accept an already-device-resident buffer.  This lets a lifted function use
+// the exact same ABI with cudaMalloc operands without attempting a CPU memset
+// through a device address.
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *device_ptr = NULL;
+  if (pointer_is_device_resident(v, &device_ptr)) {
+    polygeist_cublas_init();
+    timing_gpu_begin();
+    CUDA_CHECK(cudaMemsetAsync(device_ptr, 0, (size_t)N * sizeof(double),
+                               g_stream));
+    timing_gpu_end("cuda_memset_zero_1d_f64", N, 1, 0, host_start_ms);
+    return;
+  }
   memset(v, 0, (size_t)N * sizeof(double));
   timing_host_only("host_memset_zero_1d_f64", N, 1, 0, host_start_ms);
 }
 
 void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *device_ptr = NULL;
+  if (pointer_is_device_resident(v, &device_ptr)) {
+    polygeist_cublas_init();
+    timing_gpu_begin();
+    CUDA_CHECK(cudaMemsetAsync(device_ptr, 0, (size_t)N * sizeof(float),
+                               g_stream));
+    timing_gpu_end("cuda_memset_zero_1d_f32", N, 1, 0, host_start_ms);
+    return;
+  }
   memset(v, 0, (size_t)N * sizeof(float));
   timing_host_only("host_memset_zero_1d_f32", N, 1, 0, host_start_ms);
 }
@@ -3147,8 +3200,19 @@ void polygeist_cudnn_batchnorm_inference(
   const double eps = 1e-5;
 
   float *var_h = (float *)malloc((size_t)C * sizeof(float));
+  if (!var_h) {
+    fprintf(stderr, "polygeist_cudnn_batchnorm_inference: malloc failed\n");
+    abort();
+  }
+  const float *inv_std_h = inv_std;
+  void *inv_std_device = NULL;
+  if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+    CUDA_CHECK(cudaMemcpy(var_h, inv_std_device, (size_t)C * sizeof(float),
+                          cudaMemcpyDeviceToHost));
+    inv_std_h = var_h;
+  }
   for (int32_t c = 0; c < C; ++c) {
-    double s = (double)inv_std[c];
+    double s = (double)inv_std_h[c];
     double v = 1.0 / (s * s) - eps;
     if (v < 0) v = 0;
     var_h[c] = (float)v;
@@ -3313,7 +3377,16 @@ void polygeist_cudnn_conv_bias_relu_add_fused(
 }
 
 void polygeist_cublas_memset_zero_2d_f32(int32_t M, int32_t N, float *A, int32_t lda) {
-  /* Host memset — same as the f64 path. */
+  void *device_ptr = NULL;
+  if (pointer_is_device_resident(A, &device_ptr)) {
+    polygeist_cublas_init();
+    double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+    timing_gpu_begin();
+    CUDA_CHECK(cudaMemset2DAsync(device_ptr, (size_t)lda * sizeof(float), 0,
+                                 (size_t)N * sizeof(float), M, g_stream));
+    timing_gpu_end("cuda_memset_zero_2d_f32", M, N, 0, host_start_ms);
+    return;
+  }
   if (lda == N) {
     memset(A, 0, (size_t)M * (size_t)N * sizeof(float));
   } else {
@@ -4008,7 +4081,11 @@ void polygeist_rmsnorm_unweighted_f32(
 void polygeist_cublas_dot_f32(
     int32_t N, const float *X, const float *Y, float *Out) {
   if (N <= 0) {
-    *Out = 0.0f;
+    void *device_out = NULL;
+    if (pointer_is_device_resident(Out, &device_out))
+      CUDA_CHECK(cudaMemset(device_out, 0, sizeof(float)));
+    else
+      *Out = 0.0f;
     return;
   }
   polygeist_cublas_init();
@@ -4017,16 +4094,27 @@ void polygeist_cublas_dot_f32(
   size_t bytes = (size_t)N * sizeof(float);
   float *dX = (float *)register_host_safe((void *)X, bytes);
   float *dY = (float *)register_host_safe((void *)Y, bytes);
+  void *device_out = NULL;
+  int out_is_device = pointer_is_device_resident(Out, &device_out);
+  float host_out = 0.0f;
 
   timing_gpu_begin();
-  CUBLAS_CHECK(cublasSdot(g_handle, N, dX, 1, dY, 1, Out));
+  CUBLAS_CHECK(cublasSdot(g_handle, N, dX, 1, dY, 1,
+                          out_is_device ? &host_out : Out));
+  if (out_is_device)
+    CUDA_CHECK(cudaMemcpy(device_out, &host_out, sizeof(float),
+                          cudaMemcpyHostToDevice));
   timing_gpu_end("cublasSdot", N, 1, 0, host_start_ms);
 }
 
 void polygeist_cublas_dot_f64(
     int32_t N, const double *X, const double *Y, double *Out) {
   if (N <= 0) {
-    *Out = 0.0;
+    void *device_out = NULL;
+    if (pointer_is_device_resident(Out, &device_out))
+      CUDA_CHECK(cudaMemset(device_out, 0, sizeof(double)));
+    else
+      *Out = 0.0;
     return;
   }
   polygeist_cublas_init();
@@ -4035,9 +4123,16 @@ void polygeist_cublas_dot_f64(
   size_t bytes = (size_t)N * sizeof(double);
   double *dX = (double *)register_host_safe((void *)X, bytes);
   double *dY = (double *)register_host_safe((void *)Y, bytes);
+  void *device_out = NULL;
+  int out_is_device = pointer_is_device_resident(Out, &device_out);
+  double host_out = 0.0;
 
   timing_gpu_begin();
-  CUBLAS_CHECK(cublasDdot(g_handle, N, dX, 1, dY, 1, Out));
+  CUBLAS_CHECK(cublasDdot(g_handle, N, dX, 1, dY, 1,
+                          out_is_device ? &host_out : Out));
+  if (out_is_device)
+    CUDA_CHECK(cudaMemcpy(device_out, &host_out, sizeof(double),
+                          cudaMemcpyHostToDevice));
   timing_gpu_end("cublasDdot", N, 1, 0, host_start_ms);
 }
 
@@ -4202,6 +4297,36 @@ void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
                              g_stream));
   timing_gpu_end("cudaCopy_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cuda_copy_strided_2d_f32(
+    int32_t rows, int32_t cols,
+    int32_t src_row_stride, int32_t src_col_stride,
+    int32_t dst_row_stride, int32_t dst_col_stride,
+    const float *X, float *Out) {
+  if (rows <= 0 || cols <= 0) return;
+  if (src_col_stride != 1 || dst_col_stride != 1) {
+    fprintf(stderr, "cudaCopy strided f32 requires unit inner strides\n");
+    abort();
+  }
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t src_elems = (size_t)(rows - 1) * (size_t)src_row_stride + cols;
+  size_t dst_elems = (size_t)(rows - 1) * (size_t)dst_row_stride + cols;
+  float *dX = (float *)register_host_safe((void *)X, src_elems * sizeof(float));
+  float *dOut = (float *)register_host_safe(Out, dst_elems * sizeof(float));
+  timing_gpu_begin();
+  if (src_row_stride == cols && dst_row_stride == cols) {
+    CUDA_CHECK(cudaMemcpyAsync(dOut, dX, (size_t)rows * cols * sizeof(float),
+                               cudaMemcpyDeviceToDevice, g_stream));
+  } else {
+    CUDA_CHECK(cudaMemcpy2DAsync(
+        dOut, (size_t)dst_row_stride * sizeof(float),
+        dX, (size_t)src_row_stride * sizeof(float),
+        (size_t)cols * sizeof(float), rows,
+        cudaMemcpyDeviceToDevice, g_stream));
+  }
+  timing_gpu_end("cudaCopyStrided2D_f32", rows, cols, 0, host_start_ms);
 }
 
 void polygeist_cuda_add_f32(

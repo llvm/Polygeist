@@ -4,12 +4,16 @@
  * these give every component a disjoint scratch slice.  This removes the
  * artificial cross-component memory dependence without changing arithmetic.
  */
-enum { D1D=4, Q1D=5, VDIM=2 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { D1D=4, Q1D=5, VDIM=MFEM_BENCH_NE };
 #define F2(dx,dy,v) ((dx)+D1D*((dy)+D1D*(v)))
 #define F3(dx,dy,dz,v) ((dx)+D1D*((dy)+D1D*((dz)+D1D*(v))))
 #define Q2(v,qx,qy) ((qy)+Q1D*((qx)+Q1D*(v)))
 #define Q3(v,qx,qy,qz) ((qz)+Q1D*((qy)+Q1D*((qx)+Q1D*(v))))
 
+// polygeist-arg-extents mfem_interp_value_2d_scratch_sliced: field=16*MFEM_BENCH_NE, B=20, out=25*MFEM_BENCH_NE
 void mfem_interp_value_2d_scratch_sliced(const double *field,
                                           const double *B, double *out) {
   double s0[VDIM][D1D][Q1D];
@@ -23,6 +27,7 @@ void mfem_interp_value_2d_scratch_sliced(const double *field,
   }
 }
 
+// polygeist-arg-extents mfem_interp_value_3d_scratch_sliced: field=64*MFEM_BENCH_NE, B=20, out=125*MFEM_BENCH_NE
 void mfem_interp_value_3d_scratch_sliced(const double *field,
                                           const double *B, double *out) {
   double s0[VDIM][D1D][D1D][Q1D], s1[VDIM][D1D][Q1D][Q1D];
@@ -37,6 +42,7 @@ void mfem_interp_value_3d_scratch_sliced(const double *field,
       a+=s1[v][dz][qy][qx]*B[qz*D1D+dz]; } out[Q3(v,qx,qy,qz)]=a; }
 }
 
+// polygeist-arg-extents mfem_integrate_value_2d_scratch_sliced: fqp=25*MFEM_BENCH_NE, B=20, y=16*MFEM_BENCH_NE
 void mfem_integrate_value_2d_scratch_sliced(const double *fqp,
                                              const double *B, double *y) {
   double s0[VDIM][Q1D][D1D];
@@ -50,6 +56,7 @@ void mfem_integrate_value_2d_scratch_sliced(const double *fqp,
   }
 }
 
+// polygeist-arg-extents mfem_integrate_value_3d_scratch_sliced: fqp=125*MFEM_BENCH_NE, B=20, y=64*MFEM_BENCH_NE
 void mfem_integrate_value_3d_scratch_sliced(const double *fqp,
                                              const double *B, double *y) {
   double s0[VDIM][Q1D][Q1D][D1D], s1[VDIM][Q1D][D1D][D1D];

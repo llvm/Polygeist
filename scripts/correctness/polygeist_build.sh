@@ -45,6 +45,13 @@
 #                       Jetson target only. For contraction-only binaries,
 #                       discard unused runtime sections and avoid DT_NEEDED
 #                       entries for unrelated cuDNN/cuFFT/cuSPARSE libraries.
+#   POLYGEIST_MINIMAL_CUDA_RUNTIME=1
+#                       Jetson target only. Link a cuBLAS-only executable
+#                       without unrelated cuDNN/cuFFT/cuSPARSE/cuSOLVER
+#                       dependencies after function-section dead stripping.
+#   POLYGEIST_MINIMAL_CUDNN_RUNTIME=1
+#                       As above, but retain cuDNN plus cuBLAS for convolution,
+#                       pooling, normalization, and activation routes.
 #   POLYGEIST_DISABLE_LIBRARY_MATCHING=1
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
@@ -334,6 +341,19 @@ else
            -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+  if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+             -lcublas -lcudart -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + minimal cuBLAS/CUDA runtime linkage"
+  fi
+  if [ "${POLYGEIST_MINIMAL_CUDNN_RUNTIME:-0}" != "0" ]; then
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+             -L/usr/lib/aarch64-linux-gnu \
+             -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu:/home/nvidia/polygeist_cuda_libs"
+    echo "         + minimal cuDNN/cuBLAS/CUDA runtime linkage"
+  fi
   if [ -n "${POLYGEIST_CUTENSORNET_ROOT:-}" ]; then
     CUTENSORNET_ROOT=$POLYGEIST_CUTENSORNET_ROOT
     [ -f "$CUTENSORNET_ROOT/include/cutensornet.h" ] || {

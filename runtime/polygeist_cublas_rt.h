@@ -565,6 +565,11 @@ void polygeist_cudnn_softmax_forward_out_f32(
 // CUDA-runtime copies plus cuBLAS/cuDNN tensor ops; the CPU backend is a
 // reference implementation for host correctness runs.
 void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out);
+void polygeist_cuda_copy_strided_2d_f32(
+    int32_t rows, int32_t cols,
+    int32_t src_row_stride, int32_t src_col_stride,
+    int32_t dst_row_stride, int32_t dst_col_stride,
+    const float *X, float *Out);
 void polygeist_cuda_add_f32(
     int32_t N, const float *X, const float *Y, float *Out);
 void polygeist_cuda_mask_select_f32(

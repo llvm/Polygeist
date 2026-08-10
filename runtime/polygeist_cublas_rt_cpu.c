@@ -1355,6 +1355,17 @@ void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
   memcpy(Out, X, (size_t)N * sizeof(float));
 }
 
+void polygeist_cuda_copy_strided_2d_f32(
+    int32_t rows, int32_t cols,
+    int32_t src_row_stride, int32_t src_col_stride,
+    int32_t dst_row_stride, int32_t dst_col_stride,
+    const float *X, float *Out) {
+  for (int32_t i = 0; i < rows; ++i)
+    for (int32_t j = 0; j < cols; ++j)
+      Out[(size_t)i * dst_row_stride + (size_t)j * dst_col_stride] =
+          X[(size_t)i * src_row_stride + (size_t)j * src_col_stride];
+}
+
 void polygeist_cuda_add_f32(
     int32_t N, const float *X, const float *Y, float *Out) {
   for (int32_t i = 0; i < N; ++i)

@@ -77,6 +77,10 @@ ATEN_SILICON_RESULTS = env_path(
     "POLYGEIST_ATEN_SILICON_RESULTS",
     ATEN_C_ROOT / "silicon_results/large_problem_comparison.csv",
 )
+ATEN_DEVICE_RESIDENCY_RESULTS = env_path(
+    "POLYGEIST_ATEN_DEVICE_RESIDENCY_RESULTS",
+    ATEN_C_ROOT / "silicon_results/device_residency_comparison.csv",
+)
 ATEN_CUDA_LIBRARY_AUDIT = env_path(
     "POLYGEIST_ATEN_CUDA_LIBRARY_AUDIT",
     ATEN_C_ROOT / "cuda_library_audit.csv",
@@ -2101,6 +2105,289 @@ def _aten_sorted_kernels(sort_by: str) -> list[str]:
     )
 
 
+def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[str, str, str]:
+    """Classify measured ATen gaps by the dominant steady-state cause.
+
+    These labels deliberately describe the current deployment ABI, not the
+    semantic matcher.  cudaHostRegister is cached by the runtime, so repeated
+    registration is not listed as a warm-run cause.
+    """
+    if kernel in ("aten_gelu", "aten_gelu_cpu_tanh"):
+        return (
+            "unfused multi-library decomposition",
+            "The raised implementation evaluates GELU as several cuDNN tensor "
+            "operations plus cuBLAS scaling, while native uses one fused CUDA "
+            "kernel. Device residency removes transfers but cannot remove those "
+            "launches, temporaries, and descriptor operations.",
+            "Prefer an existing fused GELU frontend/library operation when "
+            "available; otherwise this is not a profitable library decomposition.",
+        )
+    if kernel == "aten_linear_combination_cpu":
+        return (
+            "low-K library decomposition",
+            "Four pointwise terms were represented as a very skinny GEMV. The "
+            "library setup and reduction organization cost much more than a fused "
+            "elementwise CUDA implementation, even with resident buffers.",
+            "Select a fused existing pointwise primitive only when one is available; "
+            "otherwise retain this as a semantic match rather than a speed route.",
+        )
+    if kernel == "aten_rms_norm":
+        return (
+            "internal RMSNorm staging",
+            "The cuDNN backend plan still copies resident inputs into cached internal "
+            "buffers and copies its result out. Native uses a three-kernel fused "
+            "reduction/scale sequence directly on the public buffers.",
+            "Bind the public device pointers directly into the cached cuDNN variant "
+            "pack instead of staging through plan-owned allocations.",
+        )
+    if "gemv" in kernel or kernel == "aten_mv":
+        if ratio < 3.0:
+            return (
+                "direct-buffer GEMV (fixed)",
+                "The corrected lowering forwards the original contiguous ABI "
+                "buffers to cuBLAS. No matrix/vector tensor materialization "
+                "remains; this row is now close to resident cuBLAS.",
+                "Fuse the preceding zero into GEMV beta=0 and reduce pipeline "
+                "scope/synchronization overhead.",
+            )
+    if ratio <= 1.25:
+        return (
+            "near-native library route",
+            "The corrected lowering passes cudaMalloc-backed buffers directly. "
+            "The remaining difference is ordinary wrapper, descriptor, or launch "
+            "overhead rather than tensor materialization.",
+            "Cache any remaining descriptors and synchronize at graph boundaries.",
+        )
+    if kernel == "aten_zeros_cpu":
+        return (
+            "near-native library route",
+            "Device pointers now select cudaMemsetAsync directly; only wrapper and "
+            "synchronization overhead remains.",
+            "Amortize synchronization in a larger resident graph.",
+        )
+    if "Memcpy" in baseline or kernel in ("aten_as_complex_cpu",):
+        detail = (
+            "This path copies through mapped host allocations rather than "
+            "between CUDA-resident allocations."
+        )
+        if kernel == "aten_as_complex_cpu":
+            detail += (
+                " It also expresses the interleaved split as millions of "
+                "four-byte cudaMemcpy2D rows, an intrinsically poor copy shape."
+            )
+        return (
+            "copy residency / geometry",
+            detail,
+            "Preserve device residency; represent interleaved or strided cases "
+            "with a coalesced transform kernel instead of tiny pitched rows.",
+        )
+    if kernel in ("aten_nested_matmul_broadcast_cpu", "aten_flatten_nd_linear_cpu"):
+        return (
+            "small batched GEMM + mapped operands",
+            "The 256x256 batched products do not amortize the mapped-host "
+            "operand and wrapper costs as well as a large dense GEMM.",
+            "Use persistent device operands and cache the batched execution plan.",
+        )
+    if kernel == "aten_outer":
+        return (
+            "low-intensity GEMM shape",
+            "The library call is a GEMM with K=1. That is an outer product with "
+            "little reuse, so memory placement dominates despite the GEMM name.",
+            "Keep operands/output resident; consider the library's rank-1 update "
+            "route when its layout is profitable.",
+        )
+    if "Convolution" in baseline or "Conv3D" in baseline:
+        return (
+            "per-call cuDNN setup + mapped operands",
+            "The raised wrapper recreates cuDNN descriptors and workspace per "
+            "call and uses mapped host operands. Compute-heavy convolutions "
+            "amortize this better; smaller or 2D cases expose it.",
+            "Cache descriptors, algorithm choice, and workspace, and retain "
+            "tensors on the device.",
+        )
+    if kernel in ("aten_mm", "aten_addmm"):
+        return (
+            "dense library-call wrapper overhead",
+            "Dense GEMM provides useful reuse, but mapped inputs/output and "
+            "pipeline synchronization still make the raised end-to-end call "
+            "slower than an already-resident cuBLAS operation.",
+            "Adopt the device-pointer ABI and synchronize only at graph boundaries.",
+        )
+    if kernel in ("aten_dot", "aten_blas_dot_naive_cpu", "aten_bf16_dot_cpu", "aten_fp16_dot_cpu"):
+        return (
+            "mostly amortized reduction",
+            "The long reduction and scalar result amortize most wrapper cost; "
+            "only a small mapped-memory gap remains.",
+            "Device residency should remove most of the remaining difference.",
+        )
+    if kernel == "aten_softmax":
+        return (
+            "reduction setup / synchronization",
+            "cuDNN does substantial reduction work, so the gap is modest, but "
+            "the raised end-to-end call still includes mapped operands, descriptor "
+            "setup, and synchronization.",
+            "Cache descriptors and keep the tensor resident in a larger GPU graph.",
+        )
+    return (
+        "bandwidth-bound elementwise/reduction",
+        "The useful arithmetic per byte is low. Mapped host operands, output "
+        "materialization, wrapper setup, and a call-boundary synchronization "
+        "dominate the resident fused CUDA/cuDNN operation.",
+        "Keep tensors and intermediates resident, fuse adjacent stages, and "
+        "synchronize only at the graph boundary.",
+    )
+
+
+def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
+    measurements = []
+    for perf in _read_csv(ATEN_DEVICE_RESIDENCY_RESULTS):
+        if perf.get("correctness") != "PASS":
+            continue
+        try:
+            ratio = float(perf.get("device_over_resident", ""))
+            mapped = float(perf.get("mapped_raised_us", ""))
+            device = float(perf.get("device_resident_us", ""))
+            resident = float(perf.get("resident_cuda_us", ""))
+        except ValueError:
+            continue
+        measurements.append((ratio, mapped, device, resident, perf))
+    measurements.sort(reverse=True, key=lambda item: item[0])
+
+    category_counts: dict[str, int] = {}
+    category_styles = {
+        "direct-buffer GEMV (fixed)": "cause-amortized",
+        "near-native library route": "cause-amortized",
+        "unfused multi-library decomposition": "cause-host",
+        "low-K library decomposition": "cause-intensity",
+        "internal RMSNorm staging": "cause-memory",
+        "copy residency / geometry": "cause-copy",
+        "small batched GEMM + mapped operands": "cause-intensity",
+        "low-intensity GEMM shape": "cause-intensity",
+        "per-call cuDNN setup + mapped operands": "cause-setup",
+        "dense library-call wrapper overhead": "cause-setup",
+        "mostly amortized reduction": "cause-amortized",
+        "reduction setup / synchronization": "cause-setup",
+        "bandwidth-bound elementwise/reduction": "cause-bandwidth",
+    }
+    rows = []
+    for ratio, mapped, device, resident, perf in measurements:
+        kernel = perf.get("kernel", "")
+        category, reason, remedy = _aten_slowness_diagnosis(
+            kernel, perf.get("baseline", ""), ratio
+        )
+        category_counts[category] = category_counts.get(category, 0) + 1
+        kernel_page = aten_stats.get(kernel, {}).get("page_filename", "")
+        kernel_html = (
+            f'<a class="kernel" href="{html.escape(kernel_page)}">'
+            f'{html.escape(kernel)}</a>' if kernel_page else html.escape(kernel)
+        )
+        severity = "none" if ratio >= 20 else ("partial" if ratio >= 2 else "pass")
+        category_style = category_styles.get(category, "cause-setup")
+        rows.append(
+            f'<tr><td>{kernel_html}</td>'
+            f'<td><code>{html.escape(perf.get("problem", "—"))}</code></td>'
+            f'<td>{mapped:,.3f}</td><td>{device:,.3f}</td><td>{resident:,.3f}</td>'
+            f'<td class="{severity}"><b>{ratio:,.2f}&times;</b></td>'
+            f'<td>{mapped / device:,.2f}&times;</td>'
+            f'<td><span class="cause-tag {category_style}">{html.escape(category)}</span>'
+            f'<br>{html.escape(reason)}</td>'
+            f'<td>{html.escape(remedy)}</td></tr>'
+        )
+
+    category_items = "".join(
+        f'<li><b>{html.escape(category)}</b>: {count} measured kernel(s)</li>'
+        for category, count in sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))
+    )
+    gemvs = [
+        item for item in measurements
+        if "gemv" in item[4].get("kernel", "").lower()
+        or item[4].get("kernel", "") == "aten_mv"
+    ]
+    gemv_ratio_min = min((item[0] for item in gemvs), default=0.0)
+    gemv_ratio_max = max((item[0] for item in gemvs), default=0.0)
+    gemv_residency = next(
+        (row for row in _read_csv(ATEN_DEVICE_RESIDENCY_RESULTS)
+         if row.get("kernel") == "aten_blas_gemv_generic_cpu"), {})
+    try:
+        mapped_gemv = float(gemv_residency.get("mapped_raised_us", ""))
+        device_gemv = float(gemv_residency.get("device_resident_us", ""))
+        resident_gemv = float(gemv_residency.get("resident_cuda_us", ""))
+        mapped_ratio = float(gemv_residency.get("mapped_over_resident", ""))
+        device_ratio = float(gemv_residency.get("device_over_resident", ""))
+        gemv_experiment = (
+            '<table><thead><tr><th>same raised GEMV path</th><th>warm µs</th>'
+            '<th>vs resident</th></tr></thead><tbody>'
+            f'<tr><td>mapped-host operands</td><td>{mapped_gemv:,.3f}</td>'
+            f'<td>{mapped_ratio:.3f}&times;</td></tr>'
+            f'<tr><td>cudaMalloc/device-resident operands</td><td>{device_gemv:,.3f}</td>'
+            f'<td>{device_ratio:.3f}&times;</td></tr>'
+            f'<tr><td>native resident cuBLAS</td><td>{resident_gemv:,.3f}</td>'
+            '<td>1.000&times;</td></tr></tbody></table>'
+        )
+    except (TypeError, ValueError):
+        gemv_experiment = ''
+    return (
+        '<div class="section-header"><h2 class="section-title">Why are some raised kernels slow?</h2></div>'
+        '<div class="intro">'
+        '<b>Result: all 40 executable FULL-match ATen kernels pass with true '
+        '<code>cudaMalloc</code> operands.</b> This table separates the old mapped-host '
+        'ABI from the corrected device-resident lowering and the native resident CUDA '
+        'baseline. The median device/native ratio is 1.07&times;; 32/40 are within '
+        '1.25&times; and 36/40 are within 2&times;. The four remaining gaps are algorithmic '
+        'or internal-library staging (two GELUs, a four-term linear combination, and '
+        'RMSNorm), not hidden tensor copies. Red ratios are at least 20&times;, yellow are '
+        '2–20&times;, and green are below 2&times;.'
+        f'<ul>{category_items}</ul></div>'
+        '<div class="section-header" id="gemv-deep-dive"><h2 class="section-title">'
+        'GEMV: the old 173× gap is fixed across the family</h2></div>'
+        '<div class="intro">'
+        f'The rerun GEMV family spans only '
+        f'<b>{gemv_ratio_min:.2f}&times;–{gemv_ratio_max:.2f}&times;</b> versus resident '
+        'cuBLAS with true device buffers. '
+        'For the main f32 case, <code>A</code> is 4096&times;8192 = 33,554,432 floats, '
+        'or 128 MiB. Each output uses one matrix row, but the matrix has essentially '
+        'no reuse across the call: GEMV performs about two floating-point operations '
+        'for every four matrix bytes. It is therefore a memory-bandwidth test wearing '
+        'a linear-algebra name.<br><br>'
+        'Inspection of the old generated LLVM showed the real dominant cost: before '
+        '<code>cublasSgemv</code>, one-shot bufferization allocated and copied the full '
+        '128 MiB matrix, then copied vectors/output around the call. A cudaMalloc-pointer '
+        'experiment initially crashed because those copies executed on the CPU.<br><br>'
+        '<b>Fix:</b> all library lowerings now trace tensor slices back to their original '
+        'memrefs, derive direct pointers, and treat destinations as in-place results. The '
+        'AArch64 objects have no allocation or CPU copy around the calls. All corrected runs '
+        'pass the CPU reference; '
+        'uploads happen before timing and the result download happens afterward.'
+        '</div>'
+        + gemv_experiment +
+        '<div class="section-header" id="polybench-gemv-comparison"><h2 class="section-title">'
+        'Why PolyBench GESUMMV shows a raised win</h2></div>'
+        '<div class="intro">'
+        '<b>The native baselines are not equivalent.</b> The warmed PolyBench result '
+        'compares two optimized cuBLAS GEMV calls from the raised path against the '
+        'handwritten PolyBenchGPU <code>gesummv_kernel</code>. That CUDA kernel assigns '
+        'one thread to each output row and executes the complete inner <code>j</code> '
+        'dot-product loop serially inside that thread. At N=512 it launches only 512 '
+        'threads and does not use a parallel reduction, so cuBLAS can beat it even while '
+        'using the mapped-host ABI.<br><br>'
+        'The ATen resident baseline is already optimized cuBLAS using '
+        '<code>cudaMalloc</code> operands. It therefore removes the algorithm-quality '
+        'advantage and exposes the raised ABI penalty directly. The sizes also cross a '
+        'different memory regime: one PolyBench N=512 f64 matrix is only 2 MiB (4 MiB '
+        'for A+B, repeatedly reused), whereas the ATen 4096x8192 f32 matrix is 128 MiB '
+        'and must stream from DRAM. Finally, the PolyBench raised number sums device-event '
+        'time inside runtime shims; the ATen raised number is wall time for the complete '
+        'raised call. Thus the PolyBench win means <i>cuBLAS beats that naive CUDA '
+        'implementation</i>; it does not show that mapped-host GEMV beats resident cuBLAS.'
+        '</div>'
+        '<table><thead><tr><th>kernel</th><th>large problem</th>'
+        '<th>mapped raised (µs)</th><th>device raised (µs)</th>'
+        '<th>native CUDA (µs)</th><th>device/native</th><th>mapped/device</th>'
+        '<th>dominant reason</th><th>next correction</th></tr></thead><tbody>'
+        + "\n".join(rows) + '</tbody></table>'
+    )
+
+
 def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
                   sort_by: str, page: int, page_count: int) -> str:
     performance = {
@@ -2135,6 +2422,13 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         launches = stats.get("launches", 0)
         residual = stats.get("residual", 0)
         loops = stats.get("residual_for", 0)
+        linalg_ops = stats.get("linalg_ops", 0)
+        if linalg_ops > 0 and loops == 0:
+            raise_status_class, raise_status = "pass", "FULL"
+        elif linalg_ops > 0:
+            raise_status_class, raise_status = "partial", "PARTIAL"
+        else:
+            raise_status_class, raise_status = "none", "NONE"
         if kernel in ATEN_C_UNSAFE_MATCHES:
             status_class, status = "none", "UNSAFE"
         elif launches and residual == 0 and loops == 0:
@@ -2182,8 +2476,9 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         rows.append(
             f"<tr><td>{name}</td>"
             f"<td>{upstream}</td><td>{extracted_c}</td>"
-            f"<td>{stats.get('linalg_ops', 0)}</td>"
-            f"<td>{loops}</td><td>{launches}</td>"
+            f"<td>{linalg_ops}</td><td>{loops}</td>"
+            f'<td class="{raise_status_class}">{raise_status}</td>'
+            f"<td>{launches}</td>"
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbol_html}</td>"
             f"<td>{audit_scope}</td><td>{candidate}</td>"
@@ -2246,7 +2541,9 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         f'{matched_kernels}/{len(aten_stats)} kernels, but exhaustive residual-IR '
         f'checking finds only {complete_matches} complete rewrite candidates and '
         f'{partial_matches} partial stage matches. '
-        'FULL/PARTIAL/NONE describe semantic matcher coverage. Copy matching '
+        'Raising FULL/PARTIAL/NONE means Linalg with no residual loops, Linalg '
+        'with residual loops, or no raised Linalg, respectively. Match '
+        'FULL/PARTIAL/NONE describes semantic library-matcher coverage. Copy matching '
         'rejects known transpose and gather false-positives; the remaining '
         'pixel-shuffle view candidate is explicitly marked unsafe until its '
         'submap layout is proven by the runtime ABI. '
@@ -2261,12 +2558,15 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         'resident baseline keeps operands on the GPU and times only the '
         'cuBLAS/cuDNN or fused CUDA operation. Both columns are warm medians '
         'of process runs 2–4 and are shown only after correctness passes.'
+        ' <a href="performance.html"><b>Why are some kernels slow?</b></a> '
+        'groups the measured gaps by cause and starts with a GEMV deep dive.'
         '</div>'
         + controls
         +
         '<table><thead><tr><th>kernel</th><th>original ATen CPU implementation</th>'
         '<th>standalone C form</th><th>Linalg ops</th>'
-        '<th>residual loops</th><th>launches</th><th>status</th>'
+        '<th>residual loops</th><th>raising status</th>'
+        '<th>launches</th><th>match status</th>'
         '<th>matched implementation</th><th>current match scope</th>'
         '<th>NVIDIA library candidate</th><th>implementation form</th>'
         '<th>audit finding</th><th>execution</th><th>correctness</th>'
@@ -4342,6 +4642,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="index.html">Overview</a> &middot; '
             '<a href="polybench.html">PolyBench</a> &middot; '
             '<a href="numerical.html">ATen</a> &middot; '
+            '<a href="performance.html">Performance analysis</a> &middot; '
             '<a href="mfem.html">MFEM</a> &middot; '
             '<a href="ai.html">AI kernels</a> &middot; '
             '<a href="vision.html">Vision + fusion</a> &middot; '
@@ -4368,7 +4669,16 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.suite-card:hover { border-color:#7b91bd; background:#f3f6fc; } '
         '.suite-card b,.suite-card span,.suite-card small { display:block; } '
         '.suite-card span { color:#1a7f37; margin-top:5px; font-size:13px; } '
-        '.suite-card small { color:#555; margin-top:8px; line-height:1.35; }'
+        '.suite-card small { color:#555; margin-top:8px; line-height:1.35; } '
+        '.cause-tag { display:inline-block; border-radius:10px; padding:2px 7px; '
+        'font-size:11px; font-weight:bold; margin-bottom:4px; } '
+        '.cause-memory { background:#ffd9d9; color:#8b1a1a; } '
+        '.cause-host { background:#eadcff; color:#53258a; } '
+        '.cause-copy { background:#dcecff; color:#174f86; } '
+        '.cause-intensity { background:#ffe8c7; color:#7a4300; } '
+        '.cause-setup { background:#fff3bd; color:#705900; } '
+        '.cause-bandwidth { background:#ffe0ec; color:#842347; } '
+        '.cause-amortized { background:#dff5e5; color:#1a6a34; }'
     )
 
     landing = (
@@ -4382,6 +4692,10 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "Dense linear algebra, stencils, and data-mining kernels.")
         + card("numerical.html", "ATen numerical kernels", len(aten_stats),
                "Extracted ATen C algorithms and Jetson comparisons.")
+        + card("performance.html", "Why are some kernels slow?",
+               sum(row.get("correctness") == "PASS"
+                   for row in _read_csv(ATEN_SILICON_RESULTS)),
+               "Root-cause groups, highlighted slowdown ratios, and a GEMV deep dive.")
         + card("mfem.html", "MFEM finite elements",
                len(mfem_stats) + len(mfem_application_stats)
                + len(mfem_application_extraction_stats),
@@ -4399,6 +4713,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + _build_taxonomy_panel()
     )
     polybench = nav() + polybench_section
+    performance = nav() + _aten_slowness_page(aten_stats)
     numerical_pages: dict[str, str] = {}
     for sort_by in ("alphabetical", "correctness"):
         ordered = _aten_sorted_kernels(sort_by)
@@ -4431,6 +4746,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "index.html": render_html("Polygeist IR explorer", landing, extra_css),
         "polybench.html": render_html(
             "Polygeist: PolyBench/C", polybench, extra_css
+        ),
+        "performance.html": render_html(
+            "Polygeist: kernel slowness analysis", performance, extra_css
         ),
         "mfem.html": render_html("Polygeist: MFEM kernels", mfem, extra_css),
         "ai.html": render_html("Polygeist: AI kernels", ai, extra_css),
@@ -4508,7 +4826,7 @@ def main():
             {}, aten_stats, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
         for filename, page_html in pages.items():
-            if filename.startswith("numerical"):
+            if filename.startswith("numerical") or filename == "performance.html":
                 OUTPUT_DIR.joinpath(filename).write_text(page_html)
         print(f"Done. Open {OUTPUT_DIR}/numerical.html.")
         return

@@ -1,0 +1,200 @@
+====run=1 exe=aten_as_complex_cpu
+kernel=aten_as_complex_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_as_complex_cpu iterations=5 raised_gpu_us=49718.937604
+rc=0
+====run=1 exe=aten_as_complex_cpu_resident
+kernel=aten_as_complex_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=27406.308594
+rc=0
+====run=1 exe=aten_bf16_dot_cpu
+kernel=aten_bf16_dot_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_bf16_dot_cpu iterations=5 raised_gpu_us=858.655991
+rc=0
+====run=1 exe=aten_bf16_dot_cpu_resident
+kernel=aten_bf16_dot_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=764.255981
+rc=0
+====run=1 exe=aten_bf16_gemv_trans_cpu
+kernel=aten_bf16_gemv_trans_cpu correctness=PASS max_abs=4.3392181396484375e-05 max_rel=8.6217938438954985e-06
+kernel=aten_bf16_gemv_trans_cpu iterations=5 raised_gpu_us=131427.539233
+rc=0
+====run=1 exe=aten_bf16_gemv_trans_cpu_resident
+kernel=aten_bf16_gemv_trans_cpu correctness=PASS max_abs=4.3392181396484375e-05 iterations=20 resident_cuda_us=793.662415
+rc=0
+====run=1 exe=aten_blas_copy_cpu
+kernel=aten_blas_copy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_copy_cpu iterations=5 raised_gpu_us=6835.270394
+rc=0
+====run=1 exe=aten_blas_copy_cpu_resident
+kernel=aten_blas_copy_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=728.004761
+rc=0
+====run=1 exe=aten_blas_dot_naive_cpu
+kernel=aten_blas_dot_naive_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_dot_naive_cpu iterations=5 raised_gpu_us=857.900828
+rc=0
+====run=1 exe=aten_blas_dot_naive_cpu_resident
+kernel=aten_blas_dot_naive_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=764.361633
+rc=0
+====run=1 exe=aten_blas_gemv_generic_cpu
+kernel=aten_blas_gemv_generic_cpu correctness=PASS max_abs=0.000843048095703125 max_rel=1.7227638058081928e-05
+kernel=aten_blas_gemv_generic_cpu iterations=5 raised_gpu_us=132157.107163
+rc=0
+====run=1 exe=aten_blas_gemv_generic_cpu_resident
+kernel=aten_blas_gemv_generic_cpu correctness=PASS max_abs=0.000843048095703125 iterations=20 resident_cuda_us=758.244812
+rc=0
+====run=1 exe=aten_cat_serial_cpu
+kernel=aten_cat_serial_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_cat_serial_cpu iterations=5 raised_gpu_us=6885.612803
+rc=0
+====run=1 exe=aten_cat_serial_cpu_resident
+kernel=aten_cat_serial_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=703.348755
+rc=0
+====run=1 exe=aten_complex_scalarized
+kernel=aten_complex_scalarized correctness=PASS max_abs=0 max_rel=0
+kernel=aten_complex_scalarized iterations=5 raised_gpu_us=6874.380773
+rc=0
+====run=1 exe=aten_complex_scalarized_resident
+kernel=aten_complex_scalarized correctness=PASS max_abs=0 iterations=20 resident_cuda_us=702.881653
+rc=0
+====run=1 exe=aten_conv3d
+kernel=aten_conv3d correctness=PASS max_abs=0.00017541646957397461 max_rel=0.00017541646957397461
+kernel=aten_conv3d iterations=5 raised_gpu_us=898.137596
+rc=0
+====run=1 exe=aten_conv3d_resident
+kernel=aten_conv3d correctness=PASS max_abs=0.00017541646957397461 iterations=20 resident_cuda_us=447.416016
+rc=0
+====run=1 exe=aten_conv_transpose3d_backward_cpu
+kernel=aten_conv_transpose3d_backward_cpu correctness=PASS max_abs=0.00020104646682739258 max_rel=0.00020104646682739258
+kernel=aten_conv_transpose3d_backward_cpu iterations=5 raised_gpu_us=768.153602
+rc=0
+====run=1 exe=aten_conv_transpose3d_backward_cpu_resident
+kernel=aten_conv_transpose3d_backward_cpu correctness=PASS max_abs=0.00020104646682739258 iterations=20 resident_cuda_us=451.179199
+rc=0
+====run=1 exe=aten_copy_cpu
+kernel=aten_copy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_copy_cpu iterations=5 raised_gpu_us=6837.702403
+rc=0
+====run=1 exe=aten_copy_cpu_resident
+kernel=aten_copy_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=699.331177
+rc=0
+====run=1 exe=aten_copy_tensor_array_cpu
+kernel=aten_copy_tensor_array_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_copy_tensor_array_cpu iterations=5 raised_gpu_us=6871.936005
+rc=0
+====run=1 exe=aten_copy_tensor_array_cpu_resident
+kernel=aten_copy_tensor_array_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=698.627197
+rc=0
+====run=1 exe=aten_fast_cat_dim0_cpu
+kernel=aten_fast_cat_dim0_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_fast_cat_dim0_cpu iterations=5 raised_gpu_us=6848.345604
+rc=0
+====run=1 exe=aten_fast_cat_dim0_cpu_resident
+kernel=aten_fast_cat_dim0_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=700.379211
+rc=0
+====run=1 exe=aten_flatten_nd_linear_cpu
+kernel=aten_flatten_nd_linear_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_flatten_nd_linear_cpu iterations=5 raised_gpu_us=5835.801642
+rc=0
+====run=1 exe=aten_flatten_nd_linear_cpu_resident
+kernel=aten_flatten_nd_linear_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=176.265594
+rc=0
+====run=1 exe=aten_fp16_dot_cpu
+kernel=aten_fp16_dot_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_fp16_dot_cpu iterations=5 raised_gpu_us=857.600011
+rc=0
+====run=1 exe=aten_fp16_dot_cpu_resident
+kernel=aten_fp16_dot_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=764.198364
+rc=0
+====run=1 exe=aten_fp16_gemv_f16arith_cpu
+kernel=aten_fp16_gemv_f16arith_cpu correctness=PASS max_abs=0.000843048095703125 max_rel=1.7227638058081928e-05
+kernel=aten_fp16_gemv_f16arith_cpu iterations=5 raised_gpu_us=131874.540821
+rc=0
+====run=1 exe=aten_fp16_gemv_f16arith_cpu_resident
+kernel=aten_fp16_gemv_f16arith_cpu correctness=PASS max_abs=0.000843048095703125 iterations=20 resident_cuda_us=758.534363
+rc=0
+====run=1 exe=aten_fp16_gemv_f32arith_cpu
+kernel=aten_fp16_gemv_f32arith_cpu correctness=PASS max_abs=0.000843048095703125 max_rel=1.7227638058081928e-05
+kernel=aten_fp16_gemv_f32arith_cpu iterations=5 raised_gpu_us=131086.400012
+rc=0
+====run=1 exe=aten_fp16_gemv_f32arith_cpu_resident
+kernel=aten_fp16_gemv_f32arith_cpu correctness=PASS max_abs=0.000843048095703125 iterations=20 resident_cuda_us=757.601624
+rc=0
+====run=1 exe=aten_fp16_gemv_notrans_cpu
+kernel=aten_fp16_gemv_notrans_cpu correctness=PASS max_abs=0.000843048095703125 max_rel=1.7227638058081928e-05
+kernel=aten_fp16_gemv_notrans_cpu iterations=5 raised_gpu_us=131776.236789
+rc=0
+====run=1 exe=aten_fp16_gemv_notrans_cpu_resident
+kernel=aten_fp16_gemv_notrans_cpu correctness=PASS max_abs=0.000843048095703125 iterations=20 resident_cuda_us=758.491150
+rc=0
+====run=1 exe=aten_fp16_gemv_trans_cpu
+kernel=aten_fp16_gemv_trans_cpu correctness=PASS max_abs=4.3392181396484375e-05 max_rel=8.6217938438954985e-06
+kernel=aten_fp16_gemv_trans_cpu iterations=5 raised_gpu_us=132558.540814
+rc=0
+====run=1 exe=aten_fp16_gemv_trans_cpu_resident
+kernel=aten_fp16_gemv_trans_cpu correctness=PASS max_abs=4.3392181396484375e-05 iterations=20 resident_cuda_us=794.176025
+rc=0
+====run=1 exe=aten_gelu_cpu_tanh
+kernel=aten_gelu_cpu_tanh correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_gelu_cpu_tanh iterations=5 raised_gpu_us=13283.609599
+rc=0
+====run=1 exe=aten_linear_combination_cpu
+kernel=aten_linear_combination_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_linear_combination_cpu iterations=5 raised_gpu_us=140788.787231
+rc=0
+====run=1 exe=aten_linear_combination_cpu_resident
+kernel=aten_linear_combination_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=895.083191
+rc=0
+====run=1 exe=aten_narrow_copy_dense_cpu
+kernel=aten_narrow_copy_dense_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_narrow_copy_dense_cpu iterations=5 raised_gpu_us=4912.147205
+rc=0
+====run=1 exe=aten_narrow_copy_dense_cpu_resident
+kernel=aten_narrow_copy_dense_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=440.830414
+rc=0
+====run=1 exe=aten_nested_clone_cpu
+kernel=aten_nested_clone_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_clone_cpu iterations=5 raised_gpu_us=6798.630394
+rc=0
+====run=1 exe=aten_nested_clone_cpu_resident
+kernel=aten_nested_clone_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=697.160034
+rc=0
+====run=1 exe=aten_nested_matmul_broadcast_cpu
+kernel=aten_nested_matmul_broadcast_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_matmul_broadcast_cpu iterations=5 raised_gpu_us=5853.804806
+rc=0
+====run=1 exe=aten_nested_matmul_broadcast_cpu_resident
+kernel=aten_nested_matmul_broadcast_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=176.078400
+rc=0
+====run=1 exe=aten_nested_squeeze_cpu
+kernel=aten_nested_squeeze_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_squeeze_cpu iterations=5 raised_gpu_us=6800.063979
+rc=0
+====run=1 exe=aten_nested_squeeze_cpu_resident
+kernel=aten_nested_squeeze_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=697.612793
+rc=0
+====run=1 exe=aten_outer
+kernel=aten_outer correctness=PASS max_abs=0 max_rel=0
+kernel=aten_outer iterations=5 raised_gpu_us=96177.676786
+rc=0
+====run=1 exe=aten_outer_resident
+kernel=aten_outer correctness=PASS max_abs=0 iterations=20 resident_cuda_us=3810.537842
+rc=0
+====run=1 exe=aten_slow_conv3d_forward_cpu
+kernel=aten_slow_conv3d_forward_cpu correctness=PASS max_abs=0.0001754462718963623 max_rel=0.0001754462718963623
+kernel=aten_slow_conv3d_forward_cpu iterations=5 raised_gpu_us=729.017612
+rc=0
+====run=1 exe=aten_slow_conv3d_forward_cpu_resident
+kernel=aten_slow_conv3d_forward_cpu correctness=PASS max_abs=0.0001754462718963623 iterations=20 resident_cuda_us=363.286407
+rc=0
+====run=1 exe=aten_unbind_copy_cpu
+kernel=aten_unbind_copy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_unbind_copy_cpu iterations=5 raised_gpu_us=6783.238426
+rc=0
+====run=1 exe=aten_unbind_copy_cpu_resident
+kernel=aten_unbind_copy_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=697.944031
+rc=0
+====run=1 exe=aten_zeros_cpu
+kernel=aten_zeros_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_zeros_cpu iterations=5 raised_gpu_us=2252.409607
+rc=0
+====run=1 exe=aten_zeros_cpu_resident
+kernel=aten_zeros_cpu correctness=PASS max_abs=0 iterations=20 resident_cuda_us=374.590393
+rc=0

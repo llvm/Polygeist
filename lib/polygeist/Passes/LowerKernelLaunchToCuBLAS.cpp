@@ -290,10 +290,45 @@ static Value valueAsI32(OpBuilder &b, Location loc, Value v) {
   return v;
 }
 
-// Bufferize a tensor operand to a memref so the runtime can take a pointer.
-// For now we use `bufferization.to_memref` which one-shot-bufferize would
-// usually emit; downstream passes will fold these.
+// Recover the backing memref whenever a tensor is only an ABI/view wrapper.
+// Library calls are opaque to one-shot-bufferize: blindly emitting
+// bufferization.to_memref here can allocate and copy an entire operand before
+// the call.  It also makes an otherwise valid cudaMalloc-backed C ABI unsafe,
+// because that compiler-generated copy executes on the host.  Keep direct
+// to_tensor values and extract_slice views as aliases of their source memrefs;
+// materialize only genuine tensor SSA values with no recoverable provenance.
 static Value tensorToMemref(OpBuilder &b, Location loc, Value t) {
+  Value stripped = t;
+  for (int hops = 0; hops < 8; ++hops) {
+    if (auto cast = stripped.getDefiningOp<tensor::CastOp>()) {
+      stripped = cast.getSource();
+      continue;
+    }
+    break;
+  }
+  if (auto toTensor = stripped.getDefiningOp<bufferization::ToTensorOp>())
+    return toTensor.getMemref();
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    Value source = slice.getSource();
+    for (int hops = 0; hops < 8; ++hops) {
+      if (auto cast = source.getDefiningOp<tensor::CastOp>()) {
+        source = cast.getSource();
+        continue;
+      }
+      break;
+    }
+    if (auto toTensor =
+            source.getDefiningOp<bufferization::ToTensorOp>()) {
+      auto srcType = cast<MemRefType>(toTensor.getMemref().getType());
+      auto resultType = cast<MemRefType>(
+          memref::SubViewOp::inferRankReducedResultType(
+              slice.getType().getShape(), srcType, slice.getMixedOffsets(),
+              slice.getMixedSizes(), slice.getMixedStrides()));
+      return b.create<memref::SubViewOp>(
+          loc, resultType, toTensor.getMemref(), slice.getMixedOffsets(),
+          slice.getMixedSizes(), slice.getMixedStrides());
+    }
+  }
   auto tt = cast<RankedTensorType>(t.getType());
   auto memrefType = MemRefType::get(tt.getShape(), tt.getElementType());
   return b.create<bufferization::ToMemrefOp>(loc, memrefType, t);
@@ -351,6 +386,29 @@ static bufferization::ToTensorOp sourceToTensorOp(Value tensorValue) {
   return nullptr;
 }
 
+// Follow destination-style tensor updates to the ABI buffer they logically
+// update.  This is intentionally output-only: following tensor.insert for a
+// read operand would discard the inserted value.  Reduction matchers commonly
+// initialize an output element with tensor.insert and then pass a rank-reduced
+// extract_slice of that value to a library call which overwrites it.
+static bufferization::ToTensorOp destinationToTensorOp(Value tensorValue) {
+  Value v = stripTensorCasts(tensorValue);
+  for (int hops = 0; hops < 8; ++hops) {
+    if (auto toTensor = v.getDefiningOp<bufferization::ToTensorOp>())
+      return toTensor;
+    if (auto insert = v.getDefiningOp<tensor::InsertOp>()) {
+      v = stripTensorCasts(insert.getDest());
+      continue;
+    }
+    if (auto insertSlice = v.getDefiningOp<tensor::InsertSliceOp>()) {
+      v = stripTensorCasts(insertSlice.getDest());
+      continue;
+    }
+    break;
+  }
+  return nullptr;
+}
+
 static Value sliceSourceMemref(Value tensorValue) {
   Value v = stripTensorCasts(tensorValue);
   auto slice = v.getDefiningOp<tensor::ExtractSliceOp>();
@@ -361,9 +419,13 @@ static Value sliceSourceMemref(Value tensorValue) {
 }
 
 static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v);
+static Value memrefToTensor(OpBuilder &b, Location loc, Value m,
+                            Type tensorType);
 
 static Value pointerForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
   Value stripped = stripTensorCasts(v);
+  if (auto toTensor = sourceToTensorOp(stripped))
+    return memrefBasePtr(b, loc, toTensor.getMemref());
   if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
     if (auto toTensor = sourceToTensorOp(slice.getSource())) {
       Value base = toTensor.getMemref();
@@ -412,6 +474,8 @@ static Value numElementsForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
 static Value dimForTensorOrMemrefAsI32(OpBuilder &b, Location loc, Value v,
                                        int64_t axis) {
   Value stripped = stripTensorCasts(v);
+  if (auto toTensor = sourceToTensorOp(stripped))
+    return memrefDimAsI32(b, loc, toTensor.getMemref(), axis);
   if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
     if ((int64_t)slice.getType().getRank() == (int64_t)slice.getMixedSizes().size())
       return opFoldResultAsI32(b, loc, slice.getMixedSizes()[axis]);
@@ -425,6 +489,8 @@ static Value dimForTensorOrMemrefAsI32(OpBuilder &b, Location loc, Value v,
 // one-shot-bufferize after the launch has already been lowered to a call.
 static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v) {
   Value stripped = stripTensorCasts(v);
+  if (auto toTensor = sourceToTensorOp(stripped))
+    return toTensor.getMemref();
   if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
     if (auto toTensor = sourceToTensorOp(slice.getSource())) {
       auto srcType = cast<MemRefType>(toTensor.getMemref().getType());
@@ -440,6 +506,38 @@ static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v) {
   if (isa<MemRefType>(v.getType()))
     return v;
   return tensorToMemref(b, loc, v);
+}
+
+static Value valueToOutputMemrefPreservingSlice(OpBuilder &b, Location loc,
+                                                 Value v) {
+  Value stripped = stripTensorCasts(v);
+  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
+    if (auto toTensor = destinationToTensorOp(slice.getSource())) {
+      auto srcType = cast<MemRefType>(toTensor.getMemref().getType());
+      auto resultType = cast<MemRefType>(
+          memref::SubViewOp::inferRankReducedResultType(
+              slice.getType().getShape(), srcType, slice.getMixedOffsets(),
+              slice.getMixedSizes(), slice.getMixedStrides()));
+      return b.create<memref::SubViewOp>(
+          loc, resultType, toTensor.getMemref(), slice.getMixedOffsets(),
+          slice.getMixedSizes(), slice.getMixedStrides());
+    }
+  }
+  return valueToMemrefPreservingSlice(b, loc, v);
+}
+
+static Value tensorForOutputSliceSource(OpBuilder &b, Location loc, Value v) {
+  Value stripped = stripTensorCasts(v);
+  auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>();
+  if (!slice)
+    return Value();
+  auto toTensor = destinationToTensorOp(slice.getSource());
+  if (!toTensor)
+    return Value();
+  auto sourceType = dyn_cast<RankedTensorType>(slice.getSource().getType());
+  if (!sourceType)
+    return Value();
+  return memrefToTensor(b, loc, toTensor.getMemref(), sourceType);
 }
 
 // Inverse of the above — wrap a memref back into a tensor for downstream
@@ -468,17 +566,40 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
   if (launch.getNumResults() == 0) return;
   Value res = launch.getResult(0);
   SmallVector<tensor::InsertSliceOp> inserts;
+  SmallVector<tensor::CastOp> resultCasts;
   if (updatedBaseTensor) {
-    for (Operation *user : res.getUsers()) {
-      if (auto insert = dyn_cast<tensor::InsertSliceOp>(user))
-        if (insert.getSource() == res)
-          inserts.push_back(insert);
+    // Dynamic library signatures commonly expose an unranked launch result,
+    // so the destination-style write-back is reached through one or more
+    // tensor.cast operations.  Treat those casts as transparent when finding
+    // the terminal insert_slice; otherwise one-shot bufferization later
+    // materializes a full output snapshot and copy even though the runtime
+    // already wrote the destination allocation in place.
+    SmallVector<Value> worklist{res};
+    llvm::SmallPtrSet<Operation *, 4> seenCasts;
+    for (size_t i = 0; i < worklist.size(); ++i) {
+      Value candidate = worklist[i];
+      for (Operation *user : candidate.getUsers()) {
+        if (auto insert = dyn_cast<tensor::InsertSliceOp>(user)) {
+          if (insert.getSource() == candidate)
+            inserts.push_back(insert);
+          continue;
+        }
+        if (auto cast = dyn_cast<tensor::CastOp>(user)) {
+          if (cast.getSource() == candidate && seenCasts.insert(cast).second) {
+            resultCasts.push_back(cast);
+            worklist.push_back(cast.getResult());
+          }
+        }
+      }
     }
   }
   for (auto insert : inserts) {
     insert.getResult().replaceAllUsesWith(updatedBaseTensor);
     insert.erase();
   }
+  for (tensor::CastOp cast : llvm::reverse(resultCasts))
+    if (cast.getResult().use_empty())
+      cast.erase();
   if (!res.use_empty() && updatedViewTensor)
     res.replaceAllUsesWith(updatedViewTensor);
 }
@@ -653,7 +774,7 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
   // lowered to LLVM). Do this BEFORE dim queries so we can use memref.dim.
   Value A_mr = tensorToMemref(b, loc, A);
   Value B_mr = tensorToMemref(b, loc, B);
-  Value C_mr = tensorToMemref(b, loc, C);
+  Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
 
   // Materialise dim queries on the memrefs (static shape → arith.constant,
   // dynamic shape → memref.dim).
@@ -693,7 +814,8 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
 
   // Recover the result tensor SSA from C_mr (C was updated in place).
   Value resultTensor = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(resultTensor);
+  rewireTensorSliceLaunchResult(
+      launch, resultTensor, tensorForOutputSliceSource(b, loc, C));
   launch.erase();
   return success();
 }
@@ -824,7 +946,7 @@ static LogicalResult lowerCudnnConv2DNtapTensor(LaunchOp launch,
   // Preserve tensor.extract_slice views as memref.subview so the runtime sees
   // the same top-left input window and output interior slice as the tensor IR.
   Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
-  Value C_mr = valueToMemrefPreservingSlice(b, loc, C);
+  Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
   Value W_mr = valueToMemrefPreservingSlice(b, loc, W);
 
   Value A_ptr = memrefBasePtr(b, loc, A_mr);
@@ -1712,6 +1834,22 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
       loc, shim,
       ValueRange{pointers[0], pointers[1], pointers[2], metadataPtr});
 
+  // The common destination-style form extracts the full (or a sliced) output
+  // from a to_tensor of the public ABI memref, then inserts the launch result
+  // back into that same tensor.  The pointer above already aliases that ABI
+  // destination, so bypass both the compatibility snapshot and the terminal
+  // write-back.  Besides avoiding a full tensor copy, this keeps large GEMMs
+  // from manufacturing dynamic memref descriptors solely for a dead copy.
+  if (Value destinationBase =
+          tensorForOutputSliceSource(b, loc, metadata[2].base)) {
+    rewireTensorSliceLaunchResult(launch, Value(), destinationBase);
+    if (!launch.getResult(0).use_empty())
+      return launch.emitError(
+          "cuTensorNet contraction: unsupported consumer of direct output");
+    launch.erase();
+    return success();
+  }
+
   if (deviceResident) {
     // The device runtime writes the DPS output buffer in place. Avoid the
     // correctness-first host snapshot used by the compatibility ABI: copying
@@ -1913,7 +2051,8 @@ static LogicalResult lowerSgemmStridedBatchedBroadcastRhs(LaunchOp launch,
                          ValueRange{batch, M, N, K, A_ptr, B_ptr, C_ptr});
 
   Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  rewireTensorSliceLaunchResult(launch, out,
+                                tensorForSliceSource(b, loc, C));
   launch.erase();
   return success();
 }
@@ -2093,17 +2232,20 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                              : b.getF64FloatAttr(1.0);
   Value one = b.create<arith::ConstantOp>(loc, scalarTy, oneAttr);
 
-  Value A_mr = tensorToMemref(b, loc, A);
-  Value x_mr = tensorToMemref(b, loc, x);
-  Value y_mr = tensorToMemref(b, loc, y);
-
-  Value M = memrefDimAsI32(b, loc, A_mr, 0);
-  Value N = memrefDimAsI32(b, loc, A_mr, 1);
+  // Do not blindly materialize tensor operands with bufferization.to_memref.
+  // Matched GEMVs commonly consume tensor.extract_slice views of the original
+  // C ABI memrefs.  A to_memref here makes one-shot-bufferize allocate and
+  // copy the complete matrix/vector before the cuBLAS call; it also makes
+  // device-resident C ABI pointers unsafe because that copy executes on the
+  // host.  Preserve those views and derive the runtime pointers directly from
+  // their source buffers instead.
+  Value M = dimForTensorOrMemrefAsI32(b, loc, A, 0);
+  Value N = dimForTensorOrMemrefAsI32(b, loc, A, 1);
   Value lda = N;  // row-major
 
-  Value A_ptr = memrefBasePtr(b, loc, A_mr);
-  Value x_ptr = memrefBasePtr(b, loc, x_mr);
-  Value y_ptr = memrefBasePtr(b, loc, y_mr);
+  Value A_ptr = pointerForTensorOrMemref(b, loc, A);
+  Value x_ptr = pointerForTensorOrMemref(b, loc, x);
+  Value y_ptr = pointerForTensorOrMemref(b, loc, y);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
@@ -2123,8 +2265,14 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   b.create<func::CallOp>(loc, shim,
       ValueRange{M, N, one, A_ptr, lda, x_ptr, one, y_ptr});
 
-  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  // Keep the output as a view of its original destination buffer and bypass
+  // the canonical tensor.insert_slice write-back.  The opaque cuBLAS call has
+  // already updated that storage in place.
+  Value y_mr = valueToMemrefPreservingSlice(b, loc, y);
+  Value updatedView =
+      memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  Value updatedBase = tensorForSliceSource(b, loc, y);
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
 }
@@ -2313,7 +2461,7 @@ static LogicalResult lowerDgemmOuterProduct(LaunchOp launch,
   Value N = dimForTensorOrMemrefAsI32(b, loc, C, 1);
   Value u_mr = valueToMemrefPreservingSlice(b, loc, u);
   Value v_mr = valueToMemrefPreservingSlice(b, loc, v);
-  Value C_mr = valueToMemrefPreservingSlice(b, loc, C);
+  Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
   Value u_ptr = memrefBasePtr(b, loc, u_mr);
   Value v_ptr = memrefBasePtr(b, loc, v_mr);
   Value C_ptr = memrefBasePtr(b, loc, C_mr);
@@ -2327,7 +2475,8 @@ static LogicalResult lowerDgemmOuterProduct(LaunchOp launch,
                          ValueRange{M, N, u_ptr, v_ptr, C_ptr});
 
   Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  rewireTensorSliceLaunchResult(
+      launch, out, tensorForOutputSliceSource(b, loc, C));
   launch.erase();
   return success();
 }
@@ -2350,9 +2499,8 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
-  Value V_mr = tensorToMemref(b, loc, V);
-  Value len = memrefDimAsI32(b, loc, V_mr, 0);
-  Value V_ptr = memrefBasePtr(b, loc, V_mr);
+  Value len = dimForTensorOrMemrefAsI32(b, loc, V, 0);
+  Value V_ptr = pointerForTensorOrMemref(b, loc, V);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {b.getI32Type(), ptrTy};
@@ -2361,8 +2509,11 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
   func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{len, V_ptr});
 
-  Value out = memrefToTensor(b, loc, V_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  Value V_mr = valueToMemrefPreservingSlice(b, loc, V);
+  Value updatedView =
+      memrefToTensor(b, loc, V_mr, launch.getResult(0).getType());
+  Value updatedBase = tensorForSliceSource(b, loc, V);
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
 }
@@ -2459,7 +2610,7 @@ static LogicalResult lowerCudnnConv2dBatched(LaunchOp launch,
   Location loc = launch.getLoc();
   Value A_mr = tensorToMemref(b, loc, inputBase);
   Value F_mr = tensorToMemref(b, loc, filterBase);
-  Value O_mr = tensorToMemref(b, loc, outputBase);
+  Value O_mr = valueToOutputMemrefPreservingSlice(b, loc, outputBase);
 
   // Shape recovery: B = dim(in, 0), IC = dim(in, 1) = dim(filter, 1),
   // OC = dim(filter, 0), H = dim(in, 2), W = dim(in, 3),
@@ -2487,7 +2638,8 @@ static LogicalResult lowerCudnnConv2dBatched(LaunchOp launch,
       ValueRange{B, IC, OC, H, W, K, A_ptr, F_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outputBase.getType());
-  rewireLaunchResult(launch, updated);
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, outputBase));
   launch.erase();
   return success();
 }
@@ -2612,7 +2764,7 @@ static LogicalResult lowerCudnnMaxpoolBatched(LaunchOp launch,
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value A_mr = tensorToMemref(b, loc, inBase);
-  Value O_mr = tensorToMemref(b, loc, outBase);
+  Value O_mr = valueToOutputMemrefPreservingSlice(b, loc, outBase);
   Value B  = memrefDimAsI32(b, loc, A_mr, 0);
   Value C  = memrefDimAsI32(b, loc, A_mr, 1);
   Value H  = memrefDimAsI32(b, loc, A_mr, 2);
@@ -2633,7 +2785,8 @@ static LogicalResult lowerCudnnMaxpoolBatched(LaunchOp launch,
       ValueRange{B, C, H, W, OH, OW, A_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outBase.getType());
-  rewireLaunchResult(launch, updated);
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, outBase));
   launch.erase();
   return success();
 }
@@ -2693,7 +2846,7 @@ static LogicalResult lowerCudnnBatchnormInference(LaunchOp launch,
   Value M_mr  = tensorToMemref(b, loc, meanBase);
   Value I_mr  = tensorToMemref(b, loc, invStdBase);
   Value Bi_mr = tensorToMemref(b, loc, biasBase);
-  Value O_mr  = tensorToMemref(b, loc, outBase);
+  Value O_mr  = valueToOutputMemrefPreservingSlice(b, loc, outBase);
 
   Value B = memrefDimAsI32(b, loc, A_mr, 0);
   Value C = memrefDimAsI32(b, loc, A_mr, 1);
@@ -2718,7 +2871,8 @@ static LogicalResult lowerCudnnBatchnormInference(LaunchOp launch,
       ValueRange{B, C, H, W, A_ptr, S_ptr, M_ptr, I_ptr, Bi_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outBase.getType());
-  rewireLaunchResult(launch, updated);
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, outBase));
   launch.erase();
   return success();
 }
@@ -2765,7 +2919,8 @@ static LogicalResult lowerCudnnAddTensorBatched(LaunchOp launch,
   b.create<func::CallOp>(loc, shim, ValueRange{B, C, H, W, A_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outBase.getType());
-  rewireLaunchResult(launch, updated);
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, outBase));
   launch.erase();
   return success();
 }
@@ -2995,7 +3150,7 @@ static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
   Location loc = launch.getLoc();
   Value xMr = valueToMemref(b, loc, x);
   Value wMr = valueToMemref(b, loc, weight);
-  Value oMr = valueToMemref(b, loc, out);
+  Value oMr = valueToOutputMemrefPreservingSlice(b, loc, out);
 
   Value N = memrefDimAsI32(b, loc, xMr, 0);
   Value xPtr = memrefBasePtr(b, loc, xMr);
@@ -3010,7 +3165,8 @@ static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
 
   if (launch.getNumResults() == 1) {
     Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
-    rewireLaunchResult(launch, updated);
+    rewireTensorSliceLaunchResult(
+        launch, updated, tensorForOutputSliceSource(b, loc, out));
   }
 
   launch.erase();
@@ -3042,7 +3198,7 @@ static LogicalResult lowerRmsnormUnweightedF32(LaunchOp launch,
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value xMr = valueToMemrefPreservingSlice(b, loc, x);
-  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value oMr = valueToOutputMemrefPreservingSlice(b, loc, out);
   Value N = memrefDimAsI32(b, loc, xMr, 0);
   Value xPtr = memrefBasePtr(b, loc, xMr);
   Value oPtr = memrefBasePtr(b, loc, oMr);
@@ -3093,7 +3249,23 @@ static LogicalResult lowerCublasDot(LaunchOp launch, ModuleOp module,
   Location loc = launch.getLoc();
   Value xMr = valueToMemrefPreservingSlice(b, loc, x);
   Value yMr = valueToMemrefPreservingSlice(b, loc, y);
-  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  Value oMr;
+  Value strippedOut = stripTensorCasts(out);
+  if (auto slice = strippedOut.getDefiningOp<tensor::ExtractSliceOp>()) {
+    if (auto toTensor = destinationToTensorOp(slice.getSource())) {
+      auto sourceType = cast<MemRefType>(toTensor.getMemref().getType());
+      auto resultType = cast<MemRefType>(
+          memref::SubViewOp::inferRankReducedResultType(
+              slice.getType().getShape(), sourceType,
+              slice.getMixedOffsets(), slice.getMixedSizes(),
+              slice.getMixedStrides()));
+      oMr = b.create<memref::SubViewOp>(
+          loc, resultType, toTensor.getMemref(), slice.getMixedOffsets(),
+          slice.getMixedSizes(), slice.getMixedStrides());
+    }
+  }
+  if (!oMr)
+    oMr = valueToOutputMemrefPreservingSlice(b, loc, out);
   Value N = memrefDimAsI32(b, loc, xMr, 0);
   Value xPtr = memrefBasePtr(b, loc, xMr);
   Value yPtr = memrefBasePtr(b, loc, yMr);
@@ -3108,7 +3280,8 @@ static LogicalResult lowerCublasDot(LaunchOp launch, ModuleOp module,
   b.create<func::CallOp>(loc, shim, ValueRange{N, xPtr, yPtr, oPtr});
 
   Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
-  rewireLaunchResult(launch, updated);
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, out));
   launch.erase();
   return success();
 }
@@ -3296,15 +3469,34 @@ static LogicalResult lowerCudaCopyF32(LaunchOp launch, ModuleOp module,
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
-  Value N = numElementsForTensorOrMemref(b, loc, src);
-  Value sPtr = pointerForTensorOrMemref(b, loc, src);
-  Value oPtr = pointerForTensorOrMemref(b, loc, out);
+  Value sMr = valueToMemrefPreservingSlice(b, loc, src);
+  Value oMr = valueToMemrefPreservingSlice(b, loc, out);
+  auto sMd = b.create<memref::ExtractStridedMetadataOp>(loc, sMr);
+  auto oMd = b.create<memref::ExtractStridedMetadataOp>(loc, oMr);
+  Value rows = memrefDimAsI32(b, loc, sMr, 0);
+  Value cols = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(1));
+  Value sRowStride = valueAsI32(b, loc, sMd.getStrides()[0]);
+  Value oRowStride = valueAsI32(b, loc, oMd.getStrides()[0]);
+  Value sColStride = cols;
+  Value oColStride = cols;
+  if (expectedRank == 2) {
+    cols = memrefDimAsI32(b, loc, sMr, 1);
+    sColStride = valueAsI32(b, loc, sMd.getStrides()[1]);
+    oColStride = valueAsI32(b, loc, oMd.getStrides()[1]);
+  }
+  Value sPtr = memrefBasePtr(b, loc, sMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy};
-  func::FuncOp shim =
-      ensureShimDecl(module, "polygeist_cuda_copy_f32", argTypes, b);
-  b.create<func::CallOp>(loc, shim, ValueRange{N, sPtr, oPtr});
+  SmallVector<Type> argTypes(6, b.getI32Type());
+  argTypes.append({ptrTy, ptrTy});
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cuda_copy_strided_2d_f32", argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{rows, cols, sRowStride, sColStride,
+                 oRowStride, oColStride, sPtr, oPtr});
 
   Value updatedBase = tensorForSliceSource(b, loc, out);
   Value updated = updatedBase ? Value()

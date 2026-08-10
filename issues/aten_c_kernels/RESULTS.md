@@ -266,3 +266,68 @@ operand order, FP64 dot ABI, GEMV accumulator beta, rank-N wrapper generation,
 and softmax slice-to-base SSA provenance. The resident benchmark source is
 `benchmarks/aten_resident_cuda_baseline.cu`; raised correctness uses
 `benchmarks/aten_raised_jetson_harness.c`.
+
+## 2026-08-07 exhaustive FULL/FULL silicon batch
+
+The 29 previously unmeasured kernels that were both fully raised and fully
+consumed by library matches were run at large shapes on the Jetson Orin
+(`sm_87`, MAXN, CUDA 12.6). All 29 raised paths and all 28 newly built resident
+baselines passed the CPU-reference gate in four independent process runs.
+`aten_gelu_cpu_tanh` reuses the already measured identical fused GELU baseline
+at the same `N=8388608` shape. Reported values are medians of process runs 2--4;
+raised calls use 5 inner iterations and resident calls use 20.
+
+The run exposed and fixed a real ABI defect: copy matches over rank-reduced or
+pitched slices discarded their source/destination strides. The lowering now
+calls `polygeist_cuda_copy_strided_2d_f32`; the CUDA runtime uses contiguous
+`cudaMemcpyAsync` or pitched `cudaMemcpy2DAsync` as appropriate. This fixes
+`aten_as_complex_cpu` and `aten_narrow_copy_dense_cpu` without packing copies.
+
+Those measurements diagnosed the compatibility ABI and have now been replaced
+by the complete direct-buffer rerun below.
+
+## 2026-08-10 all 40 executable matches with direct device buffers
+
+The direct-buffer fix is now general rather than GEMV-specific. Library
+lowering recovers the public ABI memref behind `bufferization.to_tensor`,
+preserves `tensor.extract_slice` offsets/strides as a `memref.subview`, and
+recognizes cast-mediated `launch -> tensor.insert_slice` write-backs. In-place
+library destinations are rewired to the original allocation, eliminating the
+otherwise redundant output snapshot and CPU copy.
+
+The same treatment now covers GEMV, GEMM, batched GEMM, dot, outer product,
+copy/memset, cuDNN add, convolution, pooling, batch normalization, RMSNorm, and
+the cuTensorNet contraction route. The CUDA runtime also detects device
+pointers for memset, scalar dot output, and batch-normalization parameters.
+
+All 40 executable FULL-raise/FULL-match kernels pass in both modes:
+
+- mapped-host compatibility ABI: 40/40 pass
+- true `cudaMalloc` raised ABI: 40/40 pass
+- median device-resident raised/native ratio: 1.068x
+- within 1.25x of native: 32/40
+- within 2x of native: 36/40
+
+The remaining four gaps are not hidden tensor copies: both GELU fixtures lower
+to a multi-operation cuDNN/cuBLAS graph instead of one fused CUDA kernel;
+`aten_linear_combination_cpu` maps four pointwise terms to a low-K GEMV; and
+RMSNorm's cuDNN backend plan still stages through plan-owned buffers. At
+N=8,388,608, both raised and handwritten CUDA RMSNorm differ from the strictly
+sequential float C reduction by `9.26375e-4`; a double-precision sum confirms
+the GPU tree reduction is more accurate, so both harnesses use an explicitly
+documented 2e-3 reduction-reassociation bound for this case.
+
+The earlier representative GEMV now measures 821.989 us raised with device
+buffers versus 758.952 us resident cuBLAS (1.083x), rather than the obsolete
+173x mapped/materialized result. Inputs are uploaded before timing and outputs
+downloaded only for correctness.
+
+Authoritative data and reproduction artifacts:
+
+- `silicon_results/large_problem_comparison.csv` (now 40 executed ATen rows)
+- `silicon_results/device_residency_comparison.csv` (mapped/device/native)
+- `silicon_results/logs/full_match_large_run_{1,2,3,4}.log`
+- `benchmarks/aten_full_match_raised_harness.c`
+- `benchmarks/aten_full_match_resident_baseline.c`
+- `scripts/correctness/aten_full_match_silicon.py`
+- `scripts/correctness/collect_aten_device_residency.py`

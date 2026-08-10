@@ -1,25 +1,44 @@
 kernel,executable_status,correctness,problem,raised_us,resident_cuda_us,raised_over_resident,baseline,statistic,hardware,notes
 aten_adaptive_avg_pool2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
 aten_adaptive_avg_pool3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
-aten_add,EXECUTED,PASS,B32 C64 H64 W64,109207.046404,542.347229,201.360,cuDNN AddTensor,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements
-aten_addmm,EXECUTED,PASS,M512 N512 K512,12381.132785,3778.838379,3.276,cuBLAS Dgemm beta=.5 alpha=1.25,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64
+aten_add,EXECUTED,PASS,B32 C64 H64 W64,955.712004,542.347229,1.762177,cuDNN AddTensor,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_addmm,EXECUTED,PASS,M512 N512 K512,3818.009561,3778.838379,1.010366,cuBLAS Dgemm beta=.5 alpha=1.25,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_as_complex_cpu,EXECUTED,PASS,N=8388608,49486.598372,27387.167969,1.806926,2x cudaMemcpy2D D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_avg_pool2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
 aten_avg_pool3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
-aten_batch_norm,EXECUTED,PASS,B32 C64 H64 W64,109018.361615,392.196808,277.969,cuDNN BatchNormalizationForwardInference,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements; positive inference inv_std
+aten_batch_norm,EXECUTED,PASS,B32 C64 H64 W64,653.036777,392.196808,1.665074,cuDNN BatchNormalizationForwardInference,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_bf16_dot_cpu,EXECUTED,PASS,K=16777216 scalarized-f32,858.924771,764.019165,1.124219,cuBLAS Sdot,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_bf16_gemv_trans_cpu,EXECUTED,PASS,M=4096 K=8192 scalarized-f32 trans,907.321600,793.395142,1.143594,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_binary_cross_entropy,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,external logf leaves one residual loop
+aten_blas_copy_cpu,EXECUTED,PASS,N=16777216,6829.843204,697.302368,9.794665,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_blas_dot_naive_cpu,EXECUTED,PASS,N=K=16777216,858.073588,763.835205,1.123375,cuBLAS Sdot,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_blas_gemv_generic_cpu,EXECUTED,PASS,M=4096 K=8192,884.396816,758.952026,1.165287,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_bmm,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no batched GEMM route
+aten_cat_serial_cpu,EXECUTED,PASS,R=4096 M=4096 K=2048,6822.777633,701.761597,9.722358,2x cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_channel_shuffle,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,layout transform intentionally rejected as copy
 aten_clamp,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_complex_scalarized,EXECUTED,PASS,N=8388608,6865.696004,700.889587,9.795688,2x cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_conv1d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no 1D convolution route
-aten_conv2d,EXECUTED,PASS,B8 IC32 OC64 H64 W64 KH3 KW3,20373.075176,436.988770,46.622,cuDNN ConvolutionForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,valid NCHW f32 convolution
-aten_conv3d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; current definition shape gap
+aten_conv2d,EXECUTED,PASS,B8 IC32 OC64 H64 W64 KH3 KW3,854.982389,436.988770,1.956532,cuDNN ConvolutionForward,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_conv3d,EXECUTED,PASS,B1 IC8 OC16 D48 H48 W48 K3,884.665595,447.262390,1.977957,cuDNN Conv3D + bias,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_conv_transpose2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no transposed convolution route
+aten_conv_transpose3d_backward_cpu,EXECUTED,PASS,C8 O16 D48 H48 W48 K3,764.467195,449.039978,1.702448,cuDNN Conv3D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_copy_cpu,EXECUTED,PASS,N=16777216,6786.847999,695.990417,9.751353,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_copy_tensor_array_cpu,EXECUTED,PASS,B=4096 N=4096,6802.419201,697.036743,9.759054,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_cross,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,3 Linalg ops; no cross-product composition
 aten_cumsum,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,scan raises to Linalg but has no scan route
-aten_dot,EXECUTED,PASS,N8388608,879.110396,766.452759,1.147,cuBLAS Ddot,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f64 elements
+aten_dot,EXECUTED,PASS,N8388608,878.323196,766.452759,1.145959,cuBLAS Ddot,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_elu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_embedding,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,indexed gather leaves 2 residual loops
-aten_gelu,EXECUTED,PASS,N8388608,13331.315201,437.297546,30.486,fused CUDA GELU kernel,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 elements
+aten_fast_cat_dim0_cpu,EXECUTED,PASS,B=4096 N=4096,6839.865586,696.750366,9.816809,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_flatten_nd_linear_cpu,EXECUTED,PASS,B16 M256 N256 K256,239.180820,177.688004,1.346072,"cuBLAS SgemmStridedBatched, broadcast RHS",warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_fp16_dot_cpu,EXECUTED,PASS,K=16777216 scalarized-f32,857.900782,764.278442,1.122498,cuBLAS Sdot,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_fp16_gemv_f16arith_cpu,EXECUTED,PASS,M=4096 K=8192 scalarized-f32,887.705572,758.612854,1.170169,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_fp16_gemv_f32arith_cpu,EXECUTED,PASS,M=4096 K=8192 scalarized-f32,881.356793,758.652771,1.161739,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_fp16_gemv_notrans_cpu,EXECUTED,PASS,M=4096 K=8192 scalarized-f32,881.727971,758.255981,1.162837,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_fp16_gemv_trans_cpu,EXECUTED,PASS,M=4096 K=8192 scalarized-f32 trans,905.977562,793.486450,1.141768,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_gelu,EXECUTED,PASS,N8388608,13344.268780,437.297546,30.515307,fused CUDA GELU kernel,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_gelu_cpu_tanh,EXECUTED,PASS,N=8388608,13357.612770,437.297546,30.545821,fused CUDA GELU (equivalent prior baseline),warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_hardsigmoid,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_hardswish,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_hardtanh,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
@@ -28,24 +47,32 @@ aten_l1_loss,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm8
 aten_layer_norm,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,3 Linalg ops; composition not in library
 aten_leaky_relu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_lerp,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
-aten_max_pool2d,EXECUTED,PASS,B32 C64 H64 W64 K2 S2,20836.422406,220.708786,94.407,cuDNN PoolingForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,8.4M f32 input elements
+aten_linear_combination_cpu,EXECUTED,PASS,N=8388608 terms=4,26803.936018,892.532837,30.031316,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_max_pool2d,EXECUTED,PASS,B32 C64 H64 W64 K2 S2,307.315215,220.708786,1.392401,cuDNN PoolingForward,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_mean,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; reduction-plus-scale composition absent
-aten_mm,EXECUTED,PASS,M512 N512 K512,13279.558392,3772.609863,3.520,cuBLAS Dgemm beta=0,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64; memset plus GEMM route
+aten_mm,EXECUTED,PASS,M512 N512 K512,3822.054388,3772.609863,1.013106,cuBLAS Dgemm beta=0,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_mse_loss,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; reduction composition absent
-aten_mv,EXECUTED,PASS,M4096 K4096,74364.140769,814.979126,91.247,cuBLAS Dgemv beta=1,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,FP64 y += A*x
-aten_outer,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no whole-kernel library match
+aten_mv,EXECUTED,PASS,M4096 K4096,893.203216,814.979126,1.095983,cuBLAS Dgemv beta=1,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_narrow_copy_dense_cpu,EXECUTED,PASS,R=4096 C=4096 S=1024 L=2048,4895.276809,439.467194,11.139118,cudaMemcpy2D D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_nested_clone_cpu,EXECUTED,PASS,B=4096 N=4096,6831.084797,695.862427,9.816717,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_nested_matmul_broadcast_cpu,EXECUTED,PASS,B16 M256 N256 K256,240.403228,176.012802,1.365828,"cuBLAS SgemmStridedBatched, broadcast RHS",warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_nested_squeeze_cpu,EXECUTED,PASS,B=4096 N=4096,6792.927999,696.092773,9.758653,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_outer,EXECUTED,PASS,M=4096 N=4096 f64,3854.073631,3810.022217,1.011562,cuBLAS Dgemm outer product,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_pixel_shuffle,UNSAFE_MATCH_NOT_EXECUTED,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,rank-6 copy candidate does not yet prove the submap layout is preserved by the runtime
 aten_prod,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no product reduction route
 aten_reflection_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no reflection-padding route
 aten_relu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_replication_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no replication-padding route
-aten_rms_norm,EXECUTED,PASS,N1048576,2129.465574,114.238403,18.641,fused CUDA RMSNorm reduction plus scale,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,1M f32 elements
+aten_rms_norm,EXECUTED,PASS,N8388608,13051.795214,841.404785,15.511910,fused CUDA RMSNorm reduction plus scale,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_sigmoid,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_silu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
-aten_softmax,EXECUTED,PASS,N1048576,3623.974416,1982.380859,1.828,cuDNN SoftmaxForward,median runs 2-4; raised 5 iterations; resident 20 iterations,Jetson Orin sm87 MAXN CUDA 12.6,1M f32 elements
+aten_slow_conv3d_forward_cpu,EXECUTED,PASS,C8 O16 D48 H48 W48 K3,726.438407,364.764832,1.991525,cuDNN Conv3D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_softmax,EXECUTED,PASS,N8388608,28666.707221,29212.042969,0.981332,cuDNN SoftmaxForward,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_softplus,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,external logf/expf and branch leave one residual loop
 aten_sum,PARTIAL_MATCH_NOT_EXECUTABLE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,only output memset matched
 aten_tanh,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
 aten_transpose_copy,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,permuted indexing intentionally rejected as copy
+aten_unbind_copy_cpu,EXECUTED,PASS,B=4096 N=4096,6792.947184,702.041626,9.675989,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_upsample_bilinear2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no bilinear-resampling route
 aten_upsample_nearest2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no nearest-neighbor route
+aten_zeros_cpu,EXECUTED,PASS,N=16777216,2255.948773,374.880005,6.017789,cudaMemset,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated

@@ -137,7 +137,7 @@
 - Matcher dry-run works with `/usr/bin/python3` because default `python3` lacks
   `egglog`.
 - Matcher dry-run reports:
-  - `whisper_vec_dot` -> `cublasDdot` (but IR is f32, so audit symbol naming)
+  - `whisper_vec_dot` -> `cublasSdot` (dtype-gated; f64 dot uses `cublasDdot`)
   - `whisper_vec_softmax` -> `whisperExpShiftSum_f32_tensor`
   - `whisper_softmax_full` -> `cudnnSoftmaxForwardOut_tensor`
   - `whisper_rms_norm` -> `rmsnorm_unweighted_f32`

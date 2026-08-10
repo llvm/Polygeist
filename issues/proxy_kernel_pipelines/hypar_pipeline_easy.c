@@ -4,8 +4,12 @@
 // timestep-update shapes while avoiding macro-generated multidimensional
 // iterator state and solver structs.
 
+#ifndef HL
 #define HL 32
+#endif
+#ifndef HNV
 #define HNV 4
+#endif
 
 #define PK_ABS(x) ((x) < 0.0 ? -(x) : (x))
 #define PK_MAX(a, b) ((a) > (b) ? (a) : (b))

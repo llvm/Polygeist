@@ -1,10 +1,14 @@
 /* PA convection with disjoint element/channel/stage scratch. */
-enum { D1D=4,Q1D=5,NE=2 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { D1D=4,Q1D=5,NE=MFEM_BENCH_NE };
 #define X2(x,y,e) ((x)+D1D*((y)+D1D*(e)))
 #define X3(x,y,z,e) ((x)+D1D*((y)+D1D*((z)+D1D*(e))))
 #define O2(x,y,c,e) ((x)+Q1D*((y)+Q1D*((c)+2*(e))))
 #define O3(x,y,z,c,e) ((x)+Q1D*((y)+Q1D*((z)+Q1D*((c)+3*(e)))))
 
+// polygeist-arg-extents mfem_pa_convection_apply_2d_stage_sliced: B=20, G=20, Bt=20, op=50*MFEM_BENCH_NE, X=16*MFEM_BENCH_NE, Y=16*MFEM_BENCH_NE
 void mfem_pa_convection_apply_2d_stage_sliced(const double *B,const double *G,
  const double *Bt,const double *op,const double *X,double *Y) {
   double bx[NE][D1D][Q1D],gx[NE][D1D][Q1D],g0[NE][Q1D][Q1D],g1[NE][Q1D][Q1D];
@@ -19,6 +23,7 @@ void mfem_pa_convection_apply_2d_stage_sliced(const double *B,const double *G,
   for(int e=0;e<NE;++e)for(int dy=0;dy<D1D;++dy)for(int dx=0;dx<D1D;++dx)Y[X2(dx,dy,e)]+=u[e][dy][dx];
 }
 
+// polygeist-arg-extents mfem_pa_convection_apply_3d_stage_sliced: B=20, G=20, Bt=20, op=375*MFEM_BENCH_NE, X=64*MFEM_BENCH_NE, Y=64*MFEM_BENCH_NE
 void mfem_pa_convection_apply_3d_stage_sliced(const double *B,const double *G,
  const double *Bt,const double *op,const double *X,double *Y) {
   double bx[NE][D1D][D1D][Q1D],gx[NE][D1D][D1D][Q1D];

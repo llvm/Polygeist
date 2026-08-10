@@ -1,9 +1,15 @@
 // SWFFT-style local redistribution and transpose fixture designed to raise
 // cleanly. It models local pack/unpack and slab/transpose movement without MPI.
 
+#ifndef SX
 #define SX 8
+#endif
+#ifndef SY
 #define SY 8
+#endif
+#ifndef SZ
 #define SZ 8
+#endif
 
 void swfft_pipeline_easy(const double pencil_in[SX * SY * SZ],
                          const double cube_in[SX][SY][SZ],

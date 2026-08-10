@@ -1,10 +1,14 @@
 /* Fixed-dimension scalarization of MFEM's elasticity quadrature function. */
-enum { Q1D=5,NE=2,NQ2=25,NQ3=125 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { Q1D=5,NE=MFEM_BENCH_NE,NQ2=25,NQ3=125 };
 #define Q2(e,a,b,p) ((p)+NQ2*((b)+2*((a)+2*(e))))
 #define J2(e,i,j,p) ((p)+NQ2*((j)+2*((i)+2*(e))))
 #define Q3(e,a,b,p) ((p)+NQ3*((b)+3*((a)+3*(e))))
 #define J3(e,i,j,p) ((p)+NQ3*((j)+3*((i)+3*(e))))
 
+// polygeist-arg-extents mfem_elasticity_qpoint_2d_scalarized: la=25*MFEM_BENCH_NE, mu=25*MFEM_BENCH_NE, J=100*MFEM_BENCH_NE, wt=25, Q=100*MFEM_BENCH_NE, R=100*MFEM_BENCH_NE
 void mfem_elasticity_qpoint_2d_scalarized(const double *la,const double *mu,
                                            const double *J,const double *wt,
                                            const double *Q,double *R) {
@@ -22,6 +26,7 @@ void mfem_elasticity_qpoint_2d_scalarized(const double *la,const double *mu,
 #undef LOOP2
 }
 
+// polygeist-arg-extents mfem_elasticity_qpoint_3d_scalarized: la=125*MFEM_BENCH_NE, mu=125*MFEM_BENCH_NE, J=1125*MFEM_BENCH_NE, wt=125, Q=1125*MFEM_BENCH_NE, R=1125*MFEM_BENCH_NE
 void mfem_elasticity_qpoint_3d_scalarized(const double *la,const double *mu,
                                            const double *J,const double *wt,
                                            const double *Q,double *R) {

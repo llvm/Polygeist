@@ -5,12 +5,15 @@
  */
 #include "stage_kernels.h"
 
-// polygeist-arg-extents mfem_app_dfem_minimal_surface_2d: B=20, G=20, field_padded=32, jacobian=100, weights=25, y_padded=32
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+// polygeist-arg-extents mfem_app_dfem_minimal_surface_2d: B=20, G=20, field_padded=16*MFEM_BENCH_NE, jacobian=50*MFEM_BENCH_NE, weights=25, y_padded=16*MFEM_BENCH_NE
 void mfem_app_dfem_minimal_surface_2d(
     const double *B, const double *G, const double *field_padded,
     const double *jacobian, const double *weights, double *y_padded) {
-  double grad[100];
-  double flux[100];
+  double grad[50 * MFEM_BENCH_NE];
+  double flux[50 * MFEM_BENCH_NE];
   mfem_interp_grad_2d_stage_sliced(field_padded, B, G, grad);
   for (int qx = 0; qx < 5; ++qx) {
     for (int qy = 0; qy < 5; ++qy) {

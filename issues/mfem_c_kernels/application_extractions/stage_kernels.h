@@ -109,4 +109,6 @@
 #undef NE
 #undef Q1D
 
+#include "missing_stage_kernels.c"
+
 #endif

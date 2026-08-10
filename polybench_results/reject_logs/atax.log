@@ -1,0 +1,2425 @@
+
+****************************************
+*** RaiseAffineToLinalgPipeline START ***
+****************************************
+
+Running pipeline...
+
+****************************************
+*** RaiseAffineToLinalg START ***
+****************************************
+
+### Step 1: Applying AffineParallelFission ###
+
+=== AffineParallelFission ===
+Processing affine.parallel:
+affine.parallel (%arg7) = (0) to (symbol(%0)) {
+  %2 = affine.load %arg4[%arg7] : memref<?xf64>
+  %3 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+  %4 = affine.load %arg5[%arg6] : memref<?xf64>
+  %5 = arith.mulf %3, %4 : f64
+  %6 = arith.addf %2, %5 : f64
+  affine.store %6, %arg4[%arg7] : memref<?xf64>
+}
+
+=== AffineParallelFission ===
+Processing affine.parallel:
+affine.parallel (%arg6) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg4[%arg6] : memref<?xf64>
+}
+### Step 1 Complete ###
+
+### Step 2: Applying AffineParallelToFor ###
+
+=== AffineParallelToFor ===
+Processing affine.parallel:
+affine.parallel (%arg7) = (0) to (symbol(%0)) {
+  %2 = affine.load %arg4[%arg7] : memref<?xf64>
+  %3 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+  %4 = affine.load %arg5[%arg6] : memref<?xf64>
+  %5 = arith.mulf %3, %4 : f64
+  %6 = arith.addf %2, %5 : f64
+  affine.store %6, %arg4[%arg7] : memref<?xf64>
+}
+Converting parallel loop with 1 induction variables
+=== AffineParallelToFor SUCCESS ===
+
+
+=== AffineParallelToFor ===
+Processing affine.parallel:
+affine.parallel (%arg6) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg4[%arg6] : memref<?xf64>
+}
+Converting parallel loop with 1 induction variables
+=== AffineParallelToFor SUCCESS ===
+
+### Step 2 Complete ###
+
+### Step 3: Applying AffineForOpRaising ###
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg7 = 0 to %0 {
+  %2 = affine.load %arg4[%arg7] : memref<?xf64>
+  %3 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+  %4 = affine.load %arg5[%arg6] : memref<?xf64>
+  %5 = arith.mulf %3, %4 : f64
+  %6 = arith.addf %2, %5 : f64
+  affine.store %6, %arg4[%arg7] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 3
+  Stores: 1
+  LinalgGenerics: 0
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+
+--- Processing Loads ---
+Processing load: %5 = affine.load %arg4[%arg7] : memref<?xf64>
+Processing load: %6 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d0, d1)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0] -> (s0, d0)
+  validDims: 1, validSims: 1
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+Processing load: %8 = affine.load %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0] -> (s0)
+  validDims: 0, validSims: 1
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Stores ---
+Processing store: affine.store %11, %arg4[%arg7] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Creating linalg.generic ---
+Iterator type for this loop: parallel
+Total iterator types: 1
+Total inputs: 2
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg7 = 0 to %0 {
+  %5 = affine.load %arg5[%arg6] : memref<?xf64>
+  %6 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+  %7 = affine.load %arg3[%arg7] : memref<?xf64>
+  %8 = arith.mulf %6, %7 : f64
+  %9 = arith.addf %5, %8 : f64
+  affine.store %9, %arg5[%arg6] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 3
+  Stores: 1
+  LinalgGenerics: 0
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+
+--- Processing Loads ---
+Processing load: %8 = affine.load %arg5[%arg6] : memref<?xf64>
+Processing load: %9 = affine.load %arg2[%arg6, %arg7] : memref<?x42xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d0, d1)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0] -> (s0, d0)
+  validDims: 1, validSims: 1
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+Processing load: %11 = affine.load %arg3[%arg7] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Stores ---
+Processing store: affine.store %14, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0)[s0] -> (s0)
+  validDims: 0, validSims: 1
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Creating linalg.generic ---
+Iterator type for this loop: reduction
+Total iterator types: 1
+Total inputs: 2
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %1 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %2 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %3 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%2, %3 : memref<?xf64>, memref<?xf64>) outs(%4 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %8 = arith.mulf %in, %in_0 : f64
+    %9 = arith.addf %out, %8 : f64
+    linalg.yield %9 : f64
+  }
+  %5 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %6 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%5, %6 : memref<?xf64>, memref<?xf64>) outs(%7 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %8 = arith.mulf %in, %in_0 : f64
+    %9 = arith.addf %out, %8 : f64
+    linalg.yield %9 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%5, %6 : memref<?xf64>, memref<?xf64>) outs(%7 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %11 = arith.mulf %in, %in_0 : f64
+  %12 = arith.addf %out, %11 : f64
+  linalg.yield %12 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%11, %12 : memref<?xf64>, memref<?xf64>) outs(%13 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %14 = arith.mulf %in, %in_0 : f64
+  %15 = arith.addf %out, %14 : f64
+  linalg.yield %15 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %0 {
+  affine.store %cst, %arg4[%arg6] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 0
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg4[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Creating linalg.generic ---
+Iterator type for this loop: parallel
+Total iterator types: 1
+Total inputs: 0
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg6 = 0 to %2 {
+  affine.store %cst, %arg5[%arg6] : memref<?xf64>
+  %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+  %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+  %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+  %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+  ^bb0(%in: f64, %in_0: f64, %out: f64):
+    %9 = arith.mulf %in, %in_0 : f64
+    %10 = arith.addf %out, %9 : f64
+    linalg.yield %10 : f64
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 2
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %12 = arith.mulf %in, %in_0 : f64
+  %13 = arith.addf %out, %12 : f64
+  linalg.yield %13 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%12, %13 : memref<?xf64>, memref<?xf64>) outs(%14 : memref<?xf64>) {
+^bb0(%in: f64, %in_0: f64, %out: f64):
+  %15 = arith.mulf %in, %in_0 : f64
+  %16 = arith.addf %out, %15 : f64
+  linalg.yield %16 : f64
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0)
+  Composed map: (d0)[s0] -> (s0)
+  Final lgMap: (d0)[s0] -> (s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0) -> (d0)
+  Composed map: (d0) -> (d0)
+  Final lgMap: (d0) -> (d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?x?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg5[%arg6] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+REJECTED: Linalg generic exists with loads/stores
+
+WARNING: AffineForOpRaising didn't converge
+atax.mlir:2:3: warning: AffineForOpRaising didn't converge, continuing anyway
+  func.func @kernel_atax(%arg0: i32, %arg1: i32, %arg2: memref<?x42xf64>, %arg3: memref<?xf64>, %arg4: memref<?xf64>, %arg5: memref<?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+atax.mlir:2:3: note: see current operation: 
+func.func @kernel_atax(%arg0: i32, %arg1: i32, %arg2: memref<?x42xf64>, %arg3: memref<?xf64>, %arg4: memref<?xf64>, %arg5: memref<?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  %cst = arith.constant 0.000000e+00 : f64
+  %0 = arith.index_cast %arg1 : i32 to index
+  %1 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%1 : memref<?xf64>) {
+  ^bb0(%out: f64):
+    linalg.yield %cst : f64
+  }
+  %2 = arith.index_cast %arg0 : i32 to index
+  affine.for %arg6 = 0 to %2 {
+    affine.store %cst, %arg5[%arg6] : memref<?xf64>
+    %3 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+    %4 = polygeist.submap(%arg3, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+    %5 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["reduction"]} ins(%3, %4 : memref<?xf64>, memref<?xf64>) outs(%5 : memref<?xf64>) {
+    ^bb0(%in: f64, %in_0: f64, %out: f64):
+      %9 = arith.mulf %in, %in_0 : f64
+      %10 = arith.addf %out, %9 : f64
+      linalg.yield %10 : f64
+    }
+    %6 = polygeist.submap(%arg2, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x42xf64>, index, index) -> memref<?xf64>
+    %7 = polygeist.submap(%arg5, %arg6, %0) {map = affine_map<(d0)[s0] -> (s0)>} : (memref<?xf64>, index, index) -> memref<?xf64>
+    %8 = polygeist.submap(%arg4, %0) {map = affine_map<(d0) -> (d0)>} : (memref<?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%6, %7 : memref<?xf64>, memref<?xf64>) outs(%8 : memref<?xf64>) {
+    ^bb0(%in: f64, %in_0: f64, %out: f64):
+      %9 = arith.mulf %in, %in_0 : f64
+      %10 = arith.addf %out, %9 : f64
+      linalg.yield %10 : f64
+    }
+  }
+  return
+}
+### Step 3 Complete ###
+
+****************************************
+*** RaiseAffineToLinalg END ***
+****************************************
+
+
+****************************************
+*** RaiseAffineToLinalgPipeline END ***
+****************************************
+

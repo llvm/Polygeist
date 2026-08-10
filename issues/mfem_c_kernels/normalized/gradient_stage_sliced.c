@@ -1,10 +1,16 @@
 /* Gradient maps with disjoint component/stage scratch buffers. */
-enum { D1D=4,Q1D=5,VDIM=2 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+// This axis is the element batch in the application extractions. Vector
+// components invoke the stage separately.
+enum { D1D=4,Q1D=5,VDIM=MFEM_BENCH_NE };
 #define F2(dx,dy,v) ((dx)+D1D*((dy)+D1D*(v)))
 #define F3(dx,dy,dz,v) ((dx)+D1D*((dy)+D1D*((dz)+D1D*(v))))
 #define Q2(v,c,qx,qy) ((qy)+Q1D*((qx)+Q1D*((c)+2*(v))))
 #define Q3(v,c,qx,qy,qz) ((qz)+Q1D*((qy)+Q1D*((qx)+Q1D*((c)+3*(v)))))
 
+// polygeist-arg-extents mfem_interp_grad_2d_stage_sliced: f=16*MFEM_BENCH_NE, B=20, G=20, o=50*MFEM_BENCH_NE
 void mfem_interp_grad_2d_stage_sliced(const double *f,const double *B,
                                        const double *G,double *o) {
   double sb[VDIM][D1D][Q1D],sg[VDIM][D1D][Q1D];
@@ -18,6 +24,7 @@ void mfem_interp_grad_2d_stage_sliced(const double *f,const double *B,
     double a=0.; for(int dy=0;dy<D1D;++dy) a+=sb[v][dy][qx]*G[qy*D1D+dy]; o[Q2(v,1,qx,qy)]=a; }
 }
 
+// polygeist-arg-extents mfem_interp_grad_3d_stage_sliced: f=64*MFEM_BENCH_NE, B=20, G=20, o=375*MFEM_BENCH_NE
 void mfem_interp_grad_3d_stage_sliced(const double *f,const double *B,
                                        const double *G,double *o) {
   double sb[VDIM][D1D][D1D][Q1D],sg[VDIM][D1D][D1D][Q1D];
@@ -40,6 +47,7 @@ void mfem_interp_grad_3d_stage_sliced(const double *f,const double *B,
     for(int qx=0;qx<Q1D;++qx) { double a=0.; for(int dz=0;dz<D1D;++dz) a+=sz[v][dz][qy][qx]*G[qz*D1D+dz]; o[Q3(v,2,qx,qy,qz)]=a; }
 }
 
+// polygeist-arg-extents mfem_integrate_grad_2d_stage_sliced: f=50*MFEM_BENCH_NE, B=20, G=20, y=16*MFEM_BENCH_NE
 void mfem_integrate_grad_2d_stage_sliced(const double *f,const double *B,
                                           const double *G,double *y) {
   double sx[VDIM][Q1D][D1D],sy[VDIM][Q1D][D1D],tx[VDIM][D1D][D1D],ty[VDIM][D1D][D1D];
@@ -50,6 +58,7 @@ void mfem_integrate_grad_2d_stage_sliced(const double *f,const double *B,
   for(int v=0;v<VDIM;++v) for(int dy=0;dy<D1D;++dy) for(int dx=0;dx<D1D;++dx) y[F2(dx,dy,v)]+=tx[v][dy][dx]+ty[v][dy][dx];
 }
 
+// polygeist-arg-extents mfem_integrate_grad_3d_stage_sliced: f=375*MFEM_BENCH_NE, B=20, G=20, y=64*MFEM_BENCH_NE
 void mfem_integrate_grad_3d_stage_sliced(const double *f,const double *B,
                                           const double *G,double *y) {
   double sx[VDIM][Q1D][Q1D][D1D],sy[VDIM][Q1D][Q1D][D1D],sz[VDIM][Q1D][Q1D][D1D];

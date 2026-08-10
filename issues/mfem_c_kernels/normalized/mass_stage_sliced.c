@@ -1,10 +1,14 @@
 /* Mass apply with disjoint element/stage scratch instead of sequential reuse. */
-enum { D1D=4, Q1D=5, NE=2 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { D1D=4, Q1D=5, NE=MFEM_BENCH_NE };
 #define X2(dx,dy,e) ((dx)+D1D*((dy)+D1D*(e)))
 #define D2(qx,qy,e) ((qx)+Q1D*((qy)+Q1D*(e)))
 #define X3(dx,dy,dz,e) ((dx)+D1D*((dy)+D1D*((dz)+D1D*(e))))
 #define D3(qx,qy,qz,e) ((qx)+Q1D*((qy)+Q1D*((qz)+Q1D*(e))))
 
+// polygeist-arg-extents mfem_pa_mass_apply_2d_stage_sliced: B=20, Bt=20, D=25*MFEM_BENCH_NE, X=16*MFEM_BENCH_NE, Y=16*MFEM_BENCH_NE
 void mfem_pa_mass_apply_2d_stage_sliced(const double *B,const double *Bt,
                                          const double *D,const double *X,double *Y) {
   double sx[NE][D1D][Q1D], sq[NE][Q1D][Q1D], tx[NE][Q1D][D1D];
@@ -28,6 +32,7 @@ void mfem_pa_mass_apply_2d_stage_sliced(const double *B,const double *Bt,
   }
 }
 
+// polygeist-arg-extents mfem_pa_mass_apply_3d_stage_sliced: B=20, Bt=20, D=125*MFEM_BENCH_NE, X=64*MFEM_BENCH_NE, Y=64*MFEM_BENCH_NE
 void mfem_pa_mass_apply_3d_stage_sliced(const double *B,const double *Bt,
                                          const double *D,const double *X,double *Y) {
   double sx[NE][D1D][D1D][Q1D], sxy[NE][D1D][Q1D][Q1D];

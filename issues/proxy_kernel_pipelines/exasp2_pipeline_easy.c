@@ -4,7 +4,9 @@
 // extraction, SpMV, AXPBY, and CG-step shapes while avoiding
 // BML/MPI/container-level code.
 
+#ifndef EN
 #define EN 16
+#endif
 
 void exasp2_pipeline_easy(double rho[EN][EN], const double h[EN][EN],
                           double x[EN][EN], double x2[EN][EN],

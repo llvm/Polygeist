@@ -1,7 +1,11 @@
 /* Six-path component-specialized, stage-sliced 3D H(curl) operator. */
-enum { D1D=4,Q1D=5,EDGE=3,NE=2,N3=144 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { D1D=4,Q1D=5,EDGE=3,NE=MFEM_BENCH_NE,N3=144 };
 #define V(v,e) ((v)+N3*(e))
 #define OP(x,y,z,c,e) ((x)+Q1D*((y)+Q1D*((z)+Q1D*((c)+6*(e)))))
+// polygeist-arg-extents mfem_pa_curlcurl_apply_3d_stage_sliced: Bo=15, Bc=20, Bot=15, Bct=20, Gc=20, Gct=20, op=750*MFEM_BENCH_NE, X=144*MFEM_BENCH_NE, Y=144*MFEM_BENCH_NE
 void mfem_pa_curlcurl_apply_3d_stage_sliced(const double *Bo,const double *Bc,
  const double *Bot,const double *Bct,const double *Gc,const double *Gct,
  const double *op,const double *X,double *Y){

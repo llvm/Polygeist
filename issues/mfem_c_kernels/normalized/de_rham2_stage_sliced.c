@@ -1,8 +1,12 @@
 /* Component-specialized, stage-sliced 2D H(curl) and H(div) operators. */
-enum { D1D=4,Q1D=5,EDGE=3,NE=2,N2=24 };
+#ifndef MFEM_BENCH_NE
+#define MFEM_BENCH_NE 2
+#endif
+enum { D1D=4,Q1D=5,EDGE=3,NE=MFEM_BENCH_NE,N2=24 };
 #define V(v,e) ((v)+N2*(e))
 #define O(qx,qy,e) ((qx)+Q1D*((qy)+Q1D*(e)))
 
+// polygeist-arg-extents mfem_pa_curlcurl_apply_2d_stage_sliced: Bo=15, Bot=15, Gc=20, Gct=20, op=25*MFEM_BENCH_NE, X=24*MFEM_BENCH_NE, Y=24*MFEM_BENCH_NE
 void mfem_pa_curlcurl_apply_2d_stage_sliced(const double *Bo,const double *Bot,
  const double *Gc,const double *Gct,const double *op,const double *X,double *Y){
   double x0[NE][D1D][Q1D],x1[NE][EDGE][Q1D],c0[NE][Q1D][Q1D],c1[NE][Q1D][Q1D];
@@ -21,6 +25,7 @@ void mfem_pa_curlcurl_apply_2d_stage_sliced(const double *Bo,const double *Bot,
   for(int e=0;e<NE;++e)for(int dy=0;dy<EDGE;++dy)for(int dx=0;dx<D1D;++dx)Y[V(EDGE*D1D+dx+D1D*dy,e)]+=u1[e][dy][dx];
 }
 
+// polygeist-arg-extents mfem_pa_divdiv_apply_2d_stage_sliced: Bo=15, Bot=15, Gc=20, Gct=20, op=25*MFEM_BENCH_NE, X=24*MFEM_BENCH_NE, Y=24*MFEM_BENCH_NE
 void mfem_pa_divdiv_apply_2d_stage_sliced(const double *Bo,const double *Bot,
  const double *Gc,const double *Gct,const double *op,const double *X,double *Y){
   double x0[NE][EDGE][Q1D],x1[NE][D1D][Q1D],d0[NE][Q1D][Q1D],d1[NE][Q1D][Q1D];

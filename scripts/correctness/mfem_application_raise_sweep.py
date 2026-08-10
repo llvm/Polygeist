@@ -60,12 +60,21 @@ def main():
                 "--lower-polygeist-submap", str(front), "-o", str(raised),
             ])
             messages.append("[raise]\n" + err)
-        if rrc == 0:
+        raised_loops = count(
+            raised, r"\b(?:affine|scf)\.(?:for|parallel|while)\b"
+        ) if rrc == 0 else 0
+        if rrc == 0 and raised_loops == 0:
             drc, _, err = run([
-                str(OPT), "--linalg-debufferize", str(raised),
+                str(OPT), "--linalg-debufferize=use-multi-root=true",
+                str(raised),
                 "-o", str(debuf),
             ])
             messages.append("[debufferize]\n" + err)
+        elif rrc == 0:
+            messages.append(
+                "[debufferize]\nskipped: raised IR still contains "
+                f"{raised_loops} residual loop(s)\n"
+            )
         if drc == 0:
             mrc, out, err = run([
                 "/usr/bin/python3", str(MATCHER), str(debuf), "--dry-run",
@@ -89,7 +98,7 @@ def main():
             debufferize_ok=str(drc == 0).lower(),
             matcher_ok=str(mrc == 0).lower(),
             linalg_ops=str(count(raised, r"\blinalg\.")),
-            residual_loops=str(count(raised, r"\b(?:affine|scf)\.(?:for|parallel|while)\b")),
+            residual_loops=str(raised_loops),
             matched_groups=total.group(1) if total else "0",
             matcher_bodies=total.group(2) if total else "0",
             launches=str(count(matched, r"\bkernel\.launch\b")),
