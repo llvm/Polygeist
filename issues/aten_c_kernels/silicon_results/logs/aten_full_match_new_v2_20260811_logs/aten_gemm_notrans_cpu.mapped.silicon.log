@@ -1,0 +1,8 @@
+kernel=aten_gemm_notrans_cpu correctness=PASS max_abs=1.6093254089355469e-06 max_rel=1.6093254089355469e-06
+kernel=aten_gemm_notrans_cpu iterations=5 raised_gpu_us=1806.227211
+kernel=aten_gemm_notrans_cpu correctness=PASS max_abs=1.6093254089355469e-06 max_rel=1.6093254089355469e-06
+kernel=aten_gemm_notrans_cpu iterations=5 raised_gpu_us=1685.900800
+kernel=aten_gemm_notrans_cpu correctness=PASS max_abs=1.6093254089355469e-06 max_rel=1.6093254089355469e-06
+kernel=aten_gemm_notrans_cpu iterations=5 raised_gpu_us=1672.998397
+kernel=aten_gemm_notrans_cpu correctness=PASS max_abs=1.6093254089355469e-06 max_rel=1.6093254089355469e-06
+kernel=aten_gemm_notrans_cpu iterations=5 raised_gpu_us=1721.657580

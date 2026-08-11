@@ -3,11 +3,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f16, dense<16> : 
   func.func @aten_atanh(%arg0: memref<?xf32>, %arg1: memref<?xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%0 : tensor<?xf32>) outs(%1 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %4 = func.call @atanhf(%in) : (f32) -> f32
-      linalg.yield %4 : f32
-    } -> tensor<?xf32>
+    %2 = kernel.launch @cutensorUnary_atanh_f32(%0, %1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %3 = bufferization.to_memref %2 : memref<?xf32>
     memref.copy %3, %arg1 : memref<?xf32> to memref<?xf32>
     return

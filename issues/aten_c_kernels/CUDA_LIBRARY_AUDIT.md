@@ -3,9 +3,9 @@
 This audit adjudicates every provenance-linked standalone ATen C fixture against public NVIDIA libraries. It separately records whether the current rewrite covers the complete function or only an initialization/copy stage. The machine-readable CSV is the authoritative per-kernel list.
 
 - Fixtures reviewed: 598
-- Complete current rewrite candidates: 40
-- Partial stage-only current matches: 101
-- No current launch: 457
+- Complete current rewrite candidates: 79
+- Partial stage-only current matches: 93
+- No current launch: 426
 
 ## What exists in NVIDIA libraries
 
@@ -19,12 +19,12 @@ A CUB or Thrust result means NVIDIA ships the generic device algorithm; it is no
 
 ## Compiler diagnosis
 
-- `ALREADY_FOUND`: 40
-- `BACKEND_AND_MATCHER_GAP`: 256
+- `ALREADY_FOUND`: 79
+- `BACKEND_AND_MATCHER_GAP`: 228
 - `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 52
-- `NO_LIBRARY_MATCH_EXPECTED`: 31
-- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 101
-- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 118
+- `NO_LIBRARY_MATCH_EXPECTED`: 29
+- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 93
+- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 117
 
 Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which a selected runtime-wrapper family is already present locally. The remaining positive library candidates need raising work, a new API backend, graph composition, or some combination.
 

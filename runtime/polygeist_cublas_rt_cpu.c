@@ -74,6 +74,37 @@ void polygeist_cublas_sgemm(
   }
 }
 
+void polygeist_cublas_sgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sgemm(CblasRowMajor,
+              transA ? CblasTrans : CblasNoTrans,
+              transB ? CblasTrans : CblasNoTrans,
+              M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  return;
+#endif
+  for (int32_t i = 0; i < M; ++i) {
+    for (int32_t j = 0; j < N; ++j) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k) {
+        float av = transA ? A[(size_t)k * lda + i]
+                          : A[(size_t)i * lda + k];
+        float bv = transB ? B[(size_t)j * ldb + k]
+                          : B[(size_t)k * ldb + j];
+        acc += av * bv;
+      }
+      float *c = &C[(size_t)i * ldc + j];
+      *c = alpha * acc + beta * *c;
+    }
+  }
+}
+
 void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
     int32_t batch, int32_t M, int32_t N, int32_t K,
     const float *A, const float *B, float *C) {
@@ -95,6 +126,16 @@ void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
     }
 #endif
   }
+}
+
+void polygeist_cublas_sgemm_strided_batched(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C) {
+  for (int32_t b = 0; b < batch; ++b)
+    polygeist_cublas_sgemm(M, N, K, 1.0f,
+        A + (size_t)b * M * K, K,
+        B + (size_t)b * K * N, N, 0.0f,
+        C + (size_t)b * M * N, N);
 }
 
 void polygeist_cublas_dgemm_outer_product(
@@ -174,6 +215,28 @@ void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
   return;
 #endif
   for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
+}
+
+void polygeist_cublas_saxpby(int32_t N, float alpha, const float *x,
+                              float beta, float *y) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  if (x == y) {
+    cblas_sscal(N, alpha + beta, y, 1);
+  } else {
+    cblas_sscal(N, beta, y, 1);
+    cblas_saxpy(N, alpha, x, 1, y, 1);
+  }
+  return;
+#endif
+  for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
+}
+
+void polygeist_cublas_sscal(int32_t N, float scale, float *x) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sscal(N, scale, x, 1);
+  return;
+#endif
+  for (int32_t i = 0; i < N; ++i) x[i] *= scale;
 }
 
 void polygeist_cublas_daxpy_unit(int32_t N, const double *x, double *y) {
@@ -1398,6 +1461,45 @@ void polygeist_cuda_rope_mulmul_f32(
       Out[idx] = add ? (p0 + p1) : (p0 - p1);
     }
   }
+}
+
+static float polygeist_cutensor_unary_eval_f32(int32_t op, float x) {
+  switch (op) {
+  case POLYGEIST_CUTENSOR_UNARY_ABS: return fabsf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ACOS: return acosf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ACOSH: return acoshf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ASIN: return asinf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ASINH: return asinhf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ATAN: return atanf(x);
+  case POLYGEIST_CUTENSOR_UNARY_ATANH: return atanhf(x);
+  case POLYGEIST_CUTENSOR_UNARY_CEIL: return ceilf(x);
+  case POLYGEIST_CUTENSOR_UNARY_COS: return cosf(x);
+  case POLYGEIST_CUTENSOR_UNARY_COSH: return coshf(x);
+  case POLYGEIST_CUTENSOR_UNARY_EXP: return expf(x);
+  case POLYGEIST_CUTENSOR_UNARY_FLOOR: return floorf(x);
+  case POLYGEIST_CUTENSOR_UNARY_LOG: return logf(x);
+  case POLYGEIST_CUTENSOR_UNARY_MISH:
+    return x * tanhf(log1pf(expf(x)));
+  case POLYGEIST_CUTENSOR_UNARY_NEG: return -x;
+  case POLYGEIST_CUTENSOR_UNARY_RECIPROCAL: return 1.0f / x;
+  case POLYGEIST_CUTENSOR_UNARY_RELU: return x > 0.0f ? x : 0.0f;
+  case POLYGEIST_CUTENSOR_UNARY_SIGMOID:
+    return 1.0f / (1.0f + expf(-x));
+  case POLYGEIST_CUTENSOR_UNARY_SILU:
+    return x / (1.0f + expf(-x));
+  case POLYGEIST_CUTENSOR_UNARY_SIN: return sinf(x);
+  case POLYGEIST_CUTENSOR_UNARY_SINH: return sinhf(x);
+  case POLYGEIST_CUTENSOR_UNARY_SQRT: return sqrtf(x);
+  case POLYGEIST_CUTENSOR_UNARY_TAN: return tanf(x);
+  case POLYGEIST_CUTENSOR_UNARY_TANH: return tanhf(x);
+  default: return NAN;
+  }
+}
+
+void polygeist_cutensor_unary_f32(
+    int32_t op, int32_t n, const float *x, float *out) {
+  for (int32_t i = 0; i < n; ++i)
+    out[i] = polygeist_cutensor_unary_eval_f32(op, x[i]);
 }
 
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful

@@ -65,6 +65,8 @@ class Term(Expr):
     @classmethod
     def Tanh(cls, a: Term) -> Term: ...
     @classmethod
+    def Unary(cls, op: StringLike, a: Term) -> Term: ...
+    @classmethod
     def Select(cls, pred: Term, t: Term, f: Term) -> Term: ...
     @classmethod
     def Cmp(cls, kind: StringLike, a: Term, b: Term) -> Term: ...
@@ -586,6 +588,22 @@ _OP_PATTERNS = {
     # etc. so the matcher recognises the kernel without trying to fold them.
     "math.exp": "exp",
     "math.tanh": "tanh",
+    "math.acos": "unary_acos",
+    "math.acosh": "unary_acosh",
+    "math.asin": "unary_asin",
+    "math.asinh": "unary_asinh",
+    "math.atan": "unary_atan",
+    "math.atanh": "unary_atanh",
+    "math.ceil": "unary_ceil",
+    "math.cos": "unary_cos",
+    "math.cosh": "unary_cosh",
+    "math.floor": "unary_floor",
+    "math.log": "unary_log",
+    "math.log1p": "unary_log1p",
+    "math.sin": "unary_sin",
+    "math.sinh": "unary_sinh",
+    "math.tan": "unary_tan",
+    "func.call": "call",
     "arith.cmpf": "cmpf",
     "arith.cmpi": "cmpi",
     "arith.select": "select",
@@ -685,6 +703,22 @@ def encode_body(g: GenericBody) -> Term:
             env[result] = Term.Exp(resolve(arg_toks[0]))
         elif op_key == "tanh":
             env[result] = Term.Tanh(resolve(arg_toks[0]))
+        elif op_key.startswith("unary_"):
+            env[result] = Term.Unary(op_key.removeprefix("unary_"),
+                                     resolve(arg_toks[0]))
+        elif op_key == "call":
+            call = re.match(r"@([\w.$-]+)\((%[\w_-]+)\)", args_part.strip())
+            if call:
+                callee = re.sub(r"f$", "", call.group(1))
+                supported = {
+                    "acos", "acosh", "asin", "asinh", "atan", "atanh",
+                    "ceil", "cos", "cosh", "exp", "floor", "log",
+                    "sin", "sinh", "sqrt", "tan", "tanh",
+                }
+                env[result] = (Term.Unary(callee, resolve(call.group(2)))
+                               if callee in supported else Term.Cap(result))
+            else:
+                env[result] = Term.Cap(result)
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
@@ -787,6 +821,22 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
             env[result] = Term.Exp(resolve(arg_toks[0]))
         elif op_key == "tanh":
             env[result] = Term.Tanh(resolve(arg_toks[0]))
+        elif op_key.startswith("unary_"):
+            env[result] = Term.Unary(op_key.removeprefix("unary_"),
+                                     resolve(arg_toks[0]))
+        elif op_key == "call":
+            call = re.match(r"@([\w.$-]+)\((%[\w_-]+)\)", args_part.strip())
+            if call:
+                callee = re.sub(r"f$", "", call.group(1))
+                supported = {
+                    "acos", "acosh", "asin", "asinh", "atan", "atanh",
+                    "ceil", "cos", "cosh", "exp", "floor", "log",
+                    "sin", "sinh", "sqrt", "tan", "tanh",
+                }
+                env[result] = (Term.Unary(callee, resolve(call.group(2)))
+                               if callee in supported else Term.Cap(result))
+            else:
+                env[result] = Term.Cap(result)
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
@@ -1387,6 +1437,32 @@ def _gemm_no_alpha() -> CompositionEntry:
         steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
                                 parallel_dim_count=2, reduction_dim_count=1)],
     )
+
+
+def _sgemm_zero_gemm() -> CompositionEntry:
+    """FP32 C=0; C+=A*B, folded to SGEMM with beta=0."""
+    return CompositionEntry(
+        name="cublasSgemm_nn_zero",
+        steps=[
+            CompositionStep(body=T_cap("%zero"), num_ins=0, num_outs=1,
+                            parallel_dim_count=2, reduction_dim_count=0),
+            CompositionStep(body=Term.Out(0) + Term.In(0) * Term.In(1),
+                            num_ins=2, num_outs=1,
+                            parallel_dim_count=2, reduction_dim_count=1),
+        ])
+
+
+def _sgemm_strided_batched_zero() -> CompositionEntry:
+    """FP32 batched C=0; C[b]+=A[b]*B[b]."""
+    return CompositionEntry(
+        name="cublasSgemm_strided_batched_nn_zero",
+        steps=[
+            CompositionStep(body=T_cap("%zero"), num_ins=0, num_outs=1,
+                            parallel_dim_count=3, reduction_dim_count=0),
+            CompositionStep(body=Term.Out(0) + Term.In(0) * Term.In(1),
+                            num_ins=2, num_outs=1,
+                            parallel_dim_count=3, reduction_dim_count=1),
+        ])
 
 
 def _sgemm_broadcast3d_memref() -> CompositionEntry:
@@ -3210,6 +3286,53 @@ def _copy_input_2d_tensor() -> CompositionEntry:
     )
 
 
+def _cutensor_unary_entries() -> list[CompositionEntry]:
+    """Generic cuTENSOR unary operations over contiguous f32 tensors.
+
+    Several ATen C fixtures spell fixed unary operations as formulas or as
+    external scalar calls rather than MLIR math ops.  Keep those equivalent
+    spellings here while sharing one parameterized ABI/runtime lowering.
+    """
+    x = Term.In(0)
+    zero = Term.Lit(0.0)
+    one = Term.Lit(1.0)
+    direct = {
+        "acos": Term.Unary("acos", x),
+        "acosh": Term.Unary("acosh", x),
+        "asin": Term.Unary("asin", x),
+        "asinh": Term.Unary("asinh", x),
+        "atan": Term.Unary("atan", x),
+        "atanh": Term.Unary("atanh", x),
+        "ceil": Term.Unary("ceil", x),
+        "cos": Term.Unary("cos", x),
+        "cosh": Term.Unary("cosh", x),
+        "exp": Term.Exp(x),
+        "floor": Term.Unary("floor", x),
+        "log": Term.Unary("log", x),
+        "sin": Term.Unary("sin", x),
+        "sinh": Term.Unary("sinh", x),
+        "sqrt": Term.Sqrt(x),
+        "tan": Term.Unary("tan", x),
+        "tanh": Term.Tanh(x),
+        "neg": zero - x,
+        "reciprocal": one / x,
+        "abs": Term.Select(Term.Cmp("olt", x, zero), zero - x, x),
+        "relu": Term.Select(Term.Cmp("ogt", x, zero), x, zero),
+        "sigmoid": one / (Term.Exp(zero - x) + one),
+        "silu": x / (Term.Exp(zero - x) + one),
+        "mish": x * Term.Tanh(Term.Unary("log1p", Term.Exp(x))),
+    }
+    return [
+        CompositionEntry(
+            name=f"cutensorUnary_{op}_f32",
+            steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                   reduction_dim_count=0)],
+            form="tensor", element_type="f32",
+        )
+        for op, body in direct.items()
+    ]
+
+
 def _copy_input_3d_tensor() -> CompositionEntry:
     """Rank-3 tensor copy/transpose-style pack/unpack."""
     body = Term.In(0)
@@ -3295,12 +3418,19 @@ def composition_library() -> list[CompositionEntry]:
         _gemm_composition(),
         _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
+        _sgemm_strided_batched_zero(),
+        _sgemm_zero_gemm(),
         _generic_two_input_sum_contraction_tensor(),
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map
                                                # legality is proved by rewrite
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
+
+        # Parameterized arbitrary-rank unary tensor operations. These precede
+        # generic formula entries so a complete fixed-function cuTENSOR call
+        # wins over a lower-level pointwise interpretation.
+        *_cutensor_unary_entries(),
 
         # 1-step BLAS with α capture.
         _gemm_no_alpha(),
@@ -3548,7 +3678,7 @@ def _parse_term(s: str):
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Unary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
                 j, args = i + len(tag), []
@@ -3654,7 +3784,7 @@ def _parse_term(s: str):
                 op_name = {"+": "Add", "-": "Sub", "*": "Mul", "/": "Div"}[op_char]
                 return (op_name, lhs, rhs), len(t)
         # Otherwise try parsing as a Term.Ctor leaf.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Unary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if t.startswith(tag) and t.endswith(")"):
                 inner = t[len(tag):-1]
@@ -4085,6 +4215,8 @@ def _iter_ast_subterms(ast, path: tuple[int, ...] = ()):
         child_indices = (1, 2)
     elif op in ("Sqrt", "Abs", "Exp", "Tanh") and len(ast) == 2:
         child_indices = (1,)
+    elif op == "Unary" and len(ast) == 3:
+        child_indices = (2,)
     elif op == "Select" and len(ast) == 4:
         child_indices = (1, 2, 3)
     elif op == "Cmp" and len(ast) == 4:
@@ -4369,7 +4501,9 @@ def match_composition(
             g = body_objs[start + j]
             if entry.element_type is not None:
                 scalar_types = set(re.findall(
-                    r"(?:arith\.[A-Za-z0-9_]+|linalg\.yield)\b[^:]*:\s*([A-Za-z0-9]+)",
+                    r"(?:arith\.[A-Za-z0-9_]+|math\.[A-Za-z0-9_]+|"
+                    r"func\.call|linalg\.yield)\b[^:]*:\s*"
+                    r"(?:\([^)]*\)\s*->\s*)?([A-Za-z0-9]+)",
                     "\n".join(g.body_lines),
                 ))
                 if entry.element_type not in scalar_types:

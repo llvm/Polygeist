@@ -70,9 +70,18 @@ struct ShimDecl {
 };
 
 static StringRef shimSymbolFor(StringRef libSym) {
+  if (libSym.starts_with("cutensorUnary_") && libSym.ends_with("_f32"))
+    return "polygeist_cutensor_unary_f32";
   if (libSym == "cublasDgemm") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_simple") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgemm_zero") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
+      libSym == "cublasSgemm_nt" ||
+      libSym == "cublasSgemm_tn" || libSym == "cublasSgemm_tt")
+    return "polygeist_cublas_sgemm_transpose";
+  if (libSym == "cublasSgemm_strided_batched_nn_zero")
+    return "polygeist_cublas_sgemm_strided_batched";
   if (libSym == "cublasSgemm_broadcast3d_simple")
     return "polygeist_cublas_sgemm";
   if (libSym == "cublasSgemm_broadcast3d_memref")
@@ -92,6 +101,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasSgemv_T") return "polygeist_cublas_sgemv_T";
   if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
   if (libSym == "cublasDaxpby") return "polygeist_cublas_daxpby";
+  if (libSym == "cublasSaxpby") return "polygeist_cublas_saxpby";
+  if (libSym == "cublasSscal") return "polygeist_cublas_sscal";
   if (libSym == "cublasDaxpy_unit") return "polygeist_cublas_daxpy_unit";
   if (libSym == "cublasDger_rank2") return "polygeist_cublas_dger_rank2";
   if (libSym == "cublasDgemm_outer_product")
@@ -206,6 +217,21 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasGemmFor1x1Conv")
     return "polygeist_cublas_sgemm_1x1conv";
   return StringRef();
+}
+
+static std::optional<int32_t> cutensorUnaryOpId(StringRef libSym) {
+  if (!libSym.starts_with("cutensorUnary_") || !libSym.ends_with("_f32"))
+    return std::nullopt;
+  StringRef op = libSym.drop_front(14).drop_back(4);
+  static constexpr StringLiteral names[] = {
+      "abs", "acos", "acosh", "asin", "asinh", "atan", "atanh", "ceil",
+      "cos", "cosh", "exp", "floor", "log", "mish", "neg", "reciprocal",
+      "relu", "sigmoid", "silu", "sin", "sinh", "sqrt", "tan", "tanh"};
+  for (int32_t i = 0;
+       i < static_cast<int32_t>(sizeof(names) / sizeof(names[0])); ++i)
+    if (op == names[i])
+      return i;
+  return std::nullopt;
 }
 
 // `ensureShimDecl` and `memrefBasePtr` are shared with the PVA lowering
@@ -852,8 +878,10 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
   } else if (variant == "cublasDgemm_alpha_only") {
     beta = one;
     alpha = launch.getOperand(3);
-  } else {  // _simple
-    beta = one;
+  } else {  // _simple or zero-initialized
+    beta = variant == "cublasDgemm_zero"
+        ? b.create<arith::ConstantOp>(loc, b.getF64Type(), b.getF64FloatAttr(0.0))
+        : one;
     alpha = one;
   }
 
@@ -898,6 +926,99 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
   Value resultTensor = memrefToTensor(b, loc, C_mr,
                                        launch.getResult(0).getType());
   launch.getResult(0).replaceAllUsesWith(resultTensor);
+  launch.erase();
+  return success();
+}
+
+// FP32 row-major GEMM. The two-letter suffix is the semantic transpose state
+// proved from linalg indexing maps by the matcher (nn, nt, tn, or tt).
+static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
+                                         StringRef variant) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError(variant) << ": expected A, B, C and one result";
+  StringRef suffix = variant.drop_front(StringRef("cublasSgemm_").size());
+  bool zeroInit = suffix.consume_back("_zero");
+  if (suffix.size() != 2 || (suffix[0] != 'n' && suffix[0] != 't') ||
+      (suffix[1] != 'n' && suffix[1] != 't'))
+    return launch.emitError(variant) << ": invalid transpose suffix";
+  bool transA = suffix[0] == 't';
+  bool transB = suffix[1] == 't';
+  Value A = launch.getOperand(0), B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 2 || Bt.getRank() != 2 ||
+      Ct.getRank() != 2 || !At.getElementType().isF32() ||
+      !Bt.getElementType().isF32() || !Ct.getElementType().isF32())
+    return launch.emitError(variant) << ": A/B/C must be rank-2 f32 tensors";
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value A_mr = tensorToMemref(b, loc, A);
+  Value B_mr = tensorToMemref(b, loc, B);
+  Value C_mr = tensorToMemref(b, loc, C);
+  Value M = memrefDimAsI32(b, loc, C_mr, 0);
+  Value N = memrefDimAsI32(b, loc, C_mr, 1);
+  Value K = memrefDimAsI32(b, loc, A_mr, transA ? 0 : 1);
+  Value lda = memrefDimAsI32(b, loc, A_mr, 1);
+  Value ldb = memrefDimAsI32(b, loc, B_mr, 1);
+  Value ldc = memrefDimAsI32(b, loc, C_mr, 1);
+  Value transAVal = b.create<arith::ConstantIntOp>(loc, transA, 32);
+  Value transBVal = b.create<arith::ConstantIntOp>(loc, transB, 32);
+  Value one = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                          b.getF32FloatAttr(1.0));
+  Value beta = zeroInit
+      ? b.create<arith::ConstantOp>(loc, b.getF32Type(), b.getF32FloatAttr(0.0))
+      : one;
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getI32Type(), b.getF32Type(),
+      ptrTy, b.getI32Type(), ptrTy, b.getI32Type(), b.getF32Type(),
+      ptrTy, b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(module,
+      "polygeist_cublas_sgemm_transpose", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{
+      M, N, K, transAVal, transBVal, one,
+      memrefBasePtr(b, loc, A_mr), lda, memrefBasePtr(b, loc, B_mr), ldb,
+      beta, memrefBasePtr(b, loc, C_mr), ldc});
+  Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerSgemmStridedBatched(LaunchOp launch,
+                                               ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError("batched SGEMM: expected A, B, C and one result");
+  Value A = launch.getOperand(0), B = launch.getOperand(1), C = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 3 || Bt.getRank() != 3 ||
+      Ct.getRank() != 3 || !At.getElementType().isF32() ||
+      !Bt.getElementType().isF32() || !Ct.getElementType().isF32())
+    return launch.emitError("batched SGEMM: operands must be rank-3 f32 tensors");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value Am = tensorToMemref(b, loc, A), Bm = tensorToMemref(b, loc, B);
+  Value Cm = tensorToMemref(b, loc, C);
+  Value batch = memrefDimAsI32(b, loc, Cm, 0);
+  Value M = memrefDimAsI32(b, loc, Cm, 1);
+  Value N = memrefDimAsI32(b, loc, Cm, 2);
+  Value K = memrefDimAsI32(b, loc, Am, 2);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types = {b.getI32Type(), b.getI32Type(), b.getI32Type(),
+                             b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module,
+      "polygeist_cublas_sgemm_strided_batched", types, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{batch, M, N, K,
+      memrefBasePtr(b, loc, Am), memrefBasePtr(b, loc, Bm),
+      memrefBasePtr(b, loc, Cm)});
+  Value out = memrefToTensor(b, loc, Cm, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
   launch.erase();
   return success();
 }
@@ -2316,6 +2437,57 @@ static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+static LogicalResult lowerSaxpby(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 1)
+    return launch.emitError("cublasSaxpby: expected x, y, alpha, beta and one result");
+  Value x = launch.getOperand(0), y = launch.getOperand(1);
+  Value alpha = launch.getOperand(2), beta = launch.getOperand(3);
+  auto xt = dyn_cast<RankedTensorType>(x.getType());
+  auto yt = dyn_cast<RankedTensorType>(y.getType());
+  if (!xt || !yt || xt.getRank() != 1 || yt.getRank() != 1 ||
+      !xt.getElementType().isF32() || !yt.getElementType().isF32() ||
+      !alpha.getType().isF32() || !beta.getType().isF32())
+    return launch.emitError("cublasSaxpby: requires rank-1 f32 vectors and f32 coefficients");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value x_mr = tensorToMemref(b, loc, x);
+  Value y_mr = tensorToMemref(b, loc, y);
+  Value N = memrefDimAsI32(b, loc, y_mr, 0);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types = {b.getI32Type(), b.getF32Type(), ptrTy,
+                             b.getF32Type(), ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_saxpby", types, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{
+      N, alpha, memrefBasePtr(b, loc, x_mr), beta, memrefBasePtr(b, loc, y_mr)});
+  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerSscal(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 2 || launch.getNumResults() != 1)
+    return launch.emitError("cublasSscal: expected x, scale and one result");
+  Value x = launch.getOperand(0), scale = launch.getOperand(1);
+  auto xt = dyn_cast<RankedTensorType>(x.getType());
+  if (!xt || xt.getRank() != 1 || !xt.getElementType().isF32() ||
+      !scale.getType().isF32())
+    return launch.emitError("cublasSscal: requires a rank-1 f32 vector and f32 scale");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value x_mr = tensorToMemref(b, loc, x);
+  Value N = memrefDimAsI32(b, loc, x_mr, 0);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types = {b.getI32Type(), b.getF32Type(), ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_sscal", types, b);
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{N, scale, memrefBasePtr(b, loc, x_mr)});
+  Value out = memrefToTensor(b, loc, x_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
 // @cublasDaxpy_unit(%x : tensor<Nxf64>, %y : tensor<Nxf64>) -> tensor<Nxf64>
 // Computes y += x. α=1, no β scale.
 static LogicalResult lowerDaxpyUnit(LaunchOp launch, ModuleOp module) {
@@ -3286,6 +3458,52 @@ static LogicalResult lowerCublasDot(LaunchOp launch, ModuleOp module,
   return success();
 }
 
+static LogicalResult lowerCutensorUnaryF32(LaunchOp launch, ModuleOp module,
+                                           StringRef libSym) {
+  if (launch.getNumOperands() != 2 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "cutensorUnary: expected (input, output) and one tensor result");
+  auto opId = cutensorUnaryOpId(libSym);
+  if (!opId)
+    return launch.emitError("cutensorUnary: unknown operation symbol ")
+           << libSym;
+  Value input = launch.getOperand(0);
+  Value output = launch.getOperand(1);
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  auto outputTy = dyn_cast<RankedTensorType>(output.getType());
+  if (!inputTy || !outputTy || inputTy.getRank() < 1 ||
+      inputTy.getRank() != outputTy.getRank() ||
+      !inputTy.getElementType().isF32() ||
+      !outputTy.getElementType().isF32() ||
+      inputTy.getShape() != outputTy.getShape())
+    return launch.emitError(
+        "cutensorUnary: input/output must be same-shaped ranked f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value inputMr = valueToMemrefPreservingSlice(b, loc, input);
+  Value outputMr = valueToMemrefPreservingSlice(b, loc, output);
+  Value op = b.create<arith::ConstantOp>(
+      loc, b.getI32Type(), b.getI32IntegerAttr(*opId));
+  Value n = memrefNumElementsAsI32(b, loc, inputMr);
+  Value inputPtr = memrefBasePtr(b, loc, inputMr);
+  Value outputPtr = memrefBasePtr(b, loc, outputMr);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cutensor_unary_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim,
+                         ValueRange{op, n, inputPtr, outputPtr});
+
+  Value updated =
+      memrefToTensor(b, loc, outputMr, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForSliceSource(b, loc, output));
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerGeluTanhF32(LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 2)
     return launch.emitError("gelu_tanh_f32: expected 2 operands (x, out)");
@@ -3499,10 +3717,14 @@ static LogicalResult lowerCudaCopyF32(LaunchOp launch, ModuleOp module,
                  oRowStride, oColStride, sPtr, oPtr});
 
   Value updatedBase = tensorForSliceSource(b, loc, out);
-  Value updated = updatedBase ? Value()
-      : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
-                       launch.getResult(0).getType());
+  // Preserve an updated slice for direct consumers as well as the base tensor
+  // used to bypass a terminal insert_slice.
+  Value updated = memrefToTensor(
+      b, loc, valueToMemrefPreservingSlice(b, loc, out),
+      launch.getResult(0).getType());
   rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  if (!launch.getResult(0).use_empty())
+    launch.getResult(0).replaceAllUsesWith(updated);
   launch.erase();
   return success();
 }
@@ -3996,11 +4218,19 @@ struct LowerKernelLaunchToCuBLASPass
       }
 
       LogicalResult r = failure();
-      if (libSym == "cublasDgemm") {
+      if (libSym.starts_with("cutensorUnary_") && libSym.ends_with("_f32")) {
+        r = lowerCutensorUnaryF32(launch, module, libSym);
+      } else if (libSym == "cublasDgemm") {
         r = lowerDgemm(launch, module);
-      } else if (libSym == "cublasDgemm_simple" ||
+      } else if (libSym == "cublasDgemm_simple" || libSym == "cublasDgemm_zero" ||
                  libSym == "cublasDgemm_alpha_only") {
         r = lowerDgemmVariant(launch, module, libSym);
+      } else if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
+                 libSym == "cublasSgemm_nt" ||
+                 libSym == "cublasSgemm_tn" || libSym == "cublasSgemm_tt") {
+        r = lowerSgemmTranspose(launch, module, libSym);
+      } else if (libSym == "cublasSgemm_strided_batched_nn_zero") {
+        r = lowerSgemmStridedBatched(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_simple") {
         r = lowerSgemmBroadcast3DSimple(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_memref") {
@@ -4022,6 +4252,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgemvAlpha(launch, module);
       } else if (libSym == "cublasDaxpby") {
         r = lowerDaxpby(launch, module);
+      } else if (libSym == "cublasSaxpby") {
+        r = lowerSaxpby(launch, module);
+      } else if (libSym == "cublasSscal") {
+        r = lowerSscal(launch, module);
       } else if (libSym == "cublasDaxpy_unit") {
         r = lowerDaxpyUnit(launch, module);
       } else if (libSym == "cublasDger_rank2") {

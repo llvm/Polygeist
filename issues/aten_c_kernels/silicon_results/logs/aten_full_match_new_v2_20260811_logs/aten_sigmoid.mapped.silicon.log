@@ -1,0 +1,8 @@
+kernel=aten_sigmoid correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_sigmoid iterations=5 raised_gpu_us=1497.465605
+kernel=aten_sigmoid correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_sigmoid iterations=5 raised_gpu_us=1479.078410
+kernel=aten_sigmoid correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_sigmoid iterations=5 raised_gpu_us=1493.318379
+kernel=aten_sigmoid correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_sigmoid iterations=5 raised_gpu_us=1492.454391

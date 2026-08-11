@@ -6,7 +6,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %c0_i32 = arith.constant 0 : i32
     %c512 = arith.constant 512 : index
     %0 = bufferization.to_tensor %arg1 : memref<?xi32>
-    %1 = kernel.launch @memset_zero_1D(%0) : (tensor<?xi32>) -> tensor<?xi32>
+    %1 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%0 : tensor<?xi32>) {
+    ^bb0(%out: i32):
+      linalg.yield %c0_i32 : i32
+    } -> tensor<?xi32>
     %2 = bufferization.to_memref %1 : memref<?xi32>
     memref.copy %2, %arg1 : memref<?xi32> to memref<?xi32>
     %subview = memref.subview %arg0[0] [%c512] [1] : memref<?xi32> to memref<?xi32, strided<[1]>>

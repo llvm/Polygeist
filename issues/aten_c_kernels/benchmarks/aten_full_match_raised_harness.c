@@ -131,6 +131,48 @@ extern void FUNCTION(float *, float *); extern void REFERENCE(float *, float *);
 static const size_t sizes[] = {N, N}; static const int outputs[] = {1};
 static void call_raised(void **p) { FUNCTION(p[0], p[1]); }
 static void call_reference(void **p) { REFERENCE(p[0], p[1]); }
+#elif defined(BENCH_KIND_UNARY)
+extern void FUNCTION(float *, float *); extern void REFERENCE(float *, float *);
+static const size_t sizes[] = {N, N}; static const int outputs[] = {1};
+static void call_raised(void **p) { FUNCTION(p[0], p[1]); }
+static void call_reference(void **p) { REFERENCE(p[0], p[1]); }
+#elif defined(BENCH_KIND_AXPY)
+extern void FUNCTION(float, float *, float *);
+extern void REFERENCE(float, float *, float *);
+static const size_t sizes[] = {N, N}; static const int outputs[] = {1};
+static void call_raised(void **p) { FUNCTION(0.75f, p[0], p[1]); }
+static void call_reference(void **p) { REFERENCE(0.75f, p[0], p[1]); }
+#elif defined(BENCH_KIND_SCAL)
+extern void FUNCTION(float *, float); extern void REFERENCE(float *, float);
+static const size_t sizes[] = {N}; static const int outputs[] = {0};
+static void call_raised(void **p) { FUNCTION(p[0], 0.75f); }
+static void call_reference(void **p) { REFERENCE(p[0], 0.75f); }
+#elif defined(BENCH_KIND_GEMM)
+extern void FUNCTION(float *, float *, float *);
+extern void REFERENCE(float *, float *, float *);
+#ifdef GEMM_TRANS_A
+#define GEMM_A_SIZE ((size_t)K*M)
+#else
+#define GEMM_A_SIZE ((size_t)M*K)
+#endif
+#ifdef GEMM_TRANS_B
+#define GEMM_B_SIZE ((size_t)N*K)
+#else
+#define GEMM_B_SIZE ((size_t)K*N)
+#endif
+static const size_t sizes[] = {GEMM_A_SIZE, GEMM_B_SIZE, (size_t)M*N};
+static const int outputs[] = {2};
+static void call_raised(void **p) { FUNCTION(p[0], p[1], p[2]); }
+static void call_reference(void **p) { REFERENCE(p[0], p[1], p[2]); }
+#elif defined(BENCH_KIND_BATCHED_GEMM)
+extern void FUNCTION(float *, float *, float *);
+extern void REFERENCE(float *, float *, float *);
+static const size_t sizes[] = {
+  (size_t)BATCH_SIZE*M*K, (size_t)BATCH_SIZE*K*N,
+  (size_t)BATCH_SIZE*M*N};
+static const int outputs[] = {2};
+static void call_raised(void **p) { FUNCTION(p[0], p[1], p[2]); }
+static void call_reference(void **p) { REFERENCE(p[0], p[1], p[2]); }
 #elif defined(BENCH_KIND_LINEAR_COMB)
 extern void FUNCTION(float *, float *, float *); extern void REFERENCE(float *, float *, float *);
 static const size_t sizes[] = {(size_t)4*N, 4, N}; static const int outputs[] = {2};
@@ -180,7 +222,8 @@ int main(void) {
 #ifdef DEVICE_RESIDENT
     CUDA_CHECK(cudaMalloc(&raised[i], sizes[i] * elem));
 #else
-    raised[i] = malloc(sizes[i] * elem);
+    if (posix_memalign(&raised[i], 256, sizes[i] * elem) != 0)
+      raised[i] = NULL;
 #endif
     reference[i] = malloc(sizes[i] * elem);
     if (!raised[i] || !reference[i]) return 2;
@@ -204,6 +247,26 @@ int main(void) {
     memcpy(reference[i], raised[i], sizes[i] * elem);
 #endif
   }
+#if defined(UNARY_POSITIVE) || defined(UNARY_UNIT_DOMAIN)
+  /* Keep inverse/transcendental fixtures inside their mathematical domains. */
+  float *domain = (float *)reference[0];
+#ifndef DEVICE_RESIDENT
+  domain = (float *)raised[0];
+#endif
+  for (size_t i = 0; i < sizes[0]; ++i) {
+#ifdef UNARY_POSITIVE
+    domain[i] = 1.125f + (float)(i % 1024) / 1024.0f;
+#else
+    domain[i] = ((float)(i % 1024) / 1024.0f) * 1.6f - 0.8f;
+#endif
+  }
+#ifdef DEVICE_RESIDENT
+  CUDA_CHECK(cudaMemcpy(raised[0], reference[0], sizes[0] * sizeof(float),
+                        cudaMemcpyHostToDevice));
+#else
+  memcpy(reference[0], raised[0], sizes[0] * sizeof(float));
+#endif
+#endif
 #ifdef BENCH_KIND_DOT
   /* Avoid a cancellation-dominated condition number when comparing the
    * sequential C reduction with cuBLAS's tree reduction at 16M elements. */

@@ -25,8 +25,9 @@ BUILDER = ROOT / "scripts/correctness/polygeist_build.sh"
 
 
 def case(kind: str, dims: dict[str, int], problem: str,
-         extra: tuple[str, ...] = ()) -> dict:
-    return {"kind": kind, "dims": dims, "problem": problem, "extra": extra}
+         extra: tuple[str, ...] = (), resident: bool = True) -> dict:
+    return {"kind": kind, "dims": dims, "problem": problem,
+            "extra": extra, "resident": resident}
 
 
 CASES = {
@@ -60,6 +61,57 @@ CASES = {
     "aten_unbind_copy_cpu": case("COPY2", {"B": 4096, "N": 4096}, "B=4096 N=4096"),
     "aten_zeros_cpu": case("ZERO", {"N": 16_777_216}, "N=16777216"),
 }
+
+# Complete library rewrites added by the generic cuTENSOR-unary and FP32 BLAS
+# matcher/ABI work. The DEVICE_RESIDENT raised executable already times the
+# public library call with device pointers, so these do not need a second,
+# handwritten resident implementation.
+for _kernel in (
+    "abs", "acos", "asin", "asinh", "atan", "ceil", "cos", "cosh",
+    "exp", "floor", "mish", "neg", "relu", "sigmoid", "silu", "silu_cpu",
+    "sin", "sinh", "tan", "tanh",
+):
+    CASES[f"aten_{_kernel}"] = case(
+        "UNARY", {"N": 8_388_608}, "N=8388608", resident=False)
+for _kernel in ("acosh", "log", "reciprocal", "sqrt"):
+    CASES[f"aten_{_kernel}"] = case(
+        "UNARY", {"N": 8_388_608}, "N=8388608 positive-domain",
+        ("UNARY_POSITIVE",), resident=False)
+CASES["aten_atanh"] = case(
+    "UNARY", {"N": 8_388_608}, "N=8388608 unit-domain",
+    ("UNARY_UNIT_DOMAIN",), resident=False)
+CASES.update({
+    "aten_blas_axpy_cpu": case(
+        "AXPY", {"N": 16_777_216}, "N=16777216", resident=False),
+    "aten_blas_scale_cpu": case(
+        "SCAL", {"N": 16_777_216}, "N=16777216", resident=False),
+    "aten_conj_complex_scalarized": case(
+        "TWO_COPY", {"N": 8_388_608}, "N=8388608", resident=False),
+})
+for _kernel, _extra in {
+    "aten_cpu_blas_gemm_cpu": (),
+    "aten_gemm_notrans_cpu": (),
+    "aten_gemm_transa_cpu": ("GEMM_TRANS_A",),
+    "aten_gemm_transb_cpu": ("GEMM_TRANS_B",),
+    "aten_gemm_transab_cpu": ("GEMM_TRANS_A", "GEMM_TRANS_B"),
+}.items():
+    CASES[_kernel] = case(
+        "GEMM", {"M": 512, "N": 512, "K": 512},
+        "M=512 N=512 K=512" + (" " + "/".join(_extra) if _extra else ""),
+        _extra, resident=False)
+for _kernel, _batch_macro in {
+    "aten_bmm": "BATCH",
+    "aten_cpu_blas_gemm_batched_cpu": "B",
+    "aten_cpu_blas_gemm_strided_batched_cpu": "B",
+    "aten_nested_bmm_cpu": "B",
+    "aten_sparse_bmm_cpu": "B",
+    "aten_sumproduct_pair_cpu": "B",
+}.items():
+    CASES[_kernel] = case(
+        "BATCHED_GEMM",
+        {_batch_macro: 16, "M": 256, "N": 256, "K": 256},
+        "B=16 M=256 N=256 K=256",
+        (f"BATCH_SIZE={_batch_macro}",), resident=False)
 
 
 def legacy_case(bench: str, dims: dict[str, int], problem: str,
@@ -113,6 +165,13 @@ def scaled_source(kernel: str, spec: dict, out: Path) -> None:
     if kernel == "aten_fast_cat_dim0_cpu":
         text = text.replace("float out[B*N]", "float out[B][N]")
         text = text.replace("out[b*N+i]", "out[b][i]")
+    # The original small transpose fixtures deliberately used square-ish
+    # backing declarations. Give the large correctness run the physical
+    # row-major shapes implied by its indexing maps.
+    if kernel in {"aten_gemm_transa_cpu", "aten_gemm_transab_cpu"}:
+        text = text.replace("float a[M][K]", "float a[K][M]")
+    if kernel in {"aten_gemm_transb_cpu", "aten_gemm_transab_cpu"}:
+        text = text.replace("float b[K][N]", "float b[N][K]")
     out.write_text(text)
 
 
@@ -175,7 +234,8 @@ def build_one(kernel: str, spec: dict, out: Path) -> dict:
         f"-I{Path('/usr/local/cuda-12.6/targets/sbsa-linux/include')}",
     ], work / "raised_device.build.log", env)
     resident = ""
-    if not spec.get("legacy") and spec["kind"] != "GELU":
+    if (not spec.get("legacy") and spec["kind"] != "GELU" and
+            spec.get("resident", True)):
         resident = str(work / f"{kernel}_resident")
         resident_defs = [f"-DATEN_{k}={v}" for k, v in spec["dims"].items()]
         resident_defs += [f"-D{x}" for x in spec["extra"]]

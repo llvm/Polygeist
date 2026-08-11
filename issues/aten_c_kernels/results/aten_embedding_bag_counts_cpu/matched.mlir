@@ -5,7 +5,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %c1_i32 = arith.constant 1 : i32
     %0 = bufferization.to_tensor %arg1 : memref<?xi32>
     %1 = bufferization.to_tensor %arg0 : memref<?xi32>
-    %2 = kernel.launch @memset_zero_1D(%0) : (tensor<?xi32>) -> tensor<?xi32>
+    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%0 : tensor<?xi32>) {
+    ^bb0(%out: i32):
+      linalg.yield %c0_i32 : i32
+    } -> tensor<?xi32>
     %3 = affine.for %arg2 = 0 to 512 iter_args(%arg3 = %2) -> (tensor<?xi32>) {
       %extracted = tensor.extract %1[%arg2] : tensor<?xi32>
       %5 = arith.index_cast %extracted : i32 to index

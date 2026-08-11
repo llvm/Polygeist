@@ -2461,13 +2461,6 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             )
         else:
             candidate = '<span class="none">no tensor-library API</span>'
-        implementation_form = html.escape(
-            audit.get("implementation_form", "—").replace("_", " ")
-        )
-        audit_finding = html.escape(
-            audit.get("compiler_gap", "—").replace("_", " ")
-        )
-        audit_reason = html.escape(audit.get("rationale", ""))
         audit_scope = html.escape(
             audit.get("current_match_scope", "—").replace("_", " ")
         )
@@ -2482,8 +2475,6 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbol_html}</td>"
             f"<td>{audit_scope}</td><td>{candidate}</td>"
-            f"<td>{implementation_form}</td>"
-            f"<td><b>{audit_finding}</b><br>{audit_reason}</td>"
             f'<td class="{execution_class}">{execution}</td>'
             f'<td class="{correctness_class}">{correctness}</td>'
             f"<td><code>{problem}</code></td><td>{raised_us}</td>"
@@ -2568,8 +2559,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         '<th>residual loops</th><th>raising status</th>'
         '<th>launches</th><th>match status</th>'
         '<th>matched implementation</th><th>current match scope</th>'
-        '<th>NVIDIA library candidate</th><th>implementation form</th>'
-        '<th>audit finding</th><th>execution</th><th>correctness</th>'
+        '<th>NVIDIA library candidate</th><th>execution</th><th>correctness</th>'
         '<th>large problem</th><th>raised warm (µs)</th>'
         '<th>resident CUDA (µs)</th><th>raised / resident</th>'
         '<th>resident baseline</th><th>assessment</th>'

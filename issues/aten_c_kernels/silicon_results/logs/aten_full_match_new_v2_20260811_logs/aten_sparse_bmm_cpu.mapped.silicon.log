@@ -1,0 +1,8 @@
+kernel=aten_sparse_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sparse_bmm_cpu iterations=5 raised_gpu_us=6009.344012
+kernel=aten_sparse_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sparse_bmm_cpu iterations=5 raised_gpu_us=5923.987180
+kernel=aten_sparse_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sparse_bmm_cpu iterations=5 raised_gpu_us=5903.910380
+kernel=aten_sparse_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sparse_bmm_cpu iterations=5 raised_gpu_us=5980.249587

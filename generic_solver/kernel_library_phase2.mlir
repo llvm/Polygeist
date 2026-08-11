@@ -17,6 +17,35 @@
 
 module {
 
+  // ABI-only canonical declarations for the parameterized cuTENSOR unary
+  // lowering. The runtime operation id is encoded in the symbol name by the
+  // matcher and materialized by --lower-kernel-launch-to-cublas. These bodies
+  // intentionally preserve the destination if the ABI pass is not selected.
+  kernel.defn @cutensorUnary_abs_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_acos_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_acosh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_asin_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_asinh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_atan_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_atanh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_ceil_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_cos_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_cosh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_exp_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_floor_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_log_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_mish_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_neg_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_reciprocal_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_relu_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_sigmoid_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_silu_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_sin_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_sinh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_sqrt_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_tan_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cutensorUnary_tanh_f32(%x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+
   // cuDNN tensor add: output += input (NCHW).
   kernel.defn @cudnnAddTensor_batched(
       %input: tensor<?x?x?x?xf32>,
@@ -160,6 +189,39 @@ module {
       linalg.yield %s : f64
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
+  }
+  kernel.defn @cublasDgemm_zero(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
+                                %C: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    kernel.yield %C : tensor<?x?xf64>
+  }
+
+  // The suffix records the physical row-major layout of A and B. Semantic
+  // matching proves the indexing maps; ABI lowering supplies transpose flags.
+  kernel.defn @cublasSgemm_nn(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+                              %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nt(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+                              %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tn(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+                              %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tt(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+                              %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nn_zero(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+      %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_strided_batched_nn_zero(
+      %A: tensor<?x?x?xf32>, %B: tensor<?x?x?xf32>,
+      %C: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    kernel.yield %C : tensor<?x?x?xf32>
   }
 
   // FP32 Darknet im2col+GEMM lowered shape. The linalg raiser represents the
@@ -725,6 +787,15 @@ module {
       linalg.yield %s : f64
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @cublasSaxpby(%x: tensor<?xf32>, %y: tensor<?xf32>,
+                            %a: f32, %b: f32) -> tensor<?xf32> {
+    kernel.yield %y : tensor<?xf32>
+  }
+
+  kernel.defn @cublasSscal(%x: tensor<?xf32>, %a: f32) -> tensor<?xf32> {
+    kernel.yield %x : tensor<?xf32>
   }
 
   // AXPY (alpha=1): y += x.

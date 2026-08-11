@@ -361,7 +361,9 @@ else
       exit 1
     }
     RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSORNET"
-               "-I$CUTENSORNET_ROOT/include")
+               "-DPOLYGEIST_ENABLE_CUTENSOR"
+               "-I$CUTENSORNET_ROOT/include"
+               "-I$REPO_ROOT/third_party/cuda_headers/cutensor/include")
     RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor $RT_LIBS"
     echo "         + cuTensorNet runtime from $CUTENSORNET_ROOT"
     if [ "${POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME:-0}" != "0" ]; then

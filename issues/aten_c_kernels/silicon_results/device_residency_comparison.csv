@@ -1,23 +1,42 @@
 kernel,correctness,problem,mapped_raised_us,device_resident_us,resident_cuda_us,mapped_over_resident,device_over_resident,mapped_over_device,hardware,statistic,notes
+aten_abs,PASS,N=8388608,1500.051236,1493.832003,—,—,—,1.004163,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_acos,PASS,N=8388608,1511.315210,1499.700802,—,—,—,1.007744,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_acosh,PASS,N=8388608 positive-domain,1577.651175,1637.745590,—,—,—,0.963307,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_add,PASS,B32 C64 H64 W64,955.712004,581.417594,542.347229,1.762177,1.072039,1.643762,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_addmm,PASS,M512 N512 K512,3818.009561,3812.051204,3778.838379,1.010366,1.008789,1.001563,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_as_complex_cpu,PASS,N=8388608,49486.598372,27545.449603,27387.167969,1.806926,1.005779,1.796543,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_asin,PASS,N=8388608,1509.913569,1500.958402,—,—,—,1.005966,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_asinh,PASS,N=8388608,1685.119979,1686.900796,—,—,—,0.998944,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_atan,PASS,N=8388608,1510.822400,1520.363195,—,—,—,0.993725,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_atanh,PASS,N=8388608 unit-domain,1535.852812,1558.929600,—,—,—,0.985197,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_batch_norm,PASS,B32 C64 H64 W64,653.036777,455.651199,392.196808,1.665074,1.161792,1.433194,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_bf16_dot_cpu,PASS,K=16777216 scalarized-f32,858.924771,809.969602,764.019165,1.124219,1.060143,1.060441,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_bf16_gemv_trans_cpu,PASS,M=4096 K=8192 scalarized-f32 trans,907.321600,983.500795,793.395142,1.143594,1.239610,0.922543,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_blas_axpy_cpu,PASS,N=16777216,1924.499217,1958.683203,—,—,—,0.982547,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_blas_copy_cpu,PASS,N=16777216,6829.843204,860.761595,697.302368,9.794665,1.234417,7.934651,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_blas_dot_naive_cpu,PASS,N=K=16777216,858.073588,807.825604,763.835205,1.123375,1.057591,1.062202,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_blas_gemv_generic_cpu,PASS,M=4096 K=8192,884.396816,821.988797,758.952026,1.165287,1.083058,1.075923,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_blas_scale_cpu,PASS,N=16777216,849.414384,851.352001,—,—,—,0.997724,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_bmm,PASS,—,5929.100839,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
 aten_cat_serial_cpu,PASS,R=4096 M=4096 K=2048,6822.777633,746.528001,701.761597,9.722358,1.063791,9.139346,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_ceil,PASS,N=8388608,1492.780773,1497.524802,—,—,—,0.996832,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_complex_scalarized,PASS,N=8388608,6865.696004,745.959999,700.889587,9.795688,1.064305,9.203839,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_conj_complex_scalarized,PASS,N=8388608,5421.215994,1888.923196,—,—,—,2.870003,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_conv2d,PASS,B8 IC32 OC64 H64 W64 KH3 KW3,854.982389,799.564796,436.988770,1.956532,1.829715,1.069310,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_conv3d,PASS,B1 IC8 OC16 D48 H48 W48 K3,884.665595,747.268798,447.262390,1.977957,1.670762,1.183865,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_conv_transpose3d_backward_cpu,PASS,C8 O16 D48 H48 W48 K3,764.467195,744.934403,449.039978,1.702448,1.658949,1.026221,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_copy_cpu,PASS,N=16777216,6786.847999,728.097593,695.990417,9.751353,1.046132,9.321344,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_copy_tensor_array_cpu,PASS,B=4096 N=4096,6802.419201,728.841603,697.036743,9.759054,1.045629,9.333193,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_cos,PASS,N=8388608,1520.121610,1516.574400,—,—,—,1.002339,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_cosh,PASS,N=8388608,1499.705575,1498.499198,—,—,—,1.000805,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_cpu_blas_gemm_batched_cpu,PASS,B=16 M=256 N=256 K=256,5867.308797,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_cpu_blas_gemm_cpu,PASS,M=512 N=512 K=512,2000.377607,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_cpu_blas_gemm_strided_batched_cpu,PASS,B=16 M=256 N=256 K=256,5893.747229,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
 aten_dot,PASS,N8388608,878.323196,811.854401,766.452759,1.145959,1.059236,1.081873,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_exp,PASS,N=8388608,1505.280007,1490.606403,—,—,—,1.009844,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_fast_cat_dim0_cpu,PASS,B=4096 N=4096,6839.865586,727.584003,696.750366,9.816809,1.044253,9.400792,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_flatten_nd_linear_cpu,PASS,B16 M256 N256 K256,239.180820,205.689599,177.688004,1.346072,1.157589,1.162824,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_floor,PASS,N=8388608,1493.542409,1491.759997,—,—,—,1.001195,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_fp16_dot_cpu,PASS,K=16777216 scalarized-f32,857.900782,808.041601,764.278442,1.122498,1.057261,1.061704,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_fp16_gemv_f16arith_cpu,PASS,M=4096 K=8192 scalarized-f32,887.705572,817.222393,758.612854,1.170169,1.077259,1.086247,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_fp16_gemv_f32arith_cpu,PASS,M=4096 K=8192 scalarized-f32,881.356793,816.739199,758.652771,1.161739,1.076565,1.079117,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
@@ -25,17 +44,37 @@ aten_fp16_gemv_notrans_cpu,PASS,M=4096 K=8192 scalarized-f32,881.727971,817.7247
 aten_fp16_gemv_trans_cpu,PASS,M=4096 K=8192 scalarized-f32 trans,905.977562,859.198393,793.486450,1.141768,1.082814,1.054445,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_gelu,PASS,N8388608,13344.268780,13047.495997,437.297546,30.515307,29.836655,1.022746,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_gelu_cpu_tanh,PASS,N=8388608,13357.612770,13104.711997,437.297546,30.545821,29.967495,1.019298,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_gemm_notrans_cpu,PASS,M=512 N=512 K=512,1685.900800,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_gemm_transa_cpu,PASS,M=512 N=512 K=512 GEMM_TRANS_A,1961.798407,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_gemm_transab_cpu,PASS,M=512 N=512 K=512 GEMM_TRANS_A/GEMM_TRANS_B,2006.079955,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_gemm_transb_cpu,PASS,M=512 N=512 K=512 GEMM_TRANS_B,1715.763239,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
 aten_linear_combination_cpu,PASS,N=8388608 terms=4,26803.936018,8614.001598,892.532837,30.031316,9.651187,3.111671,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_log,PASS,N=8388608 positive-domain,1508.672023,1490.617602,—,—,—,1.012112,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_max_pool2d,PASS,B32 C64 H64 W64 K2 S2,307.315215,249.563204,220.708786,1.392401,1.130735,1.231412,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_mish,PASS,N=8388608,1568.364818,1568.742399,—,—,—,0.999759,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_mm,PASS,M512 N512 K512,3822.054388,3818.451194,3772.609863,1.013106,1.012151,1.000944,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_mv,PASS,M4096 K4096,893.203216,846.494408,814.979126,1.095983,1.038670,1.055179,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_narrow_copy_dense_cpu,PASS,R=4096 C=4096 S=1024 L=2048,4895.276809,460.636802,439.467194,11.139118,1.048171,10.627194,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_neg,PASS,N=8388608,1489.017624,1490.537601,—,—,—,0.998980,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_nested_bmm_cpu,PASS,B=16 M=256 N=256 K=256,5883.724801,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
 aten_nested_clone_cpu,PASS,B=4096 N=4096,6831.084797,732.243201,695.862427,9.816717,1.052282,9.328984,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_nested_matmul_broadcast_cpu,PASS,B16 M256 N256 K256,240.403228,205.353601,176.012802,1.365828,1.166697,1.170679,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_nested_squeeze_cpu,PASS,B=4096 N=4096,6792.927999,734.804804,696.092773,9.758653,1.055613,9.244534,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_outer,PASS,M=4096 N=4096 f64,3854.073631,3849.785600,3810.022217,1.011562,1.010437,1.001114,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_reciprocal,PASS,N=8388608 positive-domain,1491.999999,1504.292805,—,—,—,0.991828,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_relu,PASS,—,1489.439979,1482.393593,—,—,—,1.004753,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_rms_norm,PASS,N8388608,13051.795214,2067.921602,841.404785,15.511910,2.457701,6.311552,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,RMS reduction reassociation tolerance 2e-3
+aten_sigmoid,PASS,—,1492.454391,1493.622398,—,—,—,0.999218,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_silu,PASS,—,1512.134401,1518.524799,—,—,—,0.995792,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_silu_cpu,PASS,N=8388608,1535.871997,1526.803209,—,—,—,1.005940,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_sin,PASS,N=8388608,1576.147228,1543.015998,—,—,—,1.021472,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_sinh,PASS,N=8388608,1522.617601,1518.358395,—,—,—,1.002805,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_slow_conv3d_forward_cpu,PASS,C8 O16 D48 H48 W48 K3,726.438407,663.596799,364.764832,1.991525,1.819246,1.094698,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_softmax,PASS,N8388608,28666.707221,29239.145608,29212.042969,0.981332,1.000928,0.980422,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_sparse_bmm_cpu,PASS,B=16 M=256 N=256 K=256,5923.987180,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_sqrt,PASS,N=8388608 positive-domain,1509.299176,1487.793599,—,—,—,1.014455,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_sumproduct_pair_cpu,PASS,B=16 M=256 N=256 K=256,5917.670391,—,—,—,—,—,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,mapped PASS; cudaMalloc ABI wrapper host-memcpy limitation
+aten_tan,PASS,N=8388608,1596.230408,1583.708799,—,—,—,1.007907,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_tanh,PASS,—,1492.140815,1485.321601,—,—,—,1.004591,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_unbind_copy_cpu,PASS,B=4096 N=4096,6792.947184,736.286398,702.041626,9.675989,1.048779,9.225958,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_zeros_cpu,PASS,N=16777216,2255.948773,392.128003,374.880005,6.017789,1.046009,5.753093,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated

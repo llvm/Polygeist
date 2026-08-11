@@ -1,0 +1,8 @@
+kernel=aten_sumproduct_pair_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sumproduct_pair_cpu iterations=5 raised_gpu_us=5835.705576
+kernel=aten_sumproduct_pair_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sumproduct_pair_cpu iterations=5 raised_gpu_us=5917.670391
+kernel=aten_sumproduct_pair_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sumproduct_pair_cpu iterations=5 raised_gpu_us=5966.803199
+kernel=aten_sumproduct_pair_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sumproduct_pair_cpu iterations=5 raised_gpu_us=5725.632003

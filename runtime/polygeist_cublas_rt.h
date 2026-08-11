@@ -65,9 +65,24 @@ void polygeist_cublas_sgemm(
     float beta,
     float *C, int32_t ldc);
 
+// Row-major SGEMM with independently transposed inputs. transA/transB are
+// boolean integers; lda/ldb describe the physical (pre-transpose) matrices.
+void polygeist_cublas_sgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
 // C[batch,M,N] = A[batch,M,K] * B[K,N].  B is broadcast across batches;
 // the CUDA implementation uses a zero RHS batch stride and beta=0.
 void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C);
+
+void polygeist_cublas_sgemm_strided_batched(
     int32_t batch, int32_t M, int32_t N, int32_t K,
     const float *A, const float *B, float *C);
 
@@ -134,6 +149,11 @@ void polygeist_cublas_memset_zero_2d(
 // when contiguous (lda==N), else loops row-wise.
 void polygeist_cublas_dscal_2d(
     int32_t M, int32_t N, double scale, double *A, int32_t lda);
+
+// Contiguous FP32 vector primitives used by ATen BLAS loop recognition.
+void polygeist_cublas_saxpby(
+    int32_t N, float alpha, const float *x, float beta, float *y);
+void polygeist_cublas_sscal(int32_t N, float scale, float *x);
 
 // cuDNN 9-tap conv2d (3x3 stencil) with PolyBench's hardcoded weights.
 // Input A is MxN row-major f64; output B is MxN row-major f64; the
@@ -579,6 +599,39 @@ void polygeist_cuda_swiglu_f32(
 void polygeist_cuda_rope_mulmul_f32(
     int32_t M, int32_t N, const float *A, const float *B,
     const float *C, const float *D, float *Out, int32_t add);
+
+// Generic cuTENSOR unary permutation ABI. The compiler flattens a proven
+// contiguous, identity-layout tensor to N elements and passes one stable
+// operation id instead of requiring one runtime function per math operator.
+enum polygeist_cutensor_unary_op {
+  POLYGEIST_CUTENSOR_UNARY_ABS = 0,
+  POLYGEIST_CUTENSOR_UNARY_ACOS,
+  POLYGEIST_CUTENSOR_UNARY_ACOSH,
+  POLYGEIST_CUTENSOR_UNARY_ASIN,
+  POLYGEIST_CUTENSOR_UNARY_ASINH,
+  POLYGEIST_CUTENSOR_UNARY_ATAN,
+  POLYGEIST_CUTENSOR_UNARY_ATANH,
+  POLYGEIST_CUTENSOR_UNARY_CEIL,
+  POLYGEIST_CUTENSOR_UNARY_COS,
+  POLYGEIST_CUTENSOR_UNARY_COSH,
+  POLYGEIST_CUTENSOR_UNARY_EXP,
+  POLYGEIST_CUTENSOR_UNARY_FLOOR,
+  POLYGEIST_CUTENSOR_UNARY_LOG,
+  POLYGEIST_CUTENSOR_UNARY_MISH,
+  POLYGEIST_CUTENSOR_UNARY_NEG,
+  POLYGEIST_CUTENSOR_UNARY_RECIPROCAL,
+  POLYGEIST_CUTENSOR_UNARY_RELU,
+  POLYGEIST_CUTENSOR_UNARY_SIGMOID,
+  POLYGEIST_CUTENSOR_UNARY_SILU,
+  POLYGEIST_CUTENSOR_UNARY_SIN,
+  POLYGEIST_CUTENSOR_UNARY_SINH,
+  POLYGEIST_CUTENSOR_UNARY_SQRT,
+  POLYGEIST_CUTENSOR_UNARY_TAN,
+  POLYGEIST_CUTENSOR_UNARY_TANH,
+};
+
+void polygeist_cutensor_unary_f32(
+    int32_t op, int32_t n, const float *x, float *out);
 
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around

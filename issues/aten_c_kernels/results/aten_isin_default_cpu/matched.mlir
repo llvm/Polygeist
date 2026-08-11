@@ -9,7 +9,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %0 = bufferization.to_tensor %arg2 : memref<?xi32>
     %alloca = memref.alloca(%c4096) : memref<?xi32>
     %1 = bufferization.to_tensor %alloca : memref<?xi32>
-    %2 = kernel.launch @memset_zero_1D(%1) : (tensor<?xi32>) -> tensor<?xi32>
+    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%1 : tensor<?xi32>) {
+    ^bb0(%out: i32):
+      linalg.yield %c0_i32 : i32
+    } -> tensor<?xi32>
     %3 = bufferization.to_memref %2 : memref<?xi32>
     memref.copy %3, %alloca : memref<?xi32> to memref<?xi32>
     %subview = memref.subview %arg1[0] [%c257] [1] : memref<?xf32> to memref<?xf32, strided<[1]>>

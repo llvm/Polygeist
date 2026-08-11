@@ -8,11 +8,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %4 = kernel.launch @cudaCopy1D_f32_tensor(%0, %2) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %5 = bufferization.to_memref %4 : memref<?xf32>
     memref.copy %5, %arg2 : memref<?xf32> to memref<?xf32>
-    %6 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%1 : tensor<?xf32>) outs(%3 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %8 = arith.negf %in : f32
-      linalg.yield %8 : f32
-    } -> tensor<?xf32>
+    %6 = kernel.launch @cutensorUnary_neg_f32(%1, %3) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %7 = bufferization.to_memref %6 : memref<?xf32>
     memref.copy %7, %arg3 : memref<?xf32> to memref<?xf32>
     return

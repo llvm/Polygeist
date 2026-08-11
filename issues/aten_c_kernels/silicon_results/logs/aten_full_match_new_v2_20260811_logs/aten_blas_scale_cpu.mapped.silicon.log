@@ -1,0 +1,8 @@
+kernel=aten_blas_scale_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_scale_cpu iterations=5 raised_gpu_us=848.364830
+kernel=aten_blas_scale_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_scale_cpu iterations=5 raised_gpu_us=847.526407
+kernel=aten_blas_scale_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_scale_cpu iterations=5 raised_gpu_us=850.022398
+kernel=aten_blas_scale_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_scale_cpu iterations=5 raised_gpu_us=849.414384

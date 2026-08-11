@@ -13,7 +13,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
       %alloca = memref.alloca() : memref<f32>
       %4 = bufferization.to_tensor %alloca : memref<f32>
       %inserted = tensor.insert %extracted into %4[] : tensor<f32>
-      %extracted_slice = tensor.extract_slice %1[%arg2, 1] [1, %c63] [1, 1] : tensor<?x64xf32> to tensor<?xf32>
+      %extracted_slice = tensor.extract_slice %1[%arg2, 1] [1, %c63] [1, 1] : tensor<?x64xf32> to tensor<?xf32>      %extracted_slice_3 = tensor.extract_slice %1[%arg2, 0] [1, %c64] [1, 1] : tensor<?x64xf32> to tensor<?xf32>
+      %extracted_slice_4 = tensor.extract_slice %arg3[%arg2, 0] [1, %c64] [1, 1] : tensor<?x64xf32> to tensor<?xf32>
+
       %8 = kernel.launch @cudnnSoftmaxForwardOut_tensor(%extracted_slice_3, %extracted_slice_4) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
       %inserted_slice = tensor.insert_slice %8 into %arg3[%arg2, 0] [1, %c64] [1, 1] : tensor<?xf32> into tensor<?x64xf32>
       affine.yield %inserted_slice : tensor<?x64xf32>

@@ -1,0 +1,8 @@
+kernel=aten_cos correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_cos iterations=5 raised_gpu_us=1486.751996
+kernel=aten_cos correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_cos iterations=5 raised_gpu_us=1504.249591
+kernel=aten_cos correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_cos iterations=5 raised_gpu_us=1522.316830
+kernel=aten_cos correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_cos iterations=5 raised_gpu_us=1520.121610

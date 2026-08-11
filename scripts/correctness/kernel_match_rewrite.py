@@ -55,6 +55,16 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSgemm_strided_batched_broadcast_rhs",
     "cublasDgemv_alpha",
     "cublasDaxpby",
+    "cublasDscal",
+    "cublasSaxpby",
+    "cublasSscal",
+    "cublasSgemm_nn",
+    "cublasSgemm_nt",
+    "cublasSgemm_tn",
+    "cublasSgemm_tt",
+    "cublasSgemm_nn_zero",
+    "cublasDgemm_zero",
+    "cublasSgemm_strided_batched_nn_zero",
     "cublasDaxpy_unit",
     "cublasDger_rank2",
     "cudnnConvolution2D_9tap",
@@ -113,6 +123,15 @@ ABI_LOWERABLE_KERNELS = {
     "cutensornetContraction2_f64_r5r4r4",
     "cutensornetContraction2_f64_r5r5r4",
 }
+
+CUTENSOR_UNARY_OPS = {
+    "abs", "acos", "acosh", "asin", "asinh", "atan", "atanh", "ceil",
+    "cos", "cosh", "exp", "floor", "log", "mish", "neg", "reciprocal",
+    "relu", "sigmoid", "silu", "sin", "sinh", "sqrt", "tan", "tanh",
+}
+ABI_LOWERABLE_KERNELS.update(
+    f"cutensorUnary_{op}_f32" for op in CUTENSOR_UNARY_OPS
+)
 
 
 SEMANTIC_BACKEND_HINTS = {
@@ -1782,6 +1801,25 @@ def rewrite_mlir(
                 i += 1
                 continue
 
+        if entry.name.startswith("cutensorUnary_"):
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
+            unary_body = bodies[i]
+            source = all_tensor_ins[0] if all_tensor_ins else ""
+            source_is_submap = bool(source and re.search(
+                rf"^\s*{re.escape(source)}\s*=\s*polygeist\.submap\b",
+                text[:instances[i].span[0]], re.MULTILINE))
+            if (len(operand_types) != 2 or len(ranks) != 2 or
+                    ranks != [1, 1] or
+                    elems != ["f32", "f32"] or
+                    len(unary_body.indexing_maps) != 2 or
+                    unary_body.indexing_maps[0] != unary_body.indexing_maps[1] or
+                    all_tensor_in_types[0] != outs0_types[0] or
+                    source_is_submap):
+                report.append(("rank_dtype_or_layout_reject", i, entry.name))
+                i += n
+                continue
+
         if entry.name == "cudnnAddTensor_batched":
             # The runtime wrapper implements cuDNN's NCHW AddTensor path for
             # rank-4 f32 only.  Elementwise-add semantics also occur in the
@@ -1798,15 +1836,19 @@ def rewrite_mlir(
         if entry.name == "cublasDaxpby":
             # The semantic template permits implicit unit coefficients, but
             # the public ABI is exactly (x, y, alpha, beta) over contiguous
-            # rank-1 f64 vectors.  Do not emit the historical two-operand
+            # rank-1 vectors. Do not emit the historical two-operand
             # rank-N launch: it cannot verify against the kernel definition
             # and flattening a strided tensor would be incorrect.
             ranks = [_tensor_rank(t) for t in operand_types[:2]]
             elems = [_sniff_elem_type(t) for t in operand_types[:2]]
-            if len(operand_types) != 2 or ranks != [1, 1] or elems != ["f64", "f64"]:
+            if (len(operand_types) != 2 or ranks != [1, 1] or
+                    len(set(elems)) != 1 or elems[0] not in ("f64", "f32")):
                 report.append(("rank_or_dtype_reject", i, entry.name))
                 i += n
                 continue
+            coefficient_type = elems[0]
+            if coefficient_type == "f32":
+                emit_name = "cublasSaxpby"
 
             scalar_names: list[str] = []
             scalar_lines: list[str] = []
@@ -1824,7 +1866,7 @@ def rewrite_mlir(
                     if "." not in value and "e" not in value and "E" not in value:
                         value += ".0"
                     scalar_lines.append(
-                        f"{last.indent}{scalar} = arith.constant {value} : f64"
+                        f"{last.indent}{scalar} = arith.constant {value} : {coefficient_type}"
                     )
                     scalar_names.append(scalar)
                     continue
@@ -1834,13 +1876,51 @@ def rewrite_mlir(
                 i += n
                 continue
             rendered = render_launch(
-                entry.name, last.result_ssa, last.result_type,
+                emit_name, last.result_ssa, last.result_type,
                 operands + scalar_names, last.indent, {}, [],
-                operand_types=operand_types + ["f64", "f64"],
+                operand_types=operand_types + [coefficient_type, coefficient_type],
                 scalar_type_map=scalar_types,
                 result_count=last.result_count,
             )
             custom_launch_line = "\n".join(scalar_lines + [rendered])
+
+        if entry.name == "cublasDscal":
+            ranks = [_tensor_rank(t) for t in operand_types[:1]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:1]]
+            if len(operand_types) != 1 or ranks != [1] or elems != ["f32"]:
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += n
+                continue
+            emit_name = "cublasSscal"
+
+        if entry.name in ("cublasSgemm_nn_zero",
+                           "cublasSgemm_strided_batched_nn_zero"):
+            expected_rank = 2 if entry.name == "cublasSgemm_nn_zero" else 3
+            ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
+            zero_bound = binds.get("%zero")
+            zero_ok = False
+            if isinstance(zero_bound, tuple) and len(zero_bound) == 2:
+                if zero_bound[0] == "Lit":
+                    zero_ok = float(zero_bound[1]) == 0.0
+                elif zero_bound[0] == "Cap":
+                    zero_ok = bool(re.search(
+                        rf"^\s*{re.escape(zero_bound[1])}\s*=\s*arith\.constant\s+"
+                        rf"(?:0(?:\.0*)?|0\.0+e[+-]?0+)\s*:\s*f(?:32|64)\b",
+                        text[:instances[i].span[0]], re.MULTILINE | re.IGNORECASE))
+            rank_layout_ok = ranks == [expected_rank] * 3
+            if (entry.name == "cublasSgemm_strided_batched_nn_zero" and
+                    ranks == [3, 2, 3]):
+                rank_layout_ok = True
+                emit_name = "cublasSgemm_strided_batched_broadcast_rhs"
+            if (entry.name == "cublasSgemm_nn_zero" and elems == ["f64"] * 3):
+                emit_name = "cublasDgemm_zero"
+            elif elems != ["f32"] * 3:
+                rank_layout_ok = False
+            if (len(operand_types) != 3 or not rank_layout_ok or not zero_ok):
+                report.append(("rank_dtype_or_init_reject", i, entry.name))
+                i += n
+                continue
 
         if entry.name in (
                 "cublasGemmFor1x1Conv",
@@ -2380,6 +2460,28 @@ def rewrite_mlir(
             operands = [score_names[0], out_names[0]]
             operand_types = [score_types[0], out_types[0]]
             binds = {}
+            # The two extract_slice definitions live between the matched
+            # reduction generics. Re-emit them when replacing the full fused
+            # span; otherwise either the launch or dead scalar intermediates
+            # retain dangling SSA references.
+            preserved_defs: list[str] = []
+            for name in operands:
+                dm = re.search(
+                    rf"^\s*{re.escape(name)}\s*=\s*tensor\.extract_slice.*$",
+                    text, re.MULTILINE)
+                if not dm:
+                    preserved_defs = []
+                    break
+                preserved_defs.append(dm.group(0))
+            if len(preserved_defs) != 2:
+                report.append(("softmax_slice_reject", i, entry.name))
+                i += n
+                continue
+            rendered = render_launch(
+                emit_name, last.result_ssa, last.result_type,
+                operands, last.indent, {}, [], operand_types=operand_types,
+                scalar_type_map=scalar_types, result_count=last.result_count)
+            custom_launch_line = "\n".join([*preserved_defs, rendered])
             replace_full_span = True
 
         if entry.name == "whisperExpShiftSum_f32_tensor":
@@ -2821,6 +2923,36 @@ def rewrite_mlir(
                 # dedicated symbol so ABI lowering can unwrap the submaps and
                 # call cuBLAS SGEMM.
                 emit_name = "cublasSgemm_broadcast3d_simple"
+            elif (entry.name == "cublasDgemm_simple" and elem == "f32" and
+                  operand_ranks == [2, 2, 2]):
+                maps = bodies[i + n - 1].indexing_maps
+                if len(maps) != 3:
+                    report.append(("layout_reject", i, entry.name))
+                    i += 1
+                    continue
+                a_dims = _map_outputs(maps[0])
+                b_dims = _map_outputs(maps[1])
+                c_dims = _map_outputs(maps[2])
+                if len(a_dims) != 2 or len(b_dims) != 2 or len(c_dims) != 2:
+                    report.append(("layout_reject", i, entry.name))
+                    i += 1
+                    continue
+                m_dim, n_dim = c_dims
+                a_trans = a_dims[1] == m_dim and a_dims[0] != m_dim
+                b_trans = b_dims[0] == n_dim and b_dims[1] != n_dim
+                a_valid = ((not a_trans and a_dims[0] == m_dim) or
+                           (a_trans and a_dims[1] == m_dim))
+                b_valid = ((not b_trans and b_dims[1] == n_dim) or
+                           (b_trans and b_dims[0] == n_dim))
+                a_k = a_dims[0] if a_trans else a_dims[1]
+                b_k = b_dims[1] if b_trans else b_dims[0]
+                if not a_valid or not b_valid or a_k != b_k:
+                    report.append(("layout_reject", i, entry.name))
+                    i += 1
+                    continue
+                emit_name = ("cublasSgemm_" +
+                             ("t" if a_trans else "n") +
+                             ("t" if b_trans else "n"))
             elif elem != "f64" or operand_ranks != [2, 2, 2]:
                 # Do not let generic rank-3/strided contractions masquerade as
                 # the plain double GEMM ABI. The extended Llama split-Q/K
@@ -2833,10 +2965,18 @@ def rewrite_mlir(
             elem = _sniff_elem_type(outs0_types[0]) if outs0_types else None
             if elem == "f32":
                 emit_name = "memset_zero_1D_f32"
+            elif elem != "f64":
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
         if entry.name == "memset_zero_2D":
             elem = _sniff_elem_type(outs0_types[0]) if outs0_types else None
             if elem == "f32":
                 emit_name = "memset_zero_2D_f32"
+            elif elem != "f64":
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
         if entry.name == "cublasSgemm_broadcast3d_memref":
             elem = _sniff_elem_type(operand_types[0]) if operand_types else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]

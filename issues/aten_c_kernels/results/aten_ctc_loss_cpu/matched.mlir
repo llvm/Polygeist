@@ -30,11 +30,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<271>, d
     %inserted_slice = tensor.insert_slice %5 into %3[0, 0, 0] [%c4, %c24, %c11] [1, 1, 1] : tensor<?x?x?xf32> into tensor<?x24x11xf32>
     %extracted_slice_0 = tensor.extract_slice %0[0, 0, %4] [1, %c4, 1] [1, 1, 1] : tensor<?x4x12xf32> to tensor<?xf32>
     %extracted_slice_1 = tensor.extract_slice %inserted_slice[0, 0, 0] [%c4, 1, 1] [1, 1, 1] : tensor<?x24x11xf32> to tensor<?xf32>
-    %6 = linalg.generic {doc = "", indexing_maps = [#map1, #map1], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice_0 : tensor<?xf32>) outs(%extracted_slice_1 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %12 = math.exp %in : f32
-      linalg.yield %12 : f32
-    } -> tensor<?xf32>
+    %6 = kernel.launch @cutensorUnary_exp_f32(%extracted_slice_0, %extracted_slice_1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %inserted_slice_2 = tensor.insert_slice %6 into %inserted_slice[0, 0, 0] [%c4, 1, 1] [1, 1, 1] : tensor<?xf32> into tensor<?x24x11xf32>
     %7 = affine.for %arg5 = 0 to 4 iter_args(%arg6 = %inserted_slice_2) -> (tensor<?x24x11xf32>) {
       %extracted = tensor.extract %1[%arg5, %c0] : tensor<?x5xi32>

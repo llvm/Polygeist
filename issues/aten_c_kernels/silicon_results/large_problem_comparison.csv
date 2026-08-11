@@ -13,7 +13,7 @@ aten_binary_cross_entropy,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson 
 aten_blas_copy_cpu,EXECUTED,PASS,N=16777216,6829.843204,697.302368,9.794665,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_blas_dot_naive_cpu,EXECUTED,PASS,N=K=16777216,858.073588,763.835205,1.123375,cuBLAS Sdot,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_blas_gemv_generic_cpu,EXECUTED,PASS,M=4096 K=8192,884.396816,758.952026,1.165287,cuBLAS Sgemv,warm median of process runs 2-4,Jetson Orin sm87 CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
-aten_bmm,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,2 Linalg ops; no batched GEMM route
+aten_bmm,EXECUTED,PASS,—,5929.100839,—,—,—,warm median of process runs 2-4,Jetson Orin sm87 MAXN,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
 aten_cat_serial_cpu,EXECUTED,PASS,R=4096 M=4096 K=2048,6822.777633,701.761597,9.722358,2x cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_channel_shuffle,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,layout transform intentionally rejected as copy
 aten_clamp,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
@@ -61,18 +61,52 @@ aten_outer,EXECUTED,PASS,M=4096 N=4096 f64,3854.073631,3810.022217,1.011562,cuBL
 aten_pixel_shuffle,UNSAFE_MATCH_NOT_EXECUTED,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,rank-6 copy candidate does not yet prove the submap layout is preserved by the runtime
 aten_prod,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no product reduction route
 aten_reflection_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no reflection-padding route
-aten_relu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_relu,EXECUTED,PASS,—,1489.439979,—,—,—,warm median of process runs 2-4,Jetson Orin sm87 MAXN,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_replication_pad2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no replication-padding route
 aten_rms_norm,EXECUTED,PASS,N8388608,13051.795214,841.404785,15.511910,fused CUDA RMSNorm reduction plus scale,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
-aten_sigmoid,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
-aten_silu,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_sigmoid,EXECUTED,PASS,—,1492.454391,—,—,—,warm median of process runs 2-4,Jetson Orin sm87 MAXN,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_silu,EXECUTED,PASS,—,1512.134401,—,—,—,warm median of process runs 2-4,Jetson Orin sm87 MAXN,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_slow_conv3d_forward_cpu,EXECUTED,PASS,C8 O16 D48 H48 W48 K3,726.438407,364.764832,1.991525,cuDNN Conv3D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_softmax,EXECUTED,PASS,N8388608,28666.707221,29212.042969,0.981332,cuDNN SoftmaxForward,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_softplus,RAISING_INCOMPLETE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,external logf/expf and branch leave one residual loop
 aten_sum,PARTIAL_MATCH_NOT_EXECUTABLE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,only output memset matched
-aten_tanh,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no whole-kernel library match
+aten_tanh,EXECUTED,PASS,—,1492.140815,—,—,—,warm median of process runs 2-4,Jetson Orin sm87 MAXN,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_transpose_copy,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,permuted indexing intentionally rejected as copy
 aten_unbind_copy_cpu,EXECUTED,PASS,B=4096 N=4096,6792.947184,702.041626,9.675989,cudaMemcpy D2D,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
 aten_upsample_bilinear2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no bilinear-resampling route
 aten_upsample_nearest2d,RAISED_NO_LIBRARY_ROUTE,—,—,—,—,—,—,—,Jetson Orin sm87 MAXN,1 Linalg op; no nearest-neighbor route
 aten_zeros_cpu,EXECUTED,PASS,N=16777216,2255.948773,374.880005,6.017789,cudaMemset,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_abs,EXECUTED,PASS,N=8388608,1500.051236,—,—,cutensorUnary_abs_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_acos,EXECUTED,PASS,N=8388608,1511.315210,—,—,cutensorUnary_acos_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_acosh,EXECUTED,PASS,N=8388608 positive-domain,1577.651175,—,—,cutensorUnary_acosh_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_asin,EXECUTED,PASS,N=8388608,1509.913569,—,—,cutensorUnary_asin_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_asinh,EXECUTED,PASS,N=8388608,1685.119979,—,—,cutensorUnary_asinh_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_atan,EXECUTED,PASS,N=8388608,1510.822400,—,—,cutensorUnary_atan_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_atanh,EXECUTED,PASS,N=8388608 unit-domain,1535.852812,—,—,cutensorUnary_atanh_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_blas_axpy_cpu,EXECUTED,PASS,N=16777216,1924.499217,—,—,cublasSaxpby,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_blas_scale_cpu,EXECUTED,PASS,N=16777216,849.414384,—,—,cublasSscal,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_ceil,EXECUTED,PASS,N=8388608,1492.780773,—,—,cutensorUnary_ceil_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_conj_complex_scalarized,EXECUTED,PASS,N=8388608,5421.215994,—,—,"cudaCopy1D_f32_tensor,cutensorUnary_neg_f32",warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_cos,EXECUTED,PASS,N=8388608,1520.121610,—,—,cutensorUnary_cos_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_cosh,EXECUTED,PASS,N=8388608,1499.705575,—,—,cutensorUnary_cosh_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_cpu_blas_gemm_batched_cpu,EXECUTED,PASS,B=16 M=256 N=256 K=256,5867.308797,—,—,cublasSgemm_strided_batched_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_cpu_blas_gemm_cpu,EXECUTED,PASS,M=512 N=512 K=512,2000.377607,—,—,cublasSgemm_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_cpu_blas_gemm_strided_batched_cpu,EXECUTED,PASS,B=16 M=256 N=256 K=256,5893.747229,—,—,cublasSgemm_strided_batched_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_exp,EXECUTED,PASS,N=8388608,1505.280007,—,—,cutensorUnary_exp_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_floor,EXECUTED,PASS,N=8388608,1493.542409,—,—,cutensorUnary_floor_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_gemm_notrans_cpu,EXECUTED,PASS,M=512 N=512 K=512,1685.900800,—,—,cublasSgemm_nn,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_gemm_transa_cpu,EXECUTED,PASS,M=512 N=512 K=512 GEMM_TRANS_A,1961.798407,—,—,cublasSgemm_tn,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_gemm_transab_cpu,EXECUTED,PASS,M=512 N=512 K=512 GEMM_TRANS_A/GEMM_TRANS_B,2006.079955,—,—,cublasSgemm_tt,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_gemm_transb_cpu,EXECUTED,PASS,M=512 N=512 K=512 GEMM_TRANS_B,1715.763239,—,—,cublasSgemm_nt,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_log,EXECUTED,PASS,N=8388608 positive-domain,1508.672023,—,—,cutensorUnary_log_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_mish,EXECUTED,PASS,N=8388608,1568.364818,—,—,cutensorUnary_mish_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_neg,EXECUTED,PASS,N=8388608,1489.017624,—,—,cutensorUnary_neg_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_nested_bmm_cpu,EXECUTED,PASS,B=16 M=256 N=256 K=256,5883.724801,—,—,cublasSgemm_strided_batched_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_reciprocal,EXECUTED,PASS,N=8388608 positive-domain,1491.999999,—,—,cutensorUnary_reciprocal_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_silu_cpu,EXECUTED,PASS,N=8388608,1535.871997,—,—,cutensorUnary_silu_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_sin,EXECUTED,PASS,N=8388608,1576.147228,—,—,cutensorUnary_sin_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_sinh,EXECUTED,PASS,N=8388608,1522.617601,—,—,cutensorUnary_sinh_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_sparse_bmm_cpu,EXECUTED,PASS,B=16 M=256 N=256 K=256,5923.987180,—,—,cublasSgemm_strided_batched_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_sqrt,EXECUTED,PASS,N=8388608 positive-domain,1509.299176,—,—,cutensorUnary_sqrt_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated
+aten_sumproduct_pair_cpu,EXECUTED,PASS,B=16 M=256 N=256 K=256,5917.670391,—,—,cublasSgemm_strided_batched_nn_zero,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped path correctness-gated; cudaMalloc path unavailable because the generated ABI wrapper performs a host memcpy epilogue
+aten_tan,EXECUTED,PASS,N=8388608,1596.230408,—,—,cutensorUnary_tan_f32,warm median of process runs 2-4,Jetson Orin sm87 MAXN CUDA 12.6,mapped and cudaMalloc device-resident raised paths correctness-gated

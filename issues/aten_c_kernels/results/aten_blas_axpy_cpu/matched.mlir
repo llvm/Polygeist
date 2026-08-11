@@ -3,12 +3,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
   func.func @aten_blas_axpy_cpu(%arg0: f32, %arg1: memref<?xf32>, %arg2: memref<?xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %0 = bufferization.to_tensor %arg1 : memref<?xf32>
     %1 = bufferization.to_tensor %arg2 : memref<?xf32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%0 : tensor<?xf32>) outs(%1 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %4 = arith.mulf %arg0, %in : f32
-      %5 = arith.addf %out, %4 : f32
-      linalg.yield %5 : f32
-    } -> tensor<?xf32>
+    %v2_beta = arith.constant 1.0 : f32
+
+    %2 = kernel.launch @cublasSaxpby(%0, %1, %arg0, %v2_beta) : (tensor<?xf32>, tensor<?xf32>, f32, f32) -> tensor<?xf32>
     %3 = bufferization.to_memref %2 : memref<?xf32>
     memref.copy %3, %arg2 : memref<?xf32> to memref<?xf32>
     return

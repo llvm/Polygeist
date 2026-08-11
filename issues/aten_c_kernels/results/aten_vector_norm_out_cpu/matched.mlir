@@ -19,11 +19,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
       linalg.yield %8 : f32
     } -> tensor<?xf32>
     %inserted_slice = tensor.insert_slice %4 into %3[0] [%c32] [1] : tensor<?xf32> into tensor<?xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%inserted_slice : tensor<?xf32>) outs(%1 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %7 = math.sqrt %in : f32
-      linalg.yield %7 : f32
-    } -> tensor<?xf32>
+    %5 = kernel.launch @cutensorUnary_sqrt_f32(%inserted_slice, %1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %6 = bufferization.to_memref %5 : memref<?xf32>
     memref.copy %6, %arg1 : memref<?xf32> to memref<?xf32>
     return

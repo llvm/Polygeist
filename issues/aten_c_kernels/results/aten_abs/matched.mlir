@@ -4,13 +4,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<270>, d
     %cst = arith.constant 0.000000e+00 : f32
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%0 : tensor<?xf32>) outs(%1 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %4 = arith.cmpf olt, %in, %cst : f32
-      %5 = arith.negf %in : f32
-      %6 = arith.select %4, %5, %in : f32
-      linalg.yield %6 : f32
-    } -> tensor<?xf32>
+    %2 = kernel.launch @cutensorUnary_abs_f32(%0, %1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     %3 = bufferization.to_memref %2 : memref<?xf32>
     memref.copy %3, %arg1 : memref<?xf32> to memref<?xf32>
     return

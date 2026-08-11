@@ -47,6 +47,12 @@
 #else
 #  define POLYGEIST_HAS_CUTENSORNET 0
 #endif
+#if defined(POLYGEIST_ENABLE_CUTENSOR)
+#  include <cutensor.h>
+#  define POLYGEIST_HAS_CUTENSOR 1
+#else
+#  define POLYGEIST_HAS_CUTENSOR 0
+#endif
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -100,6 +106,17 @@ static size_t g_deferred_host_free_cap = 0;
 
 #if POLYGEIST_HAS_CUTENSORNET
 static void destroy_cutensornet_contraction_cache(void);
+#endif
+
+#if POLYGEIST_HAS_CUTENSOR
+#define CUTENSOR_CHECK(call) do {                                            \
+    cutensorStatus_t s = (call);                                             \
+    if (s != CUTENSOR_STATUS_SUCCESS) {                                      \
+      fprintf(stderr, "%s:%d cuTENSOR error: %d (%s)\n", __FILE__,         \
+              __LINE__, (int)s, cutensorGetErrorString(s));                  \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
 #endif
 
 #define CUDA_CHECK(call) do {                                                \
@@ -776,6 +793,37 @@ void polygeist_cublas_sgemm(
   unregister_host_safe(C);
 }
 
+void polygeist_cublas_sgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  int32_t aRows = transA ? K : M;
+  int32_t bRows = transB ? N : K;
+  size_t bytes_A = (size_t)aRows * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)bRows * (size_t)ldb * sizeof(float);
+  size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(float);
+  float *dA = (float *)register_host_safe((void *)A, bytes_A);
+  float *dB = (float *)register_host_safe((void *)B, bytes_B);
+  float *dC = (float *)register_host_safe(C, bytes_C);
+  timing_gpu_begin();
+  // Row-major C=op(A)op(B) becomes column-major C^T=op(B)^T op(A)^T.
+  CUBLAS_CHECK(cublasSgemm(g_handle,
+                           transB ? CUBLAS_OP_T : CUBLAS_OP_N,
+                           transA ? CUBLAS_OP_T : CUBLAS_OP_N,
+                           N, M, K, &alpha, dB, ldb, dA, lda, &beta,
+                           dC, ldc));
+  timing_gpu_end("cublasSgemm_transpose", M, N, K, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
 void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
     int32_t batch, int32_t M, int32_t N, int32_t K,
     const float *A, const float *B, float *C) {
@@ -807,6 +855,28 @@ void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
   timing_gpu_end("cublasSgemmStridedBatched_broadcast_rhs",
                  batch * M, N, K, host_start_ms);
 
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_sgemm_strided_batched(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t strideA = (size_t)M * K, strideB = (size_t)K * N;
+  size_t strideC = (size_t)M * N;
+  float *dA = (float *)register_host_safe((void *)A, batch * strideA * sizeof(float));
+  float *dB = (float *)register_host_safe((void *)B, batch * strideB * sizeof(float));
+  float *dC = (float *)register_host_safe(C, batch * strideC * sizeof(float));
+  float one = 1.0f, zero = 0.0f;
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemmStridedBatched(
+      g_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &one,
+      dB, N, (long long)strideB, dA, K, (long long)strideA,
+      &zero, dC, N, (long long)strideC, batch));
+  timing_gpu_end("cublasSgemmStridedBatched", batch * M, N, K, host_start_ms);
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)B);
   unregister_host_safe(C);
@@ -877,6 +947,32 @@ void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
   timing_host_only("host_daxpby", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cublas_saxpby(int32_t N, float alpha, const float *x,
+                              float beta, float *y) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dx = (float *)register_host_safe((void *)x, bytes);
+  float *dy = (float *)register_host_safe(y, bytes);
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSscal(g_handle, N, &beta, dy, 1));
+  CUBLAS_CHECK(cublasSaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
+  timing_gpu_end("cublasSaxpby", N, 1, 0, host_start_ms);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
+}
+
+void polygeist_cublas_sscal(int32_t N, float scale, float *x) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(float);
+  float *dx = (float *)register_host_safe(x, bytes);
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSscal(g_handle, N, &scale, dx, 1));
+  timing_gpu_end("cublasSscal", N, 1, 0, host_start_ms);
+  unregister_host_safe(x);
 }
 
 // y += x (axpy with α=1).
@@ -4518,6 +4614,87 @@ void polygeist_cuda_rope_mulmul_f32(
   cudnnDestroyTensorDescriptor(mat_desc);
   cudnnDestroyTensorDescriptor(vec_desc);
   DEVICE_FREE(dTmp);
+}
+
+#if POLYGEIST_HAS_CUTENSOR
+static cutensorOperator_t cutensor_unary_operator(int32_t op) {
+  switch (op) {
+  case POLYGEIST_CUTENSOR_UNARY_ABS: return CUTENSOR_OP_ABS;
+  case POLYGEIST_CUTENSOR_UNARY_ACOS: return CUTENSOR_OP_ACOS;
+  case POLYGEIST_CUTENSOR_UNARY_ACOSH: return CUTENSOR_OP_ACOSH;
+  case POLYGEIST_CUTENSOR_UNARY_ASIN: return CUTENSOR_OP_ASIN;
+  case POLYGEIST_CUTENSOR_UNARY_ASINH: return CUTENSOR_OP_ASINH;
+  case POLYGEIST_CUTENSOR_UNARY_ATAN: return CUTENSOR_OP_ATAN;
+  case POLYGEIST_CUTENSOR_UNARY_ATANH: return CUTENSOR_OP_ATANH;
+  case POLYGEIST_CUTENSOR_UNARY_CEIL: return CUTENSOR_OP_CEIL;
+  case POLYGEIST_CUTENSOR_UNARY_COS: return CUTENSOR_OP_COS;
+  case POLYGEIST_CUTENSOR_UNARY_COSH: return CUTENSOR_OP_COSH;
+  case POLYGEIST_CUTENSOR_UNARY_EXP: return CUTENSOR_OP_EXP;
+  case POLYGEIST_CUTENSOR_UNARY_FLOOR: return CUTENSOR_OP_FLOOR;
+  case POLYGEIST_CUTENSOR_UNARY_LOG: return CUTENSOR_OP_LOG;
+  case POLYGEIST_CUTENSOR_UNARY_MISH: return CUTENSOR_OP_MISH;
+  case POLYGEIST_CUTENSOR_UNARY_NEG: return CUTENSOR_OP_NEG;
+  case POLYGEIST_CUTENSOR_UNARY_RECIPROCAL: return CUTENSOR_OP_RCP;
+  case POLYGEIST_CUTENSOR_UNARY_RELU: return CUTENSOR_OP_RELU;
+  case POLYGEIST_CUTENSOR_UNARY_SIGMOID: return CUTENSOR_OP_SIGMOID;
+  case POLYGEIST_CUTENSOR_UNARY_SILU: return CUTENSOR_OP_SWISH;
+  case POLYGEIST_CUTENSOR_UNARY_SIN: return CUTENSOR_OP_SIN;
+  case POLYGEIST_CUTENSOR_UNARY_SINH: return CUTENSOR_OP_SINH;
+  case POLYGEIST_CUTENSOR_UNARY_SQRT: return CUTENSOR_OP_SQRT;
+  case POLYGEIST_CUTENSOR_UNARY_TAN: return CUTENSOR_OP_TAN;
+  case POLYGEIST_CUTENSOR_UNARY_TANH: return CUTENSOR_OP_TANH;
+  default:
+    fprintf(stderr, "polygeist_cutensor_unary_f32: invalid op %d\n", op);
+    abort();
+  }
+}
+#endif
+
+void polygeist_cutensor_unary_f32(
+    int32_t op, int32_t n, const float *x, float *out) {
+  if (n <= 0) return;
+#if POLYGEIST_HAS_CUTENSOR
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)n * sizeof(float);
+  float *dx = (float *)register_host_safe((void *)x, bytes);
+  float *dout = (float *)register_host_safe(out, bytes);
+  int64_t extent[1] = {n};
+  int64_t stride[1] = {1};
+  int32_t mode[1] = {0};
+  float alpha = 1.0f;
+  cutensorHandle_t handle = NULL;
+  cutensorTensorDescriptor_t desc_x = NULL, desc_out = NULL;
+  cutensorOperationDescriptor_t operation = NULL;
+  cutensorPlanPreference_t preference = NULL;
+  cutensorPlan_t plan = NULL;
+  CUTENSOR_CHECK(cutensorCreate(&handle));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &desc_x, 1, extent, stride, CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &desc_out, 1, extent, stride, CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreatePermutation(
+      handle, &operation, desc_x, mode, cutensor_unary_operator(op),
+      desc_out, mode, CUTENSOR_COMPUTE_DESC_32F));
+  CUTENSOR_CHECK(cutensorCreatePlanPreference(
+      handle, &preference, CUTENSOR_ALGO_DEFAULT, CUTENSOR_JIT_MODE_NONE));
+  CUTENSOR_CHECK(cutensorCreatePlan(handle, &plan, operation, preference, 0));
+  timing_gpu_begin();
+  CUTENSOR_CHECK(cutensorPermute(handle, plan, &alpha, dx, dout, g_stream));
+  timing_gpu_end("cutensorUnary_f32", n, op, 0, host_start_ms);
+  CUTENSOR_CHECK(cutensorDestroyPlan(plan));
+  CUTENSOR_CHECK(cutensorDestroyPlanPreference(preference));
+  CUTENSOR_CHECK(cutensorDestroyOperationDescriptor(operation));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(desc_x));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(desc_out));
+  CUTENSOR_CHECK(cutensorDestroy(handle));
+#else
+  (void)op; (void)x; (void)out;
+  fprintf(stderr,
+          "polygeist_cutensor_unary_f32 requires "
+          "-DPOLYGEIST_ENABLE_CUTENSOR and -lcutensor\n");
+  abort();
+#endif
 }
 
 void polygeist_cublas_time_begin(void) {

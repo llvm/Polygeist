@@ -1,0 +1,8 @@
+kernel=aten_conj_complex_scalarized correctness=PASS max_abs=0 max_rel=0
+kernel=aten_conj_complex_scalarized iterations=5 raised_gpu_us=5436.851177
+kernel=aten_conj_complex_scalarized correctness=PASS max_abs=0 max_rel=0
+kernel=aten_conj_complex_scalarized iterations=5 raised_gpu_us=5421.215994
+kernel=aten_conj_complex_scalarized correctness=PASS max_abs=0 max_rel=0
+kernel=aten_conj_complex_scalarized iterations=5 raised_gpu_us=5410.950398
+kernel=aten_conj_complex_scalarized correctness=PASS max_abs=0 max_rel=0
+kernel=aten_conj_complex_scalarized iterations=5 raised_gpu_us=5440.787226

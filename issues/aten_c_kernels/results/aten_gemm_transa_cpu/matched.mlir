@@ -12,12 +12,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i16, dense<16> : 
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c40, %c32] [1, 1] : tensor<?x40xf32> to tensor<?x?xf32>
     %extracted_slice_0 = tensor.extract_slice %1[0, 0] [%c40, %c48] [1, 1] : tensor<?x48xf32> to tensor<?x?xf32>
     %extracted_slice_1 = tensor.extract_slice %2[0, 0] [%c32, %c48] [1, 1] : tensor<?x48xf32> to tensor<?x?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "reduction"], library_call = ""} ins(%extracted_slice, %extracted_slice_0 : tensor<?x?xf32>, tensor<?x?xf32>) outs(%extracted_slice_1 : tensor<?x?xf32>) {
-    ^bb0(%in: f32, %in_2: f32, %out: f32):
-      %5 = arith.mulf %in, %in_2 : f32
-      %6 = arith.addf %out, %5 : f32
-      linalg.yield %6 : f32
-    } -> tensor<?x?xf32>
+    %3 = kernel.launch @cublasSgemm_tn(%extracted_slice, %extracted_slice_0, %extracted_slice_1) : (tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
     %inserted_slice = tensor.insert_slice %3 into %2[0, 0] [%c32, %c48] [1, 1] : tensor<?x?xf32> into tensor<?x48xf32>
     %4 = bufferization.to_memref %inserted_slice : memref<?x48xf32>
     memref.copy %4, %arg2 : memref<?x48xf32> to memref<?x48xf32>

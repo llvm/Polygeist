@@ -11,7 +11,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f64, dense<64> : 
     %1 = bufferization.to_tensor %arg2 : memref<?xi32>
     %2 = arith.muli %arg1, %c64_i32 : i32
     %3 = tensor.empty(%c48) : tensor<?xi32>
-    %4 = kernel.launch @memset_zero_1D(%3) : (tensor<?xi32>) -> tensor<?xi32>
+    %4 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%3 : tensor<?xi32>) {
+    ^bb0(%out: i32):
+      linalg.yield %c0_i32 : i32
+    } -> tensor<?xi32>
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c64, %c48] [1, 1] : tensor<?x48xi8> to tensor<?x?xi8>
     %extracted_slice_0 = tensor.extract_slice %4[0] [%c48] [1] : tensor<?xi32> to tensor<?xi32>
     %5 = linalg.generic {doc = "", indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%extracted_slice : tensor<?x?xi8>) outs(%extracted_slice_0 : tensor<?xi32>) {

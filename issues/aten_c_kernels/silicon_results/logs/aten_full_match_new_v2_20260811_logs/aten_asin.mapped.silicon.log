@@ -1,0 +1,8 @@
+kernel=aten_asin correctness=PASS max_abs=1.4901161193847656e-08 max_rel=1.4901161193847656e-08
+kernel=aten_asin iterations=5 raised_gpu_us=1502.636820
+kernel=aten_asin correctness=PASS max_abs=1.4901161193847656e-08 max_rel=1.4901161193847656e-08
+kernel=aten_asin iterations=5 raised_gpu_us=1498.374436
+kernel=aten_asin correctness=PASS max_abs=1.4901161193847656e-08 max_rel=1.4901161193847656e-08
+kernel=aten_asin iterations=5 raised_gpu_us=1509.913569
+kernel=aten_asin correctness=PASS max_abs=1.4901161193847656e-08 max_rel=1.4901161193847656e-08
+kernel=aten_asin iterations=5 raised_gpu_us=1514.560031

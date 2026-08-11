@@ -505,7 +505,7 @@ def main() -> None:
         })
     fields = list(output[0])
     with OUTPUT.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
         writer.writeheader(); writer.writerows(output)
     from collections import Counter
     availability = Counter(row["availability"] for row in output)

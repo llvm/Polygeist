@@ -14,7 +14,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %3 = arith.cmpi ne, %arg1, %c0_i32 : i32
     %4 = tensor.empty(%c16) : tensor<?xi32>
     %5 = tensor.empty(%c16) : tensor<?xf32>
-    %6 = kernel.launch @memset_zero_1D(%4) : (tensor<?xi32>) -> tensor<?xi32>
+    %6 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%4 : tensor<?xi32>) {
+    ^bb0(%out: i32):
+      linalg.yield %c0_i32 : i32
+    } -> tensor<?xi32>
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c16, 1] [1, 1] : tensor<?x64xf32> to tensor<?xf32>
     %extracted_slice_0 = tensor.extract_slice %5[0] [%c16] [1] : tensor<?xf32> to tensor<?xf32>
     %7 = kernel.launch @cudaCopy1D_f32_tensor(%extracted_slice, %extracted_slice_0) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
