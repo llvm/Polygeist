@@ -11,7 +11,9 @@
 
 #include "KernelLaunchLoweringUtils.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -37,12 +39,103 @@ static bool isCudaShimCall(func::CallOp call) {
     return false;
   if (callee.startswith("polygeist_cublas_pipeline_"))
     return false;
+  if (callee.startswith("polygeist_cuda_graph_"))
+    return false;
   return callee.startswith("polygeist_cublas_") ||
          callee.startswith("polygeist_cudnn_") ||
          callee.startswith("polygeist_cutensornet_") ||
          callee.startswith("polygeist_cuda_") ||
          callee.startswith("polygeist_rmsnorm_") ||
          callee.startswith("polygeist_whisper_");
+}
+
+static bool isCudaGraphSafeCall(func::CallOp call,
+                                bool captureHostMappedCutensornet) {
+  if (!isCudaShimCall(call) || call.getNumResults() != 0)
+    return false;
+  if (call->hasAttr("polygeist.cuda_graph_safe"))
+    return true;
+  return captureHostMappedCutensornet &&
+         call.getCallee() == "polygeist_cutensornet_contraction2_f64";
+}
+
+static bool alreadyGraphWrapped(func::FuncOp func) {
+  bool found = false;
+  func.walk([&](scf::IfOp ifOp) {
+    if (ifOp->hasAttr("polygeist.cuda_graph_scope")) {
+      found = true;
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return found;
+}
+
+static func::FuncOp ensureGraphBeginDecl(ModuleOp module, StringRef symbol,
+                                         OpBuilder &builder) {
+  if (auto existing = module.lookupSymbol<func::FuncOp>(symbol))
+    return existing;
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(module.getBody());
+  auto type = builder.getFunctionType({builder.getI64Type()},
+                                      {builder.getI32Type()});
+  auto function =
+      builder.create<func::FuncOp>(module.getLoc(), symbol, type);
+  function.setPrivate();
+  return function;
+}
+
+static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
+                              func::FuncOp graphEnd, int64_t &nextGraphId,
+                              bool captureHostMappedCutensornet) {
+  if (alreadyGraphWrapped(func))
+    return;
+
+  SmallVector<Block *> blocks;
+  func.walk([&](Operation *op) {
+    for (Region &region : op->getRegions())
+      for (Block &block : region)
+        blocks.push_back(&block);
+  });
+
+  for (Block *block : blocks) {
+    SmallVector<SmallVector<Operation *>> runs;
+    SmallVector<Operation *> current;
+    for (Operation &op : *block) {
+      auto call = dyn_cast<func::CallOp>(&op);
+      if (call &&
+          isCudaGraphSafeCall(call, captureHostMappedCutensornet)) {
+        current.push_back(&op);
+        continue;
+      }
+      if (!current.empty()) {
+        runs.push_back(std::move(current));
+        current.clear();
+      }
+    }
+    if (!current.empty())
+      runs.push_back(std::move(current));
+
+    for (SmallVector<Operation *> &run : runs) {
+      Operation *first = run.front();
+      Location loc = first->getLoc();
+      OpBuilder builder(first);
+      Value id = builder.create<arith::ConstantIntOp>(loc, nextGraphId++, 64);
+      auto begin = builder.create<func::CallOp>(loc, graphBegin, ValueRange{id});
+      Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
+      Value execute = builder.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::ne, begin.getResult(0), zero);
+      auto ifOp = builder.create<scf::IfOp>(loc, execute,
+                                            /*withElseRegion=*/false);
+      ifOp->setAttr("polygeist.cuda_graph_scope", builder.getUnitAttr());
+
+      Operation *yield = ifOp.thenBlock()->getTerminator();
+      for (Operation *op : run)
+        op->moveBefore(yield);
+      OpBuilder endBuilder(yield);
+      endBuilder.create<func::CallOp>(loc, graphEnd, ValueRange{id});
+    }
+  }
 }
 
 // Operations that only construct scalar metadata or tensor/memref views may
@@ -121,6 +214,19 @@ struct WrapKernelLaunchPipelinePass
 
     SmallVector<func::FuncOp> funcs;
     module.walk([&](func::FuncOp func) { funcs.push_back(func); });
+
+    if (useCudaGraphs) {
+      func::FuncOp graphBegin =
+          ensureGraphBeginDecl(module, graphBeginSymbol, moduleBuilder);
+      func::FuncOp graphEnd = ensureShimDecl(
+          module, graphEndSymbol, TypeRange{moduleBuilder.getI64Type()},
+          moduleBuilder);
+      int64_t nextGraphId = 0;
+      for (func::FuncOp func : funcs)
+        if (!func.isDeclaration())
+          wrapCudaGraphRuns(func, graphBegin, graphEnd, nextGraphId,
+                            captureHostMappedCutensornet);
+    }
 
     bool needsDeclarations = false;
     for (func::FuncOp func : funcs) {

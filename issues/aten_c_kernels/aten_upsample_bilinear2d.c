@@ -1,8 +1,10 @@
 /* aten::upsample_bilinear2d, aligned 4x4 to 8x8. Upstream: ATen/native/UpSampleBilinear2d.cpp. */
+#ifndef B
 #define B 2
 #define C 3
 #define H 4
 #define W 4
+#endif
 void aten_upsample_bilinear2d(float input[B][C][H][W],
                               float output[B][C][2*H][2*W]) {
 #pragma scop

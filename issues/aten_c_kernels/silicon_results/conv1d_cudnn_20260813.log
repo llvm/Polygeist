@@ -1,0 +1,4 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, warm mean over 10 calls after 3 warmups
+ATen standalone extraction scaled to B=32, IC=64, OC=128, W=4096, K=3
+
+RESULT kernel=aten_conv1d warm_us=7433.334448 errors=0 max_error=7.15256e-06 coverage=full_bias_plus_valid_1d_convolution_through_cuDNN

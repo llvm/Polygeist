@@ -32,7 +32,7 @@
 #include <cublasLt.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
-#if defined(__has_include)
+#if !defined(POLYGEIST_DISABLE_CUFFT) && defined(__has_include)
 #  if __has_include(<cufft.h>)
 #    include <cufft.h>
 #    define POLYGEIST_HAS_CUFFT 1
@@ -54,6 +54,7 @@
 #  define POLYGEIST_HAS_CUTENSOR 0
 #endif
 #include <math.h>
+#include <dlfcn.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -75,6 +76,7 @@
  * __bf16 arrays via uint16_t lands the correct values on the device. */
 
 static cublasHandle_t   g_handle;
+static void *polygeist_cub_companion_symbol(const char *symbol);
 static cublasLtHandle_t g_lt = NULL;
 static cudnnHandle_t    g_cudnn = NULL;
 static cudaStream_t     g_stream;
@@ -85,6 +87,25 @@ static int            g_atexit_registered = 0;
 static int            g_pipeline_depth = 0;
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
+
+typedef enum {
+  CUDA_GRAPH_WARMUP = 0,
+  CUDA_GRAPH_CAPTURE = 1,
+  CUDA_GRAPH_READY = 2
+} CudaGraphState;
+
+typedef struct {
+  int64_t id;
+  CudaGraphState state;
+  cudaGraph_t graph;
+  cudaGraphExec_t executable;
+} CudaGraphEntry;
+
+static CudaGraphEntry *g_cuda_graphs = NULL;
+static size_t g_cuda_graph_count = 0;
+static size_t g_cuda_graph_cap = 0;
+static CudaGraphEntry *g_active_cuda_graph = NULL;
+static int g_cuda_graph_enabled = -1;
 
 typedef struct {
   void *ptr;
@@ -173,6 +194,52 @@ static int in_pipeline_scope(void) { return g_pipeline_depth > 0; }
 static void sync_stream_if_outside_pipeline(void) {
   if (!in_pipeline_scope())
     CUDA_CHECK(cudaStreamSynchronize(g_stream));
+}
+
+static int cuda_graph_enabled(void) {
+  if (g_cuda_graph_enabled >= 0)
+    return g_cuda_graph_enabled;
+  const char *env = getenv("POLYGEIST_CUDA_GRAPH");
+  g_cuda_graph_enabled =
+      env && env[0] != '\0' && strcmp(env, "0") != 0 &&
+      strcmp(env, "false") != 0 && strcmp(env, "FALSE") != 0;
+  return g_cuda_graph_enabled;
+}
+
+static CudaGraphEntry *find_or_create_cuda_graph(int64_t id) {
+  for (size_t i = 0; i < g_cuda_graph_count; ++i)
+    if (g_cuda_graphs[i].id == id)
+      return &g_cuda_graphs[i];
+  if (g_cuda_graph_count == g_cuda_graph_cap) {
+    size_t next_cap = g_cuda_graph_cap ? 2 * g_cuda_graph_cap : 16;
+    CudaGraphEntry *next = (CudaGraphEntry *)realloc(
+        g_cuda_graphs, next_cap * sizeof(CudaGraphEntry));
+    if (!next) {
+      fprintf(stderr, "polygeist runtime: CUDA Graph cache realloc failed\n");
+      abort();
+    }
+    g_cuda_graphs = next;
+    g_cuda_graph_cap = next_cap;
+  }
+  CudaGraphEntry *entry = &g_cuda_graphs[g_cuda_graph_count++];
+  memset(entry, 0, sizeof(*entry));
+  entry->id = id;
+  entry->state = CUDA_GRAPH_WARMUP;
+  return entry;
+}
+
+static void destroy_cuda_graph_cache(void) {
+  for (size_t i = 0; i < g_cuda_graph_count; ++i) {
+    if (g_cuda_graphs[i].executable)
+      cudaGraphExecDestroy(g_cuda_graphs[i].executable);
+    if (g_cuda_graphs[i].graph)
+      cudaGraphDestroy(g_cuda_graphs[i].graph);
+  }
+  free(g_cuda_graphs);
+  g_cuda_graphs = NULL;
+  g_cuda_graph_count = 0;
+  g_cuda_graph_cap = 0;
+  g_active_cuda_graph = NULL;
 }
 
 static void reserve_device_temp_entries(size_t need) {
@@ -581,15 +648,17 @@ static void destroy_backend_desc(cudnnBackendDescriptor_t *desc) {
   }
 }
 
-static void report_rmsnorm_backend_fallback(
-    const char *where, cudnnStatus_t status) {
-  static int warned = 0;
-  if (warned) return;
-  warned = 1;
+static void report_backend_fallback(
+    const char *family, const char *where, cudnnStatus_t status) {
   fprintf(stderr,
-          "polygeist runtime: cuDNN RMSNorm graph unavailable at %s: %s; "
+          "polygeist runtime: cuDNN %s graph unavailable at %s: %s; "
           "using host fallback\n",
-          where, cudnnGetErrorString(status));
+          family, where, cudnnGetErrorString(status));
+}
+
+static const char *backend_family_for_where(const char *where) {
+  return strncmp(where, "pointwise.", 10) == 0 ? "pointwise affine+ReLU"
+                                               : "RMSNorm";
 }
 
 static int set_backend_attr(
@@ -604,7 +673,7 @@ static int set_backend_attr(
       cudnnBackendSetAttribute(desc, attr, type, count, value);
   if (status != CUDNN_STATUS_SUCCESS) {
     *last_status = status;
-    report_rmsnorm_backend_fallback(where, status);
+    report_backend_fallback(backend_family_for_where(where), where, status);
     return 0;
   }
   return 1;
@@ -617,26 +686,27 @@ static int finalize_backend_desc(
   cudnnStatus_t status = cudnnBackendFinalize(desc);
   if (status != CUDNN_STATUS_SUCCESS) {
     *last_status = status;
-    report_rmsnorm_backend_fallback(where, status);
+    report_backend_fallback(backend_family_for_where(where), where, status);
     return 0;
   }
   return 1;
 }
 
-static int make_f32_backend_tensor(
+static int make_f32_backend_tensor_ex(
     cudnnBackendDescriptor_t *desc,
     int64_t uid,
     const int64_t *dims,
     const int64_t *strides,
     int64_t rank,
     bool by_value,
+    bool is_virtual,
     const char *name,
     cudnnStatus_t *last_status) {
   cudnnStatus_t status =
       cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, desc);
   if (status != CUDNN_STATUS_SUCCESS) {
     *last_status = status;
-    report_rmsnorm_backend_fallback(name, status);
+    report_backend_fallback(backend_family_for_where(name), name, status);
     return 0;
   }
 
@@ -662,6 +732,81 @@ static int make_f32_backend_tensor(
                         last_status))
     return 0;
 
+  if (is_virtual &&
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_IS_VIRTUAL,
+                        CUDNN_TYPE_BOOLEAN, 1, &is_virtual, name,
+                        last_status))
+    return 0;
+
+  return finalize_backend_desc(*desc, name, last_status);
+}
+
+static int make_f32_backend_tensor(
+    cudnnBackendDescriptor_t *desc,
+    int64_t uid,
+    const int64_t *dims,
+    const int64_t *strides,
+    int64_t rank,
+    bool by_value,
+    const char *name,
+    cudnnStatus_t *last_status) {
+  return make_f32_backend_tensor_ex(desc, uid, dims, strides, rank, by_value,
+                                    false, name, last_status);
+}
+
+static int make_bool_backend_tensor_ex(
+    cudnnBackendDescriptor_t *desc, int64_t uid, const int64_t *dims,
+    const int64_t *strides, int64_t rank, bool is_virtual,
+    const char *name, cudnnStatus_t *last_status) {
+  cudnnStatus_t status =
+      cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, desc);
+  if (status != CUDNN_STATUS_SUCCESS) {
+    *last_status = status;
+    return 0;
+  }
+  cudnnDataType_t dtype = CUDNN_DATA_BOOLEAN;
+  int64_t alignment = 1;
+  if (!set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DATA_TYPE,
+                        CUDNN_TYPE_DATA_TYPE, 1, &dtype, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DIMENSIONS,
+                        CUDNN_TYPE_INT64, rank, dims, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_STRIDES,
+                        CUDNN_TYPE_INT64, rank, strides, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_UNIQUE_ID,
+                        CUDNN_TYPE_INT64, 1, &uid, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT,
+                        CUDNN_TYPE_INT64, 1, &alignment, name, last_status) ||
+      (is_virtual &&
+       !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_IS_VIRTUAL,
+                         CUDNN_TYPE_BOOLEAN, 1, &is_virtual, name,
+                         last_status)))
+    return 0;
+  return finalize_backend_desc(*desc, name, last_status);
+}
+
+static int make_i32_backend_tensor(
+    cudnnBackendDescriptor_t *desc, int64_t uid, const int64_t *dims,
+    const int64_t *strides, int64_t rank, const char *name,
+    cudnnStatus_t *last_status) {
+  cudnnStatus_t status =
+      cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, desc);
+  if (status != CUDNN_STATUS_SUCCESS) {
+    *last_status = status;
+    return 0;
+  }
+  cudnnDataType_t dtype = CUDNN_DATA_INT32;
+  int64_t alignment = 4;
+  if (!set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DATA_TYPE,
+                        CUDNN_TYPE_DATA_TYPE, 1, &dtype, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DIMENSIONS,
+                        CUDNN_TYPE_INT64, rank, dims, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_STRIDES,
+                        CUDNN_TYPE_INT64, rank, strides, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_UNIQUE_ID,
+                        CUDNN_TYPE_INT64, 1, &uid, name, last_status) ||
+      !set_backend_attr(*desc, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT,
+                        CUDNN_TYPE_INT64, 1, &alignment, name, last_status))
+    return 0;
   return finalize_backend_desc(*desc, name, last_status);
 }
 
@@ -692,6 +837,7 @@ void polygeist_cublas_destroy(void) {
   }
   if (!g_initialized) return;
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  destroy_cuda_graph_cache();
 #if POLYGEIST_HAS_CUTENSORNET
   destroy_cutensornet_contraction_cache();
 #endif
@@ -721,6 +867,75 @@ void polygeist_cublas_pipeline_end(void) {
     flush_deferred_device_frees();
     flush_deferred_host_frees();
   }
+}
+
+int32_t polygeist_cuda_graph_begin(int64_t graph_id) {
+  if (!cuda_graph_enabled()) {
+    polygeist_cublas_pipeline_begin();
+    return 1;
+  }
+  polygeist_cublas_init();
+  if (g_active_cuda_graph) {
+    fprintf(stderr, "polygeist runtime: nested CUDA Graph scopes are not "
+                    "supported (active=%lld, requested=%lld)\n",
+            (long long)g_active_cuda_graph->id, (long long)graph_id);
+    abort();
+  }
+
+  CudaGraphEntry *entry = find_or_create_cuda_graph(graph_id);
+  if (entry->state == CUDA_GRAPH_READY) {
+    CUDA_CHECK(cudaGraphLaunch(entry->executable, g_stream));
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    return 0;
+  }
+
+  g_active_cuda_graph = entry;
+  g_pipeline_depth++;
+  if (entry->state == CUDA_GRAPH_CAPTURE)
+    CUDA_CHECK(cudaStreamBeginCapture(g_stream,
+                                      cudaStreamCaptureModeThreadLocal));
+  return 1;
+}
+
+void polygeist_cuda_graph_end(int64_t graph_id) {
+  if (!cuda_graph_enabled()) {
+    polygeist_cublas_pipeline_end();
+    return;
+  }
+  CudaGraphEntry *entry = g_active_cuda_graph;
+  if (!entry || entry->id != graph_id) {
+    fprintf(stderr, "polygeist runtime: mismatched CUDA Graph end id %lld\n",
+            (long long)graph_id);
+    abort();
+  }
+
+  if (g_pipeline_depth > 0)
+    g_pipeline_depth--;
+  if (entry->state == CUDA_GRAPH_WARMUP) {
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    flush_deferred_device_frees();
+    flush_deferred_host_frees();
+    entry->state = CUDA_GRAPH_CAPTURE;
+  } else {
+    CUDA_CHECK(cudaStreamEndCapture(g_stream, &entry->graph));
+    if (!entry->graph) {
+      fprintf(stderr, "polygeist runtime: CUDA Graph %lld captured no work\n",
+              (long long)graph_id);
+      abort();
+    }
+#if CUDART_VERSION >= 12000
+    CUDA_CHECK(cudaGraphInstantiate(&entry->executable, entry->graph, 0));
+#else
+    CUDA_CHECK(cudaGraphInstantiate(&entry->executable, entry->graph,
+                                    NULL, NULL, 0));
+#endif
+    CUDA_CHECK(cudaGraphLaunch(entry->executable, g_stream));
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    flush_deferred_device_frees();
+    flush_deferred_host_frees();
+    entry->state = CUDA_GRAPH_READY;
+  }
+  g_active_cuda_graph = NULL;
 }
 
 void polygeist_cublas_dgemm(
@@ -1730,6 +1945,565 @@ void polygeist_cudnn_conv2d_ntap_f32(
   cudnnDestroyTensorDescriptor(out_desc);
   cudnnDestroyFilterDescriptor(f_desc);
   cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+void polygeist_cudnn_conv2d_uniform_window_f32(
+    int32_t N, int32_t C, int32_t H, int32_t W,
+    int32_t OH, int32_t OW, float weight,
+    int32_t KH, int32_t KW, int32_t SH, int32_t SW,
+    int32_t DH, int32_t DW, int32_t PH, int32_t PW,
+    const float *input, float *output) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  if (N <= 0 || C <= 0 || H <= 0 || W <= 0 || OH <= 0 || OW <= 0 ||
+      KH <= 0 || KW <= 0 || SH <= 0 || SW <= 0 || DH <= 0 || DW <= 0 ||
+      PH < 0 || PW < 0) {
+    fprintf(stderr, "cuDNN uniform window: invalid dimensions\n");
+    abort();
+  }
+  int32_t expected_oh = (H + 2 * PH - DH * (KH - 1) - 1) / SH + 1;
+  int32_t expected_ow = (W + 2 * PW - DW * (KW - 1) - 1) / SW + 1;
+  if (OH != expected_oh || OW != expected_ow) {
+    fprintf(stderr,
+            "cuDNN uniform window: output mismatch, got %dx%d expected %dx%d\n",
+            OH, OW, expected_oh, expected_ow);
+    abort();
+  }
+
+  size_t filter_elems = (size_t)C * (size_t)KH * (size_t)KW;
+  float *filter_h = (float *)malloc(filter_elems * sizeof(float));
+  if (!filter_h) {
+    fprintf(stderr, "cuDNN uniform window: filter allocation failed\n");
+    abort();
+  }
+  for (size_t i = 0; i < filter_elems; ++i)
+    filter_h[i] = weight;
+
+  cudnnTensorDescriptor_t in_desc, out_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      in_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, C, 1, KH, KW));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, PH, PW, SH, SW, DH, DW,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionGroupCount(conv_desc, C));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      out_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, OH, OW));
+
+  size_t input_bytes =
+      (size_t)N * (size_t)C * (size_t)H * (size_t)W * sizeof(float);
+  size_t output_bytes =
+      (size_t)N * (size_t)C * (size_t)OH * (size_t)OW * sizeof(float);
+  size_t filter_bytes = filter_elems * sizeof(float);
+  float *d_input = NULL, *d_output = NULL, *d_filter = NULL;
+  DEVICE_MALLOC((void **)&d_input, input_bytes);
+  DEVICE_MALLOC((void **)&d_output, output_bytes);
+  DEVICE_MALLOC((void **)&d_filter, filter_bytes);
+  CUDA_CHECK(cudaMemcpyAsync(
+      d_input, input, input_bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(
+      d_filter, filter_h, filter_bytes, cudaMemcpyHostToDevice, g_stream));
+
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, filter_desc, conv_desc, out_desc,
+      1, &returned, &algo_perf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN uniform window: no forward algorithm available\n");
+    abort();
+  }
+  size_t workspace_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, filter_desc, conv_desc, out_desc,
+      algo_perf.algo, &workspace_size));
+  void *workspace = NULL;
+  if (workspace_size)
+    DEVICE_MALLOC(&workspace, workspace_size);
+
+  const float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, d_input, filter_desc, d_filter,
+      conv_desc, algo_perf.algo, workspace, workspace_size,
+      &beta, out_desc, d_output));
+  timing_gpu_end("cudnnConvolution2D_uniform_window_f32",
+                 N * C * OH, OW, KH * KW, host_start_ms);
+  CUDA_CHECK(cudaMemcpyAsync(
+      output, d_output, output_bytes, cudaMemcpyDeviceToHost, g_stream));
+  sync_stream_if_outside_pipeline();
+
+  free(filter_h);
+  DEVICE_FREE(d_input);
+  DEVICE_FREE(d_output);
+  DEVICE_FREE(d_filter);
+  if (workspace)
+    DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(filter_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+}
+
+static void adaptive_pool_host_f32(
+    int32_t operation, int32_t N, int32_t C,
+    int32_t I0, int32_t I1, int32_t I2,
+    int32_t O0, int32_t O1, int32_t O2,
+    const void *ptr0, void *ptr1, void *ptr2) {
+  const float *source = (const float *)ptr0;
+  const int32_t *indices_in = operation == 3 ? (const int32_t *)ptr1 : NULL;
+  float *values_out = (float *)(operation == 3 ? ptr2 : ptr1);
+  int32_t *indices_out = operation == 2 ? (int32_t *)ptr2 : NULL;
+  size_t input_spatial = (size_t)I0 * I1 * I2;
+  size_t output_spatial = (size_t)O0 * O1 * O2;
+  bool fixed_average = operation == 4 || operation == 5;
+  bool backward = operation == 1 || operation == 3 || operation == 5;
+  if (backward)
+    memset(values_out, 0, (size_t)N * C * input_spatial * sizeof(float));
+  for (int32_t nc = 0; nc < N * C; ++nc)
+    for (int32_t o0 = 0; o0 < O0; ++o0) {
+          int32_t k0 = fixed_average ? I0 / O0 : 0;
+          int32_t k1 = fixed_average ? I1 / O1 : 0;
+          int32_t k2 = fixed_average ? I2 / O2 : 0;
+          int32_t s0 = fixed_average ? o0 * k0 : o0 * I0 / O0;
+          int32_t e0 = fixed_average ? s0 + k0 :
+              ((o0 + 1) * I0 + O0 - 1) / O0;
+      for (int32_t o1 = 0; o1 < O1; ++o1) {
+        int32_t s1 = fixed_average ? o1 * k1 : o1 * I1 / O1;
+        int32_t e1 = fixed_average ? s1 + k1 :
+            ((o1 + 1) * I1 + O1 - 1) / O1;
+        for (int32_t o2 = 0; o2 < O2; ++o2) {
+          int32_t s2 = fixed_average ? o2 * k2 : o2 * I2 / O2;
+          int32_t e2 = fixed_average ? s2 + k2 :
+              ((o2 + 1) * I2 + O2 - 1) / O2;
+          size_t out = (size_t)nc * output_spatial +
+              ((size_t)o0 * O1 + o1) * O2 + o2;
+          if (operation == 0 || operation == 4) {
+            float sum = 0.0f;
+            int32_t count = 0;
+            for (int32_t i0 = s0; i0 < e0; ++i0)
+              for (int32_t i1 = s1; i1 < e1; ++i1)
+                for (int32_t i2 = s2; i2 < e2; ++i2) {
+                  size_t in = ((size_t)i0 * I1 + i1) * I2 + i2;
+                  sum += source[(size_t)nc * input_spatial + in];
+                  ++count;
+                }
+            values_out[out] = sum / (float)count;
+          } else if (operation == 1 || operation == 5) {
+            float add = source[out] /
+                (float)((e0 - s0) * (e1 - s1) * (e2 - s2));
+            for (int32_t i0 = s0; i0 < e0; ++i0)
+              for (int32_t i1 = s1; i1 < e1; ++i1)
+                for (int32_t i2 = s2; i2 < e2; ++i2) {
+                  size_t in = ((size_t)i0 * I1 + i1) * I2 + i2;
+                  values_out[(size_t)nc * input_spatial + in] += add;
+                }
+          } else if (operation == 2) {
+            int32_t best = (s0 * I1 + s1) * I2 + s2;
+            float value = source[(size_t)nc * input_spatial + best];
+            for (int32_t i0 = s0; i0 < e0; ++i0)
+              for (int32_t i1 = s1; i1 < e1; ++i1)
+                for (int32_t i2 = s2; i2 < e2; ++i2) {
+                  int32_t candidate = (i0 * I1 + i1) * I2 + i2;
+                  float next = source[(size_t)nc * input_spatial + candidate];
+                  if (next > value) value = next, best = candidate;
+                }
+            values_out[out] = value;
+            indices_out[out] = best;
+          } else {
+            int32_t destination = indices_in[out];
+            if (destination < 0 || (size_t)destination >= input_spatial) {
+              fprintf(stderr, "adaptive max-pool index out of range: %d\n",
+                      destination);
+              abort();
+            }
+            values_out[(size_t)nc * input_spatial + destination] += source[out];
+          }
+        }
+      }
+    }
+}
+
+static int adaptive_resample_backend_f32(
+    int32_t operation, int32_t rank, int32_t N, int32_t C,
+    int32_t I0, int32_t I1, int32_t I2,
+    int32_t O0, int32_t O1, int32_t O2,
+    const void *ptr0, void *ptr1, void *ptr2) {
+  cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+  cudnnBackendDescriptor_t x_desc = NULL, y_desc = NULL, idx_desc = NULL;
+  cudnnBackendDescriptor_t x_ref_desc = NULL, y_ref_desc = NULL;
+  cudnnBackendDescriptor_t resample = NULL, op_desc = NULL, graph = NULL;
+  cudnnBackendDescriptor_t heur = NULL, config = NULL, plan = NULL;
+  cudnnBackendDescriptor_t variant = NULL;
+  void *d_x = NULL, *d_y = NULL, *d_idx = NULL, *workspace = NULL;
+  void *d_x_ref = NULL, *d_y_ref = NULL;
+  int ok = 0;
+
+  int spatial = rank == 3 ? 3 : 2;
+  int tensor_rank = spatial + 2;
+  int64_t in_dims[5] = {N, C, I0, I1, I2};
+  int64_t out_dims[5] = {N, C, O0, O1, O2};
+  if (rank == 1) {
+    in_dims[2] = I0; in_dims[3] = 1;
+    out_dims[2] = O0; out_dims[3] = 1;
+  }
+  int64_t in_strides[5] = {0}, out_strides[5] = {0};
+  in_strides[tensor_rank - 1] = 1;
+  out_strides[tensor_rank - 1] = 1;
+  for (int i = tensor_rank - 2; i >= 0; --i) {
+    in_strides[i] = in_strides[i + 1] * in_dims[i + 1];
+    out_strides[i] = out_strides[i + 1] * out_dims[i + 1];
+  }
+  size_t input_count = (size_t)N * C * I0 * I1 * I2;
+  size_t output_count = (size_t)N * C * O0 * O1 * O2;
+  size_t input_bytes = input_count * sizeof(float);
+  size_t output_bytes = output_count * sizeof(float);
+
+  const int64_t uid_x = 701, uid_y = 702, uid_idx = 703;
+  const int64_t uid_x_ref = 704, uid_y_ref = 705;
+  if (!make_f32_backend_tensor(&x_desc, uid_x, in_dims, in_strides,
+                               tensor_rank, false, "adaptive.x", &status) ||
+      !make_f32_backend_tensor(&y_desc, uid_y, out_dims, out_strides,
+                               tensor_rank, false, "adaptive.y", &status))
+    goto cleanup;
+  bool is_max = operation == 2 || operation == 3;
+  // cuDNN's max-pooling index tensor is a packed INT8 implementation detail,
+  // not ATen's int32 absolute spatial index.  Do not expose it through this
+  // ABI.  Forward values still use cuDNN; ATen indices are reconstructed
+  // exactly after execution.  Max backward is handled by the semantic
+  // fallback because its input indices use ATen's public representation.
+  bool use_cudnn_index = false;
+  if (use_cudnn_index &&
+      !make_i32_backend_tensor(&idx_desc, uid_idx, out_dims, out_strides,
+                               tensor_rank, "adaptive.idx", &status))
+    goto cleanup;
+
+  status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_RESAMPLE_DESCRIPTOR,
+                                         &resample);
+  if (status != CUDNN_STATUS_SUCCESS) goto cleanup;
+  cudnnResampleMode_t mode = is_max ? CUDNN_RESAMPLE_MAXPOOL
+      : CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING;
+  cudnnDataType_t comp = CUDNN_DATA_FLOAT;
+  cudnnNanPropagation_t nan = CUDNN_NOT_PROPAGATE_NAN;
+  cudnnPaddingMode_t padding = is_max ? CUDNN_NEG_INF_PAD : CUDNN_ZERO_PAD;
+  int64_t spatial64 = spatial;
+  int32_t ins[3] = {I0, I1, I2};
+  int32_t outs[3] = {O0, O1, O2};
+  cudnnFraction_t strides[3] = {{1, 1}, {1, 1}, {1, 1}};
+  cudnnFraction_t windows[3] = {{1, 1}, {1, 1}, {1, 1}};
+  // cuDNN pooling engines require one integer window/stride per dimension.
+  // Prove that the ATen floor/ceil partition is regular before constructing
+  // the descriptor; genuinely variable adaptive partitions use the exact
+  // semantic fallback below rather than being approximated.
+  bool fixed_average = operation == 4 || operation == 5;
+  for (int d = 0; d < rank; ++d) {
+    if (fixed_average) {
+      int32_t window = ins[d] / outs[d];
+      if (window <= 0 || (ins[d] - window) / window + 1 != outs[d])
+        goto cleanup;
+      windows[d] = (cudnnFraction_t){window, 1};
+      strides[d] = (cudnnFraction_t){window, 1};
+      continue;
+    }
+    int32_t first_start = 0;
+    int32_t first_end = (ins[d] + outs[d] - 1) / outs[d];
+    int32_t window = first_end;
+    int32_t stride = outs[d] > 1 ? ins[d] / outs[d] : 1;
+    for (int32_t o = 0; o < outs[d]; ++o) {
+      int32_t start = o * ins[d] / outs[d];
+      int32_t end = ((o + 1) * ins[d] + outs[d] - 1) / outs[d];
+      if (end - start != window ||
+          (o > 0 && start != first_start + o * stride))
+        goto cleanup;
+    }
+    windows[d] = (cudnnFraction_t){window, 1};
+    strides[d] = (cudnnFraction_t){stride, 1};
+  }
+  cudnnFraction_t pads[3] = {{0, 1}, {0, 1}, {0, 1}};
+  if (!set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_MODE,
+                        CUDNN_TYPE_RESAMPLE_MODE, 1, &mode,
+                        "adaptive.mode", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_COMP_TYPE,
+                        CUDNN_TYPE_DATA_TYPE, 1, &comp,
+                        "adaptive.comp", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION,
+                        CUDNN_TYPE_NAN_PROPOGATION, 1, &nan,
+                        "adaptive.nan", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS,
+                        CUDNN_TYPE_INT64, 1, &spatial64,
+                        "adaptive.spatial", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_PADDING_MODE,
+                        CUDNN_TYPE_PADDING_MODE, 1, &padding,
+                        "adaptive.padding", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_STRIDES,
+                        CUDNN_TYPE_FRACTION, spatial, strides,
+                        "adaptive.strides", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_WINDOW_DIMS,
+                        CUDNN_TYPE_FRACTION, spatial, windows,
+                        "adaptive.windows", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_PRE_PADDINGS,
+                        CUDNN_TYPE_FRACTION, spatial, pads,
+                        "adaptive.prepad", &status) ||
+      !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_POST_PADDINGS,
+                        CUDNN_TYPE_FRACTION, spatial, pads,
+                        "adaptive.postpad", &status) ||
+      !finalize_backend_desc(resample, "adaptive.resample", &status))
+    goto cleanup;
+
+  bool backward = operation == 1 || operation == 3 || operation == 5;
+  status = cudnnBackendCreateDescriptor(
+      backward ? CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR
+               : CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR,
+      &op_desc);
+  if (status != CUDNN_STATUS_SUCCESS) goto cleanup;
+  double alpha = 1.0, beta = 0.0;
+  if (!backward) {
+    if (!set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &resample,
+                          "adaptive.fwd.desc", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_desc,
+                          "adaptive.fwd.x", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &y_desc,
+                          "adaptive.fwd.y", &status) ||
+        (use_cudnn_index && !set_backend_attr(
+            op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC,
+            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &idx_desc,
+            "adaptive.fwd.idx", &status)) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA,
+                          CUDNN_TYPE_DOUBLE, 1, &alpha,
+                          "adaptive.fwd.alpha", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA,
+                          CUDNN_TYPE_DOUBLE, 1, &beta,
+                          "adaptive.fwd.beta", &status))
+      goto cleanup;
+  } else {
+    if (!make_f32_backend_tensor(&x_ref_desc, uid_x_ref, in_dims, in_strides,
+                                 tensor_rank, false, "adaptive.x_ref", &status) ||
+        !make_f32_backend_tensor(&y_ref_desc, uid_y_ref, out_dims, out_strides,
+                                 tensor_rank, false, "adaptive.y_ref", &status))
+      goto cleanup;
+    if (!set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &resample,
+                          "adaptive.bwd.desc", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_desc,
+                          "adaptive.bwd.dx", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &y_desc,
+                          "adaptive.bwd.dy", &status) ||
+        (use_cudnn_index && !set_backend_attr(
+            op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC,
+            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &idx_desc,
+            "adaptive.bwd.idx", &status)) ||
+        !set_backend_attr(
+            op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC,
+            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_ref_desc,
+            "adaptive.bwd.x", &status) ||
+        !set_backend_attr(
+            op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC,
+            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &y_ref_desc,
+            "adaptive.bwd.y", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA,
+                          CUDNN_TYPE_DOUBLE, 1, &alpha,
+                          "adaptive.bwd.alpha", &status) ||
+        !set_backend_attr(op_desc, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA,
+                          CUDNN_TYPE_DOUBLE, 1, &beta,
+                          "adaptive.bwd.beta", &status))
+      goto cleanup;
+  }
+  if (!finalize_backend_desc(op_desc, "adaptive.op", &status)) goto cleanup;
+
+  status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR,
+                                         &graph);
+  if (status != CUDNN_STATUS_SUCCESS) goto cleanup;
+  if (!set_backend_attr(graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+                        CUDNN_TYPE_HANDLE, 1, &g_cudnn,
+                        "adaptive.graph.handle", &status) ||
+      !set_backend_attr(graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &op_desc,
+                        "adaptive.graph.ops", &status) ||
+      !finalize_backend_desc(graph, "adaptive.graph", &status))
+    goto cleanup;
+
+  const cudnnBackendHeurMode_t modes[] = {
+      CUDNN_HEUR_MODE_INSTANT, CUDNN_HEUR_MODE_A, CUDNN_HEUR_MODE_FALLBACK};
+  for (unsigned mi = 0; mi < sizeof(modes) / sizeof(modes[0]) && !plan; ++mi) {
+    destroy_backend_desc(&heur); destroy_backend_desc(&config);
+    status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR,
+                                           &heur);
+    if (status != CUDNN_STATUS_SUCCESS) continue;
+    if (cudnnBackendSetAttribute(heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH,
+                                 CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &graph) !=
+            CUDNN_STATUS_SUCCESS ||
+        cudnnBackendSetAttribute(heur, CUDNN_ATTR_ENGINEHEUR_MODE,
+                                 CUDNN_TYPE_HEUR_MODE, 1, &modes[mi]) !=
+            CUDNN_STATUS_SUCCESS ||
+        cudnnBackendFinalize(heur) != CUDNN_STATUS_SUCCESS)
+      continue;
+    status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINECFG_DESCRIPTOR,
+                                           &config);
+    if (status != CUDNN_STATUS_SUCCESS) continue;
+    int64_t returned = 0;
+    if (cudnnBackendGetAttribute(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+                                 CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+                                 &returned, &config) != CUDNN_STATUS_SUCCESS ||
+        returned == 0)
+      continue;
+    cudnnBackendDescriptor_t candidate = NULL;
+    status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &candidate);
+    if (status != CUDNN_STATUS_SUCCESS) continue;
+    if (cudnnBackendSetAttribute(candidate, CUDNN_ATTR_EXECUTION_PLAN_HANDLE,
+                                 CUDNN_TYPE_HANDLE, 1, &g_cudnn) ==
+            CUDNN_STATUS_SUCCESS &&
+        cudnnBackendSetAttribute(
+            candidate, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &config) == CUDNN_STATUS_SUCCESS &&
+        cudnnBackendFinalize(candidate) == CUDNN_STATUS_SUCCESS)
+      plan = candidate;
+    else
+      destroy_backend_desc(&candidate);
+  }
+  if (!plan) goto cleanup;
+
+  int64_t actual = 0, workspace_size = 0;
+  if (cudnnBackendGetAttribute(plan,
+          CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64,
+          1, &actual, &workspace_size) != CUDNN_STATUS_SUCCESS)
+    goto cleanup;
+  DEVICE_MALLOC(&d_x, input_bytes);
+  DEVICE_MALLOC(&d_y, output_bytes);
+  if (backward) {
+    DEVICE_MALLOC(&d_x_ref, input_bytes);
+    DEVICE_MALLOC(&d_y_ref, output_bytes);
+    CUDA_CHECK(cudaMemsetAsync(d_x_ref, 0, input_bytes, g_stream));
+    CUDA_CHECK(cudaMemsetAsync(d_y_ref, 0, output_bytes, g_stream));
+  }
+  if (use_cudnn_index)
+    DEVICE_MALLOC(&d_idx, output_count * sizeof(int32_t));
+  if (workspace_size) DEVICE_MALLOC(&workspace, (size_t)workspace_size);
+  if (!backward) {
+    CUDA_CHECK(cudaMemcpyAsync(d_x, ptr0, input_bytes,
+                               cudaMemcpyHostToDevice, g_stream));
+  } else {
+    CUDA_CHECK(cudaMemcpyAsync(d_y, ptr0, output_bytes,
+                               cudaMemcpyHostToDevice, g_stream));
+    CUDA_CHECK(cudaMemsetAsync(d_x, 0, input_bytes, g_stream));
+    if (use_cudnn_index)
+      CUDA_CHECK(cudaMemcpyAsync(d_idx, ptr1, output_count * sizeof(int32_t),
+                                 cudaMemcpyHostToDevice, g_stream));
+  }
+
+  status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR,
+                                         &variant);
+  if (status != CUDNN_STATUS_SUCCESS) goto cleanup;
+  int64_t uids[5] = {uid_x, uid_y, uid_idx, uid_x_ref, uid_y_ref};
+  void *ptrs[5] = {d_x, d_y, d_idx, d_x_ref, d_y_ref};
+  int64_t ptr_count = backward ? 4 : 2;
+  if (backward) {
+    uids[2] = uid_x_ref;
+    uids[3] = uid_y_ref;
+    ptrs[2] = d_x_ref;
+    ptrs[3] = d_y_ref;
+  }
+  if (!set_backend_attr(variant, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+                        CUDNN_TYPE_VOID_PTR, ptr_count, ptrs,
+                        "adaptive.variant.ptrs", &status) ||
+      !set_backend_attr(variant, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+                        CUDNN_TYPE_INT64, ptr_count, uids,
+                        "adaptive.variant.uids", &status) ||
+      !set_backend_attr(variant, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+                        CUDNN_TYPE_VOID_PTR, 1, &workspace,
+                        "adaptive.variant.workspace", &status) ||
+      !finalize_backend_desc(variant, "adaptive.variant", &status))
+    goto cleanup;
+  if (cudnnBackendExecute(g_cudnn, plan, variant) != CUDNN_STATUS_SUCCESS)
+    goto cleanup;
+  if (!backward) {
+    CUDA_CHECK(cudaMemcpyAsync(ptr1, d_y, output_bytes,
+                               cudaMemcpyDeviceToHost, g_stream));
+    if (use_cudnn_index)
+      CUDA_CHECK(cudaMemcpyAsync(ptr2, d_idx, output_count * sizeof(int32_t),
+                                 cudaMemcpyDeviceToHost, g_stream));
+  } else {
+    void *destination = operation == 3 ? ptr2 : ptr1;
+    CUDA_CHECK(cudaMemcpyAsync(destination, d_x, input_bytes,
+                               cudaMemcpyDeviceToHost, g_stream));
+  }
+  sync_stream_if_outside_pipeline();
+  if (!backward && is_max) {
+    // Keep the cuDNN-computed values in ptr1, but materialize ATen's absolute
+    // int32 argmax representation with the exact adaptive-window definition.
+    float *discard_values = (float *)malloc(output_bytes);
+    if (!discard_values) goto cleanup;
+    adaptive_pool_host_f32(2, N, C, I0, I1, I2, O0, O1, O2,
+                           ptr0, discard_values, ptr2);
+    free(discard_values);
+  }
+  ok = 1;
+
+cleanup:
+  if (workspace) DEVICE_FREE(workspace);
+  if (d_y_ref) DEVICE_FREE(d_y_ref);
+  if (d_x_ref) DEVICE_FREE(d_x_ref);
+  if (d_idx) DEVICE_FREE(d_idx);
+  if (d_y) DEVICE_FREE(d_y);
+  if (d_x) DEVICE_FREE(d_x);
+  destroy_backend_desc(&variant); destroy_backend_desc(&plan);
+  destroy_backend_desc(&config); destroy_backend_desc(&heur);
+  destroy_backend_desc(&graph); destroy_backend_desc(&op_desc);
+  destroy_backend_desc(&resample); destroy_backend_desc(&idx_desc);
+  destroy_backend_desc(&y_ref_desc); destroy_backend_desc(&x_ref_desc);
+  destroy_backend_desc(&y_desc); destroy_backend_desc(&x_desc);
+  return ok;
+}
+
+void polygeist_cudnn_adaptive_pool_f32(
+    int32_t operation, int32_t rank, int32_t N, int32_t C,
+    int32_t I0, int32_t I1, int32_t I2,
+    int32_t O0, int32_t O1, int32_t O2,
+    const void *ptr0, void *ptr1, void *ptr2) {
+  if (operation < 0 || operation > 5 || rank < 1 || rank > 3 ||
+      N <= 0 || C <= 0 || I0 <= 0 || I1 <= 0 || I2 <= 0 ||
+      O0 <= 0 || O1 <= 0 || O2 <= 0) {
+    fprintf(stderr, "cuDNN adaptive pool: invalid parameters\n");
+    abort();
+  }
+  polygeist_cublas_init();
+  ensure_cudnn();
+  // ATen max-pool backward consumes absolute int32 spatial indices.  cuDNN's
+  // resample-backward ABI instead consumes its packed private forward index
+  // tensor, so those representations cannot be interchanged.
+  if (operation == 3) {
+    adaptive_pool_host_f32(operation, N, C, I0, I1, I2, O0, O1, O2,
+                           ptr0, ptr1, ptr2);
+    return;
+  }
+  if (adaptive_resample_backend_f32(operation, rank, N, C,
+                                    I0, I1, I2, O0, O1, O2,
+                                    ptr0, ptr1, ptr2))
+    return;
+  // Emit this diagnostic only once per process.  A benchmark invokes the
+  // same semantic operation repeatedly; repeated stderr I/O would otherwise
+  // become part of the measured fallback time.
+  static int reported_adaptive_fallback = 0;
+  if (!reported_adaptive_fallback) {
+    report_backend_fallback("adaptive pooling", "adaptive.resample",
+                            CUDNN_STATUS_NOT_SUPPORTED);
+    reported_adaptive_fallback = 1;
+  }
+  adaptive_pool_host_f32(operation, N, C, I0, I1, I2, O0, O1, O2,
+                         ptr0, ptr1, ptr2);
 }
 
 void polygeist_cudnn_conv3d_ntap_f64(
@@ -3075,6 +3849,687 @@ void polygeist_cudnn_conv2d_batched(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
+void polygeist_cudnn_conv1d_bias_f32(
+    int32_t B, int32_t IC, int32_t OC, int32_t L, int32_t K,
+    const float *input, const float *filter, const float *bias, float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  int32_t OL = L - K + 1;
+  size_t inputBytes = (size_t)B * IC * L * sizeof(float);
+  size_t filterBytes = (size_t)OC * IC * K * sizeof(float);
+  size_t biasBytes = (size_t)OC * sizeof(float);
+  size_t outputBytes = (size_t)B * OC * OL * sizeof(float);
+  float *dInput = (float *)register_host_safe((void *)input, inputBytes);
+  float *dFilter = (float *)register_host_safe((void *)filter, filterBytes);
+  float *dBias = (float *)register_host_safe((void *)bias, biasBytes);
+  float *dOutput = (float *)register_host_safe(output, outputBytes);
+  cudnnTensorDescriptor_t inputDesc, outputDesc, biasDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&biasDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      inputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, IC, 1, L));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, OC, 1, OL));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      biasDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, OC, 1, 1));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, OC, IC, 1, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      convDesc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
+      &perf));
+  if (returned < 1) abort();
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, perf.algo,
+      &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &one, inputDesc, dInput, filterDesc, dFilter, convDesc,
+      perf.algo, workspace, workspaceBytes, &zero, outputDesc, dOutput));
+  CUDNN_CHECK(cudnnAddTensor(
+      g_cudnn, &one, biasDesc, dBias, &one, outputDesc, dOutput));
+  sync_stream_if_outside_pipeline();
+  if (workspace) DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyTensorDescriptor(biasDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+}
+
+void polygeist_cudnn_conv2d_dilated_f32(
+    int32_t IC, int32_t OC, int32_t H, int32_t W, int32_t KH, int32_t KW,
+    int32_t DH, int32_t DW, const float *input, const float *filter,
+    float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  int32_t OH = H - (KH - 1) * DH;
+  int32_t OW = W - (KW - 1) * DW;
+  size_t inBytes = (size_t)IC * H * W * sizeof(float);
+  size_t filterBytes = (size_t)OC * IC * KH * KW * sizeof(float);
+  size_t outBytes = (size_t)OC * OH * OW * sizeof(float);
+  float *dIn = (float *)register_host_safe((void *)input, inBytes);
+  float *dFilter = (float *)register_host_safe((void *)filter, filterBytes);
+  float *dOut = (float *)register_host_safe(output, outBytes);
+  cudnnTensorDescriptor_t inDesc, outDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      inDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, IC, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      outDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, OC, OH, OW));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, OC, IC, KH, KW));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      convDesc, 0, 0, 1, 1, DH, DW,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inDesc, filterDesc, convDesc, outDesc, 1, &returned, &perf));
+  if (returned < 1) abort();
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inDesc, filterDesc, convDesc, outDesc, perf.algo,
+      &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &one, inDesc, dIn, filterDesc, dFilter, convDesc, perf.algo,
+      workspace, workspaceBytes, &zero, outDesc, dOut));
+  sync_stream_if_outside_pipeline();
+  if (workspace) DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(inDesc);
+  cudnnDestroyTensorDescriptor(outDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+}
+
+void polygeist_cublas_gemmex_i8_i32(
+    int32_t M, int32_t N, int32_t K, const int8_t *A, const int8_t *B,
+    int32_t *C) {
+  polygeist_cublas_init();
+  size_t aBytes = (size_t)M * K * sizeof(int8_t);
+  size_t bBytes = (size_t)K * N * sizeof(int8_t);
+  size_t cBytes = (size_t)M * N * sizeof(int32_t);
+  int8_t *dA = (int8_t *)register_host_safe((void *)A, aBytes);
+  int8_t *dB = (int8_t *)register_host_safe((void *)B, bBytes);
+  int32_t *dC = (int32_t *)register_host_safe(C, cBytes);
+  int32_t alpha = 1, beta = 0;
+  CUBLAS_CHECK(cublasGemmEx(
+      g_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha,
+      dB, CUDA_R_8I, N, dA, CUDA_R_8I, K, &beta,
+      dC, CUDA_R_32I, N, CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT));
+  sync_stream_if_outside_pipeline();
+}
+
+void polygeist_cublas_snrm2_f32(
+    int32_t N, const float *input, float *output) {
+  polygeist_cublas_init();
+  size_t bytes = (size_t)N * sizeof(float);
+  float *deviceInput = (float *)register_host_safe((void *)input, bytes);
+  CUBLAS_CHECK(cublasSnrm2(g_handle, N, deviceInput, 1, output));
+  sync_stream_if_outside_pipeline();
+}
+
+void polygeist_cublas_joint_maxabs_product_f32(
+    int32_t N, const float *a, const float *b, float *output) {
+  polygeist_cublas_init();
+  size_t bytes = (size_t)N * sizeof(float);
+  float *deviceA = (float *)register_host_safe((void *)a, bytes);
+  float *deviceB = (float *)register_host_safe((void *)b, bytes);
+  int ia = 0, ib = 0;
+  CUBLAS_CHECK(cublasIsamax(g_handle, N, deviceA, 1, &ia));
+  CUBLAS_CHECK(cublasIsamax(g_handle, N, deviceB, 1, &ib));
+  sync_stream_if_outside_pipeline();
+  output[0] = (ia > 0 ? fabsf(a[ia - 1]) : 0.0f) *
+              (ib > 0 ? fabsf(b[ib - 1]) : 0.0f);
+}
+
+void polygeist_cudnn_feature_mask_scale_f32(
+    int32_t N, int32_t C, int32_t H, int32_t W, float scale,
+    const float *input, const float *mask, float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  size_t inputBytes = (size_t)N * C * H * W * sizeof(float);
+  size_t maskBytes = (size_t)N * C * sizeof(float);
+  float *deviceInput = (float *)register_host_safe((void *)input, inputBytes);
+  float *deviceMask = (float *)register_host_safe((void *)mask, maskBytes);
+  float *deviceOutput = (float *)register_host_safe(output, inputBytes);
+  cudnnTensorDescriptor_t inputDesc, maskDesc, outputDesc;
+  cudnnOpTensorDescriptor_t multiplyDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&maskDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&multiplyDesc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      inputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      maskDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, 1, 1));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      multiplyDesc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT,
+      CUDNN_PROPAGATE_NAN));
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnOpTensor(
+      g_cudnn, multiplyDesc, &scale, inputDesc, deviceInput,
+      &one, maskDesc, deviceMask, &zero, outputDesc, deviceOutput));
+  sync_stream_if_outside_pipeline();
+  cudnnDestroyOpTensorDescriptor(multiplyDesc);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(maskDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+}
+
+void polygeist_cudnn_conv_transpose2d_f32(
+    int32_t B, int32_t IC, int32_t OC, int32_t H, int32_t W,
+    int32_t KH, int32_t KW, const float *input, const float *filter,
+    float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  int32_t OH = H + KH - 1, OW = W + KW - 1;
+  size_t inputBytes = (size_t)B * IC * H * W * sizeof(float);
+  size_t filterBytes = (size_t)IC * OC * KH * KW * sizeof(float);
+  size_t outputBytes = (size_t)B * OC * OH * OW * sizeof(float);
+  float *deviceInput = (float *)register_host_safe((void *)input, inputBytes);
+  float *deviceFilter = (float *)register_host_safe((void *)filter, filterBytes);
+  float *deviceOutput = (float *)register_host_safe(output, outputBytes);
+  cudnnTensorDescriptor_t inputDesc, outputDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      inputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, IC, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, OC, OH, OW));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, IC, OC, KH, KW));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      convDesc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  cudnnConvolutionBwdDataAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(
+      g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, 1, &returned,
+      &perf));
+  if (returned < 1) abort();
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(
+      g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, perf.algo,
+      &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionBackwardData(
+      g_cudnn, &one, filterDesc, deviceFilter, inputDesc, deviceInput,
+      convDesc, perf.algo, workspace, workspaceBytes, &zero,
+      outputDesc, deviceOutput));
+  sync_stream_if_outside_pipeline();
+  if (workspace) DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+}
+
+void polygeist_cudnn_conv_transpose3d_f32(
+    int32_t IC, int32_t OC, int32_t D, int32_t H, int32_t W,
+    int32_t KD, int32_t KH, int32_t KW, const float *input,
+    const float *filter, float *output) {
+  polygeist_cublas_init(); ensure_cudnn();
+  double hs=timing_enabled()?wall_time_ms():0.0;
+  int32_t OD=D+KD-1,OH=H+KH-1,OW=W+KW-1;
+  size_t inputBytes=(size_t)IC*D*H*W*sizeof(float);
+  size_t filterBytes=(size_t)IC*OC*KD*KH*KW*sizeof(float);
+  size_t outputBytes=(size_t)OC*OD*OH*OW*sizeof(float);
+  float *dInput=(float*)register_host_safe((void*)input,inputBytes);
+  float *dFilter=(float*)register_host_safe((void*)filter,filterBytes);
+  float *dOutput=(float*)register_host_safe(output,outputBytes);
+  cudnnTensorDescriptor_t dyDesc,dxDesc;cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dyDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&dxDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  int dyDims[5]={1,IC,D,H,W},dyStrides[5]={IC*D*H*W,D*H*W,H*W,W,1};
+  int dxDims[5]={1,OC,OD,OH,OW},dxStrides[5]={OC*OD*OH*OW,OD*OH*OW,OH*OW,OW,1};
+  int filterDims[5]={IC,OC,KD,KH,KW};int pad[3]={0,0,0},stride[3]={1,1,1},dilation[3]={1,1,1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,5,dyDims,dyStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDesc,CUDNN_DATA_FLOAT,5,dxDims,dxStrides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  cudnnConvolutionBwdDataAlgoPerf_t perf;int returned=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,1,&returned,&perf));
+  if(returned<1)abort();size_t workspaceBytes=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,perf.algo,&workspaceBytes));
+  void *workspace=NULL;if(workspaceBytes)DEVICE_MALLOC(&workspace,workspaceBytes);
+  float one=1.0f,zero=0.0f;timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionBackwardData(g_cudnn,&one,filterDesc,dFilter,dyDesc,dInput,convDesc,perf.algo,workspace,workspaceBytes,&zero,dxDesc,dOutput));
+  timing_gpu_end("cudnnConvolutionTranspose3D_f32",OC*OD,OH*OW,IC*KD*KH*KW,hs);
+  sync_stream_if_outside_pipeline();if(workspace)DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(dyDesc);cudnnDestroyTensorDescriptor(dxDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);cudnnDestroyConvolutionDescriptor(convDesc);
+  unregister_host_safe((void*)input);unregister_host_safe((void*)filter);unregister_host_safe(output);
+}
+
+void polygeist_cudnn_conv_backward_filter3d_f32(
+    int32_t IC,int32_t OC,int32_t ID,int32_t IH,int32_t IW,
+    int32_t OD,int32_t OH,int32_t OW,int32_t KD,int32_t KH,int32_t KW,
+    const float *input,const float *grad_output,float *grad_filter) {
+  polygeist_cublas_init();ensure_cudnn();double hs=timing_enabled()?wall_time_ms():0.0;
+  size_t inputBytes=(size_t)IC*ID*IH*IW*sizeof(float);
+  size_t gradBytes=(size_t)OC*OD*OH*OW*sizeof(float);
+  size_t filterBytes=(size_t)OC*IC*KD*KH*KW*sizeof(float);
+  float *dInput=(float*)register_host_safe((void*)input,inputBytes);
+  float *dGrad=(float*)register_host_safe((void*)grad_output,gradBytes);
+  float *dFilter=(float*)register_host_safe(grad_filter,filterBytes);
+  cudnnTensorDescriptor_t xDesc,dyDesc;cudnnFilterDescriptor_t dwDesc;cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&xDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&dyDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&dwDesc));CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  int xDims[5]={1,IC,ID,IH,IW},xStrides[5]={IC*ID*IH*IW,ID*IH*IW,IH*IW,IW,1};
+  int dyDims[5]={1,OC,OD,OH,OW},dyStrides[5]={OC*OD*OH*OW,OD*OH*OW,OH*OW,OW,1};
+  int filterDims[5]={OC,IC,KD,KH,KW};int pad[3]={0,0,0},stride[3]={1,1,1},dilation[3]={1,1,1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(xDesc,CUDNN_DATA_FLOAT,5,xDims,xStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,5,dyDims,dyStrides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(dwDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  cudnnConvolutionBwdFilterAlgoPerf_t perf;int returned=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardFilterAlgorithm_v7(g_cudnn,xDesc,dyDesc,convDesc,dwDesc,1,&returned,&perf));
+  if(returned<1)abort();size_t workspaceBytes=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardFilterWorkspaceSize(g_cudnn,xDesc,dyDesc,convDesc,dwDesc,perf.algo,&workspaceBytes));
+  void *workspace=NULL;if(workspaceBytes)DEVICE_MALLOC(&workspace,workspaceBytes);
+  float one=1.0f,zero=0.0f;timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionBackwardFilter(g_cudnn,&one,xDesc,dInput,dyDesc,dGrad,convDesc,perf.algo,workspace,workspaceBytes,&zero,dwDesc,dFilter));
+  timing_gpu_end("cudnnConvolutionBackwardFilter3D_f32",OC*IC,KD*KH*KW,OD*OH*OW,hs);
+  sync_stream_if_outside_pipeline();if(workspace)DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(xDesc);cudnnDestroyTensorDescriptor(dyDesc);
+  cudnnDestroyFilterDescriptor(dwDesc);cudnnDestroyConvolutionDescriptor(convDesc);
+  unregister_host_safe((void*)input);unregister_host_safe((void*)grad_output);unregister_host_safe(grad_filter);
+}
+
+void polygeist_cudnn_depthwise_conv2d_f32(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t KH, int32_t KW,
+    const float *input, const float *filter, const float *bias, float *output) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  size_t tensorBytes = (size_t)B * C * H * W * sizeof(float);
+  float *deviceInput = (float *)register_host_safe((void *)input, tensorBytes);
+  float *deviceFilter = (float *)register_host_safe(
+      (void *)filter, (size_t)C * KH * KW * sizeof(float));
+  float *deviceBias = (float *)register_host_safe(
+      (void *)bias, (size_t)C * sizeof(float));
+  float *deviceOutput = (float *)register_host_safe(output, tensorBytes);
+  cudnnTensorDescriptor_t inputDesc, outputDesc, biasDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&biasDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      inputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, C, H, W));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      biasDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, C, 1, 1));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, C, 1, KH, KW));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      convDesc, KH / 2, KW / 2, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionGroupCount(convDesc, C));
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
+      &perf));
+  if (returned < 1) abort();
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, perf.algo,
+      &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &one, inputDesc, deviceInput, filterDesc, deviceFilter,
+      convDesc, perf.algo, workspace, workspaceBytes, &zero,
+      outputDesc, deviceOutput));
+  CUDNN_CHECK(cudnnAddTensor(
+      g_cudnn, &one, biasDesc, deviceBias, &one, outputDesc, deviceOutput));
+  sync_stream_if_outside_pipeline();
+  if (workspace) DEVICE_FREE(workspace);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyTensorDescriptor(biasDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+}
+
+void polygeist_cutensor_kronecker_product2d_f32(
+    int32_t A, int32_t B, int32_t C, int32_t D,
+    const float *x, const float *y, float *output) {
+#if POLYGEIST_HAS_CUTENSOR
+  polygeist_cublas_init();
+  float *deviceX = (float *)register_host_safe(
+      (void *)x, (size_t)A * B * sizeof(float));
+  float *deviceY = (float *)register_host_safe(
+      (void *)y, (size_t)C * D * sizeof(float));
+  float *deviceOutput = (float *)register_host_safe(
+      output, (size_t)A * B * C * D * sizeof(float));
+  cutensorHandle_t handle = NULL;
+  cutensorTensorDescriptor_t xDesc = NULL, yDesc = NULL, outputDesc = NULL;
+  cutensorOperationDescriptor_t operation = NULL;
+  cutensorPlanPreference_t preference = NULL;
+  cutensorPlan_t plan = NULL;
+  int64_t xExtents[2] = {A, B}, xStrides[2] = {B, 1};
+  int64_t yExtents[2] = {C, D}, yStrides[2] = {D, 1};
+  int64_t outExtents[4] = {A, C, B, D};
+  int64_t outStrides[4] = {(int64_t)C * B * D, (int64_t)B * D, D, 1};
+  int32_t xModes[2] = {'a', 'b'}, yModes[2] = {'c', 'd'};
+  int32_t outModes[4] = {'a', 'c', 'b', 'd'};
+  CUTENSOR_CHECK(cutensorCreate(&handle));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &xDesc, 2, xExtents, xStrides, CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &yDesc, 2, yExtents, yStrides, CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &outputDesc, 4, outExtents, outStrides, CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreateElementwiseTrinary(
+      handle, &operation, xDesc, xModes, CUTENSOR_OP_IDENTITY,
+      yDesc, yModes, CUTENSOR_OP_IDENTITY,
+      outputDesc, outModes, CUTENSOR_OP_IDENTITY,
+      outputDesc, outModes, CUTENSOR_OP_MUL, CUTENSOR_OP_ADD,
+      CUTENSOR_COMPUTE_DESC_32F));
+  CUTENSOR_CHECK(cutensorCreatePlanPreference(
+      handle, &preference, CUTENSOR_ALGO_DEFAULT, CUTENSOR_JIT_MODE_NONE));
+  CUTENSOR_CHECK(cutensorCreatePlan(
+      handle, &plan, operation, preference, 0));
+  float one = 1.0f, zero = 0.0f;
+  CUTENSOR_CHECK(cutensorElementwiseTrinaryExecute(
+      handle, plan, &one, deviceX, &one, deviceY, &zero, deviceOutput,
+      deviceOutput, g_stream));
+  sync_stream_if_outside_pipeline();
+  CUTENSOR_CHECK(cutensorDestroyPlan(plan));
+  CUTENSOR_CHECK(cutensorDestroyPlanPreference(preference));
+  CUTENSOR_CHECK(cutensorDestroyOperationDescriptor(operation));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(xDesc));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(yDesc));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(outputDesc));
+  CUTENSOR_CHECK(cutensorDestroy(handle));
+#else
+  (void)A; (void)B; (void)C; (void)D; (void)x; (void)y; (void)output;
+  fprintf(stderr, "Kronecker product requires cuTENSOR\n");
+  abort();
+#endif
+}
+
+void polygeist_cudnn_binary_cross_entropy_mean_f32(
+    int32_t N, const float *input, const float *target, float *output) {
+  if (N <= 0) return;
+  float *loss = (float *)malloc((size_t)N * sizeof(float));
+  if (!loss) abort();
+  const int64_t words[12] = {
+      144409857393426432LL, 217298682071220480LL,
+      148073430138159104LL, 1518276024394912000LL,
+      34800896LL, 0, 0, 0, 0, 0, 0, 0};
+  // Bytecode computes -(t*log(x) + (1-t)*log(1-x)) / N.
+  polygeist_cudnn_pointwise_graph_f32(
+      N, words[0], words[1], words[2], words[3], words[4], words[5],
+      words[6], words[7], words[8], words[9], words[10], words[11], 9,
+      1.0f, 1.0f / (float)N, 0, 0, 0, 0, 0, 0,
+      1, 1, 1, 1, 1, input, target, input, input, loss);
+  output[0] = 0.0f;
+  polygeist_cudnn_reduce_f32(0, N, loss, output);
+  free(loss);
+}
+
+void polygeist_cudnn_conv_tbc_f32(
+    int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+    const float *input, const float *filter, float *output) {
+  if (T < K || B <= 0 || I <= 0 || O <= 0 || K <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  int32_t TO = T - K + 1;
+  float *deviceInput = (float *)register_host_safe(
+      (void *)input, (size_t)T * B * I * sizeof(float));
+  float *deviceFilter = (float *)register_host_safe(
+      (void *)filter, (size_t)K * I * O * sizeof(float));
+  float *deviceOutput = (float *)register_host_safe(
+      output, (size_t)TO * B * O * sizeof(float));
+  float *packedFilter = NULL;
+  DEVICE_MALLOC((void **)&packedFilter, (size_t)O * I * K * sizeof(float));
+
+  cudnnTensorDescriptor_t inputDesc, outputDesc, filterSourceDesc,
+      filterPackedDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&filterSourceDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&filterPackedDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+
+  int inputDims[4] = {B, I, 1, T};
+  int inputStrides[4] = {I, 1, T * B * I, B * I};
+  int outputDims[4] = {B, O, 1, TO};
+  int outputStrides[4] = {O, 1, TO * B * O, B * O};
+  int filterDims[4] = {O, I, 1, K};
+  int filterSourceStrides[4] = {1, O, K * I * O, I * O};
+  int filterPackedStrides[4] = {I * K, K, K, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      inputDesc, CUDNN_DATA_FLOAT, 4, inputDims, inputStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      outputDesc, CUDNN_DATA_FLOAT, 4, outputDims, outputStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      filterSourceDesc, CUDNN_DATA_FLOAT, 4, filterDims,
+      filterSourceStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      filterPackedDesc, CUDNN_DATA_FLOAT, 4, filterDims,
+      filterPackedStrides));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, O, I, 1, K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      convDesc, 0, 0, 1, 1, 1, 1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnTransformTensor(
+      g_cudnn, &one, filterSourceDesc, deviceFilter,
+      &zero, filterPackedDesc, packedFilter));
+
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
+      &perf));
+  if (returned < 1) abort();
+  size_t workspaceBytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, perf.algo,
+      &workspaceBytes));
+  void *workspace = NULL;
+  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &one, inputDesc, deviceInput, filterDesc, packedFilter,
+      convDesc, perf.algo, workspace, workspaceBytes, &zero,
+      outputDesc, deviceOutput));
+  sync_stream_if_outside_pipeline();
+  if (workspace) DEVICE_FREE(workspace);
+  DEVICE_FREE(packedFilter);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyTensorDescriptor(filterSourceDesc);
+  cudnnDestroyTensorDescriptor(filterPackedDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+}
+
+void polygeist_cudnn_conv_tbc_backward_f32(
+    int32_t T,int32_t B,int32_t I,int32_t O,int32_t K,
+    const float *grad,const float *filter,float *output) {
+  if(T<=0||B<=0||I<=0||O<=0||K<=0)return;
+  polygeist_cublas_init();ensure_cudnn();int32_t TO=T+K-1;
+  double hs=timing_enabled()?wall_time_ms():0.0;
+  float *dGrad=(float*)register_host_safe((void*)grad,(size_t)T*B*O*sizeof(float));
+  float *dFilter=(float*)register_host_safe((void*)filter,(size_t)K*I*O*sizeof(float));
+  float *dOutput=(float*)register_host_safe(output,(size_t)TO*B*I*sizeof(float));
+  float *packedFilter=NULL,*packedGrad=NULL,*packedOutput=NULL;
+  DEVICE_MALLOC((void**)&packedFilter,(size_t)O*I*K*sizeof(float));
+  DEVICE_MALLOC((void**)&packedGrad,(size_t)B*O*T*sizeof(float));
+  DEVICE_MALLOC((void**)&packedOutput,(size_t)B*I*TO*sizeof(float));
+  cudnnTensorDescriptor_t dySourceDesc,dyDesc,dxDesc,dxDestDesc,
+      filterSourceDesc,filterPackedDesc;
+  cudnnFilterDescriptor_t filterDesc;cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dySourceDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dyDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&dxDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dxDestDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&filterSourceDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&filterPackedDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  int dyDims[4]={B,O,1,T},dySourceStrides[4]={O,1,T*B*O,B*O};
+  int dyStrides[4]={O*T,T,T,1};
+  int dxDims[4]={B,I,1,TO},dxStrides[4]={I*TO,TO,TO,1};
+  int dxDestStrides[4]={I,1,TO*B*I,B*I};
+  int filterDims[4]={O,I,1,K};
+  int sourceStrides[4]={1,O,K*I*O,I*O},packedStrides[4]={I*K,K,K,1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dySourceDesc,CUDNN_DATA_FLOAT,4,dyDims,dySourceStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,4,dyDims,dyStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDesc,CUDNN_DATA_FLOAT,4,dxDims,dxStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDestDesc,CUDNN_DATA_FLOAT,4,dxDims,dxDestStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(filterSourceDesc,CUDNN_DATA_FLOAT,4,filterDims,sourceStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(filterPackedDesc,CUDNN_DATA_FLOAT,4,filterDims,packedStrides));
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,O,I,1,K));
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(convDesc,0,0,1,1,1,1,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  float one=1.0f,zero=0.0f;
+  CUDNN_CHECK(cudnnTransformTensor(g_cudnn,&one,filterSourceDesc,dFilter,&zero,filterPackedDesc,packedFilter));
+  CUDNN_CHECK(cudnnTransformTensor(g_cudnn,&one,dySourceDesc,dGrad,&zero,dyDesc,packedGrad));
+  cudnnConvolutionBwdDataAlgoPerf_t perf;int returned=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,1,&returned,&perf));
+  if(returned<1)abort();size_t workspaceBytes=0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,perf.algo,&workspaceBytes));
+  void *workspace=NULL;if(workspaceBytes)DEVICE_MALLOC(&workspace,workspaceBytes);
+  timing_gpu_begin();CUDNN_CHECK(cudnnConvolutionBackwardData(g_cudnn,&one,filterDesc,packedFilter,dyDesc,packedGrad,
+      convDesc,perf.algo,workspace,workspaceBytes,&zero,dxDesc,packedOutput));
+  CUDNN_CHECK(cudnnTransformTensor(g_cudnn,&one,dxDesc,packedOutput,&zero,dxDestDesc,dOutput));
+  timing_gpu_end("cudnnConvolutionTBCBackward_f32",TO*B,I,O*K,hs);
+  sync_stream_if_outside_pipeline();if(workspace)DEVICE_FREE(workspace);
+  DEVICE_FREE(packedOutput);DEVICE_FREE(packedGrad);DEVICE_FREE(packedFilter);
+  cudnnDestroyTensorDescriptor(dySourceDesc);cudnnDestroyTensorDescriptor(dyDesc);
+  cudnnDestroyTensorDescriptor(dxDesc);cudnnDestroyTensorDescriptor(dxDestDesc);
+  cudnnDestroyTensorDescriptor(filterSourceDesc);cudnnDestroyTensorDescriptor(filterPackedDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);cudnnDestroyConvolutionDescriptor(convDesc);
+  unregister_host_safe((void*)grad);unregister_host_safe((void*)filter);unregister_host_safe(output);
+}
+
+void polygeist_cudnn_transform_bias_rescale_qkv_f32(
+    int32_t B, int32_t S, int32_t H, int32_t D, float scale,
+    const float *qkv, const float *bias, float *q, float *k, float *v) {
+  if (B <= 0 || S <= 0 || H <= 0 || D <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  size_t sliceElements = (size_t)B * S * H * D;
+  float *deviceQKV = (float *)register_host_safe(
+      (void *)qkv, 3 * sliceElements * sizeof(float));
+  float *deviceBias = (float *)register_host_safe(
+      (void *)bias, (size_t)3 * H * D * sizeof(float));
+  float *deviceOutputs[3] = {
+      (float *)register_host_safe(q, sliceElements * sizeof(float)),
+      (float *)register_host_safe(k, sliceElements * sizeof(float)),
+      (float *)register_host_safe(v, sliceElements * sizeof(float))};
+  cudnnTensorDescriptor_t inputDesc, biasDesc, outputDesc;
+  cudnnOpTensorDescriptor_t addDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&biasDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&addDesc));
+  int dims[4] = {B, H, S, D};
+  int inputStrides[4] = {S * 3 * H * D, D, 3 * H * D, 1};
+  int biasDims[4] = {1, H, 1, D};
+  int biasStrides[4] = {H * D, D, D, 1};
+  int outputStrides[4] = {H * S * D, S * D, D, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      inputDesc, CUDNN_DATA_FLOAT, 4, dims, inputStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      biasDesc, CUDNN_DATA_FLOAT, 4, biasDims, biasStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      outputDesc, CUDNN_DATA_FLOAT, 4, dims, outputStrides));
+  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
+      addDesc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT,
+      CUDNN_PROPAGATE_NAN));
+  float one = 1.0f, zero = 0.0f;
+  for (int part = 0; part < 3; ++part) {
+    float alpha = part == 0 ? scale : 1.0f;
+    CUDNN_CHECK(cudnnOpTensor(
+        g_cudnn, addDesc, &alpha, inputDesc,
+        deviceQKV + (size_t)part * H * D,
+        &alpha, biasDesc, deviceBias + (size_t)part * H * D,
+        &zero, outputDesc, deviceOutputs[part]));
+  }
+  sync_stream_if_outside_pipeline();
+  cudnnDestroyOpTensorDescriptor(addDesc);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(biasDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+}
+
+void polygeist_cudnn_addr_elementwise_f32(
+    int32_t N, float beta, float alpha, const float *self,
+    const float *x, const float *y, float *output) {
+  int64_t words[12] = {0};
+  int32_t nodes;
+  if (beta == 0.0f) {
+    words[0] = 147495086853456128LL;
+    nodes = 2;
+  } else {
+    words[0] = 145242187528208384LL;
+    words[1] = 75450686955651584LL;
+    nodes = 4;
+  }
+  polygeist_cudnn_pointwise_graph_f32(
+      N, words[0], words[1], words[2], words[3], words[4], words[5],
+      words[6], words[7], words[8], words[9], words[10], words[11], nodes,
+      alpha, beta, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+      self, x, y, self, output);
+}
+
+void polygeist_cudnn_log_sigmoid_f32(
+    int32_t N, const float *x, float *output, float *buffer) {
+  uint64_t bufferWords[12] = {0};
+  uint64_t outputWords[12] = {0};
+  bufferWords[0] = UINT64_C(0x150c000009000000);
+  bufferWords[1] = UINT64_C(0x00000000070d0000);
+  outputWords[0] = UINT64_C(0x010105000b000400);
+  outputWords[1] = UINT64_C(0x030c0e000c0d0000);
+  polygeist_cudnn_pointwise_graph_f32(
+      N, bufferWords[0], bufferWords[1], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
+      0.0f, 1.0f, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+      x, x, x, x, buffer);
+  polygeist_cudnn_pointwise_graph_f32(
+      N, outputWords[0], outputWords[1], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,
+      0.0f, 1.0f, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+      x, buffer, x, x, output);
+}
+
 void polygeist_cudnn_conv3d_channels_f32(
     int32_t IC, int32_t inD, int32_t inH, int32_t inW,
     int32_t OC, int32_t kD, int32_t kH, int32_t kW,
@@ -3350,6 +4805,65 @@ void polygeist_cudnn_batchnorm_inference(
   cudnnDestroyTensorDescriptor(x_desc);
   cudnnDestroyTensorDescriptor(y_desc);
   cudnnDestroyTensorDescriptor(bn_desc);
+}
+
+void polygeist_cudnn_batchnorm_backward_f32(
+    int32_t N, int32_t C, int32_t spatial, int32_t full_outputs,
+    const float *grad, const float *x, const float *mean,
+    const float *invstd, const float *weight, float *dx,
+    float *dweight, float *dbias) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+  size_t data_bytes = (size_t)N * C * spatial * sizeof(float);
+  size_t channel_bytes = (size_t)C * sizeof(float);
+
+  float *unit_weight = NULL, *dummy_dweight = NULL, *dummy_dbias = NULL;
+  if (!full_outputs) {
+    unit_weight = (float *)malloc(channel_bytes);
+    dummy_dweight = (float *)malloc(channel_bytes);
+    dummy_dbias = (float *)malloc(channel_bytes);
+    if (!unit_weight || !dummy_dweight || !dummy_dbias) {
+      fprintf(stderr, "cuDNN batchnorm backward: malloc failed\n");
+      abort();
+    }
+    for (int32_t c = 0; c < C; ++c) unit_weight[c] = 1.0f;
+    weight = unit_weight;
+    dweight = dummy_dweight;
+    dbias = dummy_dbias;
+  }
+
+  float *d_grad = (float *)register_host_safe((void *)grad, data_bytes);
+  float *d_x = (float *)register_host_safe((void *)x, data_bytes);
+  float *d_mean = (float *)register_host_safe((void *)mean, channel_bytes);
+  float *d_invstd = (float *)register_host_safe((void *)invstd, channel_bytes);
+  float *d_weight = (float *)register_host_safe((void *)weight, channel_bytes);
+  float *d_dx = (float *)register_host_safe(dx, data_bytes);
+  float *d_dweight = (float *)register_host_safe(dweight, channel_bytes);
+  float *d_dbias = (float *)register_host_safe(dbias, channel_bytes);
+
+  cudnnTensorDescriptor_t data_desc = NULL, bn_desc = NULL;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&data_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&bn_desc));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      data_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, spatial, 1));
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+      bn_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, C, 1, 1));
+
+  float alpha_data = 1.0f, beta_data = 0.0f;
+  float alpha_param = 1.0f, beta_param = 0.0f;
+  CUDNN_CHECK(cudnnBatchNormalizationBackward(
+      g_cudnn, CUDNN_BATCHNORM_SPATIAL,
+      &alpha_data, &beta_data, &alpha_param, &beta_param,
+      data_desc, d_x, data_desc, d_grad, data_desc, d_dx,
+      bn_desc, d_weight, d_dweight, d_dbias, 1.0e-5,
+      d_mean, d_invstd));
+  sync_stream_if_outside_pipeline();
+
+  cudnnDestroyTensorDescriptor(data_desc);
+  cudnnDestroyTensorDescriptor(bn_desc);
+  pipeline_host_free(unit_weight);
+  pipeline_host_free(dummy_dweight);
+  pipeline_host_free(dummy_dbias);
 }
 
 void polygeist_cudnn_add_tensor_batched(
@@ -3806,72 +5320,80 @@ void polygeist_cudnn_conv_bn_relu_fused(
   cudnnDestroyActivationDescriptor(act_desc);
 }
 
-static void rmsnorm_host_f32(
-    int32_t N, const float *X, const float *Weight, float *Out) {
-  float ss = 0.0f;
-  for (int32_t i = 0; i < N; ++i)
-    ss += X[i] * X[i];
-  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
-  for (int32_t i = 0; i < N; ++i)
-    Out[i] = Weight[i] * (scale * X[i]);
+static void pointwise_affine_relu_host_f32(
+    int32_t N, float alpha, const float *X, const float *Bias, float *Out) {
+  for (int32_t i = 0; i < N; ++i) {
+    float value = alpha * X[i] + Bias[i];
+    Out[i] = value > 0.0f ? value : 0.0f;
+  }
 }
 
-#define RMSNORM_F32_CACHE_CAP 8
-struct rmsnorm_f32_plan {
+#define POINTWISE_AFFINE_RELU_CACHE_CAP 8
+struct pointwise_affine_relu_plan {
   int in_use;
   int unsupported;
   int32_t N;
+  float alpha;
+  float one;
   size_t bytes;
-  float epsilon;
-
   float *dX;
-  float *dWeight;
-  float *dOut;
   float *dBias;
+  float *dOut;
   void *workspace;
-
   cudnnBackendDescriptor_t x_desc;
-  cudnnBackendDescriptor_t scale_desc;
   cudnnBackendDescriptor_t bias_desc;
-  cudnnBackendDescriptor_t epsilon_desc;
-  cudnnBackendDescriptor_t y_desc;
-  cudnnBackendDescriptor_t norm_op;
+  cudnnBackendDescriptor_t alpha_desc;
+  cudnnBackendDescriptor_t tmp_desc;
+  cudnnBackendDescriptor_t affine_desc;
+  cudnnBackendDescriptor_t out_desc;
+  cudnnBackendDescriptor_t mul_pw;
+  cudnnBackendDescriptor_t add_pw;
+  cudnnBackendDescriptor_t relu_pw;
+  cudnnBackendDescriptor_t mul_op;
+  cudnnBackendDescriptor_t add_op;
+  cudnnBackendDescriptor_t relu_op;
   cudnnBackendDescriptor_t op_graph;
+  cudnnBackendDescriptor_t heur;
   cudnnBackendDescriptor_t engine;
   cudnnBackendDescriptor_t engine_cfg;
   cudnnBackendDescriptor_t plan;
   cudnnBackendDescriptor_t variant_pack;
 };
 
-static struct rmsnorm_f32_plan g_rmsnorm_f32_cache[RMSNORM_F32_CACHE_CAP];
+static struct pointwise_affine_relu_plan
+    g_pointwise_affine_relu_cache[POINTWISE_AFFINE_RELU_CACHE_CAP];
 
-static void release_rmsnorm_f32_plan_resources(struct rmsnorm_f32_plan *p) {
+static void release_pointwise_affine_relu_plan(
+    struct pointwise_affine_relu_plan *p) {
   destroy_backend_desc(&p->variant_pack);
   destroy_backend_desc(&p->plan);
   destroy_backend_desc(&p->engine_cfg);
   destroy_backend_desc(&p->engine);
+  destroy_backend_desc(&p->heur);
   destroy_backend_desc(&p->op_graph);
-  destroy_backend_desc(&p->norm_op);
-  destroy_backend_desc(&p->y_desc);
-  destroy_backend_desc(&p->epsilon_desc);
+  destroy_backend_desc(&p->relu_op);
+  destroy_backend_desc(&p->add_op);
+  destroy_backend_desc(&p->mul_op);
+  destroy_backend_desc(&p->relu_pw);
+  destroy_backend_desc(&p->add_pw);
+  destroy_backend_desc(&p->mul_pw);
+  destroy_backend_desc(&p->out_desc);
+  destroy_backend_desc(&p->affine_desc);
+  destroy_backend_desc(&p->tmp_desc);
+  destroy_backend_desc(&p->alpha_desc);
   destroy_backend_desc(&p->bias_desc);
-  destroy_backend_desc(&p->scale_desc);
   destroy_backend_desc(&p->x_desc);
   if (p->workspace) {
     DEVICE_FREE(p->workspace);
     p->workspace = NULL;
   }
-  if (p->dBias) {
-    DEVICE_FREE(p->dBias);
-    p->dBias = NULL;
-  }
   if (p->dOut) {
     DEVICE_FREE(p->dOut);
     p->dOut = NULL;
   }
-  if (p->dWeight) {
-    DEVICE_FREE(p->dWeight);
-    p->dWeight = NULL;
+  if (p->dBias) {
+    DEVICE_FREE(p->dBias);
+    p->dBias = NULL;
   }
   if (p->dX) {
     DEVICE_FREE(p->dX);
@@ -3879,195 +5401,280 @@ static void release_rmsnorm_f32_plan_resources(struct rmsnorm_f32_plan *p) {
   }
 }
 
-static struct rmsnorm_f32_plan *find_rmsnorm_f32_plan(int32_t N) {
-  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i)
-    if (g_rmsnorm_f32_cache[i].in_use && g_rmsnorm_f32_cache[i].N == N)
-      return &g_rmsnorm_f32_cache[i];
+static struct pointwise_affine_relu_plan *
+find_pointwise_affine_relu_plan(int32_t N) {
+  for (int i = 0; i < POINTWISE_AFFINE_RELU_CACHE_CAP; ++i) {
+    struct pointwise_affine_relu_plan *p =
+        &g_pointwise_affine_relu_cache[i];
+    if (p->in_use && p->N == N)
+      return p;
+  }
   return NULL;
 }
 
-static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t N) {
-  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i) {
-    if (!g_rmsnorm_f32_cache[i].in_use) {
-      memset(&g_rmsnorm_f32_cache[i], 0, sizeof(g_rmsnorm_f32_cache[i]));
-      g_rmsnorm_f32_cache[i].in_use = 1;
-      g_rmsnorm_f32_cache[i].N = N;
-      return &g_rmsnorm_f32_cache[i];
+static struct pointwise_affine_relu_plan *
+alloc_pointwise_affine_relu_plan(int32_t N, float alpha) {
+  for (int i = 0; i < POINTWISE_AFFINE_RELU_CACHE_CAP; ++i) {
+    struct pointwise_affine_relu_plan *p =
+        &g_pointwise_affine_relu_cache[i];
+    if (!p->in_use) {
+      memset(p, 0, sizeof(*p));
+      p->in_use = 1;
+      p->N = N;
+      p->alpha = alpha;
+      p->one = 1.0f;
+      return p;
     }
   }
-  fprintf(stderr, "polygeist runtime: RMSNorm f32 cache full (cap=%d)\n",
-          RMSNORM_F32_CACHE_CAP);
+  fprintf(stderr,
+          "polygeist runtime: cuDNN affine+ReLU cache full (cap=%d)\n",
+          POINTWISE_AFFINE_RELU_CACHE_CAP);
   abort();
 }
 
-static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
+static int build_pointwise_affine_relu_plan(
+    struct pointwise_affine_relu_plan *p) {
   cudnnStatus_t last_status = CUDNN_STATUS_SUCCESS;
-
   p->bytes = (size_t)p->N * sizeof(float);
-  p->epsilon = 1.0e-5f;
   DEVICE_MALLOC((void **)&p->dX, p->bytes);
-  DEVICE_MALLOC((void **)&p->dWeight, p->bytes);
-  DEVICE_MALLOC((void **)&p->dOut, p->bytes);
   DEVICE_MALLOC((void **)&p->dBias, p->bytes);
-  CUDA_CHECK(cudaMemsetAsync(p->dBias, 0, p->bytes, g_stream));
+  DEVICE_MALLOC((void **)&p->dOut, p->bytes);
 
-  int64_t tensor_dims[4] = {1, (int64_t)p->N, 1, 1};
-  int64_t tensor_strides[4] = {(int64_t)p->N, 1, 1, 1};
+  // Factor a flat vector across batch and channel dimensions.  The Jetson
+  // pointwise fusion engine supports its fast NC11 layout but rejects a
+  // several-million-wide C dimension.  This is still one exact contiguous
+  // tensor view: no pack, padding, or extra operation is introduced.
+  int64_t channels = p->N < 65536 ? p->N : 65536;
+  while (channels > 1 && p->N % channels != 0) --channels;
+  int64_t batches = p->N / channels;
+  int64_t dims[4] = {batches, channels, 1, 1};
+  int64_t strides[4] = {channels, 1, 1, 1};
   int64_t scalar_dims[4] = {1, 1, 1, 1};
   int64_t scalar_strides[4] = {1, 1, 1, 1};
   int64_t uid_x = 'x';
-  int64_t uid_scale = 's';
   int64_t uid_bias = 'b';
-  int64_t uid_epsilon = 'e';
-  int64_t uid_y = 'y';
+  int64_t uid_alpha = 'a';
+  int64_t uid_tmp = 't';
+  int64_t uid_affine = 'f';
+  int64_t uid_out = 'y';
+  if (!make_f32_backend_tensor_ex(&p->x_desc, uid_x, dims, strides, 4,
+                                  false, false, "pointwise.x", &last_status) ||
+      !make_f32_backend_tensor_ex(&p->bias_desc, uid_bias, dims, strides, 4,
+                                  false, false, "pointwise.bias",
+                                  &last_status) ||
+      !make_f32_backend_tensor_ex(&p->alpha_desc, uid_alpha, scalar_dims,
+                                  scalar_strides, 4, true, false,
+                                  "pointwise.alpha", &last_status) ||
+      !make_f32_backend_tensor_ex(&p->tmp_desc, uid_tmp, dims, strides, 4,
+                                  false, true, "pointwise.tmp", &last_status) ||
+      !make_f32_backend_tensor_ex(&p->affine_desc, uid_affine, dims, strides, 4,
+                                  false, true, "pointwise.affine",
+                                  &last_status) ||
+      !make_f32_backend_tensor_ex(&p->out_desc, uid_out, dims, strides, 4,
+                                  false, false, "pointwise.out", &last_status))
+    return 0;
 
-  if (!make_f32_backend_tensor(&p->x_desc, uid_x, tensor_dims, tensor_strides, 4,
-                               false, "rmsnorm.x", &last_status) ||
-      !make_f32_backend_tensor(&p->scale_desc, uid_scale, tensor_dims,
-                               tensor_strides, 4, false, "rmsnorm.scale",
-                               &last_status) ||
-      !make_f32_backend_tensor(&p->bias_desc, uid_bias, tensor_dims,
-                               tensor_strides, 4, false, "rmsnorm.bias",
-                               &last_status) ||
-      !make_f32_backend_tensor(&p->epsilon_desc, uid_epsilon, scalar_dims,
-                               scalar_strides, 4, true, "rmsnorm.epsilon",
-                               &last_status) ||
-      !make_f32_backend_tensor(&p->y_desc, uid_y, tensor_dims, tensor_strides, 4,
-                               false, "rmsnorm.y", &last_status))
+  cudnnDataType_t math_precision = CUDNN_DATA_FLOAT;
+  cudnnPointwiseMode_t mul_mode = CUDNN_POINTWISE_MUL;
+  last_status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR,
+                                              &p->mul_pw);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.mul.create",
+                            last_status);
+    return 0;
+  }
+  if (!set_backend_attr(p->mul_pw, CUDNN_ATTR_POINTWISE_MODE,
+                        CUDNN_TYPE_POINTWISE_MODE, 1, &mul_mode,
+                        "pointwise.mul.mode", &last_status) ||
+      !set_backend_attr(p->mul_pw, CUDNN_ATTR_POINTWISE_MATH_PREC,
+                        CUDNN_TYPE_DATA_TYPE, 1, &math_precision,
+                        "pointwise.mul.precision", &last_status) ||
+      !finalize_backend_desc(p->mul_pw, "pointwise.mul.finalize",
+                             &last_status))
+    return 0;
+
+  cudnnPointwiseMode_t add_mode = CUDNN_POINTWISE_ADD;
+  last_status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR,
+                                              &p->add_pw);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.add.create",
+                            last_status);
+    return 0;
+  }
+  if (!set_backend_attr(p->add_pw, CUDNN_ATTR_POINTWISE_MODE,
+                        CUDNN_TYPE_POINTWISE_MODE, 1, &add_mode,
+                        "pointwise.add.mode", &last_status) ||
+      !set_backend_attr(p->add_pw, CUDNN_ATTR_POINTWISE_MATH_PREC,
+                        CUDNN_TYPE_DATA_TYPE, 1, &math_precision,
+                        "pointwise.add.precision", &last_status) ||
+      !finalize_backend_desc(p->add_pw, "pointwise.add.finalize",
+                             &last_status))
+    return 0;
+
+  cudnnPointwiseMode_t relu_mode = CUDNN_POINTWISE_RELU_FWD;
+  last_status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR,
+                                              &p->relu_pw);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.relu.create",
+                            last_status);
+    return 0;
+  }
+  if (!set_backend_attr(p->relu_pw, CUDNN_ATTR_POINTWISE_MODE,
+                        CUDNN_TYPE_POINTWISE_MODE, 1, &relu_mode,
+                        "pointwise.relu.mode", &last_status) ||
+      !set_backend_attr(p->relu_pw, CUDNN_ATTR_POINTWISE_MATH_PREC,
+                        CUDNN_TYPE_DATA_TYPE, 1, &math_precision,
+                        "pointwise.relu.precision", &last_status) ||
+      !finalize_backend_desc(p->relu_pw, "pointwise.relu.finalize",
+                             &last_status))
     return 0;
 
   last_status = cudnnBackendCreateDescriptor(
-      CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &p->norm_op);
+      CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR, &p->mul_op);
   if (last_status != CUDNN_STATUS_SUCCESS) {
-    report_rmsnorm_backend_fallback("rmsnorm.norm_op.create", last_status);
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.mul_op.create",
+                            last_status);
     return 0;
   }
-  cudnnBackendNormMode_t mode = CUDNN_RMS_NORM;
-  cudnnBackendNormFwdPhase_t phase = CUDNN_NORM_FWD_INFERENCE;
-  if (!set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
-                        CUDNN_TYPE_NORM_MODE, 1, &mode, "rmsnorm.mode",
-                        &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
-                        CUDNN_TYPE_NORM_FWD_PHASE, 1, &phase, "rmsnorm.phase",
-                        &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
+  if (!set_backend_attr(p->mul_op, CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->mul_pw,
+                        "pointwise.mul_op.pw", &last_status) ||
+      !set_backend_attr(p->mul_op, CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
                         CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->x_desc,
-                        "rmsnorm.xdesc", &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->scale_desc,
-                        "rmsnorm.scale_desc", &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
+                        "pointwise.mul_op.x", &last_status) ||
+      !set_backend_attr(p->mul_op, CUDNN_ATTR_OPERATION_POINTWISE_BDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->alpha_desc,
+                        "pointwise.mul_op.alpha", &last_status) ||
+      !set_backend_attr(p->mul_op, CUDNN_ATTR_OPERATION_POINTWISE_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->tmp_desc,
+                        "pointwise.mul_op.y", &last_status) ||
+      !finalize_backend_desc(p->mul_op, "pointwise.mul_op.finalize",
+                             &last_status))
+    return 0;
+
+  last_status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR, &p->add_op);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.add_op.create",
+                            last_status);
+    return 0;
+  }
+  if (!set_backend_attr(p->add_op, CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->add_pw,
+                        "pointwise.add_op.pw", &last_status) ||
+      !set_backend_attr(p->add_op, CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->tmp_desc,
+                        "pointwise.add_op.x", &last_status) ||
+      !set_backend_attr(p->add_op, CUDNN_ATTR_OPERATION_POINTWISE_BDESC,
                         CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->bias_desc,
-                        "rmsnorm.bias_desc", &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->epsilon_desc,
-                        "rmsnorm.epsilon_desc", &last_status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->y_desc,
-                        "rmsnorm.ydesc", &last_status) ||
-      !finalize_backend_desc(p->norm_op, "rmsnorm.norm_op.finalize",
+                        "pointwise.add_op.bias", &last_status) ||
+      !set_backend_attr(p->add_op, CUDNN_ATTR_OPERATION_POINTWISE_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->affine_desc,
+                        "pointwise.add_op.y", &last_status) ||
+      !finalize_backend_desc(p->add_op, "pointwise.add_op.finalize",
+                             &last_status))
+    return 0;
+
+  last_status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR, &p->relu_op);
+  if (last_status != CUDNN_STATUS_SUCCESS) {
+    report_backend_fallback("pointwise affine+ReLU",
+                            "pointwise.relu_op.create", last_status);
+    return 0;
+  }
+  if (!set_backend_attr(p->relu_op,
+                        CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->relu_pw,
+                        "pointwise.relu_op.pw", &last_status) ||
+      !set_backend_attr(p->relu_op, CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->affine_desc,
+                        "pointwise.relu_op.x", &last_status) ||
+      !set_backend_attr(p->relu_op, CUDNN_ATTR_OPERATION_POINTWISE_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->out_desc,
+                        "pointwise.relu_op.y", &last_status) ||
+      !finalize_backend_desc(p->relu_op, "pointwise.relu_op.finalize",
                              &last_status))
     return 0;
 
   last_status = cudnnBackendCreateDescriptor(
       CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR, &p->op_graph);
   if (last_status != CUDNN_STATUS_SUCCESS) {
-    report_rmsnorm_backend_fallback("rmsnorm.graph.create", last_status);
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.graph.create",
+                            last_status);
     return 0;
   }
+  cudnnBackendDescriptor_t ops[3] = {p->mul_op, p->add_op, p->relu_op};
   if (!set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
-                        CUDNN_TYPE_HANDLE, 1, &g_cudnn, "rmsnorm.graph.handle",
-                        &last_status) ||
+                        CUDNN_TYPE_HANDLE, 1, &g_cudnn,
+                        "pointwise.graph.handle", &last_status) ||
       !set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->norm_op,
-                        "rmsnorm.graph.ops", &last_status) ||
-      !finalize_backend_desc(p->op_graph, "rmsnorm.graph.finalize",
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 3, ops,
+                        "pointwise.graph.ops", &last_status) ||
+      !finalize_backend_desc(p->op_graph, "pointwise.graph.finalize",
                              &last_status))
     return 0;
 
-  int64_t engine_count = 0;
   int64_t elem_count = 0;
-  last_status = cudnnBackendGetAttribute(
-      p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT,
-      CUDNN_TYPE_INT64, 1, &elem_count, &engine_count);
-  if (last_status != CUDNN_STATUS_SUCCESS || engine_count <= 0) {
-    if (last_status == CUDNN_STATUS_SUCCESS)
-      last_status = CUDNN_STATUS_NOT_SUPPORTED;
-    report_rmsnorm_backend_fallback("rmsnorm.engine_count", last_status);
-    return 0;
-  }
-
+  const cudnnBackendHeurMode_t heur_modes[] = {
+      CUDNN_HEUR_MODE_INSTANT, CUDNN_HEUR_MODE_A,
+      CUDNN_HEUR_MODE_FALLBACK};
   cudnnStatus_t plan_status = CUDNN_STATUS_NOT_SUPPORTED;
-  for (int64_t gidx = 0; gidx < engine_count; ++gidx) {
-    cudnnBackendDescriptor_t engine_tmp = NULL;
-    cudnnBackendDescriptor_t cfg_tmp = NULL;
-    cudnnBackendDescriptor_t plan_tmp = NULL;
-
-    plan_status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINE_DESCRIPTOR,
-                                               &engine_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
+  for (size_t mode_i = 0;
+       mode_i < sizeof(heur_modes) / sizeof(heur_modes[0]); ++mode_i) {
+    cudnnBackendDescriptor_t heur = NULL;
+    cudnnBackendDescriptor_t config = NULL;
+    cudnnBackendDescriptor_t plan = NULL;
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR, &heur);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
     plan_status = cudnnBackendSetAttribute(
-        engine_tmp, CUDNN_ATTR_ENGINE_OPERATION_GRAPH,
+        heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH,
         CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->op_graph);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
     plan_status = cudnnBackendSetAttribute(
-        engine_tmp, CUDNN_ATTR_ENGINE_GLOBAL_INDEX, CUDNN_TYPE_INT64, 1,
-        &gidx);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-    plan_status = cudnnBackendFinalize(engine_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-
+        heur, CUDNN_ATTR_ENGINEHEUR_MODE, CUDNN_TYPE_HEUR_MODE, 1,
+        &heur_modes[mode_i]);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
+    plan_status = cudnnBackendFinalize(heur);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
     plan_status = cudnnBackendCreateDescriptor(
-        CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, &cfg_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-    plan_status = cudnnBackendSetAttribute(
-        cfg_tmp, CUDNN_ATTR_ENGINECFG_ENGINE, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
-        &engine_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-    plan_status = cudnnBackendFinalize(cfg_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-
+        CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
+    int64_t returned_configs = 0;
+    plan_status = cudnnBackendGetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_RESULTS, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+        &returned_configs, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS || returned_configs == 0) {
+      if (plan_status == CUDNN_STATUS_SUCCESS)
+        plan_status = CUDNN_STATUS_NOT_SUPPORTED;
+      goto heur_cleanup;
+    }
     plan_status = cudnnBackendCreateDescriptor(
-        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &plan_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
+        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &plan);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
     plan_status = cudnnBackendSetAttribute(
-        plan_tmp, CUDNN_ATTR_EXECUTION_PLAN_HANDLE, CUDNN_TYPE_HANDLE, 1,
+        plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE, CUDNN_TYPE_HANDLE, 1,
         &g_cudnn);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
     plan_status = cudnnBackendSetAttribute(
-        plan_tmp, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
-        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &cfg_tmp);
-    if (plan_status != CUDNN_STATUS_SUCCESS)
-      goto engine_cleanup;
-    plan_status = cudnnBackendFinalize(plan_tmp);
+        plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto heur_cleanup;
+    plan_status = cudnnBackendFinalize(plan);
     if (plan_status == CUDNN_STATUS_SUCCESS) {
-      p->engine = engine_tmp;
-      p->engine_cfg = cfg_tmp;
-      p->plan = plan_tmp;
+      p->heur = heur;
+      p->engine_cfg = config;
+      p->plan = plan;
       break;
     }
-
-engine_cleanup:
-    if (plan_status == CUDNN_STATUS_SUCCESS)
-      plan_status = CUDNN_STATUS_NOT_SUPPORTED;
-    if (plan_tmp != p->plan)
-      destroy_backend_desc(&plan_tmp);
-    if (cfg_tmp != p->engine_cfg)
-      destroy_backend_desc(&cfg_tmp);
-    if (engine_tmp != p->engine)
-      destroy_backend_desc(&engine_tmp);
+heur_cleanup:
+    if (plan != p->plan) destroy_backend_desc(&plan);
+    if (config != p->engine_cfg) destroy_backend_desc(&config);
+    if (heur != p->heur) destroy_backend_desc(&heur);
   }
   if (!p->plan) {
-    report_rmsnorm_backend_fallback("rmsnorm.plan", plan_status);
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.plan",
+                            plan_status);
     return 0;
   }
 
@@ -4076,7 +5683,8 @@ engine_cleanup:
       p->plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
       &elem_count, &workspace_size);
   if (last_status != CUDNN_STATUS_SUCCESS) {
-    report_rmsnorm_backend_fallback("rmsnorm.workspace_size", last_status);
+    report_backend_fallback("pointwise affine+ReLU",
+                            "pointwise.workspace_size", last_status);
     return 0;
   }
   if (workspace_size > 0)
@@ -4085,93 +5693,637 @@ engine_cleanup:
   last_status = cudnnBackendCreateDescriptor(
       CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
   if (last_status != CUDNN_STATUS_SUCCESS) {
-    report_rmsnorm_backend_fallback("rmsnorm.variant.create", last_status);
+    report_backend_fallback("pointwise affine+ReLU", "pointwise.variant.create",
+                            last_status);
     return 0;
   }
-  int64_t uids[5] = {uid_x, uid_scale, uid_bias, uid_epsilon, uid_y};
-  void *data_ptrs[5] = {p->dX, p->dWeight, p->dBias, &p->epsilon, p->dOut};
+  int64_t uids[4] = {uid_x, uid_bias, uid_alpha, uid_out};
+  void *data_ptrs[4] = {p->dX, p->dBias, &p->alpha, p->dOut};
   if (!set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
-                        CUDNN_TYPE_VOID_PTR, 5, data_ptrs,
-                        "rmsnorm.variant.ptrs", &last_status) ||
+                        CUDNN_TYPE_VOID_PTR, 4, data_ptrs,
+                        "pointwise.variant.ptrs", &last_status) ||
       !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
-                        CUDNN_TYPE_INT64, 5, uids, "rmsnorm.variant.uids",
-                        &last_status) ||
+                        CUDNN_TYPE_INT64, 4, uids,
+                        "pointwise.variant.uids", &last_status) ||
       !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
                         CUDNN_TYPE_VOID_PTR, 1, &p->workspace,
-                        "rmsnorm.variant.workspace", &last_status) ||
-      !finalize_backend_desc(p->variant_pack, "rmsnorm.variant.finalize",
+                        "pointwise.variant.workspace", &last_status) ||
+      !finalize_backend_desc(p->variant_pack, "pointwise.variant.finalize",
                              &last_status))
     return 0;
-
   return 1;
 }
 
-static struct rmsnorm_f32_plan *get_rmsnorm_f32_plan(int32_t N) {
-  struct rmsnorm_f32_plan *p = find_rmsnorm_f32_plan(N);
+static struct pointwise_affine_relu_plan *
+get_pointwise_affine_relu_plan(int32_t N, float alpha) {
+  struct pointwise_affine_relu_plan *p =
+      find_pointwise_affine_relu_plan(N);
   if (p) return p;
-
-  p = alloc_rmsnorm_f32_plan(N);
-  if (!build_rmsnorm_f32_plan(p)) {
-    release_rmsnorm_f32_plan_resources(p);
+  p = alloc_pointwise_affine_relu_plan(N, alpha);
+  if (!build_pointwise_affine_relu_plan(p)) {
+    release_pointwise_affine_relu_plan(p);
     p->unsupported = 1;
   }
   return p;
 }
 
-static int try_cudnn_rmsnorm_f32(
-    int32_t N, const float *X, const float *Weight, float *Out,
-    double host_start_ms) {
-  struct rmsnorm_f32_plan *p = get_rmsnorm_f32_plan(N);
-  if (!p || p->unsupported)
-    return 0;
-
-  CUDA_CHECK(cudaMemcpyAsync(p->dX, X, p->bytes, cudaMemcpyHostToDevice,
-                             g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(p->dWeight, Weight, p->bytes,
-                             cudaMemcpyHostToDevice, g_stream));
-
-  timing_gpu_begin();
-  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
-  CUDA_CHECK(cudaMemcpyAsync(Out, p->dOut, p->bytes, cudaMemcpyDeviceToHost,
-                             g_stream));
-  timing_gpu_end("cudnnRmsNormForward", 1, N, 0, host_start_ms);
-  return 1;
-}
-
-void polygeist_rmsnorm_f32(
-    int32_t N, const float *X, const float *Weight, float *Out) {
+void polygeist_cudnn_pointwise_affine_relu_f32(
+    int32_t N, float alpha, const float *X, const float *Bias, float *Out) {
   if (N <= 0) return;
   polygeist_cublas_init();
   ensure_cudnn();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  if (try_cudnn_rmsnorm_f32(N, X, Weight, Out, host_start_ms))
+  struct pointwise_affine_relu_plan *p =
+      get_pointwise_affine_relu_plan(N, alpha);
+  if (!p || p->unsupported) {
+    sync_stream_if_outside_pipeline();
+    pointwise_affine_relu_host_f32(N, alpha, X, Bias, Out);
+    timing_host_only("host_pointwise_affine_relu_f32", N, 1, 0,
+                     host_start_ms);
     return;
+  }
 
-  sync_stream_if_outside_pipeline();
-  rmsnorm_host_f32(N, X, Weight, Out);
-
-  timing_host_only("host_rmsnorm_f32", N, 1, 0, host_start_ms);
+  static int reported_active = 0;
+  const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
+  if (!reported_active && diagnostics && diagnostics[0] != '0') {
+    fprintf(stderr,
+            "polygeist runtime: cuDNN pointwise graph active "
+            "(affine+ReLU, N=%d, alpha=%g)\n",
+            N, (double)alpha);
+    reported_active = 1;
+  }
+  // alpha is a by-value tensor in the variant pack, so one finalized plan is
+  // reusable for every runtime scalar value at this shape.
+  p->alpha = alpha;
+  CUDA_CHECK(cudaMemcpyAsync(p->dX, X, p->bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(p->dBias, Bias, p->bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+  CUDA_CHECK(cudaMemcpyAsync(Out, p->dOut, p->bytes, cudaMemcpyDeviceToHost,
+                             g_stream));
+  timing_gpu_end("cudnnPointwiseAffineRelu_f32", 1, N, 0, host_start_ms);
 }
 
-void polygeist_rmsnorm_unweighted_f32(
-    int32_t N, const float *X, float *Out) {
-  if (N <= 0) return;
+#define POINTWISE_GRAPH_CACHE_CAP 8
+struct pointwise_graph_plan {
+  int in_use;
+  int unsupported;
+  int32_t N;
+  int32_t num_nodes;
+  uint64_t words[12];
+  size_t bytes;
+  bool used_inputs[4];
+  bool used_scalars[8];
+  float scalars[8];
+  float *d_inputs[4];
+  float *d_out;
+  void *workspace;
+  cudnnBackendDescriptor_t input_descs[4];
+  cudnnBackendDescriptor_t scalar_descs[8];
+  cudnnBackendDescriptor_t node_descs[24];
+  cudnnBackendDescriptor_t out_desc;
+  cudnnBackendDescriptor_t pw_descs[24];
+  cudnnBackendDescriptor_t ops[24];
+  cudnnBackendDescriptor_t op_graph;
+  cudnnBackendDescriptor_t heur;
+  cudnnBackendDescriptor_t engine_cfg;
+  cudnnBackendDescriptor_t plan;
+  cudnnBackendDescriptor_t variant_pack;
+};
+
+static struct pointwise_graph_plan
+    g_pointwise_graph_cache[POINTWISE_GRAPH_CACHE_CAP];
+
+static uint32_t pointwise_graph_inst(
+    const struct pointwise_graph_plan *p, int node) {
+  return (uint32_t)(p->words[node / 2] >> (32 * (node % 2)));
+}
+
+static bool pointwise_graph_binary_opcode(int opcode) {
+  return (opcode >= 1 && opcode <= 4) || opcode == 10 || opcode == 11 ||
+         opcode == 19 || opcode == 20 ||
+         (opcode >= 23 && opcode <= 28) || opcode == 30 || opcode == 31 ||
+         opcode == 34 || opcode == 35;
+}
+
+static bool pointwise_graph_backward_opcode(int opcode) {
+  return opcode == 35;
+}
+
+static bool pointwise_graph_ternary_opcode(int opcode) {
+  return opcode == 29;
+}
+
+static bool pointwise_graph_boolean_opcode(int opcode) {
+  return (opcode >= 23 && opcode <= 28) ||
+         opcode == 30 || opcode == 31 || opcode == 32;
+}
+
+static bool pointwise_graph_mode(int opcode, cudnnPointwiseMode_t *mode) {
+  switch (opcode) {
+  case 1: *mode = CUDNN_POINTWISE_ADD; return true;
+  case 2: *mode = CUDNN_POINTWISE_MUL; return true;
+  case 3: *mode = CUDNN_POINTWISE_SUB; return true;
+  case 4: *mode = CUDNN_POINTWISE_DIV; return true;
+  case 5: *mode = CUDNN_POINTWISE_RELU_FWD; return true;
+  case 6: *mode = CUDNN_POINTWISE_TANH_FWD; return true;
+  case 7: *mode = CUDNN_POINTWISE_EXP; return true;
+  case 8: *mode = CUDNN_POINTWISE_SQRT; return true;
+  case 9: *mode = CUDNN_POINTWISE_ABS; return true;
+  case 10: *mode = CUDNN_POINTWISE_MAX; return true;
+  case 11: *mode = CUDNN_POINTWISE_MIN; return true;
+  case 12: *mode = CUDNN_POINTWISE_LOG; return true;
+  case 13: *mode = CUDNN_POINTWISE_SIN; return true;
+  case 14: *mode = CUDNN_POINTWISE_COS; return true;
+  case 15: *mode = CUDNN_POINTWISE_RECIPROCAL; return true;
+  case 16: *mode = CUDNN_POINTWISE_FLOOR; return true;
+  case 17: *mode = CUDNN_POINTWISE_CEIL; return true;
+  case 18: *mode = CUDNN_POINTWISE_ERF; return true;
+  case 19: *mode = CUDNN_POINTWISE_POW; return true;
+  case 20: *mode = CUDNN_POINTWISE_MOD; return true;
+  case 21: *mode = CUDNN_POINTWISE_NEG; return true;
+  case 22: *mode = CUDNN_POINTWISE_TAN; return true;
+  case 23: *mode = CUDNN_POINTWISE_CMP_EQ; return true;
+  case 24: *mode = CUDNN_POINTWISE_CMP_NEQ; return true;
+  case 25: *mode = CUDNN_POINTWISE_CMP_GT; return true;
+  case 26: *mode = CUDNN_POINTWISE_CMP_GE; return true;
+  case 27: *mode = CUDNN_POINTWISE_CMP_LT; return true;
+  case 28: *mode = CUDNN_POINTWISE_CMP_LE; return true;
+  case 29: *mode = CUDNN_POINTWISE_BINARY_SELECT; return true;
+  case 30: *mode = CUDNN_POINTWISE_LOGICAL_AND; return true;
+  case 31: *mode = CUDNN_POINTWISE_LOGICAL_OR; return true;
+  case 32: *mode = CUDNN_POINTWISE_LOGICAL_NOT; return true;
+  case 33: *mode = CUDNN_POINTWISE_IDENTITY; return true;
+  case 34: *mode = CUDNN_POINTWISE_ATAN2; return true;
+  case 35: *mode = CUDNN_POINTWISE_RELU_BWD; return true;
+  default: return false;
+  }
+}
+
+static cudnnBackendDescriptor_t pointwise_graph_ref_desc(
+    struct pointwise_graph_plan *p, int ref) {
+  if (ref < 4) return p->input_descs[ref];
+  if (ref < 12) return p->scalar_descs[ref - 4];
+  if (ref < 12 + p->num_nodes) return p->node_descs[ref - 12];
+  return NULL;
+}
+
+static void release_pointwise_graph_plan(struct pointwise_graph_plan *p) {
+  destroy_backend_desc(&p->variant_pack);
+  destroy_backend_desc(&p->plan);
+  destroy_backend_desc(&p->engine_cfg);
+  destroy_backend_desc(&p->heur);
+  destroy_backend_desc(&p->op_graph);
+  for (int i = 0; i < 24; ++i) {
+    destroy_backend_desc(&p->ops[i]);
+    destroy_backend_desc(&p->pw_descs[i]);
+    // The last result aliases out_desc and must only be destroyed once.
+    if (i != p->num_nodes - 1)
+      destroy_backend_desc(&p->node_descs[i]);
+  }
+  destroy_backend_desc(&p->out_desc);
+  for (int i = 0; i < 8; ++i) {
+    destroy_backend_desc(&p->scalar_descs[i]);
+    if (i < 4) destroy_backend_desc(&p->input_descs[i]);
+    if (i < 4 && p->d_inputs[i]) {
+      DEVICE_FREE(p->d_inputs[i]);
+      p->d_inputs[i] = NULL;
+    }
+  }
+  if (p->d_out) {
+    DEVICE_FREE(p->d_out);
+    p->d_out = NULL;
+  }
+  if (p->workspace) {
+    DEVICE_FREE(p->workspace);
+    p->workspace = NULL;
+  }
+}
+
+static struct pointwise_graph_plan *find_pointwise_graph_plan(
+    int32_t N, const uint64_t words[12], int32_t num_nodes) {
+  for (int i = 0; i < POINTWISE_GRAPH_CACHE_CAP; ++i) {
+    struct pointwise_graph_plan *p = &g_pointwise_graph_cache[i];
+    if (p->in_use && p->N == N && p->num_nodes == num_nodes &&
+        memcmp(p->words, words, sizeof(p->words)) == 0)
+      return p;
+  }
+  return NULL;
+}
+
+static struct pointwise_graph_plan *alloc_pointwise_graph_plan(
+    int32_t N, const uint64_t words[12], int32_t num_nodes) {
+  for (int i = 0; i < POINTWISE_GRAPH_CACHE_CAP; ++i) {
+    struct pointwise_graph_plan *p = &g_pointwise_graph_cache[i];
+    if (!p->in_use) {
+      memset(p, 0, sizeof(*p));
+      p->in_use = 1;
+      p->N = N;
+      p->num_nodes = num_nodes;
+      memcpy(p->words, words, sizeof(p->words));
+      return p;
+    }
+  }
+  fprintf(stderr, "polygeist runtime: cuDNN pointwise graph cache full\n");
+  abort();
+}
+
+static int build_pointwise_graph_plan(struct pointwise_graph_plan *p) {
+  cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+  p->bytes = (size_t)p->N * sizeof(float);
+
+  // Validate topological references and find externally supplied leaves.
+  for (int node = 0; node < p->num_nodes; ++node) {
+    uint32_t inst = pointwise_graph_inst(p, node);
+    int opcode = (inst >> 24) & 0xff;
+    int refs[3] = {(inst >> 16) & 0xff, (inst >> 8) & 0xff,
+                   inst & 0xff};
+    int count = pointwise_graph_ternary_opcode(opcode) ? 3 :
+                pointwise_graph_binary_opcode(opcode) ? 2 : 1;
+    cudnnPointwiseMode_t ignored;
+    if (!pointwise_graph_mode(opcode, &ignored)) return 0;
+    for (int j = 0; j < count; ++j) {
+      int ref = refs[j];
+      if (ref < 4) p->used_inputs[ref] = true;
+      else if (ref < 12) p->used_scalars[ref - 4] = true;
+      else if (ref >= 12 + node) return 0;
+    }
+  }
+
+  int64_t channels = p->N < 65536 ? p->N : 65536;
+  while (channels > 1 && p->N % channels != 0) --channels;
+  int64_t batches = p->N / channels;
+  int64_t dims[4] = {batches, channels, 1, 1};
+  int64_t strides[4] = {channels, 1, 1, 1};
+  int64_t scalar_dims[4] = {1, 1, 1, 1};
+  int64_t scalar_strides[4] = {1, 1, 1, 1};
+
+  for (int i = 0; i < 8; ++i) {
+    if (i < 4 && p->used_inputs[i]) {
+      DEVICE_MALLOC((void **)&p->d_inputs[i], p->bytes);
+      if (!make_f32_backend_tensor_ex(
+              &p->input_descs[i], 100 + i, dims, strides, 4, false, false,
+              "pointwise.generic.input", &status))
+        return 0;
+    }
+    if (p->used_scalars[i] &&
+        !make_f32_backend_tensor_ex(
+            &p->scalar_descs[i], 200 + i, scalar_dims, scalar_strides, 4,
+            true, false, "pointwise.generic.scalar", &status))
+      return 0;
+  }
+  DEVICE_MALLOC((void **)&p->d_out, p->bytes);
+  if (!make_f32_backend_tensor_ex(
+          &p->out_desc, 400, dims, strides, 4, false, false,
+          "pointwise.generic.output", &status))
+    return 0;
+
+  cudnnDataType_t precision = CUDNN_DATA_FLOAT;
+  for (int node = 0; node < p->num_nodes; ++node) {
+    uint32_t inst = pointwise_graph_inst(p, node);
+    int opcode = (inst >> 24) & 0xff;
+    int lhs_ref = (inst >> 16) & 0xff;
+    int rhs_ref = (inst >> 8) & 0xff;
+    int third_ref = inst & 0xff;
+    cudnnPointwiseMode_t mode;
+    if (!pointwise_graph_mode(opcode, &mode)) return 0;
+
+    status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR,
+                                          &p->pw_descs[node]);
+    if (status != CUDNN_STATUS_SUCCESS) return 0;
+    if (!set_backend_attr(p->pw_descs[node], CUDNN_ATTR_POINTWISE_MODE,
+                          CUDNN_TYPE_POINTWISE_MODE, 1, &mode,
+                          "pointwise.generic.mode", &status) ||
+        !set_backend_attr(p->pw_descs[node], CUDNN_ATTR_POINTWISE_MATH_PREC,
+                          CUDNN_TYPE_DATA_TYPE, 1, &precision,
+                          "pointwise.generic.precision", &status) ||
+        !finalize_backend_desc(p->pw_descs[node],
+                               "pointwise.generic.pw.finalize", &status))
+      return 0;
+
+    if (node == p->num_nodes - 1) {
+      p->node_descs[node] = p->out_desc;
+    } else {
+      int descriptor_ok = pointwise_graph_boolean_opcode(opcode)
+          ? make_bool_backend_tensor_ex(
+                &p->node_descs[node], 300 + node, dims, strides, 4, true,
+                "pointwise.generic.boolean", &status)
+          : make_f32_backend_tensor_ex(
+                &p->node_descs[node], 300 + node, dims, strides, 4,
+                false, true, "pointwise.generic.virtual", &status);
+      if (!descriptor_ok) return 0;
+    }
+    cudnnBackendDescriptor_t lhs = pointwise_graph_ref_desc(p, lhs_ref);
+    cudnnBackendDescriptor_t rhs = pointwise_graph_ref_desc(p, rhs_ref);
+    cudnnBackendDescriptor_t third =
+        pointwise_graph_ref_desc(p, third_ref);
+    if (!lhs || (pointwise_graph_binary_opcode(opcode) && !rhs)) return 0;
+    if (pointwise_graph_ternary_opcode(opcode) && (!rhs || !third)) return 0;
+
+    status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR, &p->ops[node]);
+    if (status != CUDNN_STATUS_SUCCESS) return 0;
+    cudnnBackendDescriptor_t x_desc =
+        pointwise_graph_ternary_opcode(opcode) ? rhs : lhs;
+    if (!set_backend_attr(p->ops[node],
+                          CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+                          &p->pw_descs[node], "pointwise.generic.op.pw",
+                          &status))
+      return 0;
+    if (pointwise_graph_backward_opcode(opcode)) {
+      if (!set_backend_attr(p->ops[node],
+                            CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
+                            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &lhs,
+                            "pointwise.generic.op.x", &status) ||
+          !set_backend_attr(p->ops[node],
+                            CUDNN_ATTR_OPERATION_POINTWISE_DYDESC,
+                            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &rhs,
+                            "pointwise.generic.op.dy", &status) ||
+          !set_backend_attr(p->ops[node],
+                            CUDNN_ATTR_OPERATION_POINTWISE_DXDESC,
+                            CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+                            &p->node_descs[node], "pointwise.generic.op.dx",
+                            &status))
+        return 0;
+    } else if (!set_backend_attr(p->ops[node],
+                                 CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
+                                 CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &x_desc,
+                                 "pointwise.generic.op.x", &status) ||
+               !set_backend_attr(p->ops[node],
+                                 CUDNN_ATTR_OPERATION_POINTWISE_YDESC,
+                                 CUDNN_TYPE_BACKEND_DESCRIPTOR, 1,
+                                 &p->node_descs[node],
+                                 "pointwise.generic.op.y", &status)) {
+      return 0;
+    }
+    if (pointwise_graph_binary_opcode(opcode) &&
+        !pointwise_graph_backward_opcode(opcode) &&
+        !set_backend_attr(p->ops[node],
+                          CUDNN_ATTR_OPERATION_POINTWISE_BDESC,
+                          CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &rhs,
+                          "pointwise.generic.op.b", &status))
+      return 0;
+    if (pointwise_graph_ternary_opcode(opcode) &&
+        (!set_backend_attr(p->ops[node],
+                           CUDNN_ATTR_OPERATION_POINTWISE_BDESC,
+                           CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &third,
+                           "pointwise.generic.op.b", &status) ||
+         !set_backend_attr(p->ops[node],
+                           CUDNN_ATTR_OPERATION_POINTWISE_TDESC,
+                           CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &lhs,
+                           "pointwise.generic.op.t", &status)))
+      return 0;
+    if (!finalize_backend_desc(p->ops[node],
+                               "pointwise.generic.op.finalize", &status))
+      return 0;
+  }
+
+  status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR,
+                                        &p->op_graph);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  if (!set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+                        CUDNN_TYPE_HANDLE, 1, &g_cudnn,
+                        "pointwise.generic.graph.handle", &status) ||
+      !set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, p->num_nodes, p->ops,
+                        "pointwise.generic.graph.ops", &status) ||
+      !finalize_backend_desc(p->op_graph, "pointwise.generic.graph.finalize",
+                             &status))
+    return 0;
+
+  const cudnnBackendHeurMode_t modes[] = {
+      CUDNN_HEUR_MODE_INSTANT, CUDNN_HEUR_MODE_A,
+      CUDNN_HEUR_MODE_FALLBACK};
+  cudnnStatus_t plan_status = CUDNN_STATUS_NOT_SUPPORTED;
+  for (size_t mode_i = 0; mode_i < sizeof(modes) / sizeof(modes[0]); ++mode_i) {
+    cudnnBackendDescriptor_t heur = NULL, config = NULL, plan = NULL;
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR, &heur);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->op_graph);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_MODE, CUDNN_TYPE_HEUR_MODE, 1,
+        &modes[mode_i]);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendFinalize(heur);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    int64_t returned = 0;
+    plan_status = cudnnBackendGetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_RESULTS, CUDNN_TYPE_BACKEND_DESCRIPTOR,
+        1, &returned, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS || returned == 0) {
+      if (plan_status == CUDNN_STATUS_SUCCESS)
+        plan_status = CUDNN_STATUS_NOT_SUPPORTED;
+      goto generic_heur_cleanup;
+    }
+    plan_status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &plan);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE, CUDNN_TYPE_HANDLE, 1,
+        &g_cudnn);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendSetAttribute(
+        plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &config);
+    if (plan_status != CUDNN_STATUS_SUCCESS) goto generic_heur_cleanup;
+    plan_status = cudnnBackendFinalize(plan);
+    if (plan_status == CUDNN_STATUS_SUCCESS) {
+      p->heur = heur;
+      p->engine_cfg = config;
+      p->plan = plan;
+      break;
+    }
+generic_heur_cleanup:
+    if (plan != p->plan) destroy_backend_desc(&plan);
+    if (config != p->engine_cfg) destroy_backend_desc(&config);
+    if (heur != p->heur) destroy_backend_desc(&heur);
+  }
+  if (!p->plan) {
+    report_backend_fallback("pointwise generic", "pointwise.generic.plan",
+                            plan_status);
+    return 0;
+  }
+
+  int64_t count = 0, workspace_size = 0;
+  status = cudnnBackendGetAttribute(
+      p->plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64,
+      1, &count, &workspace_size);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  if (workspace_size > 0)
+    DEVICE_MALLOC(&p->workspace, (size_t)workspace_size);
+
+  status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR,
+                                        &p->variant_pack);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  int64_t uids[13];
+  void *ptrs[13];
+  int nuid = 0;
+  for (int i = 0; i < 4; ++i) if (p->used_inputs[i]) {
+    uids[nuid] = 100 + i; ptrs[nuid++] = p->d_inputs[i];
+  }
+  for (int i = 0; i < 8; ++i) if (p->used_scalars[i]) {
+    uids[nuid] = 200 + i; ptrs[nuid++] = &p->scalars[i];
+  }
+  uids[nuid] = 400; ptrs[nuid++] = p->d_out;
+  if (!set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+                        CUDNN_TYPE_VOID_PTR, nuid, ptrs,
+                        "pointwise.generic.variant.ptrs", &status) ||
+      !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+                        CUDNN_TYPE_INT64, nuid, uids,
+                        "pointwise.generic.variant.uids", &status) ||
+      !set_backend_attr(p->variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+                        CUDNN_TYPE_VOID_PTR, 1, &p->workspace,
+                        "pointwise.generic.variant.workspace", &status) ||
+      !finalize_backend_desc(p->variant_pack,
+                             "pointwise.generic.variant.finalize", &status))
+    return 0;
+  return 1;
+}
+
+static void pointwise_graph_host_f32(
+    int32_t N, const uint64_t words[12], int32_t num_nodes,
+    const float scalars[8], const float *inputs[4], const int32_t strides[4],
+    int32_t out_stride, float *Out) {
+  for (int32_t i = 0; i < N; ++i) {
+    float refs[36];
+    for (int j = 0; j < 4; ++j)
+      refs[j] = inputs[j][(int64_t)i * strides[j]];
+    for (int j = 0; j < 8; ++j) refs[4 + j] = scalars[j];
+    for (int node = 0; node < num_nodes; ++node) {
+      uint32_t inst = (uint32_t)(words[node / 2] >> (32 * (node % 2)));
+      int op = (inst >> 24) & 0xff;
+      float a = refs[(inst >> 16) & 0xff];
+      float b = refs[(inst >> 8) & 0xff];
+      float c = refs[inst & 0xff];
+      switch (op) {
+      case 1: refs[12 + node] = a + b; break;
+      case 2: refs[12 + node] = a * b; break;
+      case 3: refs[12 + node] = a - b; break;
+      case 4: refs[12 + node] = a / b; break;
+      case 5: refs[12 + node] = a > 0.0f ? a : 0.0f; break;
+      case 6: refs[12 + node] = tanhf(a); break;
+      case 7: refs[12 + node] = expf(a); break;
+      case 8: refs[12 + node] = sqrtf(a); break;
+      case 9: refs[12 + node] = fabsf(a); break;
+      case 10: refs[12 + node] = fmaxf(a, b); break;
+      case 11: refs[12 + node] = fminf(a, b); break;
+      case 12: refs[12 + node] = logf(a); break;
+      case 13: refs[12 + node] = sinf(a); break;
+      case 14: refs[12 + node] = cosf(a); break;
+      case 15: refs[12 + node] = 1.0f / a; break;
+      case 16: refs[12 + node] = floorf(a); break;
+      case 17: refs[12 + node] = ceilf(a); break;
+      case 18: refs[12 + node] = erff(a); break;
+      case 19: refs[12 + node] = powf(a, b); break;
+      case 20: refs[12 + node] = fmodf(a, b); break;
+      case 21: refs[12 + node] = -a; break;
+      case 22: refs[12 + node] = tanf(a); break;
+      case 23: refs[12 + node] = a == b ? 1.0f : 0.0f; break;
+      case 24: refs[12 + node] = a != b ? 1.0f : 0.0f; break;
+      case 25: refs[12 + node] = a > b ? 1.0f : 0.0f; break;
+      case 26: refs[12 + node] = a >= b ? 1.0f : 0.0f; break;
+      case 27: refs[12 + node] = a < b ? 1.0f : 0.0f; break;
+      case 28: refs[12 + node] = a <= b ? 1.0f : 0.0f; break;
+      case 29: refs[12 + node] = a != 0.0f ? b : c; break;
+      case 30: refs[12 + node] = (a != 0.0f && b != 0.0f); break;
+      case 31: refs[12 + node] = (a != 0.0f || b != 0.0f); break;
+      case 32: refs[12 + node] = a == 0.0f; break;
+      case 33: refs[12 + node] = a; break;
+      case 34: refs[12 + node] = atan2f(a, b); break;
+      case 35: refs[12 + node] = a > 0.0f ? b : 0.0f; break;
+      default: refs[12 + node] = NAN; break;
+      }
+    }
+    Out[(int64_t)i * out_stride] = refs[11 + num_nodes];
+  }
+}
+
+void polygeist_cudnn_pointwise_graph_f32(
+    int32_t N,
+    int64_t graph0, int64_t graph1, int64_t graph2, int64_t graph3,
+    int64_t graph4, int64_t graph5, int64_t graph6, int64_t graph7,
+    int64_t graph8, int64_t graph9, int64_t graph10, int64_t graph11,
+    int32_t num_nodes,
+    float s0, float s1, float s2, float s3,
+    float s4, float s5, float s6, float s7,
+    int32_t stride0, int32_t stride1, int32_t stride2, int32_t stride3,
+    int32_t out_stride,
+    const float *In0, const float *In1, const float *In2, const float *In3,
+    float *Out) {
+  if (N <= 0 || num_nodes <= 0 || num_nodes > 24) return;
   polygeist_cublas_init();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
-
-  float ss = 0.0f;
+  ensure_cudnn();
+  uint64_t words[12] = {
+      (uint64_t)graph0, (uint64_t)graph1,
+      (uint64_t)graph2, (uint64_t)graph3,
+      (uint64_t)graph4, (uint64_t)graph5,
+      (uint64_t)graph6, (uint64_t)graph7,
+      (uint64_t)graph8, (uint64_t)graph9,
+      (uint64_t)graph10, (uint64_t)graph11};
+  float scalars[8] = {s0, s1, s2, s3, s4, s5, s6, s7};
+  const float *inputs[4] = {In0, In1, In2, In3};
+  const int32_t strides[4] = {stride0, stride1, stride2, stride3};
+  struct pointwise_graph_plan *p =
+      find_pointwise_graph_plan(N, words, num_nodes);
+  if (!p) {
+    p = alloc_pointwise_graph_plan(N, words, num_nodes);
+    if (!build_pointwise_graph_plan(p)) {
+      release_pointwise_graph_plan(p);
+      p->unsupported = 1;
+    }
+  }
+  if (!p || p->unsupported) {
+    const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
+    if (diagnostics && diagnostics[0] != '0')
+      fprintf(stderr,
+              "polygeist runtime: generic cuDNN pointwise graph fallback "
+              "(N=%d, nodes=%d)\n", N, num_nodes);
+    sync_stream_if_outside_pipeline();
+    pointwise_graph_host_f32(N, words, num_nodes, scalars, inputs, strides,
+                             out_stride, Out);
+    return;
+  }
+  memcpy(p->scalars, scalars, sizeof(p->scalars));
+  double host_start_ms = wall_time_ms();
   timing_gpu_begin();
-  CUBLAS_CHECK(cublasSdot(g_handle, N, dX, 1, dX, 1, &ss));
-  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
-                             g_stream));
-  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
-  CUBLAS_CHECK(cublasSscal(g_handle, N, &scale, dOut, 1));
-  timing_gpu_end("cublasRmsNormUnweighted_f32", N, 1, 0, host_start_ms);
+  for (int i = 0; i < 4; ++i)
+    if (p->used_inputs[i]) {
+      if (strides[i] == 1)
+        CUDA_CHECK(cudaMemcpyAsync(p->d_inputs[i], inputs[i], p->bytes,
+                                   cudaMemcpyHostToDevice, g_stream));
+      else
+        CUDA_CHECK(cudaMemcpy2DAsync(p->d_inputs[i], sizeof(float), inputs[i],
+                                     (size_t)strides[i] * sizeof(float),
+                                     sizeof(float), N, cudaMemcpyHostToDevice,
+                                     g_stream));
+    }
+  static int reported = 0;
+  const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
+  if (!reported && diagnostics && diagnostics[0] != '0') {
+    fprintf(stderr,
+            "polygeist runtime: generic cuDNN pointwise graph active "
+            "(N=%d, nodes=%d)\n", N, num_nodes);
+    reported = 1;
+  }
+  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+  if (out_stride == 1)
+    CUDA_CHECK(cudaMemcpyAsync(Out, p->d_out, p->bytes, cudaMemcpyDeviceToHost,
+                               g_stream));
+  else
+    CUDA_CHECK(cudaMemcpy2DAsync(Out, (size_t)out_stride * sizeof(float),
+                                 p->d_out, sizeof(float), sizeof(float), N,
+                                 cudaMemcpyDeviceToHost, g_stream));
+  timing_gpu_end("cudnnPointwiseGraph_f32", 1, N, num_nodes, host_start_ms);
 }
 
 void polygeist_cublas_dot_f32(
@@ -4230,96 +6382,6 @@ void polygeist_cublas_dot_f64(
     CUDA_CHECK(cudaMemcpy(device_out, &host_out, sizeof(double),
                           cudaMemcpyHostToDevice));
   timing_gpu_end("cublasDdot", N, 1, 0, host_start_ms);
-}
-
-void polygeist_cuda_gelu_tanh_f32(
-    int32_t N, const float *X, float *Out) {
-  if (N <= 0) return;
-  polygeist_cublas_init();
-  ensure_cudnn();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
-  float *dTmp0 = NULL;
-  float *dTmp1 = NULL;
-  float *dOnes = NULL;
-  float *ones = (float *)malloc(bytes);
-  if (!ones) {
-    fprintf(stderr, "polygeist_cuda_gelu_tanh_f32: malloc failed\n");
-    abort();
-  }
-  for (int32_t i = 0; i < N; ++i)
-    ones[i] = 1.0f;
-  DEVICE_MALLOC((void **)&dTmp0, bytes);
-  DEVICE_MALLOC((void **)&dTmp1, bytes);
-  DEVICE_MALLOC((void **)&dOnes, bytes);
-
-  cudnnTensorDescriptor_t desc;
-  cudnnActivationDescriptor_t tanh_desc;
-  cudnnOpTensorDescriptor_t mul_desc, add_desc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&desc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
-  CUDNN_CHECK(cudnnCreateActivationDescriptor(&tanh_desc));
-  CUDNN_CHECK(cudnnSetActivationDescriptor(
-      tanh_desc, CUDNN_ACTIVATION_TANH, CUDNN_PROPAGATE_NAN, 0.0));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&add_desc));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      add_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-
-  const float one = 1.0f;
-  const float zero = 0.0f;
-  const float half = 0.5f;
-  const float cube_coeff = 0.044715f;
-  const float sqrt_2_over_pi = 0.7978845608028654f;
-
-  timing_gpu_begin();
-  CUDA_CHECK(cudaMemcpyAsync(dOnes, ones, bytes, cudaMemcpyHostToDevice,
-                             g_stream));
-  // tmp0 = x * x
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, desc, dX,
-                            &one, desc, dX,
-                            &zero, desc, dTmp0));
-  // tmp0 = tmp0 * x = x^3
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, desc, dTmp0,
-                            &one, desc, dX,
-                            &zero, desc, dTmp0));
-  // tmp1 = x + 0.044715 * x^3
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
-                            &one, desc, dX,
-                            &cube_coeff, desc, dTmp0,
-                            &zero, desc, dTmp1));
-  CUBLAS_CHECK(cublasSscal(g_handle, N, &sqrt_2_over_pi, dTmp1, 1));
-  CUDNN_CHECK(cudnnActivationForward(g_cudnn, tanh_desc,
-                                     &one, desc, dTmp1,
-                                     &zero, desc, dTmp1));
-  // tmp1 = 1 + tanh(...)
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
-                            &one, desc, dTmp1,
-                            &one, desc, dOnes,
-                            &zero, desc, dTmp1));
-  // out = 0.5 * x * tmp1
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &half, desc, dX,
-                            &one, desc, dTmp1,
-                            &zero, desc, dOut));
-  timing_gpu_end("cudaGeluTanh_f32", N, 1, 0, host_start_ms);
-
-  cudnnDestroyOpTensorDescriptor(mul_desc);
-  cudnnDestroyOpTensorDescriptor(add_desc);
-  cudnnDestroyActivationDescriptor(tanh_desc);
-  cudnnDestroyTensorDescriptor(desc);
-  DEVICE_FREE(dTmp0);
-  DEVICE_FREE(dTmp1);
-  DEVICE_FREE(dOnes);
-  pipeline_host_free(ones);
 }
 
 void polygeist_whisper_exp_shift_sum_f32(
@@ -4423,6 +6485,47 @@ void polygeist_cuda_copy_strided_2d_f32(
         cudaMemcpyDeviceToDevice, g_stream));
   }
   timing_gpu_end("cudaCopyStrided2D_f32", rows, cols, 0, host_start_ms);
+}
+
+void polygeist_cublas_broadcast_1d_to_2d_f32(
+    int32_t axis, int32_t rows, int32_t cols,
+    const float *X, float *Out) {
+  if (rows <= 0 || cols <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  int32_t source_count = axis == 0 ? rows : cols;
+  size_t out_bytes = (size_t)rows * cols * sizeof(float);
+  size_t source_bytes = (size_t)source_count * sizeof(float);
+  float *dX = NULL;
+  float *dOut = NULL;
+  DEVICE_MALLOC((void **)&dX, source_bytes);
+  DEVICE_MALLOC((void **)&dOut, out_bytes);
+  CUDA_CHECK(cudaMemcpyAsync(dX, X, source_bytes,
+                             cudaMemcpyHostToDevice, g_stream));
+  int32_t ones_count = axis == 0 ? cols : rows;
+  float *host_ones = (float *)malloc((size_t)ones_count * sizeof(float));
+  float *dOnes = NULL;
+  if (!host_ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) host_ones[i] = 1.0f;
+  DEVICE_MALLOC((void **)&dOnes, (size_t)ones_count * sizeof(float));
+  CUDA_CHECK(cudaMemcpyAsync(dOnes, host_ones,
+                             (size_t)ones_count * sizeof(float),
+                             cudaMemcpyHostToDevice, g_stream));
+  const float one = 1.0f;
+  timing_gpu_begin();
+  if (axis == 0)
+    CUBLAS_CHECK(cublasSger(g_handle, cols, rows, &one,
+                            dOnes, 1, dX, 1, dOut, cols));
+  else
+    CUBLAS_CHECK(cublasSger(g_handle, cols, rows, &one,
+                            dX, 1, dOnes, 1, dOut, cols));
+  CUDA_CHECK(cudaMemcpyAsync(Out, dOut, out_bytes,
+                             cudaMemcpyDeviceToHost, g_stream));
+  timing_gpu_end("cublasBroadcast1DTo2D_f32", rows, cols, axis, host_start_ms);
+  DEVICE_FREE(dOnes);
+  free(host_ones);
+  DEVICE_FREE(dOut);
+  DEVICE_FREE(dX);
 }
 
 void polygeist_cuda_add_f32(
@@ -4649,6 +6752,340 @@ static cutensorOperator_t cutensor_unary_operator(int32_t op) {
   }
 }
 #endif
+
+static void cudnn_reduce_contiguous(
+    int32_t op, int32_t n, cudnnDataType_t dtype, size_t element_bytes,
+    int32_t element_stride, const void *alpha, const void *x,
+    void *host_result) {
+  if (op < CUDNN_REDUCE_TENSOR_ADD || op > CUDNN_REDUCE_TENSOR_MAX) {
+    fprintf(stderr, "polygeist cudnn reduction: invalid op %d\n", op);
+    abort();
+  }
+  polygeist_cublas_init();
+  ensure_cudnn();
+  cudnnTensorDescriptor_t x_desc = NULL, out_desc = NULL;
+  cudnnReduceTensorDescriptor_t reduce_desc = NULL;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&x_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateReduceTensorDescriptor(&reduce_desc));
+  int x_dims[4] = {1, n, 1, 1};
+  int x_strides[4] = {n * element_stride, element_stride, 1, 1};
+  int out_dims[4] = {1, 1, 1, 1};
+  int out_strides[4] = {1, 1, 1, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      x_desc, dtype, 4, x_dims, x_strides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      out_desc, dtype, 4, out_dims, out_strides));
+  CUDNN_CHECK(cudnnSetReduceTensorDescriptor(
+      reduce_desc, (cudnnReduceTensorOp_t)op, dtype,
+      CUDNN_NOT_PROPAGATE_NAN, CUDNN_REDUCE_TENSOR_NO_INDICES,
+      CUDNN_32BIT_INDICES));
+  size_t workspace_bytes = 0;
+  CUDNN_CHECK(cudnnGetReductionWorkspaceSize(
+      g_cudnn, reduce_desc, x_desc, out_desc, &workspace_bytes));
+  void *workspace = NULL;
+  void *device_result = NULL;
+  if (workspace_bytes) DEVICE_MALLOC(&workspace, workspace_bytes);
+  DEVICE_MALLOC(&device_result, element_bytes);
+  size_t mapped_elements = (size_t)(n - 1) * (size_t)element_stride + 1;
+  void *device_x = register_host_safe(
+      (void *)x, mapped_elements * element_bytes);
+  float zero_f = 0.0f;
+  double zero_d = 0.0;
+  const void *zero = dtype == CUDNN_DATA_FLOAT
+                         ? (const void *)&zero_f : (const void *)&zero_d;
+  CUDNN_CHECK(cudnnReduceTensor(
+      g_cudnn, reduce_desc, NULL, 0, workspace, workspace_bytes,
+      alpha, x_desc, device_x, zero, out_desc, device_result));
+  CUDA_CHECK(cudaMemcpyAsync(host_result, device_result, element_bytes,
+                             cudaMemcpyDeviceToHost, g_stream));
+  // The scalar is immediately consumed by host-side seed combination.
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  DEVICE_FREE(device_result);
+  if (workspace) DEVICE_FREE(workspace);
+  CUDNN_CHECK(cudnnDestroyReduceTensorDescriptor(reduce_desc));
+  CUDNN_CHECK(cudnnDestroyTensorDescriptor(out_desc));
+  CUDNN_CHECK(cudnnDestroyTensorDescriptor(x_desc));
+}
+
+void polygeist_cudnn_reduce_f32(
+    int32_t op, int32_t n, const float *x, float *out) {
+  if (n <= 0) return;
+  float seed = *out, reduced = 0.0f, alpha = 1.0f;
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  cudnn_reduce_contiguous(op, n, CUDNN_DATA_FLOAT, sizeof(float), 1,
+                          &alpha, x, &reduced);
+  if (op == CUDNN_REDUCE_TENSOR_ADD) *out = seed + reduced;
+  else if (op == CUDNN_REDUCE_TENSOR_MUL) *out = seed * reduced;
+  else if (op == CUDNN_REDUCE_TENSOR_MIN) *out = reduced < seed ? reduced : seed;
+  else *out = reduced > seed ? reduced : seed;
+  timing_gpu_end("cudnnReduce_f32", 1, n, op, host_start_ms);
+}
+
+void polygeist_cudnn_reduce_f64(
+    int32_t op, int32_t n, const double *x, double *out) {
+  if (n <= 0) return;
+  double seed = *out, reduced = 0.0, alpha = 1.0;
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  cudnn_reduce_contiguous(op, n, CUDNN_DATA_DOUBLE, sizeof(double), 1,
+                          &alpha, x, &reduced);
+  if (op == CUDNN_REDUCE_TENSOR_ADD) *out = seed + reduced;
+  else if (op == CUDNN_REDUCE_TENSOR_MUL) *out = seed * reduced;
+  else if (op == CUDNN_REDUCE_TENSOR_MIN) *out = reduced < seed ? reduced : seed;
+  else *out = reduced > seed ? reduced : seed;
+  timing_gpu_end("cudnnReduce_f64", 1, n, op, host_start_ms);
+}
+
+void polygeist_cudnn_reduce_diagonal_f32(
+    int32_t rows, int32_t cols, int32_t row_stride, int32_t col_stride,
+    const float *x, float *out) {
+  int32_t n = rows < cols ? rows : cols;
+  if (n <= 0) return;
+  int32_t stride = row_stride + col_stride;
+  float seed = *out, reduced = 0.0f, alpha = 1.0f;
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  cudnn_reduce_contiguous(CUDNN_REDUCE_TENSOR_ADD, n, CUDNN_DATA_FLOAT,
+                          sizeof(float), stride, &alpha, x, &reduced);
+  *out = seed + reduced;
+  timing_gpu_end("cudnnReduceTrace_f32", rows, cols, 0, host_start_ms);
+}
+
+typedef int (*polygeist_cub_segmented_i32_fn)(
+    int32_t, int32_t, int32_t, const int32_t *, int32_t *, cudaStream_t);
+
+void polygeist_cub_segmented_reduce_i32(
+    int32_t op, int32_t rows, int32_t cols,
+    const int32_t *x, int32_t *out) {
+  static void *library = NULL;
+  static polygeist_cub_segmented_i32_fn function = NULL;
+  if (!function) {
+    const char *path = getenv("POLYGEIST_CUB_LIBRARY");
+    library = dlopen(path && path[0] ? path : "libpolygeist_cub.so",
+                     RTLD_NOW | RTLD_LOCAL);
+    if (library)
+      function = (polygeist_cub_segmented_i32_fn)dlsym(
+          library, "polygeist_cub_segmented_reduce_i32_cuda");
+    if (!function) {
+      const char *error = dlerror();
+      fprintf(stderr,
+              "polygeist runtime: CUB companion unavailable: %s\n",
+              error ? error : "missing entry point");
+      abort();
+    }
+  }
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(op, rows, cols, x, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB segmented reduction failed: %d\n", status);
+    abort();
+  }
+  timing_gpu_end("cubSegmentedReduce_i32", rows, cols, op, host_start_ms);
+}
+
+typedef int (*polygeist_cub_segmented_f32_fn)(
+    int32_t, int32_t, int32_t, const float *, float *, cudaStream_t);
+void polygeist_cub_segmented_reduce_f32(
+    int32_t op, int32_t rows, int32_t cols, const float *x, float *out) {
+  static polygeist_cub_segmented_f32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_segmented_f32_fn)polygeist_cub_companion_symbol(
+        "polygeist_cub_segmented_reduce_f32_cuda");
+  polygeist_cublas_init();
+  double hs = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin(); int status = function(op, rows, cols, x, out, g_stream);
+  if (status) { fprintf(stderr, "CUB segmented f32 reduction failed: %d\n", status); abort(); }
+  timing_gpu_end("cubSegmentedReduce_f32", rows, cols, op, hs);
+}
+
+typedef int (*polygeist_cub_segmented_prefix_sum_f32_fn)(
+    int32_t, int32_t, const float *, const int32_t *, float *, cudaStream_t);
+typedef int (*polygeist_cub_segmented_prefix_and_i32_fn)(
+    int32_t, int32_t, const int32_t *, const int32_t *, int32_t *,
+    cudaStream_t);
+
+static void *polygeist_cub_companion_symbol(const char *symbol) {
+  static void *library = NULL;
+  if (!library) {
+    const char *path = getenv("POLYGEIST_CUB_LIBRARY");
+    library = dlopen(path && path[0] ? path : "libpolygeist_cub.so",
+                     RTLD_NOW | RTLD_LOCAL);
+  }
+  void *function = library ? dlsym(library, symbol) : NULL;
+  if (!function) {
+    const char *error = dlerror();
+    fprintf(stderr, "polygeist runtime: CUB companion symbol %s unavailable: %s\n",
+            symbol, error ? error : "missing entry point");
+    abort();
+  }
+  return function;
+}
+
+typedef int (*polygeist_cub_segmented_argreduce_f32_fn)(
+    int32_t, int32_t, int32_t, const float *, int32_t *, cudaStream_t);
+
+void polygeist_cub_segmented_argreduce_f32(
+    int32_t op, int32_t rows, int32_t cols,
+    const float *x, int32_t *out) {
+  static polygeist_cub_segmented_argreduce_f32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_segmented_argreduce_f32_fn)
+        polygeist_cub_companion_symbol(
+            "polygeist_cub_segmented_argreduce_f32_cuda");
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(op, rows, cols, x, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB segmented arg-reduction failed: %d\n",
+            status);
+    abort();
+  }
+  timing_gpu_end("cubSegmentedArgReduce_f32", rows, cols, op, host_start_ms);
+}
+
+void polygeist_cudnn_sinc_f32(int32_t n, const float *x, float *out) {
+  const uint64_t words[12] = {
+      UINT64_C(0x0200040017000400), UINT64_C(0x040d0d000d0e0000),
+      UINT64_C(0x000000001d0c050f), 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  polygeist_cudnn_pointwise_graph_f32(
+      n, words[0], words[1], words[2], words[3], words[4], words[5],
+      words[6], words[7], words[8], words[9], words[10], words[11], 5,
+      0.0f, 1.0f, 3.14159265358979323846f, 0, 0, 0, 0, 0,
+      1, 1, 1, 1, 1, x, x, x, x, out);
+}
+
+void polygeist_cub_segmented_sort_descending_f32_i32(
+    int32_t rows,int32_t cols,int32_t top,const float *input,
+    float *values,int32_t *indices){
+  typedef int(*Fn)(int32_t,int32_t,int32_t,const float*,float*,int32_t*,cudaStream_t);
+  static Fn fn=NULL;if(!fn)fn=(Fn)polygeist_cub_companion_symbol("polygeist_cub_segmented_sort_descending_f32_i32_cuda");
+  polygeist_cublas_init();double hs=timing_enabled()?wall_time_ms():0;timing_gpu_begin();int st=fn(rows,cols,top,input,values,indices,g_stream);
+  if(st){fprintf(stderr,"CUB segmented sort failed: %d\n",st);abort();}timing_gpu_end("cubSegmentedSortDescending_f32_i32",rows,cols,top,hs);
+}
+void polygeist_cub_segment_reduce_lengths_f32(
+    int32_t n,int32_t segments,int32_t op,const float *input,
+    const int32_t *lengths,float *output){
+  typedef int(*Fn)(int32_t,int32_t,int32_t,const float*,const int32_t*,float*,cudaStream_t);static Fn fn=NULL;
+  if(!fn)fn=(Fn)polygeist_cub_companion_symbol("polygeist_cub_segment_reduce_lengths_f32_cuda");polygeist_cublas_init();double hs=timing_enabled()?wall_time_ms():0;timing_gpu_begin();int st=fn(n,segments,op,input,lengths,output,g_stream);
+  if(st){fprintf(stderr,"CUB length-segmented reduction failed: %d\n",st);abort();}timing_gpu_end("cubSegmentReduceLengths_f32",segments,n,op,hs);
+}
+void polygeist_cub_segmented_prefix_sum_f32(
+    int32_t rows, int32_t cols, const float *x,
+    const int32_t *lengths, float *out) {
+  static polygeist_cub_segmented_prefix_sum_f32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_segmented_prefix_sum_f32_fn)
+        polygeist_cub_companion_symbol(
+            "polygeist_cub_segmented_prefix_sum_f32_cuda");
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(rows, cols, x, lengths, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB prefix sum failed: %d\n", status);
+    abort();
+  }
+  timing_gpu_end("cubSegmentedPrefixSum_f32", rows, cols, 0, host_start_ms);
+}
+
+void polygeist_cub_segmented_prefix_logical_and_i32(
+    int32_t rows, int32_t cols, const int32_t *x,
+    const int32_t *lengths, int32_t *out) {
+  static polygeist_cub_segmented_prefix_and_i32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_segmented_prefix_and_i32_fn)
+        polygeist_cub_companion_symbol(
+            "polygeist_cub_segmented_prefix_logical_and_i32_cuda");
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(rows, cols, x, lengths, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB prefix logical AND failed: %d\n", status);
+    abort();
+  }
+  timing_gpu_end("cubSegmentedPrefixLogicalAnd_i32", rows, cols, 0,
+                 host_start_ms);
+}
+
+#define INIT_DISPATCH_BEGIN(label) polygeist_cublas_init(); double hs=timing_enabled()?wall_time_ms():0.0; timing_gpu_begin()
+#define INIT_DISPATCH_END(label,n,st) do{if(st){fprintf(stderr,"polygeist " label " failed: %d\n",st);abort();}timing_gpu_end(label,n,0,0,hs);}while(0)
+void polygeist_cub_count_nonzero1d_f32(int32_t n,const float*in,int32_t*out){typedef int(*F)(int32_t,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_count_nonzero1d_f32_cuda");INIT_DISPATCH_BEGIN("cubCountNonzero1D_f32");int st=f(n,in,out,g_stream);INIT_DISPATCH_END("cubCountNonzero1D_f32",n,st);}
+void polygeist_cub_segmented_count_nonzero2d_f32(int32_t r,int32_t c,const float*in,int32_t*out){typedef int(*F)(int32_t,int32_t,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_segmented_count_nonzero2d_f32_cuda");INIT_DISPATCH_BEGIN("cubSegmentedCountNonzero2D_f32");int st=f(r,c,in,out,g_stream);INIT_DISPATCH_END("cubSegmentedCountNonzero2D_f32",(int64_t)r*c,st);}
+void polygeist_cub_equal_all1d_f32(int32_t n,const float*a,const float*b,int32_t*out){typedef int(*F)(int32_t,const float*,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_equal_all1d_f32_cuda");INIT_DISPATCH_BEGIN("cubEqualAll1D_f32");int st=f(n,a,b,out,g_stream);INIT_DISPATCH_END("cubEqualAll1D_f32",n,st);}
+void polygeist_cub_inclusive_sum1d_f32(int32_t n,const float*in,float*final_value,float*out){typedef int(*F)(int32_t,const float*,float*,float*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_inclusive_sum1d_f32_cuda");INIT_DISPATCH_BEGIN("cubInclusiveSum1D_f32");int st=f(n,in,final_value,out,g_stream);INIT_DISPATCH_END("cubInclusiveSum1D_f32",n,st);}
+void polygeist_cub_exclusive_sum1d_i32(int32_t n,const int32_t*in,int32_t*out){typedef int(*F)(int32_t,const int32_t*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_exclusive_sum1d_i32_cuda");INIT_DISPATCH_BEGIN("cubExclusiveSum1D_i32");int st=f(n,in,out,g_stream);INIT_DISPATCH_END("cubExclusiveSum1D_i32",n,st);}
+void polygeist_cub_segmented_inclusive_product2d_f32(int32_t r,int32_t c,const float*in,float*final_values,float*out){typedef int(*F)(int32_t,int32_t,const float*,float*,float*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_segmented_inclusive_product2d_f32_cuda");INIT_DISPATCH_BEGIN("cubSegmentedInclusiveProduct2D_f32");int st=f(r,c,in,final_values,out,g_stream);INIT_DISPATCH_END("cubSegmentedInclusiveProduct2D_f32",(int64_t)r*c,st);}
+#undef INIT_DISPATCH_BEGIN
+#undef INIT_DISPATCH_END
+
+void polygeist_cutensor_permute_f32(
+    int32_t rank, const int64_t *input_extents, const int64_t *input_strides,
+    const int32_t *input_modes, const int64_t *output_extents,
+    const int64_t *output_strides, const int32_t *output_modes,
+    const float *input, float *output) {
+#if POLYGEIST_HAS_CUTENSOR
+  if (rank < 1 || rank > 64) { fprintf(stderr, "invalid cuTENSOR permutation rank\n"); abort(); }
+  int64_t input_span = 1, output_span = 1, elements = 1;
+  for (int d=0; d<rank; ++d) {
+    if (input_extents[d] <= 0 || output_extents[d] <= 0 ||
+        input_strides[d] < 0 || output_strides[d] < 0) return;
+    input_span += (input_extents[d]-1)*input_strides[d];
+    output_span += (output_extents[d]-1)*output_strides[d];
+    elements *= output_extents[d];
+    int found = 0;
+    for (int e=0; e<rank; ++e)
+      if (input_modes[d] == output_modes[e] &&
+          input_extents[d] == output_extents[e]) found = 1;
+    if (!found) { fprintf(stderr, "cuTENSOR permutation mode extent mismatch\n"); abort(); }
+  }
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  float *device_input = (float *)register_host_safe(
+      (void *)input, (size_t)input_span*sizeof(float));
+  float *device_output = (float *)register_host_safe(
+      output, (size_t)output_span*sizeof(float));
+  cutensorHandle_t handle = NULL;
+  cutensorTensorDescriptor_t input_desc = NULL, output_desc = NULL;
+  cutensorOperationDescriptor_t operation = NULL;
+  cutensorPlanPreference_t preference = NULL;
+  cutensorPlan_t plan = NULL;
+  float alpha = 1.0f;
+  CUTENSOR_CHECK(cutensorCreate(&handle));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &input_desc, rank, input_extents, input_strides,
+      CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      handle, &output_desc, rank, output_extents, output_strides,
+      CUDA_R_32F, 128));
+  CUTENSOR_CHECK(cutensorCreatePermutation(
+      handle, &operation, input_desc, input_modes, CUTENSOR_OP_IDENTITY,
+      output_desc, output_modes, CUTENSOR_COMPUTE_DESC_32F));
+  CUTENSOR_CHECK(cutensorCreatePlanPreference(
+      handle, &preference, CUTENSOR_ALGO_DEFAULT, CUTENSOR_JIT_MODE_NONE));
+  CUTENSOR_CHECK(cutensorCreatePlan(handle, &plan, operation, preference, 0));
+  timing_gpu_begin();
+  CUTENSOR_CHECK(cutensorPermute(
+      handle, plan, &alpha, device_input, device_output, g_stream));
+  timing_gpu_end("cutensorPermute_f32", elements, rank, 0, host_start_ms);
+  CUTENSOR_CHECK(cutensorDestroyPlan(plan));
+  CUTENSOR_CHECK(cutensorDestroyPlanPreference(preference));
+  CUTENSOR_CHECK(cutensorDestroyOperationDescriptor(operation));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(input_desc));
+  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(output_desc));
+  CUTENSOR_CHECK(cutensorDestroy(handle));
+#else
+  (void)rank;(void)input_extents;(void)input_strides;(void)input_modes;
+  (void)output_extents;(void)output_strides;(void)output_modes;
+  (void)input;(void)output;
+  fprintf(stderr, "polygeist_cutensor_permute_f32 requires cuTENSOR\n"); abort();
+#endif
+}
 
 void polygeist_cutensor_unary_f32(
     int32_t op, int32_t n, const float *x, float *out) {

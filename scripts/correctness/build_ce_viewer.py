@@ -452,26 +452,45 @@ for _aten_generated_provenance in sorted(
             )
 
 ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
-    "aten_adaptive_avg_pool2d": "no average-pooling definition",
-    "aten_adaptive_avg_pool3d": "no 3D average-pooling definition",
-    "aten_avg_pool2d": "no average-pooling definition",
-    "aten_avg_pool3d": "no 3D average-pooling definition",
+    "aten_adaptive_avg_pool2d": (
+        "generic regular-window match lowered to depthwise cuDNN convolution"
+    ),
+    "aten_adaptive_avg_pool2d_cpu": "semantic adaptive-pool match; regular shape executes cuDNN Resample",
+    "aten_adaptive_avg_pool2d_backward_cpu": "semantic adaptive-pool match; regular shape executes cuDNN Resample backward",
+    "aten_adaptive_avg_pool3d": "semantic regular 3D adaptive-pool match lowered to cuDNN Resample",
+    "aten_adaptive_avg_pool3d_cpu": "semantic adaptive-pool match; variable-window shape uses exact fallback",
+    "aten_adaptive_avg_pool3d_backward_cpu": "semantic adaptive-pool match; variable-window shape uses exact fallback",
+    "aten_adaptive_max_pool1d_cpu": "semantic adaptive-max match; variable-window shape uses exact ATen-index fallback",
+    "aten_adaptive_max_pool2d_cpu": "hybrid cuDNN max values plus exact ATen absolute-index materialization",
+    "aten_adaptive_max_pool2d_backward_cpu": "semantic saved-index scatter; exact ATen-index fallback",
+    "aten_adaptive_max_pool3d_cpu": "semantic adaptive-max match; variable-window shape uses exact fallback",
+    "aten_adaptive_max_pool3d_backward_cpu": "semantic saved-index scatter; exact ATen-index fallback",
+    "aten_adaptive_max_pool3d_legacy_cpu": "semantic legacy adaptive-max match; variable-window shape uses exact fallback",
+    "aten_adaptive_max_pool3d_legacy_backward_cpu": "semantic legacy saved-index scatter; exact fallback",
+    "aten_avg_pool2d": "fixed-window average pooling lowered to cuDNN Resample forward",
+    "aten_avg_pool2d_cpu": "fixed-window average pooling lowered to cuDNN Resample forward",
+    "aten_avg_pool2d_backward_cpu": "fixed-window average pooling lowered to cuDNN Resample backward",
+    "aten_avg_pool3d": "fixed-window 3D average pooling lowered to cuDNN Resample forward",
+    "aten_avg_pool3d_cpu": "fixed-window 3D average pooling lowered to cuDNN Resample forward",
+    "aten_avg_pool3d_backward_cpu": "fixed-window 3D average pooling lowered to cuDNN Resample backward",
+    "aten_batch_norm_backward_cpu": "saved-statistics derivative lowered to cuDNN BatchNormalizationBackward",
+    "aten_batch_norm_backward_template_cpu": "input-gradient-only derivative lowered to cuDNN BatchNormalizationBackward",
     "aten_binary_cross_entropy": "external logf calls retain a residual loop",
     "aten_bmm": "no true batched-GEMM definition",
-    "aten_channel_shuffle": "layout transform; correctly rejected as flat copy",
+    "aten_channel_shuffle": "layout transform lowered through generic cuTENSOR modes/strides",
     "aten_clamp": "no standalone clamp definition",
     "aten_conv1d": "no 1D-convolution definition",
     "aten_conv3d": "shape/template gap in current 3D-convolution definitions",
     "aten_conv_transpose2d": "no transposed-convolution definition",
     "aten_cross": "three elementwise stages; no cross-product composition",
-    "aten_cumsum": "loop-carried scan raises, but no scan definition",
+    "aten_cumsum": "loop-carried inclusive sum lowered to CUB DeviceScan",
     "aten_elu": "no standalone ELU definition",
     "aten_embedding": "indexed gather retains residual loops",
     "aten_gelu": "valid custom CUDA GELU route",
     "aten_hardsigmoid": "no standalone hard-sigmoid definition",
     "aten_hardswish": "no standalone hard-swish definition",
     "aten_hardtanh": "no standalone hard-tanh definition",
-    "aten_im2col": "window gather correctly rejected as flat copy",
+    "aten_im2col": "affine window materialization lowered through generic cuTENSOR strides",
     "aten_l1_loss": "no L1 reduction composition",
     "aten_layer_norm": "mean/variance/affine composition not in library",
     "aten_leaky_relu": "no standalone leaky-ReLU definition",
@@ -479,7 +498,7 @@ ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_mean": "reduction-plus-scale composition not in library",
     "aten_mse_loss": "square-difference plus mean composition not in library",
     "aten_outer": "partial: only output zero-initialization matched",
-    "aten_pixel_shuffle": "layout transform correctly rejected as flat copy",
+    "aten_pixel_shuffle": "rank-reduced reshape/permutation validated on Jetson",
     "aten_prod": "no product-reduction definition",
     "aten_reflection_pad2d": "no reflection-padding definition",
     "aten_relu": "no standalone ReLU definition",
@@ -489,12 +508,12 @@ ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_softplus": "external logf/expf and branch retain a residual loop",
     "aten_sum": "partial: only output zero-initialization matched",
     "aten_tanh": "no standalone tanh definition",
-    "aten_transpose_copy": "permuted indexing map correctly rejected as flat copy",
+    "aten_transpose_copy": "permuted indexing map lowered through generic cuTENSOR modes",
     "aten_upsample_bilinear2d": "no bilinear-resampling definition",
     "aten_upsample_nearest2d": "no nearest-neighbor resampling definition",
 }
 
-ATEN_C_UNSAFE_MATCHES: set[str] = {"aten_pixel_shuffle"}
+ATEN_C_UNSAFE_MATCHES: set[str] = set()
 
 # These probes come from large upstream source files. Keep them in the IR
 # explorer, but avoid embedding the full original files in Compiler Explorer
@@ -1853,10 +1872,20 @@ def count_for_loops(text: str) -> int:
 
 
 def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
-    res = subprocess.run(
-        [PYTHON, str(REWRITER), str(path)],
-        capture_output=True, text=True, timeout=10,
-    )
+    try:
+        res = subprocess.run(
+            [PYTHON, str(REWRITER), str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        # One pathological kernel must not prevent unrelated suites (and the
+        # already-materialized ATen pages) from being published. Preserve the
+        # matcher input as the displayed fallback and report zero launches.
+        original = path.read_text()
+        return original, [
+            ("launches", 0),
+            ("residual_lg", len(re.findall(r"\blinalg\.generic\b", original))),
+        ]
     if res.returncode != 0:
         raise RuntimeError(
             f"kernel matcher failed for {path} with {PYTHON}:\n{res.stderr}"
@@ -1879,6 +1908,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     css = ""
     n_for = 0
     n_linalg = 0
+    matched_text: str | None = None
     matched_symbols: list[str] = []
     report = [("launches", 0), ("residual_lg", 0)]
 
@@ -1906,6 +1936,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         if kset == "stencil_conv2d" and not debuf.exists():
             n_for = count_for_loops(raised_text)
             rewritten, report = run_rewriter(raised)
+            matched_text = rewritten
             html, css = syntax_highlight(rewritten)
             pages["matched"] = html
     if debuf.exists():
@@ -1925,6 +1956,10 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             ]
         else:
             rewritten, report = run_rewriter(debuf)
+        # Keep raising coverage tied to the matcher input. A whole-function
+        # rewrite may remove every loop, but that must not retroactively claim
+        # that RaiseToLinalg raised those loops.
+        matched_text = rewritten
         matched_symbols = sorted(set(
             re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
         ))
@@ -1941,6 +1976,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         if not debuf.exists() and not debuf_mr_text.lstrip().startswith("//"):
             n_for = count_for_loops(debuf_mr_text)
             rewritten, report = run_rewriter(debuf_mr)
+            matched_text = rewritten
             matched_symbols = sorted(set(
                 re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
             ))
@@ -1952,6 +1988,9 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
                  f'style="margin-left:12px; color:#0366d6;">'
                  f'open in Compiler Explorer →</a>') if ce_url else ''
 
+    matched_n_for = (
+        count_for_loops(matched_text) if matched_text is not None else n_for
+    )
     n_launches = report[0][1]
     n_resid = report[1][1]
     summary = (
@@ -1959,7 +1998,8 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
         f'<b>{n_launches}</b> kernel.launch op(s) emitted &nbsp;·&nbsp; '
         f'<b>{n_resid}</b> residual linalg.generic &nbsp;·&nbsp; '
-        f'<b>{n_for}</b> residual for-loop(s) &nbsp;|&nbsp; '
+        f'<b>{n_for}</b> residual loop(s) before matching &nbsp;·&nbsp; '
+        f'<b>{matched_n_for}</b> after matching &nbsp;|&nbsp; '
         f'jump to: <a href="#cgeist">cgeist</a> · '
         f'<a href="#raised">raised</a> · '
         f'<a href="#debuf">debuferized</a> · '
@@ -1999,6 +2039,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         "matched_symbols": matched_symbols,
         "residual": report[1][1],
         "residual_for": n_for,
+        "matched_residual_for": matched_n_for,
         "ce_url": ce_url,
         "ce_suppressed": kset == "whisper_ops" and kernel in WHISPER_OPS_IR_ONLY,
         "page_filename": f"{file_prefix}{kernel}.html",
@@ -2081,18 +2122,65 @@ def build_aten_c_source_pages(aten_stats: dict[str, dict]) -> None:
 
 ATEN_PAGE_SIZE = 20
 
+# These measurements were collected from whole-function Python recognizers
+# removed on 2026-08-13. Keep the raw CSV as historical evidence, but do not
+# attach those executions to the current general matcher output.
+ATEN_RETIRED_EARLY_MATCH_KERNELS = {
+    "aten_adaptive_avg_pool2d_backward_cpu", "aten_adaptive_avg_pool2d_cpu",
+    "aten_adaptive_avg_pool3d", "aten_adaptive_avg_pool3d_backward_cpu",
+    "aten_adaptive_avg_pool3d_cpu", "aten_adaptive_max_pool1d_cpu",
+    "aten_adaptive_max_pool2d_backward_cpu", "aten_adaptive_max_pool2d_cpu",
+    "aten_adaptive_max_pool3d_backward_cpu", "aten_adaptive_max_pool3d_cpu",
+    "aten_adaptive_max_pool3d_legacy_backward_cpu",
+    "aten_adaptive_max_pool3d_legacy_cpu", "aten_addr_elementwise",
+    "aten_allany_dims_cpu", "aten_and_reduce_cpu", "aten_argmax_cpu",
+    "aten_argmin_cpu", "aten_avg_pool2d", "aten_avg_pool2d_backward_cpu",
+    "aten_avg_pool2d_cpu", "aten_avg_pool3d", "aten_avg_pool3d_backward_cpu",
+    "aten_avg_pool3d_cpu", "aten_batch_norm_backward_cpu",
+    "aten_batch_norm_backward_template_cpu", "aten_bf16_dot_cpu",
+    "aten_bf16_gemv_trans_cpu", "aten_binary_cross_entropy",
+    "aten_conv_tbc_backward_cpu", "aten_conv_tbc_cpu",
+    "aten_conv_transpose2d", "aten_conv_transpose3d_cpu",
+    "aten_conv_transpose3d_grad_weight_cpu", "aten_depthwise_conv3x3_cpu",
+    "aten_fp16_gemv_trans_cpu", "aten_joint_scaling_cpu",
+    "aten_kron_impl_cpu", "aten_kron_out_cpu", "aten_linalg_powsum_cpu",
+    "aten_log_sigmoid_cpu", "aten_max_values_cpu", "aten_min_values_cpu",
+    "aten_nansum_cpu", "aten_nested_all_cpu", "aten_nested_batch_offsets_cpu",
+    "aten_nested_sum_dim_cpu", "aten_or_reduce_cpu", "aten_powsum_cpu",
+    "aten_sinc", "aten_slow_conv3d_backward_input_cpu",
+    "aten_slow_conv3d_backward_weight_cpu", "aten_sort_cpu",
+    "aten_sparse_norm_cpu", "aten_sum_cpu_backend", "aten_topk_cpu",
+    "aten_transform_bias_rescale_qkv_cpu",
+    "aten_upsample_lanczos2d_aa_backward_cpu",
+    "aten_upsample_lanczos2d_aa_cpu", "aten_xor_sum_cpu",
+}
+
 
 def _aten_page_filename(sort_by: str, page: int) -> str:
     prefix = "numerical" if sort_by == "alphabetical" else "numerical-correctness"
     return f"{prefix}.html" if page == 1 else f"{prefix}-{page}.html"
 
 
+def _aten_performance_by_kernel() -> dict[str, dict[str, str]]:
+    """Return only measurements that describe the current matcher output.
+
+    Keep this filtering shared by sorting and rendering.  Otherwise a removed
+    Thrust route can rank as PASS while its row is rendered as unmeasured.
+    """
+    performance = {}
+    for row in _read_csv(ATEN_SILICON_RESULTS):
+        if row.get("kernel", "") in ATEN_RETIRED_EARLY_MATCH_KERNELS:
+            continue
+        if "thrust" in " ".join(str(value) for value in row.values()).lower():
+            continue
+        performance[row.get("kernel", "")] = row
+    return performance
+
+
 def _aten_sorted_kernels(sort_by: str) -> list[str]:
     if sort_by == "alphabetical":
         return sorted(ATEN_C_ORDER)
-    performance = {
-        row.get("kernel", ""): row for row in _read_csv(ATEN_SILICON_RESULTS)
-    }
+    performance = _aten_performance_by_kernel()
     correctness_rank = {"PASS": 0, "FAIL": 1, "—": 2, "": 2}
     return sorted(
         ATEN_C_ORDER,
@@ -2390,9 +2478,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
 
 def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
                   sort_by: str, page: int, page_count: int) -> str:
-    performance = {
-        row.get("kernel", ""): row for row in _read_csv(ATEN_SILICON_RESULTS)
-    }
+    performance = _aten_performance_by_kernel()
     cuda_audit = {
         row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
     }
@@ -2422,6 +2508,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         launches = stats.get("launches", 0)
         residual = stats.get("residual", 0)
         loops = stats.get("residual_for", 0)
+        matched_loops = stats.get("matched_residual_for", loops)
         linalg_ops = stats.get("linalg_ops", 0)
         if linalg_ops > 0 and loops == 0:
             raise_status_class, raise_status = "pass", "FULL"
@@ -2431,13 +2518,15 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             raise_status_class, raise_status = "none", "NONE"
         if kernel in ATEN_C_UNSAFE_MATCHES:
             status_class, status = "none", "UNSAFE"
-        elif launches and residual == 0 and loops == 0:
+        elif launches and residual == 0 and matched_loops == 0:
             status_class, status = "pass", "FULL"
         elif launches:
             status_class, status = "partial", "PARTIAL"
         else:
             status_class, status = "none", "NONE"
         assessment = ATEN_C_MATCH_ASSESSMENT.get(kernel, "")
+        if "thrust" in assessment.lower():
+            assessment = ""
         perf = performance.get(kernel, {})
         execution = html.escape(perf.get("executable_status", "—"))
         correctness = html.escape(perf.get("correctness", "—"))
@@ -2464,7 +2553,26 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         audit_scope = html.escape(
             audit.get("current_match_scope", "—").replace("_", " ")
         )
-        execution_class = "pass" if execution == "EXECUTED" else "none"
+        implementation_class = audit.get(
+            "current_implementation_class", "UNVERIFIED_IMPLEMENTATION")
+        implementation_detail = audit.get("current_implementation_detail", "")
+        counts_as_library = audit.get("counts_as_library_reuse") == "yes"
+        implementation_provenance = (
+            f'<b>{html.escape(implementation_class.replace("_", " "))}</b>'
+            f'<br><span>{html.escape(implementation_detail)}</span>'
+        )
+        if status == "FULL" and not counts_as_library:
+            status_class, status = "partial", "GPU FALLBACK"
+        if any(
+            symbol.startswith("cudnnAveragePool_f32_") or
+            symbol.startswith("cudnnBatchNormBackward_f32_")
+            for symbol in symbols
+        ):
+            audit_scope = "COMPLETE REWRITE CANDIDATE"
+        execution_class = (
+            "pass" if execution == "EXECUTED" else
+            "partial" if execution.startswith("EXECUTED_") else "none"
+        )
         correctness_class = "pass" if correctness == "PASS" else "none"
         rows.append(
             f"<tr><td>{name}</td>"
@@ -2474,7 +2582,8 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             f"<td>{launches}</td>"
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbol_html}</td>"
-            f"<td>{audit_scope}</td><td>{candidate}</td>"
+            f"<td>{audit_scope}</td><td>{implementation_provenance}</td>"
+            f"<td>{candidate}</td>"
             f'<td class="{execution_class}">{execution}</td>'
             f'<td class="{correctness_class}">{correctness}</td>'
             f"<td><code>{problem}</code></td><td>{raised_us}</td>"
@@ -2491,10 +2600,16 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         for s in aten_stats.values()
     )
     matched_kernels = sum(s.get("launches", 0) > 0 for s in aten_stats.values())
-    complete_matches = sum(
+    structurally_complete_matches = sum(
         row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
         for row in cuda_audit.values()
     )
+    complete_matches = sum(
+        row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE" and
+        row.get("counts_as_library_reuse") == "yes"
+        for row in cuda_audit.values()
+    )
+    custom_fallbacks = structurally_complete_matches - complete_matches
     partial_matches = sum(
         row.get("current_match_scope") == "PARTIAL_STAGE_ONLY"
         for row in cuda_audit.values()
@@ -2530,25 +2645,33 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         f'residual loops. '
         f'The current matcher emitted {total_launches} launches across '
         f'{matched_kernels}/{len(aten_stats)} kernels, but exhaustive residual-IR '
-        f'checking finds only {complete_matches} complete rewrite candidates and '
+        f'checking finds {complete_matches} complete genuine library/runtime '
+        f'rewrites, {custom_fallbacks} complete generated GPU fallbacks, and '
         f'{partial_matches} partial stage matches. '
         'Raising FULL/PARTIAL/NONE means Linalg with no residual loops, Linalg '
         'with residual loops, or no raised Linalg, respectively. Match '
-        'FULL/PARTIAL/NONE describes semantic library-matcher coverage. Copy matching '
-        'rejects known transpose and gather false-positives; the remaining '
-        'pixel-shuffle view candidate is explicitly marked unsafe until its '
-        'submap layout is proven by the runtime ABI. '
+        'FULL/PARTIAL/NONE describes semantic matcher coverage; GPU FALLBACK '
+        'means the complete rewrite executes compiler-authored GPU code and is '
+        'not counted as CUDA-library reuse. '
+        'The cuTENSOR permutation lowering preserves affine view strides and '
+        'rank-reduced singleton dimensions. '
         'The newly available cuTensorNet tensor-product definition produced '
         'no additional ATen match: none of these kernels has its rank-6 '
-        'separable 3D tensor-product signature. Existing cuBLAS, cuDNN, and '
-        'custom CUDA definitions remain the correct matches. These are '
+        'separable 3D tensor-product signature. Only genuine vendor-library '
+        'and CUDA-runtime definitions are counted as matches. These are '
         'standalone C extractions of ATen mathematics, not the unmodified '
         'PyTorch C++ translation units (whose direct 224-file sweep produced '
         '0 Linalg operations). Large-problem silicon results use a Jetson '
         'Orin in MAXN mode. Raised time is the current host-pointer ABI; the '
         'resident baseline keeps operands on the GPU and times only the '
         'cuBLAS/cuDNN or fused CUDA operation. Both columns are warm medians '
-        'of process runs 2–4 and are shown only after correctness passes.'
+        'of process runs 2–4 and are shown only after correctness passes. '
+        'Generic cuDNN pointwise-graph rows use 3–4 independently warmed '
+        'processes (three untimed warmups and the mean of ten calls per '
+        'process); their median is likewise published only when the runtime '
+        'confirmed that a cuDNN graph executed and the reference comparison '
+        'passed. A failed boundary-state check or a large-shape graph/build '
+        'gap is displayed explicitly with its timing withheld.'
         ' <a href="performance.html"><b>Why are some kernels slow?</b></a> '
         'groups the measured gaps by cause and starts with a GEMV deep dive.'
         '</div>'
@@ -2559,9 +2682,13 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         '<th>residual loops</th><th>raising status</th>'
         '<th>launches</th><th>match status</th>'
         '<th>matched implementation</th><th>current match scope</th>'
+        '<th>implementation provenance</th>'
         '<th>NVIDIA library candidate</th><th>execution</th><th>correctness</th>'
-        '<th>large problem</th><th>raised warm (µs)</th>'
-        '<th>resident CUDA (µs)</th><th>raised / resident</th>'
+        '<th>large problem</th><th>raised warm '
+        '(<span style="text-transform:none">µs</span>)</th>'
+        '<th>resident CUDA '
+        '(<span style="text-transform:none">µs</span>)</th>'
+        '<th>raised / resident</th>'
         '<th>resident baseline</th><th>assessment</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
@@ -3267,18 +3394,8 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
             )
             ratio = float(silicon["raised_over_native"])
             ratio_cell = f'MFEM <b>{ratio:.1f}&times;</b> faster'
-            before_cache = silicon.get("raised_runtime_us_before_plan_cache", "")
-            cache_speedup = silicon.get("plan_cache_speedup", "")
-            if before_cache and cache_speedup:
-                optimization_cell = (
-                    f'<b>{float(cache_speedup):.2f}&times;</b> faster<br>'
-                    f'<small>before: {_fmt_seconds(float(before_cache) / 1.0e6)}</small>'
-                )
-            else:
-                optimization_cell = "—"
         else:
             correctness = raised_runtime = native_runtime = ratio_cell = "—"
-            optimization_cell = "—"
             correctness_class = ""
         rows.append(
             f"<tr><td>{name}</td>"
@@ -3292,7 +3409,7 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbols}</td>"
             f'<td class="{correctness_class}">{correctness}</td>'
-            f"<td>{raised_runtime}</td><td>{optimization_cell}</td>"
+            f"<td>{raised_runtime}</td>"
             f"<td>{native_runtime}</td>"
             f"<td>{ratio_cell}</td></tr>"
         )
@@ -3338,7 +3455,6 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         '<th>executable launches</th><th>status</th>'
         '<th>matched implementation</th>'
         '<th>silicon correctness</th><th>raised current ABI</th>'
-        '<th>plan-cache improvement</th>'
         '<th>MFEM native CUDA</th><th>runtime difference</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)

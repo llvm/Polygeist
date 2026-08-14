@@ -835,6 +835,48 @@ struct LowerSymbolBearingSubmapToSubview : public OpRewritePattern<SubmapOp> {
   }
 };
 
+// A common C frontend view reshapes a flat pointer into an N-D row-major
+// memref.  It cannot be expressed as memref.subview because its affine map
+// has one result containing several scaled view dimensions, e.g.
+//   (d0, d1, d2) -> d2 + 16*d1 + 256*d0.
+// Once the constant extents prove those coefficients are exactly row-major,
+// this is a zero-copy memref.reinterpret_cast.  The flat base may be larger
+// than the view, so expand_shape would be unnecessarily restrictive.
+struct LowerRowMajorFlatMemrefSubmap
+    : public OpRewritePattern<SubmapOp> {
+  using OpRewritePattern<SubmapOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubmapOp submap,
+                                PatternRewriter &rewriter) const final {
+    auto baseTy = dyn_cast<MemRefType>(submap.getBase().getType());
+    auto outTy = dyn_cast<MemRefType>(submap.getResult().getType());
+    if (!baseTy || !outTy || baseTy.getRank() != 1 ||
+        outTy.getRank() != static_cast<int64_t>(submap.getSizes().size()) ||
+        submap.getMap().getNumSymbols() != 0)
+      return failure();
+    auto staticSizes = getStaticSizeOperands(submap.getSizes());
+    if (!staticSizes ||
+        !isRowMajorLinearizedMap(submap.getMap(), *staticSizes))
+      return failure();
+
+    SmallVector<OpFoldResult> sizes;
+    sizes.reserve(submap.getSizes().size());
+    for (Value size : submap.getSizes())
+      sizes.push_back(size);
+    SmallVector<OpFoldResult> strides(staticSizes->size());
+    int64_t stride = 1;
+    for (int64_t d = staticSizes->size() - 1; d >= 0; --d) {
+      strides[d] = rewriter.getIndexAttr(stride);
+      stride *= (*staticSizes)[d];
+    }
+    auto cast = rewriter.create<memref::ReinterpretCastOp>(
+        submap.getLoc(), outTy, submap.getBase(), rewriter.getIndexAttr(0),
+        sizes, strides);
+    rewriter.replaceOp(submap, cast.getResult());
+    return success();
+  }
+};
+
 // Tensor variant of polygeist.submap is handled by replacing with
 // tensor.extract_slice (analogous to memref.subview).
 struct LowerSymbolBearingSubmapToExtractSlice
@@ -1376,6 +1418,7 @@ struct LowerPolygeistSubmapPass
     patterns.add<FoldIdentitySubmapInverse,
                  ComposeAffineSubmapIntoLinalgGeneric,
                  ComposeSubmapIntoLinalgGeneric,
+                 LowerRowMajorFlatMemrefSubmap,
                  LowerSymbolBearingSubmapToSubview,
                  LowerSymbolBearingSubmapToExtractSlice,
                  LowerSubmapInverse>(&getContext());

@@ -16,6 +16,83 @@
 // signature whose body computes the canonical semantics for that library op.
 
 module {
+  kernel.defn @cublasGemmEx_i8_i32_tensor(
+      %A: tensor<?x?xi8>, %B: tensor<?x?xi8>, %C: tensor<?x?xi32>)
+      -> tensor<?x?xi32> { kernel.yield %C : tensor<?x?xi32> }
+  kernel.defn @cublasSnrm2_f32_memref(
+      %input: memref<?xf32>, %output: memref<?xf32>) { kernel.yield }
+  kernel.defn @cublasJointMaxAbsProduct_f32_memref(
+      %a: memref<?xf32>, %b: memref<?xf32>, %output: memref<?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnFeatureMaskScale_f32_tensor(
+      %input: tensor<?x?x?x?xf32>, %mask: tensor<?x?xf32>, %scale: f32,
+      %output: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?x?xf32>
+  }
+  kernel.defn @cudnnConvolutionTranspose2D_f32_memref(
+      %input: memref<?x?x?x?xf32>, %filter: memref<?x?x?x?xf32>,
+      %output: memref<?x?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnDepthwiseConvolution2D_f32_memref(
+      %input: memref<?x?x?x?xf32>, %filter: memref<?x?x?xf32>,
+      %bias: memref<?xf32>, %output: memref<?x?x?x?xf32>) { kernel.yield }
+  kernel.defn @cutensorKroneckerProduct2D_f32_memref(
+      %x: memref<?x?xf32>, %y: memref<?x?xf32>,
+      %output: memref<?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnBinaryCrossEntropyMean_f32_memref(
+      %input: memref<?xf32>, %target: memref<?xf32>,
+      %output: memref<?xf32>) { kernel.yield }
+  kernel.defn @cudnnConvolutionTBC_f32_memref(
+      %input: memref<?x?x?xf32>, %filter: memref<?x?x?xf32>,
+      %output: memref<?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnTransformBiasRescaleQKV_f32_memref(
+      %qkv: memref<?x?x?x?x?xf32>, %bias: memref<?x?x?xf32>, %scale: f32,
+      %q: memref<?x?x?x?xf32>, %k: memref<?x?x?x?xf32>,
+      %v: memref<?x?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnAddrElementwise_f32_memref(
+      %self: memref<?xf32>, %x: memref<?xf32>, %y: memref<?xf32>,
+      %beta: f32, %alpha: f32, %output: memref<?xf32>) { kernel.yield }
+  kernel.defn @cudnnLogSigmoid_f32_memref(
+      %x: memref<?xf32>, %output: memref<?xf32>,
+      %buffer: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedLogicalAnd_i32_memref(
+      %x: memref<?x64xi32>, %out: memref<?xi32>) { kernel.yield }
+  kernel.defn @cubSegmentedLogicalSelect_i32_memref(
+      %all_x: memref<?x64xi32>, %any_x: memref<?x64xi32>, %all: i32,
+      %out: memref<?xi32>) { kernel.yield }
+  kernel.defn @cublasSdot_memref(
+      %x: memref<?xf32>, %y: memref<?xf32>,
+      %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedArgMax_f32_i32_memref(
+      %x: memref<?x64xf32>, %out: memref<?xi32>) { kernel.yield }
+  kernel.defn @cubSegmentedArgMin_f32_i32_memref(
+      %x: memref<?x64xf32>, %out: memref<?xi32>) { kernel.yield }
+  kernel.defn @cublasSgemvTZero_memref(
+      %matrix: memref<?x?xf32>, %vector: memref<?xf32>,
+      %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cudnnSinc_f32_memref(
+      %x: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
+
+  // ABI-only declarations for general contiguous reductions.  The reduction
+  // combiner and element type are encoded by the symbol; the CUDA ABI pass
+  // lowers these to cuDNN's tensor-reduction API.
+  kernel.defn @cudnnReduceSum_f32(%x: tensor<?xf32>, %out: tensor<f32>) -> tensor<f32> { kernel.yield %out : tensor<f32> }
+  kernel.defn @cudnnReduceSum_f64(%x: tensor<?xf64>, %out: tensor<f64>) -> tensor<f64> { kernel.yield %out : tensor<f64> }
+  kernel.defn @cudnnReduceProduct_f32(%x: tensor<?xf32>, %out: tensor<f32>) -> tensor<f32> { kernel.yield %out : tensor<f32> }
+  kernel.defn @cudnnReduceMin_f32(%x: tensor<?xf32>, %out: tensor<f32>) -> tensor<f32> { kernel.yield %out : tensor<f32> }
+  kernel.defn @cudnnReduceMax_f32(%x: tensor<?xf32>, %out: tensor<f32>) -> tensor<f32> { kernel.yield %out : tensor<f32> }
+  kernel.defn @cudnnReduceMinMax_f32(%x: tensor<?xf32>, %max: tensor<f32>, %min: tensor<f32>) -> (tensor<f32>, tensor<f32>) { kernel.yield %max, %min : tensor<f32>, tensor<f32> }
+  kernel.defn @cudnnReduceTrace_f32(%x: tensor<?x?xf32>, %out: tensor<f32>) -> tensor<f32> { kernel.yield %out : tensor<f32> }
+  kernel.defn @cubSegmentedLogicalAnd_i32(%x: tensor<?x?xi32>, %out: tensor<?xi32>) -> tensor<?xi32> { kernel.yield %out : tensor<?xi32> }
+  kernel.defn @cubSegmentedLogicalOr_i32(%x: tensor<?x?xi32>, %out: tensor<?xi32>) -> tensor<?xi32> { kernel.yield %out : tensor<?xi32> }
+  kernel.defn @cubSegmentedBitXor_i32(%x: tensor<?x?xi32>, %out: tensor<?xi32>) -> tensor<?xi32> { kernel.yield %out : tensor<?xi32> }
+  kernel.defn @cubSegmentedPrefixSum_f32(%x: tensor<?x?xf32>, %lengths: tensor<?xi32>, %out: tensor<?xf32>) -> tensor<?xf32> { kernel.yield %out : tensor<?xf32> }
+  kernel.defn @cubSegmentedPrefixLogicalAnd_i32(%x: tensor<?x?xi32>, %lengths: tensor<?xi32>, %out: tensor<?xi32>) -> tensor<?xi32> { kernel.yield %out : tensor<?xi32> }
+  kernel.defn @cutensorPermute_f32_r2_tensor(%input: tensor<?x?xf32>, %out: tensor<?x?xf32>) -> tensor<?x?xf32> { kernel.yield %out : tensor<?x?xf32> }
+  kernel.defn @cutensorPermute_f32_r3_tensor(%input: tensor<?x?x?xf32>, %out: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> { kernel.yield %out : tensor<?x?x?xf32> }
+  kernel.defn @cutensorPermute_f32_r4_tensor(%input: tensor<?x?x?x?xf32>, %out: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> { kernel.yield %out : tensor<?x?x?x?xf32> }
+  kernel.defn @cutensorPermute_f32_r5_tensor(%input: tensor<?x?x?x?x?xf32>, %out: tensor<?x?x?x?x?xf32>) -> tensor<?x?x?x?x?xf32> { kernel.yield %out : tensor<?x?x?x?x?xf32> }
+  kernel.defn @cutensorPermute_f32_r6_tensor(%input: tensor<?x?x?x?x?x?xf32>, %out: tensor<?x?x?x?x?x?xf32>) -> tensor<?x?x?x?x?x?xf32> { kernel.yield %out : tensor<?x?x?x?x?x?xf32> }
 
   // ABI-only canonical declarations for the parameterized cuTENSOR unary
   // lowering. The runtime operation id is encoded in the symbol name by the
@@ -116,6 +193,118 @@ module {
       linalg.yield %sum : f32
     } -> tensor<?x?x?x?xf32>
     kernel.yield %result : tensor<?x?x?x?xf32>
+  }
+
+  // Uniform-weight channel-preserving fixed-window convolution.  This is the
+  // generic library form for box stencils and regular adaptive-average-pool
+  // specializations.  The runtime constructs a [C,1,KH,KW] filter and selects
+  // grouped/depthwise cuDNN convolution with groups=C.
+  kernel.defn @cudnnConvolution2DWindow_f32(
+      %input: tensor<?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>,
+      %weight: f32,
+      %kh: i32, %kw: i32, %sh: i32, %sw: i32,
+      %dh: i32, %dw: i32, %ph: i32, %pw: i32)
+      -> tensor<?x?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?x?xf32>
+  }
+
+  // Rank-parameterized ATen adaptive average/max pooling. Operation is
+  // 0=avg-fwd, 1=avg-bwd, 2=max-fwd, 3=max-bwd. Spatial dimensions unused by
+  // rank-1/rank-2 forms are one. ptr2 is unused for average pooling.
+  kernel.defn @cudnnAdaptivePool_f32_flat2(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?xf32>, %ptr1: memref<?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_flat3_fwd(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?xf32>, %ptr1: memref<?xf32>, %ptr2: memref<?xi32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_flat3_bwd(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?xf32>, %ptr1: memref<?xi32>, %ptr2: memref<?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_r2(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?xf32>, %ptr1: memref<?x?xf32>,
+      %ptr2: memref<?x?xi32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_r4_fwd(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?x?x?xf32>, %ptr1: memref<?x?x?x?xf32>,
+      %ptr2: memref<?x?x?x?xi32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_r4_bwd(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?x?x?xf32>, %ptr1: memref<?x?x?x?xi32>,
+      %ptr2: memref<?x?x?x?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAdaptivePool_f32_r5(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?x?x?x?xf32>, %ptr1: memref<?x?x?x?x?xf32>) {
+    kernel.yield
+  }
+
+  // Fixed-window average pooling uses the same runtime ABI as adaptive
+  // pooling, with operation tags 4 (forward) and 5 (backward).  Keeping
+  // distinct semantic symbols prevents fixed odd-size windows from being
+  // confused with adaptive partitions.
+  kernel.defn @cudnnAveragePool_f32_flat2(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?xf32>, %ptr1: memref<?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAveragePool_f32_r4(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?x?x?xf32>, %ptr1: memref<?x?x?x?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnAveragePool_f32_r5(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x?x?x?x?xf32>, %ptr1: memref<?x?x?x?x?xf32>) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnBatchNormBackward_f32_full(
+      %n: i32, %c: i32, %spatial: i32,
+      %grad: memref<?x?x?xf32>, %x: memref<?x?x?xf32>,
+      %mean: memref<?xf32>, %invstd: memref<?xf32>,
+      %weight: memref<?xf32>, %dx: memref<?x?x?xf32>,
+      %dweight: memref<?xf32>, %dbias: memref<?xf32>) {
+    kernel.yield
+  }
+  kernel.defn @cudnnBatchNormBackward_f32_dx(
+      %n: i32, %c: i32, %spatial: i32,
+      %grad: memref<?x?x?x?xf32>, %x: memref<?x?x?x?xf32>,
+      %mean: memref<?xf32>, %invstd: memref<?xf32>,
+      %dx: memref<?x?x?x?xf32>) {
+    kernel.yield
   }
 
   // cuDNN max pool. The rank-6 input is [N, C, OH, OW, KH, KW].
@@ -307,25 +496,33 @@ module {
   //   out[i] = weight[i] * x[i] * rsqrt(ss / N + 1e-5)
   // ABI lowering maps this to a runtime shim. The shim owns the optimized
   // implementation choice (cuDNN frontend/custom CUDA/CPU fallback).
-  kernel.defn @rmsnorm_f32(
-      %x: memref<?xf32>, %weight: memref<?xf32>, %out: memref<?xf32>) {
-    kernel.yield
+
+  // Cyclic 1-D reindexing.  The matcher proves
+  // out[i] = input[(i + rotate_offset) mod N]; ABI lowering maps it to two
+
+
+  // Independent runtime-controlled reflection of a 2-D tensor's axes.
+
+  kernel.defn @cubCountNonzero1D_f32_tensor(
+      %input: tensor<?xf32>, %out: tensor<i32>) -> tensor<i32> {
+    kernel.yield %out : tensor<i32>
   }
 
-  kernel.defn @rmsnorm_f32_tensor(
-      %x: tensor<?xf32>, %weight: tensor<?xf32>,
-      %out: tensor<?xf32>) -> tensor<?xf32> {
-    kernel.yield %out : tensor<?xf32>
+  kernel.defn @cubSegmentedCountNonzero2D_f32_tensor(
+      %input: tensor<?x?xf32>, %out: tensor<?xi32>) -> tensor<?xi32> {
+    kernel.yield %out : tensor<?xi32>
   }
 
-  kernel.defn @rmsnorm_unweighted_f32_tensor(
-      %x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
-    kernel.yield %out : tensor<?xf32>
+  kernel.defn @cubEqualAll1D_f32_tensor(
+      %lhs: tensor<?xf32>, %rhs: tensor<?xf32>, %out: tensor<i32>)
+      -> tensor<i32> {
+    kernel.yield %out : tensor<i32>
   }
 
-  kernel.defn @gelu_tanh_f32_tensor(
-      %x: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
-    kernel.yield %out : tensor<?xf32>
+  kernel.defn @cubSegmentedLogicalSelect_i32_tensor(
+      %all_input: tensor<?x?xi32>, %any_input: tensor<?x?xi32>, %all: i1,
+      %out: tensor<?xi32>) -> tensor<?xi32> {
+    kernel.yield %out : tensor<?xi32>
   }
 
   kernel.defn @cublasDdot(
@@ -432,6 +629,16 @@ module {
       linalg.yield %sv : f32
     } -> tensor<?x?xf32>
     kernel.yield %result : tensor<?x?xf32>
+  }
+
+  kernel.defn @cublasBroadcastAxis0_f32(
+      %src: tensor<?xf32>, %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %out : tensor<?x?xf32>
+  }
+
+  kernel.defn @cublasBroadcastAxis1_f32(
+      %src: tensor<?xf32>, %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %out : tensor<?x?xf32>
   }
 
   kernel.defn @cudaCopy3D_f32_tensor(
@@ -1672,6 +1879,16 @@ module {
       %out: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
     kernel.yield %out : tensor<?x?x?x?xf32>
   }
+  kernel.defn @cudnnConvolution1D_f32_bias(
+      %windows: tensor<?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?xf32>, %bias: tensor<?xf32>,
+      %output: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?xf32>
+  }
+  kernel.defn @cudnnConvolution2D_f32_dilated(
+      %windows: tensor<?x?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?xf32>, %output: tensor<?x?x?xf32>)
+      -> tensor<?x?x?xf32> { kernel.yield %output : tensor<?x?x?xf32> }
 
   // Custom structured 3D 7-point stencil definitions. These operate on the
   // raised form directly: seven same-shaped tap tensors plus an output tensor.
@@ -1781,6 +1998,41 @@ module {
       %B: tensor<?x?x?x?x?xf64>,
       %C: tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64> {
     kernel.yield %C : tensor<?x?x?x?xf64>
+  }
+
+  // cuDNN backend operation graph: relu(alpha * x + bias).
+  kernel.defn @cudnnPointwiseAffineRelu_f32(
+      %x: tensor<?xf32>, %bias: tensor<?xf32>, %out: tensor<?xf32>,
+      %alpha: f32) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  // Parameterized rank-1 f32 pointwise DAG. The launch carries compact graph
+  // bytecode as attributes; unused tensor/scalar ABI slots are ignored.
+  kernel.defn @cudnnPointwiseGraph_f32(
+      %in0: tensor<?xf32>, %in1: tensor<?xf32>,
+      %in2: tensor<?xf32>, %in3: tensor<?xf32>,
+      %out: tensor<?xf32>,
+      %s0: f32, %s1: f32, %s2: f32, %s3: f32,
+      %s4: f32, %s5: f32, %s6: f32, %s7: f32) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  kernel.defn @cubInclusiveSum1D_f32_tensor(
+      %input: tensor<?xf32>, %final: tensor<f32>,
+      %output: tensor<?xf32>) -> (tensor<f32>, tensor<?xf32>) {
+    kernel.yield %final, %output : tensor<f32>, tensor<?xf32>
+  }
+
+  kernel.defn @cubSegmentedInclusiveProduct2D_f32_tensor(
+      %input: tensor<?x?xf32>, %output: tensor<?x?xf32>,
+      %final: tensor<?xf32>) -> (tensor<?x?xf32>, tensor<?xf32>) {
+    kernel.yield %output, %final : tensor<?x?xf32>, tensor<?xf32>
+  }
+
+  kernel.defn @cubExclusiveSum1D_i32_memref(
+      %input: memref<?xi32>, %output: memref<?xi32>) {
+    kernel.yield
   }
 
   kernel.defn @cudnnConvolution2D_9tap_f16(

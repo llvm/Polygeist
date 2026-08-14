@@ -3,7 +3,7 @@
 
 This is deliberately conservative about *direct* matches.  A fixed API is a
 single public operation with the fixture's semantics.  A generic primitive is
-an existing NVIDIA implementation (cuTENSOR/cuDNN graph/CUB/Thrust) that needs
+an existing NVIDIA implementation (cuTENSOR/cuDNN graph/CUB) that needs
 descriptor construction or template instantiation.  A partial API covers only
 stages of the fixture and therefore needs graph composition.
 """
@@ -33,7 +33,6 @@ EVIDENCE = {
     "cuFFT": "https://docs.nvidia.com/cuda/cufft/contents.html",
     "cuRAND": "https://docs.nvidia.com/cuda/curand/index.html",
     "CUB": "https://nvidia.github.io/cccl/cub/api/device.html",
-    "Thrust": "https://nvidia.github.io/cccl/thrust/api/",
     "NPP": "https://docs.nvidia.com/cuda/npp/index.html",
     "CUDA Runtime": "https://docs.nvidia.com/cuda/cuda-runtime-api/",
 }
@@ -62,6 +61,24 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
     # Exact and easily confused cases are kept ahead of the family rules.  In
     # particular, substring matching must not turn acos/acosh into cos, or an
     # arbitrary helper containing "add" into a cuDNN ADD operation.
+    if n == "amp_update_scale_cpu":
+        return result(
+            "scalar_state_update", "", "none", "NO_DIRECT_LIBRARY_API",
+            "none", "a two-scalar host control-flow update is not a tensor operation")
+    if n in {"erfcx", "log_ndtr"}:
+        return result(
+            "opaque_special_function", "", "none", "NO_DIRECT_LIBRARY_API",
+            "none", "the extraction calls an ATen scalar helper with no equivalent public NVIDIA tensor-library operation")
+    if n == "cartesian_prod_cpu":
+        return result("tensor_broadcast", "cuBLAS",
+                      "SGER outer products with vectors of ones",
+                      "FULL_GENERIC_API", "whole",
+                      "the two outputs broadcast each input across the Cartesian grid")
+    if n == "nested_sum_backward_cpu":
+        return result("tensor_broadcast", "cuBLAS",
+                      "SGER outer product with a vector of ones",
+                      "FULL_GENERIC_API", "whole",
+                      "sum backward replicates each row gradient; it performs no reduction")
     if "histogram" in n or "histogramdd" in n:
         return result("histogram_count", "CUB", "DeviceHistogram",
                       "FULL_GENERIC_API", "whole",
@@ -71,9 +88,9 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_FIXED_API", "whole",
                       "standard sparse-dense or sparse-sparse linear algebra")
     if "fft_conjugate_symmetry" in n:
-        return result("complex_layout", "cuTENSOR", "permutation and conjugate pointwise operation",
-                      "FULL_GENERIC_API", "whole",
-                      "this is a symmetry-fill helper rather than an FFT execution")
+        return result("complex_layout", "", "",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "this symmetry-fill helper has no link-only NVIDIA tensor-library call")
     if hit(r"(^|_)(blas_axpy|blas_scale|linear_combination|flatten_nd_linear)(_|$)", n):
         return result("dense_vector_update", "cuBLAS", "cublasAxpy/cublasScal/cublasGemv",
                       "FULL_FIXED_API", "whole",
@@ -95,11 +112,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_GENERIC_API", "whole",
                       "CUB directly implements adjacent differences")
     if n == "embedding" or "put_cpu" in n or "spdiags" in n:
-        return result("indexed_data_movement", "Thrust", "gather/scatter",
-                      "FULL_GENERIC_API", "whole",
-                      "the operation is an indirect gather or scatter")
+        return result("indexed_data_movement", "CUB", "DeviceSelect/sort primitives",
+                      "PARTIAL_API", "stages",
+                      "CUB provides building blocks but no general gather/scatter tensor call")
     if hit(r"nested_(clone|squeeze)_cpu", n):
-        return result("data_movement", "CUDA Runtime", "cudaMemcpyAsync or Thrust copy",
+        return result("data_movement", "CUDA Runtime", "cudaMemcpyAsync",
                       "FULL_GENERIC_API", "whole",
                       "the standalone operation copies or reinterprets nested storage metadata")
     if hit(r"(^|_)(eq|ne|ge|gt|le|lt|fmax|fmin)(_|$)", n):
@@ -175,15 +192,15 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_FIXED_API", "whole",
                       "the right matrix is broadcast across a regular GEMM batch")
     if "isin_default" in n:
-        return result("set_membership", "Thrust", "sort plus binary_search",
-                      "FULL_GENERIC_API", "whole",
-                      "Thrust implements the sort and vectorized membership search")
+        return result("set_membership", "CUB", "DeviceRadixSort building block",
+                      "PARTIAL_API", "sort_stage",
+                      "CUB sorts the values but provides no complete membership-search call")
     if "triu_tril_single" in n:
         return result("triangular_mask", "cuDNN", "GEN_INDEX/comparison/BINARY_SELECT graph",
                       "FULL_GENERIC_API", "whole",
                       "generated row/column indices form the triangular selection predicate")
     if "multinomial_with_replacement" in n:
-        return result("categorical_sampling", "CUB", "segmented scan plus Thrust upper_bound",
+        return result("categorical_sampling", "CUB", "segmented scan",
                       "PARTIAL_API", "stages",
                       "scan and search primitives exist, but sampling and batching require composition")
     if "dyn_quant_matmul_4bit" in n:
@@ -244,9 +261,9 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "fixed_window_reduction_stage",
                       "cuDNN has max pooling, but fractional sample-dependent window origins require composition")
     if "max_unpool" in n:
-        return result("indexed_scatter", "Thrust", "fill plus scatter",
-                      "FULL_GENERIC_API", "whole",
-                      "unpooling is zero-fill followed by indexed scatter")
+        return result("indexed_scatter", "CUDA Runtime", "cudaMemset plus residual scatter",
+                      "PARTIAL_API", "initialization_stage",
+                      "zero-fill is available but indexed scatter has no link-only library call")
     if "adaptive" in n and "pool" in n:
         return result("adaptive_pooling", "cuDNN Resample", "average/max reduction over windows",
                       "PARTIAL_API", "regular_window_cases",
@@ -283,6 +300,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "stage",
                       "descriptor/storage handling exists, but arbitrary indexed elementwise semantics need composition")
 
+    if hit(r"sobol_(initialize|scramble)", n):
+        return result("sobol_state_transform", "", "",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "these helpers transform direction/state arrays; cuRAND does not expose them")
+
     # Random-number generation.  Transforms not offered by cuRAND are partial.
     if hit(r"uniform|normal_cpu|log_normal|poisson|sobol", n):
         return result("random_generation", "cuRAND", "host/device generation APIs",
@@ -317,17 +339,17 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_GENERIC_API", "whole",
                       "histogram/count operations map to device-wide primitives")
     if hit(r"searchsorted|lower_bound|upper_bound|binary_search", n):
-        return result("search", "Thrust", "lower_bound/upper_bound/binary_search",
-                      "FULL_GENERIC_API", "whole",
-                      "Thrust exposes device execution-policy binary searches")
+        return result("search", "CUB", "DeviceRadixSort building block",
+                      "PARTIAL_API", "sort_stage",
+                      "CUB has ordering primitives but no direct vectorized binary-search call")
     if hit(r"index|gather|scatter|take|masked_select|masked_scatter|nonzero|where", n):
         if hit(r"reduce|backward|add", n):
             return result("indexed_scatter_reduce", "CUB", "sort/reduce-by-key plus scatter",
                           "PARTIAL_API", "stages",
                           "collision-aware scatter needs ordering/reduction composition")
-        return result("indexed_data_movement", "Thrust", "gather/scatter/copy_if",
-                      "FULL_GENERIC_API", "whole",
-                      "Thrust provides indirect gather, scatter, and predicate compaction")
+        return result("indexed_data_movement", "CUB", "DeviceSelect/sort building blocks",
+                      "PARTIAL_API", "selection_or_sort_stage",
+                      "CUB does not expose a complete arbitrary gather/scatter tensor call")
     if hit(r"segment_reduce|segmented|embedding_bag", n):
         return result("segmented_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",
@@ -348,22 +370,21 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                           "FULL_GENERIC_API", "whole",
                           "mode permutation/broadcast covers regular affine layouts")
         if hit(r"flip|reverse", n):
-            return result("reverse", "Thrust", "reverse/reverse_copy",
-                          "FULL_GENERIC_API", "whole",
-                          "Thrust implements device-wide reversal")
+            return result("reverse", "", "", "NO_DIRECT_LIBRARY_API", "none",
+                          "no link-only NVIDIA tensor-library reverse call exists")
         if "pad" in n:
             return result("padding", "NPP", "copy-border/image geometry primitives",
                           "PARTIAL_API", "mode_dependent",
                           "constant/image borders exist; circular/reflection and arbitrary rank need composition")
-        return result("data_movement", "CUDA Runtime", "cudaMemcpy* or Thrust copy/fill",
+        return result("data_movement", "CUDA Runtime", "cudaMemcpy*/cudaMemset",
                       "FULL_GENERIC_API", "whole",
                       "contiguous copies are fixed runtime calls; structured concatenation needs multiple copies")
 
     # Initializers and sequences.
     if hit(r"fill|zeros|eye|arange|range_out|linspace|logspace|sequence", n):
-        return result("tensor_initialization", "Thrust", "fill/sequence/transform",
-                      "FULL_GENERIC_API", "whole",
-                      "device-wide fill and sequence generation are implemented")
+        return result("tensor_initialization", "CUDA Runtime", "cudaMemset for zero only",
+                      "PARTIAL_API", "zero_fill_stage",
+                      "general fill and sequence generation have no link-only runtime call")
 
     # Fixed pointwise modes and NPP signal routines.
     if hit(r"(^|_)(abs|sqrt|square|exp|exp2|expm1|log|log2|log10|log1p|add|sub|mul|div|remainder|fmod|clamp|threshold|relu|gelu|sigmoid|tanh|silu|swish|softplus|elu|logical|copysign|minimum|maximum|lerp|reciprocal|rsqrt|ceil|floor|round|trunc|neg|sign|signbit|pow)(_|$)", n):
@@ -414,7 +435,8 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and name in {
         "aten_conv2d", "aten_conv3d", "aten_slow_conv3d_forward_cpu",
-        "aten_softmax",
+        "aten_softmax", "aten_conv_transpose2d",
+        "aten_depthwise_conv3x3_cpu", "aten_conv_tbc_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and family == "normalization" and name in {
@@ -425,7 +447,20 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuFFT" and family == "fourier_transform":
         return "SELECTED_WRAPPERS_PRESENT"
+    if library == "cuTENSOR" and audit["candidate_api"] == "cutensorPermute":
+        return "SELECTED_WRAPPERS_PRESENT"
+    if library == "cuTENSOR" and name in {
+        "aten_kron_impl_cpu", "aten_kron_out_cpu"
+    }:
+        return "SELECTED_WRAPPERS_PRESENT"
+    if library == "CUB" and family == "scan":
+        return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and "graph" in audit["candidate_api"].lower():
+        if name in {"aten_binary_cross_entropy",
+                    "aten_transform_bias_rescale_qkv_cpu",
+                    "aten_addr_elementwise",
+                    "aten_log_sigmoid_cpu"}:
+            return "SELECTED_WRAPPERS_PRESENT"
         return "GENERAL_GRAPH_BACKEND_ABSENT"
     if not library:
         return "NO_TENSOR_LIBRARY_API"
@@ -441,7 +476,7 @@ def implementation_form(audit: dict[str, str]) -> str:
         return "NONE"
     if availability == "PARTIAL_API":
         return "PARTIAL_STAGES"
-    if ("graph" in api or " plus " in api or " or thrust" in api or
+    if ("graph" in api or " plus " in api or
             audit["semantic_family"] in {
                 "data_movement", "set_membership", "indexed_scatter",
                 "max_unpool", "compare_and_reduce"
@@ -450,10 +485,46 @@ def implementation_form(audit: dict[str, str]) -> str:
     return "SINGLE_CONFIGURED_PRIMITIVE"
 
 
+def current_implementation_provenance(symbols: str) -> tuple[str, str, str]:
+    """Classify whether emitted launches reuse public vendor implementations."""
+    names = [s.strip() for s in symbols.split(",") if s.strip()]
+    if not names:
+        return "NO_IMPLEMENTATION", "no emitted launch", "no"
+    classes: list[tuple[str, str, str]] = []
+    for symbol in names:
+        if symbol.startswith(("cublas", "cudnn", "cutensor", "cutensornet",
+                              "cufft", "cusparse", "cusolver", "npp")):
+            classes.append(("DIRECT_VENDOR_API",
+                            "public vendor API or vendor operation graph", "yes"))
+        elif symbol.startswith(("cudaCopy", "memset_zero")):
+            classes.append(("CUDA_RUNTIME_PRIMITIVE",
+                            "CUDA copy or memset runtime primitive", "yes"))
+        elif symbol.startswith("cub"):
+            classes.append(("STANDARD_LIBRARY_ALGORITHM",
+                            "preimplemented CUB device algorithm", "yes"))
+        elif symbol.startswith("custom") or symbol in {
+                "gelu_tanh_f32_tensor", "rmsnorm_f32_tensor"}:
+            classes.append(("CUSTOM_GENERATED_GPU_FALLBACK",
+                            "project-authored GPU implementation", "no"))
+        else:
+            classes.append(("UNVERIFIED_IMPLEMENTATION",
+                            "implementation provenance has not been audited", "no"))
+    if all(entry[2] == "yes" for entry in classes):
+        kind = (classes[0][0] if all(entry[0] == classes[0][0]
+                                     for entry in classes)
+                else "LIBRARY_API_COMPOSITION")
+        detail = "; ".join(dict.fromkeys(entry[1] for entry in classes))
+        return kind, detail, "yes"
+    return next(entry for entry in classes if entry[2] == "no")
+
+
 def diagnose(row: dict[str, str], audit: dict[str, str],
-             current_scope: str) -> str:
-    if current_scope == "COMPLETE_REWRITE_CANDIDATE":
+             current_scope: str, counts_as_library_reuse: str) -> str:
+    if (current_scope == "COMPLETE_REWRITE_CANDIDATE" and
+            counts_as_library_reuse == "yes"):
         return "ALREADY_FOUND"
+    if current_scope == "COMPLETE_REWRITE_CANDIDATE":
+        return "CUSTOM_GPU_FALLBACK_NOT_LIBRARY_MATCH"
     if current_scope == "PARTIAL_STAGE_ONLY":
         return "PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS"
     if row["status"] == "debufferize_failed":
@@ -489,7 +560,8 @@ def main() -> None:
             current_scope = "PARTIAL_STAGE_ONLY"
         else:
             current_scope = "COMPLETE_REWRITE_CANDIDATE"
-        gap = diagnose(row, audit, current_scope)
+        impl_class, impl_detail, is_library = current_implementation_provenance(current)
+        gap = diagnose(row, audit, current_scope, is_library)
         output.append({
             "kernel": row["kernel"], "source": source, "source_token": token,
             "pipeline_status": row["status"], "linalg_ops": row["linalg_ops"],
@@ -500,6 +572,9 @@ def main() -> None:
             "remaining_loops_after_match": remaining_loops,
             **audit,
             "implementation_form": implementation_form(audit),
+            "current_implementation_class": impl_class,
+            "current_implementation_detail": impl_detail,
+            "counts_as_library_reuse": is_library,
             "local_backend_status": local_backend_status(row["kernel"], audit),
             "compiler_gap": gap,
         })
@@ -512,6 +587,8 @@ def main() -> None:
     forms = Counter(row["implementation_form"] for row in output)
     scopes = Counter(row["current_match_scope"] for row in output)
     gaps = Counter(row["compiler_gap"] for row in output)
+    implementation_classes = Counter(
+        row["current_implementation_class"] for row in output)
     libraries = Counter(row["candidate_library"] or "none" for row in output)
     matcher_only = [
         row["kernel"] for row in output
@@ -529,6 +606,10 @@ def main() -> None:
         f"- Complete current rewrite candidates: {scopes['COMPLETE_REWRITE_CANDIDATE']}",
         f"- Partial stage-only current matches: {scopes['PARTIAL_STAGE_ONLY']}",
         f"- No current launch: {scopes['NONE']}",
+        f"- Complete rewrites using genuine library/runtime algorithms: "
+        f"{sum(r['current_match_scope']=='COMPLETE_REWRITE_CANDIDATE' and r['counts_as_library_reuse']=='yes' for r in output)}",
+        f"- Complete generated/custom GPU fallbacks (not library matches): "
+        f"{sum(r['current_match_scope']=='COMPLETE_REWRITE_CANDIDATE' and r['counts_as_library_reuse']!='yes' for r in output)}",
         "",
         "## What exists in NVIDIA libraries",
         "",
@@ -538,14 +619,23 @@ def main() -> None:
         f"- Only some stages have library primitives: {forms['PARTIAL_STAGES']}",
         f"- No direct tensor-library implementation: {forms['NONE']}",
         "",
-        "A CUB or Thrust result means NVIDIA ships the generic device algorithm; "
-        "it is not a stable host C ABI and would require a new template-backed "
-        "runtime wrapper. A cuDNN graph result requires graph construction/lowering. "
-        "Neither should be described as merely a missing Egglog pattern.",
+        "A named CUB algorithm means NVIDIA ships the substantive generic "
+        "algorithm. Compiler-authored GPU functors are excluded from library-reuse "
+        "coverage. A "
+        "cuDNN graph result requires graph construction/lowering but executes vendor "
+        "graph operations. None should be described as merely a missing Egglog pattern.",
+        "",
+        "## Current implementation provenance",
+        "",
+    ]
+    report.extend(
+        f"- `{key}`: {value}" for key, value in sorted(implementation_classes.items())
+    )
+    report.extend([
         "",
         "## Compiler diagnosis",
         "",
-    ]
+    ])
     report.extend(
         f"- `{key}`: {value}" for key, value in sorted(gaps.items())
     )

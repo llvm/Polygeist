@@ -1,0 +1,438 @@
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_addcdiv/aten_addcdiv
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcdiv warm_us=8397.996777 errors=0 max_error=4.76837e-07 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_addcmul/aten_addcmul
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcmul warm_us=8469.884814 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_batch_norm_cpu_entry/aten_batch_norm_cpu_entry
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_batch_norm_cpu_entry warm_us=4331.852783 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_cross/aten_cross
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross warm_us=93148.835278 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_cross_cpu_backend/aten_cross_cpu_backend
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross_cpu_backend warm_us=92868.739233 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_dirichlet_transform_cpu/aten_dirichlet_transform_cpu
+RESULT kernel=aten_dirichlet_transform_cpu warm_us=4108.847998 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_div/aten_div
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_div warm_us=6353.836768 errors=0 max_error=2.38419e-07 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_glu/aten_glu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu warm_us=6614.518359 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_glu_backward/aten_glu_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu_backward warm_us=8716.643164 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_cpu/aten_gradient_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=2)
+mismatch out[0]: ref=0.216216 got=-1.35135 err=1.56757
+RESULT kernel=aten_gradient_cpu warm_us=6338.115210 errors=1 max_error=1.56757 coverage=partial_graph_interior
+EXIT 1
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_float_cpu/aten_gradient_float_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=3)
+mismatch out[0]: ref=2.7027 got=-1.35135 err=4.05405
+RESULT kernel=aten_gradient_float_cpu warm_us=10200.774438 errors=1 max_error=4.05405 coverage=partial_graph_interior
+EXIT 1
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_host_softmax_backward_cpu/aten_host_softmax_backward_cpu
+RESULT kernel=aten_host_softmax_backward_cpu warm_us=4758.451245 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_layer_norm/aten_layer_norm
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_layer_norm warm_us=17895.603198 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp/aten_lerp
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp warm_us=8480.278394 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar/aten_lerp_scalar
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar warm_us=6392.841626 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar_cpu/aten_lerp_scalar_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar_cpu warm_us=6652.016016 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_tensor_cpu/aten_lerp_tensor_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_tensor_cpu warm_us=8584.553613 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_log_normal_cpu/aten_log_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_log_normal_cpu warm_us=4582.723169 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_backward/aten_mse_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_backward warm_us=6619.110352 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_elementwise/aten_mse_elementwise
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_elementwise warm_us=6577.206396 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_loss/aten_mse_loss
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_loss warm_us=10397.081592 errors=0 max_error=0 coverage=partial_graph_plus_reduction
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_nested_softmax_backward_cpu/aten_nested_softmax_backward_cpu
+RESULT kernel=aten_nested_softmax_backward_cpu warm_us=4726.448047 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_normal_cpu/aten_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_normal_cpu warm_us=4690.409668 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_rsqrt/aten_rsqrt
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_rsqrt warm_us=4580.297583 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_sigmoid_backward/aten_sigmoid_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_sigmoid_backward warm_us=6788.303931 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_sparse_coo_softmax_backward_cpu/aten_sparse_coo_softmax_backward_cpu
+RESULT kernel=aten_sparse_coo_softmax_backward_cpu warm_us=6031.673633 errors=0 max_error=9.53674e-07 coverage=partial_graph_epilogue
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_square/aten_square
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_square warm_us=4362.476807 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_tanh_backward/aten_tanh_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_tanh_backward warm_us=6681.580786 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 1 BEGIN /tmp/aten_pointwise_graph_final/aten_uniform_cpu/aten_uniform_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_uniform_cpu warm_us=4611.411206 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_addcdiv/aten_addcdiv
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcdiv warm_us=8572.953638 errors=0 max_error=4.76837e-07 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_addcmul/aten_addcmul
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcmul warm_us=8353.494409 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_batch_norm_cpu_entry/aten_batch_norm_cpu_entry
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_batch_norm_cpu_entry warm_us=4664.560010 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_cross/aten_cross
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross warm_us=93268.044751 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_cross_cpu_backend/aten_cross_cpu_backend
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross_cpu_backend warm_us=93263.740845 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_dirichlet_transform_cpu/aten_dirichlet_transform_cpu
+RESULT kernel=aten_dirichlet_transform_cpu warm_us=4079.664014 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_div/aten_div
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_div warm_us=6444.307202 errors=0 max_error=2.38419e-07 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_glu/aten_glu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu warm_us=6632.745630 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_glu_backward/aten_glu_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu_backward warm_us=8689.315234 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_cpu/aten_gradient_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=2)
+mismatch out[0]: ref=0.216216 got=-1.35135 err=1.56757
+RESULT kernel=aten_gradient_cpu warm_us=6326.931226 errors=1 max_error=1.56757 coverage=partial_graph_interior
+EXIT 1
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_float_cpu/aten_gradient_float_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=3)
+mismatch out[0]: ref=2.7027 got=-1.35135 err=4.05405
+RESULT kernel=aten_gradient_float_cpu warm_us=10160.463989 errors=1 max_error=4.05405 coverage=partial_graph_interior
+EXIT 1
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_host_softmax_backward_cpu/aten_host_softmax_backward_cpu
+RESULT kernel=aten_host_softmax_backward_cpu warm_us=4728.460815 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_layer_norm/aten_layer_norm
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_layer_norm warm_us=17998.300830 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp/aten_lerp
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp warm_us=8365.740845 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar/aten_lerp_scalar
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar warm_us=6355.782422 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar_cpu/aten_lerp_scalar_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar_cpu warm_us=6326.544019 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_tensor_cpu/aten_lerp_tensor_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_tensor_cpu warm_us=8436.796802 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_log_normal_cpu/aten_log_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_log_normal_cpu warm_us=4368.319995 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_backward/aten_mse_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_backward warm_us=6422.342407 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_elementwise/aten_mse_elementwise
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_elementwise warm_us=6303.615991 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_loss/aten_mse_loss
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_loss warm_us=10200.355151 errors=0 max_error=0 coverage=partial_graph_plus_reduction
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_nested_softmax_backward_cpu/aten_nested_softmax_backward_cpu
+RESULT kernel=aten_nested_softmax_backward_cpu warm_us=4757.459229 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_normal_cpu/aten_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_normal_cpu warm_us=4572.883179 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_rsqrt/aten_rsqrt
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_rsqrt warm_us=4810.355200 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_sigmoid_backward/aten_sigmoid_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_sigmoid_backward warm_us=6813.561621 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_sparse_coo_softmax_backward_cpu/aten_sparse_coo_softmax_backward_cpu
+RESULT kernel=aten_sparse_coo_softmax_backward_cpu warm_us=6033.952026 errors=0 max_error=9.53674e-07 coverage=partial_graph_epilogue
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_square/aten_square
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_square warm_us=4363.324854 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_tanh_backward/aten_tanh_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_tanh_backward warm_us=6608.476831 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 2 BEGIN /tmp/aten_pointwise_graph_final/aten_uniform_cpu/aten_uniform_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_uniform_cpu warm_us=4578.512036 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_addcdiv/aten_addcdiv
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcdiv warm_us=8354.387207 errors=0 max_error=4.76837e-07 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_addcmul/aten_addcmul
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_addcmul warm_us=8403.686401 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_batch_norm_cpu_entry/aten_batch_norm_cpu_entry
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_batch_norm_cpu_entry warm_us=4380.937549 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_cross/aten_cross
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross warm_us=93251.824048 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_cross_cpu_backend/aten_cross_cpu_backend
+polygeist runtime: generic cuDNN pointwise graph active (N=1398101, nodes=3)
+RESULT kernel=aten_cross_cpu_backend warm_us=92928.380737 errors=0 max_error=1.13549e-07 coverage=three_graph_stages
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_dirichlet_transform_cpu/aten_dirichlet_transform_cpu
+RESULT kernel=aten_dirichlet_transform_cpu warm_us=4079.225562 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_div/aten_div
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_div warm_us=6389.743945 errors=0 max_error=2.38419e-07 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_glu/aten_glu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu warm_us=6633.561597 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_glu_backward/aten_glu_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu_backward warm_us=8707.200024 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_cpu/aten_gradient_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=2)
+mismatch out[0]: ref=0.216216 got=-1.35135 err=1.56757
+RESULT kernel=aten_gradient_cpu warm_us=6507.964819 errors=1 max_error=1.56757 coverage=partial_graph_interior
+EXIT 1
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_float_cpu/aten_gradient_float_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=3)
+mismatch out[0]: ref=2.7027 got=-1.35135 err=4.05405
+RESULT kernel=aten_gradient_float_cpu warm_us=10219.459204 errors=1 max_error=4.05405 coverage=partial_graph_interior
+EXIT 1
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_host_softmax_backward_cpu/aten_host_softmax_backward_cpu
+RESULT kernel=aten_host_softmax_backward_cpu warm_us=4726.793579 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_layer_norm/aten_layer_norm
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_layer_norm warm_us=17952.444800 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp/aten_lerp
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp warm_us=8402.252808 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar/aten_lerp_scalar
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar warm_us=6336.608081 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar_cpu/aten_lerp_scalar_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar_cpu warm_us=6407.939209 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_tensor_cpu/aten_lerp_tensor_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_tensor_cpu warm_us=8394.345581 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_log_normal_cpu/aten_log_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_log_normal_cpu warm_us=4409.561621 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_backward/aten_mse_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_backward warm_us=6391.881592 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_elementwise/aten_mse_elementwise
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_elementwise warm_us=6405.958423 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_loss/aten_mse_loss
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_loss warm_us=10282.236743 errors=0 max_error=0 coverage=partial_graph_plus_reduction
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_nested_softmax_backward_cpu/aten_nested_softmax_backward_cpu
+RESULT kernel=aten_nested_softmax_backward_cpu warm_us=4741.049585 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_normal_cpu/aten_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_normal_cpu warm_us=4435.446362 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_rsqrt/aten_rsqrt
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_rsqrt warm_us=4450.927930 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_sigmoid_backward/aten_sigmoid_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_sigmoid_backward warm_us=10717.055957 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_sparse_coo_softmax_backward_cpu/aten_sparse_coo_softmax_backward_cpu
+RESULT kernel=aten_sparse_coo_softmax_backward_cpu warm_us=6048.636792 errors=0 max_error=9.53674e-07 coverage=partial_graph_epilogue
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_square/aten_square
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_square warm_us=4373.801636 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_tanh_backward/aten_tanh_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_tanh_backward warm_us=11389.631982 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 3 BEGIN /tmp/aten_pointwise_graph_final/aten_uniform_cpu/aten_uniform_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_uniform_cpu warm_us=6507.187256 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+hree_graph_stages
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_dirichlet_transform_cpu/aten_dirichlet_transform_cpu
+RESULT kernel=aten_dirichlet_transform_cpu warm_us=4080.291211 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_div/aten_div
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_div warm_us=6555.164819 errors=0 max_error=2.38419e-07 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_glu/aten_glu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu warm_us=6805.183984 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_glu_backward/aten_glu_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_glu_backward warm_us=9104.675244 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_cpu/aten_gradient_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=2)
+mismatch out[0]: ref=0.216216 got=-1.35135 err=1.56757
+RESULT kernel=aten_gradient_cpu warm_us=6548.572803 errors=1 max_error=1.56757 coverage=partial_graph_interior
+EXIT 1
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_gradient_float_cpu/aten_gradient_float_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194302, nodes=3)
+mismatch out[0]: ref=2.7027 got=-1.35135 err=4.05405
+RESULT kernel=aten_gradient_float_cpu warm_us=10197.868823 errors=1 max_error=4.05405 coverage=partial_graph_interior
+EXIT 1
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_host_softmax_backward_cpu/aten_host_softmax_backward_cpu
+RESULT kernel=aten_host_softmax_backward_cpu warm_us=4726.287988 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_layer_norm/aten_layer_norm
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=4)
+RESULT kernel=aten_layer_norm warm_us=17971.398389 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp/aten_lerp
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp warm_us=8379.833618 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar/aten_lerp_scalar
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar warm_us=6681.948779 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_scalar_cpu/aten_lerp_scalar_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_scalar_cpu warm_us=6906.345581 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_lerp_tensor_cpu/aten_lerp_tensor_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_lerp_tensor_cpu warm_us=8623.571216 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_log_normal_cpu/aten_log_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_log_normal_cpu warm_us=4653.273633 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_backward/aten_mse_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_backward warm_us=6610.009570 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_elementwise/aten_mse_elementwise
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_elementwise warm_us=6640.815991 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_mse_loss/aten_mse_loss
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_mse_loss warm_us=10495.033594 errors=0 max_error=0 coverage=partial_graph_plus_reduction
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_nested_softmax_backward_cpu/aten_nested_softmax_backward_cpu
+RESULT kernel=aten_nested_softmax_backward_cpu warm_us=4725.568042 errors=0 max_error=0 coverage=partial_graph_epilogue
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_normal_cpu/aten_normal_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_normal_cpu warm_us=4638.319995 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_rsqrt/aten_rsqrt
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_rsqrt warm_us=4657.100830 errors=0 max_error=1.19209e-07 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_sigmoid_backward/aten_sigmoid_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_sigmoid_backward warm_us=6876.003174 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_sparse_coo_softmax_backward_cpu/aten_sparse_coo_softmax_backward_cpu
+RESULT kernel=aten_sparse_coo_softmax_backward_cpu warm_us=6030.726392 errors=0 max_error=9.53674e-07 coverage=partial_graph_epilogue
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_square/aten_square
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=1)
+RESULT kernel=aten_square warm_us=4670.044800 errors=0 max_error=0 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_tanh_backward/aten_tanh_backward
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=3)
+RESULT kernel=aten_tanh_backward warm_us=6664.284839 errors=0 max_error=5.96046e-08 coverage=full_graph
+EXIT 0
+RUN 4 BEGIN /tmp/aten_pointwise_graph_final/aten_uniform_cpu/aten_uniform_cpu
+polygeist runtime: generic cuDNN pointwise graph active (N=4194304, nodes=2)
+RESULT kernel=aten_uniform_cpu warm_us=4686.656006 errors=0 max_error=0 coverage=full_graph
+EXIT 0

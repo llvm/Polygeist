@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,23 @@ def main() -> None:
     summary = RESULTS / "summary.tsv"
     with summary.open() as f:
         rows = list(csv.DictReader(f, delimiter="\t"))
+    # A targeted aten_c_kernel_sweep.sh invocation intentionally rewrites its
+    # summary with only the requested kernels.  The per-kernel directories are
+    # authoritative, so reconstruct the index before a corpus-wide rematch
+    # instead of silently publishing a truncated audit/CE table.
+    artifact_kernels = sorted(
+        path.parent.name for path in RESULTS.glob("aten_*/debuf.mlir"))
+    indexed = {row["kernel"] for row in rows}
+    if len(indexed) < len(artifact_kernels):
+        prior = {row["kernel"]: row for row in rows}
+        rows = [prior.get(kernel, {
+            "kernel": kernel,
+            "status": "pass",
+            "linalg_ops": "0",
+            "residual_loops": "0",
+            "kernel_launches": "0",
+            "matched_symbols": "-",
+        }) for kernel in artifact_kernels]
     def rematch(row: dict[str, str]) -> dict[str, str]:
         row = dict(row)
         kernel = row["kernel"]
@@ -49,7 +67,12 @@ def main() -> None:
             "matched_symbols": ",".join(symbols) if symbols else "-",
         })
         return row
-    with ThreadPoolExecutor(max_workers=16) as pool:
+    # A matcher process loads the full Egglog rule set and can consume enough
+    # memory that a 16-way sweep is killed by the host OOM controller.  Keep
+    # this configurable, but use a conservative default so a rematch cannot
+    # leave summary.tsv truncated after a targeted sweep.
+    workers = int(os.environ.get("ATEN_REMATCH_WORKERS", "4"))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         output = list(pool.map(rematch, rows))
     with summary.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys(), delimiter="\t",

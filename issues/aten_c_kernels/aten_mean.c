@@ -1,7 +1,9 @@
 /* aten::mean over one contiguous tensor.
  * Upstream family: aten/src/ATen/native/ReduceOps.cpp.
  */
+#ifndef N
 #define N 256
+#endif
 
 void aten_mean(double x[N], double out[1]) {
   double sum = 0.0;

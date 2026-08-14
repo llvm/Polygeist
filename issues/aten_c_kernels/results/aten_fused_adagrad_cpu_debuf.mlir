@@ -30,10 +30,10 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
       %25 = arith.subf %out_2, %24 : f32
       linalg.yield %13, %20, %25 : f32, f32, f32
     } -> (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>)
-    %10 = bufferization.to_memref %9#2 : memref<?xf32>
-    memref.copy %10, %arg0 : memref<?xf32> to memref<?xf32>
-    %11 = bufferization.to_memref %9#0 : memref<?xf32>
-    memref.copy %11, %arg1 : memref<?xf32> to memref<?xf32>
+    %10 = bufferization.to_memref %9#0 : memref<?xf32>
+    memref.copy %10, %arg1 : memref<?xf32> to memref<?xf32>
+    %11 = bufferization.to_memref %9#2 : memref<?xf32>
+    memref.copy %11, %arg0 : memref<?xf32> to memref<?xf32>
     %12 = bufferization.to_memref %9#1 : memref<?xf32>
     memref.copy %12, %arg2 : memref<?xf32> to memref<?xf32>
     return

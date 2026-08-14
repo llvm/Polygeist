@@ -36,7 +36,7 @@ void aten_cummax_cummin_cpu(float x[R][N],int is_max,float out[R][N],int index[R
     add("diff_cpu", s, "diff_helper", "#define N 128\nvoid aten_diff_cpu(float x[N],float out[N-1]){for(int i=0;i<N-1;++i)out[i]=x[i+1]-x[i];}")
     add("gradient_cpu", s, "gradient_helper", "#define N 128\nvoid aten_gradient_cpu(float x[N],float h,float out[N]){out[0]=(x[1]-x[0])/h;for(int i=1;i<N-1;++i)out[i]=(x[i+1]-x[i-1])/(2*h);out[N-1]=(x[N-1]-x[N-2])/h;}")
     add("gradient_float_cpu", s, "gradient_helper_float", "#define N 128\nvoid aten_gradient_float_cpu(float x[N],float coord[N],float out[N]){out[0]=(x[1]-x[0])/(coord[1]-coord[0]);for(int i=1;i<N-1;++i)out[i]=(x[i+1]-x[i-1])/(coord[i+1]-coord[i-1]);out[N-1]=(x[N-1]-x[N-2])/(coord[N-1]-coord[N-2]);}")
-    add("trace_cpu", s, "trace_cpu", "#define N 64\nvoid aten_trace_cpu(float x[N][N],float out[1]){float v=0;for(int i=0;i<N;++i)v+=x[i][i];out[0]=v;}")
+    add("trace_cpu", s, "trace_cpu", "#ifndef N\n#define N 64\n#endif\nvoid aten_trace_cpu(float x[N][N],float out[1]){float v=0;for(int i=0;i<N;++i)v+=x[i][i];out[0]=v;}")
     add("allany_dims_cpu", s, "allany_dims_default", "#define R 32\n#define C 64\nvoid aten_allany_dims_cpu(int x[R][C],int all,int out[R]){for(int r=0;r<R;++r){int v=all;for(int c=0;c<C;++c)v=all?(v&&x[r][c]):(v||x[r][c]);out[r]=v;}}")
     add("std_var_all_cpu", s, "std_var_all_cpu", "#define N 1024\nvoid aten_std_var_all_cpu(float x[N],float out[1]){float m=0;for(int i=0;i<N;++i)m+=x[i];m/=N;float v=0;for(int i=0;i<N;++i){float d=x[i]-m;v+=d*d;}out[0]=v/(N-1);}")
     add("equal_cpu", s, "cpu_equal", "#define N 1024\nvoid aten_equal_cpu(float a[N],float b[N],int out[1]){int v=1;for(int i=0;i<N;++i)v=v&&(a[i]==b[i]);out[0]=v;}")
@@ -45,7 +45,7 @@ void aten_cummax_cummin_cpu(float x[R][N],int is_max,float out[R][N],int index[R
 def blas() -> None:
     s = "aten/src/ATen/native/cpu/BlasKernel.cpp"
     add("blas_scale_cpu", s, "scale_", "#define N 1024\nvoid aten_blas_scale_cpu(float x[N],float a){for(int i=0;i<N;++i)x[i]*=a;}")
-    add("blas_sum_cpu", s, "sum", "#define N 1024\nvoid aten_blas_sum_cpu(float x[N],float out[1]){float v=0;for(int i=0;i<N;++i)v+=x[i];out[0]=v;}")
+    add("blas_sum_cpu", s, "sum", "#ifndef N\n#define N 1024\n#endif\nvoid aten_blas_sum_cpu(float x[N],float out[1]){float v=0;for(int i=0;i<N;++i)v+=x[i];out[0]=v;}")
     for name, token, body in [
         ("gemm_transa_cpu", "gemm_transa_", "a[k][i]"),
         ("gemm_transb_cpu", "gemm_transb_impl", "a[i][k]"),

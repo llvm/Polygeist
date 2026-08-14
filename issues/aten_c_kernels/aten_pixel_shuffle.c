@@ -1,9 +1,19 @@
 /* aten::pixel_shuffle, upscale=2. Upstream: ATen/native/PixelShuffle.cpp. */
+#ifndef B
 #define B 2
+#endif
+#ifndef C
 #define C 3
+#endif
+#ifndef R
 #define R 2
+#endif
+#ifndef H
 #define H 4
+#endif
+#ifndef W
 #define W 4
+#endif
 void aten_pixel_shuffle(float input[B][C][R][R][H][W],
                         float output[B][C][H * R][W * R]) {
 #pragma scop

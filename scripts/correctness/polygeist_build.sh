@@ -41,6 +41,11 @@
 #                       Jetson target only. The root must contain
 #                       include/cutensornet.h and lib/libcutensornet.so for
 #                       aarch64. Enables the cuTensorNet tensor-product shim.
+#   POLYGEIST_CUTENSOR_ROOT=/path/to/cutensor
+#                       Jetson target only. The root must contain
+#                       include/cutensor.h and lib/libcutensor.so for aarch64.
+#                       Enables cuTENSOR without unnecessarily linking
+#                       cuTensorNet or cuSOLVER.
 #   POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME=1
 #                       Jetson target only. For contraction-only binaries,
 #                       discard unused runtime sections and avoid DT_NEEDED
@@ -56,6 +61,12 @@
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
 #                       correctness from matcher/ABI/runtime correctness.
+#   POLYGEIST_BUFFERIZE_BEFORE_ABI=auto|0|1
+#                       Bufferize destination-style kernel.launch operations
+#                       before CUDA ABI lowering. `auto` (the default) enables
+#                       this for modules containing only the migrated generic
+#                       cuDNN pointwise-graph ABI. Use 0 for the legacy tensor
+#                       ABI or 1 to test newly migrated launch families.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -240,6 +251,39 @@ awk -v defns="$DEFNS" '
   { print }
 ' $WORK/matched.mlir > $WORK/with_defns.mlir
 
+# Bufferize tensor semantics before translating a launch into a CUDA runtime
+# ABI.  This preserves tensor.insert/extract_slice ordering through the normal
+# MLIR destination/alias analysis instead of reconstructing it later from an
+# already-erased tensor SSA chain.  Roll this out per ABI family: handlers that
+# have not learned the memref launch form continue through the legacy path.
+ABI_INPUT=$WORK/with_defns.mlir
+PRE_ABI_BUFFERIZE=${POLYGEIST_BUFFERIZE_BEFORE_ABI:-auto}
+N_POINTWISE_GRAPH=$(grep -c 'kernel\.launch @cudnnPointwiseGraph_f32' \
+  $WORK/matched.mlir || true)
+if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
+  if [ "${N_LAUNCH:-0}" -gt 0 ] && \
+     [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_LAUNCH:-0}" ]; then
+    PRE_ABI_BUFFERIZE=1
+  else
+    PRE_ABI_BUFFERIZE=0
+  fi
+fi
+if [ "$PRE_ABI_BUFFERIZE" != 0 ]; then
+  echo "         one-shot bufferization before ABI lowering"
+  cp $WORK/with_defns.mlir $WORK/with_defns_writable.mlir
+  sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict writable :|g' \
+    $WORK/with_defns_writable.mlir
+  polygeist-opt '--one-shot-bufferize=allow-unknown-ops' \
+    --canonicalize --cse \
+    $WORK/with_defns_writable.mlir -o $WORK/pre_abi_bufferized.mlir \
+    2>$WORK/pre_abi_bufferize.err || {
+      echo "ERROR: pre-ABI bufferization failed; see $WORK/pre_abi_bufferize.err" >&2
+      cat $WORK/pre_abi_bufferize.err >&2
+      exit 1
+    }
+  ABI_INPUT=$WORK/pre_abi_bufferized.mlir
+fi
+
 # ─── Step 5: ABI lowering kernel.launch → func.call to runtime shim ─────
 echo "  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)"
 if [ "${POLYGEIST_DEVICE_RESIDENT_ABI:-0}" != "0" ]; then
@@ -254,10 +298,18 @@ if [ -z "$WRAP_KERNEL_PIPELINE" ]; then
   fi
 fi
 if [ "$WRAP_KERNEL_PIPELINE" != "0" ]; then
-  ABI_PASSES+=(--wrap-kernel-launch-pipeline)
+  if [ "${POLYGEIST_CUDA_GRAPH:-0}" != "0" ]; then
+    CUDA_GRAPH_PASS="cuda-graphs=true"
+    if [ "${POLYGEIST_CUDA_GRAPH_HOST_CUTENSORNET:-0}" != "0" ]; then
+      CUDA_GRAPH_PASS+=" capture-host-mapped-cutensornet=true"
+    fi
+    ABI_PASSES+=("--wrap-kernel-launch-pipeline=$CUDA_GRAPH_PASS")
+  else
+    ABI_PASSES+=(--wrap-kernel-launch-pipeline)
+  fi
 fi
 polygeist-opt "${ABI_PASSES[@]}" \
-  $WORK/with_defns.mlir -o $WORK/abi.mlir 2>$WORK/abi.err || {
+  $ABI_INPUT -o $WORK/abi.mlir 2>$WORK/abi.err || {
     echo "ERROR: ABI lowering failed; see $WORK/abi.err" >&2; cat $WORK/abi.err >&2; exit 1; }
 N_CALL=$(grep -cE 'call @polygeist_' $WORK/abi.mlir || true)
 echo "         emitted $N_CALL func.call to runtime shim"
@@ -378,6 +430,15 @@ else
                -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
       echo "         + contraction-only runtime linkage"
     fi
+  elif [ -n "${POLYGEIST_CUTENSOR_ROOT:-}" ]; then
+    CUTENSOR_ROOT=$POLYGEIST_CUTENSOR_ROOT
+    [ -f "$CUTENSOR_ROOT/include/cutensor.h" ] || {
+      echo "ERROR: $CUTENSOR_ROOT/include/cutensor.h not found" >&2
+      exit 1
+    }
+    RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$CUTENSOR_ROOT/include")
+    RT_LIBS="-L$CUTENSOR_ROOT/lib -lcutensor $RT_LIBS"
+    echo "         + cuTENSOR runtime from $CUTENSOR_ROOT"
   fi
 fi
 

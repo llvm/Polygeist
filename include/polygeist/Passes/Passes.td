@@ -250,11 +250,19 @@ def WrapKernelLaunchPipeline
     it after `--lower-kernel-launch-to-cublas` is the safest execution path
     because the pass then only scopes launches that actually lowered to CUDA
     runtime calls.
+
+    With `cuda-graphs=true`, consecutive result-free calls explicitly marked
+    `polygeist.cuda_graph_safe` are additionally guarded by a stable graph id.
+    The runtime can warm the sequence, capture it once, and skip the call body
+    on later cached replays. Unannotated calls retain the ordinary pipeline
+    scope and are never speculatively captured.
   }];
   let constructor =
       "mlir::polygeist::createWrapKernelLaunchPipelinePass()";
   let dependentDialects = [
+    "arith::ArithDialect",
     "func::FuncDialect",
+    "scf::SCFDialect",
     "polygeist::kernel::KernelDialect",
   ];
   let options = [
@@ -263,7 +271,21 @@ def WrapKernelLaunchPipeline
            "Runtime function called at pipeline-scope entry.">,
     Option<"endSymbol", "end-symbol", "std::string",
            /*default=*/"\"polygeist_cublas_pipeline_end\"",
-           "Runtime function called at pipeline-scope exit.">
+           "Runtime function called at pipeline-scope exit.">,
+    Option<"useCudaGraphs", "cuda-graphs", "bool",
+           /*default=*/"false",
+           "Wrap capture-safe, result-free CUDA shim sequences in a cached "
+           "CUDA Graph replay guard.">,
+    Option<"graphBeginSymbol", "graph-begin-symbol", "std::string",
+           /*default=*/"\"polygeist_cuda_graph_begin\"",
+           "Runtime i32(i64) function that warms, captures, or replays a graph.">,
+    Option<"graphEndSymbol", "graph-end-symbol", "std::string",
+           /*default=*/"\"polygeist_cuda_graph_end\"",
+           "Runtime void(i64) function that completes warmup or capture.">,
+    Option<"captureHostMappedCutensornet", "capture-host-mapped-cutensornet",
+           "bool", /*default=*/"false",
+           "Treat the host-mapped generic cuTensorNet contraction shim as "
+           "graph-safe under the stable-pointer CUDA Graph contract.">
   ];
 }
 

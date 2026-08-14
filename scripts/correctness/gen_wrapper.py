@@ -124,10 +124,6 @@ def parse_signature(c_text: str, kernel_name: str):
             if not m1:
                 raise ValueError(f"Couldn't parse 1D arg: {a}")
             out.append(('1D', m1.group(1), m1.group(2)))
-        elif re.match(r"^\s*int\b", a):
-            name = a.split()[-1].strip('*')
-            out.append(('int', name))
-            scalar_ints.add(name)
         elif _is_plain_c_array(a):
             # Plain C array signature: `double A[NI][NJ]` or `int A[NI][NJ][NK]`
             # — what polybenchGpu-extracted / llama2.c-style sources use
@@ -139,6 +135,10 @@ def parse_signature(c_text: str, kernel_name: str):
             kind, name, dims = _parse_plain_c_array(a)
             out.append((kind, name, *dims))
             plain_array_indices.append(len(out) - 1)
+        elif re.match(r"^\s*int\b", a):
+            name = a.split()[-1].strip('*')
+            out.append(('int', name))
+            scalar_ints.add(name)
         elif _is_plain_c_pointer(a):
             # Extracted kernels often use pointer signatures instead of fixed
             # C arrays. Infer the 1D memref extent from common scalar args.
@@ -156,8 +156,10 @@ def parse_signature(c_text: str, kernel_name: str):
             else:
                 raise ValueError(f"Couldn't infer pointer extent for arg: {a}")
             out.append(('1D', name, size))
-        elif re.match(r"^\s*DATA_TYPE\b", a) or re.match(r"^\s*float\b", a) \
-                or re.match(r"^\s*double\b", a):
+        elif re.match(r"^\s*float\b", a):
+            name = a.split()[-1].strip('*')
+            out.append(('float', name))
+        elif re.match(r"^\s*DATA_TYPE\b", a) or re.match(r"^\s*double\b", a):
             # Scalar (alpha, beta, etc.).
             name = a.split()[-1].strip('*')
             out.append(('double', name))
@@ -190,7 +192,7 @@ def _is_plain_c_array(a: str) -> bool:
     (e.g. 'double A[NI][NJ]' or 'int A[N]' or 'short A[NI][NJ][NK]').
     Distinguishable from a pointer-to-scalar (`double *alpha`) because
     array params always have a square-bracket dim list."""
-    if not re.match(r"^\s*(?:const\s+)?(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
+    if not re.match(r"^\s*(?:const\s+)?(?:unsigned\s+char|signed\s+char|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
         return False
     return re.search(r"\[\s*[^\]]+\s*\]\s*(?:\[\s*[^\]]+\s*\])*\s*$", a) is not None
 
@@ -202,17 +204,20 @@ def _parse_plain_c_array(a: str):
     it identically to the POLYBENCH macro form.
     """
     m = re.match(
-        r"^\s*(?:const\s+)?(?:double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
+        r"^\s*(?:const\s+)?(unsigned\s+char|signed\s+char|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
         r"\s+(\w+)((?:\s*\[\s*[^\]]+\s*\])+)\s*$",
         a,
     )
     if not m:
         raise ValueError(f"Couldn't parse plain-C-array arg: {a!r}")
-    name = m.group(1)
-    dims = [d.strip() for d in re.findall(r"\[\s*([^\]]+)\s*\]", m.group(2))]
+    ctype, name = m.group(1), m.group(2)
+    dims = [d.strip() for d in re.findall(r"\[\s*([^\]]+)\s*\]", m.group(3))]
     if not dims:
         raise ValueError(f"Plain-C-array arg has no dimensions: {a!r}")
-    return (f'{len(dims)}D', name, dims)
+    prefix = ('U' if ctype == 'unsigned char' else
+              'B' if ctype == 'signed char' else
+              'I' if ctype in ('unsigned', 'int', 'short', 'long') else '')
+    return (f'{prefix}{len(dims)}D', name, dims)
 
 
 def _is_plain_c_pointer(a: str) -> bool:
@@ -244,20 +249,32 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
             extern_args.append(f"{dtype} {a[1]}")
             wrapper_args.append(f"{dtype} {a[1]}")
             call_args.append(a[1])
-        elif re.fullmatch(r'[1-9][0-9]*D', k):
-            rank = int(k[:-1])
+        elif k == 'float':
+            extern_args.append(f"float {a[1]}")
+            wrapper_args.append(f"float {a[1]}")
+            call_args.append(a[1])
+        elif re.fullmatch(r'(?:I|U|B)?[1-9][0-9]*D', k):
+            is_integer = k.startswith('I')
+            is_unsigned_byte = k.startswith('U')
+            is_signed_byte = k.startswith('B')
+            rank = int(k[1:-1] if (is_integer or is_unsigned_byte or
+                                   is_signed_byte) else k[:-1])
             name = a[1]
             dims = list(a[2:])
             if len(dims) != rank:
                 raise ValueError(
                     f"{k} argument {name} has {len(dims)} dimensions")
+            arg_dtype = ("int" if is_integer else
+                         "unsigned char" if is_unsigned_byte else dtype)
+            if is_signed_byte:
+                arg_dtype = "signed char"
             extern_args.extend([
-                f"{dtype} *{name}_b", f"{dtype} *{name}_a",
+                f"{arg_dtype} *{name}_b", f"{arg_dtype} *{name}_a",
                 f"int64_t {name}_off",
                 *(f"int64_t {name}_s{i}" for i in range(rank)),
                 *(f"int64_t {name}_t{i}" for i in range(rank)),
             ])
-            wrapper_args.append(f"{dtype} *{name}")
+            wrapper_args.append(f"{arg_dtype} *{name}")
             strides = []
             for i in range(rank):
                 trailing = dims[i + 1:]

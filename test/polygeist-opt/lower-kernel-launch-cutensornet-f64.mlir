@@ -160,6 +160,7 @@ module {
 
 // CHECK-LABEL: func.func @contraction_f64_device
 // CHECK: call @polygeist_cutensornet_contraction2_f64_device
+// CHECK-SAME: {polygeist.cuda_graph_safe}
 // CHECK-NOT: call @polygeist_cutensornet_contraction2_f64(
 // CHECK-NOT: memref.copy
 // CHECK-NOT: kernel.launch

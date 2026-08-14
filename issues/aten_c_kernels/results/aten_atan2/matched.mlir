@@ -4,11 +4,23 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : ve
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
     %2 = bufferization.to_tensor %arg2 : memref<?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map, #map, #map], iterator_types = ["parallel"], library_call = ""} ins(%0, %1 : tensor<?xf32>, tensor<?xf32>) outs(%2 : tensor<?xf32>) {
-    ^bb0(%in: f32, %in_0: f32, %out: f32):
-      %5 = math.atan2 %in, %in_0 : f32
-      linalg.yield %5 : f32
-    } -> tensor<?xf32>
+    %v3_pw_single_pad_0 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_1 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_2 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_3 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_4 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_5 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_6 = arith.constant 0.0 : f32
+
+    %v3_pw_single_pad_7 = arith.constant 0.0 : f32
+
+    %3 = kernel.launch @cudnnPointwiseGraph_f32(%0, %1, %0, %0, %2, %v3_pw_single_pad_0, %v3_pw_single_pad_1, %v3_pw_single_pad_2, %v3_pw_single_pad_3, %v3_pw_single_pad_4, %v3_pw_single_pad_5, %v3_pw_single_pad_6, %v3_pw_single_pad_7) {pointwise_graph = array<i64: 570425600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>, pointwise_num_nodes = 1 : i64} : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, f32, f32, f32, f32, f32, f32, f32, f32) -> tensor<?xf32>
     %4 = bufferization.to_memref %3 : memref<?xf32>
     memref.copy %4, %arg2 : memref<?xf32> to memref<?xf32>
     return

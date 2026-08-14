@@ -1,5 +1,7 @@
 /* aten::cumsum over a vector. Upstream: ATen/native/cpu/ReduceOpsKernel.cpp. */
+#ifndef N
 #define N 256
+#endif
 void aten_cumsum(float input[N], float output[N]) {
   float sum = 0.0f;
 #pragma scop

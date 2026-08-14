@@ -3,47 +3,68 @@
 This audit adjudicates every provenance-linked standalone ATen C fixture against public NVIDIA libraries. It separately records whether the current rewrite covers the complete function or only an initialization/copy stage. The machine-readable CSV is the authoritative per-kernel list.
 
 - Fixtures reviewed: 598
-- Complete current rewrite candidates: 79
-- Partial stage-only current matches: 93
-- No current launch: 426
+- Complete current rewrite candidates: 219
+- Partial stage-only current matches: 99
+- No current launch: 280
+- Complete rewrites using genuine library/runtime algorithms: 219
+- Complete generated/custom GPU fallbacks (not library matches): 0
 
 ## What exists in NVIDIA libraries
 
-- One fixed public call: 121
-- One configurable generic primitive: 139
-- Complete multi-node library graph/composition: 182
-- Only some stages have library primitives: 121
-- No direct tensor-library implementation: 35
+- One fixed public call: 119
+- One configurable generic primitive: 99
+- Complete multi-node library graph/composition: 175
+- Only some stages have library primitives: 162
+- No direct tensor-library implementation: 43
 
-A CUB or Thrust result means NVIDIA ships the generic device algorithm; it is not a stable host C ABI and would require a new template-backed runtime wrapper. A cuDNN graph result requires graph construction/lowering. Neither should be described as merely a missing Egglog pattern.
+A named CUB algorithm means NVIDIA ships the substantive generic algorithm. Compiler-authored GPU functors are excluded from library-reuse coverage. A cuDNN graph result requires graph construction/lowering but executes vendor graph operations. None should be described as merely a missing Egglog pattern.
+
+## Current implementation provenance
+
+- `CUDA_RUNTIME_PRIMITIVE`: 89
+- `DIRECT_VENDOR_API`: 208
+- `LIBRARY_API_COMPOSITION`: 12
+- `NO_IMPLEMENTATION`: 280
+- `STANDARD_LIBRARY_ALGORITHM`: 9
 
 ## Compiler diagnosis
 
-- `ALREADY_FOUND`: 79
-- `BACKEND_AND_MATCHER_GAP`: 228
-- `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 52
-- `NO_LIBRARY_MATCH_EXPECTED`: 29
-- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 93
-- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 117
+- `ALREADY_FOUND`: 219
+- `BACKEND_AND_MATCHER_GAP`: 69
+- `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 60
+- `MATCHER_COVERAGE_GAP`: 11
+- `NO_LIBRARY_MATCH_EXPECTED`: 36
+- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 99
+- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 104
 
 Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which a selected runtime-wrapper family is already present locally. The remaining positive library candidates need raising work, a new API backend, graph composition, or some combination.
 
 ## Clean matcher-coverage candidates
 
+- `aten_addr_elementwise`
+- `aten_bf16_dot_cpu`
+- `aten_binary_cross_entropy`
+- `aten_conv_tbc_cpu`
+- `aten_conv_transpose2d`
+- `aten_depthwise_conv3x3_cpu`
+- `aten_kron_impl_cpu`
+- `aten_kron_out_cpu`
+- `aten_log_sigmoid_cpu`
+- `aten_nested_batch_offsets_cpu`
+- `aten_transform_bias_rescale_qkv_cpu`
 
 ## Candidate-library census
 
-- cuDNN: 205
-- CUB: 83
+- cuDNN: 202
+- CUB: 110
 - NPP: 45
-- Thrust: 43
+- none: 43
 - cuDNN Resample: 42
-- none: 35
-- cuTENSOR: 33
-- cuBLAS: 32
+- cuBLAS: 34
+- cuTENSOR: 32
 - cuSPARSE: 32
-- cuRAND: 29
-- CUDA Runtime: 14
+- cuRAND: 27
+- CUDA Runtime: 26
 - cuSOLVER: 3
 - cuDNN CTC: 2
 
@@ -63,6 +84,5 @@ See [`cuda_library_audit.csv`](cuda_library_audit.csv). Every row includes the s
 - [cuFFT](https://docs.nvidia.com/cuda/cufft/contents.html)
 - [cuRAND](https://docs.nvidia.com/cuda/curand/index.html)
 - [CUB](https://nvidia.github.io/cccl/cub/api/device.html)
-- [Thrust](https://nvidia.github.io/cccl/thrust/api/)
 - [NPP](https://docs.nvidia.com/cuda/npp/index.html)
 - [CUDA Runtime](https://docs.nvidia.com/cuda/cuda-runtime-api/)

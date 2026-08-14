@@ -1,5 +1,7 @@
 /* aten::prod over a vector. Upstream: ATen/native/cpu/ReduceOpsKernel.cpp. */
+#ifndef N
 #define N 256
+#endif
 void aten_prod(float input[N], float out[1]) {
 #pragma scop
   out[0] = 1.0f;

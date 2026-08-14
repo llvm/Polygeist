@@ -1,5 +1,5 @@
 #map = affine_map<(d0) -> (d0)>
-module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>, #dlti.dl_entry<"dlti.endianness", "little">>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<"dlti.endianness", "little">, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
   func.func @aten_grid_sampler_2d_backward_cpu(%arg0: memref<?x3x8x8xf32>, %arg1: memref<?x6x6x2xf32>, %arg2: memref<?x3x6x6xf32>, %arg3: memref<?x3x8x8xf32>, %arg4: memref<?x6x6x2xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0_i32 = arith.constant 0 : i32
     %c8_i32 = arith.constant 8 : i32
@@ -141,21 +141,43 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
       }
       %extracted_slice = tensor.extract_slice %arg6[0, %arg5, 0, 0] [1, 1, %c6, 1] [1, 1, 1, 1] : tensor<?x6x6x2xf32> to tensor<?xf32>
       %extracted_slice_4 = tensor.extract_slice %9[0] [%c6] [1] : tensor<?xf32> to tensor<?xf32>
-      %14 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice_4 : tensor<?xf32>) outs(%extracted_slice : tensor<?xf32>) {
-      ^bb0(%in: f32, %out: f32):
-        %16 = arith.mulf %in, %cst_1 : f32
-        %17 = arith.mulf %16, %cst_2 : f32
-        linalg.yield %17 : f32
-      } -> tensor<?xf32>
+      %v14_pw_single_scalar_0 = arith.constant 0.5 : f32
+
+      %v14_pw_single_scalar_1 = arith.constant 7.0 : f32
+
+      %v14_pw_single_pad_2 = arith.constant 0.0 : f32
+
+      %v14_pw_single_pad_3 = arith.constant 0.0 : f32
+
+      %v14_pw_single_pad_4 = arith.constant 0.0 : f32
+
+      %v14_pw_single_pad_5 = arith.constant 0.0 : f32
+
+      %v14_pw_single_pad_6 = arith.constant 0.0 : f32
+
+      %v14_pw_single_pad_7 = arith.constant 0.0 : f32
+
+      %14 = kernel.launch @cudnnPointwiseGraph_f32(%extracted_slice_4, %extracted_slice_4, %extracted_slice_4, %extracted_slice_4, %extracted_slice, %v14_pw_single_scalar_0, %v14_pw_single_scalar_1, %v14_pw_single_pad_2, %v14_pw_single_pad_3, %v14_pw_single_pad_4, %v14_pw_single_pad_5, %v14_pw_single_pad_6, %v14_pw_single_pad_7) {pointwise_graph = array<i64: 147498385388078080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>, pointwise_num_nodes = 2 : i64} : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, f32, f32, f32, f32, f32, f32, f32, f32) -> tensor<?xf32>
       %inserted_slice = tensor.insert_slice %14 into %arg6[0, %arg5, 0, 0] [1, 1, %c6, 1] [1, 1, 1, 1] : tensor<?xf32> into tensor<?x6x6x2xf32>
       %extracted_slice_5 = tensor.extract_slice %inserted_slice[0, %arg5, 0, 1] [1, 1, %c6, 1] [1, 1, 1, 1] : tensor<?x6x6x2xf32> to tensor<?xf32>
       %extracted_slice_6 = tensor.extract_slice %7[0] [%c6] [1] : tensor<?xf32> to tensor<?xf32>
-      %15 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice_6 : tensor<?xf32>) outs(%extracted_slice_5 : tensor<?xf32>) {
-      ^bb0(%in: f32, %out: f32):
-        %16 = arith.mulf %in, %cst_1 : f32
-        %17 = arith.mulf %16, %cst_2 : f32
-        linalg.yield %17 : f32
-      } -> tensor<?xf32>
+      %v15_pw_single_scalar_0 = arith.constant 0.5 : f32
+
+      %v15_pw_single_scalar_1 = arith.constant 7.0 : f32
+
+      %v15_pw_single_pad_2 = arith.constant 0.0 : f32
+
+      %v15_pw_single_pad_3 = arith.constant 0.0 : f32
+
+      %v15_pw_single_pad_4 = arith.constant 0.0 : f32
+
+      %v15_pw_single_pad_5 = arith.constant 0.0 : f32
+
+      %v15_pw_single_pad_6 = arith.constant 0.0 : f32
+
+      %v15_pw_single_pad_7 = arith.constant 0.0 : f32
+
+      %15 = kernel.launch @cudnnPointwiseGraph_f32(%extracted_slice_6, %extracted_slice_6, %extracted_slice_6, %extracted_slice_6, %extracted_slice_5, %v15_pw_single_scalar_0, %v15_pw_single_scalar_1, %v15_pw_single_pad_2, %v15_pw_single_pad_3, %v15_pw_single_pad_4, %v15_pw_single_pad_5, %v15_pw_single_pad_6, %v15_pw_single_pad_7) {pointwise_graph = array<i64: 147498385388078080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>, pointwise_num_nodes = 2 : i64} : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, f32, f32, f32, f32, f32, f32, f32, f32) -> tensor<?xf32>
       %inserted_slice_7 = tensor.insert_slice %15 into %inserted_slice[0, %arg5, 0, 1] [1, 1, %c6, 1] [1, 1, 1, 1] : tensor<?xf32> into tensor<?x6x6x2xf32>
       affine.yield %inserted_slice_7 : tensor<?x6x6x2xf32>
     }

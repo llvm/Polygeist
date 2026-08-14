@@ -1,9 +1,19 @@
 /* aten::channel_shuffle, groups=2. Upstream: ATen/native/ChanelShuffle.cpp. */
+#ifndef B
 #define B 2
+#endif
+#ifndef G
 #define G 2
+#endif
+#ifndef CPG
 #define CPG 4
+#endif
+#ifndef H
 #define H 4
+#endif
+#ifndef W
 #define W 4
+#endif
 void aten_channel_shuffle(float input[B][G][CPG][H][W],
                           float output[B][CPG][G][H][W]) {
 #pragma scop

@@ -1,0 +1,21 @@
+[jetson] uname -a: Linux tegra-ubuntu 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Wed_Aug_14_10:14:07_PDT_2024
+Cuda compilation tools, release 12.6, V12.6.68
+Build cuda_12.6.r12.6/compiler.34714021_0
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/aten_adaptive_avg_pool2d_window_20260812_152435/aten_adaptive_avg_pool2d run 1 ...
+RESULT kernel=aten_adaptive_avg_pool2d warm_us=5700.502441 errors=0 max_error=0 coverage=full_regular_2x2_uniform-window_convolution
+[jetson] running /tmp/polygeist_jetson_runs/aten_adaptive_avg_pool2d_window_20260812_152435/aten_adaptive_avg_pool2d run 2 ...
+[jetson] elapsed_s 0.366
+RESULT kernel=aten_adaptive_avg_pool2d warm_us=5711.619238 errors=0 max_error=0 coverage=full_regular_2x2_uniform-window_convolution
+[jetson] running /tmp/polygeist_jetson_runs/aten_adaptive_avg_pool2d_window_20260812_152435/aten_adaptive_avg_pool2d run 3 ...
+[jetson] elapsed_s 0.366
+RESULT kernel=aten_adaptive_avg_pool2d warm_us=5723.830396 errors=0 max_error=0 coverage=full_regular_2x2_uniform-window_convolution
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.372

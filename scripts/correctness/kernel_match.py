@@ -67,6 +67,8 @@ class Term(Expr):
     @classmethod
     def Unary(cls, op: StringLike, a: Term) -> Term: ...
     @classmethod
+    def Binary(cls, op: StringLike, a: Term, b: Term) -> Term: ...
+    @classmethod
     def Select(cls, pred: Term, t: Term, f: Term) -> Term: ...
     @classmethod
     def Cmp(cls, kind: StringLike, a: Term, b: Term) -> Term: ...
@@ -310,8 +312,16 @@ def parse_constants(mlir_text: str) -> dict[str, float]:
         try:
             out[name] = float(value)
         except ValueError:
-            # Non-numeric (e.g. an undef). Skip.
-            pass
+            if value == "true":
+                out[name] = 1.0
+            elif value == "false":
+                out[name] = 0.0
+            # Other non-numeric values (e.g. undef) remain opaque.
+    # MLIR elides the `: i1` annotation for canonical boolean constants.
+    for name, value in re.findall(
+            r"(%[\w_\-]+)\s*=\s*arith\.constant\s+(true|false)\s*(?:$|\n)",
+            mlir_text, re.MULTILINE):
+        out[name] = 1.0 if value == "true" else 0.0
     return out
 
 
@@ -463,12 +473,12 @@ def parse_generics(mlir_text: str,
         local_defs = set()
         captures: list[str] = []
         for ln in body_lines:
-            assigned = re.match(r"(%[\w_]+)\s*=", ln)
+            assigned = re.match(r"(%[\w_\-]+)\s*=", ln)
             if assigned:
                 local_defs.add(assigned.group(1))
         for ln in body_lines:
             # Find all %xxx references on the rhs.
-            for tok in re.findall(r"%[\w_]+", ln):
+            for tok in re.findall(r"%[\w_\-]+", ln):
                 if (tok not in local_defs and tok not in ins and tok not in outs
                         and tok not in captures):
                     captures.append(tok)
@@ -598,14 +608,29 @@ _OP_PATTERNS = {
     "math.cos": "unary_cos",
     "math.cosh": "unary_cosh",
     "math.floor": "unary_floor",
+    "math.erf": "unary_erf",
+    "math.exp2": "unary_exp2",
+    "math.expm1": "unary_expm1",
     "math.log": "unary_log",
     "math.log1p": "unary_log1p",
+    "math.log2": "unary_log2",
+    "math.log10": "unary_log10",
+    "math.round": "unary_round",
+    "math.roundeven": "unary_roundeven",
+    "math.trunc": "unary_trunc",
+    "math.powf": "binary_pow",
+    "math.atan2": "binary_atan2",
     "math.sin": "unary_sin",
     "math.sinh": "unary_sinh",
     "math.tan": "unary_tan",
     "func.call": "call",
     "arith.cmpf": "cmpf",
     "arith.cmpi": "cmpi",
+    "arith.xori": "binary_xor",
+    "arith.andi": "binary_and",
+    "arith.ori": "binary_or",
+    "arith.shli": "binary_shl",
+    "arith.shrsi": "binary_shrs",
     "arith.select": "select",
     # Sign/zero extension and truncation cast ops. C's integer-promotion
     # rule (e.g. short * int → int) makes cgeist emit `arith.extsi %in : i16
@@ -706,24 +731,40 @@ def encode_body(g: GenericBody) -> Term:
         elif op_key.startswith("unary_"):
             env[result] = Term.Unary(op_key.removeprefix("unary_"),
                                      resolve(arg_toks[0]))
+        elif op_key.startswith("binary_"):
+            env[result] = Term.Binary(op_key.removeprefix("binary_"),
+                                      resolve(arg_toks[0]),
+                                      resolve(arg_toks[1]))
         elif op_key == "call":
-            call = re.match(r"@([\w.$-]+)\((%[\w_-]+)\)", args_part.strip())
+            call = re.match(
+                r"@([\w.$-]+)\((%[\w_-]+)(?:,\s*(%[\w_-]+))?\)",
+                args_part.strip())
             if call:
                 callee = re.sub(r"f$", "", call.group(1))
                 supported = {
                     "acos", "acosh", "asin", "asinh", "atan", "atanh",
                     "ceil", "cos", "cosh", "exp", "floor", "log",
+                    "erf", "erfc", "exp2", "expm1", "log1p", "log2", "log10",
+                    "round", "roundeven", "trunc",
                     "sin", "sinh", "sqrt", "tan", "tanh",
                 }
-                env[result] = (Term.Unary(callee, resolve(call.group(2)))
-                               if callee in supported else Term.Cap(result))
+                binary = {"fmax": "max", "fmin": "min", "fmod": "mod",
+                          "hypot": "hypot", "remainder": "remainder",
+                          "pow": "pow"}
+                if call.group(3) and callee in binary:
+                    env[result] = Term.Binary(
+                        binary[callee], resolve(call.group(2)),
+                        resolve(call.group(3)))
+                else:
+                    env[result] = (Term.Unary(callee, resolve(call.group(2)))
+                                   if callee in supported else Term.Cap(result))
             else:
                 env[result] = Term.Cap(result)
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
             )
-        elif op_key == "cmpf":
+        elif op_key in ("cmpf", "cmpi"):
             # Form: "kind, %a, %b" — arg_toks[0]="kind", [1]=%a, [2]=%b.
             # Or sometimes "kind %a", "%b" if a space slipped in. Handle both.
             kind = arg_toks[0].strip()
@@ -824,24 +865,40 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
         elif op_key.startswith("unary_"):
             env[result] = Term.Unary(op_key.removeprefix("unary_"),
                                      resolve(arg_toks[0]))
+        elif op_key.startswith("binary_"):
+            env[result] = Term.Binary(op_key.removeprefix("binary_"),
+                                      resolve(arg_toks[0]),
+                                      resolve(arg_toks[1]))
         elif op_key == "call":
-            call = re.match(r"@([\w.$-]+)\((%[\w_-]+)\)", args_part.strip())
+            call = re.match(
+                r"@([\w.$-]+)\((%[\w_-]+)(?:,\s*(%[\w_-]+))?\)",
+                args_part.strip())
             if call:
                 callee = re.sub(r"f$", "", call.group(1))
                 supported = {
                     "acos", "acosh", "asin", "asinh", "atan", "atanh",
                     "ceil", "cos", "cosh", "exp", "floor", "log",
+                    "erf", "erfc", "exp2", "expm1", "log1p", "log2", "log10",
+                    "round", "roundeven", "trunc",
                     "sin", "sinh", "sqrt", "tan", "tanh",
                 }
-                env[result] = (Term.Unary(callee, resolve(call.group(2)))
-                               if callee in supported else Term.Cap(result))
+                binary = {"fmax": "max", "fmin": "min", "fmod": "mod",
+                          "hypot": "hypot", "remainder": "remainder",
+                          "pow": "pow"}
+                if call.group(3) and callee in binary:
+                    env[result] = Term.Binary(
+                        binary[callee], resolve(call.group(2)),
+                        resolve(call.group(3)))
+                else:
+                    env[result] = (Term.Unary(callee, resolve(call.group(2)))
+                                   if callee in supported else Term.Cap(result))
             else:
                 env[result] = Term.Cap(result)
         elif op_key == "select":
             env[result] = Term.Select(
                 resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
             )
-        elif op_key == "cmpf":
+        elif op_key in ("cmpf", "cmpi"):
             kind = arg_toks[0].strip()
             if " " in kind:
                 kind, lhs_tok = kind.split(None, 1)
@@ -1356,6 +1413,36 @@ def _cudnn_maxpool_batched() -> CompositionEntry:
                 parallel_dim_count=4, reduction_dim_count=2,
             ),
         ],
+    )
+
+
+def _cudnn_uniform_window_conv2d() -> CompositionEntry:
+    """Regular channel-preserving window reduction with a uniform weight.
+
+    The scalar/iterator template deliberately does not call this average
+    pooling: the access-map analysis in kernel_match_rewrite.py proves the
+    NCHW sliding-window geometry and then lowers the operation as a grouped
+    (depthwise) cuDNN convolution.  A weight of 1/(KH*KW) is average pooling;
+    other uniform weights are equally valid box-filter convolutions.
+
+    Window size, stride and dilation are inferred from the submap and are not
+    encoded in this template, so one entry covers rectangular/even filters and
+    arbitrary fixed regular strides.
+    """
+    return CompositionEntry(
+        name="cudnnConvolution2DWindow_f32",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0) * T_cap("%weight"),
+                num_ins=1, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=2,
+            ),
+        ],
+        form="tensor",
     )
 
 
@@ -2433,6 +2520,146 @@ def _reduce_sum_1d() -> CompositionEntry:
     )
 
 
+def _reduce_product_1d() -> CompositionEntry:
+    """scalar *= in[i]."""
+    body = Term.Out(0) * Term.In(0)
+    return CompositionEntry(
+        name="cudnnReduceProduct_f32",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_min_1d() -> CompositionEntry:
+    """scalar = min(scalar, in[i]), preserving the frontend's ordered cmp."""
+    body = Term.Select(
+        Term.Cmp("olt", Term.In(0), Term.Out(0)),
+        Term.In(0), Term.Out(0))
+    return CompositionEntry(
+        name="cudnnReduceMin_f32",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_max_1d() -> CompositionEntry:
+    """scalar = max(scalar, in[i]), preserving the frontend's ordered cmp."""
+    body = Term.Select(
+        Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+        Term.In(0), Term.Out(0))
+    return CompositionEntry(
+        name="cudnnReduceMax_f32",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                parallel_dim_count=0, reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _reduce_minmax_1d() -> CompositionEntry:
+    """Compute maximum and minimum together from one input traversal."""
+    maximum = Term.Select(
+        Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+        Term.In(0), Term.Out(0))
+    minimum = Term.Select(
+        Term.Cmp("olt", Term.In(0), Term.Out(1)),
+        Term.In(0), Term.Out(1))
+    return CompositionEntry(
+        name="cudnnReduceMinMax_f32",
+        steps=[CompositionStep(body=maximum,
+                               body_per_yield=[maximum, minimum],
+                               num_ins=1, num_outs=2,
+                               parallel_dim_count=0,
+                               reduction_dim_count=1)],
+        form="any",
+    )
+
+
+def _segmented_logical_and_i32() -> CompositionEntry:
+    init = Term.Lit(1.0)
+    reduce = Term.Select(
+        Term.Cmp("ne", Term.Out(0), Term.Lit(0.0)),
+        Term.Cmp("ne", Term.In(0), Term.Lit(0.0)), Term.Lit(0.0))
+    return CompositionEntry(
+        name="cubSegmentedLogicalAnd_i32",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=1, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ], form="tensor",
+    )
+
+
+def _segmented_logical_or_i32() -> CompositionEntry:
+    init = Term.Lit(0.0)
+    reduce = Term.Select(
+        Term.Cmp("ne", Term.Out(0), Term.Lit(0.0)), Term.Lit(1.0),
+        Term.Cmp("ne", Term.In(0), Term.Lit(0.0)))
+    return CompositionEntry(
+        name="cubSegmentedLogicalOr_i32",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=1, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ], form="tensor",
+    )
+
+
+def _segmented_bitxor_i32() -> CompositionEntry:
+    init = Term.Lit(0.0)
+    reduce = Term.Binary("xor", Term.Out(0), Term.In(0))
+    return CompositionEntry(
+        name="cubSegmentedBitXor_i32",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=1, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ], form="tensor",
+    )
+
+
+def _segmented_prefix_sum_f32() -> CompositionEntry:
+    """Sum the valid prefix of each padded row, using a per-row length."""
+    init = Term.Lit(0.0)
+    prefix = Term.Cmp("ult", T_cap("%mask_index"),
+                      T_cap("%mask_length"))
+    reduce = Term.Select(prefix, Term.Out(0) + Term.In(0), Term.Out(0))
+    return CompositionEntry(
+        name="cubSegmentedPrefixSum_f32",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=2, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ], form="tensor",
+    )
+
+
+def _segmented_prefix_logical_and_i32() -> CompositionEntry:
+    """Logical-AND the valid prefix of each padded row."""
+    init = Term.Lit(1.0)
+    # The frontend canonicalizes C truth values before the integer AND.
+    logical_and = Term.Binary(
+        "and", Term.Out(0),
+        Term.Cmp("ne", Term.In(0), Term.Lit(0.0)))
+    prefix = Term.Cmp("ult", T_cap("%mask_index"),
+                      T_cap("%mask_length"))
+    reduce = Term.Select(prefix, logical_and, Term.Out(0))
+    return CompositionEntry(
+        name="cubSegmentedPrefixLogicalAnd_i32",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=2, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ], form="tensor",
+    )
+
+
 def _reduce_weighted_sum_1d() -> CompositionEntry:
     """scalar += alpha * in[i]."""
     body = Term.Out(0) + (Term.In(0) * T_cap("%alpha"))
@@ -2791,114 +3018,6 @@ def _whisper_exp_shift_sum_tensor() -> CompositionEntry:
     return CompositionEntry(
         name="whisperExpShiftSum_f32_tensor",
         steps=[step],
-        form="tensor",
-    )
-
-
-def _rmsnorm_family() -> list[CompositionEntry]:
-    """RMSNorm family — 1D root-mean-square normalize + optional scale terms.
-
-    cgeist + raise produces two linalg.generic ops in sequence, with the
-    scale computation (`scale = 1/sqrt(ss/N + eps)`) inlined between them
-    as ordinary scalar arith on the host side:
-
-        Step 0 — ss = sum(x[i]²):  reduction, 1 in (x), 1 scalar out
-            body = Out(0) + (In(0) * In(0))
-
-        [inline: load ss; divf ss/N; addf +eps; sqrt; divf 1/sqrt → %scale]
-
-        Step 1 variants:
-            weighted:
-                out = weight * scale * x
-                body = In(0) * (Cap("%scale") * In(1))
-
-            unweighted:
-                out = x * scale
-                body = In(0) * Cap("%scale")
-
-            scalar-gain unweighted:
-                out = x * scale * gain
-                body = In(0) * (Cap("%scale") * Cap("%gain"))
-
-    The Cap binds to whatever body-external SSA the rewriter sees feeding
-    the second linalg's body — typically the `%5 = arith.divf %cst, %4`
-    result of the inlined scale computation.
-
-    Lowers to an `rmsnorm` kernel.launch. cuDNN has no native RMSNorm
-    entry (its `cudnnNormForward` always mean-centers). The runtime shim
-    is the natural place to decide between (a) cuBLAS decomposition
-    (cublasSdot for ss + scalar arith on host + per-element fused scale,
-    weight, multiply), (b) cuDNN LayerNorm with mean=0 trick
-    (version-dependent), or (c) a hand-written CUDA kernel (the
-    production choice in TRT-LLM / vLLM).
-
-    Keep the variants generated together so RMSNorm stays one semantic
-    matcher family instead of a pile of near-duplicate one-off templates.
-    Priority is weighted first (more specific tensor operand shape), then
-    plain unweighted, then scalar-gain unweighted.
-    """
-    step0 = CompositionStep(
-        body=Term.Out(0) + (Term.In(0) * Term.In(0)),
-        num_ins=1, num_outs=1,
-        reduction_dim_count=1, parallel_dim_count=0,
-    )
-
-    def entry(name: str, body: Term, num_ins: int) -> CompositionEntry:
-        step1 = CompositionStep(
-            body=body,
-            num_ins=num_ins, num_outs=1,
-            reduction_dim_count=0, parallel_dim_count=1,
-        )
-        return CompositionEntry(
-            name=name,
-            steps=[step0, step1],
-            form="any",
-        )
-
-    return [
-        entry(
-            "rmsnorm_f32",
-            Term.In(0) * (T_cap("%scale") * Term.In(1)),
-            2,
-        ),
-        entry(
-            "rmsnorm_unweighted_f32",
-            Term.In(0) * T_cap("%scale"),
-            1,
-        ),
-        entry(
-            "rmsnorm_scaled_unweighted_f32",
-            (Term.In(0) * T_cap("%scale")) * T_cap("%gain"),
-            1,
-        ),
-        entry(
-            "rmsnorm_scaled_unweighted_f32",
-            Term.In(0) * (T_cap("%scale") * T_cap("%gain")),
-            1,
-        ),
-    ]
-
-
-def _gelu_tanh_f32_tensor() -> CompositionEntry:
-    """Approximate GELU:
-
-        out = 0.5*x*(1 + tanh(0.79788456*(x + 0.044715*x^3)))
-
-    Coefficients are Cap wildcards constrained to scalar captures/literals by
-    `_unify`, so f32 spelling/rounding differences still match while tensor
-    operands cannot masquerade as constants.
-    """
-    x = Term.In(0)
-    x3_scaled = ((x * T_cap("%cube_coeff")) * x) * x
-    inner = (x + x3_scaled) * T_cap("%sqrt_2_over_pi")
-    body = (x * T_cap("%half")) * (
-        Term.Tanh(inner) + T_cap("%one")
-    )
-    return CompositionEntry(
-        name="gelu_tanh_f32_tensor",
-        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
-                                parallel_dim_count=1,
-                                reduction_dim_count=0)],
         form="tensor",
     )
 
@@ -3333,6 +3452,25 @@ def _cutensor_unary_entries() -> list[CompositionEntry]:
     ]
 
 
+def _cudnn_pointwise_affine_relu() -> CompositionEntry:
+    """Fused cuDNN graph: out = relu(alpha * x + bias).
+
+    ``alpha`` is a semantic capture: the matcher binds it to the scalar SSA
+    value used by the input generic and carries that value into kernel.launch.
+    Keeping this rule ahead of the primitive unary rules makes the whole
+    expression graph win over a smaller ReLU-only candidate.
+    """
+    zero = Term.Lit(0.0)
+    affine = T_cap("%alpha") * Term.In(0) + Term.In(1)
+    body = Term.Select(Term.Cmp("ogt", affine, zero), affine, zero)
+    return CompositionEntry(
+        name="cudnnPointwiseAffineRelu_f32",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                               reduction_dim_count=0)],
+        form="tensor", element_type="f32",
+    )
+
+
 def _copy_input_3d_tensor() -> CompositionEntry:
     """Rank-3 tensor copy/transpose-style pack/unpack."""
     body = Term.In(0)
@@ -3417,6 +3555,8 @@ def composition_library() -> list[CompositionEntry]:
         _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
         _gemm_composition(),
         _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
+        _cudnn_uniform_window_conv2d(),
+                                  # 2-step: zero + regular NCHW window sum
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
         _sgemm_strided_batched_zero(),
         _sgemm_zero_gemm(),
@@ -3426,6 +3566,10 @@ def composition_library() -> list[CompositionEntry]:
                                                # legality is proved by rewrite
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
+
+        # Whole-expression pointwise graph. This must precede primitive unary
+        # entries so the affine producer and ReLU consumer remain one launch.
+        _cudnn_pointwise_affine_relu(),
 
         # Parameterized arbitrary-rank unary tensor operations. These precede
         # generic formula entries so a complete fixed-function cuTENSOR call
@@ -3474,7 +3618,6 @@ def composition_library() -> list[CompositionEntry]:
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it
                                 #         with the longer-step compositions.
-        *_rmsnorm_family(),     # 2-step composition family:
                                 #         sum-of-squares + weighted,
                                 #         unweighted, or scalar-gain scale.
                                 #         Sits between softmax (3 steps) and
@@ -3527,11 +3670,19 @@ def composition_library() -> list[CompositionEntry]:
         _llama_swiglu_f32_tensor(),
         _llama_mask_select_f32_tensor(),
         _llama_add_f32_tensor(),
-        _gelu_tanh_f32_tensor(),
         _sgemm_broadcast3d_memref(),
         _dot(),
         _dot_f32(),
         _asum(),
+        _segmented_logical_and_i32(),
+        _segmented_logical_or_i32(),
+        _segmented_bitxor_i32(),
+        _segmented_prefix_sum_f32(),
+        _segmented_prefix_logical_and_i32(),
+        _reduce_minmax_1d(),
+        _reduce_product_1d(),
+        _reduce_min_1d(),
+        _reduce_max_1d(),
         _reduce_max_abs_1d(),
         _reduce_sum_1d(),
         _reduce_weighted_sum_1d(),
@@ -3678,7 +3829,8 @@ def _parse_term(s: str):
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Unary", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp",
+                     "Tanh", "Unary", "Binary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
                 j, args = i + len(tag), []
@@ -3712,7 +3864,7 @@ def _parse_term(s: str):
                     elif _looks_like_float(a):
                         parsed_args.append(float(a))
                     else:
-                        sub, _ = parse_expr(0)
+                        sub, _ = parse_expr_str(a)
                         # If parse_expr fully consumed `a`, use it.
                         if sub is not None:
                             parsed_args.append(sub)
@@ -3784,7 +3936,8 @@ def _parse_term(s: str):
                 op_name = {"+": "Add", "-": "Sub", "*": "Mul", "/": "Div"}[op_char]
                 return (op_name, lhs, rhs), len(t)
         # Otherwise try parsing as a Term.Ctor leaf.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp", "Tanh", "Unary", "Select", "Cmp"):
+        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp",
+                     "Tanh", "Unary", "Binary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if t.startswith(tag) and t.endswith(")"):
                 inner = t[len(tag):-1]

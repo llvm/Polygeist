@@ -13,8 +13,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i16, dense<16> : 
       linalg.yield %c1_i32 : i32
     }
     %subview = memref.subview %arg0[0, 0] [%c32, %c64] [1, 1] : memref<?x64xi32> to memref<?x?xi32, strided<[64, 1]>>
-    %subview_0 = memref.subview %arg1[0] [%c32] [1] : memref<?xi32> to memref<?xi32, strided<[1]>>
-    linalg.generic {indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"]} ins(%subview : memref<?x?xi32, strided<[64, 1]>>) outs(%subview_0 : memref<?xi32, strided<[1]>>) {
+    %reinterpret_cast = memref.reinterpret_cast %arg1 to offset: [0], sizes: [%c32], strides: [1] : memref<?xi32> to memref<32xi32>
+    linalg.generic {indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"]} ins(%subview : memref<?x?xi32, strided<[64, 1]>>) outs(%reinterpret_cast : memref<32xi32>) {
     ^bb0(%in: i32, %out: i32):
       %0 = arith.cmpi ne, %out, %c0_i32 : i32
       %1 = arith.cmpi ne, %in, %c0_i32 : i32

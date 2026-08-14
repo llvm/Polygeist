@@ -364,6 +364,13 @@ int main(void) {
   reset_states();
   run_reference(reference_state);
   run_raised(raised_state);
+  /* CUDA Graph execution warms on the first call, captures on the second,
+   * and replays from the third call onward. Reset the same stable output
+   * buffers between calls so the correctness comparison exercises replay. */
+  for (int replay_warmup = 0; replay_warmup < 2; ++replay_warmup) {
+    memcpy(raised_state, initial_state, sizeof(initial_state));
+    run_raised(raised_state);
+  }
 
   double max_abs = 0.0;
   double max_rel = 0.0;

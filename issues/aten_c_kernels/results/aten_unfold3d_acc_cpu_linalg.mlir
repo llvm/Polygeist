@@ -9,18 +9,14 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
     %c8 = arith.constant 8 : index
     %c3 = arith.constant 3 : index
     %cst = arith.constant 0.000000e+00 : f32
-    %0 = "polygeist.memref2pointer"(%arg1) : (memref<?x8x9x10xf32>) -> !llvm.ptr
-    affine.for %arg2 = 0 to 1440 {
-      %2 = arith.index_cast %arg2 : index to i32
-      %3 = llvm.getelementptr %0[%2] : (!llvm.ptr, i32) -> !llvm.ptr, f32
-      llvm.store %cst, %3 : f32, !llvm.ptr
-    }
+    %reinterpret_cast = memref.reinterpret_cast %arg1 to offset: [0], sizes: [1440], strides: [1] : memref<?x8x9x10xf32> to memref<1440xf32>
+    linalg.fill ins(%cst : f32) outs(%reinterpret_cast : memref<1440xf32>)
     %subview = memref.subview %arg0[0, 0, 0, 0, 0, 0, 0] [%c2, %c3, %c3, %c3, %c6, %c7, %c8] [1, 1, 1, 1, 1, 1, 1] : memref<?x3x3x3x6x7x8xf32> to memref<?x?x?x?x?x?x?xf32, strided<[9072, 3024, 1008, 336, 56, 8, 1]>>
-    %1 = polygeist.submap(%arg1, %c2, %c6, %c7, %c8, %c3, %c3, %c3) {map = #map} : (memref<?x8x9x10xf32>, index, index, index, index, index, index, index) -> memref<?x?x?x?x?x?x?xf32>
-    linalg.generic {indexing_maps = [#map1, #map2], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} ins(%subview : memref<?x?x?x?x?x?x?xf32, strided<[9072, 3024, 1008, 336, 56, 8, 1]>>) outs(%1 : memref<?x?x?x?x?x?x?xf32>) {
+    %0 = polygeist.submap(%arg1, %c2, %c6, %c7, %c8, %c3, %c3, %c3) {map = #map} : (memref<?x8x9x10xf32>, index, index, index, index, index, index, index) -> memref<?x?x?x?x?x?x?xf32>
+    linalg.generic {indexing_maps = [#map1, #map2], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} ins(%subview : memref<?x?x?x?x?x?x?xf32, strided<[9072, 3024, 1008, 336, 56, 8, 1]>>) outs(%0 : memref<?x?x?x?x?x?x?xf32>) {
     ^bb0(%in: f32, %out: f32):
-      %2 = arith.addf %out, %in : f32
-      linalg.yield %2 : f32
+      %1 = arith.addf %out, %in : f32
+      linalg.yield %1 : f32
     }
     return
   }

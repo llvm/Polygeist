@@ -4,7 +4,7 @@
 #map3 = affine_map<(d0) -> (d0 - 1)>
 #map4 = affine_map<(d0, d1, d2) -> (d2 - 1)>
 #map5 = affine_map<(d0, d1, d2) -> (d2 - 2)>
-module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<"dlti.endianness", "little">, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>, #dlti.dl_entry<"dlti.endianness", "little">>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
   func.func @aten_ctc_loss_cpu(%arg0: memref<?x4x12xf32>, %arg1: memref<?x5xi32>, %arg2: i32, %arg3: memref<?xf32>, %arg4: memref<?x24x11xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0_i32 = arith.constant 0 : i32
     %c1_i32 = arith.constant 1 : i32
@@ -101,13 +101,23 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<271>, d
     %extracted_slice_3 = tensor.extract_slice %8[0, 23, 10] [%c4, 1, 1] [1, 1, 1] : tensor<?x24x11xf32> to tensor<?xf32>
     %extracted_slice_4 = tensor.extract_slice %8[0, 23, 9] [%c4, 1, 1] [1, 1, 1] : tensor<?x24x11xf32> to tensor<?xf32>
     %extracted_slice_5 = tensor.extract_slice %2[0] [%c4] [1] : tensor<?xf32> to tensor<?xf32>
-    %10 = linalg.generic {doc = "", indexing_maps = [#map1, #map1, #map1], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice_3, %extracted_slice_4 : tensor<?xf32>, tensor<?xf32>) outs(%extracted_slice_5 : tensor<?xf32>) {
-    ^bb0(%in: f32, %in_7: f32, %out: f32):
-      %12 = arith.addf %in, %in_7 : f32
-      %13 = math.log %12 : f32
-      %14 = arith.negf %13 : f32
-      linalg.yield %14 : f32
-    } -> tensor<?xf32>
+    %v10_pw_single_scalar_0 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_1 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_2 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_3 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_4 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_5 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_6 = arith.constant 0.0 : f32
+
+    %v10_pw_single_pad_7 = arith.constant 0.0 : f32
+
+    %10 = kernel.launch @cudnnPointwiseGraph_f32(%extracted_slice_3, %extracted_slice_4, %extracted_slice_3, %extracted_slice_3, %extracted_slice_5, %v10_pw_single_scalar_0, %v10_pw_single_pad_1, %v10_pw_single_pad_2, %v10_pw_single_pad_3, %v10_pw_single_pad_4, %v10_pw_single_pad_5, %v10_pw_single_pad_6, %v10_pw_single_pad_7) {pointwise_graph = array<i64: 868068828192440576, 50597120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>, pointwise_num_nodes = 3 : i64} : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, f32, f32, f32, f32, f32, f32, f32, f32) -> tensor<?xf32>
     %inserted_slice_6 = tensor.insert_slice %10 into %2[0] [%c4] [1] : tensor<?xf32> into tensor<?xf32>
     %11 = bufferization.to_memref %inserted_slice_6 : memref<?xf32>
     memref.copy %11, %arg3 : memref<?xf32> to memref<?xf32>

@@ -119,16 +119,55 @@ LogicalResult LaunchOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
     return emitOpError() << "'" << kernelAttr.getValue()
                          << "' does not reference a valid kernel";
 
-  // Verify that the operand and result types match the kernel signature.
+  // Verify that the operand and result types match the kernel signature.  A
+  // bufferized launch keeps the scalar operands unchanged, replaces tensor
+  // operands with equivalent memrefs, and writes the kernel results into the
+  // destination operands recorded by polygeist.result_destinations.
   auto kernelType = kernelOp.getFunctionType();
+  bool isBufferized = (*this)->hasAttr("polygeist.bufferized");
   if (kernelType.getNumInputs() != getNumOperands())
     return emitOpError("incorrect number of operands for kernel");
 
+  auto areBufferCompatible = [](Type expected, Type actual) {
+    if (expected == actual)
+      return true;
+    auto expectedTensor = dyn_cast<RankedTensorType>(expected);
+    auto actualMemref = dyn_cast<MemRefType>(actual);
+    if (!expectedTensor || !actualMemref ||
+        expectedTensor.getElementType() != actualMemref.getElementType() ||
+        expectedTensor.getRank() != actualMemref.getRank())
+      return false;
+    for (auto [expectedDim, actualDim] :
+         llvm::zip(expectedTensor.getShape(), actualMemref.getShape()))
+      if (!ShapedType::isDynamic(expectedDim) &&
+          !ShapedType::isDynamic(actualDim) && expectedDim != actualDim)
+        return false;
+    return true;
+  };
+
   for (unsigned i = 0, e = kernelType.getNumInputs(); i != e; ++i)
-    if (getOperand(i).getType() != kernelType.getInput(i))
+    if ((!isBufferized && getOperand(i).getType() != kernelType.getInput(i)) ||
+        (isBufferized &&
+         !areBufferCompatible(kernelType.getInput(i),
+                              getOperand(i).getType())))
       return emitOpError("operand type mismatch: expected operand type ")
              << kernelType.getInput(i) << ", but provided "
              << getOperand(i).getType() << " for operand number " << i;
+
+  if (isBufferized) {
+    if (getNumResults() != 0)
+      return emitOpError("bufferized launch must not have SSA results");
+    auto destinations = (*this)->getAttrOfType<DenseI64ArrayAttr>(
+        "polygeist.result_destinations");
+    if (!destinations || destinations.size() != kernelType.getNumResults())
+      return emitOpError("bufferized launch requires one destination operand "
+                         "index for every kernel result");
+    for (int64_t destination : destinations.asArrayRef())
+      if (destination < 0 || destination >= (int64_t)getNumOperands())
+        return emitOpError("bufferized launch destination operand index is "
+                           "out of range");
+    return success();
+  }
 
   if (kernelType.getNumResults() != getNumResults())
     return emitOpError("incorrect number of results for kernel");
@@ -147,4 +186,4 @@ LogicalResult LaunchOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "polygeist/Kernel/KernelOps.cpp.inc" 
+#include "polygeist/Kernel/KernelOps.cpp.inc"

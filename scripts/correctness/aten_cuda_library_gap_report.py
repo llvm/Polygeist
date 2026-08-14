@@ -26,7 +26,7 @@ DOC = {
     "cuSPARSE": "https://docs.nvidia.com/cuda/cusparse/index.html",
     "cuSOLVER": "https://docs.nvidia.com/cuda/cusolver/contents.html",
     "cuRAND": "https://docs.nvidia.com/cuda/curand/host-api-overview.html",
-    "CUB/Thrust": "https://nvidia.github.io/cccl/unstable/cub/api/device.html",
+    "CUB": "https://nvidia.github.io/cccl/unstable/cub/api/device.html",
     "NPP": "https://docs.nvidia.com/cuda/npp/",
     "CUDA Runtime": "https://docs.nvidia.com/cuda/cuda-runtime-api/",
     "none": "",
@@ -129,6 +129,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "cuDNN-supported CTC tensor layout/type/algorithm",
                  "CTC matcher + API wrapper", priority="MEDIUM")
     if fam == "pooling":
+        if "max_pool1d" in n:
+            return r("CUB", "DeviceSegmentedReduce::ArgMax",
+                     "SUBSET_WITH_CONSTRAINTS", "whole for explicit windows",
+                     "window bounds, first-index/tie and NaN behavior must match ATen",
+                     "each pooling window must be expressible by begin/end segment offsets",
+                     "preserve the multi-output value/index reduction through debufferization; then lower to segmented ArgMax",
+                     priority="HIGH",
+                     note="cuDNN pooling returns values but not ATen's argmax-index output")
         return r("cuDNN", "Resample forward/backward (MAXPOOL/AVGPOOL)", "EXACT_FIXED_CALL", "whole",
                  "padding inclusion, NaN propagation, max-index and tie behavior must match",
                  "regular fixed windows/strides/dilations in supported layouts",
@@ -168,7 +176,7 @@ def route(row: dict[str, str]) -> dict[str, str]:
                      "regular affine tensor modes and supported floating data/compute type",
                      "recognize paired extrema and emit/cache two cuTENSOR plans", priority="MEDIUM")
         if any(x in n for x in ("and_reduce", "or_reduce", "xor_sum")):
-            return r("CUB/Thrust", "DeviceReduce with logical/bitwise operator", "SUBSET_WITH_CONSTRAINTS", "whole for a flat/segmented supported type",
+            return r("CUB", "DeviceReduce with logical/bitwise operator", "SUBSET_WITH_CONSTRAINTS", "whole for a flat/segmented supported type",
                      "logical versus bitwise interpretation, identity, integer type and empty input",
                      "flattened contiguous range or explicit tensor-axis segments",
                      "CUB reduction backend + boolean/integer semantic matcher", priority="MEDIUM")
@@ -184,7 +192,7 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "regular affine tensor modes and supported data/compute type",
                  "generic reduction matcher + cuTENSOR descriptor lowering", priority="HIGH")
     if fam in {"arg_reduction", "statistical_mode"}:
-        return r("CUB/Thrust", "DeviceReduce/SegmentedReduce on value-index pairs; sort+RLE for mode",
+        return r("CUB", "DeviceReduce/SegmentedReduce on value-index pairs; sort+RLE for mode",
                  "BUILDING_BLOCKS_ONLY", "algorithmic stages",
                  "ATen first-index/tie, NaN and stable-order rules need a custom pair comparator/composition",
                  "flatten/segment the requested tensor axis; strided axes may require permutation",
@@ -216,7 +224,7 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  note="A scalar device function may exist; that is not a link-only tensor-library lowering.")
 
     if fam == "ragged_softmax":
-        return r("CUB/Thrust", "segmented max/sum reductions plus pointwise transforms",
+        return r("CUB", "segmented max/sum reductions plus pointwise transforms",
                  "BUILDING_BLOCKS_ONLY", "softmax stages",
                  "ragged offsets, stable max-subtraction, empty rows, dropout RNG state and backward semantics",
                  "explicit segment offsets over contiguous values",
@@ -244,18 +252,18 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "positive explicit strides/modes; shuffle/repeat must be representable without index-dependent modulo",
                  "affine-map-to-mode extraction + generic permutation lowering", priority="HIGH")
     if fam == "reverse":
-        return r("CUB/Thrust", "thrust::reverse/reverse_copy", "SUBSET_WITH_CONSTRAINTS", "whole for one contiguous range",
+        return r("none", "no direct reverse API", "NO_PUBLIC_LIBRARY_EQUIVALENT", "none",
                  "multi-axis flip order is irrelevant but views/aliasing must be legal",
                  "contiguous flattened range; arbitrary strided axes require permutation/composition",
-                 "Thrust backend plus contiguity specialization", priority="LOW")
+                 "leave as residual IR", priority="LOW")
     if fam == "padding":
         return r("NPP", "nppiCopy*Border", "SUBSET_WITH_CONSTRAINTS", "2D image constant/replicate border subset",
                  "reflection/circular rules and backward accumulation are not generally covered",
                  "NPP 2D ROI/channel/dtype layouts only",
                  "specialize compatible image cases; otherwise composition", priority="LOW")
     if fam in {"data_movement", "tensor_initialization", "index_generation"}:
-        return r("CUDA Runtime" if fam == "data_movement" else "CUB/Thrust",
-                 "cudaMemcpy*/Memset or Thrust fill/sequence/transform", "BUILDING_BLOCKS_ONLY", "regular contiguous stages",
+        return r("CUDA Runtime" if fam == "data_movement" else "CUB",
+                 "cudaMemcpy*/Memset or CUB building blocks", "BUILDING_BLOCKS_ONLY", "regular contiguous stages",
                  "concatenation, combinations, diagonal/mask/index formulas need multiple calls or transforms",
                  "contiguous/regular pitched copies; arbitrary indexing is not memcpy",
                  "shape specialization and multi-call composition", priority="LOW")
@@ -265,31 +273,31 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "regular complex FP32/FP64 tensors and affine permutation",
                  "split pure conjugate/permutation stages; compose remaining work", priority="MEDIUM")
 
-    # CUB/Thrust device algorithms. They are existing NVIDIA implementations,
+    # CUB device algorithms are existing NVIDIA implementations,
     # but using them requires a C++ template backend and often multiple calls.
     if fam == "scan":
-        return r("CUB/Thrust", "DeviceScan/DeviceSegmentedScan", "SUBSET_WITH_CONSTRAINTS", "whole for contiguous/segmented associative scans",
+        return r("CUB", "DeviceScan/DeviceSegmentedScan", "SUBSET_WITH_CONSTRAINTS", "whole for contiguous/segmented associative scans",
                  "axis, inclusive convention, dtype accumulation, logsumexp stability and cummax indices/ties",
                  "scan axis must be contiguous or converted to explicit segments",
                  "scan matcher + CUB template backend + axis specialization", priority="HIGH")
     if fam in {"ordering_selection", "search", "set_membership"}:
-        return r("CUB/Thrust", "DeviceRadixSort/MergeSort/TopK/Select/RLE or binary search",
+        return r("CUB", "DeviceRadixSort/SegmentedRadixSort/Select/RLE",
                  "BUILDING_BLOCKS_ONLY", "sort/search/select stages",
                  "stable ordering, NaNs, first-index/tie policy, multidimensional axes and returned indices",
                  "contiguous keys or explicit segments; arbitrary strided axes need layout conversion",
-                 "CUB/Thrust backend + operation-specific composition", priority="MEDIUM")
+                 "CUB backend + operation-specific composition", priority="MEDIUM")
     if fam in {"histogram_count", "column_reduction"}:
-        return r("CUB/Thrust", "DeviceHistogram or DeviceReduce", "SUBSET_WITH_CONSTRAINTS", "whole for supported binning/reduction",
+        return r("CUB", "DeviceHistogram or DeviceReduce", "SUBSET_WITH_CONSTRAINTS", "whole for supported binning/reduction",
                  "bin-edge inclusivity, out-of-range/NaN handling and weighted/multidimensional bins",
                  "supported sample/bin types; histogramdd may require linearized keys",
                  "histogram matcher + CUB backend + semantic guards", priority="MEDIUM")
     if fam in {"indexed_data_movement", "indexed_scatter", "indexed_scatter_reduce", "patch_extract_scatter", "reduce_and_compact"}:
-        return r("CUB/Thrust", "gather/scatter/select or sort/reduce-by-key primitives", "BUILDING_BLOCKS_ONLY", "indexing stages",
+        return r("CUB", "DeviceSelect or sort/reduce-by-key primitives", "BUILDING_BLOCKS_ONLY", "supported indexing stages",
                  "bounds/negative indices, duplicate destinations, atomic reduction, determinism and write order",
                  "index arrays and flattened affine addressing; patch operations need index generation",
                  "indexed-op semantic matcher + collision proof or reduce-by-key composition", priority="MEDIUM")
     if fam in {"segmented_reduction", "adjacent_difference", "finite_difference"}:
-        return r("CUB/Thrust", "DeviceSegmentedReduce/AdjacentDifference", "SUBSET_WITH_CONSTRAINTS", "whole for direct primitive; otherwise central/boundary stages",
+        return r("CUB", "DeviceSegmentedReduce", "SUBSET_WITH_CONSTRAINTS", "whole for direct reduction primitive",
                  "empty segments, indices/ties, scale, boundary formula and backward accumulation",
                  "explicit contiguous segments/offsets",
                  "CUB backend + segment/boundary extraction", priority="MEDIUM")
@@ -379,14 +387,14 @@ def alternatives(family: str, verdict: dict[str, str]) -> str:
     if family == "tensor_contraction":
         return "cuTensorNet for larger contraction networks; cuBLAS when flattenable to GEMM"
     if family in {"pointwise", "pointwise_formula", "pointwise_math", "pointwise_reduction_formula"}:
-        return "cuTENSOR for its fixed unary/binary operator subset; NPP for flat supported signals; Thrust transform"
+        return "cuTENSOR for its fixed unary/binary operator subset; NPP for flat supported signals"
     if "reduction" in family or family in {"normalization", "softmax"}:
         return "CUB segmented/device reduction; cuDNN graph; NPP flat-signal statistics"
     if family in {"convolution", "pooling", "resampling", "adaptive_pooling"}:
         return "NPP for compatible 2D image cases; implicit-GEMM via cuBLAS/CUTLASS for convolution"
     if family.startswith("sparse"):
         return "CUB sort/segmented-reduce for nonstandard sparse semantics"
-    if lib == "CUB/Thrust":
+    if lib == "CUB":
         return "cuTENSOR/cuDNN only when the indexing operation specializes to a regular affine tensor op"
     if lib == "none":
         return "scalar CUDA math/libdevice or generated kernel (not a link-only tensor API)"
@@ -413,6 +421,9 @@ def fixture_metadata(kernel: str) -> tuple[str, str, str]:
 
 
 def gap_class(old: dict[str, str], verdict: dict[str, str]) -> str:
+    if (old["current_match_scope"] == "COMPLETE_REWRITE_CANDIDATE" and
+            old.get("counts_as_library_reuse") != "yes"):
+        return "CUSTOM_GPU_FALLBACK_REQUIRES_LIBRARY_ROUTE"
     if int(old["residual_loops"]) > 0:
         return "RAISING_THEN_LIBRARY_LOWERING"
     if old["current_match_scope"] == "PARTIAL_STAGE_ONLY":
@@ -430,7 +441,11 @@ def gap_class(old: dict[str, str], verdict: dict[str, str]) -> str:
 def main() -> None:
     rows = list(csv.DictReader(INPUT.open(newline="")))
     total_fixtures = len(rows)
-    rows = [r for r in rows if r["current_match_scope"] != "COMPLETE_REWRITE_CANDIDATE"]
+    rows = [
+        r for r in rows
+        if not (r["current_match_scope"] == "COMPLETE_REWRITE_CANDIDATE" and
+                r.get("counts_as_library_reuse") == "yes")
+    ]
     out = []
     for old in rows:
         verdict = route(old)
@@ -450,6 +465,11 @@ def main() -> None:
             "reviewed_semantic_family": reviewed_family(old),
             "current_match": old["current_match"],
             "current_match_scope": old["current_match_scope"],
+            "current_implementation_class": old.get(
+                "current_implementation_class", "UNVERIFIED_IMPLEMENTATION"),
+            "current_implementation_detail": old.get(
+                "current_implementation_detail", ""),
+            "counts_as_library_reuse": old.get("counts_as_library_reuse", "no"),
             "linalg_ops": old["linalg_ops"], "residual_loops": old["residual_loops"],
             **verdict, "required_compiler_work": work,
             "alternative_libraries": alternatives(reviewed_family(old), verdict),
@@ -475,14 +495,17 @@ def main() -> None:
         "# ATen unresolved CUDA-library matcher audit",
         "",
         "This report audits every ATen fixture that does **not** currently end in a "
-        "complete library rewrite. It deliberately distinguishes an exact public "
+        "complete rewrite backed by genuine library/runtime algorithms. It deliberately distinguishes an exact public "
         "library operation from a configured primitive, a constrained subset, and "
         "mere building blocks. The row-level CSV is the authoritative artifact.",
         "",
         "## Scope and headline",
         "",
         f"- Unresolved fixtures audited: **{len(out)}** (the other "
-        f"{total_fixtures - len(out)}/{total_fixtures} already have a complete rewrite candidate).",
+        f"{total_fixtures - len(out)}/{total_fixtures} already have a complete "
+        "genuine library/runtime rewrite).",
+        f"- Complete generated/custom GPU fallbacks still requiring a true library "
+        f"route: **{sum(r['current_match_scope']=='COMPLETE_REWRITE_CANDIDATE' and r['counts_as_library_reuse']!='yes' for r in out)}**.",
         f"- No current match: **{sum(r['current_match_scope']=='NONE' for r in out)}**.",
         f"- Partial stage match with residual IR: **{sum(r['current_match_scope']=='PARTIAL_STAGE_ONLY' for r in out)}**.",
         f"- Residual loops still block whole-operation recognition: **{sum(int(r['residual_loops'])>0 for r in out)}**.",
@@ -512,8 +535,8 @@ def main() -> None:
         "- `acos`, `asin`, `atan`, `acosh`, `asinh`, `atanh`, trigonometric/hyperbolic "
         "functions, `mish`, `swish`, and `softplus` are explicit `cutensorOperator_t` "
         "values. They are generic cuTENSOR descriptor candidates, not missing CUDA APIs.",
-        "- CUB and Thrust supply implementations of scans, sorts, reductions, gathers, "
-        "scatters, and selection, but most ATen rows are not a one-call equivalence until "
+        "- CUB supplies implementations of scans, sorts, reductions, and selection, "
+        "but most ATen rows are not a one-call equivalence until "
         "axis layout, tie/index policy, collisions, and determinism are proven.",
         "- NPP is primarily a fixed-type 1D signal / 2D image API. It is relevant to "
         "specialized contiguous cases, not a general arbitrary-rank ATen tensor backend.",
@@ -537,8 +560,8 @@ def main() -> None:
         "- **cuSPARSE:** preferred only where the loop is a standardized SpMV/SpMM/SpGEMM/SDDMM "
         "or supported sparse-format conversion. Sparse indexing alone does not make an operation "
         "a cuSPARSE call.",
-        "- **CUB/Thrust:** existing NVIDIA template implementations for scan/sort/reduce/select/"
-        "gather/scatter. They require a new C++ template backend and frequently multi-call composition.",
+        "- **CUB:** existing NVIDIA template implementations for scan/sort/reduce/select. "
+        "They require a C++ template backend and frequently multi-call composition.",
         "- **NPP:** useful for specialized contiguous signal or 2D-image cases. It is not treated "
         "as a general tensor backend.",
         "- **cuRAND:** useful only when generator-state and sequence compatibility are proven; "
