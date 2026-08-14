@@ -252,6 +252,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
       libSym == "cutensornetContraction2_f64_r5r4r4" ||
       libSym == "cutensornetContraction2_f64_r5r5r4")
     return "polygeist_cutensornet_contraction2_f64";
+  if (libSym.starts_with("cutensornetNetwork_f32"))
+    return "polygeist_cutensornet_network_f32";
+  if (libSym.starts_with("cutensornetNetwork_f64"))
+    return "polygeist_cutensornet_network_f64";
   // NOTE: cudnnConvolution2D_9tap_i{8,16} are intentionally absent — those
   // launches route to PVA Solutions' libpva_operator and are lowered by
   // a separate pass (see LowerKernelLaunchToPVA.cpp). cuDNN itself has
@@ -2459,6 +2463,46 @@ buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
   return metadata;
 }
 
+// The generic tensor-network op is intentionally bufferizable and is normally
+// lowered after one-shot bufferization. Preserve the older tensor provenance
+// path above, but also accept arbitrary ranked memref views by reading their
+// strided metadata. memrefDataPtr accounts for the view offset, so the
+// metadata below contains strides relative to logical element zero.
+static FailureOr<ContractionViewMetadata>
+buildNetworkViewMetadata(OpBuilder &b, Location loc, Value operand,
+                         AffineMap accessMap) {
+  if (isa<RankedTensorType>(operand.getType()))
+    return buildContractionViewMetadata(b, loc, operand, accessMap);
+
+  auto type = dyn_cast<MemRefType>(operand.getType());
+  if (!type || !(type.getElementType().isF32() ||
+                 type.getElementType().isF64()) ||
+      type.getRank() > kContractionMaxModes ||
+      accessMap.getNumResults() != (unsigned)type.getRank())
+    return failure();
+
+  ContractionViewMetadata result;
+  result.base = operand;
+  result.elementOffset = b.create<arith::ConstantOp>(
+      loc, b.getI64Type(), b.getI64IntegerAttr(0));
+  auto strided = b.create<memref::ExtractStridedMetadataOp>(loc, operand);
+  for (auto [dim, expr] : llvm::enumerate(accessMap.getResults())) {
+    auto mode = expr.dyn_cast<AffineDimExpr>();
+    if (!mode || mode.getPosition() >= kContractionMaxModes)
+      return failure();
+    Value stride = integerLikeAsI64(b, loc, strided.getStrides()[dim]);
+    llvm::APInt staticStride;
+    if (matchPattern(stride, m_ConstantInt(&staticStride)) &&
+        staticStride.isZero())
+      continue;
+    result.extents.push_back(
+        integerLikeAsI64(b, loc, strided.getSizes()[dim]));
+    result.strides.push_back(stride);
+    result.modes.push_back(mode.getPosition());
+  }
+  return result;
+}
+
 // Generic two-input FP64 Einstein contraction for MFEM's mode-wise
 // sum-factorization stages. Metadata layout (all i64):
 //   [rankA, rankB, rankC,
@@ -2721,6 +2765,187 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
   if (failed(rewireSubmapLaunchResult(launch, updatedOutputView,
                                       updatedOutput)))
     return failure();
+  launch.erase();
+  return success();
+}
+
+// Lower a variable-arity Einstein network. The launch carries one affine map
+// per operand in `network_maps`; exactly one operand is the destination and
+// all remaining operands are input tensor nodes. Every map has the same domain
+// (the global network modes), so no MFEM-specific rank or contraction order is
+// encoded in this lowering.
+static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
+                                             bool useF64) {
+  if (launch.getNumOperands() < 3)
+    return launch.emitError(
+        "cuTensorNet network requires at least two inputs and one output");
+  auto mapsAttr = launch->getAttrOfType<ArrayAttr>("network_maps");
+  if (!mapsAttr || mapsAttr.size() != launch.getNumOperands())
+    return launch.emitError(
+        "cuTensorNet network requires one network_maps entry per operand");
+
+  unsigned outputOperand = launch.getNumOperands() - 1;
+  if (auto destinations = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.result_destinations")) {
+    if (destinations.size() != 1 || destinations[0] < 0 ||
+        destinations[0] >= (int64_t)launch.getNumOperands())
+      return launch.emitError(
+          "cuTensorNet network requires exactly one valid result destination");
+    outputOperand = (unsigned)destinations[0];
+  } else if (launch.getNumResults() != 1) {
+    return launch.emitError(
+        "unbufferized cuTensorNet network requires exactly one result");
+  }
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  bool deviceResident = launch->hasAttr("polygeist.device_resident");
+  if (deviceResident && failed(verifyNoResidualHostDeviceConsumers(launch)))
+    return failure();
+
+  SmallVector<unsigned> tensorOrder;
+  tensorOrder.reserve(launch.getNumOperands());
+  for (unsigned i = 0; i < launch.getNumOperands(); ++i)
+    if (i != outputOperand)
+      tensorOrder.push_back(i);
+  tensorOrder.push_back(outputOperand);
+
+  SmallVector<ContractionViewMetadata, 4> metadata;
+  metadata.reserve(tensorOrder.size());
+  Type expectedElementType = useF64 ? b.getF64Type() : b.getF32Type();
+  unsigned globalModeCount = 0;
+  for (unsigned operandNumber : tensorOrder) {
+    auto shaped = getRankedShapedType(launch.getOperand(operandNumber));
+    if (!shaped || shaped.getElementType() != expectedElementType)
+      return launch.emitError(
+          "cuTensorNet network operands must be ranked and have the symbol's "
+          "element type");
+    auto mapAttr = dyn_cast<AffineMapAttr>(mapsAttr[operandNumber]);
+    if (!mapAttr)
+      return launch.emitError(
+          "cuTensorNet network maps must be affine map attributes");
+    globalModeCount = std::max(globalModeCount,
+                               mapAttr.getValue().getNumDims());
+    auto view = buildNetworkViewMetadata(
+        b, loc, launch.getOperand(operandNumber), mapAttr.getValue());
+    if (failed(view))
+      return launch.emitError(
+          "unsupported cuTensorNet network operand view or access map");
+    metadata.push_back(*view);
+  }
+  if (globalModeCount > kContractionMaxModes)
+    return launch.emitError("cuTensorNet network exceeds the 64-mode ABI");
+
+  llvm::SmallSet<int64_t, 16> inputModes;
+  llvm::SmallSet<int64_t, 16> outputModes;
+  for (unsigned tensor = 0; tensor + 1 < metadata.size(); ++tensor)
+    for (int64_t mode : metadata[tensor].modes)
+      inputModes.insert(mode);
+  for (int64_t mode : metadata.back().modes) {
+    if (!inputModes.contains(mode))
+      return launch.emitError(
+          "cuTensorNet network output mode is absent from all inputs");
+    outputModes.insert(mode);
+  }
+  if (!llvm::any_of(inputModes, [&](int64_t mode) {
+        return !outputModes.contains(mode);
+      }))
+    return launch.emitError(
+        "cuTensorNet network must contain at least one reduced mode");
+
+  int64_t tensorCount = metadata.size();
+  int64_t metadataSize = 3 + tensorCount;
+  for (const ContractionViewMetadata &view : metadata)
+    metadataSize += 3 * view.modes.size();
+  auto metadataType = MemRefType::get({metadataSize}, b.getI64Type());
+  Value metadataBuffer = b.create<memref::AllocaOp>(loc, metadataType);
+  auto pointerArrayType = MemRefType::get({tensorCount}, b.getI64Type());
+  Value pointerArray = b.create<memref::AllocaOp>(loc, pointerArrayType);
+  auto constantI64 = [&](int64_t value) -> Value {
+    return b.create<arith::ConstantOp>(
+        loc, b.getI64Type(), b.getI64IntegerAttr(value));
+  };
+  auto storeI64 = [&](Value buffer, int64_t index, Value value) {
+    Value slot = b.create<arith::ConstantIndexOp>(loc, index);
+    b.create<memref::StoreOp>(loc, value, buffer, slot);
+  };
+  storeI64(metadataBuffer, 0, constantI64(1)); // ABI version.
+  storeI64(metadataBuffer, 1, constantI64(tensorCount - 1));
+  storeI64(metadataBuffer, 2,
+           constantI64(launch->hasAttr("network_accumulate") ? 1 : 0));
+  int64_t metadataCursor = 3 + tensorCount;
+  for (int64_t tensor = 0; tensor < tensorCount; ++tensor) {
+    storeI64(metadataBuffer, 3 + tensor,
+             constantI64(metadata[tensor].modes.size()));
+    for (int64_t dim = 0; dim < (int64_t)metadata[tensor].modes.size();
+         ++dim) {
+      storeI64(metadataBuffer, metadataCursor++,
+               metadata[tensor].extents[dim]);
+      storeI64(metadataBuffer, metadataCursor++,
+               metadata[tensor].strides[dim]);
+      storeI64(metadataBuffer, metadataCursor++,
+               constantI64(metadata[tensor].modes[dim]));
+    }
+
+    Value operand = launch.getOperand(tensorOrder[tensor]);
+    Value pointer;
+    if (isa<MemRefType>(operand.getType())) {
+      pointer = memrefDataPtr(b, loc, operand);
+    } else {
+      Value memref = valueToMemref(b, loc, metadata[tensor].base);
+      if (deviceResident && tensor + 1 < tensorCount &&
+          metadata[tensor].needsDenseInputCopy)
+        return launch.emitError(
+            "device-resident network cannot materialize a host snapshot");
+      if (tensor + 1 < tensorCount && metadata[tensor].needsDenseInputCopy)
+        memref = snapshotOpaqueCallResult(b, loc, memref);
+      pointer = memrefBasePtr(b, loc, memref);
+      llvm::APInt staticOffset;
+      if (!matchPattern(metadata[tensor].elementOffset,
+                        m_ConstantInt(&staticOffset)) ||
+          !staticOffset.isZero()) {
+        Value address = b.create<LLVM::PtrToIntOp>(
+            loc, b.getI64Type(), pointer);
+        unsigned bits = expectedElementType.getIntOrFloatBitWidth();
+        Value elementBytes = constantI64(bits / 8);
+        Value byteOffset = b.create<arith::MulIOp>(
+            loc, metadata[tensor].elementOffset, elementBytes);
+        address = b.create<arith::AddIOp>(loc, address, byteOffset);
+        pointer = b.create<LLVM::IntToPtrOp>(
+            loc, LLVM::LLVMPointerType::get(b.getContext()), address);
+      }
+    }
+    Value address = b.create<LLVM::PtrToIntOp>(
+        loc, b.getI64Type(), pointer);
+    storeI64(pointerArray, tensor, address);
+  }
+
+  Value pointerArrayPtr = memrefBasePtr(b, loc, pointerArray);
+  Value metadataPtr = memrefBasePtr(b, loc, metadataBuffer);
+  auto ptrType = LLVM::LLVMPointerType::get(b.getContext());
+  StringRef shimName = useF64
+      ? (deviceResident ? "polygeist_cutensornet_network_f64_device"
+                        : "polygeist_cutensornet_network_f64")
+      : (deviceResident ? "polygeist_cutensornet_network_f32_device"
+                        : "polygeist_cutensornet_network_f32");
+  func::FuncOp shim = ensureShimDecl(module, shimName,
+                                     TypeRange{ptrType, ptrType}, b);
+  auto call = b.create<func::CallOp>(
+      loc, shim, ValueRange{pointerArrayPtr, metadataPtr});
+  if (deviceResident)
+    call->setAttr("polygeist.cuda_graph_safe", b.getUnitAttr());
+
+  if (launch.getNumResults() == 1) {
+    // The network is one synchronized, in-place write to its terminal DPS
+    // destination.  Reconnect tensor SSA directly to that destination/base.
+    // Materializing a compatibility snapshot here is not only unnecessary:
+    // for a submap output, LowerSubmapInverse would later copy the stale
+    // pre-call tensor back over the data just produced by cuTensorNet.
+    Value outputView = launch.getOperand(outputOperand);
+    Value outputBase = metadata.back().base;
+    if (failed(rewireSubmapLaunchResult(launch, outputView, outputBase)))
+      return failure();
+  }
   launch.erase();
   return success();
 }
@@ -5907,7 +6132,9 @@ struct LowerKernelLaunchToCuBLASPass
         if (name == "cutensornetContraction2_f64" ||
             name == "cutensornetContraction2_f64_r4r5r4" ||
             name == "cutensornetContraction2_f64_r5r4r4" ||
-            name == "cutensornetContraction2_f64_r5r5r4")
+            name == "cutensornetContraction2_f64_r5r5r4" ||
+            name.starts_with("cutensornetNetwork_f32") ||
+            name.starts_with("cutensornetNetwork_f64"))
           launch->setAttr("polygeist.device_resident",
                           UnitAttr::get(module.getContext()));
       }
@@ -6090,6 +6317,10 @@ struct LowerKernelLaunchToCuBLASPass
                  libSym == "cutensornetContraction2_f64_r5r4r4" ||
                  libSym == "cutensornetContraction2_f64_r5r5r4") {
         r = lowerCutensornetContraction2F64(launch, module);
+      } else if (libSym.starts_with("cutensornetNetwork_f32") ||
+                 libSym.starts_with("cutensornetNetwork_f64")) {
+        r = lowerCutensornetNetwork(
+            launch, module, libSym.starts_with("cutensornetNetwork_f64"));
       } else if (libSym == "cudnnConvolutionFwd_batched") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolution2DWindow_f32") {

@@ -814,6 +814,142 @@ void polygeist_cutensornet_contraction2_f64_device(
   polygeist_cutensornet_contraction2_f64(A, B, C, metadata);
 }
 
+enum {
+  POLYGEIST_NETWORK_MAX_INPUTS = 32,
+  POLYGEIST_NETWORK_MAX_MODES = 64
+};
+
+static void polygeist_cutensornet_network_cpu(
+    const int64_t *pointer_values, const int64_t *metadata, int use_f64) {
+  if (!pointer_values || !metadata || metadata[0] != 1) {
+    fprintf(stderr, "polygeist runtime: invalid tensor-network ABI\n");
+    return;
+  }
+  int64_t num_inputs = metadata[1];
+  int accumulate = metadata[2] != 0;
+  int64_t num_tensors = num_inputs + 1;
+  if (num_inputs < 2 || num_inputs > POLYGEIST_NETWORK_MAX_INPUTS) {
+    fprintf(stderr, "polygeist runtime: invalid tensor-network input count\n");
+    return;
+  }
+
+  int64_t ranks[POLYGEIST_NETWORK_MAX_INPUTS + 1] = {0};
+  int64_t extents[POLYGEIST_NETWORK_MAX_INPUTS + 1]
+                 [POLYGEIST_NETWORK_MAX_MODES] = {{0}};
+  int64_t strides[POLYGEIST_NETWORK_MAX_INPUTS + 1]
+                 [POLYGEIST_NETWORK_MAX_MODES] = {{0}};
+  int64_t modes[POLYGEIST_NETWORK_MAX_INPUTS + 1]
+               [POLYGEIST_NETWORK_MAX_MODES] = {{0}};
+  int present[POLYGEIST_NETWORK_MAX_INPUTS + 1]
+             [POLYGEIST_NETWORK_MAX_MODES] = {{0}};
+  int64_t mode_extents[POLYGEIST_NETWORK_MAX_MODES];
+  int mode_seen[POLYGEIST_NETWORK_MAX_MODES] = {0};
+  for (int mode = 0; mode < POLYGEIST_NETWORK_MAX_MODES; ++mode)
+    mode_extents[mode] = 1;
+
+  int64_t cursor = 3 + num_tensors;
+  for (int64_t tensor = 0; tensor < num_tensors; ++tensor) {
+    ranks[tensor] = metadata[3 + tensor];
+    if (ranks[tensor] < 0 ||
+        ranks[tensor] > POLYGEIST_NETWORK_MAX_MODES) {
+      fprintf(stderr, "polygeist runtime: invalid tensor-network rank\n");
+      return;
+    }
+    for (int64_t dim = 0; dim < ranks[tensor]; ++dim) {
+      int64_t extent = metadata[cursor++];
+      int64_t stride = metadata[cursor++];
+      int64_t mode = metadata[cursor++];
+      if (extent <= 0 || stride < 0 || mode < 0 ||
+          mode >= POLYGEIST_NETWORK_MAX_MODES ||
+          (mode_seen[mode] && mode_extents[mode] != extent)) {
+        fprintf(stderr, "polygeist runtime: invalid tensor-network metadata\n");
+        return;
+      }
+      extents[tensor][dim] = extent;
+      strides[tensor][dim] = stride;
+      modes[tensor][dim] = mode;
+      present[tensor][mode] = 1;
+      mode_extents[mode] = extent;
+      mode_seen[mode] = 1;
+    }
+  }
+
+  int64_t total = 1;
+  for (int mode = 0; mode < POLYGEIST_NETWORK_MAX_MODES; ++mode) {
+    if (mode_extents[mode] > INT64_MAX / total) {
+      fprintf(stderr, "polygeist runtime: tensor-network extent overflow\n");
+      return;
+    }
+    total *= mode_extents[mode];
+  }
+  for (int64_t linear = 0; linear < total; ++linear) {
+    int64_t coordinates[POLYGEIST_NETWORK_MAX_MODES];
+    int64_t remaining = linear;
+    for (int mode = POLYGEIST_NETWORK_MAX_MODES - 1; mode >= 0; --mode) {
+      coordinates[mode] = remaining % mode_extents[mode];
+      remaining /= mode_extents[mode];
+    }
+    int64_t offsets[POLYGEIST_NETWORK_MAX_INPUTS + 1] = {0};
+    for (int64_t tensor = 0; tensor < num_tensors; ++tensor)
+      for (int64_t dim = 0; dim < ranks[tensor]; ++dim)
+        offsets[tensor] +=
+            coordinates[modes[tensor][dim]] * strides[tensor][dim];
+
+    int first_reduction_point = 1;
+    for (int mode = 0; mode < POLYGEIST_NETWORK_MAX_MODES; ++mode)
+      if (!present[num_inputs][mode] && coordinates[mode] != 0)
+        first_reduction_point = 0;
+
+    if (use_f64) {
+      double product = 1.0;
+      for (int64_t tensor = 0; tensor < num_inputs; ++tensor)
+        product *= ((const double *)(uintptr_t)pointer_values[tensor])
+                       [offsets[tensor]];
+      double *output =
+          (double *)(uintptr_t)pointer_values[num_inputs];
+      if (first_reduction_point) {
+        if (accumulate)
+          output[offsets[num_inputs]] += product;
+        else
+          output[offsets[num_inputs]] = product;
+      } else {
+        output[offsets[num_inputs]] += product;
+      }
+    } else {
+      float product = 1.0f;
+      for (int64_t tensor = 0; tensor < num_inputs; ++tensor)
+        product *= ((const float *)(uintptr_t)pointer_values[tensor])
+                       [offsets[tensor]];
+      float *output = (float *)(uintptr_t)pointer_values[num_inputs];
+      if (first_reduction_point) {
+        if (accumulate)
+          output[offsets[num_inputs]] += product;
+        else
+          output[offsets[num_inputs]] = product;
+      } else {
+        output[offsets[num_inputs]] += product;
+      }
+    }
+  }
+}
+
+void polygeist_cutensornet_network_f32(
+    const int64_t *pointers, const int64_t *metadata) {
+  polygeist_cutensornet_network_cpu(pointers, metadata, 0);
+}
+void polygeist_cutensornet_network_f32_device(
+    const int64_t *pointers, const int64_t *metadata) {
+  polygeist_cutensornet_network_cpu(pointers, metadata, 0);
+}
+void polygeist_cutensornet_network_f64(
+    const int64_t *pointers, const int64_t *metadata) {
+  polygeist_cutensornet_network_cpu(pointers, metadata, 1);
+}
+void polygeist_cutensornet_network_f64_device(
+    const int64_t *pointers, const int64_t *metadata) {
+  polygeist_cutensornet_network_cpu(pointers, metadata, 1);
+}
+
 // FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
 // 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
 // products). Inputs/outputs/weights stay in the half precision type so the

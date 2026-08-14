@@ -341,6 +341,20 @@ void polygeist_cutensornet_contraction2_f64(
 void polygeist_cutensornet_contraction2_f64_device(
     const double *A, const double *B, double *C, const int64_t *metadata);
 
+// Generic dense tensor-network contraction ABI. `pointers` contains one
+// address per input followed by the output address. `metadata` is versioned
+// and describes a variable number of tensor ranks, extents, physical strides,
+// and Einstein modes; see LowerKernelLaunchToCuBLAS.cpp. The device variants
+// require every address to already be a CUDA device pointer.
+void polygeist_cutensornet_network_f32(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f32_device(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f64(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f64_device(
+    const int64_t *pointers, const int64_t *metadata);
+
 // FP16 / BF16 variants. The shim args use compiler-provided half-precision
 // types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
 // `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI

@@ -251,18 +251,41 @@ awk -v defns="$DEFNS" '
   { print }
 ' $WORK/matched.mlir > $WORK/with_defns.mlir
 
+# Compose neighboring, already-proven binary Einstein contractions before any
+# runtime ABI decision. The pass also absorbs purely multiplicative pointwise
+# coefficient stages and an additive contraction sink, but refuses regions
+# with escaping intermediates or unsupported scalar combiners. Disable only
+# for differential testing of the former pairwise-call path.
+SEMANTIC_INPUT=$WORK/with_defns.mlir
+if [ "${POLYGEIST_COMPOSE_CUTENSORNET_NETWORKS:-1}" != 0 ]; then
+  polygeist-opt --compose-cutensornet-networks --canonicalize --cse \
+    "$SEMANTIC_INPUT" -o $WORK/with_defns_composed.mlir \
+    2>$WORK/compose_cutensornet.err || {
+      echo "ERROR: cuTensorNet network composition failed; see $WORK/compose_cutensornet.err" >&2
+      cat $WORK/compose_cutensornet.err >&2
+      exit 1
+    }
+  SEMANTIC_INPUT=$WORK/with_defns_composed.mlir
+fi
+
 # Bufferize tensor semantics before translating a launch into a CUDA runtime
 # ABI.  This preserves tensor.insert/extract_slice ordering through the normal
 # MLIR destination/alias analysis instead of reconstructing it later from an
 # already-erased tensor SSA chain.  Roll this out per ABI family: handlers that
 # have not learned the memref launch form continue through the legacy path.
-ABI_INPUT=$WORK/with_defns.mlir
+ABI_INPUT=$SEMANTIC_INPUT
 PRE_ABI_BUFFERIZE=${POLYGEIST_BUFFERIZE_BEFORE_ABI:-auto}
 N_POINTWISE_GRAPH=$(grep -c 'kernel\.launch @cudnnPointwiseGraph_f32' \
-  $WORK/matched.mlir || true)
+  "$SEMANTIC_INPUT" || true)
+N_CURRENT_LAUNCH=$(grep -c 'kernel\.launch' "$SEMANTIC_INPUT" || true)
+N_TENSOR_NETWORK=$(grep -c 'kernel\.launch @cutensornetNetwork_' \
+  "$SEMANTIC_INPUT" || true)
+N_POLYGEIST_SUBMAP=$(grep -c 'polygeist\.submap' "$SEMANTIC_INPUT" || true)
 if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
-  if [ "${N_LAUNCH:-0}" -gt 0 ] && \
-     [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_LAUNCH:-0}" ]; then
+  if [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
+     { [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] || \
+       { [ "${N_TENSOR_NETWORK:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] && \
+         [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; }; }; then
     PRE_ABI_BUFFERIZE=1
   else
     PRE_ABI_BUFFERIZE=0
@@ -270,7 +293,7 @@ if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
 fi
 if [ "$PRE_ABI_BUFFERIZE" != 0 ]; then
   echo "         one-shot bufferization before ABI lowering"
-  cp $WORK/with_defns.mlir $WORK/with_defns_writable.mlir
+  cp "$SEMANTIC_INPUT" $WORK/with_defns_writable.mlir
   sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict writable :|g' \
     $WORK/with_defns_writable.mlir
   polygeist-opt '--one-shot-bufferize=allow-unknown-ops' \

@@ -56,7 +56,9 @@ static bool isCudaGraphSafeCall(func::CallOp call,
   if (call->hasAttr("polygeist.cuda_graph_safe"))
     return true;
   return captureHostMappedCutensornet &&
-         call.getCallee() == "polygeist_cutensornet_contraction2_f64";
+         (call.getCallee() == "polygeist_cutensornet_contraction2_f64" ||
+          call.getCallee() == "polygeist_cutensornet_network_f32" ||
+          call.getCallee() == "polygeist_cutensornet_network_f64");
 }
 
 static bool alreadyGraphWrapped(func::FuncOp func) {

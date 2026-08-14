@@ -229,6 +229,27 @@ def LowerKernelLaunch : Pass<"lower-kernel-launch", "::mlir::ModuleOp"> {
   ];
 }
 
+def ComposeCutensornetNetworks
+    : Pass<"compose-cutensornet-networks", "::mlir::ModuleOp"> {
+  let summary = "Compose connected contraction stages into tensor networks";
+  let description = [{
+    Starting from an additive linalg contraction, follows tensor SSA
+    provenance through rank-independent cuTensorNet contraction labels and
+    multiplicative pointwise generics. If the complete region is a legal
+    sum-of-products network with no escaping intermediates, replaces it with
+    one variable-arity cutensornetNetwork launch. This pass is semantic and
+    runs before bufferization; the launch remains bufferizable and is lowered
+    to the pointer ABI only by --lower-kernel-launch-to-cublas.
+  }];
+  let constructor = "mlir::polygeist::createComposeCutensornetNetworksPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "linalg::LinalgDialect",
+    "tensor::TensorDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+}
+
 def WrapKernelLaunchPipeline
     : Pass<"wrap-kernel-launch-pipeline", "::mlir::ModuleOp"> {
   let summary =

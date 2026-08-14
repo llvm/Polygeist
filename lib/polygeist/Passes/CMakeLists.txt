@@ -18,6 +18,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LinalgDebufferize.cpp
   LowerPolygeistSubmap.cpp
   LowerKernelLaunch.cpp
+  ComposeCutensornetNetworks.cpp
   WrapKernelLaunchPipeline.cpp
   LowerKernelLaunchToCuBLAS.cpp
   LowerKernelLaunchToPVA.cpp
