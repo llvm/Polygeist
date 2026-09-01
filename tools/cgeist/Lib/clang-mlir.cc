@@ -747,8 +747,8 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
     return ValueCategory(builder.create<ConstantFloatOp>(
                              loc, APFloat(FT.getFloatSemantics(), "0"), FT),
                          /*isReference*/ false);
-  if (auto IT = dyn_cast<mlir::IntegerType>(Mty))
-    return ValueCategory(builder.create<ConstantIntOp>(loc, 0, IT),
+  if (Mty.isIntOrIndex())
+    return ValueCategory(builder.create<ConstantIntOp>(loc, 0, Mty),
                          /*isReference*/ false);
   if (auto MT = dyn_cast<mlir::MemRefType>(Mty))
     return ValueCategory(
@@ -1095,6 +1095,23 @@ ValueCategory MLIRScanner::VisitPredefinedExpr(clang::PredefinedExpr *expr) {
 }
 
 ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
+  if (expr->getNumInits() == 0 || 
+       (expr->getNumInits() == 1 && llvm::isa<clang::ImplicitValueInitExpr>(expr->getInit(0)))) {
+    mlir::Type elemType = getMLIRType(expr->getType());
+    
+    if (elemType.isIntOrIndex()) {
+      auto zero = builder.create<mlir::arith::ConstantOp>(
+          getMLIRLocation(expr->getBeginLoc()),
+          builder.getIntegerAttr(elemType, 0));
+      return ValueCategory(zero, false); 
+    }
+    else if (elemType.isa<mlir::FloatType>()) {
+      auto zero = builder.create<mlir::arith::ConstantOp>(
+          getMLIRLocation(expr->getBeginLoc()),
+          builder.getFloatAttr(elemType, 0.0));
+      return ValueCategory(zero, false);
+    }
+  }
   mlir::Type subType = getMLIRType(expr->getType());
   bool isArray = false;
   bool LLVMABI = false;
@@ -1509,7 +1526,7 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr) {
   mlir::Type melem = Glob.getMLIRType(expr->getType(), &isArray);
   assert(!isArray);
 
-  if (melem.isa<mlir::IntegerType>())
+  if (melem.isIntOrIndex())
     return ValueCategory(builder.create<ConstantIntOp>(loc, 0, melem), false);
   else if (auto MT = dyn_cast<mlir::MemRefType>(melem))
     return ValueCategory(
