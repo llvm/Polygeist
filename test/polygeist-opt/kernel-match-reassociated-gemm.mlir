@@ -36,11 +36,10 @@ module {
         outs(%scaled : tensor<?x?xf64>) {
     ^bb0(%in: f64, %in_0: f64, %out: f64):
       // Source spelling: C + B * (A * alpha).
-      // Library spelling: C + (alpha * A) * B.
-      // Despite the different parentheses, this exact pair needs only two
-      // commutative swaps (outer B/product, then inner A/alpha). It verifies
-      // semantic normalization and dispatch, but is not evidence that the
-      // production matcher exercised associativity or Egglog saturation.
+      // Library spelling: C + alpha * (A * B).
+      // No structural child ordering aligns these trees: matching requires
+      // both reassociation and commutation. Egglog is the final equivalence
+      // authority after the matcher proposes alpha's capture binding.
       %a_alpha = arith.mulf %in, %alpha : f64
       %product = arith.mulf %in_0, %a_alpha : f64
       %sum = arith.addf %product, %out : f64

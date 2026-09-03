@@ -993,7 +993,7 @@ module {
 
   // AXPBY: y = a*x + b*y (gesummv pattern).
   kernel.defn @cublasDaxpby(%x: tensor<?xf64>, %y: tensor<?xf64>,
-                             %a: f64, %b: f64) -> tensor<?xf64> {
+                             %alpha: f64, %beta: f64) -> tensor<?xf64> {
     %result = linalg.generic {
       indexing_maps = [
         affine_map<(d0) -> (d0)>,
@@ -1002,8 +1002,8 @@ module {
       iterator_types = ["parallel"]
     } ins(%x : tensor<?xf64>) outs(%y : tensor<?xf64>) {
     ^bb0(%xv: f64, %out: f64):
-      %ax = arith.mulf %a, %xv : f64
-      %by = arith.mulf %b, %out : f64
+      %ax = arith.mulf %alpha, %xv : f64
+      %by = arith.mulf %beta, %out : f64
       %s = arith.addf %ax, %by : f64
       linalg.yield %s : f64
     } -> tensor<?xf64>

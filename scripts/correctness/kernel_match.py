@@ -16,8 +16,11 @@ the same library entry.
 """
 from __future__ import annotations
 import math
+import os
 import re
 import sys
+from collections import Counter
+from itertools import product
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -81,7 +84,7 @@ class Term(Expr):
 a, b, c, d = vars_("a b c d", Term)
 
 
-def algebra_rules():
+def algebra_rules(include_distributivity: bool = True):
     one = Term.Lit(1.0)
     zero = Term.Lit(0.0)
     # Numeric literal variables — required for the factoring + folding rules
@@ -90,7 +93,7 @@ def algebra_rules():
     # single-name calls need tuple-unpack syntax.
     (x,) = vars_("x", Term)
     c1, c2 = vars_("c1 c2", f64)
-    return ruleset(
+    rules = [
         # Commutativity
         rewrite(a + b).to(b + a),
         rewrite(a * b).to(b * a),
@@ -99,9 +102,6 @@ def algebra_rules():
         rewrite((a + b) + c).to(a + (b + c)),
         rewrite(a * (b * c)).to((a * b) * c),
         rewrite((a * b) * c).to(a * (b * c)),
-        # Distributivity (sometimes useful for kernel matching)
-        rewrite(a * (b + c)).to((a * b) + (a * c)),
-        rewrite((a + b) * c).to((a * c) + (b * c)),
         # Identity laws
         rewrite(a * one).to(a),
         rewrite(one * a).to(a),
@@ -120,7 +120,16 @@ def algebra_rules():
         rewrite(Term.Lit(c1) * x + Term.Lit(c2) * x).to(Term.Lit(c1 + c2) * x),
         rewrite(Term.Lit(c1) + Term.Lit(c2)).to(Term.Lit(c1 + c2)),
         rewrite(Term.Lit(c1) * Term.Lit(c2)).to(Term.Lit(c1 * c2)),
-    )
+    ]
+    if include_distributivity:
+        # These expanding rules are valuable in the isolated audit. Production
+        # disables them because a negative proof can grow exponentially before
+        # the fixed iteration budget is reached.
+        rules.extend([
+            rewrite(a * (b + c)).to((a * b) + (a * c)),
+            rewrite((a + b) * c).to((a * c) + (b * c)),
+        ])
+    return ruleset(*rules)
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +427,8 @@ def _resolve_map_aliases(mlir_text: str) -> str:
 
 
 def parse_generics(mlir_text: str,
-                   constants: dict[str, float] | None = None) -> list[GenericBody]:
+                   constants: dict[str, float] | None = None,
+                   infer_outputs_from_yield: bool = False) -> list[GenericBody]:
     """Extract every linalg.generic with its body."""
     if constants is None:
         constants = parse_constants(mlir_text)
@@ -445,14 +455,27 @@ def parse_generics(mlir_text: str,
         # the single-yield case AND for the first slot of multi-yield bodies.
         yield_name = yield_names[0] if yield_names else ""
 
-        # Parse args like "%in: f64, %in_0: f64, %out: f64"
-        ins, outs = [], []
+        block_args = []
         for piece in args_str.split(","):
             piece = piece.strip()
             if not piece:
                 continue
             name = piece.split(":")[0].strip()
-            (outs if name.startswith("%out") else ins).append(name)
+            block_args.append(name)
+        if infer_outputs_from_yield:
+            # Canonical library bodies may name output block arguments `%z`,
+            # `%ov`, etc. Their trailing block arguments correspond exactly
+            # to the yielded values.
+            out_count = len(yield_names)
+            ins = block_args[:-out_count] if out_count else block_args
+            outs = block_args[-out_count:] if out_count else []
+        else:
+            # Preserve the raised-corpus convention used by existing matcher
+            # patterns. Moving arbitrary input IR to arity-based parsing is a
+            # separate migration because several legacy patterns encode this
+            # historical `%out` naming contract.
+            ins = [name for name in block_args if not name.startswith("%out")]
+            outs = [name for name in block_args if name.startswith("%out")]
 
         # Tokenize indexing maps and iterator types as raw substrings.
         # Don't use `affine_map<[^>]*>` — the `->` inside contains a `>`.
@@ -929,11 +952,11 @@ class LibraryEntry:
     iterator_types: list[str]
 
 
-def equivalent(a: Term, b: Term) -> bool:
+def equivalent(a: Term, b: Term, include_distributivity: bool = True) -> bool:
     """Are two Terms equivalent under the current algebra rules?"""
     eg = EGraph()
     eg.register(a, b)
-    eg.run(algebra_rules() * 8)
+    eg.run(algebra_rules(include_distributivity) * 8)
     try:
         eg.check(a == b)
         return True
@@ -1091,27 +1114,21 @@ def T_cap(name: str) -> Term:
     return Term.Cap(name)
 
 
+def _mlir_metadata(name: str, *, form: str = "tensor",
+                   element_type: Optional[str] = None) -> CompositionEntry:
+    """Dispatch-only record; semantic steps are loaded from kernel.defn."""
+    return CompositionEntry(name=name, steps=[], form=form,
+                            element_type=element_type)
+
+
 def _gemm_composition() -> CompositionEntry:
     """C = β*C + α*A*B  (PolyBench gemm form)."""
-    s1 = CompositionStep(
-        body=Term.Out(0) * T_cap("%beta"),
-        num_ins=0, num_outs=1, parallel_dim_count=2, reduction_dim_count=0,
-    )
-    s2 = CompositionStep(
-        body=Term.Out(0) + (T_cap("%alpha") * Term.In(0)) * Term.In(1),
-        num_ins=2, num_outs=1, parallel_dim_count=2, reduction_dim_count=1,
-    )
-    return CompositionEntry(name="cublasDgemm", steps=[s1, s2])
+    return _mlir_metadata("cublasDgemm")
 
 
 def _gemm_alpha_only() -> CompositionEntry:
     """C += α*A*B  (no beta — used by 2mm/3mm intermediates)."""
-    body = Term.Out(0) + (T_cap("%alpha") * Term.In(0)) * Term.In(1)
-    return CompositionEntry(
-        name="cublasDgemm_alpha_only",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=1)],
-    )
+    return _mlir_metadata("cublasDgemm_alpha_only")
 
 
 def _conv1x1_as_gemm_batched() -> CompositionEntry:
@@ -1327,17 +1344,7 @@ def _cudnn_add_tensor_batched() -> CompositionEntry:
     accumulating contraction (which would have reduction iters). Maps
     to cudnnAddTensor.
     """
-    body = Term.Out(0) + Term.In(0)
-    return CompositionEntry(
-        name="cudnnAddTensor_batched",
-        steps=[
-            CompositionStep(
-                body=body,
-                num_ins=1, num_outs=1,
-                parallel_dim_count=4, reduction_dim_count=0,
-            ),
-        ],
-    )
+    return _mlir_metadata("cudnnAddTensor_batched")
 
 
 def _cudnn_batchnorm_inference() -> CompositionEntry:
@@ -1387,33 +1394,7 @@ def _cudnn_maxpool_batched() -> CompositionEntry:
     sees the select as a max op and produces a clean max-reduction
     body shape.
     """
-    return CompositionEntry(
-        name="cudnnMaxPoolFwd_batched",
-        steps=[
-            CompositionStep(
-                # -FLT_MAX (≈ -3.4028235e38). cgeist canonicalises whatever
-                # the C source writes (-INFINITY, -FLT_MAX, -3.4e38, etc.)
-                # to the IEEE-754 float32 minimum which MLIR prints as
-                # -3.40282347E+38. Matching the exact parsed value here.
-                body=Term.Lit(-3.40282347e38),
-                num_ins=0, num_outs=1,
-                parallel_dim_count=4, reduction_dim_count=0,
-            ),
-            # max(In(0), Out(0)) — cgeist lowers the ternary
-            # `(v > cur) ? v : cur` to `arith.cmpf ogt + arith.select`. The
-            # encoder turns that into `Select(Cmp("ogt", In, Out), In, Out)`,
-            # which is the same shape the softmax max-reduce step uses.
-            CompositionStep(
-                body=Term.Select(
-                    Term.Cmp("ogt", Term.In(0), Term.Out(0)),
-                    Term.In(0),
-                    Term.Out(0),
-                ),
-                num_ins=1, num_outs=1,
-                parallel_dim_count=4, reduction_dim_count=2,
-            ),
-        ],
-    )
+    return _mlir_metadata("cudnnMaxPoolFwd_batched")
 
 
 def _cudnn_uniform_window_conv2d() -> CompositionEntry:
@@ -1518,12 +1499,7 @@ def _darknet_im2col_gemm_fused() -> CompositionEntry:
 
 def _gemm_no_alpha() -> CompositionEntry:
     """C += A*B  (no alpha, no beta)."""
-    body = Term.Out(0) + Term.In(0) * Term.In(1)
-    return CompositionEntry(
-        name="cublasDgemm_simple",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=1)],
-    )
+    return _mlir_metadata("cublasDgemm_simple")
 
 
 def _sgemm_zero_gemm() -> CompositionEntry:
@@ -1560,33 +1536,17 @@ def _sgemm_broadcast3d_memref() -> CompositionEntry:
     The linalg view is rank-3 because A and C are broadcasted through submaps,
     but the underlying buffers are flat row-major A[M,K], B[K,N], C[M,N].
     """
-    body = Term.Out(0) + Term.In(0) * Term.In(1)
-    return CompositionEntry(
-        name="cublasSgemm_broadcast3d_memref",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=1)],
-        form="memref",
-    )
+    return _mlir_metadata("cublasSgemm_broadcast3d_memref", form="memref")
 
 
 def _gemv_accumulate() -> CompositionEntry:
     """y += A * x  (no alpha/beta)."""
-    body = Term.Out(0) + Term.In(0) * Term.In(1)
-    return CompositionEntry(
-        name="cublasDgemv",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=1)],
-    )
+    return _mlir_metadata("cublasDgemv")
 
 
 def _gemv_alpha_accumulate() -> CompositionEntry:
     """y += alpha * A * x"""
-    body = Term.Out(0) + (T_cap("%alpha") * Term.In(0)) * Term.In(1)
-    return CompositionEntry(
-        name="cublasDgemv_alpha",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=1)],
-    )
+    return _mlir_metadata("cublasDgemv_alpha")
 
 
 def _axpy() -> CompositionEntry:
@@ -1611,30 +1571,15 @@ def _scal_1d() -> CompositionEntry:
 
 def _scal_2d() -> CompositionEntry:
     """X[i,j] *= alpha  — 2D matrix (e.g. β-scale of C)."""
-    body = Term.Out(0) * T_cap("%alpha")
-    return CompositionEntry(
-        name="cublasDgeam_scale2D",
-        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=0)],
-    )
+    return _mlir_metadata("cublasDgeam_scale2D")
 
 
 def _fill_zero_1d() -> CompositionEntry:
-    body = Term.Lit(0.0)
-    return CompositionEntry(
-        name="memset_zero_1D",
-        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=0)],
-    )
+    return _mlir_metadata("memset_zero_1D")
 
 
 def _fill_zero_2d() -> CompositionEntry:
-    body = Term.Lit(0.0)
-    return CompositionEntry(
-        name="memset_zero_2D",
-        steps=[CompositionStep(body=body, num_ins=0, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=0)],
-    )
+    return _mlir_metadata("memset_zero_2D")
 
 
 def _fill_const_1d() -> CompositionEntry:
@@ -1658,24 +1603,12 @@ def _fill_const_2d() -> CompositionEntry:
 
 def _dot() -> CompositionEntry:
     """s = sum_i x[i] * y[i]"""
-    body = Term.Out(0) + Term.In(0) * Term.In(1)
-    return CompositionEntry(
-        name="cublasDdot",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=0, reduction_dim_count=1)],
-        element_type="f64",
-    )
+    return _mlir_metadata("cublasDdot", element_type="f64")
 
 
 def _dot_f32() -> CompositionEntry:
     """s = sum_i x[i] * y[i], single precision."""
-    body = Term.Out(0) + Term.In(0) * Term.In(1)
-    return CompositionEntry(
-        name="cublasSdot",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                               parallel_dim_count=0, reduction_dim_count=1)],
-        element_type="f32",
-    )
+    return _mlir_metadata("cublasSdot", element_type="f32")
 
 
 def _asum() -> CompositionEntry:
@@ -2713,12 +2646,7 @@ def _reduce_sum_axis() -> CompositionEntry:
 
 def _vector_add_no_alpha() -> CompositionEntry:
     """y += x  — vector add (axpy with alpha = 1, gemver third stage)."""
-    body = Term.Out(0) + Term.In(0)
-    return CompositionEntry(
-        name="cublasDaxpy_unit",
-        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=0)],
-    )
+    return _mlir_metadata("cublasDaxpy_unit")
 
 
 def _centered_sum_squares() -> CompositionEntry:
@@ -3013,32 +2941,12 @@ def _whisper_exp_shift_sum_tensor() -> CompositionEntry:
     caller can decide how/when to normalize. Keep it as a distinct library
     symbol instead of mapping it to cudnnSoftmaxForward.
     """
-    exp_intermediate = Term.Exp(Term.In(0) - T_cap("%max"))
-    step = CompositionStep(
-        body=exp_intermediate,
-        body_per_yield=[
-            exp_intermediate,
-            Term.Out(1) + exp_intermediate,
-        ],
-        num_ins=1, num_outs=2,
-        reduction_dim_count=1, parallel_dim_count=0,
-    )
-    return CompositionEntry(
-        name="whisperExpShiftSum_f32_tensor",
-        steps=[step],
-        form="tensor",
-    )
+    return _mlir_metadata("whisperExpShiftSum_f32_tensor")
 
 
 def _llama_add_f32_tensor() -> CompositionEntry:
     """out = in0 + in1 — residual add in standalone Llama fixtures."""
-    return CompositionEntry(
-        name="cudaAdd_f32_tensor",
-        steps=[CompositionStep(body=Term.In(0) + Term.In(1),
-                                num_ins=2, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=0)],
-        form="tensor",
-    )
+    return _mlir_metadata("cudaAdd_f32_tensor")
 
 
 def _llama_mask_select_f32_tensor() -> CompositionEntry:
@@ -3050,49 +2958,22 @@ def _llama_mask_select_f32_tensor() -> CompositionEntry:
     The `%mask` cap is produced from linalg.index inside the linalg body; the
     rewriter special-cases this symbol and surfaces the real `%pos` operand.
     """
-    drop = T_cap("%mask")
-    body = (Term.Lit(1.0) - drop) * Term.In(0) + \
-           drop * Term.Lit(-3.40282347e38)
-    return CompositionEntry(
-        name="cudaMaskSelect_f32_tensor",
-        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=0)],
-        form="tensor",
-    )
+    return _mlir_metadata("cudaMaskSelect_f32_tensor")
 
 
 def _llama_swiglu_f32_tensor() -> CompositionEntry:
     """out = (gate / (1 + exp(-gate))) * up."""
-    gate = Term.In(0)
-    body = (gate / (Term.Exp(Term.Lit(0.0) - gate) + Term.Lit(1.0))) * Term.In(1)
-    return CompositionEntry(
-        name="cudaSwiGLU_f32_tensor",
-        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
-                                parallel_dim_count=1, reduction_dim_count=0)],
-        form="tensor",
-    )
+    return _mlir_metadata("cudaSwiGLU_f32_tensor")
 
 
 def _llama_rope_mulmul_sub_f32_tensor() -> CompositionEntry:
     """RoPE split even output: out[h,p] = a[h,p] * b[p] - c[h,p] * d[p]."""
-    body = Term.In(0) * Term.In(1) - Term.In(2) * Term.In(3)
-    return CompositionEntry(
-        name="cudaRopeMulMulSub_f32_tensor",
-        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=0)],
-        form="tensor",
-    )
+    return _mlir_metadata("cudaRopeMulMulSub_f32_tensor")
 
 
 def _llama_rope_mulmul_add_f32_tensor() -> CompositionEntry:
     """RoPE split odd output: out[h,p] = a[h,p] * b[p] + c[h,p] * d[p]."""
-    body = Term.In(0) * Term.In(1) + Term.In(2) * Term.In(3)
-    return CompositionEntry(
-        name="cudaRopeMulMulAdd_f32_tensor",
-        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=0)],
-        form="tensor",
-    )
+    return _mlir_metadata("cudaRopeMulMulAdd_f32_tensor")
 
 
 def _jacobi_1d_3pt() -> CompositionEntry:
@@ -3502,12 +3383,7 @@ def _copy_input_6d_tensor() -> CompositionEntry:
 
 def _axpby() -> CompositionEntry:
     """out = α*in0 + β*out  — gesummv combine step (cublasDaxpby)."""
-    body = T_cap("%alpha") * Term.In(0) + T_cap("%beta") * Term.Out(0)
-    return CompositionEntry(
-        name="cublasDaxpby",
-        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
-                                reduction_dim_count=0)],
-    )
+    return _mlir_metadata("cublasDaxpby")
 
 
 def _fma3() -> CompositionEntry:
@@ -3535,19 +3411,13 @@ def _rank_two_update() -> CompositionEntry:
 
     Could lower to cublasDger × 2 + sum, or stay as a fused kernel.
     """
-    body = (Term.Out(0) + Term.In(0) * Term.In(1)
-                       + Term.In(2) * Term.In(3))
-    return CompositionEntry(
-        name="cublasDger_rank2",
-        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
-                                parallel_dim_count=2, reduction_dim_count=0)],
-    )
+    return _mlir_metadata("cublasDger_rank2")
 
 
 def composition_library() -> list[CompositionEntry]:
     """Order: longest compositions first; same-length ordered by specificity
     (more-captures first, more shape-constrained first)."""
-    return [
+    entries = [
         # Multi-step. Longest compositions first — the matcher is greedy
         # and otherwise a shorter composition would consume bodies the
         # longer one wanted.
@@ -3667,7 +3537,6 @@ def composition_library() -> list[CompositionEntry]:
         _copy_input_6d_tensor(),
         _copy_input_3d_tensor(),
         _copy_input_2d_tensor(),
-        _copy_input_tensor(),
 
         # 1-step BLAS, no α.
         _llama_rope_mulmul_sub_f32_tensor(),
@@ -3733,6 +3602,89 @@ def composition_library() -> list[CompositionEntry]:
         _fill_const_1d(),
         _fill_const_2d(),
     ]
+    return _replace_python_bodies_with_mlir_library(entries)
+
+
+# These entries have complete semantic linalg bodies in the kernel library.
+# Their Python constructors carry only dispatch metadata; formulas and step
+# arity come from MLIR at runtime. Entries whose kernel.defn is currently
+# ABI-only cannot move until that definition gains a real semantic body.
+_MLIR_SEMANTIC_SOURCE_NAMES = {
+    "cublasDaxpby", "cublasDaxpy_unit",
+    "cublasDdot", "cublasDgeam_scale2D", "cublasDgemm",
+    "cublasDgemm_alpha_only", "cublasDgemm_simple", "cublasDgemv",
+    "cublasDgemv_alpha", "cublasDger_rank2", "cublasSdot",
+    "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
+    "cudaMaskSelect_f32_tensor", "cudaRopeMulMulAdd_f32_tensor",
+    "cudaRopeMulMulSub_f32_tensor", "cudaSwiGLU_f32_tensor",
+    "cudnnAddTensor_batched", "cudnnMaxPoolFwd_batched",
+    "memset_zero_1D", "memset_zero_2D", "whisperExpShiftSum_f32_tensor",
+}
+
+
+def _kernel_defn_regions(text: str) -> list[tuple[str, str]]:
+    regions = []
+    for match in re.finditer(r"kernel\.defn\s+@([A-Za-z0-9_.$-]+)", text):
+        brace = text.find("{", match.end())
+        if brace < 0:
+            continue
+        depth = 0
+        for index in range(brace, len(text)):
+            if text[index] == "{": depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    regions.append((match.group(1), text[match.start():index + 1]))
+                    break
+    return regions
+
+
+def _mlir_semantic_entries() -> dict[str, CompositionEntry]:
+    default = Path(__file__).resolve().parents[2] / "generic_solver/kernel_library_phase2.mlir"
+    path = Path(os.environ.get("POLYGEIST_KERNEL_LIBRARY", default))
+    if not path.is_file():
+        return {}
+    result = {}
+    for symbol, region in _kernel_defn_regions(path.read_text()):
+        if symbol not in _MLIR_SEMANTIC_SOURCE_NAMES:
+            continue
+        generics = parse_generics(region, infer_outputs_from_yield=True)
+        if not generics:
+            continue
+        steps = []
+        for generic in generics:
+            yields = encode_body_yields(generic)
+            steps.append(CompositionStep(
+                body=yields[0],
+                body_per_yield=yields if len(yields) > 1 else None,
+                num_ins=len(generic.ins_arg_names),
+                num_outs=len(generic.outs_arg_names),
+                reduction_dim_count=generic.iterator_types.count("reduction"),
+                parallel_dim_count=generic.iterator_types.count("parallel"),
+            ))
+        result[symbol] = CompositionEntry(name=symbol, steps=steps)
+    return result
+
+
+def _replace_python_bodies_with_mlir_library(
+    entries: list[CompositionEntry],
+) -> list[CompositionEntry]:
+    semantic = _mlir_semantic_entries()
+    replaced = []
+    for entry in entries:
+        source = semantic.get(entry.name)
+        if source is None:
+            if entry.name in _MLIR_SEMANTIC_SOURCE_NAMES:
+                raise RuntimeError(
+                    f"semantic kernel.defn @{entry.name} is missing or ABI-only")
+            replaced.append(entry)
+            continue
+        source.form = entry.form
+        source.element_type = entry.element_type
+        source.surface_inline_weights = entry.surface_inline_weights
+        source.scalar_relation = entry.scalar_relation
+        replaced.append(source)
+    return replaced
 
 
 def _term_repr(t) -> str:
@@ -3740,14 +3692,10 @@ def _term_repr(t) -> str:
     return str(t)
 
 
-## NOTE: An egglog-driven normaliser (build EGraph, saturate, extract) was
-## prototyped here. It worked correctly on small bodies (N ≤ ~10 summands)
-## but timed out past 30s on polybenchGpu conv3d's 15-mul body due to
-## exponential e-class growth from commutativity + associativity. The
-## factoring rules are still registered in `algebra_rules()` for use by
-## `equivalent()` (which operates on small canonical-template terms), but
-## the body-normalisation hot path uses the Python tuple-AST factoring in
-## `_factor_redundant_muls` below — linear time, predictable.
+## Egglog proofs in the production matcher use a bounded iteration count.
+## The companion egglog_library_variants.py audit additionally places every
+## proof in an isolated process, applies a wall timeout, and records the case
+## instead of replacing a slow proof with a second algebra implementation.
 
 
 def _looks_like_float(s: str) -> bool:
@@ -4052,114 +4000,168 @@ def _unify(body, template, bindings: dict) -> Optional[dict]:
     return bindings
 
 
-def _flatten_addition_chain(node):
-    """Walk down ('Add', l, r) nodes, return a flat list of leaf summands
-    in source order.
+def _ast_to_term(node) -> Term:
+    """Rebuild an Egglog term after substituting template captures."""
+    if isinstance(node, list):
+        node = tuple(node)
+        node = (node[0], *(
+            tuple(child) if isinstance(child, list) else child
+            for child in node[1:]
+        ))
+    op = node[0]
+    if op == "In": return Term.In(node[1])
+    if op == "Out": return Term.Out(node[1])
+    if op == "Cap": return Term.Cap(node[1])
+    if op == "Lit": return Term.Lit(float(node[1]))
+    if op == "Add": return _ast_to_term(node[1]) + _ast_to_term(node[2])
+    if op == "Sub": return _ast_to_term(node[1]) - _ast_to_term(node[2])
+    if op == "Mul": return _ast_to_term(node[1]) * _ast_to_term(node[2])
+    if op == "Div": return _ast_to_term(node[1]) / _ast_to_term(node[2])
+    if op in {"Sqrt", "Abs", "Exp", "Tanh"}:
+        return getattr(Term, op)(_ast_to_term(node[1]))
+    if op == "Unary": return Term.Unary(node[1], _ast_to_term(node[2]))
+    if op == "Binary":
+        return Term.Binary(node[1], _ast_to_term(node[2]), _ast_to_term(node[3]))
+    if op == "Cmp":
+        return Term.Cmp(node[1], _ast_to_term(node[2]), _ast_to_term(node[3]))
+    if op == "Select":
+        return Term.Select(*(_ast_to_term(child) for child in node[1:]))
+    raise ValueError(f"unsupported Term AST operation: {op}")
 
-    `((a + b) + c) + d` flattens to `[a, b, c, d]` regardless of bracketing.
-    Uses a recursive walk to preserve source order naturally — a stack-based
-    pre-order would visit rhs first and need reversing afterwards.
+
+def _substitute_caps(node, bindings: dict):
+    if node[0] == "Cap" and node[1] in bindings:
+        return bindings[node[1]]
+    return (node[0], *(
+        _substitute_caps(child, bindings)
+        if isinstance(child, tuple) else child for child in node[1:]
+    ))
+
+
+def _ordered_unique_ast_nodes(node, wanted: set[str]) -> list:
+    found = []
+    seen = set()
+    def visit(current):
+        if not isinstance(current, tuple):
+            return
+        if current[0] in wanted and current not in seen:
+            found.append(current)
+            seen.add(current)
+        for child in current[1:]:
+            visit(child)
+    visit(node)
+    return found
+
+
+def _indexed_leaf_counts(node) -> Counter:
+    counts = Counter()
+    def visit(current):
+        if not isinstance(current, tuple):
+            return
+        if current[0] in {"In", "Out"}:
+            counts[current] += 1
+        for child in current[1:]:
+            visit(child)
+    visit(node)
+    return counts
+
+
+def _ast_node_count(node) -> int:
+    if not isinstance(node, tuple):
+        return 0
+    return 1 + sum(_ast_node_count(child) for child in node[1:])
+
+
+def _ac_identity_fingerprint(node):
+    """Cheap necessary-condition filter before constructing an EGraph.
+
+    It canonicalizes only associativity, commutativity, and 0/1 identities.
+    Equality is still decided by Egglog; differing fingerprints merely avoid
+    asking saturation to disprove obviously different expression topologies.
     """
-    out: list = []
-    def walk(n):
-        if isinstance(n, tuple) and len(n) == 3 and n[0] == 'Add':
-            walk(n[1])
-            walk(n[2])
+    if not isinstance(node, tuple):
+        return node
+    op = node[0]
+    if op in {"Add", "Mul"}:
+        children = []
+        def gather(current):
+            if isinstance(current, tuple) and current[0] == op:
+                gather(current[1]); gather(current[2])
+            else:
+                children.append(_ac_identity_fingerprint(current))
+        gather(node)
+        if op == "Add":
+            children = [x for x in children if x != ("Lit", 0.0)]
+            identity = ("Lit", 0.0)
         else:
-            out.append(n)
-    walk(node)
-    return out
+            if ("Lit", 0.0) in children:
+                return ("Lit", 0.0)
+            children = [x for x in children if x != ("Lit", 1.0)]
+            identity = ("Lit", 1.0)
+        if not children:
+            return identity
+        if len(children) == 1:
+            return children[0]
+        return (op, *sorted(children, key=repr))
+    return (op, *(
+        _ac_identity_fingerprint(child) if isinstance(child, tuple) else child
+        for child in node[1:]
+    ))
 
 
-def _try_factor_summand(s):
-    """Recognise s as 'Lit(c) * X' or 'X * Lit(c)' for any X. Return (X, c)
-    or None if s is not a factorable mul.
-    """
-    if not (isinstance(s, tuple) and len(s) == 3 and s[0] == 'Mul'):
-        return None
-    a, b = s[1], s[2]
-    if isinstance(a, tuple) and a[0] == 'Lit' and isinstance(a[1], (int, float)):
-        return (b, float(a[1]))
-    if isinstance(b, tuple) and b[0] == 'Lit' and isinstance(b[1], (int, float)):
-        return (a, float(b[1]))
-    return None
-
-
-def _factor_redundant_muls(ast):
-    """Fold `c1*x + c2*x + ...` summands sharing a common factor x into
-    `(c1+c2+...)*x`. Returns the rewritten tuple AST.
-
-    Used by `body_matches_template` as a fallback when syntactic unification
-    against a template fails. Specifically targets polybenchGpu's extracted
-    conv3d body, which has 15 muls but only 11 unique input positions — the
-    same input appears in multiple muls with different literal coefficients.
-
-    Linear time in the number of summands; deterministic. Replaces an
-    earlier egglog-driven attempt that blew up exponentially on bodies of
-    this size — see the note above `body_matches_template`.
-    """
-    summands = _flatten_addition_chain(ast)
-    if len(summands) < 2:
-        return ast
-
-    # Group factorable summands by their X subtree. `factor_groups` keys
-    # are the X tuples (which are hashable since they're nested tuples of
-    # hashable leaves). `insertion_order` preserves first-appearance order
-    # so the rebuilt AST is deterministic.
-    factor_groups: dict = {}
-    insertion_order: list = []
-    passthrough: list = []
-    any_combined = False
-    for s in summands:
-        pair = _try_factor_summand(s)
-        if pair is None:
-            passthrough.append(s)
-            continue
-        X, coeff = pair
-        if X not in factor_groups:
-            factor_groups[X] = 0.0
-            insertion_order.append(X)
-        else:
-            any_combined = True
-        factor_groups[X] += coeff
-
-    # Fast path: if no input was multiplied by more than one constant, no
-    # combining happened — return the original AST unchanged. Avoids
-    # gratuitously rewriting clean bodies (which would change the
-    # bracketing and break downstream binding extraction).
-    if not any_combined:
-        return ast
-
-    new_summands = [
-        ('Mul', ('Lit', factor_groups[X]), X) for X in insertion_order
-    ] + passthrough
-
-    # Left-fold the list back into an Add tree.
-    result = new_summands[0]
-    for s in new_summands[1:]:
-        result = ('Add', result, s)
-    return result
+def _egglog_accepts_binding(body_ast, template_ast, bindings: dict) -> bool:
+    instantiated = _substitute_caps(template_ast, bindings)
+    if (_ac_identity_fingerprint(body_ast) !=
+            _ac_identity_fingerprint(instantiated)):
+        return False
+    # Large equality-saturation jobs run in the isolated audit harness, where
+    # a real wall timeout can safely terminate Rust work. The in-process
+    # production matcher must remain responsive and therefore declines those
+    # cases instead of falling back to a handwritten algebraic implementation.
+    if max(_ast_node_count(body_ast), _ast_node_count(instantiated)) > 16:
+        return False
+    return equivalent(_ast_to_term(body_ast), _ast_to_term(instantiated),
+                      include_distributivity=False)
 
 
 def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     """Check whether `body` matches `template`, with Cap names in the template
     as wildcards. Returns a binding dict on success, None on failure.
 
-    First tries direct syntactic unification (with commutativity baked into
-    `_unify`). If that fails, runs `_factor_redundant_muls` on the body AST
-    — which collapses `c1*x + c2*x + ...` patterns into one mul per unique
-    input — and retries. This is what lets polybenchGpu's conv3d body
-    (15 muls, 11 unique inputs) match the `_conv3d_11pt_weighted` template.
+    Structural unification is only a fast way to propose capture bindings;
+    Egglog is the authority that accepts or rejects the instantiated formula.
+    When algebraic reassociation prevents structural binding, enumerate the
+    small capture domain and let equality saturation test each proposal.
     """
     tmpl_ast = _parse_term(_term_repr(template))
     body_ast = _parse_term(_term_repr(body))
     direct = _unify(body_ast, tmpl_ast, {})
-    if direct is not None:
+    if direct is not None and _egglog_accepts_binding(body_ast, tmpl_ast, direct):
         return direct
-    factored = _factor_redundant_muls(body_ast)
-    if factored is body_ast:
-        return None  # nothing to fold; second attempt would be identical
-    return _unify(factored, tmpl_ast, {})
+
+    cap_nodes = _ordered_unique_ast_nodes(tmpl_ast, {"Cap"})
+    cap_names = [node[1] for node in cap_nodes]
+    if not cap_names:
+        return {} if _egglog_accepts_binding(body_ast, tmpl_ast, {}) else None
+    # The current rules reorder and reassociate indexed tensor values but do
+    # not rename them. This cheap invariant avoids launching doomed (and
+    # potentially costly) binding proofs against opaque scalar bodies.
+    if _indexed_leaf_counts(body_ast) != _indexed_leaf_counts(tmpl_ast):
+        return None
+    candidates = _ordered_unique_ast_nodes(body_ast, {"Cap", "Lit"})
+    for identity in (("Lit", 0.0), ("Lit", 1.0)):
+        if identity not in candidates:
+            candidates.append(identity)
+    # Binding search is deliberately bounded. Large proofs are exercised by
+    # egglog_library_variants.py in isolated processes with timeout telemetry.
+    # Production never falls back to a second hand-written algebraic matcher.
+    if len(candidates) ** len(cap_names) > 8:
+        return None
+    for values in product(candidates, repeat=len(cap_names)):
+        proposal = dict(zip(cap_names, values))
+        if _egglog_accepts_binding(body_ast, tmpl_ast, proposal):
+            return proposal
+    return None
 
 
 def _ast_is_lit(node, value: float, eps: float = 1.0e-12) -> bool:

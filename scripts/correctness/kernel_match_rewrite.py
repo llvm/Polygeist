@@ -1927,10 +1927,10 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
             else:
                 # Multi-coefficient: sum the literal values from body_constants,
                 # then emit a fresh arith.constant carrying the summed value.
-                # This handles the polybench conv3d case where the same input
-                # appears in multiple muls with different literal constants
-                # (the _factor_redundant_muls normalisation in kernel_match.py
-                # told the matcher this is a single conceptual weight).
+                # This handles a body where the same input appears in multiple
+                # muls with different literal constants. Semantic acceptance
+                # is decided by Egglog; this block only materializes the
+                # already-proved coefficient for the runtime ABI.
                 summed = 0.0
                 if body_constants is not None:
                     for ssa in w:
