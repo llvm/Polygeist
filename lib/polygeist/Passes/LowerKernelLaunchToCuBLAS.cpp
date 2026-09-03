@@ -270,7 +270,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cudnnConvolution2DWindow_f32")
     return "polygeist_cudnn_conv2d_uniform_window_f32";
   if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
-      libSym.starts_with("cudnnAveragePool_f32_"))
+      libSym.starts_with("cudnnAveragePool_f32_") ||
+      libSym == "cudnnAvgPoolWindow_f32")
     return "polygeist_cudnn_adaptive_pool_f32";
   if (libSym == "cudnnBatchNormBackward_f32_full" ||
       libSym == "cudnnBatchNormBackward_f32_dx")
@@ -2291,7 +2292,8 @@ physicalTensorStrides(OpBuilder &b, Location loc, Value tensor) {
 
 static FailureOr<ContractionViewMetadata>
 buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
-                             AffineMap accessMap) {
+                             AffineMap accessMap,
+                             bool preserveDirectSubmapBase = false) {
   Value stripped = stripTensorCasts(operand);
   auto operandType = dyn_cast<RankedTensorType>(stripped.getType());
   if (!operandType ||
@@ -2315,6 +2317,13 @@ buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
   Value elementOffset = b.create<arith::ConstantOp>(
       loc, b.getI64Type(), b.getI64IntegerAttr(0));
   if (auto submap = stripped.getDefiningOp<polygeist::SubmapOp>()) {
+    // A composed network can follow ordinary tensor computation. Preserve the
+    // direct SSA base in that case instead of walking through a preceding
+    // submapInverse to its first/original base. Keep the established resolved
+    // in-place behavior for the pairwise contraction ABI: its chained MFEM
+    // launches rely on that representation for GPU host/device staging.
+    if (preserveDirectSubmapBase)
+      base = submap.getBase();
     auto baseType = dyn_cast<RankedTensorType>(base.getType());
     if (!baseType ||
         submap.getSizes().size() != (unsigned)operandType.getRank())
@@ -2471,8 +2480,22 @@ buildContractionViewMetadata(OpBuilder &b, Location loc, Value operand,
 static FailureOr<ContractionViewMetadata>
 buildNetworkViewMetadata(OpBuilder &b, Location loc, Value operand,
                          AffineMap accessMap) {
-  if (isa<RankedTensorType>(operand.getType()))
-    return buildContractionViewMetadata(b, loc, operand, accessMap);
+  if (isa<TensorType>(operand.getType()))
+    return buildContractionViewMetadata(b, loc, operand, accessMap,
+                                        /*preserveDirectSubmapBase=*/true);
+
+  // One-shot bufferization is allowed to leave an unknown Polygeist tensor
+  // view behind a to_memref boundary. Recover that tensor provenance here
+  // instead of treating the materialized memref as the semantic operand. The
+  // tensor metadata builder understands submap affine maps and returns the
+  // original flat ABI base; after the launch is erased the obsolete
+  // to_memref(submap(...)) chain canonicalizes away.
+  if (auto toMemref = operand.getDefiningOp<bufferization::ToMemrefOp>()) {
+    Value tensor = toMemref.getTensor();
+    if (isa<RankedTensorType>(tensor.getType()))
+      return buildContractionViewMetadata(
+          b, loc, tensor, accessMap, /*preserveDirectSubmapBase=*/true);
+  }
 
   auto type = dyn_cast<MemRefType>(operand.getType());
   if (!type || !(type.getElementType().isF32() ||
@@ -2556,9 +2579,13 @@ static LogicalResult verifyNoResidualHostDeviceConsumers(LaunchOp launch) {
 
 static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
                                                      ModuleOp module) {
-  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+  bool bufferized = launch->hasAttr("polygeist.bufferized");
+  if (launch.getNumOperands() != 3 ||
+      (bufferized ? launch.getNumResults() != 0
+                  : launch.getNumResults() != 1))
     return launch.emitError(
-        "cuTensorNet contraction: expected A/B/C operands and one result");
+        "cuTensorNet contraction: expected A/B/C operands and either one "
+        "tensor result or a result-free bufferized destination");
   auto mapsAttr = launch->getAttrOfType<ArrayAttr>("contraction_maps");
   if (!mapsAttr || mapsAttr.size() != 3)
     return launch.emitError(
@@ -2576,9 +2603,8 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
     if (!mapAttr)
       return launch.emitError(
           "cuTensorNet contraction: contraction_maps must be affine maps");
-    auto view =
-        buildContractionViewMetadata(b, loc, launch.getOperand(i),
-                                     mapAttr.getValue());
+    auto view = buildNetworkViewMetadata(b, loc, launch.getOperand(i),
+                                         mapAttr.getValue());
     if (failed(view))
       return launch.emitError(
           "cuTensorNet contraction: unsupported operand view/map layout");
@@ -2688,6 +2714,16 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
   if (deviceResident)
     runtimeCall->setAttr("polygeist.cuda_graph_safe", b.getUnitAttr());
 
+  // One-shot bufferization has already made the launch's destination write
+  // explicit and replaced every tensor result with that destination buffer.
+  // The runtime call above mutates the exact same memref, so manufacturing a
+  // tensor snapshot here would both duplicate the output and discard the
+  // alias/lifetime proof that bufferization just established.
+  if (bufferized) {
+    launch.erase();
+    return success();
+  }
+
   // The common destination-style form extracts the full (or a sliced) output
   // from a to_tensor of the public ABI memref, then inserts the launch result
   // back into that same tensor.  The pointer above already aliases that ABI
@@ -2696,7 +2732,12 @@ static LogicalResult lowerCutensornetContraction2F64(LaunchOp launch,
   // from manufacturing dynamic memref descriptors solely for a dead copy.
   if (Value destinationBase =
           tensorForOutputSliceSource(b, loc, metadata[2].base)) {
-    rewireTensorSliceLaunchResult(launch, Value(), destinationBase);
+    // The opaque runtime mutates the output slice in place. In addition to
+    // terminal insert_slice write-backs, a staged contraction may consume the
+    // launch result directly as the input of its next stage. Forward such
+    // users to the output view whose storage the call just updated.
+    rewireTensorSliceLaunchResult(launch, launch.getOperand(2),
+                                  destinationBase);
     if (!launch.getResult(0).use_empty())
       return launch.emitError(
           "cuTensorNet contraction: unsupported consumer of direct output");
@@ -2835,6 +2876,12 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
   }
   if (globalModeCount > kContractionMaxModes)
     return launch.emitError("cuTensorNet network exceeds the 64-mode ABI");
+  if (launch.getNumResults() == 1 && !deviceResident &&
+      !sourceToTensorOp(metadata.back().base))
+    return launch.emitError(
+        "host-ABI cuTensorNet network requires a direct ABI-backed output; "
+        "computed tensor accumulators must remain uncomposed until the "
+        "connected region is bufferized/device-resident");
 
   llvm::SmallSet<int64_t, 16> inputModes;
   llvm::SmallSet<int64_t, 16> outputModes;
@@ -2943,8 +2990,9 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
     // pre-call tensor back over the data just produced by cuTensorNet.
     Value outputView = launch.getOperand(outputOperand);
     Value outputBase = metadata.back().base;
-    if (failed(rewireSubmapLaunchResult(launch, outputView, outputBase)))
+    if (failed(rewireSubmapLaunchResult(launch, outputView, outputBase))) {
       return failure();
+    }
   }
   launch.erase();
   return success();
@@ -3846,6 +3894,68 @@ static LogicalResult lowerCudnnUniformWindowConv2DF32(LaunchOp launch,
   argTypes.append(2, ptrType);
   func::FuncOp shim = ensureShimDecl(
       module, "polygeist_cudnn_conv2d_uniform_window_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, args);
+
+  Value updated = memrefToTensor(
+      b, loc, outputMemref, launch.getResult(0).getType());
+  rewireTensorSliceLaunchResult(
+      launch, updated, tensorForOutputSliceSource(b, loc, output));
+  launch.erase();
+  return success();
+}
+
+// Tensor-form average pooling. Same operand layout as
+// cudnnConvolution2DWindow_f32 (input, output, weight, KH,KW,SH,SW,DH,DW,PH,PW
+// -> outputTensor), but the matcher has proved the weight is exactly 1/(KH*KW)
+// over a non-overlapping valid window, so this is a box average. Marshal it to
+// the existing cuDNN pooling shim (op-tag 4 = fixed-window average forward)
+// instead of a grouped/depthwise convolution.
+static LogicalResult lowerCudnnAvgPoolWindowF32(LaunchOp launch,
+                                                ModuleOp module) {
+  if (launch.getNumOperands() != 11 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "cudnnAvgPoolWindow_f32: expected input, output, weight, "
+        "KH, KW, SH, SW, DH, DW, PH, PW and one result");
+  Value input = launch.getOperand(0);
+  Value output = launch.getOperand(1);
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  auto outputType = dyn_cast<RankedTensorType>(output.getType());
+  if (!inputType || !outputType || inputType.getRank() != 4 ||
+      outputType.getRank() != 4 || !inputType.getElementType().isF32() ||
+      !outputType.getElementType().isF32())
+    return launch.emitError(
+        "cudnnAvgPoolWindow_f32: input/output must be rank-4 f32 tensors");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value inputMemref = valueToMemrefPreservingSlice(b, loc, input);
+  Value outputMemref = valueToOutputMemrefPreservingSlice(b, loc, output);
+  auto ptrType = LLVM::LLVMPointerType::get(b.getContext());
+  auto ci32 = [&](int32_t v) {
+    return b.create<arith::ConstantIntOp>(loc, v, 32).getResult();
+  };
+  // polygeist_cudnn_adaptive_pool_f32(op, rank, N, C, i0,i1,i2, o0,o1,o2,
+  //                                   inPtr, outPtr, idxPtr)
+  SmallVector<Value> args = {
+      ci32(4),                                  // op: fixed-window avg forward
+      ci32(2),                                  // spatial rank
+      memrefDimAsI32(b, loc, inputMemref, 0),   // N
+      memrefDimAsI32(b, loc, inputMemref, 1),   // C
+      memrefDimAsI32(b, loc, inputMemref, 2),   // i0 = H
+      memrefDimAsI32(b, loc, inputMemref, 3),   // i1 = W
+      ci32(1),                                  // i2 (unused for 2D)
+      memrefDimAsI32(b, loc, outputMemref, 2),  // o0 = OH
+      memrefDimAsI32(b, loc, outputMemref, 3),  // o1 = OW
+      ci32(1),                                  // o2 (unused for 2D)
+  };
+  args.push_back(memrefDataPtr(b, loc, inputMemref));
+  args.push_back(memrefDataPtr(b, loc, outputMemref));
+  args.push_back(b.create<LLVM::ZeroOp>(loc, ptrType));  // no index tensor
+
+  SmallVector<Type> argTypes(10, b.getI32Type());
+  argTypes.append(3, ptrType);
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_adaptive_pool_f32", argTypes, b);
   b.create<func::CallOp>(loc, shim, args);
 
   Value updated = memrefToTensor(
@@ -6325,6 +6435,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolution2DWindow_f32") {
         r = lowerCudnnUniformWindowConv2DF32(launch, module);
+      } else if (libSym == "cudnnAvgPoolWindow_f32") {
+        r = lowerCudnnAvgPoolWindowF32(launch, module);
       } else if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
                  libSym.starts_with("cudnnAveragePool_f32_")) {
         r = lowerCudnnAdaptivePoolF32(launch, module);

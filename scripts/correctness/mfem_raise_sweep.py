@@ -49,7 +49,10 @@ def main():
                 str(OPT), "--select-func=func-name=" + row["function"],
                 "--remove-iter-args", "--affine-parallelize",
                 "--raise-affine-to-linalg-pipeline",
-                "--lower-polygeist-submap", str(frontend), "-o", str(raised),
+                # Preserve submap structure through debufferization.  Lowering
+                # scratch views first turns them into subviews that hide the
+                # producer/consumer tensor graph from the debufferizer.
+                str(frontend), "-o", str(raised),
             ], raise_log)
         else:
             raise_log.write_text("not run: cgeist frontend failed\n")

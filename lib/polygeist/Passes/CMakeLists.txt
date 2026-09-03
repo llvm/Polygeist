@@ -20,6 +20,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LowerKernelLaunch.cpp
   ComposeCutensornetNetworks.cpp
   WrapKernelLaunchPipeline.cpp
+  PlanPersistentGpuWorkspace.cpp
+  PrepareGpuResidualPipeline.cpp
   LowerKernelLaunchToCuBLAS.cpp
   LowerKernelLaunchToPVA.cpp
   KernelLaunchLoweringUtils.cpp

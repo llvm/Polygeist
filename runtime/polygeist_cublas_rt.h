@@ -21,6 +21,7 @@
 #define POLYGEIST_CUBLAS_RT_H
 
 #include <stdint.h>
+#include "polygeist_cuda_graph_rt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,9 +46,6 @@ void polygeist_cublas_pipeline_end(void);
 // graph. Replay is enabled by POLYGEIST_CUDA_GRAPH=1 and assumes that device
 // pointer values, tensor shapes, and scalar launch parameters remain stable
 // for the lifetime of a graph id. Buffer contents may change between replays.
-int32_t polygeist_cuda_graph_begin(int64_t graph_id);
-void polygeist_cuda_graph_end(int64_t graph_id);
-
 // GEMM (cublasDgemm equivalent, row-major):
 //   C = alpha * A * B + beta * C
 // where A is MxK, B is KxN, C is MxN.
@@ -144,6 +142,9 @@ void polygeist_cublas_memset_zero_2d_f32(
     int32_t M, int32_t N, float *A, int32_t lda);
 
 void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v);
+void polygeist_cublas_memset_zero_1d(int32_t N, double *v);
+void polygeist_cublas_daxpy_unit(
+    int32_t N, const double *x, double *y);
 
 // memset a 2D row-major MxN block to zero. Used by matcher's
 // @memset_zero_2D op. Trivial host-side memset; data is host-resident

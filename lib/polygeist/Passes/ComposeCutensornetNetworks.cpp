@@ -10,6 +10,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -148,6 +149,67 @@ static bool isFullIdentitySlice(tensor::ExtractSliceOp slice) {
   return true;
 }
 
+// The compatibility cuTensorNet ABI can safely mutate an output tensor whose
+// storage comes directly from a public memref argument. A tensor computed by
+// earlier residual Linalg or opaque host-ABI launches is not a stable network
+// accumulator: lowering it back to a pointer can alias a stale pre-stage
+// buffer after one-shot bufferization. Keep such graphs as their correct
+// pairwise calls until the entire connected region uses a bufferizable,
+// device-resident library operation.
+static bool hasDirectAbiDestination(Value value) {
+  for (int hops = 0; hops < 16; ++hops) {
+    if (auto cast = value.getDefiningOp<tensor::CastOp>()) {
+      value = cast.getSource();
+      continue;
+    }
+    if (auto slice = value.getDefiningOp<tensor::ExtractSliceOp>()) {
+      value = slice.getSource();
+      continue;
+    }
+    if (auto submap = value.getDefiningOp<polygeist::SubmapOp>()) {
+      value = submap.getBase();
+      continue;
+    }
+    if (auto toTensor =
+            value.getDefiningOp<bufferization::ToTensorOp>())
+      return isa<BlockArgument>(toTensor.getMemref());
+    return false;
+  }
+  return false;
+}
+
+static bool hasInjectiveDestinationView(Value value) {
+  for (int hops = 0; hops < 16; ++hops) {
+    if (auto cast = value.getDefiningOp<tensor::CastOp>()) {
+      value = cast.getSource();
+      continue;
+    }
+    if (auto slice = value.getDefiningOp<tensor::ExtractSliceOp>()) {
+      value = slice.getSource();
+      continue;
+    }
+    if (auto submap = value.getDefiningOp<polygeist::SubmapOp>()) {
+      // If a logical view dimension is absent from every physical address
+      // expression, multiple logical output elements alias one destination.
+      // The CPU reference can reduce through such a zero-stride dimension,
+      // but the current cuTensorNet network ABI cannot preserve its exact
+      // write-back semantics.
+      AffineMap map = submap.getMap();
+      for (unsigned dim = 0; dim < submap.getSizes().size(); ++dim) {
+        bool present = llvm::any_of(
+            map.getResults(),
+            [dim](AffineExpr expr) { return expr.isFunctionOfDim(dim); });
+        if (!present)
+          return false;
+      }
+      value = submap.getBase();
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 struct NetworkTrace {
   MLIRContext *context;
   unsigned nextMode = 0;
@@ -178,8 +240,15 @@ struct NetworkTrace {
 
   LogicalResult trace(Value value, ArrayRef<unsigned> requestedModes) {
     if (auto cast = value.getDefiningOp<tensor::CastOp>()) {
-      if (cast.getSource().getType().cast<ShapedType>().getRank() !=
-          cast.getType().cast<ShapedType>().getRank())
+      // Old iterator-count-independent matcher artifacts can use an unranked
+      // tensor.cast around a generic contraction ABI.  Such a value does not
+      // carry enough mode information to join a ranked tensor network, but it
+      // must be rejected cleanly rather than querying ShapedType::getRank and
+      // crashing the whole module pass.
+      auto sourceType = dyn_cast<RankedTensorType>(cast.getSource().getType());
+      auto resultType = dyn_cast<RankedTensorType>(cast.getType());
+      if (!sourceType || !resultType ||
+          sourceType.getRank() != resultType.getRank())
         return failure();
       consumed.insert(cast);
       return trace(cast.getSource(), requestedModes);
@@ -314,6 +383,9 @@ static LogicalResult composeSink(linalg::GenericOp sink,
     return failure();
 
   Value output = sink.getDpsInitOperand(0)->get();
+  if (!hasDirectAbiDestination(output) ||
+      !hasInjectiveDestinationView(output))
+    return failure();
   auto outputType = dyn_cast<RankedTensorType>(output.getType());
   if (!outputType || outputType.getRank() != (int64_t)outputModes.size())
     return failure();

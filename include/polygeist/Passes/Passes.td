@@ -306,7 +306,73 @@ def WrapKernelLaunchPipeline
     Option<"captureHostMappedCutensornet", "capture-host-mapped-cutensornet",
            "bool", /*default=*/"false",
            "Treat the host-mapped generic cuTensorNet contraction shim as "
-           "graph-safe under the stable-pointer CUDA Graph contract.">
+           "graph-safe under the stable-pointer CUDA Graph contract.">,
+    Option<"maximalDeviceSequence", "maximal-device-sequence", "bool",
+           /*default=*/"false",
+           "Capture one maximal device sequence, including capture-invariant "
+           "host metadata construction between device operations.">
+  ];
+}
+
+def PlanPersistentGpuWorkspace
+    : Pass<"plan-persistent-gpu-workspace", "::mlir::ModuleOp"> {
+  let summary =
+      "Materialize static tensor/memref scratch as persistent workspace";
+  let description = [{
+    Replaces static tensor.empty/bufferization.alloc_tensor and memref.alloc
+    scratch roots in the selected function with distinct private memref.global
+    buffers. This is
+    an explicitly selected, single-instance workspace policy for repeated GPU
+    execution: addresses remain stable across CUDA Graph warmup, capture, and
+    replay. Dynamic scratch and copied alloc_tensor operations are left
+    unchanged; recursive functions and missing explicit selections are
+    rejected.
+
+    The global policy is intentionally opt-in because simultaneous invocations
+    of the same function would alias the workspace. A future caller-owned
+    workspace ABI can reuse the same scratch analysis while providing
+    re-entrancy.
+  }];
+  let constructor =
+      "mlir::polygeist::createPlanPersistentGpuWorkspacePass()";
+  let dependentDialects = [
+    "bufferization::BufferizationDialect",
+    "func::FuncDialect",
+    "memref::MemRefDialect",
+    "tensor::TensorDialect",
+  ];
+  let options = [
+    Option<"functionName", "function", "std::string", /*default=*/"\"\"",
+           "Exact function name whose static scratch may be made persistent.">,
+  ];
+}
+
+def PrepareGpuResidualPipeline
+    : Pass<"prepare-gpu-residual-pipeline", "::mlir::ModuleOp"> {
+  let summary =
+      "Prepare bufferized residual tensor work for GPU outlining and capture";
+  let description = [{
+    This opt-in bridge is intended to run twice around the standard MLIR
+    linalg-to-GPU outlining pipeline. Before outlining it rewrites memref.copy
+    operations in the selected function to linalg.copy, allowing copies to be
+    represented by generated device kernels. After outlining it marks
+    gpu.launch_func operations as CUDA-Graph-safe and registers every host
+    memref argument and persistent memref.global workspace before the first
+    launch. The runtime keeps those mapped registrations alive across graph
+    warmup, capture, and replay.
+  }];
+  let constructor =
+      "mlir::polygeist::createPrepareGpuResidualPipelinePass()";
+  let dependentDialects = [
+    "func::FuncDialect",
+    "gpu::GPUDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+  ];
+  let options = [
+    Option<"functionName", "function", "std::string", /*default=*/"\"\"",
+           "Exact function whose residual work is prepared.">,
   ];
 }
 

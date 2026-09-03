@@ -97,6 +97,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnTransformBiasRescaleQKV_f32_memref",
     "cudnnAddrElementwise_f32_memref",
     "cudnnConvolution2DWindow_f32",
+    "cudnnAvgPoolWindow_f32",
     "cudnnAdaptivePool_f32_flat2",
     "cudnnAdaptivePool_f32_flat3_fwd",
     "cudnnAdaptivePool_f32_flat3_bwd",
@@ -186,11 +187,24 @@ ABI_LOWERABLE_KERNELS.update(
 SEMANTIC_BACKEND_HINTS = {
     # The semantic node is lowered by a custom rewrite into this ABI symbol.
     "miniamr_weighted_27pt_tensor": "cudnnConvolution3D_ntap_tensor",
-    # Candidate completion: not emitted yet, but this is the intended backend
-    # route once the sparse filter materialization rule is implemented.
-    "conv3d_sparse_3x3x3": "cudnnConvolution3D_ntap_tensor",
     "miniamr_average_7pt_tensor": "customStencil3D7pt_f64_tensor",
     "miniamr_weighted_7pt_tensor": "customStencil3D7ptCoeff_f64_tensor",
+}
+
+# Semantic composition names which a custom rewrite below converts to an
+# existing ABI-lowerable symbol.  All other names must themselves occur in
+# ABI_LOWERABLE_KERNELS before they may participate in production matching.
+# This keeps diagnostic patterns from masquerading as library calls or
+# shadowing a real backend-capable match.
+COMPOSITION_LOWERING_ADAPTERS = {
+    "miniamr_weighted_27pt_tensor",
+    "miniamr_average_7pt_tensor",
+    "miniamr_weighted_7pt_tensor",
+    "cublasDcopy_tensor",
+    "tensor_copy_2D",
+    "tensor_copy_3D",
+    "tensor_copy_6D",
+    "reduce_sum_1D",
 }
 
 
@@ -1453,11 +1467,27 @@ def _render_window_conv2d_launch(
             f"\n{indent}{result_ssa} = tensor.cast {launch_result} : "
             f"{dynamic_result} to {result_type}"
         )
+    # A uniform window whose weight is exactly 1/(KH*KW) over a non-overlapping,
+    # valid (unpadded, undilated) window IS average pooling. Emit the cuDNN
+    # pooling symbol so ABI lowering routes it to cudnnPoolingForward (~15x
+    # faster than the grouped/depthwise convolution the box-filter form uses).
+    # Any other uniform weight stays a genuine box-filter convolution.
+    avg_weight = 1.0 / (kh * kw) if kh > 0 and kw > 0 else None
+    is_avg_pool = (
+        weight_value is not None and avg_weight is not None
+        and abs(weight_value - avg_weight) <= 1e-6 * avg_weight
+        and sh == kh and sw == kw   # non-overlapping: stride == kernel
+        and dh == 1 and dw == 1     # no dilation
+        and ph == 0 and pw == 0     # valid window (no padding)
+    )
+    launch_symbol = (
+        "cudnnAvgPoolWindow_f32" if is_avg_pool else "cudnnConvolution2DWindow_f32"
+    )
     operands = tensors + [weight_ssa] + names
     types = tensor_types + ["f32"] + ["i32"] * 8
     lines.append(
         f"{indent}{launch_result} = kernel.launch "
-        f"@cudnnConvolution2DWindow_f32({', '.join(operands)}) : "
+        f"@{launch_symbol}({', '.join(operands)}) : "
         f"({', '.join(types)}) -> {dynamic_result}{result_cast}"
     )
     return "\n".join(lines)
@@ -2723,14 +2753,20 @@ def rewrite_mlir(
         for inst in instances
     ]
 
-    comps = composition_library()
+    semantic_comps = composition_library()
+    comps = [
+        entry for entry in semantic_comps
+        if (entry.name in ABI_LOWERABLE_KERNELS or
+            entry.name in COMPOSITION_LOWERING_ADAPTERS)
+    ]
 
     # Walk bodies front-to-back, greedy-match compositions.
     report: list[tuple] = []
     if dry_run and show_candidates:
         for cand_i in range(len(body_terms)):
             for cand in enumerate_semantic_candidates(
-                bodies, body_terms, comps, start=cand_i, body_forms=body_forms
+                bodies, body_terms, semantic_comps, start=cand_i,
+                body_forms=body_forms
             ):
                 has_backend = _candidate_backend(cand) is not None
                 if not has_backend and not show_semantic_only:
@@ -3323,8 +3359,6 @@ def rewrite_mlir(
                             reduction_dim_count=0)],
                         form="tensor", element_type="f32")
                     binds = {}
-        report.append(("match", list(range(i, i + n)), entry.name))
-
         # Build a single kernel.launch covering instances[i..i+n-1].
         # We emit the launch *in place of the last generic* and delete the
         # earlier generics individually — that way any ops sitting BETWEEN
@@ -3571,14 +3605,6 @@ def rewrite_mlir(
                     return False
             return True
 
-        if entry.name == "cublasDcopy" and n == 1:
-            in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
-            # rank-0 memref: starts with `memref<` and the chunk before the
-            # outermost `,` or `>` contains no `x` (i.e. just the elem type).
-            if in0_ty.startswith("memref<"):
-                inside = in0_ty[len("memref<"):].split(",", 1)[0]
-                if "x" not in inside:
-                    emit_name = "broadcast_scalar_to_vec"
         # Tensor-form twin of the same dispatch (multi-root debufferize).
         if entry.name == "cublasDcopy_tensor" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
@@ -3728,6 +3754,21 @@ def rewrite_mlir(
                 result_count=last.result_count,
             )
             custom_launch_line = "\n".join(scalar_lines + [rendered])
+
+        if entry.name in ("cublasDdot", "cublasSdot"):
+            # BLAS dot writes one scalar.  A rank-1 tensor output can be a
+            # non-injective submap whose every logical element aliases that
+            # scalar, but emitting it as a rank-1 launch is not ABI-correct.
+            # Preserve that generic until LowerPolygeistSubmap normalizes the
+            # reduction to a real rank-0 tensor.
+            ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
+            expected = "f64" if entry.name == "cublasDdot" else "f32"
+            if (len(operand_types) != 3 or ranks != [1, 1, 0] or
+                    elems != [expected, expected, expected]):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += n
+                continue
 
         if entry.name == "cublasDscal":
             ranks = [_tensor_rank(t) for t in operand_types[:1]]
@@ -4888,6 +4929,9 @@ def rewrite_mlir(
             report.append(("launch_limit", list(range(i, i + n)), emit_name))
             i += n
             continue
+        # Only report a match after it has resolved to an existing, ABI-
+        # lowerable implementation and passed all operand/layout checks.
+        report.append(("match", list(range(i, i + n)), emit_name))
         emitted_launches += 1
         if custom_first_launch_line is not None:
             emitted_launches += 1

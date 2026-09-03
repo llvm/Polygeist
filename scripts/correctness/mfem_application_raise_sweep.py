@@ -57,7 +57,7 @@ def main():
                 str(OPT), f"--select-func=func-name={fn}",
                 "--remove-iter-args", "--affine-parallelize",
                 "--raise-affine-to-linalg-pipeline",
-                "--lower-polygeist-submap", str(front), "-o", str(raised),
+                str(front), "-o", str(raised),
             ])
             messages.append("[raise]\n" + err)
         raised_loops = count(

@@ -442,6 +442,103 @@ CASES = {
 }
 
 
+_POSITIVE = ("log", "sqrt", "rsqrt", "acosh", "reciprocal", "digamma", "lgamma",
+             # domain-sensitive: non-zero divisor for div/mod, positive base
+             # for pow(., frac) — otherwise inf/nan breaks the correctness check
+             "pow", "fmod", "remainder", "div_floor", "div_trunc",
+             "floor_divide")
+_UNIT = ("acos", "asin", "atanh")
+
+
+def _auto_init(kernel: str, name: str) -> str:
+    base = kernel[5:] if kernel.startswith("aten_") else kernel
+    if any(t in base for t in _POSITIVE):
+        return "positive"
+    if any(t in base for t in _UNIT):
+        return "unit"
+    return "normal"
+
+
+def auto_spec(kernel: str) -> dict | None:
+    """Synthesize a harness spec from a kernel's extracted C signature.
+    Handles float/int/signed-char array params + scalar params; skips doubles
+    (harness is f32) and anything it can't parse cleanly. Output params are the
+    ones written in the body; dims are scaled to ~4M total elements."""
+    f = ATEN / f"{kernel}.c"
+    if not f.exists():
+        return None
+    txt = f.read_text()
+    sig = re.search(rf"void\s+{re.escape(kernel)}\s*\(([^)]*)\)", txt)
+    if not sig:
+        return None
+    body = txt[sig.end():]
+    defined = {k: int(v) for k, v in
+               re.findall(r"#\s*define\s+(\w+)\s+(\d+)", txt)}
+    args, used_dims = [], set()
+    for p in (x.strip() for x in sig.group(1).split(",") if x.strip()):
+        # array dims may be arithmetic expressions (e.g. [B*N], [A*B], [R+M]).
+        marr = re.fullmatch(
+            r"(float|double|int|signed char)\s+(\w+)\s*((?:\[[\w*+ \-]+\])+)", p)
+        msc = re.fullmatch(r"(float|double|int)\s+(\w+)", p)
+        if marr:
+            typ, nm, dimspec = marr.group(1), marr.group(2), marr.group(3)
+            if typ == "double":
+                return None  # harness is f32-only
+            exprs = [e.strip() for e in re.findall(r"\[([\w*+ \-]+)\]", dimspec)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", " ".join(exprs))):
+                if ident not in defined:
+                    return None
+                used_dims.add(ident)
+            size = "*".join(f"({e})" for e in exprs)
+            # output = written in the body (handles multi-dim out[a][b][c] = ...)
+            is_out = bool(re.search(
+                rf"\b{re.escape(nm)}\s*(?:\[[^\]]*\])+\s*[-+*/]?=(?!=)", body))
+            if typ == "float":
+                args.append(ptr(nm, size, is_out, _auto_init(kernel, nm)))
+            elif typ == "int":
+                args.append(iptr(nm, size, is_out))
+            else:
+                args.append(bptr(nm, size, is_out))
+        elif msc:
+            typ, nm = msc.group(1), msc.group(2)
+            if typ == "double":
+                return None
+            args.append(scalar(nm, 0.5) if typ == "float" else iscalar(nm, 2))
+        else:
+            return None
+    if not used_dims or not any(a[3] for a in args if a[1] in
+                                ("ptr", "iptr", "bptr")):
+        return None  # need at least one dim and one output
+    base = {d: defined[d] for d in sorted(used_dims)}  # deterministic order
+    arrays = [a[2] for a in args if a[1] in ("ptr", "iptr", "bptr")]
+
+    def footprint(dd):  # largest array's true element count at these dims
+        best = 0
+        for expr in arrays:
+            try:
+                best = max(best, eval(expr, {"__builtins__": {}}, dd))
+            except Exception:
+                pass
+        return best
+
+    # Numerically binary-search a uniform dim factor so the largest array is
+    # ~4M elements. Robust for ANY size expression (products, sums, nesting) —
+    # no fragile analytical rank (footprint is monotonic in the factor).
+    dims = dict(base)
+    if footprint(base) > 0:
+        lo, hi = 1e-4, 1e7
+        for _ in range(50):
+            mid = (lo * hi) ** 0.5
+            dd = {d: max(2, round(v * mid)) for d, v in base.items()}
+            if footprint(dd) < 4_194_304:
+                lo = mid
+            else:
+                hi = mid
+        f = (lo * hi) ** 0.5
+        dims = {d: max(2, round(v * f)) for d, v in base.items()}
+    return spec(dims, args, f"auto: {kernel}")
+
+
 def scaled_source(kernel: str, cfg: dict, out: Path) -> None:
     text = (ATEN / f"{kernel}.c").read_text()
     for name, value in cfg["dims"].items():
@@ -454,17 +551,27 @@ def scaled_source(kernel: str, cfg: dict, out: Path) -> None:
 
 def harness_text(kernel: str, cfg: dict) -> str:
     decls, call_ref, call_got, allocations, init, comparisons, frees = [], [], [], [], [], [], []
+    # Device-resident path: cudaMalloc buffers, copy in/out OUTSIDE the timed
+    # region so timing reflects the op on device DRAM (torch's methodology).
+    call_dev, dev_alloc, dev_h2d, dev_d2h, dev_free = [], [], [], [], []
     for name, kind, value, output, init_kind in cfg["args"]:
         if kind in ("scalar", "iscalar"):
             decls.append((f"float {name} = {value}f;" if kind == "scalar"
                           else f"int {name} = {value};"))
-            call_ref.append(name); call_got.append(name)
+            call_ref.append(name); call_got.append(name); call_dev.append(name)
             continue
         allocations.append(f"size_t {name}_n = (size_t)({value});")
         ctype = ("int" if kind == "iptr" else
                  "signed char" if kind == "bptr" else "float")
         allocations.append(f"{ctype} *{name}_ref = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
         allocations.append(f"{ctype} *{name}_got = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
+        allocations.append(f"{ctype} *{name}_dev = 0;")
+        dev_alloc.append(f"cudaMalloc((void**)&{name}_dev, {name}_n*sizeof({ctype}));")
+        dev_h2d.append(f"cudaMemcpy({name}_dev, {name}_got, {name}_n*sizeof({ctype}), 1);")
+        call_dev.append(f"{name}_dev")
+        dev_free.append(f"cudaFree({name}_dev);")
+        if output:
+            dev_d2h.append(f"cudaMemcpy({name}_got, {name}_dev, {name}_n*sizeof({ctype}), 2);")
         if kind == "bptr":
             init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]=(signed char)((int)(i%13)-6);")
             init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(signed char));")
@@ -517,6 +624,8 @@ def harness_text(kernel: str, cfg: dict) -> str:
     ]
     signature = ", ".join(types)
     ref_args = ", ".join(call_ref); got_args = ", ".join(call_got)
+    dev_args = ", ".join(call_dev)
+    shape_str = "_".join(f"{k}={v}" for k, v in cfg["dims"].items())
     dimension_defines = "\n".join(f"#define {k} {v}" for k, v in cfg["dims"].items())
     return f'''#define _POSIX_C_SOURCE 200809L
 {dimension_defines}
@@ -527,6 +636,10 @@ def harness_text(kernel: str, cfg: dict) -> str:
 #include <time.h>
 extern void {kernel}({signature});
 extern void {kernel}_reference({signature});
+extern int cudaMalloc(void**, unsigned long);
+extern int cudaMemcpy(void*, const void*, unsigned long, int);
+extern int cudaFree(void*);
+extern int cudaDeviceSynchronize(void);
 static double now_us(void) {{ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return 1e6*t.tv_sec+1e-3*t.tv_nsec; }}
 #define CHECK_ARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ float r=name##_ref[i], g=name##_got[i]; float e=fabsf(r-g); if(!isfinite(g)||e>{cfg.get('rtol', 2e-3):.9g}f*(1.0f+fabsf(r))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%g got=%g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
 #define CHECK_IARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=name##_ref[i], g=name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
@@ -536,10 +649,26 @@ int main(void) {{
   {' '.join(allocations)}
   {' '.join(init)}
   {kernel}_reference({ref_args});
+  /* Correctness on a SINGLE run, BEFORE the timing loops mutate the buffers.
+     In-place ops (e.g. out+=src) would otherwise accumulate over ~36 calls. */
+  {kernel}({got_args});
+  int errors=0; float max_error=0; {' '.join(comparisons)}
   for(int i=0;i<3;++i) {kernel}({got_args});
   double total=0; for(int i=0;i<10;++i) {{ double t=now_us(); {kernel}({got_args}); total += now_us()-t; }}
-  int errors=0; float max_error=0; {' '.join(comparisons)}
-  printf("RESULT kernel={kernel} warm_us=%.6f errors=%d max_error=%g coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,errors,max_error);
+  /* Device-resident timing: operands in cudaMalloc'd device DRAM, copy in/out
+     ONCE outside the timed loop, so only the op is measured (matches torch). */
+  double resident_us = -1.0;
+  {' '.join(dev_alloc)}
+  {' '.join(dev_h2d)}
+  cudaDeviceSynchronize();
+  for(int i=0;i<3;++i) {kernel}({dev_args});
+  cudaDeviceSynchronize();
+  /* best-of-20, wall-clock + full device sync (needed: shims run async on a
+     private stream). best-of matches torch's cudaEvent best-of statistic. */
+  {{ double best=1e30; for(int i=0;i<20;++i) {{ double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize(); double d=now_us()-t; if(d<best) best=d; }} resident_us = best; }}
+  {' '.join(dev_d2h)}
+  {' '.join(dev_free)}
+  printf("RESULT kernel={kernel} warm_us=%.6f resident_us=%.6f errors=%d max_error=%g shape={shape_str} coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,resident_us,errors,max_error);
   {' '.join(frees)}
   return errors ? 1 : 0;
 }}
@@ -562,8 +691,27 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     exe = work / kernel
     env = os.environ.copy()
     env.update({"PYTHON": "/usr/bin/python3", "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference), "POLYGEIST_MINIMAL_CUDNN_RUNTIME": "1"})
+    _ct = "/home/arjaiswal/cutensor_sbsa"
+    if os.path.isdir(_ct):  # enable cutensorUnary etc. when the SDK is staged
+        env["POLYGEIST_CUTENSOR_ROOT"] = _ct
     run([str(BUILDER), "--target=jetson", f"--function={kernel}", f"--harness={harness}", "-o", str(exe), str(source)], work / "raised.build.log", env)
     return {"kernel": kernel, "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()), "coverage": cfg["coverage"], "executable": str(exe)}
+
+
+def _matched_kernels() -> list[str]:
+    """Every kernel whose matched.mlir emits a library kernel.launch."""
+    out = []
+    for mm in sorted((ATEN / "results").glob("*/matched.mlir")):
+        try:
+            if "kernel.launch @" in mm.read_text():
+                out.append(mm.parent.name)
+        except OSError:
+            pass
+    return out
+
+
+def _cfg_for(kernel: str) -> dict | None:
+    return CASES.get(kernel) or auto_spec(kernel)
 
 
 def main() -> int:
@@ -571,10 +719,17 @@ def main() -> int:
     p.add_argument("--output", type=Path, default=Path("/tmp/aten_pointwise_graph_large"))
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument("--kernel", action="append", choices=sorted(CASES))
+    p.add_argument("--all-matched", action="store_true",
+                   help="build every matched kernel: CASES specs, else auto_spec")
     args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
-    selected = args.kernel or sorted(CASES); rows=[]; failures=[]
+    if args.all_matched:
+        selected = [k for k in _matched_kernels() if _cfg_for(k)]
+        print(f"[all-matched] {len(selected)} kernels have a usable spec", flush=True)
+    else:
+        selected = args.kernel or sorted(CASES)
+    rows=[]; failures=[]
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        jobs={pool.submit(build_one,k,CASES[k],args.output):k for k in selected}
+        jobs={pool.submit(build_one,k,_cfg_for(k),args.output):k for k in selected}
         for future in concurrent.futures.as_completed(jobs):
             k=jobs[future]
             try: rows.append(future.result()); print(f"[BUILT] {k}", flush=True)

@@ -2,6 +2,7 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -532,6 +533,218 @@ struct ComposeAffineSubmapIntoLinalgGeneric
   }
 };
 
+// Normalize a tensor Linalg output whose logical submap aliases only along
+// declared reduction iterators. Debufferization can produce, for example,
+//
+//   submap flat[(e, i, j, q)] -> flat[(e, i, j)]
+//   generic ... outs(submap)  // q is a reduction iterator
+//   submapInverse(flat, generic_result)
+//
+// Rebuild the generic with a rank-3, injective output view and an output
+// indexing map that projects out q. The generic then carries the reduction
+// itself, and LowerSubmapInverse can lower the remaining injective write-back.
+// Keep the first implementation narrow: one tensor output, a matching
+// terminal inverse, symbol-free maps, static sizes, and a proven-injective
+// reduced destination.
+struct NormalizeTensorReductionOutputSubmap
+    : public OpRewritePattern<linalg::GenericOp> {
+  NormalizeTensorReductionOutputSubmap(MLIRContext *context)
+      : OpRewritePattern<linalg::GenericOp>(context, /*benefit=*/4) {}
+
+  LogicalResult matchAndRewrite(linalg::GenericOp generic,
+                                PatternRewriter &rewriter) const final {
+    if (generic.getOutputs().size() != 1 || generic.getNumResults() != 1)
+      return failure();
+
+    auto submap = generic.getOutputs().front().getDefiningOp<SubmapOp>();
+    if (!submap || submap.getMap().getNumSymbols() != 0 ||
+        !isa<RankedTensorType>(submap.getBase().getType()) ||
+        !isa<RankedTensorType>(submap.getType()))
+      return failure();
+
+    Value oldResult = generic.getResult(0);
+    if (!oldResult.hasOneUse())
+      return rewriter.notifyMatchFailure(
+          generic, "tensor reduction output does not have one terminal use");
+    auto inverse = dyn_cast<SubmapInverseOp>(*oldResult.getUsers().begin());
+    if (!inverse || inverse.getViewModified() != oldResult ||
+        stripTensorCasts(inverse.getBaseOriginal()) !=
+            stripTensorCasts(submap.getBase()) ||
+        inverse.getMap() != submap.getMap() ||
+        !sameTrailingOperands(inverse->getOperands().drop_front(2),
+                              submap->getOperands().drop_front(1)))
+      return rewriter.notifyMatchFailure(
+          generic, "tensor reduction output lacks a matching inverse");
+
+    SmallVector<AffineMap> maps(generic.getIndexingMapsArray());
+    unsigned outputOperandNumber = generic.getNumDpsInputs();
+    AffineMap outputMap = maps[outputOperandNumber];
+    AffineMap submapMap = submap.getMap();
+    unsigned numLoops = generic.getNumLoops();
+    if (outputMap.getNumSymbols() != 0 ||
+        outputMap.getNumResults() != submapMap.getNumDims())
+      return failure();
+
+    AffineMap composed = submapMap.compose(outputMap);
+    SmallVector<bool> used(numLoops, false);
+    for (AffineExpr result : composed.getResults())
+      result.walk([&](AffineExpr expr) {
+        if (auto dim = expr.dyn_cast<AffineDimExpr>())
+          if (dim.getPosition() < numLoops)
+            used[dim.getPosition()] = true;
+      });
+
+    auto iteratorTypes = generic.getIteratorTypesArray();
+    SmallVector<unsigned> retainedLoops;
+    bool droppedReduction = false;
+    for (unsigned dim = 0; dim < numLoops; ++dim) {
+      bool isReduction =
+          iteratorTypes[dim] == utils::IteratorType::reduction;
+      if (used[dim] == isReduction)
+        return rewriter.notifyMatchFailure(
+            generic, "physical output collisions do not exactly match "
+                     "Linalg reduction iterators");
+      if (isReduction)
+        droppedReduction = true;
+      else
+        retainedLoops.push_back(dim);
+    }
+    if (!droppedReduction ||
+        retainedLoops.size() == submapMap.getNumDims())
+      return failure();
+
+    SmallVector<int64_t> loopToView(numLoops, -1);
+    for (auto [viewDim, expr] : llvm::enumerate(outputMap.getResults())) {
+      auto dim = expr.dyn_cast<AffineDimExpr>();
+      if (!dim || dim.getPosition() >= numLoops ||
+          loopToView[dim.getPosition()] != -1)
+        return rewriter.notifyMatchFailure(
+            generic, "output indexing map is not a projected permutation");
+      loopToView[dim.getPosition()] = viewDim;
+    }
+
+    ValueRange oldSizes = submap.getSizes();
+    MLIRContext *context = generic.getContext();
+    SmallVector<AffineExpr> loopReplacements(
+        numLoops, getAffineConstantExpr(0, context));
+    SmallVector<AffineExpr> newOutputResults;
+    SmallVector<Value> reducedSizes;
+    SmallVector<int64_t> reducedShape;
+    for (auto [newDim, loopDim] : llvm::enumerate(retainedLoops)) {
+      int64_t viewDim = loopToView[loopDim];
+      if (viewDim < 0 || static_cast<unsigned>(viewDim) >= oldSizes.size())
+        return rewriter.notifyMatchFailure(
+            generic, "cannot recover retained output dimension size");
+      loopReplacements[loopDim] = getAffineDimExpr(newDim, context);
+      newOutputResults.push_back(getAffineDimExpr(loopDim, context));
+      Value size = oldSizes[viewDim];
+      auto constant = getConstantIndex(size);
+      if (!constant)
+        return rewriter.notifyMatchFailure(
+            generic, "reduced output requires static sizes");
+      reducedSizes.push_back(size);
+      reducedShape.push_back(*constant);
+    }
+
+    SmallVector<int64_t> inferredLoopRanges = generic.getStaticLoopRanges();
+    if (inferredLoopRanges.size() != numLoops)
+      return rewriter.notifyMatchFailure(
+          generic, "cannot infer the original Linalg loop domain");
+    for (auto [newDim, loopDim] : llvm::enumerate(retainedLoops)) {
+      int64_t inferred = inferredLoopRanges[loopDim];
+      if (inferred != ShapedType::kDynamic &&
+          inferred != reducedShape[newDim])
+        return rewriter.notifyMatchFailure(
+            generic, "output submap size disagrees with inferred loop bound");
+    }
+
+    SmallVector<AffineExpr> reducedBaseResults;
+    for (AffineExpr result : composed.getResults())
+      reducedBaseResults.push_back(
+          result.replaceDimsAndSymbols(loopReplacements, {}));
+    AffineMap reducedSubmapMap = AffineMap::get(
+        retainedLoops.size(), 0, reducedBaseResults, context);
+    std::optional<bool> reducedInjective =
+        isInjectiveOnStaticDomain(reducedSubmapMap, reducedShape);
+    if (!reducedInjective || !*reducedInjective)
+      return rewriter.notifyMatchFailure(
+          generic, "reduced tensor destination is not proven injective");
+
+    AffineMap newOutputMap =
+        AffineMap::get(numLoops, 0, newOutputResults, context);
+
+    // When the destination base already has one dimension per retained loop,
+    // keep the reduced tensor in physical base order.  A permutation such as
+    // (d0,d1,d2,d3,d4)->(d0,d3,d1,d2) then belongs on the generic output map,
+    // not in the tensor's shape.  This avoids manufacturing a logical-order
+    // tensor<2x4x4x5> that later has to be inserted into a physical-order
+    // tensor<2x5x4x4>.
+    bool physicalPermutation =
+        composed.getNumResults() == retainedLoops.size();
+    SmallVector<unsigned> physicalLoopDims;
+    SmallVector<bool> physicalSeen(numLoops, false);
+    if (physicalPermutation) {
+      for (AffineExpr result : composed.getResults()) {
+        auto dim = result.dyn_cast<AffineDimExpr>();
+        if (!dim || dim.getPosition() >= numLoops ||
+            physicalSeen[dim.getPosition()] ||
+            iteratorTypes[dim.getPosition()] == utils::IteratorType::reduction) {
+          physicalPermutation = false;
+          break;
+        }
+        physicalSeen[dim.getPosition()] = true;
+        physicalLoopDims.push_back(dim.getPosition());
+      }
+    }
+    if (physicalPermutation) {
+      reducedSizes.clear();
+      reducedShape.clear();
+      for (unsigned loopDim : physicalLoopDims) {
+        int64_t viewDim = loopToView[loopDim];
+        if (viewDim < 0 || static_cast<unsigned>(viewDim) >= oldSizes.size())
+          return rewriter.notifyMatchFailure(
+              generic, "cannot recover physical output dimension size");
+        Value size = oldSizes[viewDim];
+        auto constant = getConstantIndex(size);
+        if (!constant)
+          return rewriter.notifyMatchFailure(
+              generic, "physical reduced output requires static sizes");
+        reducedSizes.push_back(size);
+        reducedShape.push_back(*constant);
+      }
+      reducedSubmapMap = AffineMap::getMultiDimIdentityMap(
+          retainedLoops.size(), context);
+      newOutputMap = composed;
+    }
+    maps[outputOperandNumber] = newOutputMap;
+    auto oldOutputType = cast<RankedTensorType>(submap.getType());
+    auto reducedType = RankedTensorType::get(
+        reducedShape, oldOutputType.getElementType());
+
+    rewriter.setInsertionPoint(generic);
+    auto reducedSubmap = rewriter.create<SubmapOp>(
+        submap.getLoc(), reducedType, submap.getBase(), reducedSizes,
+        reducedSubmapMap);
+    StringAttr empty = StringAttr::get(context);
+    auto newGeneric = rewriter.create<linalg::GenericOp>(
+        generic.getLoc(), TypeRange{reducedType}, generic.getInputs(),
+        ValueRange{reducedSubmap.getResult()}, maps, iteratorTypes, empty,
+        empty);
+    rewriter.cloneRegionBefore(generic.getRegion(), newGeneric.getRegion(),
+                               newGeneric.getRegion().end());
+
+    rewriter.setInsertionPointAfter(newGeneric);
+    auto newInverse = rewriter.create<SubmapInverseOp>(
+        inverse.getLoc(), inverse.getType(), inverse.getBaseOriginal(),
+        newGeneric.getResult(0), reducedSizes, reducedSubmapMap);
+    rewriter.replaceOp(inverse, newInverse.getResult());
+    rewriter.eraseOp(generic);
+    if (submap->use_empty())
+      rewriter.eraseOp(submap);
+    return success();
+  }
+};
+
 // Rewrites a linalg.generic's submap-defined operands. For each operand
 // defined by a polygeist.submap whose map decomposes via
 // decomposeMapForLowering:
@@ -663,6 +876,144 @@ struct ComposeSubmapIntoLinalgGeneric
       genOp->setOperand(w.operandIdx, newOperand);
     }
     genOp.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(tentativeMaps));
+    return success();
+  }
+};
+
+// Tensor-form input views can be composed directly into a generic's indexing
+// maps without materializing the logical view. For example,
+//
+//   submap flat[(e,qx,qy,c,k)]
+//   generic map (e,qx,qy,c,k) -> (e,qx,qy,c,k)
+//
+// becomes a rank-1 generic operand with the composed flattened affine access.
+// This is type-safe for DPS inputs (the result type is unchanged) and avoids
+// allocating and filling a full broadcast tensor before a reduction.
+struct ComposeTensorInputSubmapIntoLinalgGeneric
+    : public OpRewritePattern<linalg::GenericOp> {
+  ComposeTensorInputSubmapIntoLinalgGeneric(MLIRContext *context)
+      : OpRewritePattern<linalg::GenericOp>(context, /*benefit=*/3) {}
+
+  LogicalResult matchAndRewrite(linalg::GenericOp generic,
+                                PatternRewriter &rewriter) const final {
+    SmallVector<AffineMap> maps(generic.getIndexingMapsArray());
+    struct WorkItem {
+      unsigned operandNumber;
+      SubmapOp submap;
+      AffineMap composedMap;
+    };
+    SmallVector<WorkItem> work;
+    unsigned numInputs = generic.getNumDpsInputs();
+    for (OpOperand &operand : generic->getOpOperands()) {
+      if (operand.getOperandNumber() >= numInputs)
+        continue;
+      auto submap = operand.get().getDefiningOp<SubmapOp>();
+      if (!submap || submap.getMap().getNumSymbols() != 0 ||
+          !isa<RankedTensorType>(submap.getBase().getType()) ||
+          !isa<RankedTensorType>(submap.getType()))
+        continue;
+      AffineMap operandMap = maps[operand.getOperandNumber()];
+      if (operandMap.getNumSymbols() != 0 ||
+          operandMap.getNumResults() != submap.getMap().getNumDims())
+        continue;
+      AffineMap composed = submap.getMap().compose(operandMap);
+      if (composed.getNumResults() !=
+          cast<RankedTensorType>(submap.getBase().getType()).getRank())
+        continue;
+      work.push_back(
+          {operand.getOperandNumber(), submap, std::move(composed)});
+    }
+    if (work.empty())
+      return failure();
+
+    SmallVector<AffineMap> tentativeMaps(maps);
+    for (WorkItem &item : work)
+      tentativeMaps[item.operandNumber] = item.composedMap;
+    /* Linalg derives loop bounds by inverting the concatenated indexing maps.
+     * Merely mentioning every loop dimension is insufficient for flattened
+     * affine expressions such as d3 + 16*d0 + 4*d1: inversePermutation cannot
+     * recover an individual loop bound from those expressions. */
+    if (!inversePermutation(concatAffineMaps(tentativeMaps)))
+      return rewriter.notifyMatchFailure(
+          generic, "composed tensor submaps have no shape-to-loops map");
+    SmallVector<bool> covered(generic.getNumLoops(), false);
+    for (AffineMap map : tentativeMaps)
+      for (AffineExpr result : map.getResults())
+        result.walk([&](AffineExpr expr) {
+          if (auto dim = expr.dyn_cast<AffineDimExpr>())
+            if (dim.getPosition() < covered.size())
+              covered[dim.getPosition()] = true;
+        });
+    if (!llvm::all_of(covered, [](bool value) { return value; }))
+      return rewriter.notifyMatchFailure(
+          generic, "tensor input-submap composition loses a loop dimension");
+
+    for (WorkItem &item : work)
+      generic->setOperand(item.operandNumber, item.submap.getBase());
+    generic.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(tentativeMaps));
+    return success();
+  }
+};
+
+// Preserve a tensor submap of a flat ABI memref as a zero-copy strided memref
+// view before one-shot bufferization.  This is the tensor analogue of
+// LowerRowMajorFlatMemrefSubmap, but it deliberately accepts broadcasts and
+// non-contiguous positive affine strides: cuTENSOR/cuTensorNet consume those
+// layouts directly from descriptor metadata.  Without this bridge an opaque
+// tensor submap is first bufferized through a temporary tensor and later
+// expanded into a full materialization loop.
+struct LowerFlatTensorSubmapToMemrefView
+    : public OpRewritePattern<SubmapOp> {
+  LowerFlatTensorSubmapToMemrefView(MLIRContext *context)
+      : OpRewritePattern<SubmapOp>(context, /*benefit=*/2) {}
+
+  LogicalResult matchAndRewrite(SubmapOp submap,
+                                PatternRewriter &rewriter) const final {
+    auto resultType = dyn_cast<RankedTensorType>(submap.getType());
+    auto baseTensor =
+        submap.getBase().getDefiningOp<bufferization::ToTensorOp>();
+    auto baseType = baseTensor
+                        ? dyn_cast<MemRefType>(baseTensor.getMemref().getType())
+                        : MemRefType();
+    AffineMap map = submap.getMap();
+    /* A writable to_tensor and a second to_tensor of its reinterpret_cast
+     * are aliasing tensor roots. One-Shot Bufferize must reject that pair
+     * unless both are falsely marked restrict. Keep writable submaps in the
+     * tensor materialization/write-back path below; this zero-copy bridge is
+     * safe only for read-only ABI views. */
+    if (!resultType || !baseTensor || baseTensor.getWritable() || !baseType ||
+        baseType.getRank() != 1 ||
+        map.getNumSymbols() != 0 || map.getNumResults() != 1 ||
+        map.getNumDims() != (unsigned)resultType.getRank() ||
+        submap.getSizes().size() != (unsigned)resultType.getRank())
+      return failure();
+
+    SmallVector<int64_t> strides(map.getNumDims(), 0);
+    int64_t offset = 0;
+    if (!accumulateLinearDimCoefficients(map.getResult(0), strides, offset) ||
+        offset < 0 ||
+        llvm::any_of(strides, [](int64_t stride) { return stride <= 0; }))
+      return failure();
+
+    auto layout = StridedLayoutAttr::get(getContext(), offset, strides);
+    auto viewType = MemRefType::get(
+        resultType.getShape(), resultType.getElementType(), layout,
+        baseType.getMemorySpace());
+    SmallVector<OpFoldResult> sizes;
+    sizes.reserve(submap.getSizes().size());
+    for (Value size : submap.getSizes())
+      sizes.push_back(size);
+    SmallVector<OpFoldResult> mixedStrides;
+    mixedStrides.reserve(strides.size());
+    for (int64_t stride : strides)
+      mixedStrides.push_back(rewriter.getIndexAttr(stride));
+    auto view = rewriter.create<memref::ReinterpretCastOp>(
+        submap.getLoc(), viewType, baseTensor.getMemref(),
+        rewriter.getIndexAttr(offset), sizes, mixedStrides);
+    auto tensor = rewriter.create<bufferization::ToTensorOp>(
+        submap.getLoc(), resultType, view.getResult(),
+        /*restrict=*/false, /*writable=*/baseTensor.getWritable());
+    rewriter.replaceOp(submap, tensor.getResult());
     return success();
   }
 };
@@ -930,7 +1281,11 @@ struct LowerSymbolBearingSubmapToExtractSlice
         rewriter.replaceOp(submap, submap.getBase());
         return success();
       }
-      return failure();
+      // A same-rank identity/projection may still narrow a static scratch
+      // tensor or merely relax its type to dynamic dimensions.  Let the
+      // general extract_slice construction below lower that ordinary view.
+      // Returning here used to strand such submaps after matching, where
+      // upstream mlir-opt cannot parse the Polygeist dialect.
     }
 
     Location loc = submap.getLoc();
@@ -1155,6 +1510,26 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         inv.getOperands().slice(m.getNumSymbols() + 2, numViewDims);
     auto staticSizes = getStaticSizeOperands(sizes);
 
+    // A fully reduced Linalg result is a rank-0 tensor.  Its normalized
+    // submap has no view dimensions and a constant/symbolic base coordinate;
+    // materialize that single scalar write directly.
+    if (viewTy.getRank() == 0 && numViewDims == 0) {
+      Value element = rewriter.create<tensor::ExtractOp>(loc, view,
+                                                         ValueRange{});
+      SmallVector<Value> baseIndices;
+      baseIndices.reserve(m.getNumResults());
+      for (AffineExpr resultExpr : m.getResults()) {
+        AffineMap resultMap = AffineMap::get(
+            0, m.getNumSymbols(), resultExpr, rewriter.getContext());
+        baseIndices.push_back(rewriter.create<affine::AffineApplyOp>(
+            loc, resultMap, symbols));
+      }
+      Value updated = rewriter.create<tensor::InsertOp>(
+          loc, element, base, baseIndices);
+      rewriter.replaceOp(inv, updated);
+      return success();
+    }
+
     if (baseTy.getRank() == 1 && viewTy.getRank() == (int64_t)numViewDims) {
       if (staticSizes && isRowMajorLinearizedMap(m, *staticSizes) &&
           !baseTy.isDynamicDim(0) &&
@@ -1230,14 +1605,52 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     // tensor into indexed stores, so this is a correctness fallback rather
     // than a new runtime abstraction.
     auto lowerElementwiseAffineWriteback = [&]() -> LogicalResult {
-      if (viewTy.getRank() != (int64_t)numViewDims ||
-          sizes.size() != numViewDims)
+      if (sizes.size() != numViewDims)
         return failure();
       if (!staticSizes)
         return rewriter.notifyMatchFailure(
             inv, "affine write-back injectivity is unknown for dynamic sizes");
+
+      // A reduction result is compact: its tensor rank contains only affine
+      // map dimensions that reach the physical base.  Recover that ordered
+      // subset so, for example, a rank-4 result of a five-loop contraction
+      // can still be scattered through (d0,d1,d2,d3,d4)->(d0,d3,d1,d2).
+      SmallVector<bool> mapDimUsed(numViewDims, false);
+      for (AffineExpr result : m.getResults())
+        result.walk([&](AffineExpr expr) {
+          if (auto dim = expr.dyn_cast<AffineDimExpr>())
+            if (dim.getPosition() < numViewDims)
+              mapDimUsed[dim.getPosition()] = true;
+        });
+      SmallVector<unsigned> sourceToMapDim;
+      if (viewTy.getRank() == (int64_t)numViewDims) {
+        for (unsigned dim = 0; dim < numViewDims; ++dim)
+          sourceToMapDim.push_back(dim);
+      } else {
+        for (unsigned dim = 0; dim < numViewDims; ++dim)
+          if (mapDimUsed[dim])
+            sourceToMapDim.push_back(dim);
+        if (sourceToMapDim.size() != (unsigned)viewTy.getRank())
+          return rewriter.notifyMatchFailure(
+              inv, "compact affine write-back rank is not recoverable");
+      }
+
+      SmallVector<AffineExpr> compactReplacements(
+          numViewDims, getAffineConstantExpr(0, rewriter.getContext()));
+      SmallVector<int64_t> compactSizes;
+      for (auto [sourceDim, mapDim] : llvm::enumerate(sourceToMapDim)) {
+        compactReplacements[mapDim] =
+            getAffineDimExpr(sourceDim, rewriter.getContext());
+        compactSizes.push_back((*staticSizes)[mapDim]);
+      }
+      SmallVector<AffineExpr> compactResults;
+      for (AffineExpr result : m.getResults())
+        compactResults.push_back(
+            result.replaceDimsAndSymbols(compactReplacements, {}));
+      AffineMap compactMap = AffineMap::get(
+          sourceToMapDim.size(), 0, compactResults, rewriter.getContext());
       std::optional<bool> isInjective =
-          isInjectiveOnStaticDomain(m, *staticSizes);
+          isInjectiveOnStaticDomain(compactMap, compactSizes);
       if (!isInjective || !*isInjective)
         return rewriter.notifyMatchFailure(
             inv, "affine write-back map is not proven injective");
@@ -1249,7 +1662,11 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       auto emitLoopNest = [&](auto &&self, unsigned depth,
                               Value destination) -> Value {
         auto loop = rewriter.create<scf::ForOp>(
-            loc, zero, sizes[depth], one, ValueRange{destination});
+            loc, zero, sizes[sourceToMapDim[depth]], one,
+            ValueRange{destination});
+        if (depth == 0)
+          loop->setAttr("polygeist.injective_writeback",
+                        rewriter.getUnitAttr());
         if (!loop.getBody()->empty())
           rewriter.eraseOp(loop.getBody()->getTerminator());
 
@@ -1263,8 +1680,9 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         } else {
           Value element = rewriter.create<tensor::ExtractOp>(
               loc, view, inductionVars);
-          SmallVector<Value> mapOperands(inductionVars.begin(),
-                                         inductionVars.end());
+          SmallVector<Value> mapOperands(numViewDims, zero);
+          for (auto [sourceDim, mapDim] : llvm::enumerate(sourceToMapDim))
+            mapOperands[mapDim] = inductionVars[sourceDim];
           mapOperands.append(symbols.begin(), symbols.end());
           SmallVector<Value> baseIndices;
           baseIndices.reserve(m.getNumResults());
@@ -1284,7 +1702,7 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         return loop.getResult(0);
       };
 
-      if (numViewDims == 0)
+      if (sourceToMapDim.empty())
         return failure();
       Value result = emitLoopNest(emitLoopNest, 0, base);
       rewriter.replaceOp(inv, result);
@@ -1416,7 +1834,10 @@ struct LowerPolygeistSubmapPass
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.add<FoldIdentitySubmapInverse,
+                 NormalizeTensorReductionOutputSubmap,
                  ComposeAffineSubmapIntoLinalgGeneric,
+                 ComposeTensorInputSubmapIntoLinalgGeneric,
+                 LowerFlatTensorSubmapToMemrefView,
                  ComposeSubmapIntoLinalgGeneric,
                  LowerRowMajorFlatMemrefSubmap,
                  LowerSymbolBearingSubmapToSubview,

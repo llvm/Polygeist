@@ -30,6 +30,7 @@
 
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#include <cuda.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
 #if !defined(POLYGEIST_DISABLE_CUFFT) && defined(__has_include)
@@ -62,6 +63,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327950288
@@ -80,6 +82,50 @@ static void *polygeist_cub_companion_symbol(const char *symbol);
 static cublasLtHandle_t g_lt = NULL;
 static cudnnHandle_t    g_cudnn = NULL;
 static cudaStream_t     g_stream;
+
+// Standard MLIR gpu.launch_func lowering calls the mgpu* ABI. Keep loaded
+// cubins/functions alive and return the same stream used by the library shims,
+// allowing generated kernels and library operations to coexist in one CUDA
+// Graph capture. The first (warmup) execution populates these caches; capture
+// and replay perform no module-management work.
+#define POLYGEIST_GENERATED_MODULE_CAP 32
+#define POLYGEIST_GENERATED_FUNCTION_CAP 128
+typedef struct {
+  const void *image;
+  CUmodule module;
+} PolygeistGeneratedModule;
+typedef struct {
+  CUmodule module;
+  char name[128];
+  CUfunction function;
+} PolygeistGeneratedFunction;
+static PolygeistGeneratedModule
+    g_generated_modules[POLYGEIST_GENERATED_MODULE_CAP];
+static size_t g_generated_module_count;
+static PolygeistGeneratedFunction
+    g_generated_functions[POLYGEIST_GENERATED_FUNCTION_CAP];
+static size_t g_generated_function_count;
+// Resolve the small CUDA Driver API surface lazily. Existing Polygeist
+// executables link cudart rather than libcuda directly; using the driver DSO
+// this way keeps that link contract unchanged while still supporting cubins
+// emitted by MLIR's GPU lowering.
+typedef CUresult(CUDAAPI *PolygeistCuModuleLoadDataFn)(CUmodule *, const void *);
+typedef CUresult(CUDAAPI *PolygeistCuModuleUnloadFn)(CUmodule);
+typedef CUresult(CUDAAPI *PolygeistCuModuleGetFunctionFn)(CUfunction *, CUmodule,
+                                                          const char *);
+typedef CUresult(CUDAAPI *PolygeistCuGetErrorStringFn)(CUresult, const char **);
+typedef CUresult(CUDAAPI *PolygeistCuLaunchKernelFn)(
+    CUfunction, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned,
+    unsigned, CUstream, void **, void **);
+typedef CUresult(CUDAAPI *PolygeistCuFuncGetParamInfoFn)(
+    CUfunction, size_t, size_t *, size_t *);
+static void *g_cuda_driver_dso;
+static PolygeistCuModuleLoadDataFn g_cu_module_load_data;
+static PolygeistCuModuleUnloadFn g_cu_module_unload;
+static PolygeistCuModuleGetFunctionFn g_cu_module_get_function;
+static PolygeistCuLaunchKernelFn g_cu_launch_kernel;
+static PolygeistCuFuncGetParamInfoFn g_cu_func_get_param_info;
+static PolygeistCuGetErrorStringFn g_cu_get_error_string;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
@@ -148,6 +194,45 @@ static void destroy_cutensornet_contraction_cache(void);
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+#define CUDA_DRIVER_CHECK(call) do {                                         \
+    CUresult s = (call);                                                      \
+    if (s != CUDA_SUCCESS) {                                                  \
+      const char *message = NULL;                                             \
+      if (g_cu_get_error_string)                                              \
+        g_cu_get_error_string(s, &message);                                   \
+      fprintf(stderr, "%s:%d CUDA driver error %d: %s\n", __FILE__,       \
+              __LINE__, (int)s, message ? message : "unknown");              \
+      abort();                                                                \
+    }                                                                         \
+  } while (0)
+
+static void initialize_generated_driver_api(void) {
+  if (g_cuda_driver_dso)
+    return;
+  g_cuda_driver_dso = dlopen("libcuda.so.1", RTLD_NOW | RTLD_LOCAL);
+  if (!g_cuda_driver_dso) {
+    fprintf(stderr, "polygeist runtime: unable to load libcuda.so.1: %s\n",
+            dlerror());
+    abort();
+  }
+#define LOAD_CUDA_DRIVER_SYMBOL(field, symbol)                               \
+  do {                                                                       \
+    *(void **)(&(field)) = dlsym(g_cuda_driver_dso, symbol);                 \
+    if (!(field)) {                                                          \
+      fprintf(stderr, "polygeist runtime: missing CUDA driver symbol %s\n", \
+              symbol);                                                       \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_module_load_data, "cuModuleLoadData");
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_module_unload, "cuModuleUnload");
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_module_get_function, "cuModuleGetFunction");
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_launch_kernel, "cuLaunchKernel");
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_func_get_param_info, "cuFuncGetParamInfo");
+  LOAD_CUDA_DRIVER_SYMBOL(g_cu_get_error_string, "cuGetErrorString");
+#undef LOAD_CUDA_DRIVER_SYMBOL
+}
 
 #define CUBLAS_CHECK(call) do {                                              \
     cublasStatus_t s = (call);                                               \
@@ -240,6 +325,26 @@ static void destroy_cuda_graph_cache(void) {
   g_cuda_graph_count = 0;
   g_cuda_graph_cap = 0;
   g_active_cuda_graph = NULL;
+}
+
+static void destroy_generated_module_cache(void) {
+  g_generated_function_count = 0;
+  memset(g_generated_functions, 0, sizeof(g_generated_functions));
+  for (size_t i = 0; i < g_generated_module_count; ++i)
+    if (g_generated_modules[i].module)
+      CUDA_DRIVER_CHECK(g_cu_module_unload(g_generated_modules[i].module));
+  g_generated_module_count = 0;
+  memset(g_generated_modules, 0, sizeof(g_generated_modules));
+  if (g_cuda_driver_dso) {
+    dlclose(g_cuda_driver_dso);
+    g_cuda_driver_dso = NULL;
+    g_cu_module_load_data = NULL;
+    g_cu_module_unload = NULL;
+    g_cu_module_get_function = NULL;
+    g_cu_launch_kernel = NULL;
+    g_cu_func_get_param_info = NULL;
+    g_cu_get_error_string = NULL;
+  }
 }
 
 static void reserve_device_temp_entries(size_t need) {
@@ -548,22 +653,46 @@ static void *hostreg_cache_lookup(void *ptr, size_t bytes) {
   return NULL;
 }
 
-static void hostreg_cache_remove_overlaps(void *ptr, size_t bytes) {
-  for (int i = 0; i < g_hostreg_count;) {
-    struct hostreg_entry *e = &g_hostreg_cache[i];
-    if (!ranges_overlap(e->host, e->bytes, ptr, bytes)) {
-      ++i;
-      continue;
+// Fold every existing page registration overlapping [*begin, *end) into one
+// union and remove the old CUDA registrations.  This is needed for separately
+// allocated objects that share an allocator page: retaining only the newest
+// requested range would make the two objects unregister one another on every
+// invocation, invalidating pointers baked into a captured CUDA Graph.
+static void hostreg_cache_merge_overlaps(uintptr_t *begin, uintptr_t *end) {
+  bool changed;
+  do {
+    changed = false;
+    for (int i = 0; i < g_hostreg_count;) {
+      struct hostreg_entry *e = &g_hostreg_cache[i];
+      uintptr_t e_begin = (uintptr_t)e->host;
+      uintptr_t e_end = e_begin + e->bytes;
+      if (!ranges_overlap(e->host, e->bytes, (void *)*begin, *end - *begin)) {
+        ++i;
+        continue;
+      }
+      /* Replacing an overlapping registration invalidates every device
+       * pointer derived from it.  A previous library call may still be using
+       * such a pointer while a pipeline scope deliberately keeps the stream
+       * asynchronous, so finish that work before changing the mapping. */
+      CUDA_CHECK(cudaStreamSynchronize(g_stream));
+      if (e_begin < *begin) {
+        *begin = e_begin;
+        changed = true;
+      }
+      if (e_end > *end) {
+        *end = e_end;
+        changed = true;
+      }
+      cudaError_t err = cudaHostUnregister(e->host);
+      if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
+        fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
+                __FILE__, __LINE__, e->host, cudaGetErrorString(err));
+        abort();
+      }
+      g_hostreg_cache[i] = g_hostreg_cache[g_hostreg_count - 1];
+      g_hostreg_count--;
     }
-    cudaError_t err = cudaHostUnregister(e->host);
-    if (err != cudaSuccess && err != cudaErrorHostMemoryNotRegistered) {
-      fprintf(stderr, "%s:%d cudaHostUnregister(%p) failed: %s\n",
-              __FILE__, __LINE__, e->host, cudaGetErrorString(err));
-      abort();
-    }
-    g_hostreg_cache[i] = g_hostreg_cache[g_hostreg_count - 1];
-    g_hostreg_count--;
-  }
+  } while (changed);
 }
 
 static void hostreg_cache_insert(void *host, void *dev, size_t bytes) {
@@ -619,22 +748,90 @@ static int pointer_is_device_resident(void *ptr, void **device_ptr) {
 }
 
 static void *register_host_safe(void *ptr, size_t bytes) {
-  void *cached = hostreg_cache_lookup(ptr, bytes);
-  if (cached) return cached;
   void *device_ptr = NULL;
   if (pointer_is_device_resident(ptr, &device_ptr))
     return device_ptr;
-  hostreg_cache_remove_overlaps(ptr, bytes);
-  cudaError_t err = cudaHostRegister(ptr, bytes, cudaHostRegisterMapped);
+
+  // Cache and register whole pages. Compiler-created persistent workspaces are
+  // page-aligned, so distinct buffers never force us to replace a live mapping
+  // merely because their linker allocations happen to share a page.
+  long page_size_value = sysconf(_SC_PAGESIZE);
+  size_t page_size = page_size_value > 0 ? (size_t)page_size_value : 4096;
+  uintptr_t requested_begin = (uintptr_t)ptr;
+  uintptr_t requested_end = requested_begin + bytes;
+  uintptr_t register_begin = requested_begin - requested_begin % page_size;
+  uintptr_t register_end =
+      ((requested_end + page_size - 1) / page_size) * page_size;
+  void *register_ptr = (void *)register_begin;
+  size_t register_bytes = register_end - register_begin;
+
+  void *cached = hostreg_cache_lookup(register_ptr, register_bytes);
+  if (cached)
+    return (void *)((uintptr_t)cached + requested_begin - register_begin);
+
+  hostreg_cache_merge_overlaps(&register_begin, &register_end);
+  register_ptr = (void *)register_begin;
+  register_bytes = register_end - register_begin;
+
+  if (getenv("POLYGEIST_HOSTREG_DIAGNOSTICS") ||
+      (g_active_cuda_graph &&
+       g_active_cuda_graph->state == CUDA_GRAPH_CAPTURE)) {
+    fprintf(stderr,
+            "polygeist hostreg miss requested=%p/%zu page=%p/%zu graph=%lld "
+            "state=%d cache=%d\n",
+            ptr, bytes, register_ptr, register_bytes,
+            g_active_cuda_graph ? (long long)g_active_cuda_graph->id : -1LL,
+            g_active_cuda_graph ? (int)g_active_cuda_graph->state : -1,
+            g_hostreg_count);
+  }
+
+  cudaError_t err =
+      cudaHostRegister(register_ptr, register_bytes, cudaHostRegisterMapped);
   if (err != cudaSuccess && err != cudaErrorHostMemoryAlreadyRegistered) {
     fprintf(stderr, "%s:%d cudaHostRegister(%p, %zu) failed: %s\n",
-            __FILE__, __LINE__, ptr, bytes, cudaGetErrorString(err));
+            __FILE__, __LINE__, register_ptr, register_bytes,
+            cudaGetErrorString(err));
     abort();
   }
   void *dev = NULL;
-  CUDA_CHECK(cudaHostGetDevicePointer(&dev, ptr, 0));
-  hostreg_cache_insert(ptr, dev, bytes);
-  return dev;
+  CUDA_CHECK(cudaHostGetDevicePointer(&dev, register_ptr, 0));
+  hostreg_cache_insert(register_ptr, dev, register_bytes);
+  return (void *)((uintptr_t)dev + requested_begin - register_begin);
+}
+
+/* Register a complete library call's operands before returning any mapped
+ * device pointers.  Registering a later operand can merge overlapping
+ * allocator pages and replace an earlier registration; looking every pointer
+ * up only after all registrations are stable prevents returning a stale
+ * pointer for A or B. */
+static void register_host_operands_safe(void *const *host_ptrs,
+                                        const size_t *byte_sizes,
+                                        void **device_ptrs, size_t count) {
+  unsigned char needs_host_mapping[8] = {0};
+  if (count > sizeof(needs_host_mapping)) {
+    fprintf(stderr, "polygeist runtime: too many host operands\n");
+    abort();
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (!host_ptrs[i] || byte_sizes[i] == 0) {
+      device_ptrs[i] = host_ptrs[i];
+      continue;
+    }
+    if (pointer_is_device_resident(host_ptrs[i], &device_ptrs[i]))
+      continue;
+    needs_host_mapping[i] = 1;
+    (void)register_host_safe(host_ptrs[i], byte_sizes[i]);
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (!needs_host_mapping[i])
+      continue;
+    device_ptrs[i] = hostreg_cache_lookup(host_ptrs[i], byte_sizes[i]);
+    if (!device_ptrs[i]) {
+      fprintf(stderr,
+              "polygeist runtime: host operand mapping disappeared\n");
+      abort();
+    }
+  }
 }
 
 // Persistent-registration model: never unregister. Mappings live until
@@ -838,6 +1035,7 @@ void polygeist_cublas_destroy(void) {
   if (!g_initialized) return;
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
   destroy_cuda_graph_cache();
+  destroy_generated_module_cache();
 #if POLYGEIST_HAS_CUTENSORNET
   destroy_cutensornet_contraction_cache();
 #endif
@@ -937,6 +1135,195 @@ void polygeist_cuda_graph_end(int64_t graph_id) {
   }
   g_active_cuda_graph = NULL;
 }
+
+void *polygeist_cuda_graph_stream(void) {
+  polygeist_cublas_init();
+  return (void *)g_stream;
+}
+
+// Capture-safe implementation of the runtime ABI produced by MLIR's
+// --convert-gpu-to-llvm lowering. Unlike the stock wrappers, these functions
+// reuse Polygeist's stream, cache cubin/function handles after warmup, and do
+// not unload modules between launches. That makes a synchronous
+// gpu.launch_func behave asynchronously inside a compiler-created pipeline or
+// CUDA Graph scope, with the single synchronization retained at scope end.
+void *mgpuModuleLoad(void *data, size_t data_size) {
+  (void)data_size;
+  polygeist_cublas_init();
+  initialize_generated_driver_api();
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated module load image=%p\n", data);
+  for (size_t i = 0; i < g_generated_module_count; ++i)
+    if (g_generated_modules[i].image == data)
+      return (void *)g_generated_modules[i].module;
+  if (g_generated_module_count == POLYGEIST_GENERATED_MODULE_CAP) {
+    fprintf(stderr, "polygeist runtime: generated module cache exhausted\n");
+    abort();
+  }
+  CUmodule module = NULL;
+  CUDA_DRIVER_CHECK(g_cu_module_load_data(&module, data));
+  g_generated_modules[g_generated_module_count].image = data;
+  g_generated_modules[g_generated_module_count].module = module;
+  g_generated_module_count++;
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated module loaded module=%p\n",
+            (void *)module);
+  return (void *)module;
+}
+
+void *mgpuModuleLoadJIT(void *data, int32_t optimization_level) {
+  (void)optimization_level;
+  // PTX images selected by gpu-module-to-binary=format=isa are JIT-compiled
+  // by cuModuleLoadData as well. Reuse the same persistent image/module cache
+  // so graph replay never reloads or recompiles a generated kernel module.
+  return mgpuModuleLoad(data, 0);
+}
+
+void mgpuModuleUnload(void *module) { (void)module; }
+
+void *mgpuModuleGetFunction(void *raw_module, const char *name) {
+  initialize_generated_driver_api();
+  CUmodule module = (CUmodule)raw_module;
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated function module=%p name=%s\n",
+            raw_module, name);
+  for (size_t i = 0; i < g_generated_function_count; ++i)
+    if (g_generated_functions[i].module == module &&
+        strcmp(g_generated_functions[i].name, name) == 0)
+      return (void *)g_generated_functions[i].function;
+  if (g_generated_function_count == POLYGEIST_GENERATED_FUNCTION_CAP) {
+    fprintf(stderr, "polygeist runtime: generated function cache exhausted\n");
+    abort();
+  }
+  PolygeistGeneratedFunction *entry =
+      &g_generated_functions[g_generated_function_count++];
+  entry->module = module;
+  if (strlen(name) >= sizeof(entry->name)) {
+    fprintf(stderr, "polygeist runtime: generated kernel name is too long\n");
+    abort();
+  }
+  strcpy(entry->name, name);
+  CUDA_DRIVER_CHECK(g_cu_module_get_function(&entry->function, module, name));
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated function loaded function=%p\n",
+            (void *)entry->function);
+  return (void *)entry->function;
+}
+
+void mgpuLaunchKernel(void *raw_function, intptr_t grid_x, intptr_t grid_y,
+                      intptr_t grid_z, intptr_t block_x, intptr_t block_y,
+                      intptr_t block_z, int32_t shared_memory_bytes,
+                      void *raw_stream, void **params, void **extra,
+                      size_t params_count) {
+  initialize_generated_driver_api();
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr,
+            "polygeist generated launch function=%p grid=%ld,%ld,%ld "
+            "block=%ld,%ld,%ld params=%zu\n",
+            raw_function, (long)grid_x, (long)grid_y, (long)grid_z,
+            (long)block_x, (long)block_y, (long)block_z, params_count);
+  // GPU lowering passes flattened memref descriptors as scalar kernel
+  // parameters. Their allocated/aligned pointer fields still contain host
+  // virtual addresses. On discrete-address Tegra configurations,
+  // cudaHostGetDevicePointer returns a different GPU VA; rewrite only values
+  // that fall inside a registered host range. Integer/float descriptor fields
+  // are left untouched. The rewritten values are what CUDA records while a
+  // graph is captured.
+  // `params_count` is the number of logical gpu.launch_func operands. MLIR
+  // may promote one memref operand into allocated/aligned pointers plus
+  // offset, sizes, and strides, so it is not the number of CUDA parameters.
+  // Ask the driver for the actual flattened parameter list instead.
+  size_t actual_params_count = 0;
+  for (; actual_params_count < 256; ++actual_params_count) {
+    size_t parameter_offset = 0;
+    size_t parameter_size = 0;
+    CUresult info_status = g_cu_func_get_param_info(
+        (CUfunction)raw_function, actual_params_count, &parameter_offset,
+        &parameter_size);
+    if (info_status == CUDA_ERROR_INVALID_VALUE)
+      break;
+    CUDA_DRIVER_CHECK(info_status);
+    if (!params[actual_params_count])
+      continue;
+    (void)parameter_offset;
+    for (size_t byte = 0; byte + sizeof(uintptr_t) <= parameter_size;
+         byte += sizeof(uintptr_t)) {
+      uintptr_t candidate = 0;
+      memcpy(&candidate, (char *)params[actual_params_count] + byte,
+             sizeof(candidate));
+      void *mapped = hostreg_cache_lookup((void *)candidate, 1);
+      if (mapped && (uintptr_t)mapped != candidate) {
+        uintptr_t mapped_value = (uintptr_t)mapped;
+        memcpy((char *)params[actual_params_count] + byte, &mapped_value,
+               sizeof(mapped_value));
+      }
+    }
+  }
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated launch actual_params=%zu "
+                    "logical_params=%zu\n",
+            actual_params_count, params_count);
+  CUstream stream = raw_stream ? (CUstream)raw_stream : (CUstream)g_stream;
+  CUDA_DRIVER_CHECK(g_cu_launch_kernel(
+      (CUfunction)raw_function, (unsigned)grid_x, (unsigned)grid_y,
+      (unsigned)grid_z, (unsigned)block_x, (unsigned)block_y,
+      (unsigned)block_z, (unsigned)shared_memory_bytes, stream, params,
+      extra));
+  if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
+    fprintf(stderr, "polygeist generated launch enqueued\n");
+}
+
+void *mgpuStreamCreate(void) {
+  return polygeist_cuda_graph_stream();
+}
+
+// ABI used by MLIR's gpu.host_register lowering. `descriptor` points to the
+// ranked descriptor nested in an unranked memref: allocated pointer, aligned
+// pointer, offset, sizes[rank], strides[rank]. Generated residual kernels use
+// CUDA unified virtual addressing after registration. On Tegra the mapped
+// device address must equal the host virtual address; diagnose explicitly if
+// a future target requires descriptor pointer rewriting instead.
+void mgpuMemHostRegisterMemRef(intptr_t rank, void *descriptor,
+                               intptr_t element_size_bytes) {
+  if (!descriptor || rank < 0 || element_size_bytes <= 0)
+    return;
+  void **pointers = (void **)descriptor;
+  void *aligned = pointers[1];
+  intptr_t *metadata = (intptr_t *)(pointers + 2);
+  intptr_t offset = metadata[0];
+  intptr_t *sizes = metadata + 1;
+  intptr_t *strides = sizes + rank;
+  intptr_t max_element = offset;
+  for (intptr_t i = 0; i < rank; ++i) {
+    if (sizes[i] <= 0)
+      return;
+    if (strides[i] < 0) {
+      fprintf(stderr,
+              "polygeist runtime: negative-stride host registration is "
+              "unsupported\n");
+      abort();
+    }
+    max_element += (sizes[i] - 1) * strides[i];
+  }
+  char *begin = (char *)aligned;
+  size_t bytes = (size_t)(max_element + 1) * (size_t)element_size_bytes;
+  (void)register_host_safe(begin, bytes);
+}
+
+void mgpuMemHostUnregisterMemRef(intptr_t rank, void *descriptor,
+                                 intptr_t element_size_bytes) {
+  (void)rank;
+  (void)descriptor;
+  (void)element_size_bytes;
+  // Persistent registration is required by CUDA Graph replay.
+}
+
+void mgpuStreamSynchronize(void *stream) {
+  (void)stream;
+  sync_stream_if_outside_pipeline();
+}
+
+void mgpuStreamDestroy(void *stream) { (void)stream; }
 
 void polygeist_cublas_dgemm(
     int32_t M, int32_t N, int32_t K,
@@ -2132,6 +2519,31 @@ static void adaptive_pool_host_f32(
     }
 }
 
+// Shape-keyed cache of finalized cuDNN pooling execution plans plus their
+// device staging buffers. Building the backend operation graph (heuristic
+// query + plan finalize) costs milliseconds; without a cache every call
+// rebuilt and freed it, dominating a bandwidth-bound pool and leaving us ~15x
+// off PyTorch (which builds once and reuses). Forward ops (avg/max) are
+// cacheable; backward/index paths are not.
+#define POOL_PLAN_CACHE_N 32
+typedef struct {
+  int used;
+  int32_t key[10];
+  cudnnBackendDescriptor_t plan;
+  void *d_x, *d_y, *workspace;
+  size_t input_bytes, output_bytes;
+} PoolPlanCacheEntry;
+static PoolPlanCacheEntry g_pool_plan_cache[POOL_PLAN_CACHE_N];
+static int g_pool_plan_cache_count;
+
+static PoolPlanCacheEntry *pool_plan_cache_find(const int32_t key[10]) {
+  for (int i = 0; i < g_pool_plan_cache_count; ++i)
+    if (g_pool_plan_cache[i].used &&
+        memcmp(g_pool_plan_cache[i].key, key, 10 * sizeof(int32_t)) == 0)
+      return &g_pool_plan_cache[i];
+  return NULL;
+}
+
 static int adaptive_resample_backend_f32(
     int32_t operation, int32_t rank, int32_t N, int32_t C,
     int32_t I0, int32_t I1, int32_t I2,
@@ -2169,18 +2581,33 @@ static int adaptive_resample_backend_f32(
 
   const int64_t uid_x = 701, uid_y = 702, uid_idx = 703;
   const int64_t uid_x_ref = 704, uid_y_ref = 705;
-  if (!make_f32_backend_tensor(&x_desc, uid_x, in_dims, in_strides,
-                               tensor_rank, false, "adaptive.x", &status) ||
-      !make_f32_backend_tensor(&y_desc, uid_y, out_dims, out_strides,
-                               tensor_rank, false, "adaptive.y", &status))
-    goto cleanup;
-  bool is_max = operation == 2 || operation == 3;
   // cuDNN's max-pooling index tensor is a packed INT8 implementation detail,
   // not ATen's int32 absolute spatial index.  Do not expose it through this
   // ABI.  Forward values still use cuDNN; ATen indices are reconstructed
   // exactly after execution.  Max backward is handled by the semantic
   // fallback because its input indices use ATen's public representation.
+  bool is_max = operation == 2 || operation == 3;
+  bool backward = operation == 1 || operation == 3 || operation == 5;
   bool use_cudnn_index = false;
+  // Forward plans are shape-stable and reusable; backward/index are not.
+  int cacheable = !backward && !use_cudnn_index;
+  int from_cache = 0;
+  int32_t cache_key[10] = {operation, rank, N, C, I0, I1, I2, O0, O1, O2};
+  PoolPlanCacheEntry *cache_hit =
+      cacheable ? pool_plan_cache_find(cache_key) : NULL;
+  if (cache_hit) {
+    plan = cache_hit->plan;
+    d_x = cache_hit->d_x;
+    d_y = cache_hit->d_y;
+    workspace = cache_hit->workspace;
+    from_cache = 1;
+  }
+  if (!from_cache) {
+  if (!make_f32_backend_tensor(&x_desc, uid_x, in_dims, in_strides,
+                               tensor_rank, false, "adaptive.x", &status) ||
+      !make_f32_backend_tensor(&y_desc, uid_y, out_dims, out_strides,
+                               tensor_rank, false, "adaptive.y", &status))
+    goto cleanup;
   if (use_cudnn_index &&
       !make_i32_backend_tensor(&idx_desc, uid_idx, out_dims, out_strides,
                                tensor_rank, "adaptive.idx", &status))
@@ -2258,7 +2685,6 @@ static int adaptive_resample_backend_f32(
       !finalize_backend_desc(resample, "adaptive.resample", &status))
     goto cleanup;
 
-  bool backward = operation == 1 || operation == 3 || operation == 5;
   status = cudnnBackendCreateDescriptor(
       backward ? CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR
                : CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR,
@@ -2392,6 +2818,22 @@ static int adaptive_resample_backend_f32(
   if (use_cudnn_index)
     DEVICE_MALLOC(&d_idx, output_count * sizeof(int32_t));
   if (workspace_size) DEVICE_MALLOC(&workspace, (size_t)workspace_size);
+  // Plan + device staging buffers are valid now; hand them to the cache so
+  // subsequent same-shape calls skip the whole build. from_cache=1 tells the
+  // cleanup path these are owned by the cache and must not be freed.
+  if (cacheable && g_pool_plan_cache_count < POOL_PLAN_CACHE_N) {
+    PoolPlanCacheEntry *e = &g_pool_plan_cache[g_pool_plan_cache_count++];
+    e->used = 1;
+    memcpy(e->key, cache_key, sizeof cache_key);
+    e->plan = plan;
+    e->d_x = d_x;
+    e->d_y = d_y;
+    e->workspace = workspace;
+    e->input_bytes = input_bytes;
+    e->output_bytes = output_bytes;
+    from_cache = 1;
+  }
+  }  // end if(!from_cache): built plan + buffers (or reused a cached entry)
   if (!backward) {
     CUDA_CHECK(cudaMemcpyAsync(d_x, ptr0, input_bytes,
                                cudaMemcpyHostToDevice, g_stream));
@@ -2453,13 +2895,20 @@ static int adaptive_resample_backend_f32(
   ok = 1;
 
 cleanup:
-  if (workspace) DEVICE_FREE(workspace);
+  // Cached plan + d_x/d_y/workspace are owned by the cache; only free the
+  // per-call variant pack and the build-time intermediate descriptors.
+  if (!from_cache) {
+    if (workspace) DEVICE_FREE(workspace);
+  }
   if (d_y_ref) DEVICE_FREE(d_y_ref);
   if (d_x_ref) DEVICE_FREE(d_x_ref);
   if (d_idx) DEVICE_FREE(d_idx);
-  if (d_y) DEVICE_FREE(d_y);
-  if (d_x) DEVICE_FREE(d_x);
-  destroy_backend_desc(&variant); destroy_backend_desc(&plan);
+  if (!from_cache) {
+    if (d_y) DEVICE_FREE(d_y);
+    if (d_x) DEVICE_FREE(d_x);
+  }
+  destroy_backend_desc(&variant);
+  if (!from_cache) destroy_backend_desc(&plan);
   destroy_backend_desc(&config); destroy_backend_desc(&heur);
   destroy_backend_desc(&graph); destroy_backend_desc(&op_desc);
   destroy_backend_desc(&resample); destroy_backend_desc(&idx_desc);
@@ -3241,6 +3690,14 @@ static void make_contraction_key(
 }
 
 static void ensure_cutensornet_handle(void) {
+  if (!g_cutensornet_handle &&
+      getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS")) {
+    cudaError_t pending = cudaStreamSynchronize(g_stream);
+    fprintf(stderr, "polygeist pre-cuTensorNet stream status: %s\n",
+            cudaGetErrorString(pending));
+    if (pending != cudaSuccess)
+      abort();
+  }
   if (!g_cutensornet_handle)
     CUTENSORNET_CHECK(cutensornetCreate(&g_cutensornet_handle));
 }
@@ -3558,18 +4015,20 @@ static void polygeist_cutensornet_contraction2_f64_impl(
       elements[tensor] +=
           (size_t)(extents[tensor][dim] - 1) *
           (size_t)strides[tensor][dim];
-  double *dA = device_pointers
-                    ? (double *)A
-                    : (double *)register_host_safe(
-                          (void *)A, elements[0] * sizeof(double));
-  double *dB = device_pointers
-                    ? (double *)B
-                    : (double *)register_host_safe(
-                          (void *)B, elements[1] * sizeof(double));
-  double *dC = device_pointers
-                    ? C
-                    : (double *)register_host_safe(
-                          (void *)C, elements[2] * sizeof(double));
+  double *dA = (double *)A;
+  double *dB = (double *)B;
+  double *dC = C;
+  if (!device_pointers) {
+    void *host_ptrs[3] = {(void *)A, (void *)B, C};
+    size_t byte_sizes[3] = {elements[0] * sizeof(double),
+                            elements[1] * sizeof(double),
+                            elements[2] * sizeof(double)};
+    void *device_ptrs[3] = {NULL, NULL, NULL};
+    register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 3);
+    dA = (double *)device_ptrs[0];
+    dB = (double *)device_ptrs[1];
+    dC = (double *)device_ptrs[2];
+  }
 
   PolygeistContractionKey key;
   make_contraction_key(&key, ranks, extents, strides, modes);

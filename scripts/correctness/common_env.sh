@@ -12,7 +12,11 @@ else
   export PATH="$REPO_ROOT/build/bin:$PATH"
 fi
 
-PYTHON="${PYTHON:-python3}"
+# The matcher depends on the system egglog installation.  On development
+# hosts `python3` may resolve to a user/venv interpreter without that package,
+# so use the known system interpreter unless the caller explicitly overrides
+# PYTHON.
+PYTHON="${PYTHON:-/usr/bin/python3}"
 PY="${PY:-$PYTHON}"
 SCRIPTS="${SCRIPTS:-$SCRIPT_DIR}"
 RT="${RT:-$REPO_ROOT/runtime}"

@@ -7,6 +7,7 @@
 # Usage:
 #   polygeist_build.sh [--target=host|jetson] [--function=NAME] [-o OUT]
 #                      [--harness=HARNESS.c] [--no-debuf]
+#                      [--semantic-mlir=COMPOSED.mlir]
 #                      <kernel.c> [gcc-passthrough-flags...]
 #
 # Defaults:
@@ -30,6 +31,9 @@
 #                       running --linalg-debufferize before the matcher.
 #                       Useful for memref-only compositions such as the
 #                       llama2.c RMSNorm/softmax patterns.
+#   --semantic-mlir     Resume from an already matched/composed tensor MLIR
+#                       artifact. The C input is still used for ABI metadata,
+#                       wrapper generation, and harness compilation.
 #
 # Optional environment:
 #   POLYGEIST_CPU_BLAS=1
@@ -105,6 +109,7 @@ OUT=
 INPUT=
 HARNESS_INPUT=
 DEBUFFERIZE=1
+SEMANTIC_MLIR=
 GCC_PASSTHROUGH=()
 RT_CFLAGS=()
 
@@ -119,6 +124,7 @@ while [ "$#" -gt 0 ]; do
     --function=*)  FUNCTION="${1#--function=}"; shift ;;
     --harness=*)   HARNESS_INPUT="${1#--harness=}"; shift ;;
     --no-debuf|--no-linalg-debufferize) DEBUFFERIZE=0; shift ;;
+    --semantic-mlir=*) SEMANTIC_MLIR="${1#--semantic-mlir=}"; shift ;;
     -o)            OUT="$2"; shift 2 ;;
     -h|--help)     usage ;;
     *.c)
@@ -133,6 +139,9 @@ done
 [ -f "$INPUT" ] || { echo "ERROR: input file $INPUT not found" >&2; exit 1; }
 [ -n "$HARNESS_INPUT" ] || HARNESS_INPUT="$INPUT"
 [ -f "$HARNESS_INPUT" ] || { echo "ERROR: harness file $HARNESS_INPUT not found" >&2; exit 1; }
+[ -z "$SEMANTIC_MLIR" ] || [ -f "$SEMANTIC_MLIR" ] || {
+  echo "ERROR: semantic MLIR file $SEMANTIC_MLIR not found" >&2; exit 1;
+}
 case "$TARGET" in host|jetson) ;; *)
   echo "ERROR: --target must be 'host' or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
 esac
@@ -171,6 +180,16 @@ echo "[polygeist] input=$INPUT  function=$FUNCTION  target=$TARGET  output=$OUT"
 echo "[polygeist] harness=$HARNESS_INPUT"
 echo "[polygeist] gcc passthrough: ${GCC_PASSTHROUGH[*]:-(none)}"
 
+# ─── Steps 1-4: produce or reuse matched/composed semantic MLIR ─────────
+if [ -n "$SEMANTIC_MLIR" ]; then
+  echo "  [1-4/9] reuse stored semantic MLIR: $SEMANTIC_MLIR"
+  # Stored matcher artifacts omit library kernel.defn symbols. Synthesize
+  # verifier-only definitions from each concrete launch signature while
+  # preserving any network definition already created by composition.
+  $PYTHON $SCRIPTS/mfem_network_compose.py --inject-only \
+    "$SEMANTIC_MLIR" $WORK/with_defns_composed.mlir
+  SEMANTIC_INPUT=$WORK/with_defns_composed.mlir
+else
 # ─── Step 1: cgeist lifts the kernel function to affine MLIR ────────────
 echo "  [1/9] cgeist → affine MLIR"
 cgeist "$INPUT" --function="$FUNCTION" \
@@ -182,7 +201,7 @@ cgeist "$INPUT" --function="$FUNCTION" \
 
 # ─── Step 2: raise affine → linalg + debufferize ────────────────────────
 if [ "$DEBUFFERIZE" -eq 1 ]; then
-  echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
+  echo "  [2/9] polygeist-opt: raise + debufferize (preserve submaps)"
   # Joint multi-root reconstruction preserves coupled results from one
   # multi-output generic.  The older recursive mode can silently retain only
   # one root (as exposed by the MFEM H(curl)/H(div) applications), so keep it
@@ -195,7 +214,6 @@ if [ "$DEBUFFERIZE" -eq 1 ]; then
   polygeist-opt --select-func=func-name="$FUNCTION" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline \
-    --lower-polygeist-submap \
     "${DEBUFFERIZE_PASS[@]}" \
     $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
       echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
@@ -258,7 +276,10 @@ awk -v defns="$DEFNS" '
 # for differential testing of the former pairwise-call path.
 SEMANTIC_INPUT=$WORK/with_defns.mlir
 if [ "${POLYGEIST_COMPOSE_CUTENSORNET_NETWORKS:-1}" != 0 ]; then
-  polygeist-opt --compose-cutensornet-networks --canonicalize --cse \
+  # Distinct tensor.empty roots model independent C scratch allocations and
+  # may be simultaneously live. Do not run global CSE at this boundary: even
+  # a function with no selected network can otherwise be miscompiled later.
+  polygeist-opt --compose-cutensornet-networks \
     "$SEMANTIC_INPUT" -o $WORK/with_defns_composed.mlir \
     2>$WORK/compose_cutensornet.err || {
       echo "ERROR: cuTensorNet network composition failed; see $WORK/compose_cutensornet.err" >&2
@@ -266,6 +287,7 @@ if [ "${POLYGEIST_COMPOSE_CUTENSORNET_NETWORKS:-1}" != 0 ]; then
       exit 1
     }
   SEMANTIC_INPUT=$WORK/with_defns_composed.mlir
+fi
 fi
 
 # Bufferize tensor semantics before translating a launch into a CUDA runtime
@@ -296,7 +318,8 @@ if [ "$PRE_ABI_BUFFERIZE" != 0 ]; then
   cp "$SEMANTIC_INPUT" $WORK/with_defns_writable.mlir
   sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict writable :|g' \
     $WORK/with_defns_writable.mlir
-  polygeist-opt '--one-shot-bufferize=allow-unknown-ops' \
+  polygeist-opt --empty-tensor-to-alloc-tensor \
+    '--one-shot-bufferize=allow-unknown-ops bufferize-function-boundaries' \
     --canonicalize --cse \
     $WORK/with_defns_writable.mlir -o $WORK/pre_abi_bufferized.mlir \
     2>$WORK/pre_abi_bufferize.err || {

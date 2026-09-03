@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -49,12 +50,79 @@ static bool isCudaShimCall(func::CallOp call) {
          callee.startswith("polygeist_whisper_");
 }
 
-static bool isCudaGraphSafeCall(func::CallOp call,
-                                bool captureHostMappedCutensornet) {
-  if (!isCudaShimCall(call) || call.getNumResults() != 0)
-    return false;
+// A generated GPU wrapper is not required to use a polygeist_* symbol.  The
+// attribute is an explicit ABI promise that the wrapper only enqueues
+// asynchronous device work on polygeist_cuda_graph_stream(), has no host
+// result, and performs no synchronization. Accept the promise on either the
+// call or its symbol declaration so outlining/code generation can mark the
+// generated function once rather than rewriting every call site.
+static bool hasCudaGraphSafeAttr(func::CallOp call) {
   if (call->hasAttr("polygeist.cuda_graph_safe"))
     return true;
+  auto module = call->getParentOfType<ModuleOp>();
+  if (!module)
+    return false;
+  if (auto callee = module.lookupSymbol<func::FuncOp>(call.getCallee()))
+    return callee->hasAttr("polygeist.cuda_graph_safe");
+  return false;
+}
+
+static bool isCudaDispatchCall(func::CallOp call) {
+  return isCudaShimCall(call) || hasCudaGraphSafeAttr(call);
+}
+
+static bool isGeneratedCudaLaunch(Operation *op) {
+  auto launch = dyn_cast<gpu::LaunchFuncOp>(op);
+  return launch && launch.getNumResults() == 0 &&
+         launch->hasAttr("polygeist.cuda_graph_safe");
+}
+
+// Host operations admitted between two device dispatches by the maximal
+// graph mode. They may prepare scalar descriptors or views, but cannot read or
+// write application tensor elements. They execute during warmup and capture;
+// replay uses the graph nodes instantiated from that prepared metadata.
+static bool isCudaGraphMetadataOperation(Operation *op) {
+  StringRef name = op->getName().getStringRef();
+  if (name.startswith("arith.") || name.startswith("shape.") ||
+      name == "affine.apply")
+    return true;
+  if (name == "memref.alloca" || name == "memref.cast" ||
+      name == "memref.subview" || name == "memref.reinterpret_cast" ||
+      name == "memref.dim" || name == "memref.get_global" ||
+      name == "memref.extract_strided_metadata" ||
+      name == "memref.extract_aligned_pointer_as_index" ||
+      name == "memref.store")
+    return true;
+  if (name == "llvm.inttoptr" || name == "llvm.ptrtoint" ||
+      name == "builtin.unrealized_conversion_cast")
+    return true;
+  return false;
+}
+
+static bool isCudaDispatchOperation(Operation *op) {
+  if (auto call = dyn_cast<func::CallOp>(op))
+    return isCudaDispatchCall(call);
+  return isGeneratedCudaLaunch(op);
+}
+
+static bool isCudaGraphSafeCall(func::CallOp call,
+                                bool captureHostMappedCutensornet);
+
+static bool isCudaGraphSafeOperation(Operation *op,
+                                     bool captureHostMappedCutensornet) {
+  if (auto call = dyn_cast<func::CallOp>(op))
+    return isCudaGraphSafeCall(call, captureHostMappedCutensornet);
+  return isGeneratedCudaLaunch(op);
+}
+
+static bool isCudaGraphSafeCall(func::CallOp call,
+                                bool captureHostMappedCutensornet) {
+  if (call.getNumResults() != 0)
+    return false;
+  if (hasCudaGraphSafeAttr(call))
+    return true;
+  if (!isCudaShimCall(call))
+    return false;
   return captureHostMappedCutensornet &&
          (call.getCallee() == "polygeist_cutensornet_contraction2_f64" ||
           call.getCallee() == "polygeist_cutensornet_network_f32" ||
@@ -79,17 +147,17 @@ static func::FuncOp ensureGraphBeginDecl(ModuleOp module, StringRef symbol,
     return existing;
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(module.getBody());
-  auto type = builder.getFunctionType({builder.getI64Type()},
-                                      {builder.getI32Type()});
-  auto function =
-      builder.create<func::FuncOp>(module.getLoc(), symbol, type);
+  auto type =
+      builder.getFunctionType({builder.getI64Type()}, {builder.getI32Type()});
+  auto function = builder.create<func::FuncOp>(module.getLoc(), symbol, type);
   function.setPrivate();
   return function;
 }
 
 static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
                               func::FuncOp graphEnd, int64_t &nextGraphId,
-                              bool captureHostMappedCutensornet) {
+                              bool captureHostMappedCutensornet,
+                              bool maximalDeviceSequence) {
   if (alreadyGraphWrapped(func))
     return;
 
@@ -102,28 +170,58 @@ static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
 
   for (Block *block : blocks) {
     SmallVector<SmallVector<Operation *>> runs;
-    SmallVector<Operation *> current;
-    for (Operation &op : *block) {
-      auto call = dyn_cast<func::CallOp>(&op);
-      if (call &&
-          isCudaGraphSafeCall(call, captureHostMappedCutensornet)) {
-        current.push_back(&op);
-        continue;
+    if (maximalDeviceSequence) {
+      Operation *first = nullptr;
+      Operation *last = nullptr;
+      for (Operation &op : *block) {
+        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet)) {
+          first = first ? first : &op;
+          last = &op;
+        }
       }
-      if (!current.empty()) {
-        runs.push_back(std::move(current));
-        current.clear();
+      bool invalid = false;
+      if (first && last)
+        for (Operation *op = first; op != last; op = op->getNextNode())
+          if (op != first &&
+              !isCudaGraphSafeOperation(op, captureHostMappedCutensornet) &&
+              !isCudaGraphMetadataOperation(op))
+            invalid = true;
+      if (first && last && !invalid) {
+        SmallVector<Operation *> run;
+        for (Operation *op = first;; op = op->getNextNode()) {
+          run.push_back(op);
+          if (op == last)
+            break;
+        }
+        runs.push_back(std::move(run));
       }
     }
-    if (!current.empty())
-      runs.push_back(std::move(current));
+    if (maximalDeviceSequence && !runs.empty()) {
+      // The common case is one function-level block. Nested control flow is
+      // conservatively handled by the original consecutive-run logic below.
+    } else {
+      SmallVector<Operation *> current;
+      for (Operation &op : *block) {
+        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet)) {
+          current.push_back(&op);
+          continue;
+        }
+        if (!current.empty()) {
+          runs.push_back(std::move(current));
+          current.clear();
+        }
+      }
+      if (!current.empty())
+        runs.push_back(std::move(current));
+    }
 
     for (SmallVector<Operation *> &run : runs) {
       Operation *first = run.front();
       Location loc = first->getLoc();
       OpBuilder builder(first);
       Value id = builder.create<arith::ConstantIntOp>(loc, nextGraphId++, 64);
-      auto begin = builder.create<func::CallOp>(loc, graphBegin, ValueRange{id});
+      auto begin =
+          builder.create<func::CallOp>(loc, graphBegin, ValueRange{id});
       Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
       Value execute = builder.create<arith::CmpIOp>(
           loc, arith::CmpIPredicate::ne, begin.getResult(0), zero);
@@ -146,19 +244,20 @@ static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
 // before that operation can consume a preceding GPU result.
 static bool isPipelineTransparent(Operation *op, StringRef beginSymbol,
                                   StringRef endSymbol) {
+  if (isGeneratedCudaLaunch(op))
+    return true;
   if (auto call = dyn_cast<func::CallOp>(op))
-    return isCudaShimCall(call) ||
+    return isCudaDispatchCall(call) ||
            isRuntimePipelineCall(call, beginSymbol, endSymbol);
 
   StringRef name = op->getName().getStringRef();
   if (name.startswith("arith.") || name.startswith("shape."))
     return true;
-  if (name == "tensor.empty" || name == "tensor.cast" ||
-      name == "tensor.dim" || name == "tensor.extract_slice" ||
-      name == "tensor.collapse_shape" || name == "tensor.expand_shape")
+  if (name == "tensor.empty" || name == "tensor.cast" || name == "tensor.dim" ||
+      name == "tensor.extract_slice" || name == "tensor.collapse_shape" ||
+      name == "tensor.expand_shape")
     return true;
-  if (name == "bufferization.to_tensor" ||
-      name == "bufferization.to_memref")
+  if (name == "bufferization.to_tensor" || name == "bufferization.to_memref")
     return true;
   if (name == "memref.cast" || name == "memref.subview" ||
       name == "memref.reinterpret_cast" || name == "memref.dim")
@@ -179,17 +278,30 @@ static bool containsRawKernelLaunch(func::FuncOp func) {
   return found;
 }
 
-static bool containsCudaShimCall(func::FuncOp func, StringRef beginSymbol,
-                                 StringRef endSymbol) {
+static bool containsCudaDispatchCall(func::FuncOp func, StringRef beginSymbol,
+                                     StringRef endSymbol) {
   bool found = false;
-  func.walk([&](func::CallOp call) {
-    if (isRuntimePipelineCall(call, beginSymbol, endSymbol))
-      return WalkResult::advance();
-    if (isCudaShimCall(call)) {
+  func.walk([&](Operation *op) {
+    if (auto call = dyn_cast<func::CallOp>(op)) {
+      if (isRuntimePipelineCall(call, beginSymbol, endSymbol))
+        return WalkResult::advance();
+    }
+    if (isCudaDispatchOperation(op)) {
       found = true;
       return WalkResult::interrupt();
     }
     return WalkResult::advance();
+  });
+  return found;
+}
+
+static bool containsGeneratedCudaLaunch(func::FuncOp func) {
+  bool found = false;
+  func.walk([&](gpu::LaunchFuncOp launch) {
+    if (!isGeneratedCudaLaunch(launch))
+      return WalkResult::advance();
+    found = true;
+    return WalkResult::interrupt();
   });
   return found;
 }
@@ -220,14 +332,15 @@ struct WrapKernelLaunchPipelinePass
     if (useCudaGraphs) {
       func::FuncOp graphBegin =
           ensureGraphBeginDecl(module, graphBeginSymbol, moduleBuilder);
-      func::FuncOp graphEnd = ensureShimDecl(
-          module, graphEndSymbol, TypeRange{moduleBuilder.getI64Type()},
-          moduleBuilder);
+      func::FuncOp graphEnd =
+          ensureShimDecl(module, graphEndSymbol,
+                         TypeRange{moduleBuilder.getI64Type()}, moduleBuilder);
       int64_t nextGraphId = 0;
       for (func::FuncOp func : funcs)
         if (!func.isDeclaration())
           wrapCudaGraphRuns(func, graphBegin, graphEnd, nextGraphId,
-                            captureHostMappedCutensornet);
+                            captureHostMappedCutensornet,
+                            maximalDeviceSequence);
     }
 
     bool needsDeclarations = false;
@@ -236,8 +349,8 @@ struct WrapKernelLaunchPipelinePass
         continue;
       if (alreadyWrapped(func, beginSymbol, endSymbol))
         continue;
-      if (containsCudaShimCall(func, beginSymbol, endSymbol) ||
-          containsRawKernelLaunch(func)) {
+      if (containsCudaDispatchCall(func, beginSymbol, endSymbol) ||
+          containsRawKernelLaunch(func) || containsGeneratedCudaLaunch(func)) {
         needsDeclarations = true;
         break;
       }
@@ -254,8 +367,8 @@ struct WrapKernelLaunchPipelinePass
         continue;
       if (alreadyWrapped(func, beginSymbol, endSymbol))
         continue;
-      if (!containsCudaShimCall(func, beginSymbol, endSymbol) &&
-          !containsRawKernelLaunch(func))
+      if (!containsCudaDispatchCall(func, beginSymbol, endSymbol) &&
+          !containsRawKernelLaunch(func) && !containsGeneratedCudaLaunch(func))
         continue;
 
       // Form maximal GPU-only regions independently in every block. This is
@@ -274,8 +387,7 @@ struct WrapKernelLaunchPipelinePass
 
         bool active = false;
         for (Operation *op : operations) {
-          auto call = dyn_cast<func::CallOp>(op);
-          bool cudaCall = call && isCudaShimCall(call);
+          bool cudaCall = isCudaDispatchOperation(op);
           if (cudaCall && !active) {
             OpBuilder beginBuilder(op);
             beginBuilder.create<func::CallOp>(op->getLoc(), beginSymbol,

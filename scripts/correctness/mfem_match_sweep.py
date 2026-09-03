@@ -37,8 +37,14 @@ def process(row):
     debuf_log = directory / "debufferize.log"
     match_log = directory / "matcher.log"
 
-    drc, _, derr = run([str(OPT), "--linalg-debufferize", str(raised),
-                        "-o", str(debuf)])
+    # MFEM stages commonly join several ABI buffers in one contraction.  Use
+    # the atomic multi-root walker explicitly: the recursive fallback explores
+    # each root independently and can revisit the same cross-root graph until
+    # the per-kernel timeout, while the joint walker handles it in one pass.
+    drc, _, derr = run([
+        str(OPT), "--linalg-debufferize=use-multi-root=true", str(raised),
+        "-o", str(debuf),
+    ])
     debuf_log.write_text(derr)
     result = dict(id=ident, function=row["function"], family=row["family"],
                   dimension=row["dimension"], debufferize_ok=drc == 0,

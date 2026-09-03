@@ -1896,6 +1896,140 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     return out, [("launches", n_launch), ("residual_lg", n_lg)]
 
 
+_NATIVE_CUDA_CSV = ATEN_C_ROOT / "native_cuda_results" / "torch_aten_silicon.csv"
+_MATCH_CANDIDATES_JSON = (
+    ATEN_C_ROOT / "native_cuda_results" / "match_candidates.json"
+)
+
+
+def _load_match_candidates():
+    """kernel -> {winner, candidates:[...]}: every abi-lowerable library op the
+    matcher's enumeration found for a body, not just the greedy winner."""
+    if _MATCH_CANDIDATES_JSON.exists():
+        try:
+            return json.loads(_MATCH_CANDIDATES_JSON.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+_MATCH_CANDIDATES = _load_match_candidates()
+_RESIDENCY_LEAKS_JSON = (
+    ATEN_C_ROOT / "native_cuda_results" / "residency_leaks.json"
+)
+
+
+def _load_residency_leaks():
+    """kernel -> {allocs, copies, elidable, genuine, inter_call_*}: buffer
+    allocs/copies the lowered code carries (residency leaks in a chain)."""
+    if _RESIDENCY_LEAKS_JSON.exists():
+        try:
+            return json.loads(_RESIDENCY_LEAKS_JSON.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+_RESIDENCY_LEAKS = _load_residency_leaks()
+_RESIDENT_SILICON_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "resident_silicon.csv"
+)
+
+
+def _load_resident_silicon():
+    """kernel -> {resident_us, warm_us, device_speedup}: genuine device-resident
+    timing (operands in cudaMalloc'd DRAM, copies excluded — torch methodology).
+    warm_us here is the same-run host-ABI number, so the speedup is exact."""
+    out = {}
+    if _RESIDENT_SILICON_CSV.exists():
+        for r in csv.DictReader(_RESIDENT_SILICON_CSV.open()):
+            if r.get("kernel"):
+                out[r["kernel"]] = r
+    return out
+
+
+_RESIDENT_SILICON = _load_resident_silicon()
+_NATIVE_RESIDENT_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "native_resident.csv"
+)
+
+
+def _load_native_resident():
+    """kernel -> {native_us, shape}: torch native measured at the EXACT resident
+    shape (single source of truth), so resident/native is same-shape by design."""
+    out = {}
+    if _NATIVE_RESIDENT_CSV.exists():
+        for r in csv.DictReader(_NATIVE_RESIDENT_CSV.open()):
+            if r.get("kernel"):
+                out[r["kernel"]] = r
+    return out
+
+
+_NATIVE_RESIDENT = _load_native_resident()
+_NATIVE_SUF = [
+    "_backward_cpu", "_backward", "_forward_cpu", "_forward", "_out_cpu", "_out",
+    "_scalarized", "_transform_cpu", "_transform", "_template_cpu", "_cpu",
+    "_impl", "_stub", "_allreduce", "_tensor", "_scalar", "_from_to",
+    "_full_64_bits_range", "_legacy", "_nhwc", "_dims", "_serial", "_naive",
+    "_generic", "_select", "_columns", "_grad_weight", "_indices", "_launch",
+    "_acc", "_zero_acc",
+]
+
+
+def _native_base(k: str) -> str:
+    s = k[5:] if k.startswith("aten_") else k
+    changed = True
+    while changed:
+        changed = False
+        for suf in _NATIVE_SUF:
+            if s.endswith(suf) and len(s) > len(suf) + 2:
+                s = s[:-len(suf)]
+                changed = True
+    return s
+
+
+def _load_native_cuda():
+    us = {}
+    if _NATIVE_CUDA_CSV.exists():
+        for r in csv.DictReader(_NATIVE_CUDA_CSV.open()):
+            k = r.get("kernel", "")
+            v = r.get("native_device_us", "")
+            if k and v:
+                us[k] = v
+    base2us = {}
+    for k, v in us.items():
+        base2us.setdefault(_native_base(k), v)
+    return us, base2us
+
+
+_NATIVE_CUDA_US, _NATIVE_CUDA_BASE = _load_native_cuda()
+
+
+def native_cuda_for(kernel: str):
+    """Return (microseconds, provenance) for a kernel's extracted native CUDA
+    number, matching by exact name then by base-op family, else (None, None)."""
+    if kernel in _NATIVE_CUDA_US:
+        return _NATIVE_CUDA_US[kernel], "measured"
+    b = _native_base(kernel)
+    if b in _NATIVE_CUDA_BASE:
+        return _NATIVE_CUDA_BASE[b], "family"
+    # Token-aware fuzzy fallback: the measured op must appear as a whole
+    # underscore-delimited token (or a token-boundary prefix/suffix) of the
+    # kernel base — NOT an incidental substring. This stops short ops like
+    # 'le'/'ge'/'ne'/'eq' from matching inside longer names (e.g. the "le" in
+    # "as_complex" wrongly matched torch.le at 225µs).
+    b_tokens = b.split("_")
+    for mb, v in _NATIVE_CUDA_BASE.items():
+        if len(mb) < 3:
+            continue
+        mb_tokens = mb.split("_")
+        if (mb in b_tokens or b in mb_tokens or
+                b.startswith(mb + "_") or b.endswith("_" + mb) or
+                mb.startswith(b + "_") or mb.endswith("_" + b)):
+            return v, "family"
+    return None, None
+
+
 def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
                        kset: str = "polybench",
                        file_prefix: str = "") -> dict:
@@ -2007,6 +2141,22 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'<a href="#matched">kernel.launch output</a>'
         f'</div>'
     )
+    if kset == "aten_c":
+        _nus, _nhow = native_cuda_for(kernel)
+        if _nus:
+            try:
+                _nms = f"{float(_nus) / 1000.0:.4f} ms"
+            except ValueError:
+                _nms = f"{_nus} us"
+            summary += (
+                f'<div class="summary" style="padding:8px 20px; '
+                f'border-bottom:1px solid #eee; background:#f3faf3; '
+                f'font-size:13px;">'
+                f'<b>REAL ATen native kernel (torch.&lt;op&gt; on CUDA, Jetson '
+                f'Orin sm87):</b> <b>{_nms}</b> '
+                f'<span style="color:#666;">({_nhow}; real torch 2.6.0+cu126 '
+                f'dispatch, torch.cuda.Event-timed warm best)</span></div>'
+            )
     back_href, back_label = "index.html", "index"
     if kset == "polybench":
         back_href, back_label = "polybench.html", "PolyBench"
@@ -2017,6 +2167,10 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'&nbsp; {kernel}{open_link}</h1></div>'
         + summary
     )
+    abi_file = mlir_dir / kernel / "abi.mlir"
+    if abi_file.exists():
+        html, css = syntax_highlight(abi_file.read_text())
+        pages["abi"] = html
     body_blocks = []
     for stage, title in [
         ("cgeist",   "cgeist output (pre-raise MLIR)"),
@@ -2024,6 +2178,7 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         ("debuf",    "debuferized (tensor linalg, matcher input)"),
         ("debuf_mr", "debuferized — multi-root (--linalg-debufferize=use-multi-root=true)"),
         ("matched",  "kernel.launch (matcher output)"),
+        ("abi",      "ABI-lowered IR (func.call to runtime shim)"),
     ]:
         if stage not in pages:
             continue
@@ -2157,7 +2312,10 @@ ATEN_RETIRED_EARLY_MATCH_KERNELS = {
 
 
 def _aten_page_filename(sort_by: str, page: int) -> str:
-    prefix = "numerical" if sort_by == "alphabetical" else "numerical-correctness"
+    prefix = {"alphabetical": "numerical",
+              "raised": "numerical-raised",
+              "resident": "numerical-resident"}.get(sort_by,
+                                                    "numerical-correctness")
     return f"{prefix}.html" if page == 1 else f"{prefix}-{page}.html"
 
 
@@ -2177,9 +2335,56 @@ def _aten_performance_by_kernel() -> dict[str, dict[str, str]]:
     return performance
 
 
+_RAISED_MATCHED_CACHE: set[str] | None = None
+
+
+def _raised_matched_kernels() -> set[str]:
+    """Kernels whose matcher output contains a library launch (fully raised +
+    matched to a library op).  Scans results/*/matched.mlir once."""
+    global _RAISED_MATCHED_CACHE
+    if _RAISED_MATCHED_CACHE is None:
+        found: set[str] = set()
+        for mm in (ATEN_C_ROOT / "results").glob("*/matched.mlir"):
+            try:
+                if "kernel.launch @" in mm.read_text():
+                    found.add(mm.parent.name)
+            except OSError:
+                pass
+        _RAISED_MATCHED_CACHE = found
+    return _RAISED_MATCHED_CACHE
+
+
 def _aten_sorted_kernels(sort_by: str) -> list[str]:
     if sort_by == "alphabetical":
         return sorted(ATEN_C_ORDER)
+    if sort_by == "raised":
+        # Every kernel that raised + matched to a library op.  Ones we already
+        # measured on silicon (resident) float to the top, then the rest
+        # alphabetically — so the browsable set shows measured work first.
+        matched = _raised_matched_kernels()
+        return sorted(
+            (k for k in ATEN_C_ORDER if k in matched),
+            key=lambda k: (0 if _RESIDENT_SILICON.get(k, {}).get("resident_us")
+                           else 1, k),
+        )
+    if sort_by == "resident":
+        # Only kernels with resident + native measured at the SAME shape (so
+        # resident/native is valid), best ratio first.
+        scored = []
+        for kernel in ATEN_C_ORDER:
+            rs = _RESIDENT_SILICON.get(kernel)
+            nr = _NATIVE_RESIDENT.get(kernel)
+            if not (rs and rs.get("resident_us") and nr and nr.get("native_us")):
+                continue
+            if not rs.get("shape") or (sorted(rs["shape"].split("_"))
+                                       != sorted(nr.get("shape", "").split("_"))):
+                continue
+            try:
+                scored.append(
+                    (float(rs["resident_us"]) / float(nr["native_us"]), kernel))
+            except (ValueError, ZeroDivisionError):
+                pass
+        return [k for _, k in sorted(scored)]
     performance = _aten_performance_by_kernel()
     correctness_rank = {"PASS": 0, "FAIL": 1, "—": 2, "": 2}
     return sorted(
@@ -2505,6 +2710,55 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         )
         symbols = stats.get("matched_symbols", [])
         symbol_html = ", ".join(f"<code>@{s}</code>" for s in symbols) or "—"
+        # All abi-lowerable library ops the matcher's enumeration found for this
+        # body — surfaces alternatives the greedy "first match wins" hides.
+        _mc = _MATCH_CANDIDATES.get(kernel, {})
+        _cands = _mc.get("candidates", [])
+        if _cands:
+            _win = _mc.get("winner")
+            _parts = []
+            for c in _cands:
+                _nm = c.get("name", "") if isinstance(c, dict) else c
+                _abi = c.get("abi", True) if isinstance(c, dict) else True
+                if _nm == _win:
+                    _parts.append(f"<code><b>{html.escape(_nm)}</b></code>")
+                elif _abi:
+                    _parts.append(f'<code style="color:#137333">'
+                                  f'{html.escape(_nm)}</code>')
+                else:
+                    _parts.append(f'<code style="color:#999" title="semantic '
+                                  f'match, no library backend">'
+                                  f'{html.escape(_nm)}</code>')
+            candidates_cell = ", ".join(_parts)
+            _nabi = sum(1 for c in _cands
+                        if (c.get("abi", True) if isinstance(c, dict) else True))
+            if len(_cands) > 1:
+                candidates_cell = (
+                    f'<span title="{len(_cands)} candidates ({_nabi} '
+                    f'abi-lowerable); greedy match takes the first">'
+                    f'{candidates_cell}</span>'
+                )
+        else:
+            candidates_cell = "—"
+        # Residency leaks: buffer allocs/copies the lowered chain carries.
+        # green = clean/elidable, red = genuine copies or inter-call leaks.
+        _rl = _RESIDENCY_LEAKS.get(kernel)
+        if _rl:
+            _a, _c = _rl.get("allocs", 0), _rl.get("copies", 0)
+            _g = _rl.get("genuine", 0)
+            _inter = _rl.get("inter_call_copies", 0) + _rl.get(
+                "inter_call_allocs", 0)
+            if _a == 0 and _c == 0:
+                residency_cell = '<span style="color:#137333">clean</span>'
+            else:
+                _col = "#b00020" if (_g > 0 or _inter > 0) else "#8a6d00"
+                _lbl = f"{_a}a {_c}c"
+                _ttl = (f"{_a} allocs, {_c} copies ({_rl.get('elidable',0)} "
+                        f"elidable, {_g} genuine); {_inter} inter-call leak(s)")
+                residency_cell = (f'<span style="color:{_col}" '
+                                  f'title="{_ttl}">{_lbl}</span>')
+        else:
+            residency_cell = "—"
         launches = stats.get("launches", 0)
         residual = stats.get("residual", 0)
         loops = stats.get("residual_for", 0)
@@ -2533,9 +2787,63 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         problem = html.escape(perf.get("problem", "—"))
         raised_us = html.escape(perf.get("raised_us", "—"))
         resident_us = html.escape(perf.get("resident_cuda_us", "—"))
-        ratio = perf.get("raised_over_resident", "—")
-        ratio = html.escape(f"{ratio}×" if ratio not in ("", "—") else "—")
         baseline = html.escape(perf.get("baseline", "—"))
+        # Resident (raised) + native are BOTH measured at the resident shape
+        # (single source of truth), so the ratio is same-shape by construction.
+        # We gate on the shape strings being equal so a mismatch can never
+        # print a bogus ratio again.
+        _rs = _RESIDENT_SILICON.get(kernel)
+        _nr = _NATIVE_RESIDENT.get(kernel)
+        _res_shape = (_rs or {}).get("shape", "")
+        _nat_shape = (_nr or {}).get("shape", "")
+        # order-independent compare (dim key order can differ across processes)
+        _shapes_match = bool(_res_shape) and (
+            sorted(_res_shape.split("_")) == sorted(_nat_shape.split("_")))
+        # native_us used for the column + ratio is the shape-matched one.
+        native_us = _nr.get("native_us") if _nr else None
+        native_prov = "resident-shape" if native_us else None
+        try:
+            _res = float(_rs["resident_us"]) if _rs and _rs.get("resident_us") else 0.0
+            _nv = float(native_us) if native_us else 0.0
+            ratio = (html.escape(f"{_res / _nv:.3f}×")
+                     if (_res and _nv and _shapes_match) else "—")
+        except (ValueError, TypeError, ZeroDivisionError):
+            ratio = "—"
+        # Dtype the raised path actually ran (from the mapped library symbol).
+        # The ATen native column was measured in torch's default f32, so tag
+        # every row and flag the rare raised!=native precision mismatches.
+        _dt_text = (perf.get("baseline", "") + " " + perf.get("notes", "")).lower()
+        if re.search(r"_f16|half|bf16", _dt_text):
+            raised_dtype = "f16"
+        elif re.search(r"dgemm|dsymm|dgemv|dtrsm|_f64|double", _dt_text):
+            raised_dtype = "f64"
+        elif re.search(r"_i8\b", _dt_text):
+            raised_dtype = "i8"
+        elif re.search(r"_i16\b", _dt_text):
+            raised_dtype = "i16"
+        elif re.search(r"_i32\b", _dt_text):
+            raised_dtype = "i32"
+        elif re.search(r"sgemm|sdot|saxpby|sscal|ssymm|sgemv|_f32|float|"
+                       r"cudnn|cutensor|memcpy|copy", _dt_text):
+            raised_dtype = "f32"
+        else:
+            raised_dtype = ""
+        native_dtype = "f32" if native_us else ""
+        if raised_dtype and native_dtype and raised_dtype != native_dtype:
+            dtype_tag = (
+                f'<span title="raised runs {raised_dtype}; ATen native measured '
+                f'{native_dtype} — precision mismatch" '
+                f'style="color:#b00020;font-size:11px;font-weight:600">'
+                f'[{raised_dtype} vs native {native_dtype}]</span>'
+            )
+        elif raised_dtype:
+            _both = raised_dtype if not native_dtype else raised_dtype
+            dtype_tag = (
+                f'<span title="raised{" and native" if native_dtype else ""} '
+                f'{_both}" style="color:#888;font-size:11px">[{_both}]</span>'
+            )
+        else:
+            dtype_tag = ""
         audit = cuda_audit.get(kernel, {})
         library = audit.get("candidate_library", "")
         api = audit.get("candidate_api", "")
@@ -2574,20 +2882,41 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             "partial" if execution.startswith("EXECUTED_") else "none"
         )
         correctness_class = "pass" if correctness == "PASS" else "none"
+        if native_us:
+            native_cell = (
+                f'<td style="color:#137333;font-weight:600" '
+                f'title="torch native at the resident shape {_nat_shape} '
+                f'(f32, device-resident)">{float(native_us):.1f}</td>'
+            )
+        else:
+            native_cell = '<td class="none">—</td>'
+        # Device-resident timing: operands in cudaMalloc'd DRAM, copies
+        # excluded (the same way torch measures its own kernels).
+        if _rs and _rs.get("resident_us"):
+            resident_cell = (
+                f'<td style="color:#137333;font-weight:600" '
+                f'title="raised kernel, operands device-resident (cudaMalloc, '
+                f'copies excluded)">{float(_rs["resident_us"]):.1f}</td>'
+            )
+        else:
+            resident_cell = '<td class="none">—</td>'
         rows.append(
-            f"<tr><td>{name}</td>"
+            f'<tr data-op="{html.escape(kernel)}" '
+            f'data-native="{1 if native_us else 0}">'
+            f"<td>{name} {dtype_tag}</td>"
             f"<td>{upstream}</td><td>{extracted_c}</td>"
             f"<td>{linalg_ops}</td><td>{loops}</td>"
             f'<td class="{raise_status_class}">{raise_status}</td>'
             f"<td>{launches}</td>"
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbol_html}</td>"
-            f"<td>{audit_scope}</td><td>{implementation_provenance}</td>"
-            f"<td>{candidate}</td>"
-            f'<td class="{execution_class}">{execution}</td>'
+            f"<td>{candidates_cell}</td>"
+            f"<td>{residency_cell}</td>"
             f'<td class="{correctness_class}">{correctness}</td>'
-            f"<td><code>{problem}</code></td><td>{raised_us}</td>"
-            f"<td>{resident_us}</td><td>{ratio}</td><td>{baseline}</td>"
+            f"<td><code>{html.escape(_res_shape.replace('_',' ')) if _res_shape else problem}</code></td>"
+            f"{resident_cell}"
+            f"{native_cell}"
+            f"<td>{ratio}</td><td>{baseline}</td>"
             f"<td>{assessment}</td></tr>"
         )
     total_linalg = sum(s.get("linalg_ops", 0) for s in aten_stats.values())
@@ -2617,8 +2946,10 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
     sort_links = (
         f'<b>Sort:</b> <a href="{_aten_page_filename("alphabetical", 1)}">'
         f'{"<b>alphabetical</b>" if sort_by == "alphabetical" else "alphabetical"}</a> &middot; '
-        f'<a href="{_aten_page_filename("correctness", 1)}">'
-        f'{"<b>correctness</b>" if sort_by == "correctness" else "correctness"}</a>'
+        f'<a href="{_aten_page_filename("raised", 1)}">'
+        f'{"<b>raised (matched)</b>" if sort_by == "raised" else "raised (matched)"}</a> &middot; '
+        f'<a href="{_aten_page_filename("resident", 1)}">'
+        f'{"<b>resident/native (measured only)</b>" if sort_by == "resident" else "resident/native (measured only)"}</a>'
     )
     page_links = " &middot; ".join(
         (
@@ -2627,13 +2958,76 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         )
         for number in range(1, page_count + 1)
     )
+    # Global op search: embed every kernel name + its detail-page link so
+    # typing filters across ALL pages, not just the current pagination slice.
+    search_index = []
+    native_total = 0
+    for k in ATEN_C_ORDER:
+        us, prov = native_cuda_for(k)
+        if us:
+            native_total += 1
+        search_index.append([
+            k,
+            aten_stats.get(k, {}).get("page_filename", ""),
+            (f"{float(us):.1f}" if us else ""),
+        ])
+    search_json = json.dumps(search_index)
+    search_box = (
+        '<div class="intro" style="padding-top:10px;padding-bottom:4px">'
+        '<b>Search op:</b> '
+        '<input id="aten-search" type="text" autocomplete="off" spellcheck="false" '
+        'placeholder="type an op name, e.g. gelu, conv2d, softmax…" '
+        'style="width:340px;padding:5px 8px;font-size:14px;font-family:monospace;'
+        'border:1px solid #bbb;border-radius:4px" '
+        'oninput="atenSearch()" onkeydown="atenSearchKey(event)">'
+        '<label style="margin-left:12px;font-size:13px">'
+        '<input id="aten-native-only" type="checkbox" onchange="atenSearch()"> '
+        'only ops with a <span style="color:#137333">native number</span></label>'
+        '<span id="aten-search-count" style="margin-left:10px;color:#666"></span>'
+        '<div id="aten-search-offpage" style="margin-top:6px;font-family:monospace;'
+        'font-size:12px;color:#666;line-height:1.8"></div>'
+        f'<div style="margin-top:4px;color:#666;font-size:12px">'
+        f'<span style="color:#137333">&#9679;</span> = has a real ATen native '
+        f'runtime ({native_total} of {len(ATEN_C_ORDER)} ops). Filters the table '
+        f'below; matches on other pages are linked here.</div></div>'
+        '<script>'
+        f'var ATEN_OPS={search_json};'
+        'function atenSearch(){'
+        'var q=document.getElementById("aten-search").value.trim().toLowerCase();'
+        'var nativeOnly=document.getElementById("aten-native-only").checked;'
+        'var c=document.getElementById("aten-search-count");'
+        'var off=document.getElementById("aten-search-offpage");'
+        'var trs=document.querySelectorAll("tr[data-op]");'
+        'var here={},shown=0;'
+        'trs.forEach(function(tr){'
+        'var op=tr.getAttribute("data-op").toLowerCase();here[op]=1;'
+        'var ok=op.indexOf(q)>=0&&(!nativeOnly||tr.getAttribute("data-native")=="1");'
+        'tr.style.display=((q||nativeOnly)&&!ok)?"none":"";'
+        'if(ok)shown++;});'
+        'if(!q&&!nativeOnly){c.textContent="";off.innerHTML="";return;}'
+        'var all=ATEN_OPS.filter(function(o){'
+        'return o[0].toLowerCase().indexOf(q)>=0&&(!nativeOnly||o[2]);});'
+        'c.textContent=shown+" shown on this page, "+all.length+" total match"+(all.length==1?"":"es");'
+        'var elsewhere=all.filter(function(o){return !here[o[0].toLowerCase()];});'
+        'if(elsewhere.length){'
+        'off.innerHTML="On other pages: "+elsewhere.slice(0,60).map(function(o){'
+        'var badge=o[2]?"<span style=\\"color:#137333\\">&#9679;</span> ":"";'
+        'var link=o[1]?"<a href=\\""+o[1]+"\\">"+o[0]+"</a>":o[0];'
+        'return badge+link;}).join(" &middot; ")'
+        '+(elsewhere.length>60?" &middot; +"+(elsewhere.length-60)+" more":"");'
+        '}else{off.innerHTML="";}'
+        '}'
+        'function atenSearchKey(e){if(e.key=="Enter"){atenSearch();}}'
+        '</script>'
+    )
     controls = (
+        search_box +
         '<div class="intro" style="padding-top:10px;padding-bottom:10px">'
         f'{sort_links}<span style="margin-left:24px"><b>Page:</b> '
         f'{page_links}</span><span style="margin-left:24px">Showing '
         f'{(page - 1) * ATEN_PAGE_SIZE + 1}–'
         f'{(page - 1) * ATEN_PAGE_SIZE + len(kernels)} of '
-        f'{len(ATEN_C_ORDER)}</span></div>'
+        f'{len(_aten_sorted_kernels(sort_by))}</span></div>'
     )
     return (
         '<a name="aten-c"></a>'
@@ -2681,14 +3075,17 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         '<th>standalone C form</th><th>Linalg ops</th>'
         '<th>residual loops</th><th>raising status</th>'
         '<th>launches</th><th>match status</th>'
-        '<th>matched implementation</th><th>current match scope</th>'
-        '<th>implementation provenance</th>'
-        '<th>NVIDIA library candidate</th><th>execution</th><th>correctness</th>'
-        '<th>large problem</th><th>raised warm '
+        '<th>matched implementation</th>'
+        '<th>candidate matches</th>'
+        '<th>residency leaks<br><span style="font-weight:normal;'
+        'text-transform:none;font-size:10px">allocs/copies</span></th>'
+        '<th>correctness</th>'
+        '<th>large problem</th>'
+        '<th>resident '
         '(<span style="text-transform:none">µs</span>)</th>'
-        '<th>resident CUDA '
+        '<th>ATen native '
         '(<span style="text-transform:none">µs</span>)</th>'
-        '<th>raised / resident</th>'
+        '<th>resident / native</th>'
         '<th>resident baseline</th><th>assessment</th>'
         '</tr></thead><tbody>'
         + "\n".join(rows)
@@ -2763,6 +3160,10 @@ def build_mfem_pages() -> list[dict]:
         row["id"]: row
         for row in _read_csv(MFEM_MATCH_RESULTS_DIR / "summary.csv")
     }
+    composition_rows = {
+        row["id"]: row
+        for row in _read_csv(MFEM_MATCH_RESULTS_DIR / "composition_summary.csv")
+    }
     silicon_rows = {
         row["id"]: row
         for row in _read_csv(
@@ -2779,9 +3180,14 @@ def build_mfem_pages() -> list[dict]:
         match_dir = MFEM_MATCH_RESULTS_DIR / ident
         debufferized = match_dir / "debufferized.mlir"
         matched = match_dir / "matched.mlir"
+        composed = match_dir / "composed.mlir"
+        abi = match_dir / "abi.mlir"
         source = MFEM_C_ROOT / row["source"]
         raise_row = raise_rows.get((ident, variant), {})
         match_row = match_rows.get(ident, {}) if variant == "normalized" else {}
+        composition_row = (
+            composition_rows.get(ident, {}) if variant == "normalized" else {}
+        )
         silicon_row = silicon_rows.get(ident, {}) if variant == "normalized" else {}
 
         blocks = []
@@ -2859,6 +3265,9 @@ def build_mfem_pages() -> list[dict]:
              debufferized),
             ("matched", "executable matcher output (kernel.launch)",
              matched),
+            ("composed", "post-match composed cuTensorNet network IR",
+             composed),
+            ("abi", "ABI-lowered IR (func.call to runtime shim)", abi),
         ]
         for anchor, title, path in stage_paths:
             if not path.exists():
@@ -2869,11 +3278,19 @@ def build_mfem_pages() -> list[dict]:
                 f'<div class="container">{highlighted}</div>'
             )
 
-        launches = int(match_row.get("kernel_launches", "0") or 0)
+        matcher_launches = int(match_row.get("kernel_launches", "0") or 0)
+        launches = int(
+            composition_row.get("composed_launches", matcher_launches) or 0
+        )
         symbols = [
-            value for value in match_row.get("launch_symbols", "").split(",")
+            value for value in composition_row.get(
+                "composed_symbols", match_row.get("launch_symbols", "")
+            ).split(",")
             if value
         ]
+        network_launches = int(
+            composition_row.get("network_launches", "0") or 0
+        )
         linalg_ops = int(raise_row.get("linalg_ops", "0") or 0)
         residual_loops = int(raise_row.get("residual_loops", "0") or 0)
         fully_raised = raise_row.get("fully_raised") == "true"
@@ -2893,7 +3310,9 @@ def build_mfem_pages() -> list[dict]:
             'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
             f'<b>{linalg_ops}</b> Linalg op(s) &nbsp;·&nbsp; '
             f'<b>{residual_loops}</b> residual loop(s) &nbsp;·&nbsp; '
-            f'<b>{launches}</b> executable library launch(es)'
+            f'<b>{matcher_launches}→{launches}</b> library launches after '
+            f'composition &nbsp;·&nbsp; <b>{network_launches}</b> composed '
+            'cuTensorNet network(s)'
             '</div>'
         )
         header = (
@@ -2916,6 +3335,8 @@ def build_mfem_pages() -> list[dict]:
             "residual_loops": residual_loops,
             "fully_raised": fully_raised,
             "launches": launches,
+            "matcher_launches": matcher_launches,
+            "network_launches": network_launches,
             "matched_symbols": symbols,
             "silicon": silicon_row,
         })
@@ -2925,6 +3346,10 @@ def build_mfem_pages() -> list[dict]:
 def build_mfem_application_pages() -> list[dict]:
     """Render MFEM example hot-operator ports and measured status."""
     stats = []
+    composition_rows = {
+        row["id"]: row
+        for row in _read_csv(MFEM_MATCH_RESULTS_DIR / "composition_summary.csv")
+    }
     for row in _read_csv(MFEM_APPLICATIONS_DIR / "summary.csv"):
         ident = row["id"]
         harness = MFEM_APPLICATIONS_DIR / row["harness"]
@@ -2944,6 +3369,12 @@ def build_mfem_application_pages() -> list[dict]:
             )
 
         status = html.escape(row["raised_status"])
+        composition = composition_rows.get(row["kernel_id"], {})
+        before = int(
+            composition.get("matcher_launches", row["library_launches"]) or 0
+        )
+        after = int(composition.get("composed_launches", before) or 0)
+        networks = int(composition.get("network_launches", "0") or 0)
         kernel_page = f'mfem_{html.escape(row["kernel_id"])}.html'
         summary = (
             '<div class="summary" style="padding:10px 20px; '
@@ -2956,7 +3387,8 @@ def build_mfem_application_pages() -> list[dict]:
             f'{html.escape(row["sliced_us"])} us) &nbsp;·&nbsp; '
             f'max error <b>{html.escape(row["max_error"])}</b><br>'
             f'<b>Library-backed status:</b> {status}; '
-            f'{html.escape(row["library_launches"])} structural launch(es). '
+            f'{before}→{after} structural launch(es) after composition; '
+            f'{networks} composed network(s). '
             f'<b>Blocker:</b> {html.escape(row["blocker"])}. '
             f'<a href="{kernel_page}">Open the kernel IR and matches →</a>'
             '</div>'
@@ -2973,7 +3405,11 @@ def build_mfem_application_pages() -> list[dict]:
                 css,
             )
         )
-        stats.append({**row, "page_filename": page_filename})
+        stats.append({
+            **row, "page_filename": page_filename,
+            "composition_launches": f"{before}→{after}",
+            "network_launches": str(networks),
+        })
     return stats
 
 
@@ -2981,6 +3417,11 @@ def build_mfem_application_extraction_pages() -> list[dict]:
     """Render raised hot paths extracted from larger MFEM applications."""
     stats = []
     summary = _read_csv(MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / "summary.csv")
+    composition_rows = {
+        row["id"]: row for row in _read_csv(
+            MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / "composition_summary.csv"
+        )
+    }
     comparison_rows = {
         row["function"]: row
         for row in _read_csv(
@@ -3000,6 +3441,8 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.debufferized.mlir"
         )
         matched = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.matched.mlir"
+        composed = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.composed.mlir"
+        abi = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.abi.mlir"
         log = MFEM_APPLICATION_EXTRACTION_RESULTS_DIR / f"{function}.log"
         blocks = []
         css = ""
@@ -3012,6 +3455,9 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             ("raised", "raised Linalg IR", raised, None),
             ("debufferized", "debufferized tensor Linalg", debufferized, None),
             ("matched", "matcher-rewritten candidate launches", matched, None),
+            ("composed", "post-match composed cuTensorNet network IR",
+             composed, None),
+            ("abi", "ABI-lowered IR (func.call to runtime shim)", abi, None),
             ("matcher-report", "raising and matcher report", log, None),
         ):
             if path is None or not path.exists():
@@ -3073,17 +3519,38 @@ def build_mfem_application_extraction_pages() -> list[dict]:
         missing = row.get("missing_operator", "") or "none"
         families = row.get("operator_families", "") or "—"
         loops = int(row.get("residual_loops", "0") or 0)
+        composition = composition_rows.get(function, {})
+        selected_ir = composed if composition.get("composition_ok") == "true" else matched
         matched_symbols = []
-        if matched.exists():
+        if selected_ir.exists():
             matched_symbols = sorted(set(re.findall(
                 r"kernel\.launch\s+@([A-Za-z0-9_.$-]+)",
-                matched.read_text(),
+                selected_ir.read_text(),
             )))
+        matcher_launches = int(
+            composition.get("matcher_launches", row.get("launches", "0")) or 0
+        )
+        composed_launches = int(
+            composition.get("composed_launches", matcher_launches) or 0
+        )
+        network_launches = int(composition.get("network_launches", "0") or 0)
         matched_implementations = ", ".join(
             f"<code>@{html.escape(symbol)}</code>"
             for symbol in matched_symbols
         ) or "—"
         comparison = comparison_rows.get(function)
+        if (
+            comparison
+            and network_launches
+            and function != "mfem_app_abs_l1_mass_3d"
+            and comparison.get("comparison_quality") != "COMPOSED_CORRECTNESS_FAIL"
+        ):
+            comparison = dict(comparison)
+            comparison["comparison_quality"] = "PRE_COMPOSITION_BASELINE"
+            comparison["comparison_scope"] = (
+                "runtime predates cuTensorNet network composition; structural "
+                "before/after launch counts are current, performance rerun pending"
+            )
         silicon = MFEM_APPLICATION_JETSON_RUNS.get(function)
         if comparison:
             raised_us = comparison.get("raised_runtime_us", "")
@@ -3108,7 +3575,7 @@ def build_mfem_application_extraction_pages() -> list[dict]:
                 "correctness": comparison.get("comparison_scope", ""),
                 "runtime": "; ".join(runtime_parts) or "timing withheld",
                 "calls": (
-                    f'{row.get("launches", "0")} raised candidate launches; '
+                    f'{composed_launches} post-composition launches; '
                     f'native components: {comparison.get("native_components", "—")}'
                 ),
                 "params": (
@@ -3163,7 +3630,9 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             f'<b class="{status_class}">{html.escape(row["residual_loops"])}</b> '
             f'residual loop(s) &nbsp;·&nbsp; '
             f'<b>{html.escape(row["matched_groups"])}</b> semantic match group(s) '
-            f'&nbsp;·&nbsp; <b>{html.escape(row["launches"])}</b> candidate launch(es)<br>'
+            f'&nbsp;·&nbsp; <b>{matcher_launches}→{composed_launches}</b> launches '
+            f'after composition &nbsp;·&nbsp; <b>{network_launches}</b> composed '
+            'cuTensorNet network(s)<br>'
             f'<b>Matched implementations:</b> {matched_implementations}<br>'
             f'<b>Extracted operator families:</b> {html.escape(families)}<br>'
             f'<b>Missing operator families:</b> {html.escape(missing)}<br>'
@@ -3196,7 +3665,9 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             "linalg_ops_int": int(row.get("linalg_ops", "0") or 0),
             "residual_loops_int": loops,
             "matches_int": int(row.get("matched_groups", "0") or 0),
-            "launches_int": int(row.get("launches", "0") or 0),
+            "launches_int": composed_launches,
+            "matcher_launches_int": matcher_launches,
+            "network_launches_int": network_launches,
             "matched_symbols": matched_symbols,
             "silicon": silicon,
             "comparison": comparison,
@@ -3271,7 +3742,9 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<td class="{coverage_class}">{html.escape(row["coverage"])}</td>'
             f'<td>{upstream}</td><td>{row["linalg_ops_int"]}</td>'
             f'<td class="{raised_class}">{row["residual_loops_int"]}</td>'
-            f'<td>{row["matches_int"]}</td><td>{row["launches_int"]}</td>'
+            f'<td>{row["matches_int"]}</td>'
+            f'<td>{row["matcher_launches_int"]}→{row["launches_int"]}<br>'
+            f'<small>{row["network_launches_int"]} network(s)</small></td>'
             f'<td>{matched_implementations}</td>'
             f'<td>{silicon_outcome}</td><td>{raised_runtime}</td>'
             f'<td>{native_runtime}</td><td>{ratio_text}</td>'
@@ -3292,8 +3765,9 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         'not translations of MPI, mesh, or solver-control code. All rows were rebuilt '
         'at <b>NE=1024, D1D=4, Q1D=5</b> and run on the Jetson Orin in MAXN mode. '
         'Ten paths pass correctness; the minimal-surface path fails at this larger '
-        'size and is intentionally not timed. Raised values are medians of warm '
-        'process runs 2–4. <b>EXACT_OPERATOR</b> is a directly paired native MFEM '
+        'size and is intentionally not timed. Raised values are medians of five '
+        'process-level means, with five timed application calls per process. '
+        '<b>EXACT_OPERATOR</b> is a directly paired native MFEM '
         'CUDA operator. <b>COMPONENT_SUM</b> sums separately measured resident MFEM '
         'CUDA PA kernels and is a conservative component baseline, not a fused '
         'whole-application timing. PARTIAL_COMPONENT_SUM omits the ex9 PCG algebra. '
@@ -3303,7 +3777,8 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         '<table><thead><tr><th>extracted entry</th><th>extracted C</th>'
         '<th>application</th>'
         '<th>coverage</th><th>upstream MFEM call site</th><th>Linalg ops</th>'
-        '<th>residual loops</th><th>matches</th><th>candidate launches</th>'
+        '<th>residual loops</th><th>matches</th>'
+        '<th>launches before→after composition</th>'
         '<th>matched implementation</th><th>correctness</th>'
         '<th>raised warm</th><th>MFEM native CUDA</th><th>raised/native</th>'
         '<th>comparison scope</th><th>test parameters</th></tr></thead><tbody>'
@@ -3330,7 +3805,8 @@ def _mfem_application_section(app_stats: list[dict]) -> str:
             f'<td>{html.escape(stats["reference_us"])}</td>'
             f'<td>{html.escape(stats["sliced_us"])}</td>'
             f'<td>{html.escape(stats["speedup"])}x</td>'
-            f'<td>{html.escape(stats["library_launches"])}</td>'
+            f'<td>{html.escape(stats["composition_launches"])}<br>'
+            f'<small>{html.escape(stats["network_launches"])} network(s)</small></td>'
             f'<td class="{status_class}">{html.escape(status)}</td>'
             f'<td>{html.escape(stats["blocker"])}</td></tr>'
         )
@@ -3348,7 +3824,7 @@ def _mfem_application_section(app_stats: list[dict]) -> str:
         '<table><thead><tr><th>port</th><th>application</th><th>operator</th>'
         '<th>dim</th><th>max error</th><th>faithful C (us)</th>'
         '<th>stage-sliced C (us)</th><th>CPU speedup</th>'
-        '<th>structural launches</th><th>library-backed status</th>'
+        '<th>launches before→after composition</th><th>library-backed status</th>'
         '<th>blocker</th></tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -3372,6 +3848,8 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         )
         variant = stats["variant"]
         launches = stats["launches"]
+        matcher_launches = stats["matcher_launches"]
+        network_launches = stats["network_launches"]
         if variant == "original":
             status_class, status = "partial", "RESIDUAL"
         elif launches:
@@ -3386,14 +3864,26 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         if silicon:
             correctness = html.escape(silicon["correctness"])
             correctness_class = "pass" if correctness == "PASS" else "none"
-            raised_runtime = _fmt_seconds(
-                float(silicon["raised_runtime_us"]) / 1.0e6
+            raised_value = silicon.get("raised_runtime_us", "")
+            native_value = silicon.get("mfem_native_runtime_us", "")
+            ratio_value = silicon.get("raised_over_native", "")
+            raised_runtime = (
+                _fmt_seconds(float(raised_value) / 1.0e6) if raised_value else "—"
             )
-            native_runtime = _fmt_seconds(
-                float(silicon["mfem_native_runtime_us"]) / 1.0e6
+            if correctness != "PASS" and raised_value:
+                raised_runtime += " (invalid result)"
+            elif network_launches and stats["id"] != "mass_apply_3d_stage_sliced":
+                raised_runtime += " (pre-composition)"
+            native_runtime = (
+                _fmt_seconds(float(native_value) / 1.0e6) if native_value else "—"
             )
-            ratio = float(silicon["raised_over_native"])
-            ratio_cell = f'MFEM <b>{ratio:.1f}&times;</b> faster'
+            if correctness != "PASS":
+                ratio_cell = "withheld (incorrect result)"
+            elif ratio_value:
+                ratio = float(ratio_value)
+                ratio_cell = f'MFEM <b>{ratio:.1f}&times;</b> faster'
+            else:
+                ratio_cell = "—"
         else:
             correctness = raised_runtime = native_runtime = ratio_cell = "—"
             correctness_class = ""
@@ -3405,7 +3895,8 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
             f"<td>{html.escape(variant)}</td>"
             f"<td>{stats['linalg_ops']}</td>"
             f"<td>{stats['residual_loops']}</td>"
-            f"<td>{launches}</td>"
+            f"<td>{matcher_launches}→{launches}<br>"
+            f"<small>{network_launches} network(s)</small></td>"
             f'<td class="{status_class}">{status}</td>'
             f"<td>{symbols}</td>"
             f'<td class="{correctness_class}">{correctness}</td>'
@@ -3420,6 +3911,8 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
     fully_raised = sum(row["fully_raised"] for row in mfem_stats)
     matched_kernels = sum(row["launches"] > 0 for row in normalized)
     total_matches = sum(row["launches"] for row in normalized)
+    total_matcher_launches = sum(row["matcher_launches"] for row in normalized)
+    total_networks = sum(row["network_launches"] for row in normalized)
     return (
         '<a name="mfem"></a>'
         '<div class="section-header"><h2 class="section-title">'
@@ -3430,29 +3923,32 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         f'The raising pipeline produced {total_linalg} Linalg operations; '
         f'{fully_raised}/{len(mfem_stats)} kernels are loop-free, including '
         f'all {len(normalized)}/{len(normalized)} normalized variants. '
-        f'The matcher emitted {total_matches} ABI-lowerable library launches '
+        f'The matcher emitted {total_matcher_launches} ABI-lowerable library '
+        f'launches; network composition leaves {total_matches} launches, '
+        f'including {total_networks} multi-contraction cuTensorNet networks, '
         f'across {matched_kernels}/{len(normalized)} normalized kernels. '
         'Each row links to the '
-        'stored frontend, raised, debufferized, and matcher-rewritten IR plus '
+        'stored frontend, raised, debufferized, matcher-rewritten, and composed '
+        'IR plus '
         'a Compiler Explorer deep link.'
         '<br><b>Silicon comparison:</b> all 18 matcher-covered normalized '
         'kernels (ten PA operators plus eight DFEM interpolation/integration '
-        'maps) use f64, NE=1024, D1D=4, Q1D=5, and 20 warm iterations on '
+        'maps) use f64, NE=1024, D1D=4, Q1D=5, and 20 timed calls on '
         'Jetson Orin sm_87 in MAXN mode with CUDA 12.6. The raised value is '
-        'the median of '
-        'process runs 2–4 so the first cold CUDA process is excluded. '
-        '“Raised” is the current cached host-pointer ABI (including '
-        'host-mapping, correctness snapshots, and synchronization overhead); '
-        'prepared cuTensorNet plans, workspaces, and scratch are reused. '
-        '“MFEM CUDA” is a synchronized '
-        'resident-device native MFEM launch. This intentionally records the '
+        'the median of five process trials; each trial warms three calls and '
+        'reports the best of 20 individually synchronized calls. '
+        '“Raised” is the current zero-copy mapped host-pointer ABI; prepared '
+        'cuTensorNet plans, workspaces, and scratch are reused, while any '
+        'residual host loops remain included. “MFEM CUDA” uses the same warmup, '
+        'best-of-20, and synchronization policy on resident device buffers. '
+        'This intentionally records the '
         'performance gap in the current end-to-end lowering and is not a '
         'kernel-only claim.'
         '</div>'
         '<table><thead><tr><th>kernel</th><th>extracted C</th>'
         '<th>upstream MFEM source</th><th>family</th><th>dim</th>'
         '<th>variant</th><th>Linalg ops</th><th>residual loops</th>'
-        '<th>executable launches</th><th>status</th>'
+        '<th>launches before→after composition</th><th>status</th>'
         '<th>matched implementation</th>'
         '<th>silicon correctness</th><th>raised current ABI</th>'
         '<th>MFEM native CUDA</th><th>runtime difference</th>'
@@ -4821,7 +5317,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     polybench = nav() + polybench_section
     performance = nav() + _aten_slowness_page(aten_stats)
     numerical_pages: dict[str, str] = {}
-    for sort_by in ("alphabetical", "correctness"):
+    for sort_by in ("alphabetical", "raised", "resident"):
         ordered = _aten_sorted_kernels(sort_by)
         page_count = max(1, (len(ordered) + ATEN_PAGE_SIZE - 1) // ATEN_PAGE_SIZE)
         for page in range(1, page_count + 1):

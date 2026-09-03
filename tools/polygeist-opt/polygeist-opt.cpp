@@ -105,7 +105,11 @@ int main(int argc, char **argv) {
   mlir::registerConvertSCFToOpenMPPass();
   mlir::affine::registerAffinePasses();
   mlir::registerLinalgPasses();
-  mlir::bufferization::registerOneShotBufferizePass();
+  // Register the complete bufferization pipeline.  In particular,
+  // destination-style library launches coexist with tensor.empty scratch in
+  // real raised applications; empty-tensor-to-alloc-tensor must run before
+  // one-shot-bufferize can preserve those launches through ABI lowering.
+  mlir::bufferization::registerBufferizationPasses();
 
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(*ctx);

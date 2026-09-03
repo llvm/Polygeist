@@ -1536,7 +1536,8 @@ def _sgemm_zero_gemm() -> CompositionEntry:
             CompositionStep(body=Term.Out(0) + Term.In(0) * Term.In(1),
                             num_ins=2, num_outs=1,
                             parallel_dim_count=2, reduction_dim_count=1),
-        ])
+        ],
+        element_type="f32")
 
 
 def _sgemm_strided_batched_zero() -> CompositionEntry:
@@ -1549,7 +1550,8 @@ def _sgemm_strided_batched_zero() -> CompositionEntry:
             CompositionStep(body=Term.Out(0) + Term.In(0) * Term.In(1),
                             num_ins=2, num_outs=1,
                             parallel_dim_count=3, reduction_dim_count=1),
-        ])
+        ],
+        element_type="f32")
 
 
 def _sgemm_broadcast3d_memref() -> CompositionEntry:
@@ -2843,15 +2845,21 @@ def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
     )
 
 
-def _conv3d_11pt_weighted() -> CompositionEntry:
+def _conv3d_11pt_semantic() -> CompositionEntry:
     """3D 11-tap weighted convolution: out = sum_{k=0..10} w_k * in_k.
 
     Matches polybenchGpu's extracted conv3d body, which has 15 writes but
     only 11 unique input positions (3 positions each appear in 3 muls
     with different literal coefficients; their products are then summed).
-    The factoring + literal-folding rules in `algebra_rules` collapse the
-    redundant muls during egglog saturation, so the body normalises to
-    one mul per unique input — exactly the shape matched here.
+    This is a semantic-recognition pattern only.  It has no kernel.defn, ABI
+    lowering, or runtime implementation: the source consists of eleven
+    separate shifted views, whereas the available generalized Conv3D ABI
+    requires one base tensor plus a packed dense filter.  Keep the pattern for
+    diagnostics, but do not give it a library-looking name or select it for
+    production rewriting.
+
+    The deterministic factoring fallback collapses the redundant muls to one
+    mul per unique input before matching this pattern.
 
     The iteration nest is 3D parallel (over (i,j,k)); no reduction dims.
     """
@@ -2859,7 +2867,7 @@ def _conv3d_11pt_weighted() -> CompositionEntry:
     for i in range(1, 11):
         body = body + Term.In(i) * T_cap(f"%w{i}")
     return CompositionEntry(
-        name="cudnnConvolution3D_11tap",
+        name="conv3d_11tap_semantic",
         steps=[CompositionStep(body=body, num_ins=11, num_outs=1,
                                 parallel_dim_count=3, reduction_dim_count=0)],
         form="memref",
@@ -3365,16 +3373,15 @@ def _syr2k_composition() -> CompositionEntry:
 
 
 def _copy_input() -> CompositionEntry:
-    """out[i] = in[i]  — vector copy.
+    """Semantic-only memref identity/broadcast pattern.
 
-    Tagged memref-form because the canonical defn in kernel_library_phase2.mlir
-    is authored for memref operands (used by fdtd-2d's source-injection step
-    where a scalar memref broadcasts to a 1D output row). The tensor-form
-    twin below handles the multi-root debufferize variant.
+    There is no ABI lowering for the historical ``cublasDcopy`` matcher name.
+    Real tensor copies are handled by the tensor adapter below when they can
+    be mapped to an implemented CUDA copy kernel.
     """
     body = Term.In(0)
     return CompositionEntry(
-        name="cublasDcopy",
+        name="copy_input_memref_semantic",
         steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
                                 reduction_dim_count=0)],
         form="memref",
@@ -3624,10 +3631,8 @@ def composition_library() -> list[CompositionEntry]:
                                 #         conv shapes (single step) so
                                 #         longest-first matching picks the
                                 #         right shared-prefix family.
-        _conv3d_11pt_weighted(), # 11 ins, 3D parallel — most specific 3D
-                                 #         conv shape; relies on egglog
-                                 #         factoring to collapse redundant
-                                 #         muls in polybench's conv3d body.
+        _conv3d_11pt_semantic(), # Semantic-only: 11 separate shifted views
+                                 # cannot use the packed-filter Conv3D ABI.
         _conv2d_25pt_weighted(), # 25 ins — 5x5 conv shape; keep before 9-tap
                                   #          and lower-point stencil templates.
         _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must

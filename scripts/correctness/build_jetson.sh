@@ -112,26 +112,92 @@ if grep -q '= kernel\.launch ' "$INPUT"; then
   exit 1
 fi
 
-WORK=$(mktemp -d)
-trap "rm -rf $WORK" EXIT
+if [ -n "${POLYGEIST_BUILD_WORK_DIR:-}" ]; then
+  WORK=$POLYGEIST_BUILD_WORK_DIR
+  mkdir -p "$WORK"
+  rm -f "$WORK"/*.mlir "$WORK"/*.ll "$WORK"/*.o
+else
+  WORK=$(mktemp -d)
+  trap "rm -rf $WORK" EXIT
+fi
 
 echo "  [1/6] lower Polygeist views + canonicalise input MLIR"
 # Tensor-form matcher results can retain polygeist.submap/submapInverse around
 # an already ABI-lowered runtime call. Lower those repository-specific ops
 # before handing the module to upstream mlir-opt, which does not register the
 # Polygeist dialect.
-$POLYGEIST_OPT --lower-polygeist-submap "$INPUT" -o $WORK/no_submap.mlir
+$POLYGEIST_OPT --lower-polygeist-submap "$INPUT" -o $WORK/no_submap_raw.mlir
+# Recover static allocation types hidden by tensor casts/dim queries. Besides
+# reducing descriptor traffic, this lets the optional persistent-workspace
+# planner recognize ABI compatibility snapshots without application shapes.
+$MLIR_OPT --resolve-shaped-type-result-dims --canonicalize \
+  $WORK/no_submap_raw.mlir -o $WORK/no_submap.mlir
+# Graph-captured applications may request stable storage for static scratch
+# created while lowering Polygeist views. This is deliberately opt-in because
+# module-global workspaces make the selected function non-reentrant.
+ABI_INPUT=$WORK/no_submap.mlir
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+  $POLYGEIST_OPT \
+    "--plan-persistent-gpu-workspace=function=${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION}" \
+    $WORK/no_submap.mlir -o $WORK/persistent_workspace.mlir
+  ABI_INPUT=$WORK/persistent_workspace.mlir
+fi
 # Mark to_tensor results as `restrict` so one-shot-bufferize keeps the
 # in-place semantics (same trick gemm_kernel_e2e.sh uses).
 sed 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
-    $WORK/no_submap.mlir > $WORK/abi.mlir
+    $ABI_INPUT > $WORK/abi.mlir
 
 echo "  [2/6] one-shot-bufferize + lower to LLVM dialect (host-side, on this VM)"
-$MLIR_OPT --one-shot-bufferize=bufferize-function-boundaries \
-  --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
-  --convert-arith-to-llvm --finalize-memref-to-llvm \
-  --convert-func-to-llvm --reconcile-unrealized-casts \
-  $WORK/abi.mlir -o $WORK/llvm.mlir
+if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
+  # Preserve bufferized Linalg long enough to outline every unmatched
+  # parallel/reduction stage and every compatibility copy as generated GPU
+  # code. The preparation pass runs on both sides of the standard MLIR
+  # outlining pipeline: first to expose copies/injective write-backs, then to
+  # register mapped bases and mark launches capture-safe.
+  GPU_FN=$POLYGEIST_GPU_RESIDUAL_FUNCTION
+  GPU_ARCH=${POLYGEIST_GPU_ARCH:-sm_87}
+  $MLIR_OPT --empty-tensor-to-alloc-tensor \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --canonicalize --promote-buffers-to-stack \
+    $WORK/abi.mlir -o $WORK/bufferized.mlir
+  $POLYGEIST_OPT \
+    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    $WORK/bufferized.mlir -o $WORK/gpu_prepared.mlir
+  $MLIR_OPT --convert-linalg-to-parallel-loops \
+    --gpu-map-parallel-loops --convert-parallel-loops-to-gpu \
+    --gpu-kernel-outlining \
+    $WORK/gpu_prepared.mlir -o $WORK/gpu_outlined.mlir
+  $POLYGEIST_OPT --merge-gpu-modules \
+    $WORK/gpu_outlined.mlir -o $WORK/gpu_merged.mlir
+  $POLYGEIST_OPT \
+    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
+  $POLYGEIST_OPT \
+    '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true maximal-device-sequence=true' \
+    $WORK/gpu_registered.mlir -o $WORK/gpu_graphed.mlir
+  # Current mlir-opt rejects combining a nested --pass-pipeline with
+  # individual top-level pass flags. Attach the NVPTX target in its own
+  # invocation, then serialize modules and lower the host side.
+  $MLIR_OPT \
+    --pass-pipeline="builtin.module(gpu.module(affine-expand-index-ops,lower-affine,convert-scf-to-cf,convert-gpu-to-nvvm,convert-arith-to-llvm,convert-index-to-llvm),convert-cf-to-llvm,gpu.module(canonicalize,cse),nvvm-attach-target{chip=${GPU_ARCH} O=3})" \
+    $WORK/gpu_graphed.mlir -o $WORK/gpu_targeted.mlir
+  $MLIR_OPT \
+    --gpu-to-llvm --gpu-module-to-binary=format=isa \
+    --expand-strided-metadata --lower-affine --convert-scf-to-cf \
+    --convert-arith-to-llvm --convert-index-to-llvm \
+    --finalize-memref-to-llvm --convert-func-to-llvm \
+    --reconcile-unrealized-casts \
+    $WORK/gpu_targeted.mlir -o $WORK/llvm.mlir
+else
+  $MLIR_OPT --empty-tensor-to-alloc-tensor \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --canonicalize --promote-buffers-to-stack \
+    --convert-linalg-to-loops --expand-strided-metadata --lower-affine \
+    --convert-scf-to-cf --convert-arith-to-llvm --convert-index-to-llvm \
+    --finalize-memref-to-llvm \
+    --convert-func-to-llvm --reconcile-unrealized-casts \
+    $WORK/abi.mlir -o $WORK/llvm.mlir
+fi
 
 echo "  [3/6] translate to LLVM IR, then retarget x86 → aarch64"
 $MLIR_TRANSLATE --mlir-to-llvmir $WORK/llvm.mlir -o $WORK/kernel.ll
@@ -144,6 +210,13 @@ sed -i '/^target datalayout/d' $WORK/kernel.ll
 # `kernel_gemm` is what the polybench harness will call — rename so the
 # harness's own `kernel_gemm` (the C ref) doesn't collide.
 sed -i 's/@kernel_gemm\b/@kernel_gemm_impl/g' $WORK/kernel.ll
+# Application harnesses expose a flat-pointer C entry point while the raised
+# MLIR function uses the expanded memref ABI. Keep the same convention as the
+# GEMM harness for any explicitly selected residual-GPU application.
+if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
+  GPU_FN=$POLYGEIST_GPU_RESIDUAL_FUNCTION
+  sed -i "s/@${GPU_FN}\\b/@${GPU_FN}_impl/g" $WORK/kernel.ll
+fi
 
 echo "  [4/6] cross-compile .ll → aarch64 .o via Polygeist clang"
 $CLANG --target=aarch64-linux-gnu --gcc-toolchain=/usr \
@@ -173,6 +246,15 @@ if [ "$CUTENSORNET_ENABLED" -eq 1 ]; then
                  "-l:libcutensornet.so.2" "-l:libcutensor.so.2")
   echo "       cuTensorNet: $CUTENSORNET_LIB"
   echo "       cuTENSOR:    $CUTENSOR_LIB"
+fi
+# Standalone cuTENSOR (for cutensorUnary etc.) — enable when a cutensor root
+# (include/ + lib/libcutensor.so.2) is provided, independent of cuTensorNet.
+if [ -z "${POLYGEIST_CUTENSOR_ROOT:-}" ] && [ "$CUTENSORNET_ENABLED" -ne 1 ]; then
+  :
+elif [ -n "${POLYGEIST_CUTENSOR_ROOT:-}" ]; then
+  RT_EXTRA_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$POLYGEIST_CUTENSOR_ROOT/include")
+  RT_EXTRA_LIBS+=("-L$POLYGEIST_CUTENSOR_ROOT/lib" "-l:libcutensor.so.2")
+  echo "       cuTENSOR (standalone): $POLYGEIST_CUTENSOR_ROOT"
 fi
 $AARCH64_CC -O3 -I$CUDA/include -I$CUDNN_INC "${RT_EXTRA_CFLAGS[@]}" \
             -c $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt.o

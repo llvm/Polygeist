@@ -209,6 +209,20 @@ module {
     kernel.yield %output : tensor<?x?x?x?xf32>
   }
 
+  // Tensor-form average pooling. Same signature as the window convolution
+  // above, but the matcher emits this symbol only when the weight is exactly
+  // 1/(KH*KW) over a non-overlapping valid window (i.e. a box average), so the
+  // ABI lowering runs cuDNN average pooling instead of a depthwise convolution.
+  kernel.defn @cudnnAvgPoolWindow_f32(
+      %input: tensor<?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>,
+      %weight: f32,
+      %kh: i32, %kw: i32, %sh: i32, %sw: i32,
+      %dh: i32, %dw: i32, %ph: i32, %pw: i32)
+      -> tensor<?x?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?x?xf32>
+  }
+
   // Rank-parameterized ATen adaptive average/max pooling. Operation is
   // 0=avg-fwd, 1=avg-bwd, 2=max-fwd, 3=max-bwd. Spatial dimensions unused by
   // rank-1/rank-2 forms are one. ptr2 is unused for average pooling.

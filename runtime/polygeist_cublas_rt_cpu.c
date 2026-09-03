@@ -28,6 +28,7 @@ int32_t polygeist_cuda_graph_begin(int64_t graph_id) {
   return 1;
 }
 void polygeist_cuda_graph_end(int64_t graph_id) { (void)graph_id; }
+void *polygeist_cuda_graph_stream(void) { return NULL; }
 
 void polygeist_cublas_dgemm(
     int32_t M, int32_t N, int32_t K,
