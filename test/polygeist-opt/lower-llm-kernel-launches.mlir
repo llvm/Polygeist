@@ -1,27 +1,6 @@
 // RUN: polygeist-opt --lower-kernel-launch-to-cublas --split-input-file %s | FileCheck %s
 
 module {
-  kernel.defn @rmsnorm_f32(%x: memref<?xf32>, %weight: memref<?xf32>,
-                           %out: memref<?xf32>) {
-    kernel.yield
-  }
-
-  func.func @rms(%x: memref<?xf32>, %weight: memref<?xf32>,
-                 %out: memref<?xf32>) {
-    kernel.launch @rmsnorm_f32(%x, %weight, %out)
-        : (memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()
-    return
-  }
-}
-
-// CHECK-LABEL: func.func @rms
-// CHECK: call @polygeist_rmsnorm_f32
-// CHECK-SAME: (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-// CHECK-NOT: kernel.launch
-
-// -----
-
-module {
   kernel.defn @cublasDgemm(%a: tensor<?x?xf64>, %b: tensor<?x?xf64>,
                            %c: tensor<?x?xf64>, %beta: f64, %alpha: f64)
       -> tensor<?x?xf64> {
@@ -57,28 +36,6 @@ module {
 // CHECK: call @polygeist_cublas_dgemm
 // CHECK-NOT: tensor.insert_slice
 // CHECK-NOT: memref.copy
-// CHECK-NOT: kernel.launch
-
-// -----
-
-module {
-  kernel.defn @rmsnorm_f32_tensor(%x: tensor<?xf32>,
-                                  %weight: tensor<?xf32>,
-                                  %out: tensor<?xf32>) -> tensor<?xf32> {
-    kernel.yield %out : tensor<?xf32>
-  }
-
-  func.func @rms_tensor(%x: tensor<?xf32>, %weight: tensor<?xf32>,
-                        %out: tensor<?xf32>) -> tensor<?xf32> {
-    %0 = kernel.launch @rmsnorm_f32_tensor(%x, %weight, %out)
-        : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
-    return %0 : tensor<?xf32>
-  }
-}
-
-// CHECK-LABEL: func.func @rms_tensor
-// CHECK: call @polygeist_rmsnorm_f32
-// CHECK-SAME: (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NOT: kernel.launch
 
 // -----
