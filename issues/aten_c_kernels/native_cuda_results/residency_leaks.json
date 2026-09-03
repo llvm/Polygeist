@@ -1,0 +1,3112 @@
+{
+"aten_abs": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_acos": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_acosh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_adaptive_avg_pool2d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_adaptive_avg_pool2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_adaptive_avg_pool3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_adaptive_max_pool2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_adaptive_max_pool3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_add": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_add_clamp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_addcdiv": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_addcmul": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_addmm": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_aminmax_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 4,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 2,
+"allocs": 2,
+"inter_call_allocs": 0
+},
+"aten_angle_complex_scalarized": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_angle_real": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_as_complex_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_asin": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_asinh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_atan": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_atan2": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_atanh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_avg_pool2d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_avg_pool2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_avg_pool3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_batch_norm": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_batch_norm_cpu_entry": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_batch_norm_transform_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_bilinear_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_bincount_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_axpy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_copy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_dot_naive_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_gemv_generic_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_scale_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_blas_sum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_block_diag_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_bmm": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_cartesian_prod_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cat_serial_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cat_sparse_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cauchy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cdist_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cdist_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_ceil": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_channel_shuffle": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_channel_shuffle_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_clamp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_clamp_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_clamp_max_scalar_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_clamp_min_scalar_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_clamp_scalar_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_complex_scalarized": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_conj_complex_scalarized": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_constant_pad_nd_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_conv1d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_conv2d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_conv2d_columns_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_conv3d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_conv_transpose3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_copy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_copy_tensor_array_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cos": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cosh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_count_nonzero_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_count_nonzero_impl_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_cpu_blas_gemm_batched_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_cpu_blas_gemm_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_cpu_blas_gemm_strided_batched_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_cross": {
+"stage": "bufferized",
+"shim_calls": 3,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cross_cpu_backend": {
+"stage": "bufferized",
+"shim_calls": 3,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_ctc_loss_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_ctc_loss_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 2,
+"inter_call_copies": 1,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_cummax_cummin_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 6,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 4,
+"allocs": 4,
+"inter_call_allocs": 0
+},
+"aten_cumprod_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dense_sparse_add_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_diff_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dilated_convolution_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dirichlet_grad_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dirichlet_transform_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_div": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_div_floor": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_div_trunc": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dot": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dropout_feature_noise_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_dyn_quant_matmul_4bit_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_elu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_elu_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_embedding_bag_backward_max_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_embedding_bag_backward_sum_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_embedding_bag_per_sample_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_equal_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_erf": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_erfc": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_exp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_exp2": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_expm1": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_exponential_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fast_cat_dim0_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_flash_attention_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_flatten_nd_linear_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_floor": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fmax": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fmin": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fmod": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fp16_dot_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fp16_gemv_f16arith_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fp16_gemv_f32arith_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fp16_gemv_notrans_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fp16_gemv_trans_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_frac": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fractional_max_pool2d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_fractional_max_pool3d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gamma_transform_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gelu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gelu_backward_cpu_exact": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gelu_backward_cpu_tanh": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_gelu_cpu_exact": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gelu_cpu_tanh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gemm_notrans_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_gemm_transa_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_gemm_transab_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_gemm_transb_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_geometric_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_glu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_glu_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_glu_jvp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gradient_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_gradient_float_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_grid_sampler_2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 4,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_grid_sampler_3d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardshrink": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardsigmoid": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardsigmoid_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardswish": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardswish_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardtanh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hardtanh_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_histogramdd_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_histogramdd_linear_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_host_softmax_backward_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_host_softmax_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hspmm_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_huber_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_huber_elementwise": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_hypot": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_im2col": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_index_reduce_impl_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_int4pack_mm_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_int8pack_mm_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_int_mm_out_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_kthvalue_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_layer_norm": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_layer_norm_backward_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 3,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_layer_norm_cpu_backend": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 3,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_leaky_relu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_lerp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_lerp_scalar": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_lerp_scalar_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_lerp_tensor_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_linalg_powsum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 1,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_linear_combination_cpu": {
+"stage": "bufferized",
+"shim_calls": 3,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_log": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_log10": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_log1p": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_log2": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_log_normal_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_log_sigmoid_backward_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_logaddexp": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_logaddexp2": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_logit": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_logit_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_masked_scale": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_all_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_pool1d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_pool2d": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_pool3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_pool3d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_reduce_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_max_unpool2d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_unpool3d_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_max_values_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_maximum": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mean": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_median_indices_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 3,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_min_all_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_min_reduce_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_min_values_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_minimum": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mish": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mish_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mm": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_mode_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mse_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mse_elementwise": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mse_loss": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_mul": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_multi_margin_loss_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_multilabel_margin_loss_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_mv": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nansum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 1,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_narrow_copy_dense_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_neg": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_all_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_bmm_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_nested_clone_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_matmul_broadcast_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_softmax_backward_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_squeeze_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_sum_backward_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nested_sum_dim_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_nll_loss_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_norm_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_normal_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_or_reduce_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_outer": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pdist_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pixel_shuffle": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pixel_shuffle_cpu_backend": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pixel_unshuffle_cpu_backend": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_polar_scalarized": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pow": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_pow_tensor_scalar": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_powsum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 1,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_prod": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_reciprocal": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_reflection_pad1d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_reflection_pad2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_reflection_pad3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_relu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_repeat_compute_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_repeat_tensor_shape_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_replication_pad1d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_replication_pad2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_replication_pad3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_rms_norm": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_round": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_round_decimals": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_rowwise_prune_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_rsqrt": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_shrink_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sigmoid": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sigmoid_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_silu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_silu_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_silu_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sin": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sinh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_slow_conv3d_forward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_smooth_l1_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_smooth_l1_elementwise": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_softmax": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_softplus": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_softplus_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_softshrink": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sort_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_add_values_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_addmm_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_bmm_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_sparse_coo_softmax_backward_cpu": {
+"stage": "abi",
+"shim_calls": 2,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_csr_reduce_all_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_csr_reduce_dim0_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_intersection_apply_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_intersection_launch_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_mul_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sparse_sum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_spdiags_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_split_copy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_spmm_reduce_backward_input_arg_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_spmm_reduce_backward_other_arg_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_spmm_reduce_backward_other_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sqrt": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_square": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sspaddmm_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_stack_serial_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_standard_gamma_grad_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_std_var_all_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 1,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_std_var_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sum": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 1,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sum_cpu_backend": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 1,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_sumproduct_pair_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_tan": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_tanh": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_tanh_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_threshold_backward": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_topk_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_trace_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_transpose_copy": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_trilinear_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_trunc": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_unbind_copy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_unfold_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_unfolded2d_copy_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_uniform_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_bicubic2d_aa_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_bicubic2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_bilinear2d_aa_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_bilinear2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_lanczos2d_aa_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_linear1d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest1d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest_exact1d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest_exact2d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_nearest_exact3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_upsample_trilinear3d_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 1,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_vector_norm_out_cpu": {
+"stage": "bufferized",
+"shim_calls": 2,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_weight_norm_backward_cpu": {
+"stage": "abi",
+"shim_calls": 1,
+"copies": 2,
+"inter_call_copies": 0,
+"elidable": 2,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+},
+"aten_xor_sum_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 3,
+"inter_call_copies": 0,
+"elidable": 1,
+"genuine": 2,
+"allocs": 1,
+"inter_call_allocs": 0
+},
+"aten_zeros_cpu": {
+"stage": "bufferized",
+"shim_calls": 1,
+"copies": 0,
+"inter_call_copies": 0,
+"elidable": 0,
+"genuine": 0,
+"allocs": 0,
+"inter_call_allocs": 0
+}
+}

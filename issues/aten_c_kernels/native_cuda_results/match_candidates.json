@@ -1,0 +1,4698 @@
+{
+"aten_abs": {
+"winner": "cutensorUnary_abs_f32",
+"candidates": [
+{
+"name": "cutensorUnary_abs_f32",
+"abi": true
+}
+]
+},
+"aten_acos": {
+"winner": "cutensorUnary_acos_f32",
+"candidates": [
+{
+"name": "cutensorUnary_acos_f32",
+"abi": true
+}
+]
+},
+"aten_acosh": {
+"winner": "cutensorUnary_acosh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_acosh_f32",
+"abi": true
+}
+]
+},
+"aten_adaptive_avg_pool2d": {
+"winner": "cudnnConvolution2DWindow_f32",
+"candidates": [
+{
+"name": "cudnnConvolution2DWindow_f32",
+"abi": true
+}
+]
+},
+"aten_adaptive_avg_pool2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_adaptive_avg_pool2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_avg_pool3d": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_avg_pool3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_adaptive_avg_pool3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_max_pool1d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_max_pool2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_adaptive_max_pool2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_max_pool3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_adaptive_max_pool3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_max_pool3d_legacy_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_adaptive_max_pool3d_legacy_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_add": {
+"winner": "cudnnAddTensor_batched",
+"candidates": [
+{
+"name": "cudnnAddTensor_batched",
+"abi": true
+},
+{
+"name": "cublasDaxpby",
+"abi": true
+},
+{
+"name": "cublasDaxpy",
+"abi": false
+}
+]
+},
+"aten_add_clamp": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_addcdiv": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_addcmul": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_addmm": {
+"winner": "cublasDgemm",
+"candidates": [
+{
+"name": "cublasDgemm",
+"abi": true
+},
+{
+"name": "cublasDgeam_scale2D",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_addr_elementwise": {
+"winner": null,
+"candidates": []
+},
+"aten_airy_ai": {
+"winner": null,
+"candidates": []
+},
+"aten_allany_dims_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_aminmax_allreduce_cpu": {
+"winner": "cudnnReduceMinMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMinMax_f32",
+"abi": true
+}
+]
+},
+"aten_aminmax_cpu": {
+"winner": "cudnnReduceMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMin_f32",
+"abi": true
+},
+{
+"name": "cudnnReduceMax_f32",
+"abi": true
+}
+]
+},
+"aten_amp_update_scale_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_and_reduce_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_angle_complex_scalarized": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_angle_real": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_arange_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_argmax_cpu": {
+"winner": "cublasDcopy",
+"candidates": [
+{
+"name": "cublasDcopy",
+"abi": false
+}
+]
+},
+"aten_argmin_cpu": {
+"winner": "cublasDcopy",
+"candidates": [
+{
+"name": "cublasDcopy",
+"abi": false
+}
+]
+},
+"aten_as_complex_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_asin": {
+"winner": "cutensorUnary_asin_f32",
+"candidates": [
+{
+"name": "cutensorUnary_asin_f32",
+"abi": true
+}
+]
+},
+"aten_asinh": {
+"winner": "cutensorUnary_asinh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_asinh_f32",
+"abi": true
+}
+]
+},
+"aten_atan": {
+"winner": "cutensorUnary_atan_f32",
+"candidates": [
+{
+"name": "cutensorUnary_atan_f32",
+"abi": true
+}
+]
+},
+"aten_atan2": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_atanh": {
+"winner": "cutensorUnary_atanh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_atanh_f32",
+"abi": true
+}
+]
+},
+"aten_avg_pool2d": {
+"winner": "cudnnConvolution2DWindow_f32",
+"candidates": [
+{
+"name": "cudnnConvolution2DWindow_f32",
+"abi": true
+}
+]
+},
+"aten_avg_pool2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_avg_pool2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_avg_pool3d": {
+"winner": null,
+"candidates": []
+},
+"aten_avg_pool3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_avg_pool3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_batch_norm": {
+"winner": "cudnnBatchNormalizationForwardInference",
+"candidates": [
+{
+"name": "cudnnBatchNormalizationForwardInference",
+"abi": true
+}
+]
+},
+"aten_batch_norm_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_batch_norm_backward_template_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_batch_norm_collect_stats_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_batch_norm_cpu_entry": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_batch_norm_stats_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_batch_norm_transform_cpu": {
+"winner": "cudnnBatchNormalizationForwardInference",
+"candidates": []
+},
+"aten_bernoulli_scalar_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bernoulli_tensor_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bessel_j0": {
+"winner": null,
+"candidates": []
+},
+"aten_bessel_j1": {
+"winner": null,
+"candidates": []
+},
+"aten_bessel_y0": {
+"winner": null,
+"candidates": []
+},
+"aten_bessel_y1": {
+"winner": null,
+"candidates": []
+},
+"aten_bf16_dot_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bf16_gemv_trans_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bilinear_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_binary_cross_entropy": {
+"winner": null,
+"candidates": []
+},
+"aten_binary_search_strided_rightmost_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bincount_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_binomial_transform_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_bitwise_and_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_bitwise_not_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_bitwise_or_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_bitwise_xor_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_blas_axpy_cpu": {
+"winner": "cublasDaxpby",
+"candidates": [
+{
+"name": "cublasDaxpby",
+"abi": true
+},
+{
+"name": "cublasDaxpy",
+"abi": false
+}
+]
+},
+"aten_blas_copy_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_blas_dot_naive_cpu": {
+"winner": "cublasSdot",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_blas_gemv_generic_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_blas_scale_cpu": {
+"winner": "cublasDscal",
+"candidates": [
+{
+"name": "cublasDscal",
+"abi": true
+}
+]
+},
+"aten_blas_sum_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_block_diag_cpu": {
+"winner": "cutensorPermute_f32_r3_tensor",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+},
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_3D",
+"abi": false
+}
+]
+},
+"aten_bmm": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_cartesian_prod_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_cat_serial_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_cat_sparse_cpu": {
+"winner": "cutensorPermute_f32_r2_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_cauchy_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_cdist_backward_cpu": {
+"winner": "centered_sum_squares",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+},
+{
+"name": "centered_sum_squares",
+"abi": false
+},
+{
+"name": "reduce_scaled_square_diff_1D",
+"abi": false
+}
+]
+},
+"aten_cdist_cpu": {
+"winner": "cutensorUnary_sqrt_f32",
+"candidates": [
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+}
+]
+},
+"aten_ceil": {
+"winner": "cutensorUnary_ceil_f32",
+"candidates": [
+{
+"name": "cutensorUnary_ceil_f32",
+"abi": true
+}
+]
+},
+"aten_channel_shuffle": {
+"winner": "cutensorPermute_f32_r5_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_channel_shuffle_cpu": {
+"winner": "cutensorPermute_f32_r4_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_chebyshev_polynomial_t": {
+"winner": null,
+"candidates": []
+},
+"aten_chebyshev_polynomial_u": {
+"winner": null,
+"candidates": []
+},
+"aten_chebyshev_polynomial_v": {
+"winner": null,
+"candidates": []
+},
+"aten_chebyshev_polynomial_w": {
+"winner": null,
+"candidates": []
+},
+"aten_circular_pad_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_clamp": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_clamp_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_clamp_max_scalar_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_clamp_min_scalar_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_clamp_scalar_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_coalesce_sparse_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_col2im_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_combinations_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_complex_scalarized": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_compressed_block_convert_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_conj_complex_scalarized": {
+"winner": "cutensorUnary_neg_f32",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "cutensorUnary_neg_f32",
+"abi": true
+}
+]
+},
+"aten_constant_pad_nd_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_conv1d": {
+"winner": "cudnnConvolution1D_f32_bias",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_3D",
+"abi": false
+}
+]
+},
+"aten_conv2d": {
+"winner": "cudnnConvolutionFwd_batched",
+"candidates": [
+{
+"name": "cudnnConvolutionFwd_batched",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_conv2d_columns_cpu": {
+"winner": "cutensorPermute_f32_r5_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_conv3d": {
+"winner": "cudnnConvolution3D_f32_bias",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_conv3d_columns_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_conv_tbc_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_conv_tbc_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_conv_transpose2d": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_conv_transpose3d_backward_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_conv_transpose3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_conv_transpose3d_grad_weight_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_convert_coo_to_csr_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_convert_csr_to_coo_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_copy_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_copy_tensor_array_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_copysign": {
+"winner": null,
+"candidates": []
+},
+"aten_cos": {
+"winner": "cutensorUnary_cos_f32",
+"candidates": [
+{
+"name": "cutensorUnary_cos_f32",
+"abi": true
+}
+]
+},
+"aten_cosh": {
+"winner": "cutensorUnary_cosh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_cosh_f32",
+"abi": true
+}
+]
+},
+"aten_count_nonzero_cpu": {
+"winner": "cubCountNonzero1D_f32_tensor",
+"candidates": []
+},
+"aten_count_nonzero_impl_cpu": {
+"winner": "cubSegmentedCountNonzero2D_f32_tensor",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_cpu_blas_gemm_batched_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_cpu_blas_gemm_cpu": {
+"winner": "cublasSgemm_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+},
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_cpu_blas_gemm_strided_batched_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_cross": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_cross_cpu_backend": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_ctc_loss_backward_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_ctc_loss_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "cutensorUnary_exp_f32",
+"abi": true
+}
+]
+},
+"aten_cummax_cummin_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_cumprod_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_cumprod_cpu": {
+"winner": "cubSegmentedInclusiveProduct2D_f32_tensor",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_cumsum": {
+"winner": "cubInclusiveSum1D_f32_tensor",
+"candidates": []
+},
+"aten_dense_sparse_add_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_depthwise_conv3x3_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_3D",
+"abi": false
+}
+]
+},
+"aten_diff_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_linear_reaction",
+"abi": false
+},
+{
+"name": "elemwise_sub_inputs",
+"abi": false
+}
+]
+},
+"aten_digamma": {
+"winner": null,
+"candidates": []
+},
+"aten_dilated_convolution_cpu": {
+"winner": "cudnnConvolution2D_f32_dilated",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_dirichlet_grad_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_dirichlet_transform_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_div": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_div_floor": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_div_trunc": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_dot": {
+"winner": "cublasDdot",
+"candidates": [
+{
+"name": "cublasDdot",
+"abi": true
+}
+]
+},
+"aten_dropout_feature_noise_cpu": {
+"winner": "cudnnFeatureMaskScale_f32_tensor",
+"candidates": []
+},
+"aten_dyn_quant_matmul_4bit_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_dyn_quant_pack_4bit_weight_cpu": {
+"winner": "cudnnReduceMinMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMinMax_f32",
+"abi": true
+}
+]
+},
+"aten_eig_complex_vectors_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_elu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_elu_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_embedding": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_embedding_bag_backward_max_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_embedding_bag_backward_sum_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_embedding_bag_counts_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_embedding_bag_counts_uniq_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_embedding_bag_max_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_embedding_bag_per_sample_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_entr": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_eq": {
+"winner": null,
+"candidates": []
+},
+"aten_equal_cpu": {
+"winner": "cubEqualAll1D_f32_tensor",
+"candidates": []
+},
+"aten_erf": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_erfc": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_erfcx": {
+"winner": null,
+"candidates": []
+},
+"aten_erfinv": {
+"winner": null,
+"candidates": []
+},
+"aten_exp": {
+"winner": "cutensorUnary_exp_f32",
+"candidates": [
+{
+"name": "cutensorUnary_exp_f32",
+"abi": true
+}
+]
+},
+"aten_exp2": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_expm1": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_exponential_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_eye_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_fast_cat_dim0_cpu": {
+"winner": "cutensorPermute_f32_r2_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_fft_conjugate_symmetry_cpu": {
+"winner": "cutensorUnary_neg_f32",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "cutensorUnary_neg_f32",
+"abi": true
+}
+]
+},
+"aten_fftshift_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_fill": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_fill_diagonal_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_flash_attention_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_flash_attention_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_flatten_indices_launch_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_flatten_nd_linear_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_flip_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_flip_tensor_transform_cpu": {
+"winner": "cutensorPermute_f32_r2_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_floor": {
+"winner": "cutensorUnary_floor_f32",
+"candidates": [
+{
+"name": "cutensorUnary_floor_f32",
+"abi": true
+}
+]
+},
+"aten_fmax": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_fmin": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_fmod": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_fp16_dot_cpu": {
+"winner": "cublasSdot",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_fp16_gemv_f16arith_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_fp16_gemv_f32arith_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_fp16_gemv_notrans_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_fp16_gemv_trans_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_frac": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_fractional_max_pool2d_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_fractional_max_pool2d_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_fractional_max_pool3d_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_fractional_max_pool3d_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_fused_adagrad_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_fused_adam_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_fused_sgd_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_gamma_transform_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gather_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_gather_expanded_index_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_gcd_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_ge": {
+"winner": null,
+"candidates": []
+},
+"aten_gelu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gelu_backward_cpu_exact": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gelu_backward_cpu_tanh": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gelu_cpu_exact": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gelu_cpu_tanh": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gemm_notrans_cpu": {
+"winner": "cublasDgemm_simple",
+"candidates": [
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_gemm_transa_cpu": {
+"winner": "cublasDgemm_simple",
+"candidates": [
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_gemm_transab_cpu": {
+"winner": "cublasDgemm_simple",
+"candidates": [
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_gemm_transb_cpu": {
+"winner": "cublasDgemm_simple",
+"candidates": [
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_geometric_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_glu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_glu_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_glu_jvp": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gradient_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_gradient_float_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_grid_sampler_2d_backward_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_grid_sampler_2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_grid_sampler_2d_fallback_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_grid_sampler_2d_quantized_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_grid_sampler_3d_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_grid_sampler_3d_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_group_norm_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_group_norm_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_gt": {
+"winner": null,
+"candidates": []
+},
+"aten_hardshrink": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardsigmoid": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardsigmoid_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardswish": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardswish_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardtanh": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hardtanh_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_heaviside": {
+"winner": null,
+"candidates": []
+},
+"aten_hermite_polynomial_h": {
+"winner": null,
+"candidates": []
+},
+"aten_hermite_polynomial_he": {
+"winner": null,
+"candidates": []
+},
+"aten_histogram_select_outer_bin_edges_cpu": {
+"winner": "cudnnReduceMinMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMinMax_f32",
+"abi": true
+}
+]
+},
+"aten_histogramdd_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_histogramdd_linear_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_host_softmax_backward_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_host_softmax_cpu": {
+"winner": "cudnnSoftmaxForwardOut_tensor",
+"candidates": [
+{
+"name": "cudnnSoftmaxForwardOut_tensor",
+"abi": true
+},
+{
+"name": "cudnnReduceMax_f32",
+"abi": true
+},
+{
+"name": "whisperExpShiftSum_f32_tensor",
+"abi": true
+},
+{
+"name": "elemwise_div_scalar",
+"abi": false
+}
+]
+},
+"aten_hspmm_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_huber_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_huber_elementwise": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_hypot": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_i0": {
+"winner": null,
+"candidates": []
+},
+"aten_i0e": {
+"winner": null,
+"candidates": []
+},
+"aten_i1": {
+"winner": null,
+"candidates": []
+},
+"aten_i1e": {
+"winner": null,
+"candidates": []
+},
+"aten_ifftshift_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_igamma": {
+"winner": null,
+"candidates": []
+},
+"aten_igammac": {
+"winner": null,
+"candidates": []
+},
+"aten_im2col": {
+"winner": "cutensorPermute_f32_r6_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_6D",
+"abi": false
+}
+]
+},
+"aten_index_copy_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_index_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_index_fill_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_index_put_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_index_put_impl_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_index_reduce_impl_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_index_select_dim1_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_index_select_out_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_index_select_sparse_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_int4pack_mm_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_int8pack_mm_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_int_mm_out_cpu": {
+"winner": "cublasGemmEx_i8_i32_tensor",
+"candidates": [
+{
+"name": "cublasSgemm_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+},
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_isin_default_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_isneginf": {
+"winner": null,
+"candidates": []
+},
+"aten_isposinf": {
+"winner": null,
+"candidates": []
+},
+"aten_jagged_to_padded_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_joint_scaling_cpu": {
+"winner": "reduce_max_abs_1D",
+"candidates": [
+{
+"name": "reduce_max_abs_1D",
+"abi": false
+}
+]
+},
+"aten_kaiser_window": {
+"winner": null,
+"candidates": []
+},
+"aten_kron_impl_cpu": {
+"winner": "elemwise_mul_inputs",
+"candidates": [
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_kron_out_cpu": {
+"winner": "elemwise_mul_inputs",
+"candidates": [
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_kthvalue_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_l1_loss": {
+"winner": null,
+"candidates": []
+},
+"aten_laguerre_polynomial_l": {
+"winner": null,
+"candidates": []
+},
+"aten_layer_norm": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_layer_norm_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_layer_norm_cpu_backend": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_lcm_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_ldexp": {
+"winner": null,
+"candidates": []
+},
+"aten_le": {
+"winner": null,
+"candidates": []
+},
+"aten_leaky_relu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_legendre_polynomial_p": {
+"winner": null,
+"candidates": []
+},
+"aten_lerp": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_lerp_scalar": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_lerp_scalar_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_lerp_tensor_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_lgamma": {
+"winner": null,
+"candidates": []
+},
+"aten_linalg_powsum_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_linear_combination_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+},
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_linspace": {
+"winner": null,
+"candidates": []
+},
+"aten_log": {
+"winner": "cutensorUnary_log_f32",
+"candidates": [
+{
+"name": "cutensorUnary_log_f32",
+"abi": true
+}
+]
+},
+"aten_log10": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_log1p": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_log2": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_log_ndtr": {
+"winner": null,
+"candidates": []
+},
+"aten_log_normal_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_log_sigmoid_backward_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_log_sigmoid_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_logaddexp": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_logaddexp2": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_logcumsumexp_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_logical_and": {
+"winner": null,
+"candidates": []
+},
+"aten_logical_not_f32": {
+"winner": null,
+"candidates": []
+},
+"aten_logical_or": {
+"winner": null,
+"candidates": []
+},
+"aten_logical_xor": {
+"winner": null,
+"candidates": []
+},
+"aten_logit": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_logit_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_logspace_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_lower_bound_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_lshift_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_lt": {
+"winner": null,
+"candidates": []
+},
+"aten_masked_fill_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_masked_scale": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_masked_scatter_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_masked_scatter_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_masked_select_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_masked_select_serial_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_max_all_cpu": {
+"winner": "cudnnReduceMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMax_f32",
+"abi": true
+}
+]
+},
+"aten_max_pool1d_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_max_pool2d": {
+"winner": "cudnnMaxPoolFwd_batched",
+"candidates": [
+{
+"name": "cudnnMaxPoolFwd_batched",
+"abi": true
+}
+]
+},
+"aten_max_pool3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_max_pool3d_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_max_reduce_cpu": {
+"winner": "cudnnReduceMax_f32",
+"candidates": [
+{
+"name": "cudnnReduceMax_f32",
+"abi": true
+}
+]
+},
+"aten_max_unpool2d_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_max_unpool3d_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_max_unpool_backward_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_max_values_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_maximum": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_mean": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_median_indices_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_min_all_cpu": {
+"winner": "cudnnReduceMin_f32",
+"candidates": [
+{
+"name": "cudnnReduceMin_f32",
+"abi": true
+}
+]
+},
+"aten_min_reduce_cpu": {
+"winner": "cudnnReduceMin_f32",
+"candidates": [
+{
+"name": "cudnnReduceMin_f32",
+"abi": true
+}
+]
+},
+"aten_min_values_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_minimum": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_mish": {
+"winner": "cutensorUnary_mish_f32",
+"candidates": [
+{
+"name": "cutensorUnary_mish_f32",
+"abi": true
+}
+]
+},
+"aten_mish_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_mm": {
+"winner": "cublasSgemm_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+},
+{
+"name": "cublasDgemm_simple",
+"abi": true
+},
+{
+"name": "cublasDgemm_alpha_only",
+"abi": true
+}
+]
+},
+"aten_mode_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_modified_bessel_i0": {
+"winner": null,
+"candidates": []
+},
+"aten_modified_bessel_i1": {
+"winner": null,
+"candidates": []
+},
+"aten_modified_bessel_k0": {
+"winner": null,
+"candidates": []
+},
+"aten_modified_bessel_k1": {
+"winner": null,
+"candidates": []
+},
+"aten_mse_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_mse_elementwise": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_mse_loss": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_mul": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_mul_inputs_scaled_1D",
+"abi": false
+},
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_multi_margin_loss_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_multi_margin_loss_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_multilabel_margin_loss_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_multilabel_margin_loss_forward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_multinomial_with_replacement_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_mv": {
+"winner": "cublasDgemv",
+"candidates": [
+{
+"name": "cublasDgemv",
+"abi": true
+},
+{
+"name": "cublasDgemv_alpha",
+"abi": true
+}
+]
+},
+"aten_nan_to_num": {
+"winner": null,
+"candidates": []
+},
+"aten_nansum_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_narrow_copy_dense_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_ndtri": {
+"winner": null,
+"candidates": []
+},
+"aten_ne": {
+"winner": null,
+"candidates": []
+},
+"aten_neg": {
+"winner": "cutensorUnary_neg_f32",
+"candidates": [
+{
+"name": "cutensorUnary_neg_f32",
+"abi": true
+}
+]
+},
+"aten_nested_all_cpu": {
+"winner": "cubSegmentedPrefixLogicalAnd_i32",
+"candidates": [
+{
+"name": "cubSegmentedPrefixLogicalAnd_i32",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_nested_batch_offsets_cpu": {
+"winner": "elemwise_axpby_inputs_1D",
+"candidates": [
+{
+"name": "elemwise_axpby_inputs_1D",
+"abi": false
+},
+{
+"name": "cudaAdd_f32_tensor",
+"abi": true
+}
+]
+},
+"aten_nested_bmm_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_nested_clone_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_nested_from_padded_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_matmul_broadcast_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_nested_pad_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_select_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_nested_softmax_backward_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_nested_softmax_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_softmax_dropout_cpu": {
+"winner": "elemwise_div_scalar",
+"candidates": [
+{
+"name": "elemwise_div_scalar",
+"abi": false
+}
+]
+},
+"aten_nested_squeeze_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_nested_sum_backward_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_nested_sum_dim_cpu": {
+"winner": "cubSegmentedPrefixSum_f32",
+"candidates": [
+{
+"name": "cubSegmentedPrefixSum_f32",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_nested_to_mask_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_to_padded_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_where_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nested_where_out_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nextafter": {
+"winner": null,
+"candidates": []
+},
+"aten_nll_loss2d_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nll_loss2d_forward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nll_loss_backward_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_nll_loss_forward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_nonzero_out_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_norm_cpu": {
+"winner": "cutensorUnary_sqrt_f32",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+}
+]
+},
+"aten_normal_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_or_reduce_cpu": {
+"winner": "cubSegmentedLogicalOr_i32",
+"candidates": [
+{
+"name": "cubSegmentedLogicalOr_i32",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_outer": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+},
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_padded_to_jagged_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_pdist_backward_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_pdist_forward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_permute_sparse_coo_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_pixel_shuffle": {
+"winner": "cutensorPermute_f32_r6_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_6D",
+"abi": false
+}
+]
+},
+"aten_pixel_shuffle_cpu_backend": {
+"winner": "cutensorPermute_f32_r5_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_pixel_unshuffle_cpu_backend": {
+"winner": "cutensorPermute_f32_r5_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_poisson_transform_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_polar_scalarized": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_polygamma": {
+"winner": null,
+"candidates": []
+},
+"aten_pow": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_pow_tensor_scalar": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_powsum_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_prod": {
+"winner": "cudnnReduceProduct_f32",
+"candidates": [
+{
+"name": "cudnnReduceProduct_f32",
+"abi": true
+}
+]
+},
+"aten_put_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_quant_col_offsets_cpu": {
+"winner": "reduce_sum_axis",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "reduce_sum_axis",
+"abi": false
+}
+]
+},
+"aten_quant_saturation_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_quick_select_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_random_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_random_from_to_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_random_full_64_bits_range_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_randperm_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_range_out_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_reciprocal": {
+"winner": "cutensorUnary_reciprocal_f32",
+"candidates": [
+{
+"name": "cutensorUnary_reciprocal_f32",
+"abi": true
+},
+{
+"name": "elemwise_div_scalar_by_input_1D",
+"abi": false
+}
+]
+},
+"aten_reflect_conj_tri_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_reflection_pad1d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_reflection_pad1d_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_reflection_pad2d": {
+"winner": null,
+"candidates": []
+},
+"aten_reflection_pad2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_reflection_pad2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_reflection_pad3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_reflection_pad3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_relu": {
+"winner": "cutensorUnary_relu_f32",
+"candidates": [
+{
+"name": "cutensorUnary_relu_f32",
+"abi": true
+}
+]
+},
+"aten_remainder": {
+"winner": null,
+"candidates": []
+},
+"aten_renorm_scale_factor": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_repeat_compute_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_repeat_tensor_shape_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_replication_pad1d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_replication_pad1d_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_replication_pad2d": {
+"winner": null,
+"candidates": []
+},
+"aten_replication_pad2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_replication_pad2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_replication_pad3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_replication_pad3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_rms_norm": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_round": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_round_decimals": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_rowwise_prune_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_rshift_i32": {
+"winner": null,
+"candidates": []
+},
+"aten_rsqrt": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sample_poisson_transform_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sampled_addmm_sparse_csr_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scaled_modified_bessel_k0": {
+"winner": null,
+"candidates": []
+},
+"aten_scaled_modified_bessel_k1": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_add_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_add_expanded_index_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_fill_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_reduce_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_reduce_expanded_index_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_reduce_two_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_scatter_scalar_reduce_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_searchsorted_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_segment_reduce_lengths_backward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_segment_reduce_lengths_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sgn_complex_scalarized": {
+"winner": null,
+"candidates": []
+},
+"aten_shrink_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sigmoid": {
+"winner": "cutensorUnary_sigmoid_f32",
+"candidates": [
+{
+"name": "cutensorUnary_sigmoid_f32",
+"abi": true
+}
+]
+},
+"aten_sigmoid_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sign": {
+"winner": null,
+"candidates": []
+},
+"aten_signbit": {
+"winner": null,
+"candidates": []
+},
+"aten_silu": {
+"winner": "cutensorUnary_silu_f32",
+"candidates": [
+{
+"name": "cutensorUnary_silu_f32",
+"abi": true
+}
+]
+},
+"aten_silu_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_silu_cpu": {
+"winner": "cutensorUnary_silu_f32",
+"candidates": [
+{
+"name": "cutensorUnary_silu_f32",
+"abi": true
+}
+]
+},
+"aten_sin": {
+"winner": "cutensorUnary_sin_f32",
+"candidates": [
+{
+"name": "cutensorUnary_sin_f32",
+"abi": true
+}
+]
+},
+"aten_sinc": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_sinh": {
+"winner": "cutensorUnary_sinh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_sinh_f32",
+"abi": true
+}
+]
+},
+"aten_slow_conv3d_backward_input_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_slow_conv3d_backward_weight_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_slow_conv3d_forward_cpu": {
+"winner": "cutensornetContraction2_f64",
+"candidates": [
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_smooth_l1_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_smooth_l1_elementwise": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sobol_draw_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sobol_fast_forward_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sobol_initialize_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "elemwise_scale_input_1D",
+"abi": false
+}
+]
+},
+"aten_sobol_scramble_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_softmax": {
+"winner": "cudnnSoftmaxForward_tensor",
+"candidates": [
+{
+"name": "cudnnSoftmaxForward_tensor",
+"abi": true
+},
+{
+"name": "cudnnReduceMax_f32",
+"abi": true
+},
+{
+"name": "elemwise_div_scalar",
+"abi": false
+}
+]
+},
+"aten_softplus": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_softplus_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_softshrink": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sort_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_sparse_add_values_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_axpby_inputs_1D",
+"abi": false
+}
+]
+},
+"aten_sparse_addmm_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_sparse_addmv_bsr_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_addmv_csr_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_bmm_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_sparse_coo_softmax_backward_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_sparse_coo_softmax_cpu": {
+"winner": "elemwise_div_scalar",
+"candidates": [
+{
+"name": "elemwise_div_scalar",
+"abi": false
+}
+]
+},
+"aten_sparse_coo_to_csr_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_csr_add_dense_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_csr_addmm_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_csr_reduce_all_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_sparse_csr_reduce_dim0_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_sparse_csr_reduce_dim1_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_dense_intersection_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_flatten_indices_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_sparse_full_coo_indices_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_intersection_apply_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_mul_inputs_scaled_1D",
+"abi": false
+},
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_sparse_intersection_launch_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_mul_inputs_scaled_1D",
+"abi": false
+},
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_sparse_matmul_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_matmul_csr_to_coo_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_matmul_maxnnz_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_mul_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": [
+{
+"name": "elemwise_mul_inputs_scaled_1D",
+"abi": false
+},
+{
+"name": "elemwise_mul_inputs",
+"abi": false
+}
+]
+},
+"aten_sparse_norm_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_softmax_offsets_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sparse_softmax_pools_cpu": {
+"winner": "elemwise_linear_reaction",
+"candidates": [
+{
+"name": "elemwise_linear_reaction",
+"abi": false
+},
+{
+"name": "elemwise_sub_inputs",
+"abi": false
+}
+]
+},
+"aten_sparse_sum_backward_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_sparse_sum_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_spdiags_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_spherical_bessel_j0": {
+"winner": null,
+"candidates": []
+},
+"aten_split_copy_cpu": {
+"winner": "cutensorPermute_f32_r2_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_spmm_reduce_arg_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_spmm_reduce_backward_input_arg_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_spmm_reduce_backward_input_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_spmm_reduce_backward_other_arg_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_spmm_reduce_backward_other_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_spmm_reduce_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_sqrt": {
+"winner": "cutensorUnary_sqrt_f32",
+"candidates": [
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+}
+]
+},
+"aten_square": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_sspaddmm_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_stack_serial_cpu": {
+"winner": "cutensorPermute_f32_r3_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_3D",
+"abi": false
+}
+]
+},
+"aten_standard_gamma_grad_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_std_var_all_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_std_var_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_sum": {
+"winner": "reduce_sum_axis",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "reduce_sum_axis",
+"abi": false
+}
+]
+},
+"aten_sum_cpu_backend": {
+"winner": "reduce_sum_axis",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "reduce_sum_axis",
+"abi": false
+}
+]
+},
+"aten_sumproduct_pair_cpu": {
+"winner": "cublasSgemm_strided_batched_nn_zero",
+"candidates": [
+{
+"name": "cublasSgemm_strided_batched_nn_zero",
+"abi": true
+},
+{
+"name": "cutensornetContraction2_f64",
+"abi": true
+}
+]
+},
+"aten_take_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_tan": {
+"winner": "cutensorUnary_tan_f32",
+"candidates": [
+{
+"name": "cutensorUnary_tan_f32",
+"abi": true
+}
+]
+},
+"aten_tanh": {
+"winner": "cutensorUnary_tanh_f32",
+"candidates": [
+{
+"name": "cutensorUnary_tanh_f32",
+"abi": true
+}
+]
+},
+"aten_tanh_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_threshold_backward": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_topk_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_trace_cpu": {
+"winner": "reduce_sum_1D",
+"candidates": [
+{
+"name": "reduce_sum_1D",
+"abi": false
+},
+{
+"name": "reduce_weighted_sum_1D",
+"abi": false
+}
+]
+},
+"aten_transform_bias_rescale_qkv_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_transpose_copy": {
+"winner": "cutensorPermute_f32_r2_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_trigamma": {
+"winner": null,
+"candidates": []
+},
+"aten_tril_indices_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_trilinear_cpu": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_triu_indices_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_triu_mask_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_triu_tril_batch_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_triu_tril_single_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_trunc": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_unbind_copy_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+},
+{
+"name": "tensor_copy_2D",
+"abi": false
+}
+]
+},
+"aten_unfold3d_acc_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unfold3d_copy_cpu": {
+"winner": "cublasDcopy_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_unfold3d_zero_acc_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unfold3d_zero_copy_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unfold_backward_cpu": {
+"winner": "cublasDaxpby",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cublasDaxpby",
+"abi": true
+},
+{
+"name": "cublasDaxpy",
+"abi": false
+}
+]
+},
+"aten_unfolded2d_acc_cpu": {
+"winner": "cublasDaxpby",
+"candidates": [
+{
+"name": "cublasDaxpby",
+"abi": true
+},
+{
+"name": "cublasDaxpy",
+"abi": false
+}
+]
+},
+"aten_unfolded2d_copy_cpu": {
+"winner": "cutensorPermute_f32_r5_tensor",
+"candidates": [
+{
+"name": "cublasDcopy_tensor",
+"abi": false
+}
+]
+},
+"aten_uniform_cpu": {
+"winner": "cudnnPointwiseGraph_f32",
+"candidates": []
+},
+"aten_unique_bool_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unique_consecutive_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unique_dim_impl_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unique_dim_template_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unique_sorted_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_unpack_pivots_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_unsafe_index_cpu": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upper_bound_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_bicubic2d_aa_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_bicubic2d_aa_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_bicubic2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_bicubic2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_bilinear2d": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_bilinear2d_aa_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_bilinear2d_aa_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_bilinear2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_bilinear2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_lanczos2d_aa_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_lanczos2d_aa_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_linear1d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_linear1d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_nearest1d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest1d_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest2d": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_nearest2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_nearest3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_nearest_exact1d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest_exact1d_cpu": {
+"winner": "memset_const_2D",
+"candidates": [
+{
+"name": "memset_const_2D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest_exact2d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest_exact2d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_nearest_exact3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_nearest_exact3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_upsample_trilinear3d_backward_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_upsample_trilinear3d_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_vector_norm_out_cpu": {
+"winner": "cutensorUnary_sqrt_f32",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+},
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+}
+]
+},
+"aten_weight_norm_backward_cpu": {
+"winner": "cublasSdot",
+"candidates": [
+{
+"name": "cublasSdot",
+"abi": true
+}
+]
+},
+"aten_weight_norm_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_weight_to_int4pack_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_where_cpu": {
+"winner": null,
+"candidates": []
+},
+"aten_xlog1py": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_xlogy": {
+"winner": "memset_const_1D",
+"candidates": [
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_xor_sum_cpu": {
+"winner": "cubSegmentedBitXor_i32",
+"candidates": [
+{
+"name": "cubSegmentedBitXor_i32",
+"abi": true
+},
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_zeros_cpu": {
+"winner": "memset_zero_1D",
+"candidates": [
+{
+"name": "memset_zero_1D",
+"abi": true
+},
+{
+"name": "memset_const_1D",
+"abi": false
+}
+]
+},
+"aten_zeta": {
+"winner": null,
+"candidates": []
+}
+}
