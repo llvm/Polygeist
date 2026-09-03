@@ -504,7 +504,14 @@ void mfem_mass_pcg_step_2d(const double *Ap, const double *inv_diag,
     double alpha, double beta, double *x, double *r, double *z, double *p,
     double *r_dot_z) {
   double sum=0.;
-  for(int i=0;i<16*MFEM_BENCH_NE;++i){x[i]+=alpha*p[i];r[i]-=alpha*Ap[i];z[i]=inv_diag[i]*r[i];sum+=r[i]*z[i];}
+  /* Keep vector updates and the scalar dot-product reduction as distinct
+   * stages.  Combining them creates one multi-output Linalg reduction whose
+   * vector outputs are indexed by the reduction iterator while the scalar
+   * output aliases one slot; that representation has no sound DPS lowering. */
+  for(int i=0;i<16*MFEM_BENCH_NE;++i) x[i]+=alpha*p[i];
+  for(int i=0;i<16*MFEM_BENCH_NE;++i) r[i]-=alpha*Ap[i];
+  for(int i=0;i<16*MFEM_BENCH_NE;++i) z[i]=inv_diag[i]*r[i];
+  for(int i=0;i<16*MFEM_BENCH_NE;++i) sum+=r[i]*z[i];
   for(int i=0;i<16*MFEM_BENCH_NE;++i)p[i]=z[i]+beta*p[i];
   *r_dot_z=sum;
 }

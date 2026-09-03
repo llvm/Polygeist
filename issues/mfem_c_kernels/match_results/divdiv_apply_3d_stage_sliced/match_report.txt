@@ -1,23 +1,23 @@
 == match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/divdiv_apply_3d_stage_sliced/debufferized.mlir ==
-  match          body#[0, 1]  cublasGemmFor1x1Conv
-  match          body#[2, 3]  cublasGemmFor1x1Conv
-  match          body#[4, 5]  cublasGemmFor1x1Conv
-  match          body#[6, 7]  cublasGemmFor1x1Conv
-  match          body#[8, 9]  cublasGemmFor1x1Conv
-  match          body#[10, 11]  cublasGemmFor1x1Conv
-  match          body#[12, 13]  cublasGemmFor1x1Conv
-  match          body#[14, 15]  cublasGemmFor1x1Conv
-  match          body#[16, 17]  cublasGemmFor1x1Conv
+  match          body#[0, 1]  cutensornetContraction2_f64
+  computed_submap_base_reject body#2  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#4  cublasGemmFor1x1Conv
+  match          body#[6, 7]  cutensornetContraction2_f64
+  computed_submap_base_reject body#8  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#10  cublasGemmFor1x1Conv
+  match          body#[12, 13]  cutensornetContraction2_f64
+  computed_submap_base_reject body#14  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#16  cublasGemmFor1x1Conv
   no_match       body#18  ?
   no_match       body#19  ?
   no_match       body#20  ?
   no_match       body#21  ?
   no_match       body#22  ?
   no_match       body#23  ?
-  match          body#[24, 25]  cublasGemmFor1x1Conv
-  match          body#[26, 27]  cublasGemmFor1x1Conv
-  match          body#[28, 29]  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#24  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#26  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#28  cublasGemmFor1x1Conv
   no_match       body#30  ?
   no_match       body#31  ?
   no_match       body#32  ?
-  total: 12 matched / 21 bodies
+  total: 3 matched / 21 bodies

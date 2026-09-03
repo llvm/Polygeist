@@ -8,13 +8,26 @@ enum { D1D=4,Q1D=5,EDGE=3,NE=MFEM_BENCH_NE,N3=108 };
 // polygeist-arg-extents mfem_pa_divdiv_apply_3d_stage_sliced: Bo=15, Bot=15, Gc=20, Gct=20, op=125*MFEM_BENCH_NE, X=108*MFEM_BENCH_NE, Y=108*MFEM_BENCH_NE
 void mfem_pa_divdiv_apply_3d_stage_sliced(const double *Bo,const double *Bot,
  const double *Gc,const double *Gct,const double *op,const double *X,double *Y){
-  double a0[NE][D1D][D1D][Q1D],a1[NE][D1D][D1D][Q1D],a2[NE][D1D][D1D][Q1D];
-  double b0[NE][D1D][Q1D][Q1D],b1[NE][D1D][Q1D][Q1D],b2[NE][D1D][Q1D][Q1D];
+  double a0[NE][EDGE][EDGE][Q1D];
+  double a1[NE][EDGE][D1D][Q1D];
+  double a2[NE][D1D][EDGE][Q1D];
+  double b0[NE][EDGE][Q1D][Q1D];
+  double b1[NE][EDGE][Q1D][Q1D];
+  double b2[NE][D1D][Q1D][Q1D];
   double d0[NE][Q1D][Q1D][Q1D],d1[NE][Q1D][Q1D][Q1D],d2[NE][Q1D][Q1D][Q1D];
   double h[NE][Q1D][Q1D][Q1D];
-  double r0[NE][Q1D][Q1D][D1D],r1[NE][Q1D][Q1D][D1D],r2[NE][Q1D][Q1D][D1D];
-  double s0[NE][Q1D][D1D][D1D],s1[NE][Q1D][D1D][D1D],s2[NE][Q1D][D1D][D1D];
-  double u0[NE][D1D][D1D][D1D],u1[NE][D1D][D1D][D1D],u2[NE][D1D][D1D][D1D];
+  double r0[NE][Q1D][Q1D][D1D];
+  double r1[NE][Q1D][Q1D][EDGE];
+  double r2[NE][Q1D][Q1D][EDGE];
+  /* These component paths have different H(div) edge extents.  Preserve the
+   * actual loop domains in the scratch types instead of padding every axis to
+   * D1D: Linalg otherwise infers a size-4 loop where the output view is 3. */
+  double s0[NE][Q1D][EDGE][D1D];
+  double s1[NE][Q1D][D1D][EDGE];
+  double s2[NE][Q1D][EDGE][EDGE];
+  double u0[NE][EDGE][EDGE][D1D];
+  double u1[NE][EDGE][D1D][EDGE];
+  double u2[NE][D1D][EDGE][EDGE];
   for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int dy=0;dy<EDGE;++dy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dx=0;dx<D1D;++dx)v+=X[V(dx+D1D*(dy+EDGE*dz),e)]*Gc[qx*D1D+dx];a0[e][dz][dy][qx]=v;}
   for(int e=0;e<NE;++e)for(int dz=0;dz<EDGE;++dz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dy=0;dy<EDGE;++dy)v+=a0[e][dz][dy][qx]*Bo[qy*EDGE+dy];b0[e][dz][qy][qx]=v;}
   for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double v=0.;for(int dz=0;dz<EDGE;++dz)v+=b0[e][dz][qy][qx]*Bo[qz*EDGE+dz];d0[e][qz][qy][qx]=v;}

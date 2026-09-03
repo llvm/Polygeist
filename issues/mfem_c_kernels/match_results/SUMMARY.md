@@ -3,8 +3,8 @@
 - kernels: 20
 - matcher successes: 20
 - kernels with at least one match: 18
-- matched stage groups: 134
-- emitted kernel.launch operations: 134
+- matched stage groups: 35
+- emitted kernel.launch operations: 35
 
 Matches are stage-level unless a report explicitly names a whole composition.
 

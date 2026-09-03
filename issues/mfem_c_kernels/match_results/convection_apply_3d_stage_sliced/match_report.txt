@@ -1,15 +1,15 @@
 == match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/convection_apply_3d_stage_sliced/debufferized.mlir ==
-  match          body#[0, 1]  cublasGemmFor1x1Conv
-  match          body#[2, 3]  cublasGemmFor1x1Conv
-  match          body#[4, 5]  cublasGemmFor1x1Conv
-  match          body#[6, 7]  cublasGemmFor1x1Conv
-  match          body#[8, 9]  cublasGemmFor1x1Conv
-  match          body#[10, 11]  cublasGemmFor1x1Conv
-  match          body#[12, 13]  cublasGemmFor1x1Conv
-  match          body#[14, 15]  cublasGemmFor1x1Conv
+  match          body#[0, 1]  cutensornetContraction2_f64
+  match          body#[2, 3]  cutensornetContraction2_f64
+  computed_submap_base_reject body#4  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#6  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#8  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#10  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#12  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#14  cublasGemmFor1x1Conv
   no_match       body#16  ?
   no_match       body#17  ?
-  match          body#[18, 19]  cublasGemmFor1x1Conv
-  match          body#[20, 21]  cublasGemmFor1x1Conv
-  match          body#[22]  cudnnAddTensor_batched
-  total: 11 matched / 13 bodies
+  computed_submap_base_reject body#18  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#20  cublasGemmFor1x1Conv
+  rank_or_dtype_reject body#22  cudnnAddTensor_batched
+  total: 2 matched / 13 bodies

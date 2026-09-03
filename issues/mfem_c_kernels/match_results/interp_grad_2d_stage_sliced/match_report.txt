@@ -1,6 +1,6 @@
 == match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_grad_2d_stage_sliced/debufferized.mlir ==
   match          body#[0, 1]  cutensornetContraction2_f64
   match          body#[2, 3]  cutensornetContraction2_f64
-  match          body#[4, 5]  cutensornetContraction2_f64
-  match          body#[6, 7]  cutensornetContraction2_f64
-  total: 4 matched / 4 bodies
+  computed_submap_base_reject body#4  cutensornetContraction2_f64
+  computed_submap_base_reject body#6  cutensornetContraction2_f64
+  total: 2 matched / 4 bodies

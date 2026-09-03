@@ -1,17 +1,17 @@
 #map = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 #map1 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d0 * 64 + d1 * 16 + d2 * 4)>
 #map2 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d3 * 4)>
-#map3 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>
-#map4 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>
-#map5 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d2 * 4)>
-#map6 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d3)>
-#map7 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 4)>
-#map8 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d2, d3)>
+#map3 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>
+#map4 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>
+#map5 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4, d3)>
+#map6 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d2 * 4)>
+#map7 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d2, d3)>
+#map8 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 4)>
 #map9 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d2 * 5 + d0 * 750)>
-#map10 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 125)>
-#map11 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 250)>
-#map12 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d3 * 5)>
-#map13 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d4)>
+#map10 = affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d4)>
+#map11 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 125)>
+#map12 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 250)>
+#map13 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d3 * 5)>
 #map14 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 375)>
 #map15 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 500)>
 #map16 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 25 + d0 * 750 + d2 * 5 + 625)>
@@ -19,7 +19,8 @@
 #map18 = affine_map<(d0, d1, d2, d3, d4) -> (d4 + d1 * 5)>
 #map19 = affine_map<(d0, d1, d2, d3) -> (d3 + d0 * 64 + d1 * 16 + d2 * 4)>
 #map20 = affine_map<(d0, d1, d2, d3) -> (d3 + d0 * 125 + d1 * 25 + d2 * 5)>
-module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<"dlti.endianness", "little">, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
+#map21 = affine_map<(d0, d1, d2, d3, d4) -> (d3 + d0 * 64 + d1 * 16 + d2 * 4)>
+module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<"dlti.endianness", "little">, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
   func.func @mfem_app_ex35p_h1_3d(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: memref<?xf64>, %arg3: memref<?xf64>, %arg4: memref<?xf64>, %arg5: memref<?xf64>, %arg6: memref<?xf64>, %arg7: memref<?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c2 = arith.constant 2 : index
     %c4 = arith.constant 4 : index
@@ -42,374 +43,376 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : ve
     %alloca_13 = memref.alloca() : memref<2x4x5x5xf64>
     %alloca_14 = memref.alloca() : memref<2x4x4x5xf64>
     %alloca_15 = memref.alloca() : memref<2x4x4x5xf64>
-    %subview = memref.subview %alloca_15[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>) {
+    %0 = polygeist.submap(%alloca_15, %c2, %c4, %c4, %c5) {map = #map} : (memref<2x4x4x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%0 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %0 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %1 = polygeist.submap(%arg0, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    linalg.generic {indexing_maps = [#map3, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%0, %1 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%alloca_15 : memref<2x4x4x5xf64>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %1 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %2 = polygeist.submap(%arg0, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %3 = polygeist.submap(%alloca_15, %c2, %c4, %c4, %c5, %c4) {map = #map3} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%1, %2 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%3 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_16 = memref.subview %alloca_14[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_16 : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>) {
+    %4 = polygeist.submap(%alloca_14, %c2, %c4, %c4, %c5) {map = #map} : (memref<2x4x4x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%4 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %2 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %3 = polygeist.submap(%arg1, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    linalg.generic {indexing_maps = [#map3, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%2, %3 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%alloca_14 : memref<2x4x4x5xf64>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %5 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %6 = polygeist.submap(%arg1, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %7 = polygeist.submap(%alloca_14, %c2, %c4, %c4, %c5, %c4) {map = #map3} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%5, %6 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%7 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_17 = memref.subview %alloca_13[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_17 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
+    %8 = polygeist.submap(%alloca_13, %c2, %c4, %c5, %c5) {map = #map} : (memref<2x4x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%8 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_18 = memref.subview %alloca_14[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    %4 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_19 = memref.subview %alloca_13[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_18, %4 : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_19 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %9 = polygeist.submap(%alloca_14, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %10 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map6} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %11 = polygeist.submap(%alloca_13, %c2, %c4, %c5, %c5, %c4) {map = #map3} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%9, %10 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%11 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_20 = memref.subview %alloca_12[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_20 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
+    %12 = polygeist.submap(%alloca_12, %c2, %c4, %c5, %c5) {map = #map} : (memref<2x4x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%12 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_21 = memref.subview %alloca_15[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    %5 = polygeist.submap(%arg1, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_22 = memref.subview %alloca_12[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_21, %5 : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_22 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %13 = polygeist.submap(%alloca_15, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %14 = polygeist.submap(%arg1, %c2, %c4, %c5, %c5, %c4) {map = #map6} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %15 = polygeist.submap(%alloca_12, %c2, %c4, %c5, %c5, %c4) {map = #map3} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%13, %14 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%15 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_23 = memref.subview %alloca_11[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_23 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
+    %16 = polygeist.submap(%alloca_11, %c2, %c4, %c5, %c5) {map = #map} : (memref<2x4x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%16 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_24 = memref.subview %alloca_15[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    %6 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_25 = memref.subview %alloca_11[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_24, %6 : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_25 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %17 = polygeist.submap(%alloca_15, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %18 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map6} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %19 = polygeist.submap(%alloca_11, %c2, %c4, %c5, %c5, %c4) {map = #map3} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%17, %18 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%19 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_26 = memref.subview %alloca_10[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_26 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
+    %20 = polygeist.submap(%alloca_10, %c2, %c5, %c5, %c5) {map = #map} : (memref<2x5x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%20 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_27 = memref.subview %alloca_13[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    %7 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_28 = memref.subview %alloca_10[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_27, %7 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_28 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %21 = polygeist.submap(%alloca_13, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %22 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %23 = polygeist.submap(%alloca_10, %c2, %c5, %c5, %c5, %c4) {map = #map3} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%21, %22 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%23 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_29 = memref.subview %alloca_9[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_29 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
+    %24 = polygeist.submap(%alloca_9, %c2, %c5, %c5, %c5) {map = #map} : (memref<2x5x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%24 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_30 = memref.subview %alloca_12[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    %8 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_31 = memref.subview %alloca_9[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_30, %8 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_31 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %25 = polygeist.submap(%alloca_12, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %26 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %27 = polygeist.submap(%alloca_9, %c2, %c5, %c5, %c5, %c4) {map = #map3} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%25, %26 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%27 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_32 = memref.subview %alloca_8[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_32 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
+    %28 = polygeist.submap(%alloca_8, %c2, %c5, %c5, %c5) {map = #map} : (memref<2x5x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%28 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_33 = memref.subview %alloca_11[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    %9 = polygeist.submap(%arg1, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_34 = memref.subview %alloca_8[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_33, %9 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_34 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %29 = polygeist.submap(%alloca_11, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %30 = polygeist.submap(%arg1, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %31 = polygeist.submap(%alloca_8, %c2, %c5, %c5, %c5, %c4) {map = #map3} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%29, %30 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%31 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_35 = memref.subview %alloca_7[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_35 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
+    %32 = polygeist.submap(%alloca_7, %c2, %c5, %c5, %c4) {map = #map} : (memref<2x5x5x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%32 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %10 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map9} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_36 = memref.subview %alloca_10[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %11 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_37 = memref.subview %alloca_9[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %12 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map11} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_38 = memref.subview %alloca_8[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %13 = polygeist.submap(%arg3, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_39 = memref.subview %alloca_7[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map13, #map3, #map13, #map3, #map13, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%10, %subview_36, %11, %subview_37, %12, %subview_38, %13 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_39 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %in_92: f64, %in_93: f64, %in_94: f64, %in_95: f64, %in_96: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.mulf %in_92, %in_93 : f64
-      %40 = arith.addf %38, %39 : f64
-      %41 = arith.mulf %in_94, %in_95 : f64
-      %42 = arith.addf %40, %41 : f64
-      %43 = arith.mulf %42, %in_96 : f64
-      %44 = arith.addf %out, %43 : f64
-      linalg.yield %44 : f64
+    %33 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map9} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %34 = polygeist.submap(%alloca_10, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %35 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map11} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %36 = polygeist.submap(%alloca_9, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %37 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %38 = polygeist.submap(%alloca_8, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %39 = polygeist.submap(%arg3, %c2, %c5, %c5, %c4, %c5) {map = #map13} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %40 = polygeist.submap(%alloca_7, %c2, %c5, %c5, %c4, %c5) {map = #map3} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4, #map4, #map4, #map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%33, %34, %35, %36, %37, %38, %39 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%40 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %in_22: f64, %in_23: f64, %in_24: f64, %in_25: f64, %in_26: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.mulf %in_22, %in_23 : f64
+      %114 = arith.addf %112, %113 : f64
+      %115 = arith.mulf %in_24, %in_25 : f64
+      %116 = arith.addf %114, %115 : f64
+      %117 = arith.mulf %116, %in_26 : f64
+      %118 = arith.addf %out, %117 : f64
+      linalg.yield %118 : f64
     }
-    %subview_40 = memref.subview %alloca_6[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_40 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
+    %41 = polygeist.submap(%alloca_6, %c2, %c5, %c5, %c4) {map = #map} : (memref<2x5x5x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%41 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %14 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_41 = memref.subview %alloca_10[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %15 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map14} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_42 = memref.subview %alloca_9[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %16 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map15} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_43 = memref.subview %alloca_8[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %17 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_44 = memref.subview %alloca_6[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map13, #map3, #map13, #map3, #map13, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%14, %subview_41, %15, %subview_42, %16, %subview_43, %17 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_44 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %in_92: f64, %in_93: f64, %in_94: f64, %in_95: f64, %in_96: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.mulf %in_92, %in_93 : f64
-      %40 = arith.addf %38, %39 : f64
-      %41 = arith.mulf %in_94, %in_95 : f64
-      %42 = arith.addf %40, %41 : f64
-      %43 = arith.mulf %42, %in_96 : f64
-      %44 = arith.addf %out, %43 : f64
-      linalg.yield %44 : f64
+    %42 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map11} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %43 = polygeist.submap(%alloca_10, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %44 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map14} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %45 = polygeist.submap(%alloca_9, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %46 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map15} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %47 = polygeist.submap(%alloca_8, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %48 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map13} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %49 = polygeist.submap(%alloca_6, %c2, %c5, %c5, %c4, %c5) {map = #map3} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4, #map4, #map4, #map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%42, %43, %44, %45, %46, %47, %48 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%49 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %in_22: f64, %in_23: f64, %in_24: f64, %in_25: f64, %in_26: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.mulf %in_22, %in_23 : f64
+      %114 = arith.addf %112, %113 : f64
+      %115 = arith.mulf %in_24, %in_25 : f64
+      %116 = arith.addf %114, %115 : f64
+      %117 = arith.mulf %116, %in_26 : f64
+      %118 = arith.addf %out, %117 : f64
+      linalg.yield %118 : f64
     }
-    %subview_45 = memref.subview %alloca_5[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_45 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
+    %50 = polygeist.submap(%alloca_5, %c2, %c5, %c5, %c4) {map = #map} : (memref<2x5x5x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%50 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %18 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map11} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_46 = memref.subview %alloca_10[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %19 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map15} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_47 = memref.subview %alloca_9[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %20 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map16} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_48 = memref.subview %alloca_8[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %21 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_49 = memref.subview %alloca_5[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map13, #map3, #map13, #map3, #map13, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%18, %subview_46, %19, %subview_47, %20, %subview_48, %21 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_49 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %in_92: f64, %in_93: f64, %in_94: f64, %in_95: f64, %in_96: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.mulf %in_92, %in_93 : f64
-      %40 = arith.addf %38, %39 : f64
-      %41 = arith.mulf %in_94, %in_95 : f64
-      %42 = arith.addf %40, %41 : f64
-      %43 = arith.mulf %42, %in_96 : f64
-      %44 = arith.addf %out, %43 : f64
-      linalg.yield %44 : f64
+    %51 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %52 = polygeist.submap(%alloca_10, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %53 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map15} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %54 = polygeist.submap(%alloca_9, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %55 = polygeist.submap(%arg4, %c2, %c5, %c5, %c4, %c5) {map = #map16} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %56 = polygeist.submap(%alloca_8, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %57 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map13} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %58 = polygeist.submap(%alloca_5, %c2, %c5, %c5, %c4, %c5) {map = #map3} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4, #map4, #map4, #map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%51, %52, %53, %54, %55, %56, %57 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%58 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %in_22: f64, %in_23: f64, %in_24: f64, %in_25: f64, %in_26: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.mulf %in_22, %in_23 : f64
+      %114 = arith.addf %112, %113 : f64
+      %115 = arith.mulf %in_24, %in_25 : f64
+      %116 = arith.addf %114, %115 : f64
+      %117 = arith.mulf %116, %in_26 : f64
+      %118 = arith.addf %out, %117 : f64
+      linalg.yield %118 : f64
     }
-    %subview_50 = memref.subview %alloca_4[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_50 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
+    %59 = polygeist.submap(%alloca_4, %c2, %c5, %c4, %c4) {map = #map} : (memref<2x5x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%59 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_51 = memref.subview %alloca_7[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    %22 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_52 = memref.subview %alloca_4[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_51, %22 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_52 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %60 = polygeist.submap(%alloca_7, %c2, %c5, %c4, %c4, %c5) {map = #map5} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %61 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %62 = polygeist.submap(%alloca_4, %c2, %c5, %c4, %c4, %c5) {map = #map3} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%60, %61 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%62 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_53 = memref.subview %alloca_3[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_53 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
+    %63 = polygeist.submap(%alloca_3, %c2, %c5, %c4, %c4) {map = #map} : (memref<2x5x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%63 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_54 = memref.subview %alloca_6[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    %23 = polygeist.submap(%arg3, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_55 = memref.subview %alloca_3[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_54, %23 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_55 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %64 = polygeist.submap(%alloca_6, %c2, %c5, %c4, %c4, %c5) {map = #map5} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %65 = polygeist.submap(%arg3, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %66 = polygeist.submap(%alloca_3, %c2, %c5, %c4, %c4, %c5) {map = #map3} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%64, %65 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%66 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_56 = memref.subview %alloca_2[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_56 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
+    %67 = polygeist.submap(%alloca_2, %c2, %c5, %c4, %c4) {map = #map} : (memref<2x5x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%67 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_57 = memref.subview %alloca_5[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    %24 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_58 = memref.subview %alloca_2[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map6, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_57, %24 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_58 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %68 = polygeist.submap(%alloca_5, %c2, %c5, %c4, %c4, %c5) {map = #map5} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %69 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %70 = polygeist.submap(%alloca_2, %c2, %c5, %c4, %c4, %c5) {map = #map3} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%68, %69 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%70 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_59 = memref.subview %alloca_1[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_59 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
+    %71 = polygeist.submap(%alloca_1, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%71 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_60 = memref.subview %alloca_4[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    %25 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_61 = memref.subview %alloca_1[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_60, %25 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_61 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %72 = polygeist.submap(%alloca_4, %c2, %c4, %c4, %c4, %c5) {map = #map7} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %73 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %74 = polygeist.submap(%alloca_1, %c2, %c4, %c4, %c4, %c5) {map = #map3} : (memref<2x4x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%72, %73 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%74 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_62 = memref.subview %alloca_0[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_62 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
+    %75 = polygeist.submap(%alloca_0, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%75 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_63 = memref.subview %alloca_3[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    %26 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_64 = memref.subview %alloca_0[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_63, %26 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_64 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %76 = polygeist.submap(%alloca_3, %c2, %c4, %c4, %c4, %c5) {map = #map7} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %77 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %78 = polygeist.submap(%alloca_0, %c2, %c4, %c4, %c4, %c5) {map = #map3} : (memref<2x4x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%76, %77 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%78 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_65 = memref.subview %alloca[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_65 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
+    %79 = polygeist.submap(%alloca, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%79 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %subview_66 = memref.subview %alloca_2[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    %27 = polygeist.submap(%arg3, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_67 = memref.subview %alloca[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map8, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%subview_66, %27 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>, memref<?x?x?x?x?xf64>) outs(%subview_67 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %80 = polygeist.submap(%alloca_2, %c2, %c4, %c4, %c4, %c5) {map = #map7} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %81 = polygeist.submap(%arg3, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %82 = polygeist.submap(%alloca, %c2, %c4, %c4, %c4, %c5) {map = #map3} : (memref<2x4x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%80, %81 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%82 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_68 = memref.subview %alloca_1[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    %subview_69 = memref.subview %alloca_0[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    %subview_70 = memref.subview %alloca[0, 0, 0, 0] [%c2, %c4, %c4, %c4] [1, 1, 1, 1] : memref<2x4x4x4xf64> to memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>
-    %28 = polygeist.submap(%arg7, %c2, %c4, %c4, %c4) {map = #map19} : (memref<?xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
-    linalg.generic {indexing_maps = [#map, #map, #map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%subview_68, %subview_69, %subview_70 : memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>, memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>, memref<?x?x?x?xf64, strided<[64, 16, 4, 1]>>) outs(%28 : memref<?x?x?x?xf64>) {
-    ^bb0(%in: f64, %in_91: f64, %in_92: f64, %out: f64):
-      %38 = arith.addf %in, %in_91 : f64
-      %39 = arith.addf %38, %in_92 : f64
-      %40 = arith.addf %out, %39 : f64
-      linalg.yield %40 : f64
+    %83 = polygeist.submap(%alloca_1, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    %84 = polygeist.submap(%alloca_0, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    %85 = polygeist.submap(%alloca, %c2, %c4, %c4, %c4) {map = #map} : (memref<2x4x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    %86 = polygeist.submap(%arg7, %c2, %c4, %c4, %c4) {map = #map19} : (memref<?xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map, #map, #map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%83, %84, %85 : memref<?x?x?x?xf64>, memref<?x?x?x?xf64>, memref<?x?x?x?xf64>) outs(%86 : memref<?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %in_22: f64, %out: f64):
+      %112 = arith.addf %in, %in_21 : f64
+      %113 = arith.addf %112, %in_22 : f64
+      %114 = arith.addf %out, %113 : f64
+      linalg.yield %114 : f64
     }
-    %alloca_71 = memref.alloca() : memref<2x5x4x4xf64>
-    %alloca_72 = memref.alloca() : memref<2x5x5x4xf64>
-    %alloca_73 = memref.alloca() : memref<2x5x5x5xf64>
-    %alloca_74 = memref.alloca() : memref<2x4x5x5xf64>
-    %alloca_75 = memref.alloca() : memref<2x4x4x5xf64>
-    %subview_76 = memref.subview %alloca_75[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_76 : memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>) {
+    %alloca_16 = memref.alloca() : memref<2x5x4x4xf64>
+    %alloca_17 = memref.alloca() : memref<2x5x5x4xf64>
+    %alloca_18 = memref.alloca() : memref<2x5x5x5xf64>
+    %alloca_19 = memref.alloca() : memref<2x4x5x5xf64>
+    %alloca_20 = memref.alloca() : memref<2x4x4x5xf64>
+    %87 = polygeist.submap(%alloca_20, %c2, %c4, %c4, %c5) {map = #map} : (memref<2x4x4x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%87 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %29 = polygeist.submap(%arg0, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %30 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    linalg.generic {indexing_maps = [#map3, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%29, %30 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%alloca_75 : memref<2x4x4x5xf64>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %88 = polygeist.submap(%arg0, %c2, %c4, %c4, %c5, %c4) {map = #map2} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %89 = polygeist.submap(%arg6, %c2, %c4, %c4, %c5, %c4) {map = #map1} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %90 = polygeist.submap(%alloca_20, %c2, %c4, %c4, %c5, %c4) {map = #map3} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%88, %89 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%90 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_77 = memref.subview %alloca_74[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_77 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
+    %91 = polygeist.submap(%alloca_19, %c2, %c4, %c5, %c5) {map = #map} : (memref<2x4x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%91 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %31 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_78 = memref.subview %alloca_75[0, 0, 0, 0] [%c2, %c4, %c4, %c5] [1, 1, 1, 1] : memref<2x4x4x5xf64> to memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>
-    %subview_79 = memref.subview %alloca_74[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map6, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%31, %subview_78 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[80, 20, 5, 1]>>) outs(%subview_79 : memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %92 = polygeist.submap(%arg0, %c2, %c4, %c5, %c5, %c4) {map = #map6} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %93 = polygeist.submap(%alloca_20, %c2, %c4, %c5, %c5, %c4) {map = #map5} : (memref<2x4x4x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %94 = polygeist.submap(%alloca_19, %c2, %c4, %c5, %c5, %c4) {map = #map3} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%92, %93 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%94 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_80 = memref.subview %alloca_73[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_80 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
+    %95 = polygeist.submap(%alloca_18, %c2, %c5, %c5, %c5) {map = #map} : (memref<2x5x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%95 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %32 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_81 = memref.subview %alloca_74[0, 0, 0, 0] [%c2, %c4, %c5, %c5] [1, 1, 1, 1] : memref<2x4x5x5xf64> to memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>
-    %subview_82 = memref.subview %alloca_73[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map8, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%32, %subview_81 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[100, 25, 5, 1]>>) outs(%subview_82 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %96 = polygeist.submap(%arg0, %c2, %c5, %c5, %c5, %c4) {map = #map8} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %97 = polygeist.submap(%alloca_19, %c2, %c5, %c5, %c5, %c4) {map = #map7} : (memref<2x4x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %98 = polygeist.submap(%alloca_18, %c2, %c5, %c5, %c5, %c4) {map = #map3} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%96, %97 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%98 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %33 = polygeist.submap(%arg5, %c2, %c5, %c5, %c5) {map = #map20} : (memref<?xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
-    %subview_83 = memref.subview %alloca_73[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%33 : memref<?x?x?x?xf64>) outs(%subview_83 : memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) {
+    %99 = polygeist.submap(%arg5, %c2, %c5, %c5, %c5) {map = #map20} : (memref<?xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    %100 = polygeist.submap(%alloca_18, %c2, %c5, %c5, %c5) {map = #map} : (memref<2x5x5x5xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%99 : memref<?x?x?x?xf64>) outs(%100 : memref<?x?x?x?xf64>) {
     ^bb0(%in: f64, %out: f64):
-      %38 = arith.mulf %out, %in : f64
-      linalg.yield %38 : f64
+      %112 = arith.mulf %out, %in : f64
+      linalg.yield %112 : f64
     }
-    %subview_84 = memref.subview %alloca_72[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_84 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
+    %101 = polygeist.submap(%alloca_17, %c2, %c5, %c5, %c4) {map = #map} : (memref<2x5x5x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%101 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %34 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map12} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_85 = memref.subview %alloca_73[0, 0, 0, 0] [%c2, %c5, %c5, %c5] [1, 1, 1, 1] : memref<2x5x5x5xf64> to memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>
-    %subview_86 = memref.subview %alloca_72[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map13, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%34, %subview_85 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[125, 25, 5, 1]>>) outs(%subview_86 : memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %102 = polygeist.submap(%arg2, %c2, %c5, %c5, %c4, %c5) {map = #map13} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %103 = polygeist.submap(%alloca_18, %c2, %c5, %c5, %c4, %c5) {map = #map10} : (memref<2x5x5x5xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %104 = polygeist.submap(%alloca_17, %c2, %c5, %c5, %c4, %c5) {map = #map3} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%102, %103 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%104 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %subview_87 = memref.subview %alloca_71[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%subview_87 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
+    %105 = polygeist.submap(%alloca_16, %c2, %c5, %c4, %c4) {map = #map} : (memref<2x5x4x4xf64>, index, index, index, index) -> memref<?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} outs(%105 : memref<?x?x?x?xf64>) {
     ^bb0(%out: f64):
       linalg.yield %cst : f64
     }
-    %35 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_88 = memref.subview %alloca_72[0, 0, 0, 0] [%c2, %c5, %c5, %c4] [1, 1, 1, 1] : memref<2x5x5x4xf64> to memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>
-    %subview_89 = memref.subview %alloca_71[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    linalg.generic {indexing_maps = [#map3, #map6, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%35, %subview_88 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[100, 20, 4, 1]>>) outs(%subview_89 : memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %106 = polygeist.submap(%arg2, %c2, %c5, %c4, %c4, %c5) {map = #map17} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %107 = polygeist.submap(%alloca_17, %c2, %c5, %c4, %c4, %c5) {map = #map5} : (memref<2x5x5x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %108 = polygeist.submap(%alloca_16, %c2, %c5, %c4, %c4, %c5) {map = #map3} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%106, %107 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%108 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
-    %36 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
-    %subview_90 = memref.subview %alloca_71[0, 0, 0, 0] [%c2, %c5, %c4, %c4] [1, 1, 1, 1] : memref<2x5x4x4xf64> to memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>
-    %37 = polygeist.submap(%arg7, %c2, %c4, %c4, %c4) {map = #map19} : (memref<?xf64>, index, index, index, index) -> memref<2x4x4x4xf64>
-    linalg.generic {indexing_maps = [#map3, #map8, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%36, %subview_90 : memref<?x?x?x?x?xf64>, memref<?x?x?x?xf64, strided<[80, 16, 4, 1]>>) outs(%37 : memref<2x4x4x4xf64>) {
-    ^bb0(%in: f64, %in_91: f64, %out: f64):
-      %38 = arith.mulf %in, %in_91 : f64
-      %39 = arith.addf %out, %38 : f64
-      linalg.yield %39 : f64
+    %109 = polygeist.submap(%arg2, %c2, %c4, %c4, %c4, %c5) {map = #map18} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %110 = polygeist.submap(%alloca_16, %c2, %c4, %c4, %c4, %c5) {map = #map7} : (memref<2x5x4x4xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    %111 = polygeist.submap(%arg7, %c2, %c4, %c4, %c4, %c5) {map = #map21} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?x?x?xf64>
+    linalg.generic {indexing_maps = [#map4, #map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]} ins(%109, %110 : memref<?x?x?x?x?xf64>, memref<?x?x?x?x?xf64>) outs(%111 : memref<?x?x?x?x?xf64>) {
+    ^bb0(%in: f64, %in_21: f64, %out: f64):
+      %112 = arith.mulf %in, %in_21 : f64
+      %113 = arith.addf %out, %112 : f64
+      linalg.yield %113 : f64
     }
     return
   }
 }
-

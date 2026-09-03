@@ -1,10 +1,14 @@
-#map = affine_map<(d0, d1)[s0, s1] -> (d1 * 125 + d0 * 375 + s0 * 1125 + s1)>
-#map1 = affine_map<(d0, d1)[s0, s1] -> (d1 * 375 + s0 * 1125 + s1 + d0 * 125)>
-#map2 = affine_map<(d0, d1) -> (d0)>
-#map3 = affine_map<(d0, d1) -> (d1)>
-#map4 = affine_map<(d0, d1) -> (d0, d1)>
-#map5 = affine_map<(d0, d1) -> ()>
-module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>, #dlti.dl_entry<"dlti.endianness", "little">>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
+#map = affine_map<(d0) -> (d0)>
+#map1 = affine_map<(d0, d1, d2)[s0] -> (s0, d1)>
+#map2 = affine_map<(d0, d1, d2)[s0] -> (s0, d2)>
+#map3 = affine_map<(d0, d1, d2)[s0, s1] -> (d2 * 125 + d1 * 375 + s0 * 1125 + s1)>
+#map4 = affine_map<(d0, d1, d2)[s0, s1] -> (d2 * 375 + s0 * 1125 + s1 + d1 * 125)>
+#map5 = affine_map<(d0, d1, d2) -> (d0)>
+#map6 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+#map7 = affine_map<(d0)[s0] -> (s0, d0)>
+#map8 = affine_map<(d0, d1) -> (d0, d1)>
+#map9 = affine_map<(d0, d1)[s0, s1] -> (d1 * 375 + s0 * 1125 + s1 + d0 * 125)>
+module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<270>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<271>, dense<32> : vector<4xi32>>, #dlti.dl_entry<!llvm.ptr<272>, dense<64> : vector<4xi32>>, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<!llvm.ptr, dense<64> : vector<4xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<f80, dense<128> : vector<2xi32>>, #dlti.dl_entry<"dlti.endianness", "little">, #dlti.dl_entry<"dlti.stack_alignment", 128 : i32>>, llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu", "polygeist.target-cpu" = "x86-64", "polygeist.target-features" = "+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87", "polygeist.tune-cpu" = "generic"} {
   func.func @mfem_elasticity_qpoint_3d(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: memref<?xf64>, %arg3: memref<?xf64>, %arg4: memref<?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c3 = arith.constant 3 : index
     %cst = arith.constant 5.000000e-01 : f64
@@ -84,49 +88,55 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
         %59 = affine.load %arg1[%arg6 + %arg5 * 125] : memref<?xf64>
         %60 = arith.mulf %59, %cst : f64
         affine.for %arg7 = 0 to 3 {
-          affine.for %arg8 = 0 to 3 {
-            %62 = arith.index_cast %arg8 : index to i32
-            %alloca_2 = memref.alloca() : memref<f64>
-            affine.store %cst_0, %alloca_2[] : memref<f64>
-            %subview = memref.subview %alloca_1[%arg7, 0] [1, %c3] [1, 1] : memref<3x3xf64> to memref<?xf64, strided<[1], offset: ?>>
-            %63 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3) {map = #map} : (memref<?xf64>, index, index, index, index) -> memref<?x?xf64>
-            %64 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3) {map = #map1} : (memref<?xf64>, index, index, index, index) -> memref<?x?xf64>
-            %subview_3 = memref.subview %alloca_2[] [] [] : memref<f64> to memref<f64, strided<[]>>
-            %subview_4 = memref.subview %alloca_1[%arg7, 0] [1, %c3] [1, 1] : memref<3x3xf64> to memref<?xf64, strided<[1], offset: ?>>
-            %cast = memref.cast %subview_4 : memref<?xf64, strided<[1], offset: ?>> to memref<?xf64>
-            %subview_5 = memref.subview %cast[0] [%c3] [1] : memref<?xf64> to memref<?xf64, strided<[1]>>
-            linalg.generic {indexing_maps = [#map2, #map3, #map4, #map4, #map5], iterator_types = ["reduction", "reduction"]} ins(%subview_5, %subview, %63, %64 : memref<?xf64, strided<[1]>>, memref<?xf64, strided<[1], offset: ?>>, memref<?x?xf64>, memref<?x?xf64>) outs(%subview_3 : memref<f64, strided<[]>>) {
-            ^bb0(%in: f64, %in_6: f64, %in_7: f64, %in_8: f64, %out: f64):
-              %72 = linalg.index 0 : index
-              %73 = arith.index_cast %72 : index to i32
-              %74 = arith.cmpi eq, %73, %62 : i32
-              %75 = arith.extui %74 : i1 to i32
-              %76 = arith.sitofp %75 : i32 to f64
-              %77 = linalg.index 1 : index
-              %78 = arith.index_cast %77 : index to i32
-              %79 = arith.mulf %76, %in_6 : f64
-              %80 = arith.cmpi eq, %78, %62 : i32
-              %81 = arith.extui %80 : i1 to i32
-              %82 = arith.sitofp %81 : i32 to f64
-              %83 = arith.mulf %82, %in : f64
-              %84 = arith.addf %79, %83 : f64
-              %85 = arith.addf %in_7, %in_8 : f64
-              %86 = arith.mulf %84, %85 : f64
-              %87 = arith.addf %out, %86 : f64
-              linalg.yield %87 : f64
-            }
-            %65 = affine.load %alloca_2[] : memref<f64>
-            %66 = affine.load %alloca_1[%arg7, %arg8] : memref<3x3xf64>
-            %67 = arith.mulf %58, %66 : f64
-            %68 = arith.mulf %67, %55 : f64
-            %69 = arith.mulf %60, %65 : f64
-            %70 = arith.addf %68, %69 : f64
-            %71 = arith.mulf %57, %70 : f64
-            affine.store %71, %alloca[%arg7, %arg8] : memref<3x3xf64>
-          } {polygeist.was_parallel}
+          %alloca_2 = memref.alloca(%c3) : memref<?xf64>
+          %63 = polygeist.submap(%alloca_2, %c3) {map = #map} : (memref<?xf64>, index) -> memref<?xf64>
+          linalg.generic {indexing_maps = [#map], iterator_types = ["parallel"]} outs(%63 : memref<?xf64>) {
+          ^bb0(%out: f64):
+            linalg.yield %cst_0 : f64
+          }
+          %64 = polygeist.submap(%alloca_1, %arg7, %c3, %c3, %c3) {map = #map1} : (memref<3x3xf64>, index, index, index, index) -> memref<?x?x?xf64>
+          %65 = polygeist.submap(%alloca_1, %arg7, %c3, %c3, %c3) {map = #map2} : (memref<3x3xf64>, index, index, index, index) -> memref<?x?x?xf64>
+          %66 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3, %c3) {map = #map3} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?xf64>
+          %67 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3, %c3) {map = #map4} : (memref<?xf64>, index, index, index, index, index) -> memref<?x?x?xf64>
+          %68 = polygeist.submap(%alloca_2, %c3, %c3, %c3) {map = #map5} : (memref<?xf64>, index, index, index) -> memref<?x?x?xf64>
+          linalg.generic {indexing_maps = [#map6, #map6, #map6, #map6, #map6], iterator_types = ["parallel", "reduction", "reduction"]} ins(%64, %65, %66, %67 : memref<?x?x?xf64>, memref<?x?x?xf64>, memref<?x?x?xf64>, memref<?x?x?xf64>) outs(%68 : memref<?x?x?xf64>) {
+          ^bb0(%in: f64, %in_3: f64, %in_4: f64, %in_5: f64, %out: f64):
+            %72 = linalg.index 0 : index
+            %73 = arith.index_cast %72 : index to i32
+            %74 = linalg.index 1 : index
+            %75 = arith.index_cast %74 : index to i32
+            %76 = arith.cmpi eq, %75, %73 : i32
+            %77 = arith.extui %76 : i1 to i32
+            %78 = arith.sitofp %77 : i32 to f64
+            %79 = linalg.index 2 : index
+            %80 = arith.index_cast %79 : index to i32
+            %81 = arith.mulf %78, %in_3 : f64
+            %82 = arith.cmpi eq, %80, %73 : i32
+            %83 = arith.extui %82 : i1 to i32
+            %84 = arith.sitofp %83 : i32 to f64
+            %85 = arith.mulf %84, %in : f64
+            %86 = arith.addf %81, %85 : f64
+            %87 = arith.addf %in_4, %in_5 : f64
+            %88 = arith.mulf %86, %87 : f64
+            %89 = arith.addf %out, %88 : f64
+            linalg.yield %89 : f64
+          }
+          %69 = polygeist.submap(%alloca_2, %c3) {map = #map} : (memref<?xf64>, index) -> memref<?xf64>
+          %70 = polygeist.submap(%alloca_1, %arg7, %c3) {map = #map7} : (memref<3x3xf64>, index, index) -> memref<?xf64>
+          %71 = polygeist.submap(%alloca, %arg7, %c3) {map = #map7} : (memref<3x3xf64>, index, index) -> memref<?xf64>
+          linalg.generic {indexing_maps = [#map, #map, #map], iterator_types = ["parallel"]} ins(%69, %70 : memref<?xf64>, memref<?xf64>) outs(%71 : memref<?xf64>) {
+          ^bb0(%in: f64, %in_3: f64, %out: f64):
+            %72 = arith.mulf %58, %in_3 : f64
+            %73 = arith.mulf %72, %55 : f64
+            %74 = arith.mulf %60, %in : f64
+            %75 = arith.addf %73, %74 : f64
+            %76 = arith.mulf %57, %75 : f64
+            linalg.yield %76 : f64
+          }
         } {polygeist.was_parallel}
-        %61 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3) {map = #map1} : (memref<?xf64>, index, index, index, index) -> memref<?x?xf64>
-        linalg.generic {indexing_maps = [#map4, #map4], iterator_types = ["parallel", "parallel"]} ins(%alloca : memref<3x3xf64>) outs(%61 : memref<?x?xf64>) {
+        %61 = polygeist.submap(%alloca, %c3, %c3) {map = #map8} : (memref<3x3xf64>, index, index) -> memref<?x?xf64>
+        %62 = polygeist.submap(%arg4, %arg5, %arg6, %c3, %c3) {map = #map9} : (memref<?xf64>, index, index, index, index) -> memref<?x?xf64>
+        linalg.generic {indexing_maps = [#map8, #map8], iterator_types = ["parallel", "parallel"]} ins(%61 : memref<?x?xf64>) outs(%62 : memref<?x?xf64>) {
         ^bb0(%in: f64, %out: f64):
           linalg.yield %in : f64
         }

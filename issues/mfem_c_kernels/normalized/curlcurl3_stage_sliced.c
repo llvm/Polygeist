@@ -9,11 +9,12 @@ enum { D1D=4,Q1D=5,EDGE=3,NE=MFEM_BENCH_NE,N3=144 };
 void mfem_pa_curlcurl_apply_3d_stage_sliced(const double *Bo,const double *Bc,
  const double *Bot,const double *Bct,const double *Gc,const double *Gct,
  const double *op,const double *X,double *Y){
-  double a0[NE][D1D][D1D][Q1D],a1x[NE][D1D][D1D][Q1D],a1b[NE][D1D][D1D][Q1D];
-  double a2x[NE][D1D][D1D][Q1D],a2b[NE][D1D][D1D][Q1D];
+  double a0[NE][D1D][D1D][Q1D];
+  double a1x[NE][D1D][EDGE][Q1D],a1b[NE][D1D][EDGE][Q1D];
+  double a2x[NE][EDGE][D1D][Q1D],a2b[NE][EDGE][D1D][Q1D];
   double b0y[NE][D1D][Q1D][Q1D],b0b[NE][D1D][Q1D][Q1D];
   double b1x[NE][D1D][Q1D][Q1D],b1z[NE][D1D][Q1D][Q1D];
-  double b2x[NE][D1D][Q1D][Q1D],b2y[NE][D1D][Q1D][Q1D];
+  double b2x[NE][EDGE][Q1D][Q1D],b2y[NE][EDGE][Q1D][Q1D];
   double p0y[NE][Q1D][Q1D][Q1D],p0z[NE][Q1D][Q1D][Q1D];
   double p1x[NE][Q1D][Q1D][Q1D],p1z[NE][Q1D][Q1D][Q1D];
   double p2x[NE][Q1D][Q1D][Q1D],p2y[NE][Q1D][Q1D][Q1D];
@@ -35,15 +36,18 @@ void mfem_pa_curlcurl_apply_3d_stage_sliced(const double *Bo,const double *Bc,
 #undef YS
 #undef ZS
   for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int qx=0;qx<Q1D;++qx){double c0=p2y[e][qz][qy][qx]-p1z[e][qz][qy][qx],c1=p0z[e][qz][qy][qx]-p2x[e][qz][qy][qx],c2=p1x[e][qz][qy][qx]-p0y[e][qz][qy][qx];h0[e][qz][qy][qx]=op[OP(qx,qy,qz,0,e)]*c0+op[OP(qx,qy,qz,1,e)]*c1+op[OP(qx,qy,qz,2,e)]*c2;h1[e][qz][qy][qx]=op[OP(qx,qy,qz,1,e)]*c0+op[OP(qx,qy,qz,3,e)]*c1+op[OP(qx,qy,qz,4,e)]*c2;h2[e][qz][qy][qx]=op[OP(qx,qy,qz,2,e)]*c0+op[OP(qx,qy,qz,4,e)]*c1+op[OP(qx,qy,qz,5,e)]*c2;}
-  double rx0z[NE][Q1D][Q1D][D1D],rx0y[NE][Q1D][Q1D][D1D];
+  /* The EDGE axes are size 3 even though the neighboring closed-basis axes
+   * are size 4. Exact scratch shapes keep those loop bounds visible to the
+   * raiser and to cuTensorNet mode validation. */
+  double rx0z[NE][Q1D][Q1D][EDGE],rx0y[NE][Q1D][Q1D][EDGE];
   double rx1x[NE][Q1D][Q1D][D1D],rx1z[NE][Q1D][Q1D][D1D];
   double rx2y[NE][Q1D][Q1D][D1D],rx2x[NE][Q1D][Q1D][D1D];
-  double ry0z[NE][Q1D][D1D][D1D],ry0y[NE][Q1D][D1D][D1D];
-  double ry1x[NE][Q1D][D1D][D1D],ry1z[NE][Q1D][D1D][D1D];
+  double ry0z[NE][Q1D][D1D][EDGE],ry0y[NE][Q1D][D1D][EDGE];
+  double ry1x[NE][Q1D][EDGE][D1D],ry1z[NE][Q1D][EDGE][D1D];
   double ry2y[NE][Q1D][D1D][D1D],ry2x[NE][Q1D][D1D][D1D];
-  double u0z[NE][D1D][D1D][D1D],u0y[NE][D1D][D1D][D1D];
-  double u1x[NE][D1D][D1D][D1D],u1z[NE][D1D][D1D][D1D];
-  double u2y[NE][D1D][D1D][D1D],u2x[NE][D1D][D1D][D1D];
+  double u0z[NE][D1D][D1D][EDGE],u0y[NE][D1D][D1D][EDGE];
+  double u1x[NE][D1D][EDGE][D1D],u1z[NE][D1D][EDGE][D1D];
+  double u2y[NE][EDGE][D1D][D1D],u2x[NE][EDGE][D1D][D1D];
 #define XR(R,H,NX,M) for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int qy=0;qy<Q1D;++qy)for(int dx=0;dx<NX;++dx){double v=0.;for(int qx=0;qx<Q1D;++qx)v+=H[e][qz][qy][qx]*M[dx*Q1D+qx];R[e][qz][qy][dx]=v;}
 #define YR(S,R,NX,NY,M) for(int e=0;e<NE;++e)for(int qz=0;qz<Q1D;++qz)for(int dy=0;dy<NY;++dy)for(int dx=0;dx<NX;++dx){double v=0.;for(int qy=0;qy<Q1D;++qy)v+=R[e][qz][qy][dx]*M[dy*Q1D+qy];S[e][qz][dy][dx]=v;}
 #define ZR(U,S,NX,NY,NZ,M) for(int e=0;e<NE;++e)for(int dz=0;dz<NZ;++dz)for(int dy=0;dy<NY;++dy)for(int dx=0;dx<NX;++dx){double v=0.;for(int qz=0;qz<Q1D;++qz)v+=S[e][qz][dy][dx]*M[dz*Q1D+qz];U[e][dz][dy][dx]=v;}

@@ -160,19 +160,22 @@ int main() {
   }
 
   output = 0.0;
-  launch(basis, gradient, input, output, field_operator);
-  cudaDeviceSynchronize();
-  output = 0.0;
-  const auto start = std::chrono::steady_clock::now();
-  for (int i = 0; i < BENCH_ITERS; ++i) {
+  for (int i = 0; i < 3; ++i)
     launch(basis, gradient, input, output, field_operator);
+  cudaDeviceSynchronize();
+  double runtime_us = INFINITY;
+  for (int i = 0; i < BENCH_ITERS; ++i) {
+    const auto start = std::chrono::steady_clock::now();
+    launch(basis, gradient, input, output, field_operator);
+    cudaDeviceSynchronize();
+    const auto stop = std::chrono::steady_clock::now();
+    runtime_us = fmin(
+        runtime_us,
+        std::chrono::duration<double, std::micro>(stop - start).count());
   }
-  const auto stop = std::chrono::steady_clock::now();
-  const double runtime_us =
-      std::chrono::duration<double, std::micro>(stop - start).count() /
-      BENCH_ITERS;
   std::printf("implementation=mfem_native_cuda kernel=%s ne=%d iterations=%d "
-              "runtime_us=%.6f checksum=%.17g max_abs=%.17g\n",
+              "runtime_us=%.6f checksum=%.17g max_abs=%.17g "
+              "timing_scope=resident_best_of_n\n",
               BENCH_NAME, MFEM_BENCH_NE, BENCH_ITERS, runtime_us,
               checksum, max_abs);
   return cudaGetLastError() == cudaSuccess ? 0 : 1;

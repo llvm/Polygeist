@@ -1,12 +1,12 @@
 == match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_grad_3d_stage_sliced/debufferized.mlir ==
-  match          body#[0, 1]  cublasGemmFor1x1Conv
-  match          body#[2, 3]  cublasGemmFor1x1Conv
-  match          body#[4, 5]  cublasGemmFor1x1Conv
-  match          body#[6, 7]  cublasGemmFor1x1Conv
-  match          body#[8, 9]  cublasGemmFor1x1Conv
-  match          body#[10, 11]  cublasGemmFor1x1Conv
-  match          body#[12, 13]  cublasGemmFor1x1Conv
-  match          body#[14, 15]  cublasGemmFor1x1Conv
-  match          body#[16, 17]  cublasGemmFor1x1Conv
+  match          body#[0, 1]  cutensornetContraction2_f64
+  match          body#[2, 3]  cutensornetContraction2_f64
+  match          body#[4, 5]  cutensornetContraction2_f64
+  computed_submap_base_reject body#6  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#8  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#10  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#12  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#14  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#16  cublasGemmFor1x1Conv
   no_match       body#18  ?
-  total: 9 matched / 10 bodies
+  total: 3 matched / 10 bodies
