@@ -115,8 +115,13 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_zero") return "polygeist_cublas_dgemm";
   if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
+      libSym == "cublasSgemm_nt_zero" || libSym == "cublasSgemm_tn_zero" ||
+      libSym == "cublasSgemm_tt_zero" ||
       libSym == "cublasSgemm_nt" ||
       libSym == "cublasSgemm_tn" || libSym == "cublasSgemm_tt")
+    return "polygeist_cublas_sgemm_transpose";
+  if (libSym.starts_with("cublasSgemm_") &&
+      (libSym.ends_with("_alpha") || libSym.ends_with("_alpha_beta")))
     return "polygeist_cublas_sgemm_transpose";
   if (libSym == "cublasSgemm_strided_batched_nn_zero")
     return "polygeist_cublas_sgemm_strided_batched";
@@ -1062,10 +1067,20 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
 // proved from linalg indexing maps by the matcher (nn, nt, tn, or tt).
 static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
                                          StringRef variant) {
-  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
-    return launch.emitError(variant) << ": expected A, B, C and one result";
   StringRef suffix = variant.drop_front(StringRef("cublasSgemm_").size());
+  enum class ScalarMode { Simple, AlphaOnly, AlphaBeta };
+  ScalarMode scalarMode = ScalarMode::Simple;
+  if (suffix.consume_back("_alpha_beta"))
+    scalarMode = ScalarMode::AlphaBeta;
+  else if (suffix.consume_back("_alpha"))
+    scalarMode = ScalarMode::AlphaOnly;
   bool zeroInit = suffix.consume_back("_zero");
+  unsigned expectedOperands = scalarMode == ScalarMode::AlphaBeta ? 5
+                            : scalarMode == ScalarMode::AlphaOnly ? 4 : 3;
+  if (launch.getNumOperands() != expectedOperands ||
+      launch.getNumResults() != 1)
+    return launch.emitError(variant)
+           << ": expected " << expectedOperands << " operands and one result";
   if (suffix.size() != 2 || (suffix[0] != 'n' && suffix[0] != 't') ||
       (suffix[1] != 'n' && suffix[1] != 't'))
     return launch.emitError(variant) << ": invalid transpose suffix";
@@ -1096,9 +1111,17 @@ static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
   Value transBVal = b.create<arith::ConstantIntOp>(loc, transB, 32);
   Value one = b.create<arith::ConstantOp>(loc, b.getF32Type(),
                                           b.getF32FloatAttr(1.0));
-  Value beta = zeroInit
-      ? b.create<arith::ConstantOp>(loc, b.getF32Type(), b.getF32FloatAttr(0.0))
-      : one;
+  Value alpha = one;
+  Value beta = one;
+  if (scalarMode == ScalarMode::AlphaBeta) {
+    beta = launch.getOperand(3);
+    alpha = launch.getOperand(4);
+  } else if (scalarMode == ScalarMode::AlphaOnly) {
+    alpha = launch.getOperand(3);
+  } else if (zeroInit) {
+    beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                       b.getF32FloatAttr(0.0));
+  }
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(), b.getI32Type(),
@@ -1108,7 +1131,7 @@ static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
   func::FuncOp shim = ensureShimDecl(module,
       "polygeist_cublas_sgemm_transpose", argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{
-      M, N, K, transAVal, transBVal, one,
+      M, N, K, transAVal, transBVal, alpha,
       memrefBasePtr(b, loc, A_mr), lda, memrefBasePtr(b, loc, B_mr), ldb,
       beta, memrefBasePtr(b, loc, C_mr), ldc});
   Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
@@ -3083,6 +3106,95 @@ static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
 
   Value updatedBaseTensor = memrefToTensor(b, loc, C_mr, C_base.getType());
   rewireLaunchResult(launch, updatedBaseTensor);
+  launch.erase();
+  return success();
+}
+
+// Parboil basic SGEMM reaches Linalg as identity-indexed (M,N,K) views over
+// flat column-major buffers:
+//   A[m,n,k] -> A_base[m + k*lda]
+//   B[m,n,k] -> B_base[n + k*ldb]
+//   C[m,n,k] -> C_base[m + n*ldc]
+// Reinterpret the buffers as row-major transposes and compute
+// C^T = B^T * A^T through the existing arbitrary-alpha/beta SGEMM shim.
+static LogicalResult lowerSgemmBroadcast3DColMajorNTAlphaBeta(
+    LaunchOp launch, ModuleOp module) {
+  StringRef name = "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta";
+  if (launch.getNumOperands() != 5 || launch.getNumResults() != 1)
+    return launch.emitError(name) << ": expected A, B, C, beta, alpha";
+
+  Value A = launch.getOperand(0), B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 3 || Bt.getRank() != 3 ||
+      Ct.getRank() != 2 || !At.getElementType().isF32() ||
+      !Bt.getElementType().isF32() || !Ct.getElementType().isF32())
+    return launch.emitError(name)
+           << ": A/B must be rank-3 and C rank-2 f32 tensors";
+
+  auto aSubmap = A.getDefiningOp<polygeist::SubmapOp>();
+  auto bSubmap = B.getDefiningOp<polygeist::SubmapOp>();
+  auto cSubmap = C.getDefiningOp<polygeist::SubmapOp>();
+  if (!aSubmap || !bSubmap || !cSubmap ||
+      aSubmap.getSizes().size() != 3 || bSubmap.getSizes().size() != 3 ||
+      cSubmap.getSizes().size() != 2 ||
+      aSubmap.getSymbols().size() != 1 ||
+      bSubmap.getSymbols().size() != 1 ||
+      cSubmap.getSymbols().size() != 1)
+    return launch.emitError(name)
+           << ": expected rank-3 submaps with one leading-dimension symbol";
+
+  MLIRContext *ctx = launch.getContext();
+  AffineExpr d0 = getAffineDimExpr(0, ctx);
+  AffineExpr d1 = getAffineDimExpr(1, ctx);
+  AffineExpr d2 = getAffineDimExpr(2, ctx);
+  AffineExpr s0 = getAffineSymbolExpr(0, ctx);
+  AffineMap expectedA = AffineMap::get(3, 1, d2 * s0 + d0);
+  AffineMap expectedB = AffineMap::get(3, 1, d2 * s0 + d1);
+  AffineMap expectedC = AffineMap::get(
+      2, 1, getAffineDimExpr(1, ctx) * s0 + getAffineDimExpr(0, ctx));
+  if (aSubmap.getMap() != expectedA || bSubmap.getMap() != expectedB ||
+      cSubmap.getMap() != expectedC)
+    return launch.emitError(name)
+           << ": submap layout does not implement column-major NT SGEMM";
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M = valueAsI32(b, loc, aSubmap.getSizes()[0]);
+  Value N = valueAsI32(b, loc, aSubmap.getSizes()[1]);
+  Value K = valueAsI32(b, loc, aSubmap.getSizes()[2]);
+  Value lda = valueAsI32(b, loc, aSubmap.getSymbols()[0]);
+  Value ldb = valueAsI32(b, loc, bSubmap.getSymbols()[0]);
+  Value ldc = valueAsI32(b, loc, cSubmap.getSymbols()[0]);
+  Value beta = launch.getOperand(3), alpha = launch.getOperand(4);
+  Value trans = b.create<arith::ConstantIntOp>(loc, 1, 32);
+  Value noTrans = b.create<arith::ConstantIntOp>(loc, 0, 32);
+
+  Value ABase = resolveSubmapBase(A);
+  Value BBase = resolveSubmapBase(B);
+  Value CBase = resolveSubmapBase(C);
+  Value AMemref = tensorToMemref(b, loc, ABase);
+  Value BMemref = tensorToMemref(b, loc, BBase);
+  Value CMemref = tensorToMemref(b, loc, CBase);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getF32Type(), ptrTy, b.getI32Type(), ptrTy,
+      b.getI32Type(), b.getF32Type(), ptrTy, b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_sgemm_transpose", argTypes, b);
+  // Row-major C^T has shape N x M.  B_base is K x N row-major and must be
+  // transposed; A_base is K x M row-major and is used directly.
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{N, M, K, trans, noTrans, alpha,
+                 memrefBasePtr(b, loc, BMemref), ldb,
+                 memrefBasePtr(b, loc, AMemref), lda, beta,
+                 memrefBasePtr(b, loc, CMemref), ldc});
+
+  Value updatedBase = memrefToTensor(b, loc, CMemref, CBase.getType());
+  rewireLaunchResult(launch, updatedBase);
   launch.erase();
   return success();
 }
@@ -6304,9 +6416,18 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cublasDgemm_simple" || libSym == "cublasDgemm_zero" ||
                  libSym == "cublasDgemm_alpha_only") {
         r = lowerDgemmVariant(launch, module, libSym);
+      } else if (libSym ==
+                 "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta") {
+        r = lowerSgemmBroadcast3DColMajorNTAlphaBeta(launch, module);
       } else if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
+                 libSym == "cublasSgemm_nt_zero" ||
+                 libSym == "cublasSgemm_tn_zero" ||
+                 libSym == "cublasSgemm_tt_zero" ||
                  libSym == "cublasSgemm_nt" ||
-                 libSym == "cublasSgemm_tn" || libSym == "cublasSgemm_tt") {
+                 libSym == "cublasSgemm_tn" || libSym == "cublasSgemm_tt" ||
+                 (libSym.starts_with("cublasSgemm_") &&
+                  (libSym.ends_with("_alpha") ||
+                   libSym.ends_with("_alpha_beta")))) {
         r = lowerSgemmTranspose(launch, module, libSym);
       } else if (libSym == "cublasSgemm_strided_batched_nn_zero") {
         r = lowerSgemmStridedBatched(launch, module);

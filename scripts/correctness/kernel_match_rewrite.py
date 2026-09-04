@@ -63,7 +63,19 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSgemm_nt",
     "cublasSgemm_tn",
     "cublasSgemm_tt",
+    "cublasSgemm_nn_alpha_beta",
+    "cublasSgemm_nt_alpha_beta",
+    "cublasSgemm_tn_alpha_beta",
+    "cublasSgemm_tt_alpha_beta",
+    "cublasSgemm_nn_alpha",
+    "cublasSgemm_nt_alpha",
+    "cublasSgemm_tn_alpha",
+    "cublasSgemm_tt_alpha",
+    "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta",
     "cublasSgemm_nn_zero",
+    "cublasSgemm_nt_zero",
+    "cublasSgemm_tn_zero",
+    "cublasSgemm_tt_zero",
     "cublasDgemm_zero",
     "cublasSgemm_strided_batched_nn_zero",
     "cublasDaxpy_unit",
@@ -3421,6 +3433,7 @@ def rewrite_mlir(
         custom_launch_line: str | None = None
         custom_first_launch_line: str | None = None
         custom_edit_span: tuple[int, int] | None = None
+        composition_root_rewire: tuple[str, str] | None = None
 
         if entry.name.startswith("cubSegmented") and n == 2:
             # The first generic only writes the reduction identity.  The CUB
@@ -3807,6 +3820,39 @@ def rewrite_mlir(
                 report.append(("rank_dtype_or_init_reject", i, entry.name))
                 i += n
                 continue
+            if (entry.name == "cublasSgemm_nn_zero" and
+                    elems == ["f32"] * 3):
+                maps = bodies[i + n - 1].indexing_maps
+                def _zero_map_outputs(txt: str) -> list[str]:
+                    mm = re.search(r"->\s*\(([^)]*)\)>", txt)
+                    return ([s.strip() for s in mm.group(1).split(",")]
+                            if mm else [])
+                if len(maps) != 3:
+                    report.append(("layout_reject", i, entry.name))
+                    i += n
+                    continue
+                a_dims = _zero_map_outputs(maps[0])
+                b_dims = _zero_map_outputs(maps[1])
+                c_dims = _zero_map_outputs(maps[2])
+                if not all(len(dims) == 2
+                           for dims in (a_dims, b_dims, c_dims)):
+                    report.append(("layout_reject", i, entry.name))
+                    i += n
+                    continue
+                m_dim, n_dim = c_dims
+                a_trans = a_dims[1] == m_dim and a_dims[0] != m_dim
+                b_trans = b_dims[0] == n_dim and b_dims[1] != n_dim
+                a_k = a_dims[0] if a_trans else a_dims[1]
+                b_k = b_dims[1] if b_trans else b_dims[0]
+                if (((a_dims[1] if a_trans else a_dims[0]) != m_dim) or
+                        ((b_dims[0] if b_trans else b_dims[1]) != n_dim) or
+                        a_k != b_k):
+                    report.append(("layout_reject", i, entry.name))
+                    i += n
+                    continue
+                emit_name = ("cublasSgemm_" +
+                             ("t" if a_trans else "n") +
+                             ("t" if b_trans else "n") + "_zero")
 
         if entry.name in (
                 "cublasGemmFor1x1Conv",
@@ -4740,7 +4786,23 @@ def rewrite_mlir(
                     emit_name = "cublasDsyrk_alias"
             elem = _sniff_elem_type(operand_types[0]) if operand_types else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
-            if (entry.name == "cublasDgemm_simple" and elem == "f32" and
+            if (entry.name == "cublasDgemm" and elem == "f32" and
+                    operand_ranks == [3, 3, 2]):
+                # Parboil basic SGEMM: the three identity-indexed operands are
+                # rank-3 submaps whose affine maps encode A[m,k], B[n,k], and
+                # C[m,n] over flat column-major storage.  The lowering verifies
+                # those maps before accepting this ABI.
+                emit_name = (
+                    "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta")
+                # The first generic's scaled-C result feeds an intervening
+                # submapInverse before the contraction.  Since the fused GEMM
+                # launch performs beta scaling itself, preserve that view
+                # chain but point it at the original C view after deleting the
+                # first generic.
+                if instances[i].result_ssa and outs0:
+                    composition_root_rewire = (
+                        instances[i].result_ssa, outs0[0])
+            elif (entry.name == "cublasDgemm_simple" and elem == "f32" and
                     operand_ranks == [3, 3, 3]):
                 # Darknet im2col+GEMM reaches linalg as a rank-3 broadcasted
                 # view: logical (N, K, M) iteration, but the underlying buffers
@@ -4748,8 +4810,7 @@ def rewrite_mlir(
                 # dedicated symbol so ABI lowering can unwrap the submaps and
                 # call cuBLAS SGEMM.
                 emit_name = "cublasSgemm_broadcast3d_simple"
-            elif (entry.name == "cublasDgemm_simple" and elem == "f32" and
-                  operand_ranks == [2, 2, 2]):
+            elif (elem == "f32" and operand_ranks == [2, 2, 2]):
                 maps = bodies[i + n - 1].indexing_maps
                 if len(maps) != 3:
                     report.append(("layout_reject", i, entry.name))
@@ -4775,9 +4836,14 @@ def rewrite_mlir(
                     report.append(("layout_reject", i, entry.name))
                     i += 1
                     continue
-                emit_name = ("cublasSgemm_" +
-                             ("t" if a_trans else "n") +
-                             ("t" if b_trans else "n"))
+                layout = (("t" if a_trans else "n") +
+                          ("t" if b_trans else "n"))
+                if entry.name == "cublasDgemm":
+                    emit_name = f"cublasSgemm_{layout}_alpha_beta"
+                elif entry.name == "cublasDgemm_alpha_only":
+                    emit_name = f"cublasSgemm_{layout}_alpha"
+                else:
+                    emit_name = f"cublasSgemm_{layout}"
             elif elem != "f64" or operand_ranks != [2, 2, 2]:
                 # Do not let generic rank-3/strided contractions masquerade as
                 # the plain double GEMM ABI. The extended Llama split-Q/K
@@ -4978,6 +5044,14 @@ def rewrite_mlir(
                 )
                 edits.append((inst_j.span[0], inst_j.span[1],
                               earlier_replacement))
+            if composition_root_rewire is not None:
+                old_root, new_root = composition_root_rewire
+                middle_start = instances[i].span[1]
+                middle_end = instances[i + n - 1].span[0]
+                middle = re.sub(
+                    rf"(?<![\w]){re.escape(old_root)}(?![\w])",
+                    new_root, text[middle_start:middle_end])
+                edits.append((middle_start, middle_end, middle))
             last_inst = instances[i + n - 1]
             edits.append((last_inst.span[0], last_inst.span[1], replacement))
         i += n

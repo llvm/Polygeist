@@ -416,7 +416,65 @@ module {
                               %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
     kernel.yield %C : tensor<?x?xf32>
   }
+  // ABI-only FP32 variants.  Their scalar semantics are supplied by the
+  // dtype-polymorphic Dgemm templates above; these names carry the physical
+  // transpose state and scalar mode to the common cuBLAS lowering.
+  kernel.defn @cublasSgemm_nn_alpha_beta(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %beta: f32, %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nt_alpha_beta(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %beta: f32, %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tn_alpha_beta(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %beta: f32, %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tt_alpha_beta(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %beta: f32, %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nn_alpha(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nt_alpha(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tn_alpha(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tt_alpha(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+      %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
   kernel.defn @cublasSgemm_nn_zero(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+      %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_nt_zero(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+      %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tn_zero(
+      %A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+      %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSgemm_tt_zero(
       %A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
       %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
     kernel.yield %C : tensor<?x?xf32>
@@ -448,6 +506,17 @@ module {
       linalg.yield %s : f32
     } -> tensor<?x?x?xf32>
     kernel.yield %result : tensor<?x?x?xf32>
+  }
+
+  // Parboil's basic SGEMM is raised as (M,N,K) broadcast views over flat,
+  // column-major buffers.  The semantic body is still cublasDgemm above;
+  // this ABI name records the proven view layout for lowering.
+  kernel.defn @cublasSgemm_broadcast3d_colmajor_nt_alpha_beta(
+      %A: tensor<?x?x?xf32>, %B: tensor<?x?x?xf32>,
+      %C: tensor<?x?xf32>, %beta: f32, %alpha: f32)
+      -> tensor<?x?x?xf32> {
+    // ABI contract only: the launch result is the rank-3 updated C view.
+    kernel.yield %A : tensor<?x?x?xf32>
   }
 
   kernel.defn @cublasSgemm_broadcast3d_memref(
