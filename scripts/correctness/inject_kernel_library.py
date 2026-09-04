@@ -51,9 +51,38 @@ def extract_module_body(text: str) -> str:
     return text[body_open + 1 : end]
 
 
-def inject(input_text: str, library_text: str) -> str:
+def extract_named_definitions(text: str, symbols: list[str]) -> str:
+    """Extract complete kernel.defn operations for the requested symbols."""
+    definitions: list[str] = []
+    for symbol in symbols:
+        match = re.search(rf"\bkernel\.defn\s+@{re.escape(symbol)}\b", text)
+        if not match:
+            raise ValueError(f"kernel.defn @{symbol} not found in library")
+        start = text.rfind("\n", 0, match.start()) + 1
+        opening = text.find("{", match.end())
+        if opening < 0:
+            raise ValueError(f"kernel.defn @{symbol} has no body")
+        depth = 0
+        closing = None
+        for index in range(opening, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    closing = index + 1
+                    break
+        if closing is None:
+            raise ValueError(f"kernel.defn @{symbol} has an unterminated body")
+        definitions.append(text[start:closing].strip())
+    return "\n\n".join(definitions)
+
+
+def inject(input_text: str, library_text: str,
+           symbols: list[str] | None = None) -> str:
     """Splice library defns into the input module's top-level block."""
-    lib_body = extract_module_body(library_text).strip()
+    lib_body = (extract_named_definitions(library_text, symbols)
+                if symbols else extract_module_body(library_text).strip())
     insert_at = find_module_body_open(input_text) + 1
     return input_text[:insert_at] + "\n" + lib_body + "\n" + input_text[insert_at:]
 
@@ -63,10 +92,12 @@ def main() -> int:
     ap.add_argument("input")
     ap.add_argument("library")
     ap.add_argument("-o", "--output", required=True)
+    ap.add_argument("--symbol", action="append",
+                    help="inject only this kernel.defn (repeatable)")
     args = ap.parse_args()
     inp = Path(args.input).read_text()
     lib = Path(args.library).read_text()
-    Path(args.output).write_text(inject(inp, lib))
+    Path(args.output).write_text(inject(inp, lib, args.symbol))
     return 0
 
 

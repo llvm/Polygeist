@@ -224,6 +224,34 @@ func.func @test_multiple_uses(%A: memref<?xf64>, %n: index) {
 
 // -----
 
+// A sparse row reduction may compute its permuted output address after the
+// reduction. The store-fusion fast path must not move that address use into
+// the loop before its definition.
+// CHECK-LABEL: func.func @test_store_index_defined_after_loop
+// CHECK: %[[SUM:.*]] = scf.for
+// CHECK-SAME: iter_args
+// CHECK: %[[DEST:.*]] = arith.index_cast
+// CHECK: memref.store %[[SUM]], %{{.*}}[%[[DEST]]]
+func.func @test_store_index_defined_after_loop(
+    %values: memref<?xf32>, %permutation: memref<?xi32>,
+    %out: memref<?xf32>, %row: index, %n: index) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %zero = arith.constant 0.0 : f32
+  %sum = scf.for %i = %c0 to %n step %c1
+      iter_args(%acc = %zero) -> f32 {
+    %value = memref.load %values[%i] : memref<?xf32>
+    %next = arith.addf %acc, %value : f32
+    scf.yield %next : f32
+  }
+  %destination32 = memref.load %permutation[%row] : memref<?xi32>
+  %destination = arith.index_cast %destination32 : i32 to index
+  memref.store %sum, %out[%destination] : memref<?xf32>
+  return
+}
+
+// -----
+
 // ============================================================================
 // INTEGER TESTS (AFFINE)
 // ============================================================================

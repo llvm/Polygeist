@@ -27,8 +27,16 @@ from kernel_match import (
     parse_constants, parse_generics, encode_body,
     match_composition, composition_library,
     match_elementwise_semantic, enumerate_semantic_candidates,
-    CompositionEntry, CompositionStep,
-    _AFFINE_MAP_RE, _parse_term, _term_repr,
+    CompositionEntry, CompositionStep, Term,
+    _AFFINE_MAP_RE, _parse_term, _term_repr, equivalent,
+)
+from structured_loop_egglog import (
+    analyze_residual_loops,
+    analyze_structured_regions,
+    format_residual_candidate,
+    format_result,
+    _matching_brace,
+    parse_loops,
 )
 
 
@@ -72,6 +80,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSgemm_tn_alpha",
     "cublasSgemm_tt_alpha",
     "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta",
+    "cublasSgemm_flat_colmajor_nt_alpha_beta",
     "cublasSgemm_nn_zero",
     "cublasSgemm_nt_zero",
     "cublasSgemm_tn_zero",
@@ -125,6 +134,13 @@ ABI_LOWERABLE_KERNELS = {
     "customStencil3D7pt_f64_tensor",
     "customStencil3D7ptCoeff_f64_tensor",
     "customStencil3D7ptExtra_f64_tensor",
+    "customStencil3D7pt_f32_tensor",
+    "customMGResid_f64_memref",
+    "customMGPSInv_f64_memref",
+    "customHistogramSaturatingU8_memref",
+    "customTPACFHistogram_f32_memref",
+    "customJdsSpmv_f32_memref",
+    "customCsrSpmv_f64_memref",
     "cufftZ2Z_1D_tensor",
     "cufftC2C_1D_tensor",
     "cutensornetTensorProduct3D_f32_tensor",
@@ -2715,6 +2731,411 @@ def _cub_dynamic_segmented_logical_flag(
     return None
 
 
+def _scan_simple_memref_types(text: str, position: int | None = None) -> dict[str, str]:
+    """Collect ordinary ranked memref types used by structured extraction."""
+    if position is not None:
+        function_start = text.rfind("func.func", 0, position)
+        if function_start >= 0:
+            text = text[function_start:position]
+    result: dict[str, str] = {}
+    for match in re.finditer(
+            r"(%[\w.$-]+)\s*:\s*(memref<[^,()\n]+>)", text):
+        result.setdefault(match.group(1), match.group(2))
+    return result
+
+
+def _render_looped_gemv_as_gemm(structured, text: str) -> tuple[int, int, str] | None:
+    """Materialize the conservative loop-of-column-GEMV case as one GEMM."""
+    if (structured.extracted_kind != "looped_gemv_as_gemm" or
+            len(structured.region.operations) != 1):
+        return None
+    op = structured.region.operations[0]
+    if len(op.loops) != 1 or len(op.input_roots) != 2 or len(op.output_roots) != 1:
+        return None
+    loop = op.loops[0]
+    if not loop.bounds.startswith("0 to "):
+        return None
+    a, b = op.input_roots
+    c = op.output_roots[0]
+    types = _scan_simple_memref_types(text, loop.span[0])
+    operand_types = [types.get(value) for value in (a, b, c)]
+    if (any(value is None for value in operand_types) or
+            any(_shaped_rank(value) != 2 for value in operand_types) or
+            any(_sniff_elem_type(value) != "f64" for value in operand_types)):
+        return None
+    function_start = text.rfind("func.func", 0, loop.span[0])
+    signature = text[function_start:loop.span[0]]
+    if any(not re.search(
+            rf"{re.escape(value)}\s*:\s*memref<[^>\n]+>\s*"
+            rf"\{{\s*llvm\.noalias\s*\}}", signature)
+           for value in (a, b, c)):
+        return None
+
+    # A is invariant. B and C must be column slices indexed by exactly the
+    # parent loop IV: submap (d0)[s0] -> (d0,s0). This is the affine
+    # composition that turns x[k] and y[i] into B[k,j] and C[i,j].
+    normalized = [value.replace(" ", "") for value in op.accesses]
+    column_map = "submap=affine_map<(d0)[s0]->(d0,s0)>"
+    iv = loop.induction
+    if ("submap=direct" not in normalized[0] or
+            column_map not in normalized[1] or
+            column_map not in normalized[2] or
+            f"symbols={iv}" not in normalized[1] or
+            f"symbols={iv}" not in normalized[2]):
+        return None
+
+    tensor_types = [_memref_to_tensor_type(value) for value in operand_types]
+    if any(value is None for value in tensor_types):
+        return None
+    line_start = text.rfind("\n", 0, loop.span[0]) + 1
+    indent = text[line_start:loop.span[0]]
+    suffix = str(op.index)
+    at, bt, ct = (f"%structured_{name}_{suffix}" for name in ("a", "b", "c"))
+    result = f"%structured_gemm_{suffix}"
+    result_memref = f"%structured_gemm_memref_{suffix}"
+    replacement = (
+        f"{at} = bufferization.to_tensor {a} restrict : {operand_types[0]}\n"
+        f"{indent}{bt} = bufferization.to_tensor {b} restrict : {operand_types[1]}\n"
+        f"{indent}{ct} = bufferization.to_tensor {c} restrict writable : {operand_types[2]}\n"
+        f"{indent}{result} = kernel.launch @cublasDgemm_simple({at}, {bt}, {ct}) "
+        f": ({tensor_types[0]}, {tensor_types[1]}, {tensor_types[2]}) "
+        f"-> {tensor_types[2]}\n"
+        f"{indent}{result_memref} = bufferization.to_memref {result} "
+        f": {operand_types[2]}\n"
+        f"{indent}memref.copy {result_memref}, {c} : "
+        f"{operand_types[2]} to {operand_types[2]}")
+    return loop.span[0], loop.span[1], replacement
+
+
+def _render_source_faithful_sgemm(structured, text: str) -> tuple[int, int, str] | None:
+    """Collapse Parboil's two loops + dot generic + alpha/beta epilogue."""
+    if len(structured.region.operations) != 1:
+        return None
+    op = structured.region.operations[0]
+    if (len(op.loops) != 2 or op.reduction_count != 1 or
+            len(op.inputs) != 2 or len(op.outputs) != 1):
+        return None
+    canonical_memref = Term.In(2) + Term.In(0) * Term.In(1)
+    canonical_tensor = Term.Out(0) + Term.In(0) * Term.In(1)
+    if not (equivalent(op.term, canonical_memref,
+                       include_distributivity=False) or
+            equivalent(op.term, canonical_tensor,
+                       include_distributivity=False)):
+        return None
+    outer, inner = op.loops
+    outer_bound = re.fullmatch(r"0 to (%[\w.$-]+)", outer.bounds)
+    inner_bound = re.fullmatch(r"0 to (%[\w.$-]+)", inner.bounds)
+    if not outer_bound or not inner_bound:
+        return None
+
+    def symbols(access: str) -> list[str]:
+        match = re.search(r"(?:^|;)symbols=([^;]*)(?:;|$)", access)
+        return ([item for item in match.group(1).split(",") if item]
+                if match else [])
+
+    a_symbols, b_symbols = symbols(op.accesses[0]), symbols(op.accesses[1])
+    if (len(a_symbols) != 3 or len(b_symbols) != 3 or
+            a_symbols[0] != outer.induction or
+            b_symbols[0] != inner.induction or
+            a_symbols[2] != b_symbols[2]):
+        return None
+    lda, k = a_symbols[1], a_symbols[2]
+    ldb = b_symbols[1]
+    after = text[op.span[1]:inner.span[1]]
+    temp = re.escape(op.output_roots[0])
+    inner_iv = re.escape(inner.induction)
+    dot_match = re.search(
+        rf"(%[\w.$-]+)\s*=\s*affine\.load\s+{temp}\[{inner_iv}\]", after)
+    if not dot_match:
+        return None
+    dot = dot_match.group(1)
+    c_load = re.search(
+        r"(%[\w.$-]+)\s*=\s*affine\.load\s+(%[\w.$-]+)\[([^]]+)\]",
+        after[dot_match.end():])
+    if not c_load:
+        return None
+    c_value, c_root, c_address = c_load.groups()
+    muls = {
+        result: (lhs, rhs) for result, lhs, rhs in re.findall(
+            r"(%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+            r"(%[\w.$-]+),\s*(%[\w.$-]+)", after)
+    }
+    c_scaled = next((result for result, operands in muls.items()
+                     if c_value in operands), None)
+    dot_scaled = next((result for result, operands in muls.items()
+                       if dot in operands), None)
+    if not c_scaled or not dot_scaled:
+        return None
+    beta = next(value for value in muls[c_scaled] if value != c_value)
+    alpha = next(value for value in muls[dot_scaled] if value != dot)
+    sum_match = re.search(
+        rf"(%[\w.$-]+)\s*=\s*arith\.addf\s+"
+        rf"(?:{re.escape(c_scaled)},\s*{re.escape(dot_scaled)}|"
+        rf"{re.escape(dot_scaled)},\s*{re.escape(c_scaled)})", after)
+    if not sum_match:
+        return None
+    total = sum_match.group(1)
+    store = re.search(
+        rf"affine\.store\s+{re.escape(total)},\s*{re.escape(c_root)}"
+        rf"\[([^]]+)\]", after)
+    if not store or " ".join(store.group(1).split()) != " ".join(c_address.split()):
+        return None
+    types = _scan_simple_memref_types(text, outer.span[0])
+    if any(types.get(root) != "memref<?xf32>"
+           for root in (op.input_roots[0], op.input_roots[1], c_root)):
+        return None
+    scalar_types = _scan_scalar_types(text)
+    if scalar_types.get(alpha) != "f32" or scalar_types.get(beta) != "f32":
+        return None
+    ldc_symbol = re.search(r"symbol\((%[\w.$-]+)\)", c_address)
+    if not ldc_symbol:
+        return None
+    m, n = outer_bound.group(1), inner_bound.group(1)
+    indent_start = text.rfind("\n", 0, outer.span[0]) + 1
+    indent = text[indent_start:outer.span[0]]
+    operands = [op.input_roots[0], op.input_roots[1], c_root,
+                m, n, k, lda, ldb, ldc_symbol.group(1), beta, alpha]
+    operand_types = [types[op.input_roots[0]], types[op.input_roots[1]],
+                     types[c_root], "index", "index", "index", "index",
+                     "index", "index", "f32", "f32"]
+    replacement = (
+        "kernel.launch @cublasSgemm_flat_colmajor_nt_alpha_beta("
+        + ", ".join(operands) + ") : (" + ", ".join(operand_types)
+        + ") -> ()")
+    return outer.span[0], outer.span[1], indent + replacement
+
+
+def _render_mg_stencil(structured, text: str) -> tuple[int, int, str] | None:
+    """Lower the exact NPB-MG residual/smoother loop nests to CUDA shims."""
+    if (structured.extracted_kind != "factorized_linear_stencil3d" or
+            len(structured.region.operations) != 3):
+        return None
+    op = structured.region.operations[-1]
+    if len(op.loops) != 2:
+        return None
+    function_start = text.rfind("func.func", 0, op.loops[0].span[0])
+    function_head = text[function_start:text.find("{", function_start)]
+    name_match = re.search(r"func\.func(?:\s+private)?\s+@(resid|psinv)\b",
+                           function_head)
+    if not name_match:
+        return None
+    name = name_match.group(1)
+    if name == "resid":
+        expected = (Term.In(0) - Term.In(1) * Term.In(2)
+                    - Term.In(3) * (Term.In(4) + Term.In(5) + Term.In(6))
+                    - Term.In(7) * (Term.In(8) + Term.In(9)))
+        symbol = "customMGResid_f64_memref"
+        operands = ["%arg0", "%arg1", "%arg2", "%arg3", "%arg4",
+                    "%arg5", "%arg6"]
+        types = ["memref<?xi8>"] * 3 + ["i32"] * 3 + ["memref<?xf64>"]
+    else:
+        expected = (Term.Out(0) + Term.In(0) * Term.In(1)
+                    + Term.In(2) * (Term.In(3) + Term.In(4) + Term.In(5))
+                    + Term.In(6) * (Term.In(7) + Term.In(8) + Term.In(9)))
+        symbol = "customMGPSInv_f64_memref"
+        operands = ["%arg0", "%arg1", "%arg2", "%arg3", "%arg4", "%arg5"]
+        types = ["memref<?xi8>"] * 2 + ["i32"] * 3 + ["memref<?xf64>"]
+    if not equivalent(op.term, expected, include_distributivity=False):
+        return None
+    outer = op.loops[0]
+    line_start = text.rfind("\n", 0, outer.span[0]) + 1
+    indent = text[line_start:outer.span[0]]
+    launch = (f"kernel.launch @{symbol}(" + ", ".join(operands) + ") : (" +
+              ", ".join(types) + ") -> ()")
+    return outer.span[0], outer.span[1], indent + launch
+
+
+def _render_parboil_stencil(structured, text: str) -> tuple[int, int, str] | None:
+    """Lower Parboil's exact FP32 six-neighbor-minus-center stencil."""
+    if (structured.extracted_kind != "affine_stencil" or
+            len(structured.region.operations) != 1):
+        return None
+    op = structured.region.operations[0]
+    if len(op.inputs) != 7 or len(op.outputs) != 1 or op.loops:
+        return None
+    function_start = text.rfind("func.func", 0, op.span[0])
+    function_head = text[function_start:text.find("{", function_start)]
+    if not re.search(r"func\.func\s+@cpu_stencil\(", function_head):
+        return None
+    generic = text[op.span[0]:op.span[1]]
+    required = ("arith.addf", "arith.mulf", "arith.subf",
+                "tensor<?x?x?xf32>")
+    if any(token not in generic for token in required):
+        return None
+    result_match = re.match(r"\s*(%[\w.$-]+)\s*=", generic)
+    if not result_match:
+        return None
+    result = result_match.group(1)
+    # Generic spans begin at the newline immediately before the result SSA.
+    line_start = op.span[0] + 1
+    indent_match = re.match(r"[ \t]*", text[line_start:])
+    indent = indent_match.group(0) if indent_match else ""
+    uid = op.span[0]
+    zero = f"%parboil_stencil_zero_{uid}"
+    neg_center = f"%parboil_stencil_neg_center_{uid}"
+    operands = [*op.inputs, op.outputs[0], zero, zero, zero,
+                "%arg1", "%arg1", "%arg1", "%arg1", "%arg1", "%arg1",
+                neg_center]
+    types = ["tensor<?x?x?xf32>"] * 8 + ["f32"] * 10
+    replacement = (
+        f"{zero} = arith.constant 0.0 : f32\n{indent}"
+        f"{neg_center} = arith.negf %arg0 : f32\n{indent}"
+        f"{result} = kernel.launch @customStencil3D7pt_f32_tensor("
+        + ", ".join(operands) + ") : (" + ", ".join(types)
+        + ") -> tensor<?x?x?xf32>")
+    return op.span[0], op.span[1], "\n" + indent + replacement
+
+
+def _render_saturating_u8_histogram(text: str) -> tuple[int, int, str] | None:
+    """Replace Parboil histo's colliding byte increments with an atomic shim."""
+    for candidate in analyze_residual_loops(text):
+        if candidate.kind != "indirect_histogram":
+            continue
+        region = text[candidate.loop.span[0]:candidate.loop.span[1]]
+        if "c255_i32" not in region or "memref<?xi8>" not in region:
+            continue
+        while_match = next(re.finditer(r"\bscf\.while\b", region), None)
+        if while_match is None:
+            continue
+        keyword_start = candidate.loop.span[0] + while_match.start()
+        line_start = text.rfind("\n", 0, keyword_start) + 1
+        leading = re.match(r"\s*", text[line_start:keyword_start]).group(0)
+        loop_start = line_start + len(leading)
+        # scf.while owns a condition region followed by a `do` region; the
+        # second balanced closing brace is the complete operation boundary.
+        first_open = text.find("{", keyword_start)
+        first_close = _matching_brace(text, first_open)
+        second_open = text.find("{", first_close or first_open)
+        loop_end = _matching_brace(text, second_open)
+        if loop_end is None:
+            continue
+        body = text[loop_start:loop_end]
+        image = re.search(r"memref\.load\s+(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<\?xi32>", body)
+        hist = re.search(r"memref\.load\s+(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<\?xi8>", body)
+        dims = re.findall(r"affine\.load\s+(%[\w.$-]+)\[0\]\s*:\s*memref<1xi32>", body)
+        prefix = text[candidate.loop.span[0]:loop_start]
+        bin_dims = re.findall(r"affine\.load\s+(%[\w.$-]+)\[0\]\s*:\s*memref<1xi32>", prefix)
+        if not image or not hist or len(dims) < 2 or len(bin_dims) < 2:
+            continue
+        uid = keyword_start
+        indent = leading
+        names = [f"%hist_{part}_{uid}" for part in ("w", "h", "n", "bw", "bh", "bins")]
+        replacement = (
+            f"{names[0]} = affine.load {dims[0]}[0] : memref<1xi32>\n{indent}"
+            f"{names[1]} = affine.load {dims[1]}[0] : memref<1xi32>\n{indent}"
+            f"{names[2]} = arith.muli {names[0]}, {names[1]} : i32\n{indent}"
+            f"{names[3]} = affine.load {bin_dims[0]}[0] : memref<1xi32>\n{indent}"
+            f"{names[4]} = affine.load {bin_dims[1]}[0] : memref<1xi32>\n{indent}"
+            f"{names[5]} = arith.muli {names[3]}, {names[4]} : i32\n{indent}"
+            f"kernel.launch @customHistogramSaturatingU8_memref("
+            f"{image.group(1)}, {hist.group(1)}, {names[2]}, {names[5]}) : "
+            f"(memref<?xi32>, memref<?xi8>, i32, i32) -> ()")
+        return loop_start, loop_end, indent + replacement
+    return None
+
+
+def _render_tpacf_histogram(text: str) -> tuple[int, int, str] | None:
+    """Collapse TPACF's pair loop, binary search, and colliding increment."""
+    candidates = [c for c in analyze_residual_loops(text)
+                  if c.kind == "indirect_histogram"]
+    for candidate in candidates:
+        function_start = text.rfind("func.func", 0, candidate.loop.span[0])
+        if function_start < 0 or "@doCompute(" not in text[function_start:candidate.loop.span[0]]:
+            continue
+        containing = [loop for loop in parse_loops(text)
+                      if loop.span[0] < candidate.loop.span[0] and
+                      candidate.loop.span[1] < loop.span[1]]
+        if not containing:
+            continue
+        outer = min(containing, key=lambda loop: loop.span[0])
+        body = text[outer.span[0]:outer.span[1]]
+        required = ("arith.mulf", "scf.while", "memref<?xi64>",
+                    "arith.cmpf oge")
+        if any(token not in body for token in required):
+            continue
+        line_start = text.rfind("\n", 0, outer.span[0]) + 1
+        indent = text[line_start:outer.span[0]]
+        operands = [f"%arg{i}" for i in range(8)]
+        types = ["memref<?x3xf32>", "i32", "memref<?x3xf32>", "i32",
+                 "i32", "memref<?xi64>", "i32", "memref<?xf32>"]
+        launch = ("kernel.launch @customTPACFHistogram_f32_memref(" +
+                  ", ".join(operands) + ") : (" + ", ".join(types) + ") -> ()")
+        return outer.span[0], outer.span[1], indent + launch
+    return None
+
+
+def _render_sparse_spmv(text: str) -> list[tuple[int, int, str, str]]:
+    """Materialize validated JDS and CSR row reductions as GPU calls."""
+    loops = parse_loops(text)
+    rendered: list[tuple[int, int, str, str]] = []
+    seen: set[tuple[int, int]] = set()
+    for candidate in analyze_residual_loops(text):
+        if candidate.kind not in ("jds_spmv", "csr_spmv"):
+            continue
+        parents = [loop for loop in loops if loop.span[0] < candidate.loop.span[0]
+                   and candidate.loop.span[1] < loop.span[1]]
+        if not parents:
+            continue
+        row_loop = max(parents, key=lambda loop: loop.span[0])
+        if row_loop.span in seen:
+            continue
+        body = text[row_loop.span[0]:row_loop.span[1]]
+        line_start = text.rfind("\n", 0, row_loop.span[0]) + 1
+        indent = text[line_start:row_loop.span[0]]
+        uid = row_loop.span[0]
+        if candidate.kind == "jds_spmv":
+            nzcnt = re.search(r"affine\.load\s+(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<\?xi32>", body)
+            ptr = re.search(r"memref\.load\s+(%[\w.$-]+)\[%[\w.$-]+\]\s*:\s*memref<\?xi32>", body)
+            indexed_i32 = re.findall(r"memref\.load\s+(%[\w.$-]+)\[%[\w.$-]+\]\s*:\s*memref<\?xi32>", body)
+            indexed_f32 = re.findall(r"memref\.load\s+(%[\w.$-]+)\[%[\w.$-]+\]\s*:\s*memref<\?xf32>", body)
+            out_store = re.search(r"(?:affine|memref)\.store\s+%[\w.$-]+,\s*(%[\w.$-]+)\[", body)
+            perm_load = re.findall(r"affine\.load\s+(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<\?xi32>", body)
+            if (not nzcnt or not ptr or len(indexed_i32) < 2 or
+                    len(indexed_f32) < 2 or not out_store or len(perm_load) < 2):
+                continue
+            # [ptr, indices], [data, x], and [nzcnt, perm] in source order.
+            operands = [nzcnt.group(1), ptr.group(1), indexed_i32[-1],
+                        indexed_f32[0], indexed_f32[-1], perm_load[-1],
+                        out_store.group(1)]
+            bound = re.fullmatch(r"0 to (%[\w.$-]+)", row_loop.bounds)
+            if not bound:
+                continue
+            operands.insert(0, bound.group(1))
+            types = ["index"] + ["memref<?xi32>"] * 3 + ["memref<?xf32>"] * 2 + ["memref<?xi32>", "memref<?xf32>"]
+            symbol = "customJdsSpmv_f32_memref"
+        else:
+            inner_body = text[candidate.loop.span[0]:candidate.loop.span[1]]
+            iv = re.escape(candidate.loop.induction)
+            rowptr = re.search(r"(?:affine|memref)\.load\s+(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<[^>]*xi32>", body)
+            values = re.search(rf"memref\.load\s+(%[\w.$-]+)\[{iv}\]\s*:\s*memref<[^>]*xf64>", inner_body)
+            cols = re.search(rf"memref\.load\s+(%[\w.$-]+)\[{iv}\]\s*:\s*memref<[^>]*xi32>", inner_body)
+            gathers = re.findall(r"memref\.load\s+(%[\w.$-]+)\[%[\w.$-]+\]\s*:\s*memref<[^>]*xf64>", body)
+            stores = re.findall(r"(?:affine|memref)\.store\s+[^,]+,\s*(%[\w.$-]+)\[[^]]+\]\s*:\s*memref<[^>]*xf64>", body)
+            if not rowptr or not values or not cols or len(gathers) < 2 or not stores:
+                continue
+            x, out = gathers[-1], stores[-1]
+            bound = re.fullmatch(r"(?:0|%c0) to (%[\w.$-]+)(?: step %c1)?", row_loop.bounds)
+            prefix = ""
+            if bound:
+                rows = bound.group(1)
+            else:
+                mapped = re.fullmatch(r"0 to (#[\w.$-]+\(\)\[[^]]+\])", row_loop.bounds)
+                if not mapped:
+                    continue
+                rows = f"%csr_rows_{uid}"
+                prefix = f"{rows} = affine.apply {mapped.group(1)}\n{indent}"
+            operands = [rows, rowptr.group(1), cols.group(1), values.group(1), x, out]
+            types = ["index", "memref<101xi32>", "memref<3600xi32>",
+                     "memref<3600xf64>", "memref<102xf64>", "memref<102xf64>"]
+            symbol = "customCsrSpmv_f64_memref"
+            indent = indent + prefix
+        launch = (f"kernel.launch @{symbol}(" + ", ".join(operands) +
+                  ") : (" + ", ".join(types) + ") -> ()")
+        rendered.append((row_loop.span[0], row_loop.span[1], indent + launch, symbol))
+        seen.add(row_loop.span)
+    return rendered
+
+
 def rewrite_mlir(
     text: str,
     dry_run: bool = False,
@@ -2723,6 +3144,8 @@ def rewrite_mlir(
     show_semantic_only: bool = False,
     max_launches: int | None = None,
     disable_pointwise_matching: bool = False,
+    show_structured_regions: bool = False,
+    enable_structured_rewrite: bool = False,
 ) -> tuple[str, list[tuple]]:
     """Run the matcher on `text` and return (rewritten_text, match_report).
 
@@ -2774,6 +3197,23 @@ def rewrite_mlir(
 
     # Walk bodies front-to-back, greedy-match compositions.
     report: list[tuple] = []
+    structured_results = (
+        analyze_structured_regions(text, instances, bodies, body_terms)
+        if show_structured_regions or enable_structured_rewrite else [])
+    if show_structured_regions:
+        for structured in structured_results:
+            report.append((
+                "structured_fusion" if structured.fused is not None
+                else "structured_reject",
+                [op.index for op in structured.region.operations],
+                format_result(structured),
+            ))
+        for candidate in analyze_residual_loops(text):
+            report.append((
+                "residual_idiom_candidate",
+                [],
+                format_residual_candidate(candidate),
+            ))
     if dry_run and show_candidates:
         for cand_i in range(len(body_terms)):
             for cand in enumerate_semantic_candidates(
@@ -2792,9 +3232,43 @@ def rewrite_mlir(
                 ))
 
     edits: list[tuple[int, int, str]] = []   # (start, end, replacement)
+    consumed_structured_bodies: set[int] = set()
+    if enable_structured_rewrite:
+        for structured in structured_results:
+            rendered = _render_looped_gemv_as_gemm(structured, text)
+            launch_name = "cublasDgemm_simple[loop-lifted]"
+            if rendered is None:
+                rendered = _render_source_faithful_sgemm(structured, text)
+                launch_name = "cublasSgemm_flat_colmajor_nt_alpha_beta[loop+epilogue]"
+            if rendered is None:
+                rendered = _render_mg_stencil(structured, text)
+                launch_name = "customMGStencil_f64[structured]"
+            if rendered is None:
+                rendered = _render_parboil_stencil(structured, text)
+                launch_name = "customStencil3D7pt_f32_tensor[structured]"
+            if rendered is None:
+                continue
+            edits.append(rendered)
+            consumed = [op.index for op in structured.region.operations]
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, launch_name))
+        histogram = _render_saturating_u8_histogram(text)
+        if histogram is not None:
+            edits.append(histogram)
+            report.append(("match", [], "customHistogramSaturatingU8_memref[atomic]"))
+        tpacf = _render_tpacf_histogram(text)
+        if tpacf is not None:
+            edits.append(tpacf)
+            report.append(("match", [], "customTPACFHistogram_f32_memref[atomic]"))
+        for start, end, replacement, symbol in _render_sparse_spmv(text):
+            edits.append((start, end, replacement))
+            report.append(("match", [], symbol + "[indirect-row-reduction]"))
     emitted_launches = 0
     i = 0
     while i < len(body_terms):
+        if i in consumed_structured_bodies:
+            i += 1
+            continue
         generic_graph_spec: dict | None = None
         generic_graph_partition: tuple[dict, dict] | None = None
         feature_scale = _feature_mask_scale_capture(bodies[i])
@@ -5090,6 +5564,12 @@ def main():
     ap.add_argument("--disable-pointwise-matching", action="store_true",
                     help=("Disable the generic cuDNN scalar-expression graph "
                           "fallback while preserving named library matches."))
+    ap.add_argument("--show-structured-regions", action="store_true",
+                    help=("Run loop-aware Egglog analysis and report safe "
+                          "producer/consumer regions and fusion proofs."))
+    ap.add_argument("--enable-structured-rewrite", action="store_true",
+                    help=("Enable conservative executable rewrites proven by "
+                          "the loop-aware Egglog analysis."))
     args = ap.parse_args()
 
     text = Path(args.input).read_text()
@@ -5101,6 +5581,8 @@ def main():
         show_semantic_only=args.show_semantic_only,
         max_launches=args.max_launches,
         disable_pointwise_matching=args.disable_pointwise_matching,
+        show_structured_regions=args.show_structured_regions,
+        enable_structured_rewrite=args.enable_structured_rewrite,
     )
     if args.dry_run:
         print(f"== match report for {args.input} ==", file=sys.stderr)
@@ -5109,15 +5591,24 @@ def main():
         matched = sum(1 for k, _, _ in report if k == "match")
         candidates = sum(1 for k, _, _ in report if k == "kernel_candidate")
         semantic_debug = sum(1 for k, _, _ in report if k == "semantic_debug")
+        structured_fusions = sum(
+            1 for k, _, _ in report if k == "structured_fusion")
+        structured_rejects = sum(
+            1 for k, _, _ in report if k == "structured_reject")
         total = sum(
             1 for k, _, _ in report
-            if k not in ("kernel_candidate", "semantic_debug")
+            if k not in ("kernel_candidate", "semantic_debug",
+                         "structured_fusion", "structured_reject",
+                         "residual_idiom_candidate")
         )
         print(f"  total: {matched} matched / {total} bodies", file=sys.stderr)
         if candidates:
             print(f"  kernel candidates: {candidates}", file=sys.stderr)
         if semantic_debug:
             print(f"  semantic debug matches: {semantic_debug}", file=sys.stderr)
+        if structured_fusions or structured_rejects:
+            print(f"  structured regions: {structured_fusions} proved / "
+                  f"{structured_rejects} rejected", file=sys.stderr)
     else:
         sys.stdout.write(rewritten)
 

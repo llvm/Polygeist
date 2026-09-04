@@ -50,6 +50,21 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
         return b.create<mlir::memref::CastOp>(callerArg.getLoc(), calleeArgType,
                                               callerArg);
       }
+
+      // A C pointer-to-array cast can deliberately change the ranked view of
+      // the same allocation, for example `int *flat` to `int (*)[8]`.  Such a
+      // conversion is not a memref.cast: the latter may only refine compatible
+      // shape metadata and cannot turn memref<Nxi32> into memref<?x8xi32>.
+      // Preserve the C pointer identity and rebuild the callee's ranked view.
+      if (!mlir::memref::CastOp::areCastCompatible(srcTy, dstTy)) {
+        b.setInsertionPointAfterValue(callerArg);
+        auto ptrTy = mlir::LLVM::LLVMPointerType::get(
+            b.getI8Type(), srcTy.getMemorySpaceAsInt());
+        auto ptr = b.create<polygeist::Memref2PointerOp>(
+            callerArg.getLoc(), ptrTy, callerArg);
+        return b.create<polygeist::Pointer2MemrefOp>(
+            callerArg.getLoc(), dstTy, ptr);
+      }
     }
   }
 

@@ -3993,15 +3993,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  loc, ty, scalar, getConstantIndex(0)),
                              /*isReference*/ true);
       }
-      bool badShape = ut.getShape().size() != mt.getShape().size();
-      if (!badShape)
-        for (int i = 1; i < ut.getShape().size(); i++) {
-          if (ut.getShape()[i] != mt.getShape()[i]) {
-            badShape = true;
-            break;
-          }
-        }
-      if (badShape || ut.getElementType() != mt.getElementType()) {
+      if (!memref::CastOp::areCastCompatible(ut, ty)) {
         return ValueCategory(
             builder.create<polygeist::Pointer2MemrefOp>(
                 loc, ty,
@@ -4134,15 +4126,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  loc, ty, scalar, getConstantIndex(0)),
                              /*isReference*/ false);
       }
-      bool badShape = ut.getShape().size() != mt.getShape().size();
-      if (!badShape)
-        for (int i = 1; i < ut.getShape().size(); i++) {
-          if (ut.getShape()[i] != mt.getShape()[i]) {
-            badShape = true;
-            break;
-          }
-        }
-      if (badShape || ut.getElementType() != mt.getElementType()) {
+      if (!memref::CastOp::areCastCompatible(ut, ty)) {
         return ValueCategory(
             builder.create<polygeist::Pointer2MemrefOp>(
                 loc, ty,

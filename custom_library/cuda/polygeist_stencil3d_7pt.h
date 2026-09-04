@@ -121,6 +121,34 @@ void polygeist_custom_stencil3d_7pt_flat_f32_device(
     float c4, float c5, float c6,
     void *cuda_stream);
 
+void polygeist_mg_resid_f64_device(
+    const double *u, const double *v, double *r,
+    int32_t n1, int32_t n2, int32_t n3, const double *a,
+    void *cuda_stream);
+
+void polygeist_mg_psinv_f64_device(
+    const double *r, double *u,
+    int32_t n1, int32_t n2, int32_t n3, const double *c,
+    void *cuda_stream);
+
+void polygeist_histogram_saturating_u8_device(
+    const int32_t *values, uint8_t *bins, int32_t count, int32_t num_bins,
+    void *cuda_stream);
+
+void polygeist_tpacf_histogram_f32_device(
+    const float *data1, int32_t n1, const float *data2, int32_t n2,
+    int32_t self, int64_t *bins, int32_t nbins, const float *bounds,
+    void *cuda_stream);
+
+void polygeist_jds_spmv_f32_device(
+    int32_t rows, const int32_t *nzcnt, const int32_t *ptr,
+    const int32_t *indices, const float *data, const float *x,
+    const int32_t *perm, float *out, void *cuda_stream);
+
+void polygeist_csr_spmv_f64_device(
+    int32_t rows, const int32_t *rowptr, const int32_t *cols,
+    const double *data, const double *x, double *out, void *cuda_stream);
+
 #ifdef __cplusplus
 }
 #endif

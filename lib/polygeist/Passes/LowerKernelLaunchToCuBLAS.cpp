@@ -129,6 +129,20 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_sgemm";
   if (libSym == "cublasSgemm_broadcast3d_memref")
     return "polygeist_cublas_sgemm";
+  if (libSym == "cublasSgemm_flat_colmajor_nt_alpha_beta")
+    return "polygeist_cublas_sgemm_transpose";
+  if (libSym == "customMGResid_f64_memref")
+    return "polygeist_mg_resid_f64";
+  if (libSym == "customMGPSInv_f64_memref")
+    return "polygeist_mg_psinv_f64";
+  if (libSym == "customHistogramSaturatingU8_memref")
+    return "polygeist_histogram_saturating_u8";
+  if (libSym == "customTPACFHistogram_f32_memref")
+    return "polygeist_tpacf_histogram_f32";
+  if (libSym == "customJdsSpmv_f32_memref")
+    return "polygeist_jds_spmv_f32_sized";
+  if (libSym == "customCsrSpmv_f64_memref")
+    return "polygeist_csr_spmv_f64_sized";
   if (libSym == "cublasSgemm_strided_batched_broadcast_rhs")
     return "polygeist_cublas_sgemm_strided_batched_broadcast_rhs";
   if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
@@ -244,6 +258,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
       libSym == "customStencil3D7ptCoeff_f64_tensor" ||
       libSym == "customStencil3D7ptExtra_f64_tensor")
     return "polygeist_custom_stencil3d_7pt_flat_f64";
+  if (libSym == "customStencil3D7pt_f32_tensor")
+    return "polygeist_custom_stencil3d_7pt_flat_f32";
   if (libSym == "cufftZ2Z_1D_tensor")
     return "polygeist_cufft_z2z_1d";
   if (libSym == "cufftC2C_1D_tensor")
@@ -1954,9 +1970,10 @@ static LogicalResult lowerCudnnLogSigmoidF32(LaunchOp launch,
   return success();
 }
 
-static LogicalResult lowerCustomStencil3D7ptF64Tensor(LaunchOp launch,
-                                                      ModuleOp module,
-                                                      StringRef libSym) {
+static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
+                                                   ModuleOp module,
+                                                   StringRef libSym) {
+  bool useF32 = libSym == "customStencil3D7pt_f32_tensor";
   bool hasCoeff = libSym == "customStencil3D7ptCoeff_f64_tensor";
   bool hasExtra = libSym == "customStencil3D7ptExtra_f64_tensor";
   unsigned expected = hasCoeff || hasExtra ? 19 : 18;
@@ -1988,14 +2005,19 @@ static LogicalResult lowerCustomStencil3D7ptF64Tensor(LaunchOp launch,
   auto outTy = dyn_cast<RankedTensorType>(out.getType());
   auto resTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
   if (!outTy || !resTy || outTy.getRank() != 3 || resTy.getRank() != 3 ||
-      !outTy.getElementType().isF64() || !resTy.getElementType().isF64())
+      outTy.getElementType().isF32() != useF32 ||
+      resTy.getElementType().isF32() != useF32 ||
+      outTy.getElementType().isF64() == useF32 ||
+      resTy.getElementType().isF64() == useF32)
     return launch.emitError(
-        "customStencil3D7pt lowering: output/result must be rank-3 f64 tensors");
+        "customStencil3D7pt lowering: output/result element type mismatch");
   for (Value tap : taps) {
     auto ty = dyn_cast<RankedTensorType>(tap.getType());
-    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
+    if (!ty || ty.getRank() != 3 ||
+        (useF32 ? !ty.getElementType().isF32()
+                : !ty.getElementType().isF64()))
       return launch.emitError(
-          "customStencil3D7pt lowering: all tap operands must be rank-3 f64 tensors");
+          "customStencil3D7pt lowering: tap element type mismatch");
   }
   if (hasExtra) {
     auto ty = dyn_cast<RankedTensorType>(extra.getType());
@@ -2010,9 +2032,9 @@ static LogicalResult lowerCustomStencil3D7ptF64Tensor(LaunchOp launch,
           "customStencil3D7pt lowering: coeff operand must be rank-3 f64 tensor");
   }
   for (Value s : scalars)
-    if (!s.getType().isF64())
+    if (useF32 ? !s.getType().isF32() : !s.getType().isF64())
       return launch.emitError(
-          "customStencil3D7pt lowering: scalar coefficients must be f64");
+          "customStencil3D7pt lowering: scalar coefficient type mismatch");
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
@@ -2036,9 +2058,11 @@ static LogicalResult lowerCustomStencil3D7ptF64Tensor(LaunchOp launch,
   for (unsigned i = 0; i < 10; ++i)
     argTypes.push_back(ptrTy);
   for (unsigned i = 0; i < 10; ++i)
-    argTypes.push_back(b.getF64Type());
+    argTypes.push_back(useF32 ? b.getF32Type() : b.getF64Type());
   func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_custom_stencil3d_7pt_flat_f64", argTypes, b);
+      module, useF32 ? "polygeist_custom_stencil3d_7pt_flat_f32"
+                     : "polygeist_custom_stencil3d_7pt_flat_f64",
+      argTypes, b);
   b.create<func::CallOp>(loc, shim, callOperands);
 
   Value updatedBase = tensorForSliceSource(b, loc, out);
@@ -3195,6 +3219,148 @@ static LogicalResult lowerSgemmBroadcast3DColMajorNTAlphaBeta(
 
   Value updatedBase = memrefToTensor(b, loc, CMemref, CBase.getType());
   rewireLaunchResult(launch, updatedBase);
+  launch.erase();
+  return success();
+}
+
+// Source-faithful Parboil SGEMM keeps A/B/C as flat memrefs and exposes the
+// logical sizes and leading dimensions as scalar operands. This is the same
+// column-major NT operation as the rank-3 submap form above, without requiring
+// the matcher to synthesize temporary tensor views solely for the ABI.
+static LogicalResult lowerSgemmFlatColMajorNTAlphaBeta(LaunchOp launch,
+                                                       ModuleOp module) {
+  StringRef name = "cublasSgemm_flat_colmajor_nt_alpha_beta";
+  if (launch.getNumOperands() != 11 || launch.getNumResults() != 0)
+    return launch.emitError(name)
+           << ": expected A, B, C, M, N, K, lda, ldb, ldc, beta, alpha";
+  for (unsigned i = 0; i < 3; ++i) {
+    auto type = dyn_cast<MemRefType>(launch.getOperand(i).getType());
+    if (!type || type.getRank() != 1 || !type.getElementType().isF32())
+      return launch.emitError(name)
+             << ": A/B/C must be rank-1 f32 memrefs";
+  }
+  if (!launch.getOperand(9).getType().isF32() ||
+      !launch.getOperand(10).getType().isF32())
+    return launch.emitError(name) << ": beta and alpha must be f32";
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M = valueAsI32(b, loc, launch.getOperand(3));
+  Value N = valueAsI32(b, loc, launch.getOperand(4));
+  Value K = valueAsI32(b, loc, launch.getOperand(5));
+  Value lda = valueAsI32(b, loc, launch.getOperand(6));
+  Value ldb = valueAsI32(b, loc, launch.getOperand(7));
+  Value ldc = valueAsI32(b, loc, launch.getOperand(8));
+  Value beta = launch.getOperand(9), alpha = launch.getOperand(10);
+  Value trans = b.create<arith::ConstantIntOp>(loc, 1, 32);
+  Value noTrans = b.create<arith::ConstantIntOp>(loc, 0, 32);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getF32Type(), ptrTy, b.getI32Type(), ptrTy,
+      b.getI32Type(), b.getF32Type(), ptrTy, b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_sgemm_transpose", argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{N, M, K, trans, noTrans, alpha,
+                 memrefBasePtr(b, loc, launch.getOperand(1)), ldb,
+                 memrefBasePtr(b, loc, launch.getOperand(0)), lda, beta,
+                 memrefBasePtr(b, loc, launch.getOperand(2)), ldc});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerMGStencil(LaunchOp launch, ModuleOp module,
+                                    StringRef libSym) {
+  bool resid = libSym == "customMGResid_f64_memref";
+  unsigned expected = resid ? 7 : 6;
+  if (launch.getNumOperands() != expected || launch.getNumResults() != 0)
+    return launch.emitError("MG stencil lowering: unexpected ABI");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Value> args;
+  unsigned pointerCount = resid ? 3 : 2;
+  for (unsigned i = 0; i < pointerCount; ++i)
+    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
+  for (unsigned i = pointerCount; i < pointerCount + 3; ++i)
+    args.push_back(valueAsI32(b, loc, launch.getOperand(i)));
+  args.push_back(memrefDataPtr(b, loc, launch.getOperand(expected - 1)));
+  SmallVector<Type> types(pointerCount, ptrTy);
+  types.append(3, b.getI32Type());
+  types.push_back(ptrTy);
+  func::FuncOp shim = ensureShimDecl(module, shimSymbolFor(libSym), types, b);
+  b.create<func::CallOp>(loc, shim, args);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerSaturatingU8Histogram(LaunchOp launch,
+                                                ModuleOp module) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 0)
+    return launch.emitError("saturating histogram: expected values/bins/N/B");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types{ptrTy, ptrTy, b.getI32Type(), b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_histogram_saturating_u8", types, b);
+  b.create<func::CallOp>(loc, shim,
+      ValueRange{memrefDataPtr(b, loc, launch.getOperand(0)),
+                 memrefDataPtr(b, loc, launch.getOperand(1)),
+                 valueAsI32(b, loc, launch.getOperand(2)),
+                 valueAsI32(b, loc, launch.getOperand(3))});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerTPACFHistogram(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 8 || launch.getNumResults() != 0)
+    return launch.emitError("TPACF histogram: unexpected ABI");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types{ptrTy, b.getI32Type(), ptrTy, b.getI32Type(),
+                          b.getI32Type(), ptrTy, b.getI32Type(), ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_tpacf_histogram_f32", types, b);
+  SmallVector<Value> args;
+  for (unsigned i = 0; i < 8; ++i)
+    args.push_back(i == 0 || i == 2 || i == 5 || i == 7
+                       ? memrefDataPtr(b, loc, launch.getOperand(i))
+                       : valueAsI32(b, loc, launch.getOperand(i)));
+  b.create<func::CallOp>(loc, shim, args);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerSparseSpmv(LaunchOp launch, ModuleOp module,
+                                     StringRef libSym) {
+  bool jds = libSym == "customJdsSpmv_f32_memref";
+  unsigned expected = jds ? 8 : 6;
+  if (launch.getNumOperands() != expected || launch.getNumResults() != 0)
+    return launch.emitError("sparse SpMV: unexpected ABI");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Value> args{valueAsI32(b, loc, launch.getOperand(0))};
+  for (unsigned i = 1; i < expected; ++i) {
+    if ((jds && (i == 2 || i == 3 || i == 4 || i == 5 || i == 7)) ||
+        (!jds && i >= 1))
+      args.push_back(dimForTensorOrMemrefAsI32(
+          b, loc, launch.getOperand(i), 0));
+    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
+  }
+  SmallVector<Type> types{b.getI32Type()};
+  for (unsigned i = 1; i < expected; ++i) {
+    if ((jds && (i == 2 || i == 3 || i == 4 || i == 5 || i == 7)) ||
+        (!jds && i >= 1))
+      types.push_back(b.getI32Type());
+    types.push_back(ptrTy);
+  }
+  func::FuncOp shim = ensureShimDecl(module, shimSymbolFor(libSym), types, b);
+  b.create<func::CallOp>(loc, shim, args);
   launch.erase();
   return success();
 }
@@ -6419,6 +6585,19 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym ==
                  "cublasSgemm_broadcast3d_colmajor_nt_alpha_beta") {
         r = lowerSgemmBroadcast3DColMajorNTAlphaBeta(launch, module);
+      } else if (libSym ==
+                 "cublasSgemm_flat_colmajor_nt_alpha_beta") {
+        r = lowerSgemmFlatColMajorNTAlphaBeta(launch, module);
+      } else if (libSym == "customMGResid_f64_memref" ||
+                 libSym == "customMGPSInv_f64_memref") {
+        r = lowerMGStencil(launch, module, libSym);
+      } else if (libSym == "customHistogramSaturatingU8_memref") {
+        r = lowerSaturatingU8Histogram(launch, module);
+      } else if (libSym == "customTPACFHistogram_f32_memref") {
+        r = lowerTPACFHistogram(launch, module);
+      } else if (libSym == "customJdsSpmv_f32_memref" ||
+                 libSym == "customCsrSpmv_f64_memref") {
+        r = lowerSparseSpmv(launch, module, libSym);
       } else if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
                  libSym == "cublasSgemm_nt_zero" ||
                  libSym == "cublasSgemm_tn_zero" ||
@@ -6533,8 +6712,9 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCubSegmentedLogicalMemrefI32(launch, module, true);
       } else if (libSym == "customStencil3D7pt_f64_tensor" ||
                  libSym == "customStencil3D7ptCoeff_f64_tensor" ||
-                 libSym == "customStencil3D7ptExtra_f64_tensor") {
-        r = lowerCustomStencil3D7ptF64Tensor(launch, module, libSym);
+                 libSym == "customStencil3D7ptExtra_f64_tensor" ||
+                 libSym == "customStencil3D7pt_f32_tensor") {
+        r = lowerCustomStencil3D7ptTensor(launch, module, libSym);
       } else if (libSym == "cufftZ2Z_1D_tensor" ||
                  libSym == "cufftC2C_1D_tensor") {
         r = lowerCufftC2C1DTensor(launch, module, shim);

@@ -15,6 +15,194 @@
     }                                                                        \
   } while (0)
 
+__device__ __forceinline__ int64_t mg_offset(int32_t x, int32_t y, int32_t z,
+                                              int32_t n1, int32_t n2) {
+  return ((int64_t)z * n2 + y) * n1 + x;
+}
+
+__global__ void polygeist_mg_resid_kernel(
+    const double *u, const double *v, double *r, int32_t n1, int32_t n2,
+    int32_t n3, const double *a) {
+  int32_t x = 1 + (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  int32_t y = 1 + (int32_t)(blockIdx.y * blockDim.y + threadIdx.y);
+  int32_t z = 1 + (int32_t)(blockIdx.z * blockDim.z + threadIdx.z);
+  if (x >= n1 - 1 || y >= n2 - 1 || z >= n3 - 1) return;
+  int64_t p = mg_offset(x, y, z, n1, n2);
+  int64_t sy = n1, sz = (int64_t)n1 * n2;
+  double u1m = u[p-sy-1] + u[p+sy-1] + u[p-sz-1] + u[p+sz-1];
+  double u1p = u[p-sy+1] + u[p+sy+1] + u[p-sz+1] + u[p+sz+1];
+  double u2 = u[p-sz-sy] + u[p-sz+sy] + u[p+sz-sy] + u[p+sz+sy];
+  double u2m = u[p-sz-sy-1] + u[p-sz+sy-1] + u[p+sz-sy-1] + u[p+sz+sy-1];
+  double u2p = u[p-sz-sy+1] + u[p-sz+sy+1] + u[p+sz-sy+1] + u[p+sz+sy+1];
+  r[p] = v[p] - a[0] * u[p] - a[2] * (u2 + u1m + u1p)
+         - a[3] * (u2m + u2p);
+}
+
+__global__ void polygeist_mg_psinv_kernel(
+    const double *r, double *u, int32_t n1, int32_t n2, int32_t n3,
+    const double *c) {
+  int32_t x = 1 + (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  int32_t y = 1 + (int32_t)(blockIdx.y * blockDim.y + threadIdx.y);
+  int32_t z = 1 + (int32_t)(blockIdx.z * blockDim.z + threadIdx.z);
+  if (x >= n1 - 1 || y >= n2 - 1 || z >= n3 - 1) return;
+  int64_t p = mg_offset(x, y, z, n1, n2);
+  int64_t sy = n1, sz = (int64_t)n1 * n2;
+  double r1 = r[p-sy] + r[p+sy] + r[p-sz] + r[p+sz];
+  double r1m = r[p-sy-1] + r[p+sy-1] + r[p-sz-1] + r[p+sz-1];
+  double r1p = r[p-sy+1] + r[p+sy+1] + r[p-sz+1] + r[p+sz+1];
+  double r2 = r[p-sz-sy] + r[p-sz+sy] + r[p+sz-sy] + r[p+sz+sy];
+  u[p] += c[0] * r[p] + c[1] * (r[p-1] + r[p+1] + r1)
+          + c[2] * (r2 + r1m + r1p);
+}
+
+extern "C" void polygeist_mg_resid_f64_device(
+    const double *u, const double *v, double *r, int32_t n1, int32_t n2,
+    int32_t n3, const double *a, void *cuda_stream) {
+  if (n1 <= 2 || n2 <= 2 || n3 <= 2) return;
+  dim3 block(8, 4, 4);
+  dim3 grid((n1 - 2 + block.x - 1) / block.x,
+            (n2 - 2 + block.y - 1) / block.y,
+            (n3 - 2 + block.z - 1) / block.z);
+  polygeist_mg_resid_kernel<<<grid, block, 0, (cudaStream_t)cuda_stream>>>(
+      u, v, r, n1, n2, n3, a);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}
+
+extern "C" void polygeist_mg_psinv_f64_device(
+    const double *r, double *u, int32_t n1, int32_t n2, int32_t n3,
+    const double *c, void *cuda_stream) {
+  if (n1 <= 2 || n2 <= 2 || n3 <= 2) return;
+  dim3 block(8, 4, 4);
+  dim3 grid((n1 - 2 + block.x - 1) / block.x,
+            (n2 - 2 + block.y - 1) / block.y,
+            (n3 - 2 + block.z - 1) / block.z);
+  polygeist_mg_psinv_kernel<<<grid, block, 0, (cudaStream_t)cuda_stream>>>(
+      r, u, n1, n2, n3, c);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}
+
+__global__ void polygeist_histogram_u32_kernel(const int32_t *values,
+                                                int32_t count,
+                                                int32_t num_bins,
+                                                uint32_t *counts) {
+  int32_t i = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (i < count) {
+    int32_t bin = values[i];
+    if ((uint32_t)bin < (uint32_t)num_bins)
+      atomicAdd(counts + bin, 1u);
+  }
+}
+
+__global__ void polygeist_histogram_seed_u32_kernel(const uint8_t *bins,
+                                                     uint32_t *counts,
+                                                     int32_t num_bins) {
+  int32_t i = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (i < num_bins) counts[i] = bins[i];
+}
+
+__global__ void polygeist_histogram_clamp_u8_kernel(const uint32_t *counts,
+                                                     uint8_t *bins,
+                                                     int32_t num_bins) {
+  int32_t i = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (i < num_bins) bins[i] = (uint8_t)(counts[i] > 255u ? 255u : counts[i]);
+}
+
+extern "C" void polygeist_histogram_saturating_u8_device(
+    const int32_t *values, uint8_t *bins, int32_t count, int32_t num_bins,
+    void *cuda_stream) {
+  if (count <= 0 || num_bins <= 0) return;
+  cudaStream_t stream = (cudaStream_t)cuda_stream;
+  uint32_t *counts = nullptr;
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaMalloc((void **)&counts,
+      (size_t)num_bins * sizeof(uint32_t)));
+  int threads = 256;
+  polygeist_histogram_seed_u32_kernel<<<
+      (num_bins + threads - 1) / threads, threads, 0, stream>>>(
+          bins, counts, num_bins);
+  polygeist_histogram_u32_kernel<<<(count + threads - 1) / threads,
+      threads, 0, stream>>>(values, count, num_bins, counts);
+  polygeist_histogram_clamp_u8_kernel<<<(num_bins + threads - 1) / threads,
+      threads, 0, stream>>>(counts, bins, num_bins);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaFree(counts));
+}
+
+__global__ void polygeist_tpacf_histogram_kernel(
+    const float *data1, int32_t n1, const float *data2, int32_t n2,
+    int32_t self, unsigned long long *bins, int32_t nbins,
+    const float *bounds) {
+  int32_t i = (int32_t)(blockIdx.y * blockDim.y + threadIdx.y);
+  int32_t j = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (i >= n1 || j >= n2 || (self && (i >= n1 - 1 || j <= i))) return;
+  float dot = data1[3*i] * data2[3*j] + data1[3*i+1] * data2[3*j+1]
+              + data1[3*i+2] * data2[3*j+2];
+  int32_t lo = 0, hi = nbins;
+  while (hi > lo + 1) {
+    int32_t k = (lo + hi) / 2;
+    if (dot >= bounds[k]) hi = k; else lo = k;
+  }
+  int32_t bin = dot >= bounds[lo] ? lo : (dot < bounds[hi] ? hi + 1 : hi);
+  atomicAdd(bins + bin, 1ULL);
+}
+
+extern "C" void polygeist_tpacf_histogram_f32_device(
+    const float *data1, int32_t n1, const float *data2, int32_t n2,
+    int32_t self, int64_t *bins, int32_t nbins, const float *bounds,
+    void *cuda_stream) {
+  if (self) { data2 = data1; n2 = n1; }
+  if (n1 <= 0 || n2 <= 0) return;
+  dim3 block(16, 16);
+  dim3 grid((n2 + 15) / 16, (n1 + 15) / 16);
+  polygeist_tpacf_histogram_kernel<<<grid, block, 0,
+      (cudaStream_t)cuda_stream>>>(data1, n1, data2, n2, self,
+      (unsigned long long *)bins, nbins, bounds);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}
+
+__global__ void polygeist_jds_spmv_kernel(
+    int32_t rows, const int32_t *nzcnt, const int32_t *ptr,
+    const int32_t *indices, const float *data, const float *x,
+    const int32_t *perm, float *out) {
+  int32_t row = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (row >= rows) return;
+  float sum = 0.0f;
+  for (int32_t k = 0; k < nzcnt[row]; ++k) {
+    int32_t j = ptr[k] + row;
+    sum += data[j] * x[indices[j]];
+  }
+  out[perm[row]] = sum;
+}
+
+extern "C" void polygeist_jds_spmv_f32_device(
+    int32_t rows, const int32_t *nzcnt, const int32_t *ptr,
+    const int32_t *indices, const float *data, const float *x,
+    const int32_t *perm, float *out, void *cuda_stream) {
+  int threads = 256;
+  polygeist_jds_spmv_kernel<<<(rows + threads - 1) / threads, threads, 0,
+      (cudaStream_t)cuda_stream>>>(rows, nzcnt, ptr, indices, data, x, perm, out);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}
+
+__global__ void polygeist_csr_spmv_kernel(
+    int32_t rows, const int32_t *rowptr, const int32_t *cols,
+    const double *data, const double *x, double *out) {
+  int32_t row = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  if (row >= rows) return;
+  double sum = 0.0;
+  for (int32_t j = rowptr[row]; j < rowptr[row + 1]; ++j)
+    sum += data[j] * x[cols[j]];
+  out[row] = sum;
+}
+
+extern "C" void polygeist_csr_spmv_f64_device(
+    int32_t rows, const int32_t *rowptr, const int32_t *cols,
+    const double *data, const double *x, double *out, void *cuda_stream) {
+  int threads = 256;
+  polygeist_csr_spmv_kernel<<<(rows + threads - 1) / threads, threads, 0,
+      (cudaStream_t)cuda_stream>>>(rows, rowptr, cols, data, x, out);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}
+
 template <typename T>
 __global__ void polygeist_stencil3d_7pt_kernel(
     int32_t nx, int32_t ny, int32_t nz,

@@ -53,6 +53,8 @@ class Term(Expr):
     def Cap(cls, name: StringLike) -> Term: ...
     @classmethod
     def Lit(cls, value: f64Like) -> Term: ...
+    @classmethod
+    def Access(cls, root: StringLike, mapping: StringLike) -> Term: ...
 
     def __add__(self, other: Term) -> Term: ...
     def __mul__(self, other: Term) -> Term: ...
@@ -3782,7 +3784,7 @@ def _parse_term(s: str):
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp",
+        for ctor in ("In", "Out", "Cap", "Lit", "Access", "Sqrt", "Abs", "Exp",
                      "Tanh", "Unary", "Binary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
@@ -4013,6 +4015,7 @@ def _ast_to_term(node) -> Term:
     if op == "Out": return Term.Out(node[1])
     if op == "Cap": return Term.Cap(node[1])
     if op == "Lit": return Term.Lit(float(node[1]))
+    if op == "Access": return Term.Access(node[1], node[2])
     if op == "Add": return _ast_to_term(node[1]) + _ast_to_term(node[2])
     if op == "Sub": return _ast_to_term(node[1]) - _ast_to_term(node[2])
     if op == "Mul": return _ast_to_term(node[1]) * _ast_to_term(node[2])

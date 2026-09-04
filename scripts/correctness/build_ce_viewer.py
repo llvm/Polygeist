@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.parse
 from pathlib import Path
 
@@ -243,6 +244,32 @@ EXTRACTED_DARKNET_MLIR_DIR = env_path(
 OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
 REWRITER = env_path("POLYGEIST_KERNEL_MATCH_REWRITER", SCRIPT_DIR / "kernel_match_rewrite.py")
 PYTHON = os.environ.get("PYTHON", sys.executable)
+POLYGEIST_OPT = env_path("POLYGEIST_OPT", REPO_ROOT / "build/bin/polygeist-opt")
+KERNEL_LIBRARY = env_path(
+    "POLYGEIST_KERNEL_LIBRARY",
+    REPO_ROOT / "generic_solver/kernel_library_phase2.mlir",
+)
+INJECT_KERNEL_LIBRARY = SCRIPT_DIR / "inject_kernel_library.py"
+CPU_RUNTIME = REPO_ROOT / "runtime/polygeist_cublas_rt_cpu.c"
+CUDA_RUNTIME = REPO_ROOT / "runtime/polygeist_cublas_rt_cuda.c"
+
+# Runtime calls that the host shim can route to an optimized CBLAS provider
+# when POLYGEIST_CPU_BLAS=1. Other implemented host calls use reference C.
+CPU_CBLAS_CALLS = {
+    "polygeist_cublas_dgemm",
+    "polygeist_cublas_sgemm",
+    "polygeist_cublas_dgemv",
+    "polygeist_cublas_sgemv",
+    "polygeist_cublas_dgemv_T",
+    "polygeist_cublas_sgemv_T",
+    "polygeist_cublas_daxpby",
+    "polygeist_cublas_daxpy_unit",
+    "polygeist_cublas_dger_rank2",
+    "polygeist_cublas_dscal_2d",
+    "polygeist_cublas_sgemm_1x1conv",
+    "polygeist_cublas_dsyrk",
+    "polygeist_cublaslt_matmul_bias_relu",
+}
 
 # MachSuite tag → (relative subdir under third_party/MachSuite, kernel function).
 # The tag is what the viewer uses for filenames and as the display name.
@@ -1896,6 +1923,70 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     return out, [("launches", n_launch), ("residual_lg", n_lg)]
 
 
+def lower_matched_to_abi(matched_text: str) -> tuple[str | None, str | None]:
+    """Lower matcher output to the shared polygeist_* pointer ABI.
+
+    The matcher intentionally emits references without copying the complete
+    kernel library into every snapshot. Inject the definitions in a temporary
+    file, run the production ABI pass, and retain only its dead-stripped
+    output. Return a short diagnostic instead of failing the whole site when a
+    newly matched symbol does not yet have an ABI lowering.
+    """
+    if "kernel.launch" not in matched_text:
+        return None, None
+    if not POLYGEIST_OPT.exists() or not KERNEL_LIBRARY.exists():
+        return None, "polygeist-opt or kernel library is unavailable"
+    with tempfile.TemporaryDirectory(prefix="polygeist-viewer-abi-") as td:
+        work = Path(td)
+        matched = work / "matched.mlir"
+        with_defns = work / "with_defns.mlir"
+        abi = work / "abi.mlir"
+        matched.write_text(matched_text)
+        injected = subprocess.run(
+            [PYTHON, str(INJECT_KERNEL_LIBRARY), str(matched),
+             str(KERNEL_LIBRARY), "-o", str(with_defns)],
+            capture_output=True, text=True,
+        )
+        if injected.returncode != 0:
+            return None, injected.stderr.strip() or "kernel-library injection failed"
+        lowered = subprocess.run(
+            [str(POLYGEIST_OPT), "--lower-kernel-launch-to-cublas",
+             str(with_defns), "-o", str(abi)],
+            capture_output=True, text=True,
+        )
+        if lowered.returncode != 0:
+            detail = lowered.stderr.strip().splitlines()
+            error_line = next((line for line in detail if " error:" in line), None)
+            return None, error_line or (detail[-1] if detail else "ABI lowering failed")
+        return abi.read_text(), None
+
+
+def runtime_backend_status(abi_text: str | None) -> dict[str, object]:
+    """Describe whether emitted ABI calls have CPU/CUDA implementations."""
+    if not abi_text:
+        return {
+            "calls": [], "cpu_supported": False, "cuda_supported": False,
+            "cblas_calls": [], "cpu_missing": [], "cuda_missing": [],
+        }
+    calls = sorted(set(re.findall(r"\bcall\s+@(polygeist_[A-Za-z0-9_]+)", abi_text)))
+    # Lifecycle/pipeline hooks are backend plumbing, not selected kernels.
+    calls = [c for c in calls if not c.endswith(("_init", "_destroy",
+                                                  "_pipeline_begin",
+                                                  "_pipeline_end"))]
+    cpu_text = CPU_RUNTIME.read_text() if CPU_RUNTIME.exists() else ""
+    cuda_text = CUDA_RUNTIME.read_text() if CUDA_RUNTIME.exists() else ""
+    cpu_missing = [c for c in calls if f"{c}(" not in cpu_text]
+    cuda_missing = [c for c in calls if f"{c}(" not in cuda_text]
+    return {
+        "calls": calls,
+        "cpu_supported": bool(calls) and not cpu_missing,
+        "cuda_supported": bool(calls) and not cuda_missing,
+        "cblas_calls": [c for c in calls if c in CPU_CBLAS_CALLS],
+        "cpu_missing": cpu_missing,
+        "cuda_missing": cuda_missing,
+    }
+
+
 _NATIVE_CUDA_CSV = ATEN_C_ROOT / "native_cuda_results" / "torch_aten_silicon.csv"
 _MATCH_CANDIDATES_JSON = (
     ATEN_C_ROOT / "native_cuda_results" / "match_candidates.json"
@@ -2044,12 +2135,19 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     n_linalg = 0
     matched_text: str | None = None
     matched_symbols: list[str] = []
+    abi_text: str | None = None
+    abi_error: str | None = None
     report = [("launches", 0), ("residual_lg", 0)]
+
+    source = find_kernel_c(kernel, kset=kset)
+    if source and source.exists():
+        source_html, css = syntax_highlight(source.read_text())
+        pages["source"] = source_html
 
     if cgeist_mlir.exists():
         cgeist_text = cgeist_mlir.read_text()
-        html, css = syntax_highlight(cgeist_text)
-        pages["cgeist"] = html
+        rendered, css = syntax_highlight(cgeist_text)
+        pages["cgeist"] = rendered
         if not raised.exists() and not debuf.exists() and not debuf_mr.exists():
             n_for = count_for_loops(cgeist_text)
             report = [
@@ -2059,8 +2157,8 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     if raised.exists():
         raised_text = raised.read_text()
         n_linalg = len(re.findall(r"\blinalg\.generic\b", raised_text))
-        html, css = syntax_highlight(raised_text)
-        pages["raised"] = html
+        rendered, css = syntax_highlight(raised_text)
+        pages["raised"] = rendered
         if not debuf.exists() and not debuf_mr.exists():
             n_for = count_for_loops(raised_text)
             report = [
@@ -2071,13 +2169,13 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             n_for = count_for_loops(raised_text)
             rewritten, report = run_rewriter(raised)
             matched_text = rewritten
-            html, css = syntax_highlight(rewritten)
-            pages["matched"] = html
+            rendered, css = syntax_highlight(rewritten)
+            pages["matched"] = rendered
     if debuf.exists():
         debuf_text = debuf.read_text()
         n_for = count_for_loops(debuf_text)
-        html, css = syntax_highlight(debuf_text)
-        pages["debuf"] = html
+        rendered, css = syntax_highlight(debuf_text)
+        pages["debuf"] = rendered
         # The exhaustive ATen sweep stores the authoritative matcher output
         # beside its diagnostics. Reuse it instead of starting one Egglog
         # process per page (hundreds of avoidable process launches).
@@ -2097,12 +2195,12 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         matched_symbols = sorted(set(
             re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
         ))
-        html, css = syntax_highlight(rewritten)
-        pages["matched"] = html
+        rendered, css = syntax_highlight(rewritten)
+        pages["matched"] = rendered
     if debuf_mr.exists():
         debuf_mr_text = debuf_mr.read_text()
-        html, css = syntax_highlight(debuf_mr_text)
-        pages["debuf_mr"] = html
+        rendered, css = syntax_highlight(debuf_mr_text)
+        pages["debuf_mr"] = rendered
         # Fallback: if v2 debuf failed but multi-root succeeded (the
         # common pattern for whole-program-raise suites),
         # run the matcher on the multi-root output so the "matched" tab
@@ -2114,8 +2212,24 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             matched_symbols = sorted(set(
                 re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
             ))
-            html, css = syntax_highlight(rewritten)
-            pages["matched"] = html
+            rendered, css = syntax_highlight(rewritten)
+            pages["matched"] = rendered
+
+    # Prefer a stored build artifact when a suite has one. PolyBench and most
+    # flat bake directories do not, so materialize the exact production ABI
+    # lowering from the matcher output for the static snapshot.
+    stored_abi_candidates = [
+        mlir_dir / kernel / "abi.mlir",
+        mlir_dir / f"{kernel}_abi.mlir",
+    ]
+    stored_abi = next((p for p in stored_abi_candidates if p.exists()), None)
+    if stored_abi:
+        abi_text = stored_abi.read_text()
+    elif matched_text is not None:
+        abi_text, abi_error = lower_matched_to_abi(matched_text)
+    if abi_text:
+        abi_html, css = syntax_highlight(abi_text)
+        pages["abi"] = abi_html
 
     ce_url = ce_link(kernel, mlir_dir=mlir_dir, kset=kset)
     open_link = (f'<a href="{ce_url}" target="_blank" '
@@ -2127,6 +2241,19 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     )
     n_launches = report[0][1]
     n_resid = report[1][1]
+    stage_labels = [
+        ("source", "C source"),
+        ("cgeist", "cgeist"),
+        ("raised", "raised"),
+        ("debuf", "debufferized"),
+        ("debuf_mr", "debuf multi-root"),
+        ("matched", "kernel.launch"),
+        ("abi", "shared ABI"),
+    ]
+    jump_links = " · ".join(
+        f'<a href="#{stage}">{label}</a>'
+        for stage, label in stage_labels if stage in pages
+    )
     summary = (
         f'<div class="summary" style="padding:8px 20px; '
         f'border-bottom:1px solid #eee; background:#fafafa; font-size:13px;">'
@@ -2134,13 +2261,49 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         f'<b>{n_resid}</b> residual linalg.generic &nbsp;·&nbsp; '
         f'<b>{n_for}</b> residual loop(s) before matching &nbsp;·&nbsp; '
         f'<b>{matched_n_for}</b> after matching &nbsp;|&nbsp; '
-        f'jump to: <a href="#cgeist">cgeist</a> · '
-        f'<a href="#raised">raised</a> · '
-        f'<a href="#debuf">debuferized</a> · '
-        f'<a href="#debuf_mr">debuf multi-root</a> · '
-        f'<a href="#matched">kernel.launch output</a>'
+        f'jump to: {jump_links}'
         f'</div>'
     )
+    backend = runtime_backend_status(abi_text)
+    if n_launches == 0:
+        backend_panel = (
+            '<div class="summary" style="padding:10px 20px; '
+            'border-bottom:1px solid #eee; background:#fff8e6; font-size:13px;">'
+            '<b>Backend branch:</b> no library launch was selected. Residual '
+            'Linalg follows the generic CPU loop lowering path.</div>'
+        )
+    elif abi_error:
+        backend_panel = (
+            '<div class="summary" style="padding:10px 20px; '
+            'border-bottom:1px solid #eee; background:#fff0f0; font-size:13px;">'
+            '<b>Shared ABI lowering: unavailable.</b> '
+            f'{html.escape(abi_error)}</div>'
+        )
+    else:
+        calls = backend["calls"]
+        cblas = backend["cblas_calls"]
+        call_names = ", ".join(f'<code>@{html.escape(c)}</code>' for c in calls)
+        cpu_state = "available" if backend["cpu_supported"] else "incomplete"
+        gpu_state = "available" if backend["cuda_supported"] else "incomplete"
+        cblas_note = (
+            f'{len(cblas)}/{len(calls)} selected call(s) have an optimized CBLAS route; '
+            'the other implemented CPU calls use reference C.'
+            if calls else "No runtime calls were emitted."
+        )
+        backend_panel = (
+            '<div class="backend-flow">'
+            '<div class="backend-common"><b>Shared target-neutral ABI</b><br>'
+            f'{call_names or "—"}</div>'
+            '<div class="backend-arrow">↙</div>'
+            f'<div class="backend-card"><b>CPU/C backend: {cpu_state}</b><br>'
+            '<code>polygeist_cublas_rt_cpu.c</code><br>'
+            f'<span>{html.escape(cblas_note)}</span></div>'
+            '<div class="backend-arrow">↘</div>'
+            f'<div class="backend-card"><b>GPU backend: {gpu_state}</b><br>'
+            '<code>polygeist_cublas_rt_cuda.c</code><br>'
+            '<span>Vendor CUDA library call plus transfer/residency handling.</span></div>'
+            '</div>'
+        )
     if kset == "aten_c":
         _nus, _nhow = native_cuda_for(kernel)
         if _nus:
@@ -2165,14 +2328,11 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     header = (
         f'<div class="header"><h1><a href="{back_href}">← {back_label}</a> '
         f'&nbsp; {kernel}{open_link}</h1></div>'
-        + summary
+        + summary + backend_panel
     )
-    abi_file = mlir_dir / kernel / "abi.mlir"
-    if abi_file.exists():
-        html, css = syntax_highlight(abi_file.read_text())
-        pages["abi"] = html
     body_blocks = []
     for stage, title in [
+        ("source",    "original C source"),
         ("cgeist",   "cgeist output (pre-raise MLIR)"),
         ("raised",   "raised (memref linalg, before debuferize)"),
         ("debuf",    "debuferized (tensor linalg, matcher input)"),
@@ -2187,11 +2347,28 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             f'<div class="container">{pages[stage]}</div>'
         )
     body = header + "\n".join(body_blocks)
+    css += (
+        ".backend-flow{display:grid;grid-template-columns:minmax(260px,1fr) 30px "
+        "minmax(260px,1fr) 30px minmax(260px,1fr);gap:8px;align-items:center;"
+        "padding:12px 20px;background:#f4f7fb;border-bottom:1px solid #d8dee8;}"
+        ".backend-common,.backend-card{padding:10px 12px;border:1px solid #c8d2e2;"
+        "border-radius:6px;background:white;font-size:12px;line-height:1.5;}"
+        ".backend-common{background:#eef4ff}.backend-arrow{text-align:center;"
+        "font-size:22px;color:#65758b}.backend-card span{color:#555}"
+        "@media(max-width:900px){.backend-flow{display:block}.backend-arrow{display:none}"
+        ".backend-common,.backend-card{margin:7px 0}}"
+    )
     OUTPUT_DIR.joinpath(f"{file_prefix}{kernel}.html").write_text(render_html(kernel, body, css))
     return {
         "launches": report[0][1],
         "linalg_ops": n_linalg,
         "matched_symbols": matched_symbols,
+        "abi_lowered": abi_text is not None,
+        "abi_error": abi_error,
+        "abi_calls": backend["calls"],
+        "cpu_backend": backend["cpu_supported"],
+        "cuda_backend": backend["cuda_supported"],
+        "cpu_cblas_calls": backend["cblas_calls"],
         "residual": report[1][1],
         "residual_for": n_for,
         "matched_residual_for": matched_n_for,
@@ -4119,6 +4296,33 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             f'<td>{l}</td><td>{r}</td><td class="{for_cls}">{f}</td>'
             f'<td class="{cls}">{status}</td>'
         )
+        if l == 0:
+            backend_cells = (
+                '<td style="color:#999">—</td><td style="color:#999">generic loops</td>'
+                '<td style="color:#999">—</td>'
+            )
+        elif not s.get("abi_lowered"):
+            backend_cells = (
+                '<td class="none">GAP</td><td class="none">blocked</td>'
+                '<td class="none">blocked</td>'
+            )
+        else:
+            abi_cls = "pass"
+            cpu_cls = "pass" if s.get("cpu_backend") else "partial"
+            cuda_cls = "pass" if s.get("cuda_backend") else "partial"
+            abi_label = "READY"
+            abi_calls = s.get("abi_calls", [])
+            n_cblas = len(s.get("cpu_cblas_calls", []))
+            if s.get("cpu_backend"):
+                cpu_label = "CBLAS" if abi_calls and n_cblas == len(abi_calls) else "reference C"
+            else:
+                cpu_label = "incomplete"
+            cuda_label = "CUDA libs" if s.get("cuda_backend") else "incomplete"
+            backend_cells = (
+                f'<td class="{abi_cls}">{abi_label}</td>'
+                f'<td class="{cpu_cls}">{cpu_label}</td>'
+                f'<td class="{cuda_cls}">{cuda_label}</td>'
+            )
 
         # Jetson-runtime cells: one <tr> per warmed comparison entry when data
         # exists; otherwise one <tr> with five empty runtime cells.
@@ -4150,11 +4354,12 @@ def _render_section_rows(kernel_stats: dict[str, dict],
 
         first_kernel  = _with_rowspan(kernel_cell)
         first_match   = _with_rowspan(match_cells)
+        first_backend = _with_rowspan(backend_cells)
         first_note    = _with_rowspan(note_cell)
         first_block   = _with_rowspan(block_cell)
 
         rows.append(
-            f'<tr>{first_kernel}{first_match}{first_note}{first_block}'
+            f'<tr>{first_kernel}{first_match}{first_backend}{first_note}{first_block}'
             f'{runtime_rows[0]}</tr>'
         )
         for rr in runtime_rows[1:]:
@@ -4195,6 +4400,7 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>residual linalg.generic</th>'
         '<th>residual for-loops</th>'
         '<th>match status</th>'
+        '<th>shared ABI</th><th>CPU/C backend</th><th>GPU backend</th>'
         '<th>parallelism</th>'
         '<th>parallelism notes</th>'
         '<th>blocker</th>'
@@ -5032,6 +5238,123 @@ def _extracted_darknet_section(ex_darknet_stats: dict[str, dict]) -> str:
     )
 
 
+def _backend_overview(polybench_stats: dict[str, dict]) -> str:
+    launching = [s for s in polybench_stats.values() if s.get("launches", 0) > 0]
+    abi_ready = sum(bool(s.get("abi_lowered")) for s in launching)
+    cpu_ready = sum(bool(s.get("cpu_backend")) for s in launching)
+    cuda_ready = sum(bool(s.get("cuda_backend")) for s in launching)
+    cblas_symbols = ", ".join(
+        f"<code>{html.escape(s)}</code>" for s in sorted(CPU_CBLAS_CALLS)
+    )
+    return (
+        '<div class="section-header"><h2 class="section-title">Where CPU and GPU lowering diverge</h2></div>'
+        '<div class="intro"><b>The frontend, raising, debufferization, Egglog proof, '
+        'and <code>kernel.launch</code> selection are shared.</b> The production '
+        '<code>--lower-kernel-launch-to-cublas</code> pass then emits one target-neutral '
+        '<code>@polygeist_*</code> pointer ABI. Backend choice happens at compile/link time.</div>'
+        '<div class="backend-flow">'
+        '<div class="backend-common"><b>Shared compiler path</b><br>C → cgeist → Linalg → '
+        'Egglog → kernel.launch → func.call @polygeist_*</div>'
+        '<div class="backend-arrow">↙</div>'
+        '<div class="backend-card"><b>CPU/C executable</b><br>Native host LLVM plus '
+        '<code>polygeist_cublas_rt_cpu.c</code>.<br>Reference C by default; set '
+        '<code>POLYGEIST_CPU_BLAS=1</code> for CBLAS where supported.</div>'
+        '<div class="backend-arrow">↘</div>'
+        '<div class="backend-card"><b>GPU executable</b><br>AArch64/host orchestration plus '
+        '<code>polygeist_cublas_rt_cuda.c</code> and CUDA vendor libraries. The shim '
+        'handles transfers, synchronization, and optional residency/graph paths.</div>'
+        '</div>'
+        '<div class="intro"><b>Current PolyBench snapshot:</b> '
+        f'{len(launching)} kernels emit at least one launch; {abi_ready} lower to the shared ABI; '
+        f'{cpu_ready} have all emitted calls implemented by the CPU runtime; {cuda_ready} have all '
+        'emitted calls implemented by the CUDA runtime.<br><br>'
+        '<b>Optimized CPU CBLAS routes:</b> ' + cblas_symbols + '. Other CPU-runtime symbols '
+        'use reference C unless another optimized CPU backend is added.<br><br>'
+        '<b>Generic CPU fallback:</b> <code>--lower-kernel-launch</code> is a separate path '
+        'that restores the canonical Linalg body and lowers it to loops. It does not call a '
+        'vendor library. Unmatched residual Linalg also remains host code.</div>'
+    )
+
+
+def _polybenchgpu_page(polybench_stats: dict[str, dict]) -> str:
+    rows = []
+    for kernel in sorted(POLYBENCHGPU_RUNTIMES):
+        stats = polybench_stats.get(kernel, {})
+        page = stats.get("page_filename", f"{kernel}.html")
+        if stats.get("abi_lowered"):
+            abi_cell = '<td class="pass">READY</td>'
+        elif stats.get("launches", 0) > 0:
+            abi_cell = '<td class="none">CURRENT GAP</td>'
+        else:
+            abi_cell = '<td style="color:#999">no launch</td>'
+        for run in POLYBENCHGPU_RUNTIMES[kernel]:
+            raised = float(run["raised_ms"])
+            handwritten = float(run["pbgpu_ms"])
+            ratio = handwritten / raised
+            winner = f"raised {ratio:.2f}×" if ratio >= 1 else f"handwritten {1/ratio:.2f}×"
+            cls = "pass" if ratio >= 1 else "partial"
+            rows.append(
+                f'<tr><td><a class="kernel" href="{page}">{html.escape(kernel)}</a></td>'
+                f'{abi_cell}<td>{html.escape(str(run["size"]))}</td><td>{raised:.3f} ms</td>'
+                f'<td>{handwritten:.3f} ms</td><td class="{cls}">{winner}</td>'
+                f'<td>{html.escape(run.get("notes", ""))}</td></tr>'
+            )
+    return (
+        '<div class="section-header"><h2 class="section-title">PolyBenchGPU comparison subset</h2></div>'
+        '<div class="intro"><b>This is not a full PolyBenchGPU coverage sweep.</b> It contains '
+        'the five kernels for which the raised PolyBench/C path and handwritten PolyBenchGPU '
+        'CUDA implementation were both validated and timed on Jetson. Timings are recorded '
+        'measurements; the <em>current ABI</em> column is regenerated from today\'s matcher and '
+        'lowering artifacts, so a revision mismatch is visible rather than silently hidden. '
+        'Click a kernel to inspect '
+        'C → Linalg → matcher → shared ABI and its CPU/GPU backend status. Conv2D and the separate '
+        'stencil fixtures are reported on the Vision page.</div>'
+        '<table><thead><tr><th>kernel</th><th>current ABI</th><th>dataset</th><th>raised GPU</th>'
+        '<th>handwritten PolyBenchGPU</th><th>winner</th><th>notes</th></tr></thead><tbody>'
+        + "".join(rows) + '</tbody></table>'
+    )
+
+
+def _refresh_existing_landing_backend_links(polybench_stats: dict[str, dict]) -> None:
+    """Add backend pages to an existing full landing page in suite-only mode.
+
+    A PolyBench-only regeneration deliberately does not rebuild the hundreds of
+    unrelated suite pages or replace their recorded counts with zero. Patch the
+    two new links/cards into the already-generated landing page instead.
+    """
+    landing_path = OUTPUT_DIR / "index.html"
+    if not landing_path.exists():
+        return
+    text = landing_path.read_text()
+    if 'href="polybenchgpu.html"' not in text:
+        polybench_nav = '<a href="polybench.html">PolyBench</a> &middot; '
+        expanded_nav = (
+            polybench_nav
+            + '<a href="polybenchgpu.html">PolyBenchGPU</a> &middot; '
+            + '<a href="backends.html">CPU/GPU lowering</a> &middot; '
+        )
+        text = text.replace(polybench_nav, expanded_nav, 1)
+    if 'class="suite-card" href="polybenchgpu.html"' not in text:
+        m = re.search(
+            r'(<a class="suite-card" href="polybench\.html">.*?</a>)',
+            text,
+        )
+        if m:
+            launches = sum(
+                s.get("launches", 0) > 0 for s in polybench_stats.values()
+            )
+            cards = (
+                '<a class="suite-card" href="polybenchgpu.html">'
+                f'<b>PolyBenchGPU subset</b><span>{len(POLYBENCHGPU_RUNTIMES)} tracked rows</span>'
+                '<small>Validated Jetson comparison against handwritten CUDA kernels.</small></a>'
+                '<a class="suite-card" href="backends.html">'
+                f'<b>CPU + GPU lowering</b><span>{launches} tracked rows</span>'
+                '<small>Shared ABI, backend branch point, and implementation coverage.</small></a>'
+            )
+            text = text[:m.end()] + cards + text[m.end():]
+    landing_path.write_text(text)
+
+
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
                      mfem_stats: list[dict],
@@ -5070,7 +5393,10 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '  recurrences, DPs).'
         '  Runtime columns compare warmed raised-pipeline runtime timings '
         '  against handwritten PolyBenchGPU CUDA timings where available; '
-        '  CPU comparison is intentionally hidden for now.'
+        '  this snapshot does not yet contain a systematic CPU timing column. '
+        '  The CPU/C backend implementation status is reported independently '
+        '  from performance so missing measurements are not mistaken for '
+        '  missing lowering support.'
     )
 
     polybench_section = _build_section(
@@ -5243,6 +5569,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<div style="margin-top:6px; font-size:13px;">'
             '<a href="index.html">Overview</a> &middot; '
             '<a href="polybench.html">PolyBench</a> &middot; '
+            '<a href="polybenchgpu.html">PolyBenchGPU</a> &middot; '
+            '<a href="backends.html">CPU/GPU lowering</a> &middot; '
             '<a href="numerical.html">ATen</a> &middot; '
             '<a href="performance.html">Performance analysis</a> &middot; '
             '<a href="mfem.html">MFEM</a> &middot; '
@@ -5280,7 +5608,16 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.cause-intensity { background:#ffe8c7; color:#7a4300; } '
         '.cause-setup { background:#fff3bd; color:#705900; } '
         '.cause-bandwidth { background:#ffe0ec; color:#842347; } '
-        '.cause-amortized { background:#dff5e5; color:#1a6a34; }'
+        '.cause-amortized { background:#dff5e5; color:#1a6a34; } '
+        '.backend-flow { display:grid; grid-template-columns:minmax(260px,1fr) 30px '
+        'minmax(260px,1fr) 30px minmax(260px,1fr); gap:8px; align-items:center; '
+        'padding:16px 20px; background:#f4f7fb; } '
+        '.backend-common,.backend-card { padding:12px; border:1px solid #c8d2e2; '
+        'border-radius:6px; background:white; font-size:12px; line-height:1.55; } '
+        '.backend-common { background:#eef4ff; } .backend-arrow { text-align:center; '
+        'font-size:22px; color:#65758b; } '
+        '@media(max-width:900px) { .backend-flow { display:block; } '
+        '.backend-arrow { display:none; } .backend-common,.backend-card { margin:7px 0; } }'
     )
 
     landing = (
@@ -5292,6 +5629,11 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + '<div class="suite-grid">'
         + card("polybench.html", "PolyBench/C", len(polybench_stats),
                "Dense linear algebra, stencils, and data-mining kernels.")
+        + card("polybenchgpu.html", "PolyBenchGPU subset", len(POLYBENCHGPU_RUNTIMES),
+               "Validated Jetson comparison against handwritten CUDA kernels.")
+        + card("backends.html", "CPU + GPU lowering",
+               sum(s.get("launches", 0) > 0 for s in polybench_stats.values()),
+               "Shared ABI, backend branch point, and implementation coverage.")
         + card("numerical.html", "ATen numerical kernels", len(aten_stats),
                "Extracted ATen C algorithms and Jetson comparisons.")
         + card("performance.html", "Why are some kernels slow?",
@@ -5315,6 +5657,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + _build_taxonomy_panel()
     )
     polybench = nav() + polybench_section
+    polybenchgpu = nav() + _polybenchgpu_page(polybench_stats)
+    backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
     numerical_pages: dict[str, str] = {}
     for sort_by in ("alphabetical", "raised", "resident"):
@@ -5348,6 +5692,12 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "index.html": render_html("Polygeist IR explorer", landing, extra_css),
         "polybench.html": render_html(
             "Polygeist: PolyBench/C", polybench, extra_css
+        ),
+        "polybenchgpu.html": render_html(
+            "Polygeist: PolyBenchGPU subset", polybenchgpu, extra_css
+        ),
+        "backends.html": render_html(
+            "Polygeist: CPU and GPU lowering", backends, extra_css
         ),
         "performance.html": render_html(
             "Polygeist: kernel slowness analysis", performance, extra_css
@@ -5451,10 +5801,13 @@ def main():
         pages = build_site_pages(
             polybench_stats, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
-        OUTPUT_DIR.joinpath("polybench.html").write_text(
-            pages["polybench.html"]
+        for filename in ("polybench.html", "polybenchgpu.html", "backends.html"):
+            OUTPUT_DIR.joinpath(filename).write_text(pages[filename])
+        _refresh_existing_landing_backend_links(polybench_stats)
+        print(
+            f"Done. Open {OUTPUT_DIR}/polybench.html, "
+            f"{OUTPUT_DIR}/polybenchgpu.html, or {OUTPUT_DIR}/backends.html."
         )
-        print(f"Done. Open {OUTPUT_DIR}/polybench.html.")
         return
     for stale in OUTPUT_DIR.glob("llama_*.html"):
         stale.unlink()

@@ -796,6 +796,40 @@ void polygeist_cutensor_permute_f32(
     const int64_t *output_strides, const int32_t *output_modes,
     const float *input, float *output);
 
+// NAS MG's flattened 3-D residual and inverse smoother kernels.
+void polygeist_mg_resid_f64(const double *u, const double *v, double *r,
+                            int32_t n1, int32_t n2, int32_t n3,
+                            const double *a);
+void polygeist_mg_psinv_f64(const double *r, double *u,
+                            int32_t n1, int32_t n2, int32_t n3,
+                            const double *c);
+void polygeist_histogram_saturating_u8(const int32_t *values, uint8_t *bins,
+                                       int32_t count, int32_t num_bins);
+void polygeist_tpacf_histogram_f32(const float *data1, int32_t n1,
+                                   const float *data2, int32_t n2,
+                                   int32_t self, int64_t *bins,
+                                   int32_t nbins, const float *bounds);
+void polygeist_jds_spmv_f32(int32_t rows, const int32_t *nzcnt,
+                            const int32_t *ptr, const int32_t *indices,
+                            const float *data, const float *x,
+                            const int32_t *perm, float *out);
+void polygeist_csr_spmv_f64(int32_t rows, const int32_t *rowptr,
+                            const int32_t *cols, const double *data,
+                            const double *x, double *out);
+void polygeist_jds_spmv_f32_sized(
+    int32_t rows, const int32_t *nzcnt,
+    int32_t ptr_count, const int32_t *ptr,
+    int32_t index_count, const int32_t *indices,
+    int32_t data_count, const float *data,
+    int32_t x_count, const float *x,
+    const int32_t *perm, int32_t out_count, float *out);
+void polygeist_csr_spmv_f64_sized(
+    int32_t rows, int32_t rowptr_count, const int32_t *rowptr,
+    int32_t col_count, const int32_t *cols,
+    int32_t data_count, const double *data,
+    int32_t x_count, const double *x,
+    int32_t out_count, double *out);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

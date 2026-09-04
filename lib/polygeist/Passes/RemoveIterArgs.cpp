@@ -376,6 +376,23 @@ struct RemoveSCFIterArgs : public OpRewritePattern<scf::ForOp> {
     auto initLoad =
         analysis.initLoad ? cast<memref::LoadOp>(analysis.initLoad) : nullptr;
 
+    // The fast path moves the result store from after the loop into the loop
+    // body.  Its destination (memref and indices) must therefore already be
+    // available at the original loop.  Sparse formats commonly compute a
+    // permuted destination after completing the row reduction; moving that
+    // store would create uses before their definitions.  Leave such loops in
+    // iter_arg form for a later structured lowering.
+    DominanceInfo dominance(forOp->getParentOp());
+    for (Value addressOperand : storeOp->getOperands().drop_front()) {
+      if (Operation *def = addressOperand.getDefiningOp()) {
+        if (!dominance.dominates(def, forOp)) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "  ✗ Store address does not dominate loop\n");
+          return failure();
+        }
+      }
+    }
+
     // Adjust initialization if we have a loop-invariant load
     Value newInit = init;
     if (initLoad) {

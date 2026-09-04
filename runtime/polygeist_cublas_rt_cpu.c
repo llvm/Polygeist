@@ -30,6 +30,122 @@ int32_t polygeist_cuda_graph_begin(int64_t graph_id) {
 void polygeist_cuda_graph_end(int64_t graph_id) { (void)graph_id; }
 void *polygeist_cuda_graph_stream(void) { return NULL; }
 
+static inline int64_t mg_index(int32_t x, int32_t y, int32_t z,
+                               int32_t n1, int32_t n2) {
+  return ((int64_t)z * n2 + y) * n1 + x;
+}
+
+void polygeist_mg_resid_f64(const double *u, const double *v, double *r,
+                            int32_t n1, int32_t n2, int32_t n3,
+                            const double *a) {
+  for (int32_t z = 1; z < n3 - 1; ++z)
+    for (int32_t y = 1; y < n2 - 1; ++y)
+      for (int32_t x = 1; x < n1 - 1; ++x) {
+        int64_t p = mg_index(x, y, z, n1, n2);
+        int64_t sy = n1, sz = (int64_t)n1 * n2;
+        double u1m = u[p-sy-1] + u[p+sy-1] + u[p-sz-1] + u[p+sz-1];
+        double u1p = u[p-sy+1] + u[p+sy+1] + u[p-sz+1] + u[p+sz+1];
+        double u2 = u[p-sz-sy] + u[p-sz+sy] + u[p+sz-sy] + u[p+sz+sy];
+        double u2m = u[p-sz-sy-1] + u[p-sz+sy-1] + u[p+sz-sy-1] + u[p+sz+sy-1];
+        double u2p = u[p-sz-sy+1] + u[p-sz+sy+1] + u[p+sz-sy+1] + u[p+sz+sy+1];
+        r[p] = v[p] - a[0] * u[p] - a[2] * (u2 + u1m + u1p)
+               - a[3] * (u2m + u2p);
+      }
+}
+
+void polygeist_mg_psinv_f64(const double *r, double *u,
+                            int32_t n1, int32_t n2, int32_t n3,
+                            const double *c) {
+  for (int32_t z = 1; z < n3 - 1; ++z)
+    for (int32_t y = 1; y < n2 - 1; ++y)
+      for (int32_t x = 1; x < n1 - 1; ++x) {
+        int64_t p = mg_index(x, y, z, n1, n2);
+        int64_t sy = n1, sz = (int64_t)n1 * n2;
+        double r1 = r[p-sy] + r[p+sy] + r[p-sz] + r[p+sz];
+        double r1m = r[p-sy-1] + r[p+sy-1] + r[p-sz-1] + r[p+sz-1];
+        double r1p = r[p-sy+1] + r[p+sy+1] + r[p-sz+1] + r[p+sz+1];
+        double r2 = r[p-sz-sy] + r[p-sz+sy] + r[p+sz-sy] + r[p+sz+sy];
+        u[p] += c[0] * r[p] + c[1] * (r[p-1] + r[p+1] + r1)
+                + c[2] * (r2 + r1m + r1p);
+      }
+}
+
+void polygeist_histogram_saturating_u8(const int32_t *values, uint8_t *bins,
+                                       int32_t count, int32_t num_bins) {
+  for (int32_t i = 0; i < count; ++i) {
+    int32_t bin = values[i];
+    if ((uint32_t)bin < (uint32_t)num_bins && bins[bin] != UINT8_MAX)
+      ++bins[bin];
+  }
+}
+
+void polygeist_tpacf_histogram_f32(const float *data1, int32_t n1,
+                                   const float *data2, int32_t n2,
+                                   int32_t self, int64_t *bins,
+                                   int32_t nbins, const float *bounds) {
+  if (self) { data2 = data1; n2 = n1; }
+  for (int32_t i = 0; i < (self ? n1 - 1 : n1); ++i)
+    for (int32_t j = self ? i + 1 : 0; j < n2; ++j) {
+      float dot = data1[3*i] * data2[3*j] + data1[3*i+1] * data2[3*j+1]
+                  + data1[3*i+2] * data2[3*j+2];
+      int32_t lo = 0, hi = nbins;
+      while (hi > lo + 1) {
+        int32_t k = (lo + hi) / 2;
+        if (dot >= bounds[k]) hi = k; else lo = k;
+      }
+      int32_t bin = dot >= bounds[lo] ? lo : (dot < bounds[hi] ? hi + 1 : hi);
+      ++bins[bin];
+    }
+}
+
+void polygeist_jds_spmv_f32(int32_t rows, const int32_t *nzcnt,
+                            const int32_t *ptr, const int32_t *indices,
+                            const float *data, const float *x,
+                            const int32_t *perm, float *out) {
+  for (int32_t row = 0; row < rows; ++row) {
+    float sum = 0.0f;
+    for (int32_t k = 0; k < nzcnt[row]; ++k) {
+      int32_t j = ptr[k] + row;
+      sum += data[j] * x[indices[j]];
+    }
+    out[perm[row]] = sum;
+  }
+}
+
+void polygeist_csr_spmv_f64(int32_t rows, const int32_t *rowptr,
+                            const int32_t *cols, const double *data,
+                            const double *x, double *out) {
+  for (int32_t row = 0; row < rows; ++row) {
+    double sum = 0.0;
+    for (int32_t j = rowptr[row]; j < rowptr[row + 1]; ++j)
+      sum += data[j] * x[cols[j]];
+    out[row] = sum;
+  }
+}
+
+void polygeist_jds_spmv_f32_sized(
+    int32_t rows, const int32_t *nzcnt,
+    int32_t ptr_count, const int32_t *ptr,
+    int32_t index_count, const int32_t *indices,
+    int32_t data_count, const float *data,
+    int32_t x_count, const float *x,
+    const int32_t *perm, int32_t out_count, float *out) {
+  (void)ptr_count; (void)index_count; (void)data_count;
+  (void)x_count; (void)out_count;
+  polygeist_jds_spmv_f32(rows, nzcnt, ptr, indices, data, x, perm, out);
+}
+
+void polygeist_csr_spmv_f64_sized(
+    int32_t rows, int32_t rowptr_count, const int32_t *rowptr,
+    int32_t col_count, const int32_t *cols,
+    int32_t data_count, const double *data,
+    int32_t x_count, const double *x,
+    int32_t out_count, double *out) {
+  (void)rowptr_count; (void)col_count; (void)data_count;
+  (void)x_count; (void)out_count;
+  polygeist_csr_spmv_f64(rows, rowptr, cols, data, x, out);
+}
+
 void polygeist_cublas_dgemm(
     int32_t M, int32_t N, int32_t K,
     double alpha,
