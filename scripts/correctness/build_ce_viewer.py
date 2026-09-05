@@ -242,6 +242,10 @@ EXTRACTED_DARKNET_MLIR_DIR = env_path(
     "/tmp/extracted_darknet_mlir",
 )
 OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
+GINSBACH_SUMMARY = env_path(
+    "POLYGEIST_GINSBACH_SUMMARY",
+    REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
+)
 REWRITER = env_path("POLYGEIST_KERNEL_MATCH_REWRITER", SCRIPT_DIR / "kernel_match_rewrite.py")
 PYTHON = os.environ.get("PYTHON", sys.executable)
 POLYGEIST_OPT = env_path("POLYGEIST_OPT", REPO_ROOT / "build/bin/polygeist-opt")
@@ -5355,6 +5359,103 @@ def _refresh_existing_landing_backend_links(polybench_stats: dict[str, dict]) ->
     landing_path.write_text(text)
 
 
+def _ginsbach_page() -> tuple[str, int]:
+    """Render the external-library-only ASPLOS'18 corpus audit."""
+    rows = _read_csv(GINSBACH_SUMMARY)
+    if not rows:
+        return (
+            '<div class="intro"><b>Ginsbach ASPLOS\'18 audit unavailable.</b> '
+            f'Missing <code>{html.escape(str(GINSBACH_SUMMARY))}</code>.</div>',
+            0,
+        )
+
+    numeric_fields = (
+        "units", "frontend_ok", "raise_ok", "linalg_generics",
+        "kernel_launches", "structured_fusions", "structured_reductions",
+        "structured_stencils", "histogram_candidates", "csr_spmv_candidates",
+        "published_idioms",
+    )
+    totals = {
+        field: sum(int(row.get(field, 0) or 0) for row in rows)
+        for field in numeric_fields
+    }
+    backend_routes = {
+        ("snu-npb", "BT"): "CUDA memset ×6",
+        ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
+        ("snu-npb", "LU"): "CUDA memset ×1",
+        ("snu-npb", "UA"): "cuBLAS DAXPBY ×3 + Ddot ×14",
+        ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
+        ("parboil", "stencil"): "cuDNN 3D convolution ×1",
+    }
+
+    metric_specs = (
+        ("Translation units", totals["units"]),
+        ("Frontend passed", totals["frontend_ok"]),
+        ("Raise passed", totals["raise_ok"]),
+        ("Linalg generics", totals["linalg_generics"]),
+        ("External launches", totals["kernel_launches"]),
+        ("Published idioms", totals["published_idioms"]),
+    )
+    metrics = ''.join(
+        '<div class="audit-metric"><b>' + str(value) + '</b><span>'
+        + html.escape(label) + '</span></div>'
+        for label, value in metric_specs
+    )
+    body_rows = []
+    for row in rows:
+        key = (row.get("suite", ""), row.get("program", ""))
+        launches = int(row.get("kernel_launches", 0) or 0)
+        launch_class = "pass" if launches else "nope"
+        route = backend_routes.get(key, "—")
+        body_rows.append(
+            '<tr>'
+            f'<td>{html.escape(row.get("suite", ""))}</td>'
+            f'<td><b>{html.escape(row.get("program", ""))}</b></td>'
+            f'<td>{row.get("units", "0")}</td>'
+            f'<td>{row.get("raise_ok", "0")}/{row.get("units", "0")}</td>'
+            f'<td>{row.get("linalg_generics", "0")}</td>'
+            f'<td class="{launch_class}">{launches}</td>'
+            f'<td>{html.escape(route)}</td>'
+            f'<td>{row.get("structured_fusions", "0")}</td>'
+            f'<td>{row.get("structured_reductions", "0")}</td>'
+            f'<td>{row.get("structured_stencils", "0")}</td>'
+            f'<td>{row.get("histogram_candidates", "0")}</td>'
+            f'<td>{row.get("published_idioms", "0")}</td>'
+            '</tr>'
+        )
+
+    body = (
+        '<div class="intro"><b>Ginsbach et al., ASPLOS 2018 — '
+        'external-library-only audit.</b> The current source corpus contains '
+        '21 benchmark programs. Structural Egglog detections are shown '
+        'separately from executable launches: only matches that lower to a '
+        'pre-existing external library or CUDA platform API count as '
+        'launches. These are coverage results, not an end-to-end performance '
+        'comparison with the paper.</div>'
+        f'<div class="audit-metrics">{metrics}</div>'
+        '<div class="intro"><b>Analysis-only inventory:</b> '
+        f'{totals["structured_fusions"]} Egglog-proved structured regions; '
+        f'{totals["structured_reductions"]} reduction-shaped regions; '
+        f'{totals["structured_stencils"]} stencil-shaped regions; '
+        f'{totals["histogram_candidates"]} histogram candidates; '
+        f'{totals["csr_spmv_candidates"]} CSR SpMV candidates. '
+        'These candidates do not count as executable matches.</div>'
+        '<table class="audit-table"><thead><tr>'
+        '<th>suite</th><th>program</th><th>units</th><th>raised</th>'
+        '<th>linalg</th><th>external launches</th><th>external route</th>'
+        '<th>Egglog regions</th><th>reductions</th><th>stencils</th>'
+        '<th>histograms</th><th>paper idioms</th>'
+        '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
+        '<div class="intro"><b>Silicon evidence:</b> cuBLAS SGEMM, cuBLAS '
+        'DAXPBY/Ddot, CUDA memset, cuSPARSE CSR SpMV, cuDNN 3D stencil, and '
+        'the cuSten adapter smokes have passed on Orin #2. Full-application '
+        'validation remains pending for CG, UA, and Parboil stencil. See '
+        '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the '
+        'exact evidence and remaining gaps.</div>'
+    )
+    return body, len(rows)
+
+
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
                      mfem_stats: list[dict],
@@ -5367,6 +5468,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
                      darknet_stats: dict[str, dict],
                      ex_darknet_stats: dict[str, dict],
                      fopt_stats: dict[str, dict]) -> dict[str, str]:
+    ginsbach_body, ginsbach_count = _ginsbach_page()
     common_legend = (
         '  Click a kernel name to open its static raised / debuferized / '
         '  matcher-rewritten IR snapshot. Each snapshot has an '
@@ -5574,6 +5676,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="numerical.html">ATen</a> &middot; '
             '<a href="performance.html">Performance analysis</a> &middot; '
             '<a href="mfem.html">MFEM</a> &middot; '
+            '<a href="ginsbach.html">Ginsbach ASPLOS\'18</a> &middot; '
             '<a href="ai.html">AI kernels</a> &middot; '
             '<a href="vision.html">Vision + fusion</a> &middot; '
             '<a href="pva.html">PVA backend</a>'
@@ -5600,6 +5703,12 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.suite-card b,.suite-card span,.suite-card small { display:block; } '
         '.suite-card span { color:#1a7f37; margin-top:5px; font-size:13px; } '
         '.suite-card small { color:#555; margin-top:8px; line-height:1.35; } '
+        '.audit-metrics { display:grid; grid-template-columns:repeat(auto-fit, '
+        'minmax(145px,1fr)); gap:10px; margin:10px 20px; max-width:1050px; } '
+        '.audit-metric { border:1px solid #d8dee8; border-radius:7px; padding:12px; '
+        'background:#fafbfc; } .audit-metric b { display:block; color:#1a7f37; '
+        'font-size:22px; } .audit-metric span { color:#555; font-size:12px; } '
+        '.audit-table { font-size:12px; } .audit-table td { white-space:nowrap; } '
         '.cause-tag { display:inline-block; border-radius:10px; padding:2px 7px; '
         'font-size:11px; font-weight:bold; margin-bottom:4px; } '
         '.cause-memory { background:#ffd9d9; color:#8b1a1a; } '
@@ -5644,6 +5753,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
                len(mfem_stats) + len(mfem_application_stats)
                + len(mfem_application_extraction_stats),
                "Original/normalized FEM kernels and larger application hot paths.")
+        + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
+               "103/103 units raised; external-library matches kept separate from structural candidates.")
         + card("ai.html", "AI kernels",
                len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
                "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")
@@ -5681,6 +5792,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             )
             + _mfem_application_section(mfem_application_stats)
             + _mfem_section(mfem_stats))
+    ginsbach = nav() + ginsbach_body
     ai = nav() + llama_forward_section + whisper_ops_section + llmc_section
     vision = (
         nav() + stencil_conv2d_section + darknet_section
@@ -5703,6 +5815,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
             "Polygeist: kernel slowness analysis", performance, extra_css
         ),
         "mfem.html": render_html("Polygeist: MFEM kernels", mfem, extra_css),
+        "ginsbach.html": render_html(
+            "Polygeist: Ginsbach ASPLOS'18 audit", ginsbach, extra_css
+        ),
         "ai.html": render_html("Polygeist: AI kernels", ai, extra_css),
         "vision.html": render_html(
             "Polygeist: vision + fusion", vision, extra_css
