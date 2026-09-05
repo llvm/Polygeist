@@ -1,0 +1,6 @@
+suite,program,validation_scope,status,runtime,backend,evidence
+snu-npb,CG,Full NPB Class S application,PASS,0.13 s benchmark time,cuSPARSE CSR SpMV + cuBLAS Ddot,scripts/correctness/logs/npb_cg_cusparse_repro_20260905_120103.silicon.log
+snu-npb,IS,External-library ABI correctness smoke,PASS,2.891 ms host / 2.829 ms GPU (6 samples; median of 3),CUB DeviceHistogram,scripts/correctness/logs/ginsbach_histogram_factorizations_20260905_124034.silicon.log
+snu-npb,UA,External-library ABI correctness smokes,PASS,DAXPBY 1.503 ms host / 1.320 ms GPU; Ddot 1.242 ms host / 1.059 ms GPU (N=4; median of 3),cuBLAS Dscal + Daxpy and Ddot,scripts/correctness/logs/ginsbach_cublas_daxpby_timed_20260905_120653.silicon.log; scripts/correctness/logs/ginsbach_cublas_ddot_timed_20260905_120701.silicon.log
+parboil,sgemm,Source-faithful SGEMM kernel (3/3),PASS,16.620 ms median host call,cuBLAS SGEMM,scripts/correctness/logs/ginsbach_parboil_sgemm_alpha_beta_cross_20260904_215100.silicon.log
+parboil,stencil,Source-faithful flattened 3D seven-point kernel,PASS,117.171 ms host / 19.469 ms GPU (7x6x5 grid; median of 3),cuDNN 3D convolution,scripts/correctness/logs/ginsbach_cudnn_stencil3d_7pt_timed_20260905_120750.silicon.log

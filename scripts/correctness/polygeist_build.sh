@@ -78,6 +78,14 @@
 #                       this for modules containing only the migrated generic
 #                       cuDNN pointwise-graph ABI. Use 0 for the legacy tensor
 #                       ABI or 1 to test newly migrated launch families.
+#   POLYGEIST_EXPORT_OBJECT_DIR=/path
+#                       Copy kernel.o, wrapper.o, runtime objects, and the
+#                       matched/ABI MLIR into this directory for a larger
+#                       application link.
+#   POLYGEIST_SKIP_LINK=1
+#                       Stop after compiling/exporting those objects. This is
+#                       intended for application composition builds whose main
+#                       program is linked separately.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -459,14 +467,16 @@ else
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
-    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE")
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
+               "-DPOLYGEIST_DISABLE_CUSOLVER")
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
              -lcublas -lcudart -lm -lpthread -ldl \
              -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
     echo "         + minimal cuBLAS/CUDA runtime linkage"
   fi
   if [ "${POLYGEIST_MINIMAL_CUDNN_RUNTIME:-0}" != "0" ]; then
-    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE")
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
+               "-DPOLYGEIST_DISABLE_CUSOLVER")
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
              -L/usr/lib/aarch64-linux-gnu \
              -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
@@ -596,6 +606,20 @@ if [ -n "$CUSTOM_CUDA_OBJ_LIST" ]; then
     }
   done
   echo "         + custom CUDA object(s): ${CUSTOM_CUDA_OBJS[*]}"
+fi
+
+if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
+  mkdir -p "$POLYGEIST_EXPORT_OBJECT_DIR"
+  cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/rt.o" \
+     "$WORK/mlir_runner_utils.o" "$WORK/matched.mlir" "$WORK/abi.mlir" \
+     "$POLYGEIST_EXPORT_OBJECT_DIR/"
+  echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
+fi
+
+if [ "${POLYGEIST_SKIP_LINK:-0}" != "0" ]; then
+  echo ""
+  echo "═══ object build complete (link skipped) ═══"
+  exit 0
 fi
 
 # ─── Step 9: link ───────────────────────────────────────────────────────

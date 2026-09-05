@@ -16,6 +16,21 @@
 // signature whose body computes the canonical semantics for that library op.
 
 module {
+  // Device-wide integer histogram. The executable matcher selects this
+  // overwrite form only when it also proves a zero-initialized destination.
+  kernel.defn @cubHistogramEvenI32ShiftZero_memref(
+      %samples: memref<?xi32>, %histogram: memref<?xi32>, %right_shift: i32) {
+    kernel.yield
+  }
+
+  // Whole-algorithm dense linear algebra recovered from row-major C loops.
+  kernel.defn @cublasDtrsvLowerRowMajor_memref(
+      %A: memref<?x?xf64>, %b: memref<?xf64>, %x: memref<?xf64>) {
+    kernel.yield
+  }
+  kernel.defn @cusolverDnDpotrfLowerRowMajor_memref(
+      %A: memref<?x?xf64>) { kernel.yield }
+
   // NVIDIA cuSPARSE generic-API CSR SpMV. These are ABI contracts: the
   // matcher proves the row-pointer traversal and multiply-add reduction, and
   // the CUDA runtime invokes cusparseSpMV with alpha=1 and beta=0.

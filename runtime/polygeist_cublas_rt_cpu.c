@@ -30,6 +30,47 @@ int32_t polygeist_cuda_graph_begin(int64_t graph_id) {
 void polygeist_cuda_graph_end(int64_t graph_id) { (void)graph_id; }
 void *polygeist_cuda_graph_stream(void) { return NULL; }
 
+void polygeist_cub_histogram_even_i32_shift_zero(
+    int32_t count, int32_t num_bins, const int32_t *samples,
+    int32_t *histogram, int32_t right_shift) {
+  if (count < 0 || num_bins < 0 || right_shift < 0 || right_shift >= 31)
+    abort();
+  memset(histogram, 0, (size_t)num_bins * sizeof(int32_t));
+  for (int32_t i = 0; i < count; ++i) {
+    int32_t bin = samples[i] >> right_shift;
+    if (bin >= 0 && bin < num_bins) histogram[bin]++;
+  }
+}
+
+void polygeist_cublas_dtrsv_lower_row_major(
+    int32_t n, const double *A, const double *b, double *x) {
+  for (int32_t i = 0; i < n; ++i) {
+    double value = b[i];
+    for (int32_t j = 0; j < i; ++j)
+      value -= A[(size_t)i * (size_t)n + (size_t)j] * x[j];
+    x[i] = value / A[(size_t)i * (size_t)n + (size_t)i];
+  }
+}
+
+void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
+  for (int32_t i = 0; i < n; ++i) {
+    for (int32_t j = 0; j < i; ++j) {
+      double value = A[(size_t)i * (size_t)n + (size_t)j];
+      for (int32_t k = 0; k < j; ++k)
+        value -= A[(size_t)i * (size_t)n + (size_t)k] *
+                 A[(size_t)j * (size_t)n + (size_t)k];
+      A[(size_t)i * (size_t)n + (size_t)j] =
+          value / A[(size_t)j * (size_t)n + (size_t)j];
+    }
+    double diagonal = A[(size_t)i * (size_t)n + (size_t)i];
+    for (int32_t k = 0; k < i; ++k) {
+      double value = A[(size_t)i * (size_t)n + (size_t)k];
+      diagonal -= value * value;
+    }
+    A[(size_t)i * (size_t)n + (size_t)i] = sqrt(diagonal);
+  }
+}
+
 static void require_cusparse_runtime(void) {
   fprintf(stderr,
           "Polygeist runtime: CSR SpMV requires the external NVIDIA "

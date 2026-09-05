@@ -72,6 +72,12 @@ struct ShimDecl {
 };
 
 static StringRef shimSymbolFor(StringRef libSym) {
+  if (libSym == "cubHistogramEvenI32ShiftZero_memref")
+    return "polygeist_cub_histogram_even_i32_shift_zero";
+  if (libSym == "cublasDtrsvLowerRowMajor_memref")
+    return "polygeist_cublas_dtrsv_lower_row_major";
+  if (libSym == "cusolverDnDpotrfLowerRowMajor_memref")
+    return "polygeist_cusolver_dpotrf_lower_row_major";
   if (libSym == "cusparseSpMV_CSR_f32_memref")
     return "polygeist_cusparse_spmv_csr_f32_sized";
   if (libSym == "cusparseSpMV_CSR_f64_memref")
@@ -370,6 +376,15 @@ static Value memrefDimAsI32(OpBuilder &b, Location loc, Value m, int64_t axis) {
     return b.create<arith::ConstantOp>(loc, b.getI32Type(),
                                         b.getI32IntegerAttr((int32_t)v));
   }
+  // A Polygeist submap carries the logical view extents explicitly.  Querying
+  // memref.dim on the opaque view strands the submap after kernel.launch has
+  // been replaced by a runtime call (upstream mlir-opt cannot lower the
+  // Polygeist dialect).  Use that explicit extent directly instead.
+  if (auto submap = m.getDefiningOp<polygeist::SubmapOp>()) {
+    if (axis >= 0 && static_cast<unsigned>(axis) < submap.getSizes().size())
+      return b.create<arith::IndexCastOp>(loc, b.getI32Type(),
+                                          submap.getSizes()[axis]);
+  }
   Value idx = b.create<arith::ConstantIndexOp>(loc, axis);
   Value dimIdx = b.create<memref::DimOp>(loc, m, idx);
   return b.create<arith::IndexCastOp>(loc, b.getI32Type(), dimIdx);
@@ -654,6 +669,50 @@ static Value pointerForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
 // metadata offset. memrefBasePtr intentionally returns the allocation base,
 // which is insufficient for an interior pointwise destination.
 static Value memrefDataPtr(OpBuilder &b, Location loc, Value mr) {
+  // Compute the address of logical element zero directly from a Polygeist
+  // submap.  Runtime library ABIs need only the pointer and logical extents;
+  // keeping the semantic view alive after launch lowering prevents the rest
+  // of the module from reaching standard MLIR.  This handles identity views,
+  // fixed-offset slices, and rank-reduced/broadcast scalar views uniformly.
+  if (auto submap = mr.getDefiningOp<polygeist::SubmapOp>()) {
+    Value base = submap.getBase();
+    auto baseType = dyn_cast<MemRefType>(base.getType());
+    AffineMap map = submap.getMap();
+    if (baseType && map.getNumResults() ==
+                        static_cast<unsigned>(baseType.getRank())) {
+      SmallVector<Value> mapOperands;
+      mapOperands.reserve(map.getNumInputs());
+      for (unsigned i = 0; i < map.getNumDims(); ++i)
+        mapOperands.push_back(b.create<arith::ConstantIndexOp>(loc, 0));
+      mapOperands.append(submap.getSymbols().begin(),
+                         submap.getSymbols().end());
+
+      Value alignedIdx =
+          b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, base);
+      Value address =
+          b.create<arith::IndexCastOp>(loc, b.getI64Type(), alignedIdx);
+      auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, base);
+      Value linear = integerLikeAsI64(b, loc, metadata.getOffset());
+      for (unsigned i = 0; i < map.getNumResults(); ++i) {
+        AffineMap coordinateMap = AffineMap::get(
+            map.getNumDims(), map.getNumSymbols(), map.getResult(i),
+            b.getContext());
+        Value coordinate =
+            b.create<affine::AffineApplyOp>(loc, coordinateMap, mapOperands);
+        Value stride = integerLikeAsI64(b, loc, metadata.getStrides()[i]);
+        Value scaled = b.create<arith::MulIOp>(
+            loc, integerLikeAsI64(b, loc, coordinate), stride);
+        linear = b.create<arith::AddIOp>(loc, linear, scaled);
+      }
+      unsigned bits = baseType.getElementType().getIntOrFloatBitWidth();
+      Value eltBytes = b.create<arith::ConstantOp>(
+          loc, b.getI64Type(), b.getI64IntegerAttr(bits / 8));
+      Value byteOffset = b.create<arith::MulIOp>(loc, linear, eltBytes);
+      address = b.create<arith::AddIOp>(loc, address, byteOffset);
+      return b.create<LLVM::IntToPtrOp>(
+          loc, LLVM::LLVMPointerType::get(b.getContext()), address);
+    }
+  }
   auto type = cast<MemRefType>(mr.getType());
   Value alignedIdx =
       b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, mr);
@@ -4979,6 +5038,93 @@ static LogicalResult lowerCubExclusiveSum1DI32(LaunchOp launch,
   return success();
 }
 
+static LogicalResult lowerCubHistogramEvenI32ShiftZero(LaunchOp launch,
+                                                        ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "CUB integer histogram expects samples and histogram buffers");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value samples = valueToMemrefPreservingSlice(b, loc, launch.getOperand(0));
+  Value histogram =
+      valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(1));
+  auto samplesType = dyn_cast<MemRefType>(samples.getType());
+  auto histogramType = dyn_cast<MemRefType>(histogram.getType());
+  if (!samplesType || !histogramType || samplesType.getRank() != 1 ||
+      histogramType.getRank() != 1 ||
+      !samplesType.getElementType().isInteger(32) ||
+      !histogramType.getElementType().isInteger(32))
+    return launch.emitError("CUB integer histogram requires i32 [N] buffers");
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(
+      module, "polygeist_cub_histogram_even_i32_shift_zero",
+      {b.getI32Type(), b.getI32Type(), ptr, ptr, b.getI32Type()}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, samples, 0),
+                 memrefDimAsI32(b, loc, histogram, 0),
+                 memrefDataPtr(b, loc, samples),
+                 memrefDataPtr(b, loc, histogram), launch.getOperand(2)});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDtrsvLowerRowMajor(LaunchOp launch,
+                                              ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
+    return launch.emitError("row-major DTRSV expects A, b, and x buffers");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value matrix = valueToMemrefPreservingSlice(b, loc, launch.getOperand(0));
+  Value rhs = valueToMemrefPreservingSlice(b, loc, launch.getOperand(1));
+  Value output =
+      valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(2));
+  auto matrixType = dyn_cast<MemRefType>(matrix.getType());
+  auto rhsType = dyn_cast<MemRefType>(rhs.getType());
+  auto outputType = dyn_cast<MemRefType>(output.getType());
+  if (!matrixType || !rhsType || !outputType || matrixType.getRank() != 2 ||
+      rhsType.getRank() != 1 || outputType.getRank() != 1 ||
+      !matrixType.getElementType().isF64() ||
+      !rhsType.getElementType().isF64() ||
+      !outputType.getElementType().isF64())
+    return launch.emitError("row-major DTRSV requires f64 A[N,N], b[N], x[N]");
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(
+      module, "polygeist_cublas_dtrsv_lower_row_major",
+      {b.getI32Type(), ptr, ptr, ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, output, 0),
+                 memrefDataPtr(b, loc, matrix), memrefDataPtr(b, loc, rhs),
+                 memrefDataPtr(b, loc, output)});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDpotrfLowerRowMajor(LaunchOp launch,
+                                               ModuleOp module) {
+  if (launch.getNumOperands() != 1 || launch.getNumResults() != 0)
+    return launch.emitError("row-major DPOTRF expects one matrix buffer");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value matrix =
+      valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(0));
+  auto matrixType = dyn_cast<MemRefType>(matrix.getType());
+  if (!matrixType || matrixType.getRank() != 2 ||
+      !matrixType.getElementType().isF64())
+    return launch.emitError("row-major DPOTRF requires f64 A[N,N]");
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(module,
+                             "polygeist_cusolver_dpotrf_lower_row_major",
+                             {b.getI32Type(), ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, matrix, 0),
+                 memrefDataPtr(b, loc, matrix)});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCubPredicateReduction(
     LaunchOp launch, ModuleOp module, StringRef libSym) {
   bool bufferized = launch->hasAttr("polygeist.bufferized");
@@ -6512,7 +6658,13 @@ struct LowerKernelLaunchToCuBLASPass
       }
 
       LogicalResult r = failure();
-      if (libSym == "cusparseSpMV_CSR_f32_memref" ||
+      if (libSym == "cubHistogramEvenI32ShiftZero_memref") {
+        r = lowerCubHistogramEvenI32ShiftZero(launch, module);
+      } else if (libSym == "cublasDtrsvLowerRowMajor_memref") {
+        r = lowerDtrsvLowerRowMajor(launch, module);
+      } else if (libSym == "cusolverDnDpotrfLowerRowMajor_memref") {
+        r = lowerDpotrfLowerRowMajor(launch, module);
+      } else if (libSym == "cusparseSpMV_CSR_f32_memref" ||
           libSym == "cusparseSpMV_CSR_f64_memref") {
         r = lowerCusparseCsrSpmv(launch, module);
       } else if (libSym.starts_with("cubSegmentedPrefix")) {

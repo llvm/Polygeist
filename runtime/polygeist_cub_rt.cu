@@ -9,6 +9,62 @@
 #include <cstdlib>
 #include <cstring>
 
+struct ArithmeticRightShiftI32 {
+  int32_t amount;
+  __host__ __device__ int32_t operator()(int32_t value) const {
+    return value >> amount;
+  }
+};
+
+extern "C" int polygeist_cub_histogram_even_i32_shift_zero_cuda(
+    int32_t count, int32_t num_bins, const int32_t *host_samples,
+    int32_t *host_histogram, int32_t right_shift, cudaStream_t stream) {
+  if (count < 0 || num_bins <= 0 || !host_samples || !host_histogram ||
+      right_shift < 0 || right_shift >= 31)
+    return -1;
+  int32_t *samples = nullptr;
+  int32_t *histogram = nullptr;
+  void *temporary = nullptr;
+  size_t temporary_bytes = 0;
+  cudaError_t status = cudaMalloc(&samples, (size_t)count * sizeof(int32_t));
+  if (status != cudaSuccess) return static_cast<int>(status);
+  status = cudaMalloc(&histogram, (size_t)num_bins * sizeof(int32_t));
+  if (status != cudaSuccess) goto cleanup;
+  status = cudaMemcpyAsync(samples, host_samples,
+                           (size_t)count * sizeof(int32_t),
+                           cudaMemcpyHostToDevice, stream);
+  if (status != cudaSuccess) goto cleanup;
+  {
+    cub::TransformInputIterator<int32_t, ArithmeticRightShiftI32,
+                                const int32_t *> bins(
+        samples, ArithmeticRightShiftI32{right_shift});
+    status = cub::DeviceHistogram::HistogramEven(
+        temporary, temporary_bytes, bins, histogram,
+        num_bins + 1, 0, num_bins, count, stream);
+  }
+  if (status != cudaSuccess) goto cleanup;
+  status = cudaMalloc(&temporary, temporary_bytes);
+  if (status != cudaSuccess) goto cleanup;
+  {
+    cub::TransformInputIterator<int32_t, ArithmeticRightShiftI32,
+                                const int32_t *> bins(
+        samples, ArithmeticRightShiftI32{right_shift});
+    status = cub::DeviceHistogram::HistogramEven(
+        temporary, temporary_bytes, bins, histogram,
+        num_bins + 1, 0, num_bins, count, stream);
+  }
+  if (status == cudaSuccess)
+    status = cudaMemcpyAsync(host_histogram, histogram,
+                             (size_t)num_bins * sizeof(int32_t),
+                             cudaMemcpyDeviceToHost, stream);
+  if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
+cleanup:
+  cudaFree(temporary);
+  cudaFree(histogram);
+  cudaFree(samples);
+  return static_cast<int>(status);
+}
+
 
 
 
@@ -34,17 +90,21 @@ extern "C" int polygeist_cub_segmented_sort_descending_f32_i32_cuda(
   int64_t n64=(int64_t)rows*cols;
   if(rows<=0||cols<=0||top<=0||top>cols||n64>INT_MAX||!host_input||!host_values||!host_indices)return-1;
   int32_t n=(int32_t)n64;float *input=nullptr,*sorted=nullptr;
-  int32_t *sorted_indices=nullptr;void *temporary=nullptr;size_t temporary_bytes=0;
-  cudaError_t status=cudaMalloc(&input,(size_t)n*sizeof(float));if(status!=cudaSuccess)return status;
+  int32_t *input_indices=nullptr,*sorted_indices=nullptr;
+  int32_t *host_input_indices=(int32_t*)malloc((size_t)n*sizeof(int32_t));
+  void *temporary=nullptr;size_t temporary_bytes=0;
+  using Counting = cub::CountingInputIterator<int32_t>;
+  using Offsets = cub::TransformInputIterator<int32_t,SegmentOffsetI32,Counting>;
+  Counting counting(0);Offsets offsets(counting,SegmentOffsetI32{cols});
+  if(!host_input_indices)return cudaErrorMemoryAllocation;
+  for(int32_t i=0;i<n;++i)host_input_indices[i]=i%cols;
+  cudaError_t status=cudaMalloc(&input,(size_t)n*sizeof(float));
+  if(status!=cudaSuccess){free(host_input_indices);return status;}
 #define SORT_ALLOC(p,z) status=cudaMalloc(&(p),(z));if(status!=cudaSuccess)goto done_segmented_sort
-  SORT_ALLOC(sorted,(size_t)n*sizeof(float));SORT_ALLOC(sorted_indices,(size_t)n*sizeof(int32_t));
+  SORT_ALLOC(sorted,(size_t)n*sizeof(float));SORT_ALLOC(input_indices,(size_t)n*sizeof(int32_t));SORT_ALLOC(sorted_indices,(size_t)n*sizeof(int32_t));
 #undef SORT_ALLOC
   status=cudaMemcpyAsync(input,host_input,(size_t)n*sizeof(float),cudaMemcpyHostToDevice,stream);
-  using Counting = cub::CountingInputIterator<int32_t>;
-  using Indices = cub::TransformInputIterator<int32_t,LinearToColI32,Counting>;
-  using Offsets = cub::TransformInputIterator<int32_t,SegmentOffsetI32,Counting>;
-  Counting counting(0);Indices input_indices(counting,LinearToColI32{cols});
-  Offsets offsets(counting,SegmentOffsetI32{cols});
+  if(status==cudaSuccess)status=cudaMemcpyAsync(input_indices,host_input_indices,(size_t)n*sizeof(int32_t),cudaMemcpyHostToDevice,stream);
   if(status==cudaSuccess)status=cub::DeviceSegmentedRadixSort::SortPairsDescending(
       temporary,temporary_bytes,input,sorted,input_indices,sorted_indices,n,rows,offsets,offsets+1,0,8*sizeof(float),stream);
   if(status==cudaSuccess){status=cudaMalloc(&temporary,temporary_bytes);}
@@ -53,7 +113,7 @@ extern "C" int polygeist_cub_segmented_sort_descending_f32_i32_cuda(
   if(status==cudaSuccess)status=cudaMemcpy2DAsync(host_values,(size_t)top*sizeof(float),sorted,(size_t)cols*sizeof(float),(size_t)top*sizeof(float),rows,cudaMemcpyDeviceToHost,stream);
   if(status==cudaSuccess)status=cudaMemcpy2DAsync(host_indices,(size_t)top*sizeof(int32_t),sorted_indices,(size_t)cols*sizeof(int32_t),(size_t)top*sizeof(int32_t),rows,cudaMemcpyDeviceToHost,stream);
   if(status==cudaSuccess)status=cudaStreamSynchronize(stream);
-done_segmented_sort:cudaFree(temporary);cudaFree(sorted_indices);cudaFree(sorted);cudaFree(input);return status;
+done_segmented_sort:cudaFree(temporary);cudaFree(sorted_indices);cudaFree(input_indices);cudaFree(sorted);cudaFree(input);free(host_input_indices);return status;
 }
 
 extern "C" int polygeist_cub_segment_reduce_lengths_f32_cuda(
@@ -93,6 +153,12 @@ struct ProductSegmentKey {
   int32_t width;
   __host__ __device__ int32_t operator()(int64_t index) const {
     return (int32_t)(index / width);
+  }
+};
+
+struct ProductF32 {
+  __host__ __device__ float operator()(float lhs, float rhs) const {
+    return lhs * rhs;
   }
 };
 
@@ -338,12 +404,12 @@ extern "C" int polygeist_cub_segmented_inclusive_product2d_f32_cuda(
   if (status == cudaSuccess)
     status = cub::DeviceScan::InclusiveScanByKey(
         temporary, temporary_bytes, keys, d_input, d_output,
-        cub::Multiply{}, count, cub::Equality{}, stream);
+        ProductF32{}, count, cub::Equality{}, stream);
   if (status == cudaSuccess) status = cudaMalloc(&temporary, temporary_bytes);
   if (status == cudaSuccess)
     status = cub::DeviceScan::InclusiveScanByKey(
         temporary, temporary_bytes, keys, d_input, d_output,
-        cub::Multiply{}, count, cub::Equality{}, stream);
+        ProductF32{}, count, cub::Equality{}, stream);
   if (status == cudaSuccess)
     status = cudaMemcpyAsync(output, d_output, (size_t)count * sizeof(float),
                              cudaMemcpyDeviceToHost, stream);

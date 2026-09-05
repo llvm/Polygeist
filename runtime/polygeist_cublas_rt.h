@@ -32,6 +32,14 @@ extern "C" {
 void polygeist_cublas_init(void);
 void polygeist_cublas_destroy(void);
 
+// Whole-algorithm operations recovered from imperative C loop nests.
+void polygeist_cub_histogram_even_i32_shift_zero(
+    int32_t count, int32_t num_bins, const int32_t *samples,
+    int32_t *histogram, int32_t right_shift);
+void polygeist_cublas_dtrsv_lower_row_major(
+    int32_t n, const double *A, const double *b, double *x);
+void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A);
+
 // NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
 // derived from the MLIR memref descriptors; row_offsets[rows] supplies nnz.
 void polygeist_cusparse_spmv_csr_f32_sized(

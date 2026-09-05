@@ -30,6 +30,15 @@
 
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#if !defined(POLYGEIST_DISABLE_CUSOLVER) && defined(__has_include)
+#  if __has_include(<cusolverDn.h>)
+#    include <cusolverDn.h>
+#    define POLYGEIST_HAS_CUSOLVER 1
+#  endif
+#endif
+#ifndef POLYGEIST_HAS_CUSOLVER
+#  define POLYGEIST_HAS_CUSOLVER 0
+#endif
 #if !defined(POLYGEIST_DISABLE_CUSPARSE)
 #  include <cusparse.h>
 #  define POLYGEIST_HAS_CUSPARSE 1
@@ -84,6 +93,9 @@
  * __bf16 arrays via uint16_t lands the correct values on the device. */
 
 static cublasHandle_t   g_handle;
+#if POLYGEIST_HAS_CUSOLVER
+static cusolverDnHandle_t g_solver = NULL;
+#endif
 #if POLYGEIST_HAS_CUSPARSE
 static cusparseHandle_t g_sparse = NULL;
 #endif
@@ -251,6 +263,17 @@ static void initialize_generated_driver_api(void) {
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+#if POLYGEIST_HAS_CUSOLVER
+#define CUSOLVER_CHECK(call) do {                                            \
+    cusolverStatus_t s = (call);                                             \
+    if (s != CUSOLVER_STATUS_SUCCESS) {                                      \
+      fprintf(stderr, "%s:%d cuSOLVER error: %d\n", __FILE__, __LINE__,    \
+              (int)s);                                                       \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
+#endif
 
 #if POLYGEIST_HAS_CUSPARSE
 #define CUSPARSE_CHECK(call) do {                                            \
@@ -1070,6 +1093,12 @@ void polygeist_cublas_destroy(void) {
     g_sparse = NULL;
   }
 #endif
+#if POLYGEIST_HAS_CUSOLVER
+  if (g_solver) {
+    cusolverDnDestroy(g_solver);
+    g_solver = NULL;
+  }
+#endif
   cublasDestroy(g_handle);
   cudaStreamDestroy(g_stream);
   g_initialized = 0;
@@ -1831,6 +1860,80 @@ void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
   }
   memset(v, 0, (size_t)N * sizeof(float));
   timing_host_only("host_memset_zero_1d_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cublas_dtrsv_lower_row_major(
+    int32_t n, const double *A, const double *b, double *x) {
+  if (n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t matrix_bytes = (size_t)n * (size_t)n * sizeof(double);
+  size_t vector_bytes = (size_t)n * sizeof(double);
+  void *hosts[3] = {(void *)A, (void *)b, x};
+  size_t sizes[3] = {matrix_bytes, vector_bytes, vector_bytes};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *db = (double *)devices[1];
+  double *dx = (double *)devices[2];
+  if (dx != db)
+    CUDA_CHECK(cudaMemcpyAsync(dx, db, vector_bytes,
+                               cudaMemcpyDeviceToDevice, g_stream));
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDtrsv(
+      g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+      CUBLAS_DIAG_NON_UNIT, n, dA, n, dx, 1));
+  timing_gpu_end("cublasDtrsvLowerRowMajor", n, 1, 0, host_start_ms);
+}
+
+#if POLYGEIST_HAS_CUSOLVER
+static void ensure_cusolver(void) {
+  if (g_solver) return;
+  CUSOLVER_CHECK(cusolverDnCreate(&g_solver));
+  CUSOLVER_CHECK(cusolverDnSetStream(g_solver, g_stream));
+}
+#endif
+
+void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
+#if POLYGEIST_HAS_CUSOLVER
+  if (n <= 0) return;
+  polygeist_cublas_init();
+  ensure_cusolver();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  double *dA = (double *)register_host_safe(
+      A, (size_t)n * (size_t)n * sizeof(double));
+  int workspace_elements = 0;
+  CUSOLVER_CHECK(cusolverDnDpotrf_bufferSize(
+      g_solver, CUBLAS_FILL_MODE_UPPER, n, dA, n, &workspace_elements));
+  double *workspace = NULL;
+  int *device_info = NULL;
+  DEVICE_MALLOC((void **)&workspace,
+                (size_t)workspace_elements * sizeof(double));
+  DEVICE_MALLOC((void **)&device_info, sizeof(int));
+  timing_gpu_begin();
+  CUSOLVER_CHECK(cusolverDnDpotrf(
+      g_solver, CUBLAS_FILL_MODE_UPPER, n, dA, n, workspace,
+      workspace_elements, device_info));
+  timing_gpu_end("cusolverDnDpotrfLowerRowMajor", n, n, 0, host_start_ms);
+  if (!in_pipeline_scope()) {
+    int info = 0;
+    CUDA_CHECK(cudaMemcpy(&info, device_info, sizeof(int),
+                          cudaMemcpyDeviceToHost));
+    if (info != 0) {
+      fprintf(stderr, "cuSOLVER DPOTRF failed: info=%d\n", info);
+      abort();
+    }
+  }
+  DEVICE_FREE(device_info);
+  DEVICE_FREE(workspace);
+#else
+  (void)n;
+  (void)A;
+  fprintf(stderr,
+          "polygeist cuSOLVER DPOTRF requested, but this runtime was built "
+          "without cuSOLVER support\n");
+  abort();
+#endif
 }
 
 // y = α·A·x + β·y, row-major.  Mirrors polygeist_cublas_dgemm structure
@@ -3303,6 +3406,7 @@ void polygeist_cudnn_stencil3d_7pt_f32_flat(
     int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z) {
   polygeist_cublas_init();
   ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   if (nx != out_x + 2 || ny != out_y + 2 || out_x <= 0 || out_y <= 0 ||
       out_z <= 0) {
     fprintf(stderr, "cuDNN 7pt stencil: inconsistent dense-grid dimensions\n");
@@ -3365,9 +3469,12 @@ void polygeist_cudnn_stencil3d_7pt_f32_flat(
   void *workspace = NULL;
   if (workspace_size) DEVICE_MALLOC(&workspace, workspace_size);
   float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
   CUDNN_CHECK(cudnnConvolutionForward(
       g_cudnn, &alpha, in_desc, d_input, filter_desc, d_filter, conv_desc,
       perf.algo, workspace, workspace_size, &beta, out_desc, d_output));
+  timing_gpu_end("cudnnStencil3D7pt_f32_flat", out_z, out_y * out_x, 27,
+                 host_start_ms);
 
   struct cudaMemcpy3DParms copy = {0};
   copy.srcPtr.ptr = d_output;
@@ -7905,6 +8012,19 @@ void polygeist_cub_segmented_prefix_logical_and_i32(
 
 #define INIT_DISPATCH_BEGIN(label) polygeist_cublas_init(); double hs=timing_enabled()?wall_time_ms():0.0; timing_gpu_begin()
 #define INIT_DISPATCH_END(label,n,st) do{if(st){fprintf(stderr,"polygeist " label " failed: %d\n",st);abort();}timing_gpu_end(label,n,0,0,hs);}while(0)
+void polygeist_cub_histogram_even_i32_shift_zero(
+    int32_t count, int32_t num_bins, const int32_t *samples,
+    int32_t *histogram, int32_t right_shift) {
+  typedef int (*F)(int32_t, int32_t, const int32_t *, int32_t *, int32_t,
+                   cudaStream_t);
+  static F f = NULL;
+  if (!f)
+    f = (F)polygeist_cub_companion_symbol(
+        "polygeist_cub_histogram_even_i32_shift_zero_cuda");
+  INIT_DISPATCH_BEGIN("cubHistogramEvenI32ShiftZero");
+  int st = f(count, num_bins, samples, histogram, right_shift, g_stream);
+  INIT_DISPATCH_END("cubHistogramEvenI32ShiftZero", count, st);
+}
 void polygeist_cub_count_nonzero1d_f32(int32_t n,const float*in,int32_t*out){typedef int(*F)(int32_t,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_count_nonzero1d_f32_cuda");INIT_DISPATCH_BEGIN("cubCountNonzero1D_f32");int st=f(n,in,out,g_stream);INIT_DISPATCH_END("cubCountNonzero1D_f32",n,st);}
 void polygeist_cub_segmented_count_nonzero2d_f32(int32_t r,int32_t c,const float*in,int32_t*out){typedef int(*F)(int32_t,int32_t,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_segmented_count_nonzero2d_f32_cuda");INIT_DISPATCH_BEGIN("cubSegmentedCountNonzero2D_f32");int st=f(r,c,in,out,g_stream);INIT_DISPATCH_END("cubSegmentedCountNonzero2D_f32",(int64_t)r*c,st);}
 void polygeist_cub_equal_all1d_f32(int32_t n,const float*a,const float*b,int32_t*out){typedef int(*F)(int32_t,const float*,const float*,int32_t*,cudaStream_t);static F f=NULL;if(!f)f=(F)polygeist_cub_companion_symbol("polygeist_cub_equal_all1d_f32_cuda");INIT_DISPATCH_BEGIN("cubEqualAll1D_f32");int st=f(n,a,b,out,g_stream);INIT_DISPATCH_END("cubEqualAll1D_f32",n,st);}

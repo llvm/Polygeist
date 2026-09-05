@@ -47,6 +47,9 @@ from structured_loop_egglog import (
 # pass currently knows how to turn into a runtime call; leave the rest as
 # residual Linalg so the normal MLIR lowering path preserves semantics.
 ABI_LOWERABLE_KERNELS = {
+    "cubHistogramEvenI32ShiftZero_memref",
+    "cublasDtrsvLowerRowMajor_memref",
+    "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
     "custenStencil2DXY_f64_memref",
@@ -3176,6 +3179,309 @@ def _render_cusparse_csr_spmv(
     return rendered
 
 
+def _render_dense_factorization_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize whole sequential algorithms hidden around Linalg reductions.
+
+    This intentionally starts with the two unambiguous PolyBench shapes.  A
+    library launch is emitted only after checking the surrounding recurrence,
+    diagonal access, update arithmetic, element type, and function operands;
+    recognizing an isolated dot-product generic would not be sufficient.
+    """
+    rendered: list[tuple[int, int, str, str, list[int]]] = []
+    loops = sorted(parse_loops(text),
+                   key=lambda loop: loop.span[1] - loop.span[0], reverse=True)
+    claimed: list[tuple[int, int]] = []
+    for loop in loops:
+        if any(start <= loop.span[0] and loop.span[1] <= end
+               for start, end in claimed):
+            continue
+        args = _enclosing_func_args(text, loop.span[0])
+        body = text[loop.span[0]:loop.span[1]]
+        prefix_start = text.rfind("func.func", 0, loop.span[0])
+        prefix = text[prefix_start:loop.span[0]] if prefix_start >= 0 else ""
+        if not args or not re.fullmatch(r"0 to (%[\w.$-]+)", loop.bounds):
+            continue
+        upper = re.fullmatch(r"0 to (%[\w.$-]+)", loop.bounds).group(1)
+        n_arg = args[0][0]
+        if args[0][1] != "i32" or not re.search(
+                rf"{re.escape(upper)}\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(n_arg)}\s*:\s*i32\s+to\s+index", prefix):
+            continue
+        iv = re.escape(loop.induction)
+        line_start = text.rfind("\n", 0, loop.span[0]) + 1
+        indent = text[line_start:loop.span[0]]
+        consumed = [i for i, inst in enumerate(instances)
+                    if loop.span[0] <= inst.span[0] and
+                    inst.span[1] <= loop.span[1]]
+
+        rhs_direct_read = bool(re.search(
+            rf"(?:affine|memref)\.load\s+{re.escape(args[3][0])}"
+            rf"\[{iv}\]", body)) if len(args) == 4 else False
+        rhs_tensor_read = False
+        if len(args) == 4:
+            rhs_tensor = re.search(
+                rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+                rf"{re.escape(args[3][0])}\b", prefix)
+            rhs_tensor_read = bool(
+                rhs_tensor and re.search(
+                    rf"tensor\.extract\s+{re.escape(rhs_tensor.group(1))}"
+                    rf"\[{iv}\]", body))
+
+        # Forward substitution: x[i]=b[i]; x[i]-=A[i,j]*x[j];
+        # x[i]/=A[i,i].  The loop-carried recurrence is the evidence for
+        # DTRSV, not a reason to leave the algorithm unmatched.
+        if (len(args) == 4 and args[1][1] == "memref<?x?xf64>" and
+                args[2][1] == "memref<?xf64>" and
+                args[3][1] == "memref<?xf64>" and
+                body.count("linalg.generic") == 1 and
+                'iterator_types = ["reduction"]' in body and
+                "arith.mulf" in body and "arith.subf" in body and
+                "arith.divf" in body and
+                re.search(rf"arith\.cmpi\s+slt,\s*%[\w.$-]+,\s*{iv}", body) and
+                re.search(rf"(?:affine|memref)\.load\s+{re.escape(args[1][0])}"
+                          rf"\[{iv},\s*{iv}\]", body) and
+                (rhs_direct_read or rhs_tensor_read) and
+                re.search(rf"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
+                          rf"{re.escape(args[2][0])}\[{iv}\]", body)):
+            symbol = "cublasDtrsvLowerRowMajor_memref"
+            launch = (
+                f"{indent}kernel.launch @{symbol}("
+                f"{args[1][0]}, {args[3][0]}, {args[2][0]}) : "
+                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()")
+            rendered.append((loop.span[0], loop.span[1], launch, symbol,
+                             consumed))
+            claimed.append(loop.span)
+            continue
+
+        # Unblocked lower Cholesky: an off-diagonal dot/subtract/divide
+        # recurrence followed by a diagonal sum-of-squares and sqrt.
+        if (len(args) == 2 and args[1][1] == "memref<?x?xf64>" and
+                body.count("linalg.generic") == 2 and
+                body.count('iterator_types = ["reduction"]') == 2 and
+                body.count("arith.mulf") >= 2 and
+                body.count("arith.subf") >= 2 and
+                "arith.divf" in body and "math.sqrt" in body and
+                re.search(rf"(?:affine|memref)\.load\s+{re.escape(args[1][0])}"
+                          rf"\[{iv},\s*{iv}\]", body) and
+                re.search(rf"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
+                          rf"{re.escape(args[1][0])}\[{iv},\s*{iv}\]", body)):
+            symbol = "cusolverDnDpotrfLowerRowMajor_memref"
+            launch = (
+                f"{indent}kernel.launch @{symbol}({args[1][0]}) : "
+                "(memref<?x?xf64>) -> ()")
+            rendered.append((loop.span[0], loop.span[1], launch, symbol,
+                             consumed))
+            claimed.append(loop.span)
+    return rendered
+
+
+def _render_zeroed_i32_histograms(
+        text: str) -> list[tuple[list[tuple[int, int, str]], str]]:
+    """Lower a zero-fill followed by a direct integer-bin count to CUB.
+
+    The zero-fill proof matters because DeviceHistogram overwrites its output,
+    whereas a general imperative read/add/write histogram may accumulate into
+    nonzero state.  The initial implementation also requires both loops to
+    cover their complete statically sized buffers.
+    """
+    loops = parse_loops(text)
+    generics = collect_generics_with_spans(text)
+    results: list[tuple[list[tuple[int, int, str]], str]] = []
+    for count_loop in loops:
+        count_body = text[count_loop.span[0]:count_loop.span[1]]
+        # Replacing the entire loop is valid only for a pure histogram update.
+        # In particular, reject fused scatter/output writes that merely happen
+        # to contain the same load-add-store subsequence.
+        if (count_body.count("affine.for") + count_body.count("scf.for") != 1 or
+                re.search(r"\b(?:func\.call|kernel\.launch|linalg\.)\b",
+                          count_body)):
+            continue
+        iv = re.escape(count_loop.induction)
+        sample = re.search(
+            rf"(%[\w.$-]+)\s*=\s*(?:affine|memref)\.load\s+"
+            rf"(%[\w.$-]+)\[{iv}\]\s*:\s*(memref<([^>]+)>)",
+            count_body)
+        if not sample or not sample.group(4).endswith("xi32"):
+            continue
+        sample_value, samples, samples_type = sample.group(1, 2, 3)
+        binned_value = sample_value
+        right_shift = None
+        shift = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.shrsi\s+"
+            rf"{re.escape(sample_value)},\s*(%[\w.$-]+)\s*:\s*i32",
+            count_body)
+        if shift:
+            binned_value, right_shift = shift.group(1), shift.group(2)
+        cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(binned_value)}\s*:\s*i32\s+to\s+index",
+            count_body)
+        if not cast:
+            continue
+        bin_index = cast.group(1)
+        old = re.search(
+            rf"(%[\w.$-]+)\s*=\s*memref\.load\s+(%[\w.$-]+)"
+            rf"\[{re.escape(bin_index)}\]\s*:\s*(memref<([^>]+)>)",
+            count_body)
+        if not old or not old.group(4).endswith("xi32"):
+            continue
+        old_value, histogram, histogram_type = old.group(1, 2, 3)
+        add = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+"
+            rf"(?:{re.escape(old_value)},\s*(%[\w.$-]+)|"
+            rf"(%[\w.$-]+),\s*{re.escape(old_value)})\s*:\s*i32",
+            count_body)
+        if not add:
+            continue
+        increment = add.group(2) or add.group(3)
+        prefix = text[text.rfind("func.func", 0, count_loop.span[0]):
+                      count_loop.span[0]]
+        if not re.search(
+                rf"{re.escape(increment)}\s*=\s*arith\.constant\s+1\s*:\s*i32",
+                prefix):
+            continue
+        direct_shift = right_shift is None
+        if direct_shift:
+            # Materialize the direct-histogram case with a zero shift.
+            right_shift = f"%histogram_shift_{count_loop.span[0]}"
+        elif not re.search(
+                rf"{re.escape(right_shift)}\s*=\s*arith\.constant\s+"
+                r"(?:[0-9]|[12][0-9]|30)\s*:\s*i32", prefix):
+            continue
+        next_value = add.group(1)
+        if not re.search(
+                rf"memref\.store\s+{re.escape(next_value)},\s*"
+                rf"{re.escape(histogram)}\[{re.escape(bin_index)}\]",
+                count_body):
+            continue
+        writes = re.findall(
+            r"(?:affine|memref)\.store\s+%[\w.$-]+,\s*(%[\w.$-]+)\[",
+            count_body)
+        if writes != [histogram]:
+            continue
+        reads = re.findall(
+            r"(?:affine|memref)\.load\s+(%[\w.$-]+)\[", count_body)
+        if len(reads) != 2 or set(reads) != {samples, histogram}:
+            continue
+
+        def static_extent(memref_type: str) -> int | None:
+            match = re.fullmatch(r"memref<(\d+)xi32>", memref_type)
+            return int(match.group(1)) if match else None
+
+        count_extent = static_extent(samples_type)
+        bin_extent = static_extent(histogram_type)
+        if count_extent is None or bin_extent is None:
+            continue
+        if count_loop.bounds != f"0 to {count_extent}":
+            continue
+        zero_span = None
+        for loop in loops:
+            if loop.span[1] >= count_loop.span[0]:
+                continue
+            if text.rfind("func.func", 0, loop.span[0]) != \
+                    text.rfind("func.func", 0, count_loop.span[0]):
+                continue
+            if loop.bounds != f"0 to {bin_extent}":
+                continue
+            zero_body = text[loop.span[0]:loop.span[1]]
+            ziv = re.escape(loop.induction)
+            if (zero_body.count("affine.for") + zero_body.count("scf.for") != 1 or
+                    re.search(r"\b(?:func\.call|kernel\.launch|linalg\.)\b",
+                              zero_body)):
+                continue
+            zero_writes = re.findall(
+                r"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
+                r"(%[\w.$-]+)\[", zero_body)
+            if zero_writes != [histogram]:
+                continue
+            if re.search(
+                    rf"(?:affine|memref)\.store\s+(%[\w.$-]+),\s*"
+                    rf"{re.escape(histogram)}\[{ziv}\]", zero_body):
+                zero_value = re.search(
+                    rf"(?:affine|memref)\.store\s+(%[\w.$-]+),\s*"
+                    rf"{re.escape(histogram)}\[{ziv}\]", zero_body).group(1)
+                before_zero = text[text.rfind("func.func", 0, loop.span[0]):
+                                   loop.span[0]]
+                if re.search(
+                        rf"{re.escape(zero_value)}\s*=\s*arith\.constant\s+0\s*:\s*i32",
+                        before_zero):
+                    zero_span = loop.span
+
+        # Debufferization commonly raises the full zero-fill loop into a
+        # one-output parallel linalg.generic immediately before leaving the
+        # data-dependent count loop imperative. Accept that equivalent form
+        # after proving the output is a complete identity view of the same
+        # static histogram and the body yields only integer zero.
+        if zero_span is None:
+            function_start = text.rfind("func.func", 0, count_loop.span[0])
+            for generic in generics:
+                if (generic.span[1] >= count_loop.span[0] or
+                        generic.span[0] <= function_start):
+                    continue
+                generic_text = text[generic.span[0]:generic.span[1]]
+                outs = _extract_ssa_names(generic.outs_part)
+                if (len(outs) != 1 or
+                        _extract_ssa_names(generic.ins_part) or
+                        generic_text.count("linalg.generic") != 1 or
+                        'iterator_types = ["parallel"]' not in generic_text):
+                    continue
+                before_generic = text[function_start:generic.span[0]]
+                view = outs[0]
+                extent_value = None
+                if view == histogram:
+                    extent_value = str(bin_extent)
+                else:
+                    view_match = re.search(
+                        rf"{re.escape(view)}\s*=\s*polygeist\.submap\("
+                        rf"{re.escape(histogram)},\s*(%[\w.$-]+)\)",
+                        before_generic)
+                    if view_match:
+                        extent_value = view_match.group(1)
+                if extent_value is None:
+                    continue
+                if extent_value != str(bin_extent) and not re.search(
+                        rf"{re.escape(extent_value)}\s*=\s*arith\.constant\s+"
+                        rf"{bin_extent}\s*:\s*index", before_generic):
+                    continue
+                yielded = re.fullmatch(
+                    r"\s*linalg\.generic[^\{]*\{[^\}]*\}\s*outs\([^\)]*\)\s*\{"
+                    r"\s*\^bb0\([^\)]*\):\s*linalg\.yield\s+(%[\w.$-]+)\s*"
+                    r":\s*i32\s*\}\s*",
+                    generic_text, flags=re.DOTALL)
+                if not yielded or not re.search(
+                        rf"{re.escape(yielded.group(1))}\s*=\s*"
+                        r"arith\.constant\s+0\s*:\s*i32", before_generic):
+                    continue
+                zero_span = generic.span
+        if zero_span is None:
+            continue
+        between = text[zero_span[1]:count_loop.span[0]]
+        if re.search(
+                rf"(?:affine|memref)\.(?:load|store)\s+[^\n]*"
+                rf"{re.escape(histogram)}\[", between):
+            continue
+        line_start = text.rfind("\n", 0, count_loop.span[0]) + 1
+        indent = text[line_start:count_loop.span[0]]
+        shift_line = (f"{right_shift} = arith.constant 0 : i32\n{indent}"
+                      if direct_shift else "")
+        uid = count_loop.span[0]
+        samples_cast = f"%histogram_samples_{uid}"
+        output_cast = f"%histogram_output_{uid}"
+        replacement = (
+            f"{indent}{shift_line}{samples_cast} = memref.cast {samples} : "
+            f"{samples_type} to memref<?xi32>\n"
+            f"{indent}{output_cast} = memref.cast {histogram} : "
+            f"{histogram_type} to memref<?xi32>\n"
+            f"{indent}kernel.launch @cubHistogramEvenI32ShiftZero_memref("
+            f"{samples_cast}, {output_cast}, {right_shift}) : "
+            "(memref<?xi32>, memref<?xi32>, i32) -> ()")
+        results.append(([(zero_span[0], zero_span[1], ""),
+                         (count_loop.span[0], count_loop.span[1], replacement)],
+                        "cubHistogramEvenI32ShiftZero_memref"))
+    return results
+
+
 def rewrite_mlir(
     text: str,
     dry_run: bool = False,
@@ -3289,6 +3595,22 @@ def rewrite_mlir(
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
     if enable_structured_rewrite:
+        for histogram_edits, symbol in _render_zeroed_i32_histograms(text):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.extend(histogram_edits)
+            report.append(("match", [], symbol + "[zero+indirect-count]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in \
+                _render_dense_factorization_regions(text, instances):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-algorithm]"))
+            emitted_launches += 1
         for start, end, replacement, symbol in _render_cusparse_csr_spmv(text):
             if max_launches is not None and emitted_launches >= max_launches:
                 report.append(("launch_limit", [], symbol))

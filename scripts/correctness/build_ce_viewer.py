@@ -246,6 +246,14 @@ GINSBACH_SUMMARY = env_path(
     "POLYGEIST_GINSBACH_SUMMARY",
     REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
 )
+GINSBACH_SILICON = env_path(
+    "POLYGEIST_GINSBACH_SILICON",
+    REPO_ROOT / "issues/ginsbach_asplos18/silicon_results_2026-09-05.csv",
+)
+GINSBACH_AUDIT_ROOT = env_path(
+    "POLYGEIST_GINSBACH_AUDIT_ROOT",
+    "/tmp/ginsbach_external_hist_fact",
+)
 REWRITER = env_path("POLYGEIST_KERNEL_MATCH_REWRITER", SCRIPT_DIR / "kernel_match_rewrite.py")
 PYTHON = os.environ.get("PYTHON", sys.executable)
 POLYGEIST_OPT = env_path("POLYGEIST_OPT", REPO_ROOT / "build/bin/polygeist-opt")
@@ -1043,8 +1051,8 @@ KERNEL_NOTES: dict[str, tuple[str, str]] = {
 
     # Strictly serial / poor GPU fit.
     "cholesky":      ("serial",
-                      "L·Lᵀ factorization — outer k column update carries "
-                      "dependency to all later columns; small inner parallelism"),
+                      "source recurrence is serial, but the complete algorithm "
+                      "is recovered as a cuSOLVER DPOTRF library operation"),
     "lu":            ("serial",
                       "LU factorization — same column-sequential pattern as cholesky"),
     "ludcmp":        ("serial",
@@ -1054,8 +1062,8 @@ KERNEL_NOTES: dict[str, tuple[str, str]] = {
                       "modified Gram-Schmidt — each column projects against ALL "
                       "previously orthogonalized columns; strictly sequential"),
     "trisolv":       ("serial",
-                      "triangular solve — y[i] depends on y[0..i-1]; sequential "
-                      "row-by-row"),
+                      "source recurrence is sequential row-by-row, but the complete "
+                      "algorithm is recovered as a cuBLAS DTRSV operation"),
     "durbin":        ("serial",
                       "Levinson-Durbin recurrence — O(N²) outer loop with full "
                       "scalar carry (α, β) between iterations; needs persistent "
@@ -1091,10 +1099,10 @@ POLYBENCH_BLOCKERS: dict[str, tuple[str, str]] = {
     "2mm":           ("none",              ""),
     "3mm":           ("none",              ""),
     "doitgen":       ("matcher-gap",       "lifts; the per-iter scratch-copy body isn't in the library"),
-    "cholesky":      ("serial-recurrence", "lower-triangular factorization — column k modifies columns 0..k-1, k+1..N-1 depends on them"),
+    "cholesky":      ("none",              ""),
     "gramschmidt":   ("serial-recurrence", "column-by-column modified Gram-Schmidt — column k+1 reads what column k just wrote"),
     "lu":            ("serial-recurrence", "LU factorization — pivot row k modifies rows >k that subsequent iterations consume"),
-    "trisolv":       ("serial-recurrence", "triangular solve — y[i] depends on y[0..i-1]"),
+    "trisolv":       ("none",              ""),
     "ludcmp":        ("serial-recurrence", "LU + triangular solve — both phases have row-by-row carry"),
     "durbin":        ("serial-recurrence", "Levinson-Durbin recurrence — alpha/beta scalars carried across outer k iterations"),
     "heat-3d":       ("t-loop",            "7-point 3D Laplacian update; T-step outer loop is serial, inner 3D body parallel"),
@@ -1319,6 +1327,16 @@ POLYBENCHGPU_RUNTIMES: dict[str, list[dict]] = {
     "gemver": [
         {"size": "512 warmed", "raised_ms": 0.188384, "pbgpu_ms": 0.312846,
          "notes": "Raised path is warmed ger/gemv/axpy sequence"},
+    ],
+    "cholesky": [
+        {"size": "ABI smoke N=3", "raised": "host 1.145 ms<br>device 1.084 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "3/3 PASS on Orin; complete recurrence recovered as cuSOLVER DPOTRF"},
+    ],
+    "trisolv": [
+        {"size": "ABI smoke N=3", "raised": "host 2.313 ms<br>device 2.115 ms",
+         "reference": "not measured", "winner": "raised-only",
+         "notes": "3/3 PASS on Orin; complete recurrence recovered as cuBLAS DTRSV"},
     ],
 }
 
@@ -1903,9 +1921,14 @@ def count_for_loops(text: str) -> int:
 
 
 def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
+    # Keep the static viewer on the production matcher path. Whole-algorithm
+    # routes such as histogram, Trisolv, Cholesky, and CSR SpMV live in the
+    # structured rewrite stage rather than in single-linalg-op matching.
+    command = [PYTHON, str(REWRITER), str(path),
+               "--enable-structured-rewrite"]
     try:
         res = subprocess.run(
-            [PYTHON, str(REWRITER), str(path)],
+            command,
             capture_output=True, text=True, timeout=10,
         )
     except subprocess.TimeoutExpired:
@@ -5604,6 +5627,8 @@ def _polybenchgpu_page(polybench_stats: dict[str, dict]) -> str:
         else:
             abi_cell = '<td style="color:#999">no launch</td>'
         for run in POLYBENCHGPU_RUNTIMES[kernel]:
+            if "raised_ms" not in run or "pbgpu_ms" not in run:
+                continue
             raised = float(run["raised_ms"])
             handwritten = float(run["pbgpu_ms"])
             ratio = handwritten / raised
@@ -5671,6 +5696,115 @@ def _refresh_existing_landing_backend_links(polybench_stats: dict[str, dict]) ->
     landing_path.write_text(text)
 
 
+def _ginsbach_artifact_stem(source: str) -> str:
+    """Mirror ginsbach_asplos18_audit.py's per-source directory naming."""
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", source)
+
+
+def _build_ginsbach_detail_pages() -> dict[tuple[str, str], str]:
+    """Render program and translation-unit C → Linalg → matcher pages."""
+    unit_rows = _read_csv(GINSBACH_AUDIT_ROOT / "translation_units.csv")
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in unit_rows:
+        key = (row.get("suite", ""), row.get("program", ""))
+        grouped.setdefault(key, []).append(row)
+
+    program_links: dict[tuple[str, str], str] = {}
+    for (suite, program), units in sorted(grouped.items()):
+        program_slug = re.sub(r"[^A-Za-z0-9_.-]", "_", f"{suite}_{program}")
+        program_page = f"ginsbach_{program_slug}.html"
+        program_links[(suite, program)] = program_page
+        unit_table_rows = []
+
+        for unit in sorted(units, key=lambda item: item.get("source", "")):
+            source_rel = unit.get("source", "")
+            source_path = REPO_ROOT / source_rel
+            artifact_dir = (
+                GINSBACH_AUDIT_ROOT / "units"
+                / _ginsbach_artifact_stem(source_rel)
+            )
+            unit_slug = _ginsbach_artifact_stem(source_rel)
+            unit_page = f"ginsbach_unit_{unit_slug}.html"
+            stages = [
+                ("source", "Original C/C++ source", source_path),
+                ("cgeist", "cgeist output (pre-raise MLIR)",
+                 artifact_dir / "affine.mlir"),
+                ("linalg", "Raised + debufferized Linalg",
+                 artifact_dir / "linalg.mlir"),
+                ("matched", "Matcher-generated IR (kernel.launch)",
+                 artifact_dir / "matched.mlir"),
+            ]
+            available = [(name, title, path) for name, title, path in stages
+                         if path.exists()]
+            stage_links = " · ".join(
+                f'<a href="{unit_page}#{name}">{html.escape(title)}</a>'
+                for name, title, _ in available
+            ) or '<span class="nope">artifacts unavailable</span>'
+            unit_name = Path(source_rel).name
+            unit_table_rows.append(
+                '<tr>'
+                f'<td><a class="kernel" href="{unit_page}">'
+                f'{html.escape(unit_name)}</a></td>'
+                f'<td><code>{html.escape(source_rel)}</code></td>'
+                f'<td>{unit.get("linalg_generics", "0")}</td>'
+                f'<td>{unit.get("kernel_launches", "0")}</td>'
+                f'<td>{stage_links}</td>'
+                '</tr>'
+            )
+
+            jump_links = " · ".join(
+                f'<a href="#{name}">{html.escape(title)}</a>'
+                for name, title, _ in available
+            )
+            unit_body = (
+                f'<div class="header"><h1><a href="{program_page}">'
+                f'← {html.escape(suite)} / {html.escape(program)}</a> '
+                f'&nbsp; {html.escape(unit_name)}</h1></div>'
+                '<div class="summary" style="padding:8px 20px; '
+                'border-bottom:1px solid #eee;background:#fafafa;font-size:13px;">'
+                f'<b>{unit.get("linalg_generics", "0")}</b> linalg.generic '
+                f'&nbsp;·&nbsp; <b>{unit.get("kernel_launches", "0")}</b> '
+                f'kernel.launch &nbsp;|&nbsp; {jump_links}</div>'
+            )
+            for name, title, path in available:
+                rendered, _ = syntax_highlight(
+                    path.read_text(errors="replace"),
+                    "c" if name == "source" else "llvm",
+                )
+                unit_body += (
+                    f'<h2 id="{name}">{html.escape(title)}</h2>'
+                    f'<div class="container">{rendered}</div>'
+                )
+            if not available:
+                unit_body += (
+                    '<div class="intro"><b>Artifacts unavailable.</b> Rerun '
+                    '<code>ginsbach_asplos18_audit.py</code> and point '
+                    '<code>POLYGEIST_GINSBACH_AUDIT_ROOT</code> at its output.'
+                    '</div>'
+                )
+            OUTPUT_DIR.joinpath(unit_page).write_text(
+                render_html(f"{program}: {unit_name}", unit_body, "")
+            )
+
+        program_body = (
+            '<div class="header"><h1><a href="ginsbach.html">'
+            '← Ginsbach ASPLOS\'18</a> &nbsp; '
+            f'{html.escape(suite)} / {html.escape(program)}</h1></div>'
+            '<div class="intro">Click a translation unit to inspect its '
+            'original source, raised Linalg, and exact matcher-generated IR. '
+            'The counts are static operations in the corpus audit, not '
+            'dynamic runtime invocations.</div>'
+            '<table><thead><tr><th>translation unit</th><th>source path</th>'
+            '<th>linalg</th><th>launches</th><th>direct views</th>'
+            '</tr></thead><tbody>' + ''.join(unit_table_rows)
+            + '</tbody></table>'
+        )
+        OUTPUT_DIR.joinpath(program_page).write_text(
+            render_html(f"Ginsbach: {suite}/{program}", program_body, "")
+        )
+    return program_links
+
+
 def _ginsbach_page() -> tuple[str, int]:
     """Render the external-library-only ASPLOS'18 corpus audit."""
     rows = _read_csv(GINSBACH_SUMMARY)
@@ -5691,21 +5825,37 @@ def _ginsbach_page() -> tuple[str, int]:
         field: sum(int(row.get(field, 0) or 0) for row in rows)
         for field in numeric_fields
     }
+    # Memory initialization sites are intentionally excluded from this
+    # computational comparison. They remain in the raw audit snapshot, but do
+    # not count toward library-compute coverage or silicon validation.
+    memory_only_launches = {
+        ("snu-npb", "BT"): 6,
+        ("snu-npb", "LU"): 1,
+    }
+    computational_launches = totals["kernel_launches"] - sum(
+        memory_only_launches.values()
+    )
     backend_routes = {
-        ("snu-npb", "BT"): "CUDA memset ×6",
         ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
-        ("snu-npb", "LU"): "CUDA memset ×1",
+        ("snu-npb", "IS"): "CUB DeviceHistogram ×6",
         ("snu-npb", "UA"): "cuBLAS DAXPBY ×3 + Ddot ×14",
         ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
         ("parboil", "stencil"): "cuDNN 3D convolution ×1",
     }
+    silicon_rows = _read_csv(GINSBACH_SILICON)
+    silicon = {
+        (row.get("suite", ""), row.get("program", "")): row
+        for row in silicon_rows
+    }
+    program_links = _build_ginsbach_detail_pages()
 
     metric_specs = (
         ("Translation units", totals["units"]),
         ("Frontend passed", totals["frontend_ok"]),
         ("Raise passed", totals["raise_ok"]),
         ("Linalg generics", totals["linalg_generics"]),
-        ("External launches", totals["kernel_launches"]),
+        ("Computational launches", computational_launches),
+        ("Silicon-validated programs", len(silicon_rows)),
         ("Published idioms", totals["published_idioms"]),
     )
     metrics = ''.join(
@@ -5716,18 +5866,41 @@ def _ginsbach_page() -> tuple[str, int]:
     body_rows = []
     for row in rows:
         key = (row.get("suite", ""), row.get("program", ""))
-        launches = int(row.get("kernel_launches", 0) or 0)
+        raw_launches = int(row.get("kernel_launches", 0) or 0)
+        launches = raw_launches - memory_only_launches.get(key, 0)
         launch_class = "pass" if launches else "nope"
-        route = backend_routes.get(key, "—")
+        route = backend_routes.get(
+            key, "— (memory-only excluded)" if raw_launches else "—"
+        )
+        silicon_row = silicon.get(key)
+        if silicon_row:
+            validation = (
+                f'<span class="pass">{html.escape(silicon_row.get("status", "PASS"))}</span>'
+                f'<br><small>{html.escape(silicon_row.get("validation_scope", ""))}</small>'
+            )
+            runtime = html.escape(silicon_row.get("runtime", "not measured"))
+        else:
+            validation = '<span class="nope">not run</span>'
+            runtime = "—"
+        program_name = html.escape(row.get("program", ""))
+        if key in program_links:
+            program_cell = (
+                f'<a class="kernel" href="{program_links[key]}">'
+                f'{program_name}</a>'
+            )
+        else:
+            program_cell = f'<b>{program_name}</b>'
         body_rows.append(
             '<tr>'
             f'<td>{html.escape(row.get("suite", ""))}</td>'
-            f'<td><b>{html.escape(row.get("program", ""))}</b></td>'
+            f'<td>{program_cell}</td>'
             f'<td>{row.get("units", "0")}</td>'
             f'<td>{row.get("raise_ok", "0")}/{row.get("units", "0")}</td>'
             f'<td>{row.get("linalg_generics", "0")}</td>'
             f'<td class="{launch_class}">{launches}</td>'
             f'<td>{html.escape(route)}</td>'
+            f'<td>{validation}</td>'
+            f'<td>{runtime}</td>'
             f'<td>{row.get("structured_fusions", "0")}</td>'
             f'<td>{row.get("structured_reductions", "0")}</td>'
             f'<td>{row.get("structured_stencils", "0")}</td>'
@@ -5742,8 +5915,11 @@ def _ginsbach_page() -> tuple[str, int]:
         '21 benchmark programs. Structural Egglog detections are shown '
         'separately from executable launches: only matches that lower to a '
         'pre-existing external library or CUDA platform API count as '
-        'launches. These are coverage results, not an end-to-end performance '
-        'comparison with the paper.</div>'
+        'computational launches. CUDA memset sites are excluded. Silicon '
+        'status and runtime scope are reported separately so a library smoke '
+        'is never presented as a full-application measurement. Click any '
+        'program name to inspect its translation units and their source, '
+        'raised Linalg, and matcher-generated IR.</div>'
         f'<div class="audit-metrics">{metrics}</div>'
         '<div class="intro"><b>Analysis-only inventory:</b> '
         f'{totals["structured_fusions"]} Egglog-proved structured regions; '
@@ -5754,14 +5930,18 @@ def _ginsbach_page() -> tuple[str, int]:
         'These candidates do not count as executable matches.</div>'
         '<table class="audit-table"><thead><tr>'
         '<th>suite</th><th>program</th><th>units</th><th>raised</th>'
-        '<th>linalg</th><th>external launches</th><th>external route</th>'
+        '<th>linalg</th><th>compute launches</th><th>external route</th>'
+        '<th>silicon validation</th><th>silicon runtime</th>'
         '<th>Egglog regions</th><th>reductions</th><th>stencils</th>'
         '<th>histograms</th><th>paper idioms</th>'
         '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
-        '<div class="intro"><b>Silicon evidence:</b> cuBLAS SGEMM, cuBLAS '
-        'DAXPBY/Ddot, CUDA memset, cuSPARSE CSR SpMV, cuDNN 3D stencil, and '
-        'the cuSten adapter smokes have passed on Orin #2. Full-application '
-        'validation remains pending for CG, UA, and Parboil stencil. See '
+        '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S is a '
+        'complete verified application run (0.13 s). Parboil SGEMM is a '
+        'source-faithful kernel run with a 16.620 ms median host-call time. '
+        'NPB UA DAXPBY/Ddot and the Parboil seven-point stencil have passed '
+        'timed external-library correctness smokes. NPB IS has also passed a '
+        'timed CUB histogram ABI smoke. Their exact sizes and '
+        'host/device timing scopes are shown in the table. See '
         '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the '
         'exact evidence and remaining gaps.</div>'
     )
@@ -6080,7 +6260,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
                + len(mfem_application_extraction_stats),
                "Original/normalized FEM kernels and larger application hot paths.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
-               "103/103 units raised; external-library matches kept separate from structural candidates.")
+               "103/103 units raised; 23 compute launches and 4 silicon-validated program rows.")
         + card("ai.html", "AI kernels",
                len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
                "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")
@@ -6162,15 +6342,28 @@ def main():
     mfem_only = "--mfem-only" in sys.argv[1:]
     aten_only = "--aten-only" in sys.argv[1:]
     polybench_only = "--polybench-only" in sys.argv[1:]
+    ginsbach_only = "--ginsbach-only" in sys.argv[1:]
     unknown_args = [
         arg for arg in sys.argv[1:]
-        if arg not in ("--mfem-only", "--aten-only", "--polybench-only")
+        if arg not in (
+            "--mfem-only", "--aten-only", "--polybench-only",
+            "--ginsbach-only",
+        )
     ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
-    if sum((mfem_only, aten_only, polybench_only)) > 1:
+    if sum((mfem_only, aten_only, polybench_only, ginsbach_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if ginsbach_only:
+        pages = build_site_pages(
+            {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("ginsbach.html").write_text(
+            pages["ginsbach.html"]
+        )
+        print(f"Done. Open {OUTPUT_DIR}/ginsbach.html.")
+        return
     if mfem_only:
         for stale in OUTPUT_DIR.glob("mfem_*.html"):
             stale.unlink()
