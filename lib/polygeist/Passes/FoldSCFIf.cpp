@@ -313,6 +313,189 @@ static bool getCompareOperands(Value condition, Value &lhs, Value &rhs) {
   return true;
 }
 
+struct LinearIndexForm {
+  llvm::DenseMap<Value, int64_t> coefficients;
+  int64_t constant = 0;
+
+  bool operator==(const LinearIndexForm &other) const {
+    return constant == other.constant && coefficients == other.coefficients;
+  }
+};
+
+static bool addLinearValue(Value value, int64_t scale, LinearIndexForm &form) {
+  if (auto cast = value.getDefiningOp<arith::IndexCastOp>())
+    return addLinearValue(cast.getIn(), scale, form);
+  if (auto add = value.getDefiningOp<arith::AddIOp>())
+    return addLinearValue(add.getLhs(), scale, form) &&
+           addLinearValue(add.getRhs(), scale, form);
+  if (auto sub = value.getDefiningOp<arith::SubIOp>())
+    return addLinearValue(sub.getLhs(), scale, form) &&
+           addLinearValue(sub.getRhs(), -scale, form);
+  Attribute constant;
+  if (matchPattern(value, m_Constant(&constant))) {
+    auto integer = dyn_cast<IntegerAttr>(constant);
+    if (!integer)
+      return false;
+    form.constant += scale * integer.getInt();
+    return true;
+  }
+  form.coefficients[value] += scale;
+  if (form.coefficients[value] == 0)
+    form.coefficients.erase(value);
+  return true;
+}
+
+static bool addLinearExpr(AffineExpr expression, ValueRange dims,
+                          ValueRange symbols, int64_t scale,
+                          LinearIndexForm &form) {
+  if (auto constant = expression.dyn_cast<AffineConstantExpr>()) {
+    form.constant += scale * constant.getValue();
+    return true;
+  }
+  if (auto dim = expression.dyn_cast<AffineDimExpr>())
+    return addLinearValue(dims[dim.getPosition()], scale, form);
+  if (auto symbol = expression.dyn_cast<AffineSymbolExpr>())
+    return addLinearValue(symbols[symbol.getPosition()], scale, form);
+  auto binary = expression.dyn_cast<AffineBinaryOpExpr>();
+  if (!binary)
+    return false;
+  if (binary.getKind() == AffineExprKind::Add)
+    return addLinearExpr(binary.getLHS(), dims, symbols, scale, form) &&
+           addLinearExpr(binary.getRHS(), dims, symbols, scale, form);
+  if (binary.getKind() != AffineExprKind::Mul)
+    return false;
+  auto lhsConstant = binary.getLHS().dyn_cast<AffineConstantExpr>();
+  auto rhsConstant = binary.getRHS().dyn_cast<AffineConstantExpr>();
+  if (lhsConstant)
+    return addLinearExpr(binary.getRHS(), dims, symbols,
+                         scale * lhsConstant.getValue(), form);
+  if (rhsConstant)
+    return addLinearExpr(binary.getLHS(), dims, symbols,
+                         scale * rhsConstant.getValue(), form);
+  return false;
+}
+
+static bool sameLinearBound(Value value, AffineMap map, ValueRange operands) {
+  if (map.getNumResults() != 1)
+    return false;
+  LinearIndexForm valueForm, mapForm;
+  if (!addLinearValue(value, 1, valueForm) ||
+      !addLinearExpr(map.getResult(0),
+                     operands.take_front(map.getNumDims()),
+                     operands.drop_front(map.getNumDims()), 1, mapForm))
+    return false;
+  return valueForm == mapForm;
+}
+
+// C frontends commonly preserve a source-level non-empty-loop check around a
+// dynamic loop even though scf.for already has zero-trip semantics:
+//
+//   %nonempty = arith.cmpi sgt, %ub, %lb
+//   scf.if %nonempty {
+//     scf.for %i = %lb to %ub step %step { ... }
+//   }
+//
+// Removing this exact wrapper is not speculation: both forms execute the loop
+// iff lb < ub.  Besides simplifying the CFG, this lets raise-scf-to-affine see
+// dynamic bounds that were otherwise hidden behind an scf.if region.  Keep the
+// pattern deliberately narrow (no results, no else, and exactly one loop) so
+// setup code or other conditionally-executed effects are never moved.
+static bool foldRedundantNonEmptyLoopGuard(scf::IfOp ifOp) {
+  if (ifOp.getNumResults() != 0 || ifOp.elseBlock())
+    return false;
+
+  Block *body = ifOp.thenBlock();
+  if (!body)
+    return false;
+
+  SmallVector<Operation *> operations;
+  for (Operation &op : body->without_terminator())
+    operations.push_back(&op);
+  if (operations.empty())
+    return false;
+
+  Operation &only = *operations.back();
+  Value lowerBound, upperBound;
+  if (auto loop = dyn_cast<scf::ForOp>(only)) {
+    lowerBound = loop.getLowerBound();
+    upperBound = loop.getUpperBound();
+  } else if (!isa<affine::AffineForOp>(only)) {
+    return false;
+  }
+
+  auto compare = ifOp.getCondition().getDefiningOp<arith::CmpIOp>();
+  if (!compare)
+    return false;
+
+  bool sameLower = false, sameUpper = false;
+  if (auto loop = dyn_cast<scf::ForOp>(only)) {
+    sameLower = compare.getRhs() == loop.getLowerBound();
+    sameUpper = compare.getLhs() == loop.getUpperBound();
+  } else {
+    auto affineLoop = cast<affine::AffineForOp>(only);
+    sameLower = sameLinearBound(compare.getRhs(), affineLoop.getLowerBoundMap(),
+                                affineLoop.getLowerBoundOperands());
+    sameUpper = sameLinearBound(compare.getLhs(), affineLoop.getUpperBoundMap(),
+                                affineLoop.getUpperBoundOperands());
+  }
+  bool equivalent =
+      (compare.getPredicate() == arith::CmpIPredicate::sgt && sameUpper &&
+       sameLower);
+  if (!equivalent && compare.getPredicate() == arith::CmpIPredicate::slt) {
+    if (auto loop = dyn_cast<scf::ForOp>(only))
+      equivalent = compare.getLhs() == loop.getLowerBound() &&
+                   compare.getRhs() == loop.getUpperBound();
+    else {
+      auto affineLoop = cast<affine::AffineForOp>(only);
+      equivalent =
+          sameLinearBound(compare.getLhs(), affineLoop.getLowerBoundMap(),
+                          affineLoop.getLowerBoundOperands()) &&
+          sameLinearBound(compare.getRhs(), affineLoop.getUpperBoundMap(),
+                          affineLoop.getUpperBoundOperands());
+    }
+  }
+  if (!equivalent)
+    return false;
+
+  // cgeist may compute a later dimension's bound immediately before the
+  // guarded loop. Loads and effect-free scalar address arithmetic are safe to
+  // speculate, and moving them makes the loop the only guarded operation.
+  for (Operation *op : llvm::drop_end(operations)) {
+    if ((!isLoadLike(*op) && !isMemoryEffectFree(op)) ||
+        op->getNumRegions() != 0)
+      return false;
+  }
+  for (Operation *op : llvm::drop_end(operations))
+    op->moveBefore(ifOp);
+  only.moveBefore(ifOp);
+  ifOp.erase();
+  return true;
+}
+
+// Hoist a branch-local prefix that is safe to speculate.  cgeist often emits
+// dynamic-bound loads and arithmetic inside a non-empty guard, before the
+// first loop.  Keeping those values in the scf.if region prevents them from
+// being legal affine symbols even though they do not depend on the branch.
+static bool hoistSpeculatableGuardPrefix(scf::IfOp ifOp) {
+  if (ifOp.getNumResults() != 0 || ifOp.elseBlock())
+    return false;
+
+  SmallVector<Operation *> prefix;
+  for (Operation &op : ifOp.thenBlock()->without_terminator()) {
+    if (op.getNumRegions() != 0)
+      break;
+    if (!isLoadLike(op) && !isMemoryEffectFree(&op))
+      break;
+    prefix.push_back(&op);
+  }
+  if (prefix.empty())
+    return false;
+
+  for (Operation *op : prefix)
+    op->moveBefore(ifOp);
+  return true;
+}
+
 static LogicalResult foldGuardedStoreUpdate(scf::IfOp ifOp, OpBuilder &b) {
   if (ifOp.elseBlock() || ifOp.getNumResults() != 0)
     return failure();
@@ -656,6 +839,12 @@ static bool foldSCFIf(scf::IfOp ifOp, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
   LLVM_DEBUG(llvm::dbgs() << "Working on scf.if:\n" << ifOp << "\n");
+
+  if (foldRedundantNonEmptyLoopGuard(ifOp))
+    return true;
+
+  if (hoistSpeculatableGuardPrefix(ifOp))
+    return true;
 
   // Fold scalar store-update idioms such as softmax/reduce-max:
   //   if (%candidate > %old) store %candidate, %slot

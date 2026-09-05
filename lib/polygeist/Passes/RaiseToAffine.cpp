@@ -4,6 +4,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
@@ -11,6 +12,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
+#include "polygeist/Ops.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "raise-to-affine"
@@ -25,6 +27,82 @@ struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
   void runOnOperation() override;
 };
 } // namespace
+
+// Hoist an invariant load from a named global only when the loop contains no
+// call and no store that may alias that global. Standard LICM must conservatively
+// retain mutable loads; the distinct-global check gives us the missing proof
+// for C programs that keep runtime dimensions in a separate global array.
+static bool hoistInvariantGlobalLoads(affine::AffineForOp loop) {
+  auto isDefinedInside = [&](Value value) {
+    if (Operation *def = value.getDefiningOp())
+      return loop->isProperAncestor(def);
+    auto argument = dyn_cast<BlockArgument>(value);
+    if (!argument)
+      return false;
+    Operation *owner = argument.getOwner()->getParentOp();
+    return owner == loop.getOperation() || loop->isProperAncestor(owner);
+  };
+
+  SmallVector<Operation *> candidates;
+  for (Operation &op : loop.getBody()->without_terminator()) {
+    auto affineLoad = dyn_cast<affine::AffineLoadOp>(op);
+    auto plainLoad = dyn_cast<memref::LoadOp>(op);
+    Value memref = affineLoad ? affineLoad.getMemref()
+                              : plainLoad ? plainLoad.getMemref() : Value();
+    if (!memref || !memref.getDefiningOp<memref::GetGlobalOp>())
+      continue;
+
+    bool invariantIndices = llvm::all_of(
+        affineLoad ? affineLoad.getMapOperands() : plainLoad.getIndices(),
+        [&](Value index) { return !isDefinedInside(index); });
+    if (!invariantIndices)
+      continue;
+
+    bool unsafe = false;
+    loop.walk([&](Operation *nested) {
+      if (nested == loop.getOperation())
+        return;
+      if (isa<CallOpInterface, LLVM::StoreOp>(nested)) {
+        unsafe = true;
+        return;
+      }
+      Value written;
+      if (auto store = dyn_cast<affine::AffineStoreOp>(nested))
+        written = store.getMemref();
+      else if (auto store = dyn_cast<memref::StoreOp>(nested))
+        written = store.getMemref();
+      if (written && mayAlias(memref, written))
+        unsafe = true;
+    });
+    if (!unsafe)
+      candidates.push_back(&op);
+  }
+
+  if (candidates.empty())
+    return false;
+  for (Operation *candidate : candidates)
+    candidate->moveBefore(loop);
+
+  // Move invariant scalar users (casts and address arithmetic) along with the
+  // load. Iterate because each moved definition can make the next op movable.
+  bool localChange;
+  do {
+    localChange = false;
+    for (Operation &op : llvm::make_early_inc_range(
+             loop.getBody()->without_terminator())) {
+      if (op.getNumRegions() != 0 || !isMemoryEffectFree(&op))
+        continue;
+      bool invariant = llvm::all_of(op.getOperands(), [&](Value operand) {
+        return !isDefinedInside(operand);
+      });
+      if (!invariant)
+        continue;
+      op.moveBefore(loop);
+      localChange = true;
+    }
+  } while (localChange);
+  return true;
+}
 
 struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
@@ -275,6 +353,12 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 };
 
 void RaiseSCFToAffine::runOnOperation() {
+  SmallVector<affine::AffineForOp> affineLoops;
+  getOperation()->walk(
+      [&](affine::AffineForOp loop) { affineLoops.push_back(loop); });
+  for (affine::AffineForOp loop : llvm::reverse(affineLoops))
+    hoistInvariantGlobalLoads(loop);
+
   RewritePatternSet patterns(&getContext());
   patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());
 

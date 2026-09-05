@@ -34,6 +34,38 @@ using namespace polygeist;
 using namespace affine;
 using namespace linalg;
 
+// Keep loop-domain arithmetic outside the payload before an inner loop is
+// folded into linalg.generic. Otherwise a later enclosing-loop raise can need
+// a dimension value that was accidentally captured inside the generic body.
+struct HoistPureAffineLoopInvariants
+    : public OpRewritePattern<affine::AffineForOp> {
+  HoistPureAffineLoopInvariants(MLIRContext *context,
+                                PatternBenefit benefit = 1)
+      : OpRewritePattern<affine::AffineForOp>(context, benefit) {}
+
+  LogicalResult matchAndRewrite(affine::AffineForOp loop,
+                                PatternRewriter &rewriter) const final {
+    auto isInside = [&](Value value) {
+      if (Operation *def = value.getDefiningOp())
+        return loop->isProperAncestor(def);
+      auto argument = dyn_cast<BlockArgument>(value);
+      if (!argument)
+        return false;
+      Operation *owner = argument.getOwner()->getParentOp();
+      return owner == loop.getOperation() || loop->isProperAncestor(owner);
+    };
+
+    for (Operation &op : loop.getBody()->without_terminator()) {
+      if (op.getNumRegions() != 0 || !isMemoryEffectFree(&op) ||
+          llvm::any_of(op.getOperands(), isInside))
+        continue;
+      op.moveBefore(loop);
+      return success();
+    }
+    return failure();
+  }
+};
+
 // Recover a flattened C pointer initialization as a rank-independent linalg
 // fill.  cgeist commonly emits this for `memset` and fixed-size zero loops:
 //
@@ -2263,6 +2295,13 @@ struct FuseScalarAddReductionIntoOutput
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
+    // A generic formed below a still-sequential SCF loop may capture that
+    // loop's induction variable.  An enclosing affine raise would then move
+    // its submap outside the SCF region, violating dominance. Wait until the
+    // surrounding SCF loop itself has been normalized to affine.
+    if (loop->getParentOfType<scf::ForOp>() ||
+        loop->getParentOfType<scf::IfOp>())
+      return failure();
     if (loop.getNumResults() != 0)
       return failure();
 
@@ -2468,6 +2507,15 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
+    if (loop->getParentOfType<scf::ForOp>() ||
+        loop->getParentOfType<scf::IfOp>())
+      return failure();
+    bool containsSCFLoop = false;
+    loop.walk([&](scf::ForOp) { containsSCFLoop = true; });
+    if (containsSCFLoop)
+      return failure();
+    OpBuilder::InsertionGuard insertionGuard(rewriter);
+    rewriter.setInsertionPoint(loop);
     if (loop.getNumResults() != 0)
       return failure();
     if (!loop.hasConstantLowerBound() || loop.getConstantLowerBound() != 0)
@@ -2563,6 +2611,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     bool legal = true;
     bool checkReduction = true;
     size_t firstNDims = 0;
+    rewriter.setInsertionPoint(loop);
     Value newOutput = remap_in_affine_dim(
         legal, rewriter, targetStore.getAffineMap(), targetStore.getMemref(),
         loop.getInductionVar(), loopSize, lbValue, firstNDims,
@@ -2764,6 +2813,16 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
+
+    if (loop->getParentOfType<scf::ForOp>() ||
+        loop->getParentOfType<scf::IfOp>())
+      return failure();
+    bool containsSCFLoop = false;
+    loop.walk([&](scf::ForOp) { containsSCFLoop = true; });
+    if (containsSCFLoop)
+      return failure();
+    OpBuilder::InsertionGuard insertionGuard(rewriter);
+    rewriter.setInsertionPoint(loop);
 
     LLVM_DEBUG(llvm::dbgs() << "\n========================================\n");
     LLVM_DEBUG(llvm::dbgs() << "=== AffineForOpRaising::matchAndRewrite ===\n");
@@ -3162,6 +3221,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         
         LLVM_DEBUG(llvm::dbgs() << "  Calling remap_in_affine_dim for input " << idx << "\n");
         
+        rewriter.setInsertionPoint(loop);
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize, lbValue,
             firstNDims, ValueRange(lgOperands), input, check_reduction);
@@ -3209,6 +3269,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         
         LLVM_DEBUG(llvm::dbgs() << "  Calling remap_in_affine_dim for output " << (idx - lg.getInputs().size()) << "\n");
         
+        rewriter.setInsertionPoint(loop);
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize, lbValue,
             firstNDims, ValueRange(lgOperands), output, check_reduction,
@@ -3285,6 +3346,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         size_t firstNDims = 0;
         bool legal = true;
         bool promotedLoadReductionCheck = false;
+        rewriter.setInsertionPoint(loop);
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, load.getAffineMap(), load.getMemref(),
             loop.getInductionVar(), loopSize, lbValue, firstNDims,
@@ -3328,6 +3390,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       bool legal = true;
 
       check_reduction = false;
+      rewriter.setInsertionPoint(loop);
       auto newMemref = remap_in_affine_dim(
           legal, rewriter, load.getAffineMap(), load.getMemref(),
           loop.getInductionVar(), loopSize, lbValue, firstNDims, load.getMapOperands(),
@@ -3362,6 +3425,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       size_t firstNDims = 0;
 
       check_reduction = true;
+      rewriter.setInsertionPoint(loop);
       auto newMemref = remap_in_affine_dim(
           legal, rewriter, store.getAffineMap(), store.getMemref(),
           loop.getInductionVar(), loopSize, lbValue, firstNDims, store.getMapOperands(),
@@ -3828,6 +3892,20 @@ void RaiseAffineToLinalgPipeline::runOnOperation() {
   // the affine-to-linalg raise. This handles control-flow-shaped expressions
   // that the linalg raiser can represent inside a generic body.
   funcPM.addPass(createFoldSCFIfPass());
+
+  // Dynamic C loop nests frequently arrive as a mixture of scf.for and
+  // affine.for.  FoldSCFIf removes exact redundant non-empty guards first;
+  // convert the exposed SCF loops so the affine band raiser can consume the
+  // complete nest.
+  funcPM.addPass(createRaiseSCFToAffinePass());
+  // Load hoisting performed above can expose another guarded loop level.
+  funcPM.addPass(createFoldSCFIfPass());
+  funcPM.addPass(createRaiseSCFToAffinePass());
+
+  // Normalize memref accesses in the completed affine bands. The linalg
+  // raiser consumes affine.load/store access maps; cgeist may leave ordinary
+  // memref accesses in loops whose bounds were SCF until the steps above.
+  funcPM.addPass(replaceAffineCFGPass());
   
   // Add affine-parallelize pass first (runs on func.func)
   funcPM.addPass(mlir::affine::createAffineParallelizePass());
@@ -3895,6 +3973,8 @@ void RaiseAffineToLinalg::runOnOperation() {
   {
     LLVM_DEBUG(llvm::dbgs() << "### Step 3: Applying Distribute + AffineForOpRaising ###\n");
     RewritePatternSet raisingPatterns(&getContext());
+    raisingPatterns.add<HoistPureAffineLoopInvariants>(&getContext(),
+                                                        /*benefit=*/8);
     raisingPatterns.add<RaiseFlattenedPointerFill>(&getContext(),
                                                     /*benefit=*/7);
     raisingPatterns.add<RaiseDynamicPrefixReduction>(&getContext(),

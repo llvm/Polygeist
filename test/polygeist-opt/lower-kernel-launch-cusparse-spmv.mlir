@@ -1,4 +1,6 @@
-// RUN: polygeist-opt %s --lower-kernel-launch-to-cublas | FileCheck %s
+// RUN: polygeist-opt %s --lower-kernel-launch-to-cublas --lower-polygeist-submap | FileCheck %s
+
+#identity = affine_map<(d0) -> (d0)>
 
 module {
   kernel.defn @cusparseSpMV_CSR_f64_memref(
@@ -15,7 +17,33 @@ module {
          memref<?xf64>, memref<?xf64>) -> ()
     return
   }
+
+  // Raised C loops commonly retain logical one-dimensional submaps until ABI
+  // lowering. The runtime call must consume their explicit sizes and backing
+  // pointers so no Polygeist view operation survives into standard MLIR.
+  func.func @spmv_through_submaps(
+      %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
+      %values: memref<?xf64>, %x: memref<?xf64>, %y: memref<?xf64>) {
+    %one = arith.constant 1 : index
+    %row_count = arith.addi %rows, %one : index
+    %row_view = polygeist.submap(%rowptr, %row_count) {map = #identity} :
+      (memref<?xi32>, index) -> memref<?xi32>
+    %col_view = polygeist.submap(%cols, %rows) {map = #identity} :
+      (memref<?xi32>, index) -> memref<?xi32>
+    %value_view = polygeist.submap(%values, %rows) {map = #identity} :
+      (memref<?xf64>, index) -> memref<?xf64>
+    %x_view = polygeist.submap(%x, %rows) {map = #identity} :
+      (memref<?xf64>, index) -> memref<?xf64>
+    %y_view = polygeist.submap(%y, %rows) {map = #identity} :
+      (memref<?xf64>, index) -> memref<?xf64>
+    kernel.launch @cusparseSpMV_CSR_f64_memref(
+        %rows, %row_view, %col_view, %value_view, %x_view, %y_view) :
+        (index, memref<?xi32>, memref<?xi32>, memref<?xf64>,
+         memref<?xf64>, memref<?xf64>) -> ()
+    return
+  }
 }
 
 // CHECK: call @polygeist_cusparse_spmv_csr_f64_sized
 // CHECK-NOT: kernel.launch
+// CHECK-NOT: polygeist.submap

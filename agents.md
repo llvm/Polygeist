@@ -1,5 +1,20 @@
 # Agent Notes
 
+## Paper / Overleaf Location
+
+- The local Overleaf Git clone for the current paper is
+  `/home/arjaiswal/cgo-paper`.
+- The authoritative LaTeX source is `/home/arjaiswal/cgo-paper/main.tex`.
+- The evaluation begins at `main.tex:350`; Section 4.2, **Performance
+  Improvements**, begins at `main.tex:373` and contains the intended
+  PolyBench, ATen, MFEM, Llama, KernelFaRer, Polly, and optional
+  Ginsbach/NPB/Parboil benchmark matrix.
+- The clone's `origin` is the Overleaf Git project
+  `https://git@git.overleaf.com/6a18cf44ff71410da93f7aa6`.
+- Check the timestamps and Git history before treating `main.pdf` as current;
+  the local PDF may lag behind `main.tex`. Pull/fetch only when the user asks
+  to synchronize with Overleaf, and preserve untracked local figure assets.
+
 ## External-Library-Only Matching Rule
 
 - Do not write custom CUDA, HIP, OpenCL, CPU, or other computational kernels
