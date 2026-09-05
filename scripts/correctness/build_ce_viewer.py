@@ -3281,6 +3281,318 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream))
 
 
+def _modified_kernels_page() -> tuple[str, int]:
+    """Describe source forms introduced because upstream code was not directly usable.
+
+    This is deliberately an evidence/provenance page, not another success-count
+    page.  A source extraction is not automatically a frontend bug, and a
+    normalized source is not counted as an unmodified-source compiler result.
+    """
+    rows: list[dict[str, str]] = []
+
+    def add(suite: str, kernel: str, original: str, modified: str,
+            category: str, direct_result: str, change: str, diagnosis: str,
+            evidence: str, validation: str) -> None:
+        rows.append({
+            "suite": suite, "kernel": kernel, "original": original,
+            "modified": modified, "category": category,
+            "direct_result": direct_result, "change": change,
+            "diagnosis": diagnosis, "evidence": evidence,
+            "validation": validation,
+        })
+
+    # The original translation units inline initialization and the stencil
+    # into main.  Constant folding then removes the input operand that the
+    # matcher needs.  This is a pipeline/input-isolation interaction, not a
+    # claim that cgeist mistranslated the source.
+    for kernel in ("conv2d", "conv3d"):
+        add(
+            "PolyBenchGPU", kernel,
+            f"third_party/polybenchGpu/OpenMP/stencils/convolution-{kernel[-2:]}/"
+            f"convolution-{kernel[-2:]}.c",
+            f"third_party/polybenchGpu-extracted/{kernel}.c",
+            "preprocessing / inlining",
+            "Whole-TU inlining exposes init_array; constant folding removes the "
+            "stencil input operand, so semantic convolution matching is bypassed.",
+            "Isolated the kernel in its own translation unit, made arrays explicit "
+            "parameters, and fixed compile-time extents.",
+            "Not a frontend correctness bug; this is an inlining and benchmark-"
+            "harness interaction that changes the IR denominator.",
+            f"third_party/polybenchGpu-extracted/{kernel}.c (file header)",
+            "Extracted source raises cleanly; equivalence/performance is tracked on "
+            "the PolyBenchGPU page.",
+        )
+
+    npb_details = {
+        "bt-add": (
+            "BT/bt.c:add", "file-local static 4D arrays and bounds loaded from the "
+            "runtime grid_points array", "Passed arrays explicitly and converted "
+            "grid bounds to scalar parameters so loops are affine.",
+            "raising representation / extraction"),
+        "ft-evolve": (
+            "FT/ft.c:evolve", "dcomplex structs plus static/global benchmark state",
+            "Flattened complex values to a trailing real/imag dimension and passed "
+            "dimensions and arrays explicitly.", "frontend representation / extraction"),
+        "lu-l2norm": (
+            "LU/lu.c:l2norm", "kernel embedded in a monolithic benchmark with global "
+            "state and runtime bounds", "Isolated the function while preserving NPB "
+            "padding and passed bounds/data explicitly.", "framework extraction"),
+        "mg-psinv": (
+            "MG/mg.c:psinv", "double*** storage and file-level benchmark state do not "
+            "form a static ranked memref suitable for the raising pipeline",
+            "Re-expressed triple-pointer data as fixed-size rank-3 arrays and exposed "
+            "bounds and coefficients as parameters.", "memory representation / raising"),
+        "mg-resid": (
+            "MG/mg.c:resid", "double*** storage, static state, and scratch-row staging",
+            "Used fixed-size rank-3 arrays, explicit parameters, and preserved the "
+            "scratch-row stencil algorithm.", "memory representation / raising"),
+        "mg-norm2u3": (
+            "MG/mg.c:norm2u3", "monolithic/global context; max/fabs branch is not a "
+            "pure affine reduction", "Isolated the function and used local scalar "
+            "helpers; retained both L2 and L-infinity semantics.",
+            "extraction plus remaining raising gap"),
+        "mg-rprj3": (
+            "MG/mg.c:rprj3", "double*** fine/coarse grids, global sizes, and runtime "
+            "boundary-dependent step factors", "Converted grids to fixed ranked arrays "
+            "and passed fine/coarse bounds and step factors explicitly.",
+            "memory representation / raising"),
+    }
+    for kernel, (original, direct, change, category) in npb_details.items():
+        source = NPB_KERNELS[kernel][0]
+        add(
+            "NPB 3.0", kernel, f"third_party/NPB3.0-omp-C/{original}",
+            f"third_party/NPB-polybenchified/{source}", category,
+            direct, change,
+            "Primarily extraction and memory-shape normalization; do not report as an "
+            "unmodified NPB source result.",
+            f"third_party/NPB-polybenchified/{source} (file header)",
+            "The extracted source is tracked independently from the original suite.",
+        )
+
+    # Every faithful MFEM form reaches the frontend and raising pass, but all
+    # retain imperative loops.  The paired normalized forms are the honest
+    # place to record structural changes made for complete Linalg recovery.
+    mfem_all_rows = _read_csv(MFEM_C_ROOT / "results/summary.csv")
+    mfem_rows = [
+        row for row in mfem_all_rows
+        if row.get("variant") == "normalized"
+    ]
+    for row in mfem_rows:
+        original_id = re.sub(r"_(scratch_sliced|stage_sliced|scalarized)$", "", row["id"])
+        original_row = next(
+            (candidate for candidate in mfem_all_rows
+             if candidate.get("variant") == "original"
+             and candidate.get("operation") == row.get("operation")
+             and candidate.get("dimension") == row.get("dimension")),
+            {},
+        )
+        if row["id"].endswith("scalarized"):
+            change = (
+                "Scalarized pointwise elasticity outputs and separated dependent "
+                "stages so each result has an explicit producer/consumer boundary."
+            )
+        elif "scratch_sliced" in row["id"]:
+            change = (
+                "Sliced temporary scratch by element/component so independent outer "
+                "iterations no longer appear to reuse the same storage."
+            )
+        else:
+            change = (
+                "Split sum-factorized work into explicit contraction stages and sliced "
+                "scratch/component storage to remove false reuse dependencies."
+            )
+        add(
+            "MFEM", row["id"],
+            f'issues/mfem_c_kernels/{original_row.get("source", "original/")}',
+            f'issues/mfem_c_kernels/{row["source"]}',
+            "raising normalization",
+            f'The faithful source reached cgeist/raise but retained '
+            f'{original_row.get("residual_loops", "one or more")} imperative loop(s).',
+            change,
+            "Raising limitation: scratch reuse and multi-stage dependencies are not "
+            "automatically normalized. One isolated remove-iter-args dominance defect "
+            "also requires stage separation; see the MFEM status evidence.",
+            "issues/mfem_c_kernels/STATUS.md and results/summary.csv",
+            "Normalized form is fully raised with zero residual loops and validated "
+            "against the faithful original (maximum reported error 7.2e-15).",
+        )
+
+    llama_modifications = [
+        (
+            "rope_split", "kernel_llama_rope (interleaved layout)",
+            "Split even/odd Q and K values into separate tensors.",
+            "Exact interleaved indexing remains a raising gap; the split form is a "
+            "raise-friendly semantic variant."
+        ),
+        (
+            "attention_mask_select", "kernel_llama_attention_mask (branchy if/else)",
+            "Replaced the conditional store with an equivalent branchless select.",
+            "The branchy mask retains if/loop IR; select-form raises. This is a control-"
+            "flow raising limitation."
+        ),
+    ]
+    for kernel, original, change, diagnosis in llama_modifications:
+        add(
+            "Llama forward", kernel,
+            f"third_party/cnn-extracted/llama_forward_ops.c:{original}",
+            f"third_party/cnn-extracted/llama_forward_ops.c:{LLAMA_FORWARD_KERNELS[kernel][1]}",
+            "raising issue", "The exact source form was not fully raised or run.",
+            change, diagnosis,
+            "third_party/cnn-extracted/llama2_extended_forward_bench.c (file header) "
+            "and the AI viewer rows", "The alternative form raises and has a tracked "
+            "Jetson fixture run; it is not an unmodified-source result.",
+        )
+
+    darknet_changes = {
+        "conv2d_batched": (
+            "Specialized framework tensors and runtime dimensions into fixed NCHW "
+            "arrays/macros and isolated the convolution body.",
+            "Framework extraction; compile-time bounds also serve the affine raiser."),
+        "darknet_im2col_gemm": (
+            "Placed im2col and GEMM in one standalone translation unit so inlining "
+            "exposes the producer/consumer pair.",
+            "Framework/external-call isolation for semantic composition."),
+        "maxpool_batched": (
+            "Used an equivalent ternary/select update instead of a conditional store.",
+            "Control-flow raising limitation: the conditional store remains imperative."),
+        "batchnorm_batched": (
+            "Isolated the inference arithmetic from layer objects and framework dispatch.",
+            "Framework extraction, not a demonstrated frontend bug."),
+        "shortcut_batched": (
+            "Isolated residual-add arithmetic with fixed tensor extents.",
+            "Framework extraction, not a demonstrated frontend bug."),
+        "conv_bn_relu_batched": (
+            "Constructed a chained fixed-shape C fixture for convolution, batch norm, "
+            "and ReLU composition.",
+            "Algorithmic fixture for composition; not a textual upstream kernel."),
+    }
+    for kernel, (change, diagnosis) in darknet_changes.items():
+        source = EXTRACTED_DARKNET_KERNELS[kernel][0]
+        add(
+            "Darknet/CNN", kernel, "third_party/darknet (framework implementation)",
+            f"third_party/cnn-extracted/{source}",
+            "framework extraction" if "raising" not in diagnosis else "raising issue",
+            "The full-source sweep either presents framework/dispatch code or does not "
+            "expose this complete arithmetic body as one raiseable static kernel.",
+            change, diagnosis, f"third_party/cnn-extracted/{source} and viewer notes",
+            "Standalone fixture is tracked separately; it must not be counted as direct "
+            "translation of the full Darknet source file.",
+        )
+
+    # Whisper rows are semantic C fixtures.  Two point back to large upstream
+    # ggml/stb sources; the others isolate the corresponding operation family.
+    for kernel in WHISPER_OPS_ORDER:
+        source, function = WHISPER_OPS_KERNELS[kernel]
+        add(
+            "Whisper/ggml", kernel,
+            "third_party/whisper.cpp/ggml framework or embedded codec source",
+            f"third_party/cnn-extracted/{source}:{function}",
+            "framework extraction",
+            "The upstream implementation is embedded in tensor metadata, SIMD/dispatch, "
+            "helper calls, or a very large translation unit rather than a standalone "
+            "static loop kernel suitable for this pipeline.",
+            "Isolated the numerical body with fixed ranks, extents, dtype, and ordinary "
+            "C arrays; retained helper calls when they are part of the tested limitation.",
+            "Not classified as a frontend bug without a kernel-specific direct-source "
+            "failure. This is a semantic fixture/extraction boundary.",
+            f"{source} and notes/whisper_linalg_raise_results.md",
+            "Results describe the extracted fixture only, not unmodified whisper.cpp.",
+        )
+
+    # ATen is too large for one main-table row per specialization.  Preserve
+    # every name and upstream pointer in an expandable, searchable inventory.
+    aten_items = []
+    for kernel in ATEN_C_ORDER:
+        upstream = ATEN_C_PROVENANCE.get(kernel)
+        pointer = (
+            f"{upstream[0]}:{upstream[1]}" if upstream and upstream[1]
+            else (upstream[0] if upstream else "upstream pointer unavailable")
+        )
+        page = f'{kernel}.html' if kernel in ATEN_C_KERNELS else "numerical.html"
+        aten_items.append(
+            f'<li><a href="{html.escape(page)}"><code>{html.escape(kernel)}</code></a> '
+            f'&larr; <code>{html.escape(pointer)}</code></li>'
+        )
+    add(
+        "PyTorch ATen", f"{len(ATEN_C_ORDER)} standalone C specializations",
+        f"third_party/pytorch at {ATEN_UPSTREAM_COMMIT}",
+        "issues/aten_c_kernels/aten_*.c",
+        "framework/frontend boundary",
+        "The direct 224-file ATen C/C++ translation-unit sweep produced zero Linalg "
+        "operations: numerical loops are hidden behind TensorIterator, templates, "
+        "dispatch/registration, vectorization, dynamic shapes, and Tensor APIs.",
+        "Removed framework orchestration and specialized rank, extent, dtype, and modes "
+        "while preserving the selected scalar or loop algorithm.",
+        "Not one blanket frontend bug. It measures an unsupported framework abstraction "
+        "boundary; each C file is an extracted specialization, not upstream ATen text.",
+        "issues/aten_c_kernels/extraction_inventory.csv and generated*_provenance.csv",
+        "Each fixture has provenance; raising/matching/correctness are reported on the "
+        "ATen pages. Expand the complete inventory below.",
+    )
+
+    categories: dict[str, int] = {}
+    for row in rows:
+        categories[row["category"]] = categories.get(row["category"], 0) + 1
+    category_html = "".join(
+        f'<li><b>{html.escape(category)}</b>: {count} table row(s)</li>'
+        for category, count in sorted(categories.items())
+    )
+    table_rows = []
+    for row in rows:
+        searchable = " ".join(row.values()).lower()
+        table_rows.append(
+            f'<tr data-search="{html.escape(searchable, quote=True)}">'
+            f'<td><b>{html.escape(row["suite"])}</b></td>'
+            f'<td><code>{html.escape(row["kernel"])}</code></td>'
+            f'<td><code>{html.escape(row["original"])}</code></td>'
+            f'<td><code>{html.escape(row["modified"])}</code></td>'
+            f'<td><span class="mod-tag">{html.escape(row["category"])}</span><br>'
+            f'{html.escape(row["diagnosis"])}</td>'
+            f'<td>{html.escape(row["direct_result"])}</td>'
+            f'<td>{html.escape(row["change"])}</td>'
+            f'<td><code>{html.escape(row["evidence"])}</code><br>'
+            f'<small>{html.escape(row["validation"])}</small></td></tr>'
+        )
+    body = (
+        '<div class="section-header"><h2 class="section-title">Modified and extracted '
+        'kernel sources</h2></div>'
+        '<div class="intro"><b>Purpose:</b> identify every benchmark source family for '
+        'which the published result uses an extracted, specialized, or structurally '
+        'normalized C form instead of compiling the upstream source directly. '
+        '<b>These rows are not all compiler bugs.</b> The diagnosis distinguishes '
+        'framework extraction, preprocessing/inlining effects, unsupported memory or '
+        'control-flow representations, raising limitations, and a confirmed compiler '
+        'defect. Modified forms must be reported separately from unmodified-source '
+        'coverage.<br><br><b>Confirmed compiler defect:</b> MFEM exposed an invalid '
+        '<code>remove-iter-args</code> dominance relation when a reduction result is '
+        'combined with a load defined after the reduction. Stage separation avoids it. '
+        'The general MFEM scratch/staging problem is a raising-normalization limitation, '
+        'not solely that defect.'
+        f'<ul>{category_html}</ul>'
+        '<label><b>Filter rows:</b> <input id="modified-filter" type="search" '
+        'placeholder="suite, kernel, category, reason…" oninput="filterModified()" '
+        'style="width:min(520px,80%);padding:6px"></label></div>'
+        '<table class="audit-table modified-table"><thead><tr>'
+        '<th>suite</th><th>kernel / cohort</th><th>upstream form</th>'
+        '<th>form actually tested</th><th>classification</th>'
+        '<th>why direct form was not used</th><th>source change</th>'
+        '<th>evidence and validation</th></tr></thead><tbody>'
+        + "\n".join(table_rows) + '</tbody></table>'
+        '<details class="intro"><summary><b>Complete ATen extracted-kernel inventory '
+        f'({len(aten_items)} kernels)</b></summary><p>Each entry is a fixed-shape '
+        'standalone C specialization linked to its viewer page and pinned upstream '
+        'implementation-family pointer. The shared reason is framework isolation; '
+        'kernel-specific raising outcomes remain on the ATen pages.</p><ul class="columns">'
+        + "".join(aten_items) + '</ul></details>'
+        '<script>function filterModified(){var q=document.getElementById('
+        '"modified-filter").value.toLowerCase();document.querySelectorAll('
+        '".modified-table tbody tr").forEach(function(r){r.style.display='
+        'r.dataset.search.indexOf(q)>=0?"":"none";});}</script>'
+    )
+    individual_count = len(rows) - 1 + len(ATEN_C_ORDER)
+    return body, individual_count
+
+
 def _extract_c_function(text: str, function: str) -> str:
     """Extract one named C function, including a directly preceding comment."""
     match = re.search(rf"\b{re.escape(function)}\s*\(", text)
@@ -5469,6 +5781,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
                      ex_darknet_stats: dict[str, dict],
                      fopt_stats: dict[str, dict]) -> dict[str, str]:
     ginsbach_body, ginsbach_count = _ginsbach_page()
+    modified_body, modified_count = _modified_kernels_page()
     common_legend = (
         '  Click a kernel name to open its static raised / debuferized / '
         '  matcher-rewritten IR snapshot. Each snapshot has an '
@@ -5675,6 +5988,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="backends.html">CPU/GPU lowering</a> &middot; '
             '<a href="numerical.html">ATen</a> &middot; '
             '<a href="performance.html">Performance analysis</a> &middot; '
+            '<a href="modified-kernels.html">Modified kernels</a> &middot; '
             '<a href="mfem.html">MFEM</a> &middot; '
             '<a href="ginsbach.html">Ginsbach ASPLOS\'18</a> &middot; '
             '<a href="ai.html">AI kernels</a> &middot; '
@@ -5718,6 +6032,15 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.cause-setup { background:#fff3bd; color:#705900; } '
         '.cause-bandwidth { background:#ffe0ec; color:#842347; } '
         '.cause-amortized { background:#dff5e5; color:#1a6a34; } '
+        '.mod-tag { display:inline-block; border-radius:10px; padding:2px 7px; '
+        'font-size:11px; font-weight:bold; background:#fff3bd; color:#705900; '
+        'margin-bottom:4px; } '
+        '.modified-table td { vertical-align:top; min-width:120px; } '
+        '.modified-table td:nth-child(2) { min-width:175px; } '
+        '.modified-table td:nth-child(5),.modified-table td:nth-child(6),'
+        '.modified-table td:nth-child(7) { min-width:220px; white-space:normal; } '
+        '.columns { columns:3 300px; } .columns li { break-inside:avoid; '
+        'margin-bottom:3px; } '
         '.backend-flow { display:grid; grid-template-columns:minmax(260px,1fr) 30px '
         'minmax(260px,1fr) 30px minmax(260px,1fr); gap:8px; align-items:center; '
         'padding:16px 20px; background:#f4f7fb; } '
@@ -5749,6 +6072,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
                sum(row.get("correctness") == "PASS"
                    for row in _read_csv(ATEN_SILICON_RESULTS)),
                "Root-cause groups, highlighted slowdown ratios, and a GEMV deep dive.")
+        + card("modified-kernels.html", "Modified kernels", modified_count,
+               "Extracted or normalized sources, why direct compilation was not used, "
+               "and whether the cause is frontend, raising, or framework structure.")
         + card("mfem.html", "MFEM finite elements",
                len(mfem_stats) + len(mfem_application_stats)
                + len(mfem_application_extraction_stats),
@@ -5771,6 +6097,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     polybenchgpu = nav() + _polybenchgpu_page(polybench_stats)
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
+    modified = nav() + modified_body
     numerical_pages: dict[str, str] = {}
     for sort_by in ("alphabetical", "raised", "resident"):
         ordered = _aten_sorted_kernels(sort_by)
@@ -5813,6 +6140,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "performance.html": render_html(
             "Polygeist: kernel slowness analysis", performance, extra_css
+        ),
+        "modified-kernels.html": render_html(
+            "Polygeist: modified and extracted kernels", modified, extra_css
         ),
         "mfem.html": render_html("Polygeist: MFEM kernels", mfem, extra_css),
         "ginsbach.html": render_html(
