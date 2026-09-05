@@ -506,6 +506,12 @@ int main(int argc, char **argv) {
   }
   using namespace mlir;
 
+  // Make MLIR's standard printer options (including
+  // --mlir-print-op-generic) available to cgeist. Generic printing is useful
+  // for durable tool-to-tool handoffs when an older custom operation parser
+  // cannot read every SSA spelling emitted by its corresponding printer.
+  registerAsmPrinterCLOptions();
+
   int size = MLIRArgs.size();
   const char **data = MLIRArgs.data();
   InitLLVM y(size, data);

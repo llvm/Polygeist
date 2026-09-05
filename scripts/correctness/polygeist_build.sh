@@ -50,6 +50,13 @@
 #                       include/cutensor.h and lib/libcutensor.so for aarch64.
 #                       Enables cuTENSOR without unnecessarily linking
 #                       cuTensorNet or cuSOLVER.
+#   POLYGEIST_STENCIL_BACKEND=cudnn|custen
+#                       Select the external implementation used for matched
+#                       generalized 2-D stencils. `cudnn` is the default.
+#   POLYGEIST_CUSTEN_LIB=/path/to/libpolygeist_custen.so
+#                       Jetson target only. Cross-built aarch64 shared library
+#                       containing upstream cuSten plus the thin Polygeist ABI
+#                       adapter. Required when STENCIL_BACKEND=custen.
 #   POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME=1
 #                       Jetson target only. For contraction-only binaries,
 #                       discard unused runtime sections and avoid DT_NEEDED
@@ -233,6 +240,15 @@ echo "  [3/9] matcher: linalg.generic → kernel.launch"
 # loop-carried idioms such as the source-faithful Parboil SGEMM, MG stencils,
 # histograms, and sparse matrix-vector products before ABI lowering.
 MATCHER_ARGS=(--enable-structured-rewrite)
+STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
+case "$STENCIL_BACKEND" in
+  cudnn|custen) ;;
+  *)
+    echo "ERROR: POLYGEIST_STENCIL_BACKEND must be cudnn or custen" >&2
+    exit 1
+    ;;
+esac
+MATCHER_ARGS+=(--stencil-backend "$STENCIL_BACKEND")
 if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
   MATCHER_ARGS+=(--disable-pointwise-matching)
   echo "         generic pointwise matching disabled"
@@ -443,12 +459,14 @@ else
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE")
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
              -lcublas -lcudart -lm -lpthread -ldl \
              -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
     echo "         + minimal cuBLAS/CUDA runtime linkage"
   fi
   if [ "${POLYGEIST_MINIMAL_CUDNN_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE")
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
              -L/usr/lib/aarch64-linux-gnu \
              -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
@@ -488,6 +506,23 @@ else
     RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$CUTENSOR_ROOT/include")
     RT_LIBS="-L$CUTENSOR_ROOT/lib -lcutensor $RT_LIBS"
     echo "         + cuTENSOR runtime from $CUTENSOR_ROOT"
+  fi
+  if [ "$STENCIL_BACKEND" = "custen" ]; then
+    [ -n "${POLYGEIST_CUSTEN_LIB:-}" ] || {
+      echo "ERROR: POLYGEIST_CUSTEN_LIB is required for the cuSten backend" >&2
+      exit 1
+    }
+    [ -f "$POLYGEIST_CUSTEN_LIB" ] || {
+      echo "ERROR: cuSten adapter library $POLYGEIST_CUSTEN_LIB not found" >&2
+      exit 1
+    }
+    CUSTEN_LIB_DIR="$(cd "$(dirname "$POLYGEIST_CUSTEN_LIB")" && pwd)"
+    CUSTEN_LIB_NAME="$(basename "$POLYGEIST_CUSTEN_LIB")"
+    CUSTEN_LINK_NAME="${CUSTEN_LIB_NAME#lib}"
+    CUSTEN_LINK_NAME="${CUSTEN_LINK_NAME%.so}"
+    RT_LIBS="-L$CUSTEN_LIB_DIR -l$CUSTEN_LINK_NAME $RT_LIBS \
+             -Wl,-rpath,$CUSTEN_LIB_DIR:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + external cuSten backend from $POLYGEIST_CUSTEN_LIB"
   fi
 fi
 

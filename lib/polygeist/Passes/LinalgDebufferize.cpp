@@ -35,6 +35,14 @@ using opTuple = std::tuple<Value, Value>; //First: result, Second: prev_tensor ?
 bool isCaptured(Value v, Operation *potentialUser = nullptr,
                 bool *seenuse = nullptr);
 
+// A memref whose element is itself a shaped container is an array of
+// descriptors/pointers, not a dense numerical buffer.  MLIR tensors cannot
+// contain memref elements, so leave these roots in memory form and allow the
+// numerical buffers reached through their loads to be handled independently.
+static bool canConvertMemrefToTensor(MemRefType type) {
+  return !type.getElementType().isa<BaseMemRefType, TensorType>();
+}
+
 //===----------------------------------------------------------------------===//
 // Region Context Tracking for Correct SSA Threading
 //===----------------------------------------------------------------------===//
@@ -833,6 +841,13 @@ struct LinalgDebufferization : public OpRewritePattern<func::FuncOp> {
       }
       
       LLVM_DEBUG(llvm::dbgs() << "  MemRefType: " << memrefType << "\n");
+
+      if (!canConvertMemrefToTensor(memrefType)) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "REJECTED: descriptor/container element type cannot be "
+                      "represented by a tensor\n");
+        return failure();
+      }
       
       // Get all memory users (including those through subview/submap chains)
       auto sortedUsers = getAllMemoryUsers(memVal);
@@ -1518,6 +1533,9 @@ static bool ancestorsAreHandled(Operation *op) {
 // ancestors. There must also be at least one such memory op (otherwise
 // there's no work to do and re-firing the pattern would loop forever).
 static bool canHandle(Value root) {
+  auto rootType = root.getType().dyn_cast<MemRefType>();
+  if (!rootType || !canConvertMemrefToTensor(rootType)) return false;
+
   SmallPtrSet<Operation *, 16> visited;
   SmallVector<Value, 4> worklist;
   worklist.push_back(root);
@@ -2832,9 +2850,15 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   // Collect all roots: function-arg memrefs + local allocs.
   SmallVector<Value> roots;
   for (auto arg : funcOp.getArguments())
-    if (arg.getType().isa<MemRefType>()) roots.push_back(arg);
-  funcOp.walk([&](memref::AllocaOp op) { roots.push_back(op.getResult()); });
-  funcOp.walk([&](memref::AllocOp op) { roots.push_back(op.getResult()); });
+    if (auto type = arg.getType().dyn_cast<MemRefType>();
+        type && canConvertMemrefToTensor(type))
+      roots.push_back(arg);
+  funcOp.walk([&](memref::AllocaOp op) {
+    if (canConvertMemrefToTensor(op.getType())) roots.push_back(op.getResult());
+  });
+  funcOp.walk([&](memref::AllocOp op) {
+    if (canConvertMemrefToTensor(op.getType())) roots.push_back(op.getResult());
+  });
   if (roots.empty()) return failure();
 
   // The multi-root loop handlers thread every tracked root written in a loop
@@ -2952,10 +2976,16 @@ struct LinalgDebufferizationRecursive : public OpRewritePattern<func::FuncOp> {
     bool anyChanged = false;
 
     SmallVector<Value> roots;
-    funcOp.walk([&](memref::AllocaOp op) { roots.push_back(op.getResult()); });
-    funcOp.walk([&](memref::AllocOp op) { roots.push_back(op.getResult()); });
+    funcOp.walk([&](memref::AllocaOp op) {
+      if (canConvertMemrefToTensor(op.getType())) roots.push_back(op.getResult());
+    });
+    funcOp.walk([&](memref::AllocOp op) {
+      if (canConvertMemrefToTensor(op.getType())) roots.push_back(op.getResult());
+    });
     for (auto arg : funcOp.getArguments())
-      if (arg.getType().isa<MemRefType>()) roots.push_back(arg);
+      if (auto type = arg.getType().dyn_cast<MemRefType>();
+          type && canConvertMemrefToTensor(type))
+        roots.push_back(arg);
 
     for (Value root : roots) {
       if (succeeded(v2::handleRoot(root, body, rewriter)))

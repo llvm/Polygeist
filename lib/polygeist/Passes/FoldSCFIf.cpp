@@ -335,6 +335,12 @@ static LogicalResult foldGuardedStoreUpdate(scf::IfOp ifOp, OpBuilder &b) {
   if (!getSingleStoreInfo(*store, storeInfo))
     return failure();
 
+  // This path does not clone the branch.  A destination materialized inside
+  // it (for example, memref.get_global) would become a dangling value after
+  // the if is erased.
+  if (getMemrefFromStore(store).getParentBlock() == ifOp.thenBlock())
+    return failure();
+
   for (Value operand : storeInfo.operands)
     if (operand.getParentBlock() == ifOp.thenBlock())
       return failure();
@@ -432,22 +438,26 @@ static bool foldSingleStoreIfToSelect(scf::IfOp ifOp, OpBuilder &b) {
 
   Value oldValue;
   if (auto storeOp = dyn_cast<memref::StoreOp>(store)) {
-    oldValue = b.create<memref::LoadOp>(loc, storeOp.getMemref(),
-                                        storeOp.getIndices());
+    Value memref = vmap.lookupOrDefault(storeOp.getMemref());
+    SmallVector<Value> indices;
+    for (Value index : storeOp.getIndices())
+      indices.push_back(vmap.lookupOrDefault(index));
+    oldValue = b.create<memref::LoadOp>(loc, memref, indices);
     Value selected =
         b.create<arith::SelectOp>(loc, ifOp.getCondition(), candidate, oldValue);
-    b.create<memref::StoreOp>(loc, selected, storeOp.getMemref(),
-                              storeOp.getIndices());
+    b.create<memref::StoreOp>(loc, selected, memref, indices);
   } else {
     auto affineStoreOp = cast<affine::AffineStoreOp>(store);
+    Value memref = vmap.lookupOrDefault(affineStoreOp.getMemref());
+    SmallVector<Value> mapOperands;
+    for (Value operand : affineStoreOp.getMapOperands())
+      mapOperands.push_back(vmap.lookupOrDefault(operand));
     oldValue = b.create<affine::AffineLoadOp>(
-        loc, affineStoreOp.getMemref(), affineStoreOp.getAffineMap(),
-        affineStoreOp.getMapOperands());
+        loc, memref, affineStoreOp.getAffineMap(), mapOperands);
     Value selected =
         b.create<arith::SelectOp>(loc, ifOp.getCondition(), candidate, oldValue);
-    b.create<affine::AffineStoreOp>(loc, selected, affineStoreOp.getMemref(),
-                                    affineStoreOp.getAffineMap(),
-                                    affineStoreOp.getMapOperands());
+    b.create<affine::AffineStoreOp>(loc, selected, memref,
+                                    affineStoreOp.getAffineMap(), mapOperands);
   }
 
   ifOp.erase();

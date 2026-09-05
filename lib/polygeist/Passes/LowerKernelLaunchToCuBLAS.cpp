@@ -72,6 +72,13 @@ struct ShimDecl {
 };
 
 static StringRef shimSymbolFor(StringRef libSym) {
+  if (libSym == "cusparseSpMV_CSR_f32_memref")
+    return "polygeist_cusparse_spmv_csr_f32_sized";
+  if (libSym == "cusparseSpMV_CSR_f64_memref")
+    return "polygeist_cusparse_spmv_csr_f64_sized";
+  if (libSym == "custenStencil2DXY_f64_memref" ||
+      libSym == "custenStencil2DXY_f64_tensor")
+    return "polygeist_custen_stencil2d_xy_f64";
   if (libSym.starts_with("cutensorUnary_") && libSym.ends_with("_f32"))
     return "polygeist_cutensor_unary_f32";
   if (libSym == "cudnnPointwiseAffineRelu_f32")
@@ -132,18 +139,6 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_sgemm";
   if (libSym == "cublasSgemm_flat_colmajor_nt_alpha_beta")
     return "polygeist_cublas_sgemm_transpose";
-  if (libSym == "customMGResid_f64_memref")
-    return "polygeist_mg_resid_f64";
-  if (libSym == "customMGPSInv_f64_memref")
-    return "polygeist_mg_psinv_f64";
-  if (libSym == "customHistogramSaturatingU8_memref")
-    return "polygeist_histogram_saturating_u8";
-  if (libSym == "customTPACFHistogram_f32_memref")
-    return "polygeist_tpacf_histogram_f32";
-  if (libSym == "customJdsSpmv_f32_memref")
-    return "polygeist_jds_spmv_f32_sized";
-  if (libSym == "customCsrSpmv_f64_memref")
-    return "polygeist_csr_spmv_f64_sized";
   if (libSym == "cublasSgemm_strided_batched_broadcast_rhs")
     return "polygeist_cublas_sgemm_strided_batched_broadcast_rhs";
   if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
@@ -191,6 +186,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv3d_ntap_f64";
   if (libSym == "cudnnConvolution3D_ntap_f32_tensor")
     return "polygeist_cudnn_conv3d_ntap_f32";
+  if (libSym == "cudnnStencil3D7pt_f32_flat_tensor")
+    return "polygeist_cudnn_stencil3d_7pt_f32_flat";
   if (libSym == "cudnnConvolution3D_f32" ||
       libSym == "cudnnConvolution3D_f32_bias")
     return "polygeist_cudnn_conv3d_channels_f32";
@@ -241,8 +238,9 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cub_segmented_reduce_f32";
   if (libSym == "cubSegmentedBitXor_i32_memref")
     return "polygeist_cub_segmented_reduce_i32";
-  if (libSym == "cublasSdot_memref")
-    return "polygeist_cublas_dot_f32";
+  if (libSym == "cublasSdot_memref" || libSym == "cublasDdot_memref")
+    return libSym == "cublasSdot_memref" ? "polygeist_cublas_dot_f32"
+                                         : "polygeist_cublas_dot_f64";
   if (libSym == "cubSegmentedArgMax_f32_i32_memref" ||
       libSym == "cubSegmentedArgMin_f32_i32_memref")
     return "polygeist_cub_segmented_argreduce_f32";
@@ -255,12 +253,6 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cub_segmented_sort_descending_f32_i32";
   if (libSym == "cubSegmentReduceLengths_f32_memref")
     return "polygeist_cub_segment_reduce_lengths_f32";
-  if (libSym == "customStencil3D7pt_f64_tensor" ||
-      libSym == "customStencil3D7ptCoeff_f64_tensor" ||
-      libSym == "customStencil3D7ptExtra_f64_tensor")
-    return "polygeist_custom_stencil3d_7pt_flat_f64";
-  if (libSym == "customStencil3D7pt_f32_tensor")
-    return "polygeist_custom_stencil3d_7pt_flat_f32";
   if (libSym == "cufftZ2Z_1D_tensor")
     return "polygeist_cufft_z2z_1d";
   if (libSym == "cufftC2C_1D_tensor")
@@ -621,49 +613,6 @@ static Value pointerForFlatAffineSubmap(OpBuilder &b, Location loc, Value v) {
       loc, LLVM::LLVMPointerType::get(b.getContext()), address);
 }
 
-struct FlatAffineSubmap3D {
-  Value pointer;
-  SmallVector<Value, 3> sizes;
-  SmallVector<Value, 3> strides;
-};
-
-// Recover the logical extents and physical element strides of a rank-3 view
-// over a flat ABI buffer.  Affine maps may contain dynamic leading dimensions
-// as symbols, so compute a stride as address(unit_dim)-address(origin).
-static FailureOr<FlatAffineSubmap3D>
-getFlatAffineSubmap3D(OpBuilder &b, Location loc, Value value) {
-  Value stripped = stripTensorCasts(value);
-  auto submap = stripped.getDefiningOp<polygeist::SubmapOp>();
-  if (!submap || submap.getMap().getNumDims() != 3 ||
-      submap.getMap().getNumResults() != 1 || submap.getSizes().size() != 3)
-    return failure();
-  Value pointer = pointerForFlatAffineSubmap(b, loc, stripped);
-  if (!pointer)
-    return failure();
-
-  auto applyAt = [&](int unitDim) -> Value {
-    SmallVector<Value> operands;
-    operands.reserve(submap.getMap().getNumInputs());
-    for (unsigned dim = 0; dim < 3; ++dim)
-      operands.push_back(
-          b.create<arith::ConstantIndexOp>(loc, unitDim == (int)dim ? 1 : 0));
-    operands.append(submap.getSymbols().begin(), submap.getSymbols().end());
-    return b.create<affine::AffineApplyOp>(loc, submap.getMap(), operands);
-  };
-
-  Value origin = applyAt(-1);
-  FlatAffineSubmap3D result;
-  result.pointer = pointer;
-  for (Value size : submap.getSizes())
-    result.sizes.push_back(valueAsI32(b, loc, size));
-  for (unsigned dim = 0; dim < 3; ++dim) {
-    Value unit = applyAt(dim);
-    Value stride = b.create<arith::SubIOp>(loc, unit, origin);
-    result.strides.push_back(integerLikeAsI64(b, loc, stride));
-  }
-  return result;
-}
-
 static Value pointerForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
   Value stripped = stripTensorCasts(v);
   if (Value pointer = pointerForFlatAffineSubmap(b, loc, stripped))
@@ -719,28 +668,6 @@ static Value memrefDataPtr(OpBuilder &b, Location loc, Value mr) {
   Value address = b.create<arith::AddIOp>(loc, alignedI64, byteOffset);
   return b.create<LLVM::IntToPtrOp>(
       loc, LLVM::LLVMPointerType::get(b.getContext()), address);
-}
-
-static Value numElementsForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
-  Value stripped = stripTensorCasts(v);
-  if (auto submap = stripped.getDefiningOp<polygeist::SubmapOp>()) {
-    Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
-                                              b.getI32IntegerAttr(1));
-    for (Value size : submap.getSizes())
-      total = b.create<arith::MulIOp>(loc, total,
-                                      valueAsI32(b, loc, size));
-    return total;
-  }
-  if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
-    Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
-                                              b.getI32IntegerAttr(1));
-    for (OpFoldResult size : slice.getMixedSizes())
-      total = b.create<arith::MulIOp>(loc, total,
-                                      opFoldResultAsI32(b, loc, size));
-    return total;
-  }
-  Value mr = valueToMemrefPreservingSlice(b, loc, v);
-  return memrefNumElementsAsI32(b, loc, mr);
 }
 
 static Value dimForTensorOrMemrefAsI32(OpBuilder &b, Location loc, Value v,
@@ -1361,6 +1288,64 @@ static LogicalResult lowerCudnnConv2DNtapTensor(LaunchOp launch,
   return success();
 }
 
+// cuSten consumes a complete dense grid, unlike cuDNN's convolution shim,
+// which can consume the materialized top-left/output subviews. Recover the
+// underlying submap bases so tensor bufferization does not create compact
+// (M-K+1)x(N-K+1) temporaries and then pass those as if they were MxN grids.
+static LogicalResult lowerCustenStencil2D(LaunchOp launch, ModuleOp module,
+                                          StringRef shimSymbol) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() > 1)
+    return launch.emitError(
+        "cuSten 2D: expected input view, output view, weights, K and at most "
+        "one result");
+  Value inputView = launch.getOperand(0);
+  Value outputView = launch.getOperand(1);
+  Value weights = launch.getOperand(2);
+  Value K = launch.getOperand(3);
+  if (!K.getType().isInteger(32))
+    return launch.emitError("cuSten 2D: K must be i32");
+
+  Value inputBase = resolveSubmapBase(inputView);
+  Value outputBase = resolveSubmapBase(outputView);
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value inputMr = valueToMemrefPreservingSlice(b, loc, inputBase);
+  Value outputMr = valueToOutputMemrefPreservingSlice(b, loc, outputBase);
+  Value weightsMr = valueToMemrefPreservingSlice(b, loc, weights);
+  auto inputTy = dyn_cast<MemRefType>(inputMr.getType());
+  auto outputTy = dyn_cast<MemRefType>(outputMr.getType());
+  auto weightsTy = dyn_cast<MemRefType>(weightsMr.getType());
+  if (!inputTy || !outputTy || !weightsTy || inputTy.getRank() != 2 ||
+      outputTy.getRank() != 2 || weightsTy.getRank() != 1 ||
+      !inputTy.getElementType().isF64() ||
+      !outputTy.getElementType().isF64() ||
+      !weightsTy.getElementType().isF64())
+    return launch.emitError("cuSten 2D: requires dense rank-2 f64 grids and "
+                            "rank-1 f64 weights");
+
+  Value M = memrefDimAsI32(b, loc, inputMr, 0);
+  Value N = memrefDimAsI32(b, loc, inputMr, 1);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{M, N, K, memrefDataPtr(b, loc, weightsMr),
+                 memrefDataPtr(b, loc, inputMr),
+                 memrefDataPtr(b, loc, outputMr)});
+
+  if (launch.getNumResults() == 1) {
+    auto baseTensorTy = dyn_cast<RankedTensorType>(outputBase.getType());
+    if (!baseTensorTy)
+      return launch.emitError("cuSten tensor result requires a tensor base");
+    Value updatedBase = memrefToTensor(b, loc, outputMr, baseTensorTy);
+    rewireLaunchResult(launch, updatedBase);
+  }
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCudnnConv3DNtapTensor(LaunchOp launch,
                                                 ModuleOp module,
                                                 StringRef shimSymbol) {
@@ -1434,6 +1419,50 @@ static LogicalResult lowerCudnnConv3DNtapTensor(LaunchOp launch,
       memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
   Value updatedBase = tensorForSliceSource(b, loc, C);
   rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudnnStencil3D7ptFlat(LaunchOp launch,
+                                                ModuleOp module,
+                                                StringRef shimSymbol) {
+  if (launch.getNumOperands() != 9 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "cudnnStencil3D7pt_f32_flat_tensor: expected A, C, two scales, "
+        "two strides, three output sizes and one result");
+  Value A = launch.getOperand(0), C = launch.getOperand(1);
+  auto aTy = dyn_cast<RankedTensorType>(A.getType());
+  auto cTy = dyn_cast<RankedTensorType>(C.getType());
+  if (!aTy || !cTy || aTy.getRank() != 1 || cTy.getRank() != 1 ||
+      !aTy.getElementType().isF32() || !cTy.getElementType().isF32() ||
+      launch.getResult(0).getType() != C.getType())
+    return launch.emitError(
+        "cudnnStencil3D7pt_f32_flat_tensor: expected rank-1 f32 tensors");
+  if (!launch.getOperand(2).getType().isF32() ||
+      !launch.getOperand(3).getType().isF32())
+    return launch.emitError("cudnnStencil3D7pt_f32_flat_tensor: scales must be f32");
+  for (Value dim : launch.getOperands().drop_front(4))
+    if (!dim.getType().isIndex())
+      return launch.emitError(
+          "cudnnStencil3D7pt_f32_flat_tensor: dimensions must be index");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value aMemref = valueToMemrefPreservingSlice(b, loc, A);
+  Value cMemref = valueToMemrefPreservingSlice(b, loc, C);
+  Value aPtr = memrefBasePtr(b, loc, aMemref);
+  Value cPtr = memrefBasePtr(b, loc, cMemref);
+  SmallVector<Value> args = {aPtr, cPtr, launch.getOperand(2),
+                             launch.getOperand(3)};
+  for (Value dim : launch.getOperands().drop_front(4))
+    args.push_back(b.create<arith::IndexCastOp>(loc, b.getI32Type(), dim));
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {ptrTy, ptrTy, b.getF32Type(), b.getF32Type(),
+                                b.getI32Type(), b.getI32Type(), b.getI32Type(),
+                                b.getI32Type(), b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(module, shimSymbol, argTypes, b);
+  b.create<func::CallOp>(loc, shim, args);
+  rewireLaunchResult(launch, C);
   launch.erase();
   return success();
 }
@@ -2064,181 +2093,6 @@ static LogicalResult lowerCudnnLogSigmoidF32(LaunchOp launch,
                  memrefDataPtr(b, loc, launch.getOperand(0)),
                  memrefDataPtr(b, loc, launch.getOperand(1)),
                  memrefDataPtr(b, loc, launch.getOperand(2))});
-  launch.erase();
-  return success();
-}
-
-static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
-                                                   ModuleOp module,
-                                                   StringRef libSym) {
-  bool useF32 = libSym == "customStencil3D7pt_f32_tensor";
-  bool hasCoeff = libSym == "customStencil3D7ptCoeff_f64_tensor";
-  bool hasExtra = libSym == "customStencil3D7ptExtra_f64_tensor";
-  unsigned expected = hasCoeff || hasExtra ? 19 : 18;
-  if (launch.getNumOperands() != expected)
-    return launch.emitError("customStencil3D7pt lowering: expected ")
-           << expected << " operands, got " << launch.getNumOperands();
-  bool bufferized = launch.getNumResults() == 0 &&
-                    launch->hasAttr("polygeist.bufferized");
-  if (launch.getNumResults() != 1 && !bufferized)
-    return launch.emitError(
-        "customStencil3D7pt lowering: expected 1 tensor result or a "
-        "bufferized destination launch");
-
-  SmallVector<Value> taps;
-  taps.reserve(7);
-  for (unsigned i = 0; i < 7; ++i)
-    taps.push_back(launch.getOperand(i));
-  unsigned idx = 7;
-  Value extra;
-  Value coeff;
-  if (hasExtra)
-    extra = launch.getOperand(idx++);
-  if (hasCoeff)
-    coeff = launch.getOperand(idx++);
-  Value out = launch.getOperand(idx++);
-  SmallVector<Value> scalars;
-  for (; idx < launch.getNumOperands(); ++idx)
-    scalars.push_back(launch.getOperand(idx));
-  if (scalars.size() != 10)
-    return launch.emitError("customStencil3D7pt lowering: expected 10 scalar "
-                            "coefficients");
-
-  auto outTy = dyn_cast<ShapedType>(out.getType());
-  auto resTy = bufferized
-                   ? outTy
-                   : dyn_cast<ShapedType>(launch.getResult(0).getType());
-  if (!outTy || !resTy || outTy.getRank() != 3 || resTy.getRank() != 3 ||
-      outTy.getElementType().isF32() != useF32 ||
-      resTy.getElementType().isF32() != useF32 ||
-      outTy.getElementType().isF64() == useF32 ||
-      resTy.getElementType().isF64() == useF32)
-    return launch.emitError(
-        "customStencil3D7pt lowering: output/result element type mismatch");
-  for (Value tap : taps) {
-    auto ty = dyn_cast<ShapedType>(tap.getType());
-    if (!ty || ty.getRank() != 3 ||
-        (useF32 ? !ty.getElementType().isF32()
-                : !ty.getElementType().isF64()))
-      return launch.emitError(
-          "customStencil3D7pt lowering: tap element type mismatch");
-  }
-  if (hasExtra) {
-    auto ty = dyn_cast<ShapedType>(extra.getType());
-    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
-      return launch.emitError(
-          "customStencil3D7pt lowering: extra operand must be rank-3 f64 tensor");
-  }
-  if (hasCoeff) {
-    auto ty = dyn_cast<ShapedType>(coeff.getType());
-    if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
-      return launch.emitError(
-          "customStencil3D7pt lowering: coeff operand must be rank-3 f64 tensor");
-  }
-  for (Value s : scalars)
-    if (useF32 ? !s.getType().isF32() : !s.getType().isF64())
-      return launch.emitError(
-          "customStencil3D7pt lowering: scalar coefficient type mismatch");
-
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-
-  // The source-faithful Parboil stencil exposes non-contiguous interior views
-  // of flat C arrays.  Preserve their affine strides instead of incorrectly
-  // flattening the logical tensor into consecutive addresses.
-  if (useF32 && !hasExtra && !hasCoeff && !bufferized) {
-    SmallVector<FlatAffineSubmap3D, 8> views;
-    for (Value tap : taps) {
-      FailureOr<FlatAffineSubmap3D> view =
-          getFlatAffineSubmap3D(b, loc, tap);
-      if (failed(view)) {
-        views.clear();
-        break;
-      }
-      views.push_back(*view);
-    }
-    FailureOr<FlatAffineSubmap3D> outputView =
-        getFlatAffineSubmap3D(b, loc, out);
-    if (views.size() == 7 && succeeded(outputView)) {
-      SmallVector<Value> args;
-      args.append(outputView->sizes.begin(), outputView->sizes.end());
-      for (const FlatAffineSubmap3D &view : views) {
-        args.push_back(view.pointer);
-        args.append(view.strides.begin(), view.strides.end());
-      }
-      args.push_back(outputView->pointer);
-      args.append(outputView->strides.begin(), outputView->strides.end());
-      args.append(scalars.begin(), scalars.end());
-
-      SmallVector<Type> types(3, b.getI32Type());
-      for (unsigned i = 0; i < 8; ++i) {
-        types.push_back(ptrTy);
-        types.append(3, b.getI64Type());
-      }
-      types.append(10, b.getF32Type());
-      func::FuncOp shim = ensureShimDecl(
-          module, "polygeist_custom_stencil3d_7pt_strided_f32", types, b);
-      b.create<func::CallOp>(loc, shim, args);
-
-      Value submapBase = resolveSubmapBase(out);
-      auto baseTensor = sourceToTensorOp(submapBase);
-      if (!baseTensor)
-        return launch.emitError(
-            "customStencil3D7pt lowering: strided output has no ABI base");
-      Value updatedBase = memrefToTensor(
-          b, loc, baseTensor.getMemref(), submapBase.getType());
-      rewireLaunchResult(launch, updatedBase);
-      launch.erase();
-      return success();
-    }
-  }
-
-  Value nullPtr = b.create<LLVM::ZeroOp>(loc, ptrTy);
-  Value N = numElementsForTensorOrMemref(b, loc, out);
-
-  SmallVector<Value> callOperands;
-  callOperands.push_back(N);
-  for (Value tap : taps)
-    callOperands.push_back(pointerForTensorOrMemref(b, loc, tap));
-  callOperands.push_back(hasExtra ? pointerForTensorOrMemref(b, loc, extra)
-                                  : nullPtr);
-  callOperands.push_back(hasCoeff ? pointerForTensorOrMemref(b, loc, coeff)
-                                  : nullPtr);
-  callOperands.push_back(pointerForTensorOrMemref(b, loc, out));
-  callOperands.append(scalars.begin(), scalars.end());
-
-  SmallVector<Type> argTypes;
-  argTypes.push_back(b.getI32Type());
-  for (unsigned i = 0; i < 10; ++i)
-    argTypes.push_back(ptrTy);
-  for (unsigned i = 0; i < 10; ++i)
-    argTypes.push_back(useF32 ? b.getF32Type() : b.getF64Type());
-  func::FuncOp shim = ensureShimDecl(
-      module, useF32 ? "polygeist_custom_stencil3d_7pt_flat_f32"
-                     : "polygeist_custom_stencil3d_7pt_flat_f64",
-      argTypes, b);
-  b.create<func::CallOp>(loc, shim, callOperands);
-
-  if (!bufferized) {
-    Value submapBase = resolveSubmapBase(out);
-    if (submapBase != out) {
-      auto baseTensor = sourceToTensorOp(submapBase);
-      if (!baseTensor)
-        return launch.emitError(
-            "customStencil3D7pt lowering: affine output submap has no ABI "
-            "memref base");
-      Value updatedBase = memrefToTensor(
-          b, loc, baseTensor.getMemref(), submapBase.getType());
-      rewireLaunchResult(launch, updatedBase);
-    } else {
-      Value updatedBase = tensorForSliceSource(b, loc, out);
-      Value updated = updatedBase ? Value()
-          : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
-                           launch.getResult(0).getType());
-      rewireTensorSliceLaunchResult(launch, updated, updatedBase);
-    }
-  }
   launch.erase();
   return success();
 }
@@ -3440,103 +3294,6 @@ static LogicalResult lowerSgemmFlatColMajorNTAlphaBeta(LaunchOp launch,
   return success();
 }
 
-static LogicalResult lowerMGStencil(LaunchOp launch, ModuleOp module,
-                                    StringRef libSym) {
-  bool resid = libSym == "customMGResid_f64_memref";
-  unsigned expected = resid ? 7 : 6;
-  if (launch.getNumOperands() != expected || launch.getNumResults() != 0)
-    return launch.emitError("MG stencil lowering: unexpected ABI");
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Value> args;
-  unsigned pointerCount = resid ? 3 : 2;
-  for (unsigned i = 0; i < pointerCount; ++i)
-    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
-  for (unsigned i = pointerCount; i < pointerCount + 3; ++i)
-    args.push_back(valueAsI32(b, loc, launch.getOperand(i)));
-  args.push_back(memrefDataPtr(b, loc, launch.getOperand(expected - 1)));
-  SmallVector<Type> types(pointerCount, ptrTy);
-  types.append(3, b.getI32Type());
-  types.push_back(ptrTy);
-  func::FuncOp shim = ensureShimDecl(module, shimSymbolFor(libSym), types, b);
-  b.create<func::CallOp>(loc, shim, args);
-  launch.erase();
-  return success();
-}
-
-static LogicalResult lowerSaturatingU8Histogram(LaunchOp launch,
-                                                ModuleOp module) {
-  if (launch.getNumOperands() != 4 || launch.getNumResults() != 0)
-    return launch.emitError("saturating histogram: expected values/bins/N/B");
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Type> types{ptrTy, ptrTy, b.getI32Type(), b.getI32Type()};
-  func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_histogram_saturating_u8", types, b);
-  b.create<func::CallOp>(loc, shim,
-      ValueRange{memrefDataPtr(b, loc, launch.getOperand(0)),
-                 memrefDataPtr(b, loc, launch.getOperand(1)),
-                 valueAsI32(b, loc, launch.getOperand(2)),
-                 valueAsI32(b, loc, launch.getOperand(3))});
-  launch.erase();
-  return success();
-}
-
-static LogicalResult lowerTPACFHistogram(LaunchOp launch, ModuleOp module) {
-  if (launch.getNumOperands() != 8 || launch.getNumResults() != 0)
-    return launch.emitError("TPACF histogram: unexpected ABI");
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Type> types{ptrTy, b.getI32Type(), ptrTy, b.getI32Type(),
-                          b.getI32Type(), ptrTy, b.getI32Type(), ptrTy};
-  func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_tpacf_histogram_f32", types, b);
-  SmallVector<Value> args;
-  for (unsigned i = 0; i < 8; ++i)
-    args.push_back(i == 0 || i == 2 || i == 5 || i == 7
-                       ? memrefDataPtr(b, loc, launch.getOperand(i))
-                       : valueAsI32(b, loc, launch.getOperand(i)));
-  b.create<func::CallOp>(loc, shim, args);
-  launch.erase();
-  return success();
-}
-
-static LogicalResult lowerSparseSpmv(LaunchOp launch, ModuleOp module,
-                                     StringRef libSym) {
-  bool jds = libSym == "customJdsSpmv_f32_memref";
-  unsigned expected = jds ? 8 : 6;
-  if (launch.getNumOperands() != expected || launch.getNumResults() != 0)
-    return launch.emitError("sparse SpMV: unexpected ABI");
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Value> args{valueAsI32(b, loc, launch.getOperand(0))};
-  for (unsigned i = 1; i < expected; ++i) {
-    if ((jds && (i == 2 || i == 3 || i == 4 || i == 5 || i == 7)) ||
-        (!jds && i >= 1))
-      args.push_back(dimForTensorOrMemrefAsI32(
-          b, loc, launch.getOperand(i), 0));
-    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
-  }
-  SmallVector<Type> types{b.getI32Type()};
-  for (unsigned i = 1; i < expected; ++i) {
-    if ((jds && (i == 2 || i == 3 || i == 4 || i == 5 || i == 7)) ||
-        (!jds && i >= 1))
-      types.push_back(b.getI32Type());
-    types.push_back(ptrTy);
-  }
-  func::FuncOp shim = ensureShimDecl(module, shimSymbolFor(libSym), types, b);
-  b.create<func::CallOp>(loc, shim, args);
-  launch.erase();
-  return success();
-}
-
-// C[B,M,N] = A[B,M,K] * RHS[K,N], with one RHS shared by every batch.
-// The runtime uses cublasSgemmStridedBatched and represents broadcasting by
-// setting the RHS batch stride to zero.
 static LogicalResult lowerSgemmStridedBatchedBroadcastRhs(LaunchOp launch,
                                                           ModuleOp module) {
   if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
@@ -3583,6 +3340,33 @@ static LogicalResult lowerSgemmStridedBatchedBroadcastRhs(LaunchOp launch,
   Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
   rewireTensorSliceLaunchResult(launch, out,
                                 tensorForSliceSource(b, loc, C));
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCusparseCsrSpmv(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 6 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "cuSPARSE CSR SpMV: expected rows, row offsets, column indices, "
+        "values, x, y and no result");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Value> args{valueAsI32(b, loc, launch.getOperand(0))};
+  for (unsigned i = 1; i < 6; ++i) {
+    args.push_back(
+        dimForTensorOrMemrefAsI32(b, loc, launch.getOperand(i), 0));
+    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
+  }
+  SmallVector<Type> types{b.getI32Type()};
+  for (unsigned i = 1; i < 6; ++i) {
+    types.push_back(b.getI32Type());
+    types.push_back(ptrTy);
+  }
+  auto sym = launch->getAttrOfType<SymbolRefAttr>("kernel");
+  StringRef shim = shimSymbolFor(sym.getLeafReference().getValue());
+  func::FuncOp decl = ensureShimDecl(module, shim, types, b);
+  b.create<func::CallOp>(loc, decl, args);
   launch.erase();
   return success();
 }
@@ -5337,19 +5121,24 @@ static LogicalResult lowerCublasDot(LaunchOp launch, ModuleOp module,
   return success();
 }
 
-static LogicalResult lowerCublasDotMemrefF32(LaunchOp launch,
-                                              ModuleOp module) {
+static LogicalResult lowerCublasDotMemref(LaunchOp launch, ModuleOp module,
+                                          bool singlePrecision) {
   if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
-    return launch.emitError("bufferized Sdot expects x, y, and output");
+    return launch.emitError("bufferized dot expects x, y, and output");
   for (Value operand : launch.getOperands()) {
     auto type = dyn_cast<MemRefType>(operand.getType());
-    if (!type || type.getRank() != 1 || !type.getElementType().isF32())
-      return launch.emitError("bufferized Sdot requires rank-1 f32 memrefs");
+    if (!type || type.getRank() != 1 ||
+        (singlePrecision ? !type.getElementType().isF32()
+                         : !type.getElementType().isF64()))
+      return launch.emitError(
+          "bufferized dot requires rank-1 memrefs of matching precision");
   }
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
-  auto shim = ensureShimDecl(module, "polygeist_cublas_dot_f32",
+  auto shim = ensureShimDecl(module, singlePrecision
+                                         ? "polygeist_cublas_dot_f32"
+                                         : "polygeist_cublas_dot_f64",
                              {b.getI32Type(), ptr, ptr, ptr}, b);
   b.create<func::CallOp>(
       loc, shim,
@@ -6723,7 +6512,10 @@ struct LowerKernelLaunchToCuBLASPass
       }
 
       LogicalResult r = failure();
-      if (libSym.starts_with("cubSegmentedPrefix")) {
+      if (libSym == "cusparseSpMV_CSR_f32_memref" ||
+          libSym == "cusparseSpMV_CSR_f64_memref") {
+        r = lowerCusparseCsrSpmv(launch, module);
+      } else if (libSym.starts_with("cubSegmentedPrefix")) {
         r = libSym.ends_with("_memref")
                 ? lowerCubSegmentedPrefixMemref(
                       launch, module,
@@ -6757,16 +6549,6 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym ==
                  "cublasSgemm_flat_colmajor_nt_alpha_beta") {
         r = lowerSgemmFlatColMajorNTAlphaBeta(launch, module);
-      } else if (libSym == "customMGResid_f64_memref" ||
-                 libSym == "customMGPSInv_f64_memref") {
-        r = lowerMGStencil(launch, module, libSym);
-      } else if (libSym == "customHistogramSaturatingU8_memref") {
-        r = lowerSaturatingU8Histogram(launch, module);
-      } else if (libSym == "customTPACFHistogram_f32_memref") {
-        r = lowerTPACFHistogram(launch, module);
-      } else if (libSym == "customJdsSpmv_f32_memref" ||
-                 libSym == "customCsrSpmv_f64_memref") {
-        r = lowerSparseSpmv(launch, module, libSym);
       } else if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
                  libSym == "cublasSgemm_nt_zero" ||
                  libSym == "cublasSgemm_tn_zero" ||
@@ -6831,12 +6613,18 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution2D_ntap" ||
                  libSym == "cudnnConvolution2D_ntap_f32") {
         r = lowerCudnnConv2DNtapPacked(launch, module, shim);
+      } else if (libSym == "custenStencil2DXY_f64_memref") {
+        r = lowerCustenStencil2D(launch, module, shim);
       } else if (libSym == "cudnnConvolution2D_ntap_tensor" ||
                  libSym == "cudnnConvolution2D_ntap_f32_tensor") {
         r = lowerCudnnConv2DNtapTensor(launch, module, shim);
+      } else if (libSym == "custenStencil2DXY_f64_tensor") {
+        r = lowerCustenStencil2D(launch, module, shim);
       } else if (libSym == "cudnnConvolution3D_ntap_tensor" ||
                  libSym == "cudnnConvolution3D_ntap_f32_tensor") {
         r = lowerCudnnConv3DNtapTensor(launch, module, shim);
+      } else if (libSym == "cudnnStencil3D7pt_f32_flat_tensor") {
+        r = lowerCudnnStencil3D7ptFlat(launch, module, shim);
       } else if (libSym == "cudnnConvolution3D_f32" ||
                  libSym == "cudnnConvolution3D_f32_bias") {
         r = lowerCudnnConv3DChannelsF32(
@@ -6879,11 +6667,6 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCubSegmentedLogicalMemrefI32(launch, module, false);
       } else if (libSym == "cubSegmentedLogicalSelect_i32_memref") {
         r = lowerCubSegmentedLogicalMemrefI32(launch, module, true);
-      } else if (libSym == "customStencil3D7pt_f64_tensor" ||
-                 libSym == "customStencil3D7ptCoeff_f64_tensor" ||
-                 libSym == "customStencil3D7ptExtra_f64_tensor" ||
-                 libSym == "customStencil3D7pt_f32_tensor") {
-        r = lowerCustomStencil3D7ptTensor(launch, module, libSym);
       } else if (libSym == "cufftZ2Z_1D_tensor" ||
                  libSym == "cufftC2C_1D_tensor") {
         r = lowerCufftC2C1DTensor(launch, module, shim);
@@ -6944,8 +6727,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerWhisperExpShiftSumF32(launch, module);
       } else if (libSym == "cublasDdot" || libSym == "cublasSdot") {
         r = lowerCublasDot(launch, module, libSym == "cublasSdot");
-      } else if (libSym == "cublasSdot_memref") {
-        r = lowerCublasDotMemrefF32(launch, module);
+      } else if (libSym == "cublasSdot_memref" ||
+                 libSym == "cublasDdot_memref") {
+        r = lowerCublasDotMemref(
+            launch, module, libSym == "cublasSdot_memref");
       } else if (libSym == "cubSegmentedArgMax_f32_i32_memref" ||
                  libSym == "cubSegmentedArgMin_f32_i32_memref") {
         r = lowerCubSegmentedArgReduceF32(

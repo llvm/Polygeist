@@ -32,6 +32,25 @@ extern "C" {
 void polygeist_cublas_init(void);
 void polygeist_cublas_destroy(void);
 
+// NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
+// derived from the MLIR memref descriptors; row_offsets[rows] supplies nnz.
+void polygeist_cusparse_spmv_csr_f32_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
+void polygeist_cusparse_spmv_csr_f64_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const double *values,
+    int32_t x_count, const double *x, int32_t y_count, double *y);
+
+// External cuSten 2D XY non-periodic weighted stencil. K is an odd square
+// filter width; A/B are full row-major MxN allocations and W has K*K values.
+void polygeist_custen_stencil2d_xy_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B);
+
 // Pipeline scope. The compiler inserts these around a group/function containing
 // lowered library calls. They are currently conservative hooks: CPU is a no-op,
 // CUDA initializes the backend on begin and synchronizes at outermost end.
@@ -160,7 +179,9 @@ void polygeist_cublas_memset_zero_2d(
 void polygeist_cublas_dscal_2d(
     int32_t M, int32_t N, double scale, double *A, int32_t lda);
 
-// Contiguous FP32 vector primitives used by ATen BLAS loop recognition.
+// Contiguous vector primitives composed from cuBLAS scal + axpy.
+void polygeist_cublas_daxpby(
+    int32_t N, double alpha, const double *x, double beta, double *y);
 void polygeist_cublas_saxpby(
     int32_t N, float alpha, const float *x, float beta, float *y);
 void polygeist_cublas_sscal(int32_t N, float scale, float *x);
@@ -285,44 +306,9 @@ void polygeist_cudnn_conv3d_ntap_f32(
     int32_t K,
     const float *W, const float *A, float *B);
 
-// Custom structured 3D 7-point stencil over seven flattened tap tensors.
-// `extra` and `coeff` may be NULL. The computation is:
-//   base = base0 * a0 + base_extra * extra
-//   inner = c0*a0 + c1*a1 + ... + c6*a6 + coeff_extra * extra
-//   out = base + (coeff ? coeff[i] : 1) * inner
-void polygeist_custom_stencil3d_7pt_flat_f64(
-    int32_t N,
-    const double *a0, const double *a1, const double *a2,
-    const double *a3, const double *a4, const double *a5,
-    const double *a6, const double *extra, const double *coeff,
-    double *out,
-    double base0, double base_extra, double coeff_extra,
-    double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6);
-
-void polygeist_custom_stencil3d_7pt_flat_f32(
-    int32_t N,
-    const float *a0, const float *a1, const float *a2,
-    const float *a3, const float *a4, const float *a5,
-    const float *a6, const float *extra, const float *coeff,
-    float *out,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6);
-
-void polygeist_custom_stencil3d_7pt_strided_f32(
-    int32_t nx, int32_t ny, int32_t nz,
-    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
-    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
-    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
-    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
-    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
-    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
-    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
-    float *out, int64_t oi, int64_t oj, int64_t ok,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6);
+void polygeist_cudnn_stencil3d_7pt_f32_flat(
+    const float *A, float *B, float center_scale, float neighbor_scale,
+    int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z);
 
 // Basic 1D complex-to-complex FFT shims. Complex values are represented as
 // interleaved real/imag pairs: A[2*i+0], A[2*i+1]. `inverse != 0` selects the
@@ -809,40 +795,6 @@ void polygeist_cutensor_permute_f32(
     const int32_t *input_modes, const int64_t *output_extents,
     const int64_t *output_strides, const int32_t *output_modes,
     const float *input, float *output);
-
-// NAS MG's flattened 3-D residual and inverse smoother kernels.
-void polygeist_mg_resid_f64(const double *u, const double *v, double *r,
-                            int32_t n1, int32_t n2, int32_t n3,
-                            const double *a);
-void polygeist_mg_psinv_f64(const double *r, double *u,
-                            int32_t n1, int32_t n2, int32_t n3,
-                            const double *c);
-void polygeist_histogram_saturating_u8(const int32_t *values, uint8_t *bins,
-                                       int32_t count, int32_t num_bins);
-void polygeist_tpacf_histogram_f32(const float *data1, int32_t n1,
-                                   const float *data2, int32_t n2,
-                                   int32_t self, int64_t *bins,
-                                   int32_t nbins, const float *bounds);
-void polygeist_jds_spmv_f32(int32_t rows, const int32_t *nzcnt,
-                            const int32_t *ptr, const int32_t *indices,
-                            const float *data, const float *x,
-                            const int32_t *perm, float *out);
-void polygeist_csr_spmv_f64(int32_t rows, const int32_t *rowptr,
-                            const int32_t *cols, const double *data,
-                            const double *x, double *out);
-void polygeist_jds_spmv_f32_sized(
-    int32_t rows, const int32_t *nzcnt,
-    int32_t ptr_count, const int32_t *ptr,
-    int32_t index_count, const int32_t *indices,
-    int32_t data_count, const float *data,
-    int32_t x_count, const float *x,
-    const int32_t *perm, int32_t out_count, float *out);
-void polygeist_csr_spmv_f64_sized(
-    int32_t rows, int32_t rowptr_count, const int32_t *rowptr,
-    int32_t col_count, const int32_t *cols,
-    int32_t data_count, const double *data,
-    int32_t x_count, const double *x,
-    int32_t out_count, double *out);
 
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around

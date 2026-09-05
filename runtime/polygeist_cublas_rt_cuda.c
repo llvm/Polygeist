@@ -30,6 +30,12 @@
 
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#if !defined(POLYGEIST_DISABLE_CUSPARSE)
+#  include <cusparse.h>
+#  define POLYGEIST_HAS_CUSPARSE 1
+#else
+#  define POLYGEIST_HAS_CUSPARSE 0
+#endif
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
@@ -78,6 +84,9 @@
  * __bf16 arrays via uint16_t lands the correct values on the device. */
 
 static cublasHandle_t   g_handle;
+#if POLYGEIST_HAS_CUSPARSE
+static cusparseHandle_t g_sparse = NULL;
+#endif
 static void *polygeist_cub_companion_symbol(const char *symbol);
 static cublasLtHandle_t g_lt = NULL;
 static cudnnHandle_t    g_cudnn = NULL;
@@ -242,6 +251,17 @@ static void initialize_generated_driver_api(void) {
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+#if POLYGEIST_HAS_CUSPARSE
+#define CUSPARSE_CHECK(call) do {                                            \
+    cusparseStatus_t s = (call);                                             \
+    if (s != CUSPARSE_STATUS_SUCCESS) {                                      \
+      fprintf(stderr, "%s:%d cuSPARSE error: %d\n", __FILE__, __LINE__,     \
+              (int)s);                                                       \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
+#endif
 
 #define CUDNN_CHECK(call) do {                                               \
     cudnnStatus_t s = (call);                                                \
@@ -1044,6 +1064,12 @@ void polygeist_cublas_destroy(void) {
   destroy_device_temp_cache();
   cudaEventDestroy(g_ev_begin);
   cudaEventDestroy(g_ev_end);
+#if POLYGEIST_HAS_CUSPARSE
+  if (g_sparse) {
+    cusparseDestroy(g_sparse);
+    g_sparse = NULL;
+  }
+#endif
   cublasDestroy(g_handle);
   cudaStreamDestroy(g_stream);
   g_initialized = 0;
@@ -1140,6 +1166,145 @@ void *polygeist_cuda_graph_stream(void) {
   polygeist_cublas_init();
   return (void *)g_stream;
 }
+
+#if POLYGEIST_HAS_CUSPARSE
+static void ensure_cusparse(void) {
+  polygeist_cublas_init();
+  if (g_sparse)
+    return;
+  CUSPARSE_CHECK(cusparseCreate(&g_sparse));
+  CUSPARSE_CHECK(cusparseSetStream(g_sparse, g_stream));
+}
+
+static void polygeist_cusparse_spmv_csr_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const void *values, int32_t x_count, const void *x,
+    int32_t y_count, void *y, cudaDataType value_type, size_t value_size,
+    const char *timing_name) {
+  if (rows <= 0)
+    return;
+  if (!row_offsets || !column_indices || !values || !x || !y ||
+      row_offset_count < rows + 1 || x_count <= 0 || y_count < rows) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid CSR SpMV operands\n");
+    abort();
+  }
+  ensure_cusparse();
+
+  int32_t nnz = 0;
+  void *resident = NULL;
+  if (pointer_is_device_resident((void *)row_offsets, &resident))
+    CUDA_CHECK(cudaMemcpy(&nnz, row_offsets + rows, sizeof(nnz),
+                          cudaMemcpyDeviceToHost));
+  else
+    nnz = row_offsets[rows];
+  if (nnz < 0 || nnz > column_index_count || nnz > value_count) {
+    fprintf(stderr,
+            "Polygeist cuSPARSE: CSR nnz=%d exceeds column/value capacity\n",
+            nnz);
+    abort();
+  }
+
+  void *host_ptrs[] = {(void *)row_offsets, (void *)column_indices,
+                       (void *)values, (void *)x, y};
+  size_t byte_sizes[] = {
+      (size_t)row_offset_count * sizeof(int32_t),
+      (size_t)column_index_count * sizeof(int32_t),
+      (size_t)value_count * value_size, (size_t)x_count * value_size,
+      (size_t)y_count * value_size};
+  void *device_ptrs[5] = {NULL, NULL, NULL, NULL, NULL};
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 5);
+
+  cusparseSpMatDescr_t matrix = NULL;
+  cusparseDnVecDescr_t vector_x = NULL, vector_y = NULL;
+  CUSPARSE_CHECK(cusparseCreateCsr(
+      &matrix, rows, x_count, nnz, device_ptrs[0], device_ptrs[1],
+      device_ptrs[2], CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
+      CUSPARSE_INDEX_BASE_ZERO, value_type));
+  CUSPARSE_CHECK(
+      cusparseCreateDnVec(&vector_x, x_count, device_ptrs[3], value_type));
+  CUSPARSE_CHECK(
+      cusparseCreateDnVec(&vector_y, rows, device_ptrs[4], value_type));
+
+  double alpha64 = 1.0, beta64 = 0.0;
+  float alpha32 = 1.0f, beta32 = 0.0f;
+  const void *alpha = value_type == CUDA_R_64F ? (const void *)&alpha64
+                                                : (const void *)&alpha32;
+  const void *beta = value_type == CUDA_R_64F ? (const void *)&beta64
+                                               : (const void *)&beta32;
+  size_t workspace_size = 0;
+  CUSPARSE_CHECK(cusparseSpMV_bufferSize(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE, alpha, matrix, vector_x,
+      beta, vector_y, value_type, CUSPARSE_SPMV_ALG_DEFAULT,
+      &workspace_size));
+  void *workspace = NULL;
+  if (workspace_size)
+    DEVICE_MALLOC(&workspace, workspace_size);
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  CUSPARSE_CHECK(cusparseSpMV(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE, alpha, matrix, vector_x,
+      beta, vector_y, value_type, CUSPARSE_SPMV_ALG_DEFAULT, workspace));
+  timing_gpu_end(timing_name, rows, x_count, nnz, host_start_ms);
+  sync_stream_if_outside_pipeline();
+
+  if (workspace)
+    DEVICE_FREE(workspace);
+  CUSPARSE_CHECK(cusparseDestroyDnVec(vector_x));
+  CUSPARSE_CHECK(cusparseDestroyDnVec(vector_y));
+  CUSPARSE_CHECK(cusparseDestroySpMat(matrix));
+}
+
+void polygeist_cusparse_spmv_csr_f32_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values, int32_t x_count, const float *x,
+    int32_t y_count, float *y) {
+  polygeist_cusparse_spmv_csr_sized(
+      rows, row_offset_count, row_offsets, column_index_count, column_indices,
+      value_count, values, x_count, x, y_count, y, CUDA_R_32F, sizeof(float),
+      "cusparseSpMV_CSR_f32");
+}
+
+void polygeist_cusparse_spmv_csr_f64_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const double *values, int32_t x_count, const double *x,
+    int32_t y_count, double *y) {
+  polygeist_cusparse_spmv_csr_sized(
+      rows, row_offset_count, row_offsets, column_index_count, column_indices,
+      value_count, values, x_count, x, y_count, y, CUDA_R_64F, sizeof(double),
+      "cusparseSpMV_CSR_f64");
+}
+#else
+static void cusparse_disabled(void) {
+  fprintf(stderr,
+          "Polygeist: this binary was built without the cuSPARSE backend\n");
+  abort();
+}
+
+void polygeist_cusparse_spmv_csr_f32_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values, int32_t x_count, const float *x,
+    int32_t y_count, float *y) {
+  (void)rows; (void)row_offset_count; (void)row_offsets;
+  (void)column_index_count; (void)column_indices; (void)value_count;
+  (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_spmv_csr_f64_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const double *values, int32_t x_count, const double *x,
+    int32_t y_count, double *y) {
+  (void)rows; (void)row_offset_count; (void)row_offsets;
+  (void)column_index_count; (void)column_indices; (void)value_count;
+  (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  cusparse_disabled();
+}
+#endif
 
 // Capture-safe implementation of the runtime ABI produced by MLIR's
 // --convert-gpu-to-llvm lowering. Unlike the stock wrappers, these functions
@@ -1546,9 +1711,17 @@ void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
 // calls would dominate any GPU benefit. Do it on the host directly.
 void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
                               double beta, double *y) {
+  polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  for (int32_t i = 0; i < N; ++i) y[i] = alpha * x[i] + beta * y[i];
-  timing_host_only("host_daxpby", N, 1, 0, host_start_ms);
+  size_t bytes = (size_t)N * sizeof(double);
+  double *dx = (double *)register_host_safe((void *)x, bytes);
+  double *dy = (double *)register_host_safe(y, bytes);
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDscal(g_handle, N, &beta, dy, 1));
+  CUBLAS_CHECK(cublasDaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
+  timing_gpu_end("cublasDaxpby", N, 1, 0, host_start_ms);
+  unregister_host_safe((void *)x);
+  unregister_host_safe(y);
 }
 
 void polygeist_cublas_saxpby(int32_t N, float alpha, const float *x,
@@ -3121,477 +3294,105 @@ void polygeist_cudnn_conv3d_ntap_f32(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
-extern void polygeist_mg_resid_f64_device(
-    const double *, const double *, double *, int32_t, int32_t, int32_t,
-    const double *, void *) __attribute__((weak));
-extern void polygeist_mg_psinv_f64_device(
-    const double *, double *, int32_t, int32_t, int32_t,
-    const double *, void *) __attribute__((weak));
-extern void polygeist_histogram_saturating_u8_device(
-    const int32_t *, uint8_t *, int32_t, int32_t, void *)
-    __attribute__((weak));
-extern void polygeist_tpacf_histogram_f32_device(
-    const float *, int32_t, const float *, int32_t, int32_t, int64_t *,
-    int32_t, const float *, void *) __attribute__((weak));
-extern void polygeist_jds_spmv_f32_device(
-    int32_t, const int32_t *, const int32_t *, const int32_t *, const float *,
-    const float *, const int32_t *, float *, void *) __attribute__((weak));
-extern void polygeist_csr_spmv_f64_device(
-    int32_t, const int32_t *, const int32_t *, const double *, const double *,
-    double *, void *) __attribute__((weak));
-
-static void require_benchmark_cuda_symbol(const void *symbol,
-                                          const char *name) {
-  if (symbol) return;
-  fprintf(stderr,
-          "Polygeist CUDA runtime: required device implementation '%s' "
-          "is not linked\n", name);
-  abort();
-}
-
-void polygeist_mg_resid_f64(const double *u, const double *v, double *r,
-                            int32_t n1, int32_t n2, int32_t n3,
-                            const double *a) {
-  require_benchmark_cuda_symbol((const void *)polygeist_mg_resid_f64_device,
-                                "polygeist_mg_resid_f64_device");
+/* External-library implementation of a flattened 3D seven-point stencil.
+ * The adapter only builds the sparse 3x3x3 filter and descriptors; cuDNN
+ * performs all arithmetic. cudaMemcpy3D writes the compact valid-convolution
+ * result into the interior of the caller's full grid, preserving boundaries. */
+void polygeist_cudnn_stencil3d_7pt_f32_flat(
+    const float *A, float *B, float center_scale, float neighbor_scale,
+    int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z) {
   polygeist_cublas_init();
-  size_t bytes = (size_t)n1 * n2 * n3 * sizeof(double);
-  double *du = (double *)register_host_safe((void *)u, bytes);
-  double *dv = (double *)register_host_safe((void *)v, bytes);
-  double *dr = (double *)register_host_safe(r, bytes);
-  double *da = (double *)register_host_safe((void *)a, 4 * sizeof(double));
-  polygeist_mg_resid_f64_device(du, dv, dr, n1, n2, n3, da, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)u); unregister_host_safe((void *)v);
-  unregister_host_safe(r); unregister_host_safe((void *)a);
-}
-
-void polygeist_mg_psinv_f64(const double *r, double *u,
-                            int32_t n1, int32_t n2, int32_t n3,
-                            const double *c) {
-  require_benchmark_cuda_symbol((const void *)polygeist_mg_psinv_f64_device,
-                                "polygeist_mg_psinv_f64_device");
-  polygeist_cublas_init();
-  size_t bytes = (size_t)n1 * n2 * n3 * sizeof(double);
-  double *dr = (double *)register_host_safe((void *)r, bytes);
-  double *du = (double *)register_host_safe(u, bytes);
-  double *dc = (double *)register_host_safe((void *)c, 4 * sizeof(double));
-  polygeist_mg_psinv_f64_device(dr, du, n1, n2, n3, dc, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)r); unregister_host_safe(u);
-  unregister_host_safe((void *)c);
-}
-
-void polygeist_histogram_saturating_u8(const int32_t *values, uint8_t *bins,
-                                       int32_t count, int32_t num_bins) {
-  require_benchmark_cuda_symbol(
-      (const void *)polygeist_histogram_saturating_u8_device,
-      "polygeist_histogram_saturating_u8_device");
-  polygeist_cublas_init();
-  int32_t *dv = (int32_t *)register_host_safe(
-      (void *)values, (size_t)count * sizeof(int32_t));
-  uint8_t *db = (uint8_t *)register_host_safe(
-      bins, (size_t)num_bins * sizeof(uint8_t));
-  polygeist_histogram_saturating_u8_device(
-      dv, db, count, num_bins, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)values);
-  unregister_host_safe(bins);
-}
-
-void polygeist_tpacf_histogram_f32(const float *data1, int32_t n1,
-                                   const float *data2, int32_t n2,
-                                   int32_t self, int64_t *bins,
-                                   int32_t nbins, const float *bounds) {
-  require_benchmark_cuda_symbol((const void *)polygeist_tpacf_histogram_f32_device,
-                                "polygeist_tpacf_histogram_f32_device");
-  if (self) { data2 = data1; n2 = n1; }
-  polygeist_cublas_init();
-  float *d1 = (float *)register_host_safe(
-      (void *)data1, (size_t)n1 * 3 * sizeof(float));
-  float *d2 = self ? d1 : (float *)register_host_safe(
-      (void *)data2, (size_t)n2 * 3 * sizeof(float));
-  int64_t *db = (int64_t *)register_host_safe(
-      bins, (size_t)(nbins + 2) * sizeof(int64_t));
-  float *dlimits = (float *)register_host_safe(
-      (void *)bounds, (size_t)(nbins + 1) * sizeof(float));
-  polygeist_tpacf_histogram_f32_device(
-      d1, n1, d2, n2, self, db, nbins, dlimits, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)data1);
-  if (!self) unregister_host_safe((void *)data2);
-  unregister_host_safe(bins); unregister_host_safe((void *)bounds);
-}
-
-void polygeist_jds_spmv_f32(int32_t rows, const int32_t *nzcnt,
-                            const int32_t *ptr, const int32_t *indices,
-                            const float *data, const float *x,
-                            const int32_t *perm, float *out) {
-  if (rows <= 0) return;
-  require_benchmark_cuda_symbol((const void *)polygeist_jds_spmv_f32_device,
-                                "polygeist_jds_spmv_f32_device");
-  int32_t depth = 0, data_count = 0, x_count = 0, out_count = 0;
-  for (int32_t i = 0; i < rows; ++i) {
-    if (nzcnt[i] > depth) depth = nzcnt[i];
-    if (perm[i] + 1 > out_count) out_count = perm[i] + 1;
+  ensure_cudnn();
+  if (nx != out_x + 2 || ny != out_y + 2 || out_x <= 0 || out_y <= 0 ||
+      out_z <= 0) {
+    fprintf(stderr, "cuDNN 7pt stencil: inconsistent dense-grid dimensions\n");
+    abort();
   }
-  for (int32_t k = 0; k < depth; ++k)
-    if (ptr[k] + rows > data_count) data_count = ptr[k] + rows;
-  for (int32_t j = 0; j < data_count; ++j)
-    if (indices[j] + 1 > x_count) x_count = indices[j] + 1;
-  polygeist_cublas_init();
-  int32_t *dn = register_host_safe((void *)nzcnt, (size_t)rows * sizeof(int32_t));
-  int32_t *dp = register_host_safe((void *)ptr, (size_t)depth * sizeof(int32_t));
-  int32_t *di = register_host_safe((void *)indices, (size_t)data_count * sizeof(int32_t));
-  float *dd = register_host_safe((void *)data, (size_t)data_count * sizeof(float));
-  float *dx = register_host_safe((void *)x, (size_t)x_count * sizeof(float));
-  int32_t *dperm = register_host_safe((void *)perm, (size_t)rows * sizeof(int32_t));
-  float *dout = register_host_safe(out, (size_t)out_count * sizeof(float));
-  polygeist_jds_spmv_f32_device(rows, dn, dp, di, dd, dx, dperm, dout, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)nzcnt); unregister_host_safe((void *)ptr);
-  unregister_host_safe((void *)indices); unregister_host_safe((void *)data);
-  unregister_host_safe((void *)x); unregister_host_safe((void *)perm);
-  unregister_host_safe(out);
-}
+  int32_t nz = out_z + 2;
+  float filter[27] = {0};
+  filter[4] = filter[10] = filter[12] = neighbor_scale;
+  filter[14] = filter[16] = filter[22] = neighbor_scale;
+  filter[13] = -center_scale;
 
-void polygeist_csr_spmv_f64(int32_t rows, const int32_t *rowptr,
-                            const int32_t *cols, const double *data,
-                            const double *x, double *out) {
-  if (rows <= 0) return;
-  require_benchmark_cuda_symbol((const void *)polygeist_csr_spmv_f64_device,
-                                "polygeist_csr_spmv_f64_device");
-  int32_t nnz = rowptr[rows], x_count = 0;
-  for (int32_t j = 0; j < nnz; ++j)
-    if (cols[j] + 1 > x_count) x_count = cols[j] + 1;
-  polygeist_cublas_init();
-  int32_t *drp = register_host_safe((void *)rowptr, (size_t)(rows + 1) * sizeof(int32_t));
-  int32_t *dc = register_host_safe((void *)cols, (size_t)nnz * sizeof(int32_t));
-  double *dd = register_host_safe((void *)data, (size_t)nnz * sizeof(double));
-  double *dx = register_host_safe((void *)x, (size_t)x_count * sizeof(double));
-  double *dout = register_host_safe(out, (size_t)rows * sizeof(double));
-  polygeist_csr_spmv_f64_device(rows, drp, dc, dd, dx, dout, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)rowptr); unregister_host_safe((void *)cols);
-  unregister_host_safe((void *)data); unregister_host_safe((void *)x);
-  unregister_host_safe(out);
-}
+  cudnnTensorDescriptor_t in_desc, out_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  int in_dims[5] = {1, 1, nz, ny, nx};
+  int in_strides[5] = {nz * ny * nx, nz * ny * nx, ny * nx, nx, 1};
+  int out_dims[5] = {1, 1, out_z, out_y, out_x};
+  int out_strides[5] = {out_z * out_y * out_x, out_z * out_y * out_x,
+                        out_y * out_x, out_x, 1};
+  int filter_dims[5] = {1, 1, 3, 3, 3};
+  int pad[3] = {0, 0, 0}, stride[3] = {1, 1, 1};
+  int dilation[3] = {1, 1, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      in_desc, CUDNN_DATA_FLOAT, 5, in_dims, in_strides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      out_desc, CUDNN_DATA_FLOAT, 5, out_dims, out_strides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, filter_dims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      conv_desc, 3, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
+      CUDNN_DATA_FLOAT));
 
-void polygeist_jds_spmv_f32_sized(
-    int32_t rows, const int32_t *nzcnt,
-    int32_t ptr_count, const int32_t *ptr,
-    int32_t index_count, const int32_t *indices,
-    int32_t data_count, const float *data,
-    int32_t x_count, const float *x,
-    const int32_t *perm, int32_t out_count, float *out) {
-  if (rows <= 0) return;
-  require_benchmark_cuda_symbol((const void *)polygeist_jds_spmv_f32_device,
-                                "polygeist_jds_spmv_f32_device");
-  polygeist_cublas_init();
-  int32_t *dn = register_host_safe((void *)nzcnt, (size_t)rows * sizeof(int32_t));
-  int32_t *dp = register_host_safe((void *)ptr, (size_t)ptr_count * sizeof(int32_t));
-  int32_t *di = register_host_safe((void *)indices, (size_t)index_count * sizeof(int32_t));
-  float *dd = register_host_safe((void *)data, (size_t)data_count * sizeof(float));
-  float *dx = register_host_safe((void *)x, (size_t)x_count * sizeof(float));
-  int32_t *dperm = register_host_safe((void *)perm, (size_t)rows * sizeof(int32_t));
-  float *dout = register_host_safe(out, (size_t)out_count * sizeof(float));
-  polygeist_jds_spmv_f32_device(rows, dn, dp, di, dd, dx, dperm, dout, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)nzcnt); unregister_host_safe((void *)ptr);
-  unregister_host_safe((void *)indices); unregister_host_safe((void *)data);
-  unregister_host_safe((void *)x); unregister_host_safe((void *)perm);
-  unregister_host_safe(out);
-}
+  size_t input_bytes = (size_t)nx * ny * nz * sizeof(float);
+  size_t output_bytes = (size_t)out_x * out_y * out_z * sizeof(float);
+  float *d_input = NULL, *d_output = NULL, *d_filter = NULL;
+  DEVICE_MALLOC((void **)&d_input, input_bytes);
+  DEVICE_MALLOC((void **)&d_output, output_bytes);
+  DEVICE_MALLOC((void **)&d_filter, sizeof(filter));
+  CUDA_CHECK(cudaMemcpyAsync(d_input, A, input_bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(d_filter, filter, sizeof(filter),
+                             cudaMemcpyHostToDevice, g_stream));
 
-void polygeist_csr_spmv_f64_sized(
-    int32_t rows, int32_t rowptr_count, const int32_t *rowptr,
-    int32_t col_count, const int32_t *cols,
-    int32_t data_count, const double *data,
-    int32_t x_count, const double *x,
-    int32_t out_count, double *out) {
-  if (rows <= 0) return;
-  require_benchmark_cuda_symbol((const void *)polygeist_csr_spmv_f64_device,
-                                "polygeist_csr_spmv_f64_device");
-  polygeist_cublas_init();
-  int32_t *drp = register_host_safe((void *)rowptr, (size_t)rowptr_count * sizeof(int32_t));
-  int32_t *dc = register_host_safe((void *)cols, (size_t)col_count * sizeof(int32_t));
-  double *dd = register_host_safe((void *)data, (size_t)data_count * sizeof(double));
-  double *dx = register_host_safe((void *)x, (size_t)x_count * sizeof(double));
-  double *dout = register_host_safe(out, (size_t)out_count * sizeof(double));
-  polygeist_csr_spmv_f64_device(rows, drp, dc, dd, dx, dout, g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  unregister_host_safe((void *)rowptr); unregister_host_safe((void *)cols);
-  unregister_host_safe((void *)data); unregister_host_safe((void *)x);
-  unregister_host_safe(out);
-}
-
-extern void polygeist_custom_stencil3d_7pt_flat_f64_device(
-    int32_t N,
-    const double *a0, const double *a1, const double *a2,
-    const double *a3, const double *a4, const double *a5,
-    const double *a6, const double *extra, const double *coeff,
-    double *out,
-    double base0, double base_extra, double coeff_extra,
-    double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6,
-    void *cuda_stream) __attribute__((weak));
-
-extern void polygeist_custom_stencil3d_7pt_flat_f32_device(
-    int32_t N,
-    const float *a0, const float *a1, const float *a2,
-    const float *a3, const float *a4, const float *a5,
-    const float *a6, const float *extra, const float *coeff,
-    float *out,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6,
-    void *cuda_stream) __attribute__((weak));
-
-extern void polygeist_custom_stencil3d_7pt_strided_f32_device(
-    int32_t nx, int32_t ny, int32_t nz,
-    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
-    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
-    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
-    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
-    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
-    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
-    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
-    float *out, int64_t oi, int64_t oj, int64_t ok,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6,
-    void *cuda_stream) __attribute__((weak));
-
-static void polygeist_custom_stencil3d_7pt_flat_f64_cpu(
-    int32_t N,
-    const double *a0, const double *a1, const double *a2,
-    const double *a3, const double *a4, const double *a5,
-    const double *a6, const double *extra, const double *coeff,
-    double *out,
-    double base0, double base_extra, double coeff_extra,
-    double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6) {
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  for (int32_t i = 0; i < N; ++i) {
-    double extra_v = extra ? extra[i] : 0.0;
-    double scale = coeff ? coeff[i] : 1.0;
-    double base = base0 * a0[i] + (extra ? base_extra * extra_v : 0.0);
-    double inner = c0 * a0[i] + c1 * a1[i] + c2 * a2[i] +
-                   c3 * a3[i] + c4 * a4[i] + c5 * a5[i] +
-                   c6 * a6[i] + (extra ? coeff_extra * extra_v : 0.0);
-    out[i] = base + scale * inner;
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, filter_desc, conv_desc, out_desc, 1, &returned, &perf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN 7pt stencil: no forward algorithm available\n");
+    abort();
   }
-  if (timing_enabled()) {
-    fprintf(timing_file(),
-            "POLYGEIST_RT_TIMING\top=customStencil3D7pt_f64_cpu_fallback"
-            "\tm=%d\tn=1\tk=7\thost_ms=%.6f\tdevice_ms=0.000000\n",
-            N, wall_time_ms() - host_start_ms);
-    fflush(timing_file());
-  }
-}
+  size_t workspace_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, filter_desc, conv_desc, out_desc, perf.algo,
+      &workspace_size));
+  void *workspace = NULL;
+  if (workspace_size) DEVICE_MALLOC(&workspace, workspace_size);
+  float alpha = 1.0f, beta = 0.0f;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, d_input, filter_desc, d_filter, conv_desc,
+      perf.algo, workspace, workspace_size, &beta, out_desc, d_output));
 
-static void polygeist_custom_stencil3d_7pt_flat_f32_cpu(
-    int32_t N,
-    const float *a0, const float *a1, const float *a2,
-    const float *a3, const float *a4, const float *a5,
-    const float *a6, const float *extra, const float *coeff,
-    float *out,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6) {
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  for (int32_t i = 0; i < N; ++i) {
-    float extra_v = extra ? extra[i] : 0.0f;
-    float scale = coeff ? coeff[i] : 1.0f;
-    float base = base0 * a0[i] + (extra ? base_extra * extra_v : 0.0f);
-    float inner = c0 * a0[i] + c1 * a1[i] + c2 * a2[i] +
-                  c3 * a3[i] + c4 * a4[i] + c5 * a5[i] +
-                  c6 * a6[i] + (extra ? coeff_extra * extra_v : 0.0f);
-    out[i] = base + scale * inner;
-  }
-  if (timing_enabled()) {
-    fprintf(timing_file(),
-            "POLYGEIST_RT_TIMING\top=customStencil3D7pt_f32_cpu_fallback"
-            "\tm=%d\tn=1\tk=7\thost_ms=%.6f\tdevice_ms=0.000000\n",
-            N, wall_time_ms() - host_start_ms);
-    fflush(timing_file());
-  }
-}
+  struct cudaMemcpy3DParms copy = {0};
+  copy.srcPtr.ptr = d_output;
+  copy.srcPtr.pitch = (size_t)out_x * sizeof(float);
+  copy.srcPtr.xsize = out_x;
+  copy.srcPtr.ysize = out_y;
+  copy.dstPtr.ptr = B + ((size_t)nx * ny + nx + 1);
+  copy.dstPtr.pitch = (size_t)nx * sizeof(float);
+  copy.dstPtr.xsize = nx;
+  copy.dstPtr.ysize = ny;
+  copy.extent.width = (size_t)out_x * sizeof(float);
+  copy.extent.height = out_y;
+  copy.extent.depth = out_z;
+  copy.kind = cudaMemcpyDeviceToHost;
+  CUDA_CHECK(cudaMemcpy3DAsync(&copy, g_stream));
+  sync_stream_if_outside_pipeline();
 
-void polygeist_custom_stencil3d_7pt_flat_f64(
-    int32_t N,
-    const double *a0, const double *a1, const double *a2,
-    const double *a3, const double *a4, const double *a5,
-    const double *a6, const double *extra, const double *coeff,
-    double *out,
-    double base0, double base_extra, double coeff_extra,
-    double c0, double c1, double c2, double c3,
-    double c4, double c5, double c6) {
-  if (!polygeist_custom_stencil3d_7pt_flat_f64_device) {
-    polygeist_custom_stencil3d_7pt_flat_f64_cpu(
-        N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
-        base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6);
-    return;
-  }
-  if (N <= 0)
-    return;
-
-  polygeist_cublas_init();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  size_t bytes = (size_t)N * sizeof(double);
-
-  double *d0 = (double *)register_host_safe((void *)a0, bytes);
-  double *d1 = (double *)register_host_safe((void *)a1, bytes);
-  double *d2 = (double *)register_host_safe((void *)a2, bytes);
-  double *d3 = (double *)register_host_safe((void *)a3, bytes);
-  double *d4 = (double *)register_host_safe((void *)a4, bytes);
-  double *d5 = (double *)register_host_safe((void *)a5, bytes);
-  double *d6 = (double *)register_host_safe((void *)a6, bytes);
-  double *dextra =
-      extra ? (double *)register_host_safe((void *)extra, bytes) : NULL;
-  double *dcoeff =
-      coeff ? (double *)register_host_safe((void *)coeff, bytes) : NULL;
-  double *dout = (double *)register_host_safe(out, bytes);
-
-  timing_gpu_begin();
-  polygeist_custom_stencil3d_7pt_flat_f64_device(
-      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
-      base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6, g_stream);
-  timing_gpu_end("customStencil3D7pt_f64", N, 1, 7, host_start_ms);
-
-  unregister_host_safe((void *)a0);
-  unregister_host_safe((void *)a1);
-  unregister_host_safe((void *)a2);
-  unregister_host_safe((void *)a3);
-  unregister_host_safe((void *)a4);
-  unregister_host_safe((void *)a5);
-  unregister_host_safe((void *)a6);
-  if (extra)
-    unregister_host_safe((void *)extra);
-  if (coeff)
-    unregister_host_safe((void *)coeff);
-  unregister_host_safe(out);
-}
-
-void polygeist_custom_stencil3d_7pt_flat_f32(
-    int32_t N,
-    const float *a0, const float *a1, const float *a2,
-    const float *a3, const float *a4, const float *a5,
-    const float *a6, const float *extra, const float *coeff,
-    float *out,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6) {
-  if (!polygeist_custom_stencil3d_7pt_flat_f32_device) {
-    polygeist_custom_stencil3d_7pt_flat_f32_cpu(
-        N, a0, a1, a2, a3, a4, a5, a6, extra, coeff, out,
-        base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6);
-    return;
-  }
-  if (N <= 0)
-    return;
-
-  polygeist_cublas_init();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  size_t bytes = (size_t)N * sizeof(float);
-
-  float *d0 = (float *)register_host_safe((void *)a0, bytes);
-  float *d1 = (float *)register_host_safe((void *)a1, bytes);
-  float *d2 = (float *)register_host_safe((void *)a2, bytes);
-  float *d3 = (float *)register_host_safe((void *)a3, bytes);
-  float *d4 = (float *)register_host_safe((void *)a4, bytes);
-  float *d5 = (float *)register_host_safe((void *)a5, bytes);
-  float *d6 = (float *)register_host_safe((void *)a6, bytes);
-  float *dextra =
-      extra ? (float *)register_host_safe((void *)extra, bytes) : NULL;
-  float *dcoeff =
-      coeff ? (float *)register_host_safe((void *)coeff, bytes) : NULL;
-  float *dout = (float *)register_host_safe(out, bytes);
-
-  timing_gpu_begin();
-  polygeist_custom_stencil3d_7pt_flat_f32_device(
-      N, d0, d1, d2, d3, d4, d5, d6, dextra, dcoeff, dout,
-      base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6, g_stream);
-  timing_gpu_end("customStencil3D7pt_f32", N, 1, 7, host_start_ms);
-
-  unregister_host_safe((void *)a0);
-  unregister_host_safe((void *)a1);
-  unregister_host_safe((void *)a2);
-  unregister_host_safe((void *)a3);
-  unregister_host_safe((void *)a4);
-  unregister_host_safe((void *)a5);
-  unregister_host_safe((void *)a6);
-  if (extra)
-    unregister_host_safe((void *)extra);
-  if (coeff)
-    unregister_host_safe((void *)coeff);
-  unregister_host_safe(out);
-}
-
-static size_t stencil3d_strided_span_bytes(
-    int32_t nx, int32_t ny, int32_t nz,
-    int64_t si, int64_t sj, int64_t sk) {
-  if (nx <= 0 || ny <= 0 || nz <= 0 || si < 0 || sj < 0 || sk < 0)
-    return 0;
-  uint64_t last = (uint64_t)(nx - 1) * (uint64_t)si +
-                  (uint64_t)(ny - 1) * (uint64_t)sj +
-                  (uint64_t)(nz - 1) * (uint64_t)sk;
-  return (size_t)(last + 1) * sizeof(float);
-}
-
-void polygeist_custom_stencil3d_7pt_strided_f32(
-    int32_t nx, int32_t ny, int32_t nz,
-    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
-    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
-    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
-    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
-    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
-    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
-    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
-    float *out, int64_t oi, int64_t oj, int64_t ok,
-    float base0, float base_extra, float coeff_extra,
-    float c0, float c1, float c2, float c3,
-    float c4, float c5, float c6) {
-  if (nx <= 0 || ny <= 0 || nz <= 0) return;
-  if (!polygeist_custom_stencil3d_7pt_strided_f32_device) {
-    for (int32_t i = 0; i < nx; ++i)
-      for (int32_t j = 0; j < ny; ++j)
-        for (int32_t k = 0; k < nz; ++k) {
-          int64_t x0 = (int64_t)i*a0i + (int64_t)j*a0j + (int64_t)k*a0k;
-          int64_t x1 = (int64_t)i*a1i + (int64_t)j*a1j + (int64_t)k*a1k;
-          int64_t x2 = (int64_t)i*a2i + (int64_t)j*a2j + (int64_t)k*a2k;
-          int64_t x3 = (int64_t)i*a3i + (int64_t)j*a3j + (int64_t)k*a3k;
-          int64_t x4 = (int64_t)i*a4i + (int64_t)j*a4j + (int64_t)k*a4k;
-          int64_t x5 = (int64_t)i*a5i + (int64_t)j*a5j + (int64_t)k*a5k;
-          int64_t x6 = (int64_t)i*a6i + (int64_t)j*a6j + (int64_t)k*a6k;
-          int64_t xo = (int64_t)i*oi + (int64_t)j*oj + (int64_t)k*ok;
-          out[xo] = base0*a0[x0] + c0*a0[x0] + c1*a1[x1] + c2*a2[x2] +
-                    c3*a3[x3] + c4*a4[x4] + c5*a5[x5] + c6*a6[x6];
-        }
-    return;
-  }
-  polygeist_cublas_init();
-  void *host[8] = {(void *)a0, (void *)a1, (void *)a2, (void *)a3,
-                   (void *)a4, (void *)a5, (void *)a6, out};
-  size_t bytes[8] = {
-      stencil3d_strided_span_bytes(nx,ny,nz,a0i,a0j,a0k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a1i,a1j,a1k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a2i,a2j,a2k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a3i,a3j,a3k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a4i,a4j,a4k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a5i,a5j,a5k),
-      stencil3d_strided_span_bytes(nx,ny,nz,a6i,a6j,a6k),
-      stencil3d_strided_span_bytes(nx,ny,nz,oi,oj,ok)};
-  void *device[8];
-  register_host_operands_safe(host, bytes, device, 8);
-  polygeist_custom_stencil3d_7pt_strided_f32_device(
-      nx, ny, nz,
-      device[0],a0i,a0j,a0k, device[1],a1i,a1j,a1k,
-      device[2],a2i,a2j,a2k, device[3],a3i,a3j,a3k,
-      device[4],a4i,a4j,a4k, device[5],a5i,a5j,a5k,
-      device[6],a6i,a6j,a6k, device[7],oi,oj,ok,
-      base0,base_extra,coeff_extra,c0,c1,c2,c3,c4,c5,c6,g_stream);
-  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  if (workspace) DEVICE_FREE(workspace);
+  DEVICE_FREE(d_filter);
+  DEVICE_FREE(d_output);
+  DEVICE_FREE(d_input);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+  cudnnDestroyFilterDescriptor(filter_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyTensorDescriptor(in_desc);
 }
 
 static void polygeist_dft_z2z_1d_cpu(

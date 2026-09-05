@@ -31,6 +31,18 @@ PUBLISHED_MANIFEST = (ROOT / "issues/ginsbach_asplos18"
                       / "published_idiom_manifest.csv")
 PYTHON = Path("/usr/bin/python3")
 
+
+def gcc_builtin_include() -> Path | None:
+    """Return the host GCC intrinsic-header directory (which owns omp.h)."""
+    try:
+        result = subprocess.run(
+            ["gcc", "-print-file-name=include"], check=True,
+            capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    path = Path(result.stdout.strip())
+    return path if path.is_dir() else None
+
 NPB_PROGRAMS = ("BT", "CG", "DC", "EP", "FT", "IS", "LU", "MG", "SP", "UA")
 PARBOIL_VARIANTS = {
     "bfs": "base",
@@ -58,22 +70,35 @@ class Unit:
 
 def units() -> list[Unit]:
     result: list[Unit] = []
+    gcc_include = gcc_builtin_include()
     for program in NPB_PROGRAMS:
         directory = NPB_ROOT / program
         for source in sorted(directory.glob("*.c")):
-            # The paper artifact does not check in generated npbparams.h
-            # files.  Reuse the matching generated Class-A headers retained
-            # in the source bundle instead of letting cgeist crash after the
-            # missing include diagnostic.
+            # This unverified local mirror does not check in generated
+            # npbparams.h files. Reuse Class-S headers from the separate local
+            # source bundle. This is a diagnostic substitution, not yet an
+            # exact reconstruction of the paper's compiler input.
+            includes = [directory, NPB_PARAM_ROOT / program,
+                        NPB_ROOT / "common"]
+            # This nominally serial UA source includes omp.h even though it
+            # contains no OpenMP calls.  Clang's resource directory does not
+            # contain libgomp's header, so mirror the native GCC include path.
+            if program == "UA" and gcc_include:
+                includes.append(gcc_include)
             result.append(Unit(
                 "snu-npb", program, source,
-                (directory, NPB_PARAM_ROOT / program, NPB_ROOT / "common")))
+                tuple(includes)))
     for program, variant in PARBOIL_VARIANTS.items():
         directory = PARBOIL_ROOT / "benchmarks" / program / "src" / variant
         for source in sorted((*directory.glob("*.c"), *directory.glob("*.cc"))):
             # The base SGEMM main includes this implementation file directly;
             # it is not a separate translation unit in the benchmark Makefile.
             if program == "sgemm" and source.name == "sgemm_kernel.cc":
+                continue
+            # mri-q builds computeQ.cc by textual inclusion from main.c; it is
+            # not an independent translation unit and intentionally relies on
+            # the standard headers included by main.c.
+            if program == "mri-q" and source.name == "computeQ.cc":
                 continue
             extra_includes: tuple[Path, ...] = ()
             if program == "spmv":
@@ -120,7 +145,8 @@ def first_error(path: Path) -> str:
     return (interesting or next((line.strip() for line in lines if line.strip()), ""))[:300]
 
 
-def audit_unit(unit: Unit, out_root: Path, timeout: int) -> dict[str, object]:
+def audit_unit(unit: Unit, out_root: Path, timeout: int,
+               stencil_backend: str) -> dict[str, object]:
     rel = unit.source.relative_to(ROOT)
     stem = re.sub(r"[^A-Za-z0-9_.-]", "_", str(rel))
     directory = out_root / "units" / stem
@@ -132,7 +158,7 @@ def audit_unit(unit: Unit, out_root: Path, timeout: int) -> dict[str, object]:
     cgeist_cmd = [
         str(CGEIST), str(unit.source), f"--function={unit.function}",
         "--resource-dir=/usr/lib/clang/14", "--raise-scf-to-affine",
-        "-fPIC", "-S", "-o", str(affine),
+        "--mlir-print-op-generic", "-fPIC", "-S", "-o", str(affine),
     ]
     for include in unit.includes:
         cgeist_cmd.append(f"-I{include}")
@@ -153,7 +179,8 @@ def audit_unit(unit: Unit, out_root: Path, timeout: int) -> dict[str, object]:
     if raise_rc == 0 and linalg.exists():
         match_rc, match_s = run(
             [str(PYTHON), str(MATCHER), str(linalg),
-             "--enable-structured-rewrite"],
+             "--enable-structured-rewrite",
+             f"--stencil-backend={stencil_backend}"],
             matched, directory / "match.err", timeout,
         )
         structured_rc, structured_s = run(
@@ -227,13 +254,18 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--program", action="append",
                         help="Audit only this benchmark name (repeatable).")
+    parser.add_argument(
+        "--stencil-backend", choices=("cudnn", "custen"), default="custen",
+        help="External stencil library used by the executable matcher.")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
     work = [unit for unit in units()
             if not args.program or unit.program in args.program]
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
-        rows = list(executor.map(lambda unit: audit_unit(unit, args.out, args.timeout), work))
+        rows = list(executor.map(
+            lambda unit: audit_unit(
+                unit, args.out, args.timeout, args.stencil_backend), work))
     write_csv(args.out / "translation_units.csv", rows)
 
     summary: list[dict[str, object]] = []

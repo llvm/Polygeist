@@ -906,6 +906,19 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     }
     if (!helper.computeLegality(/*sizeCheck*/ true))
       return failure();
+
+    // Values yielded by the condition region become initial operands of the
+    // replacement scf.for.  A value computed inside that region does not
+    // dominate the new loop and must not be captured directly; doing so also
+    // leaves an external use behind when the old while is erased.  Block
+    // arguments are remapped to the while inits below, and values defined
+    // outside the while already dominate it.
+    for (Value arg : condOp.getArgs()) {
+      if (auto cast = arg.getDefiningOp<IndexCastOp>()) arg = cast.getIn();
+      if (isTopLevelArgValue(arg, &loop.getBefore())) continue;
+      if (Operation *def = arg.getDefiningOp())
+        if (loop->isAncestor(def)) return failure();
+    }
     helper.prepareFor(rewriter);
 
     // input of the for goes the input of the scf::while plus the output taken
@@ -1069,8 +1082,22 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
 
       {
         IRMapping postMap;
+        for (auto [beforeArg, mappedArg] :
+             llvm::zip(origBeforeArgs, newBeforeYieldArgs))
+          if (beforeArg != helper.indVar) postMap.map(beforeArg, mappedArg);
         postMap.map(helper.indVar, trueInd);
-        auto newCmp = cast<CmpIOp>(rewriter.clone(*helper.cmpIOp, postMap));
+        // The comparison may depend on other values computed in the while's
+        // condition region.  Clone that prefix into the replacement while;
+        // directly reusing one of those values would create an illegal use
+        // outside the old while when it is erased.
+        for (Operation &op : loop.getBefore().front()) {
+          if (&op == condOp) break;
+          postMap.map(op.getResults(),
+                      rewriter.clone(op, postMap)->getResults());
+        }
+        auto newCmp = postMap.lookup(helper.cmpIOp.getResult())
+                          .getDefiningOp<CmpIOp>();
+        assert(newCmp && "expected cloned primary while comparison");
         rewriter.create<ConditionOp>(condOp.getLoc(), newCmp,
                                      newBeforeYieldArgs);
       }

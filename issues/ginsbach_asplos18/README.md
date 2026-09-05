@@ -1,10 +1,14 @@
 # Ginsbach ASPLOS'18 benchmark reproduction
 
-The paper evaluates all sequential C/C++ programs from SNU NPB 1.0.3 and
-Parboil: 10 + 11 = 21 programs.  This directory records Polygeist's structural
-recognition audit separately from native execution and end-to-end GPU timing.
+The paper evaluates all sequential C/C++ programs from SNU NPB and Parboil:
+10 + 11 = 21 programs. The paper does not give release numbers or source
+revisions. The author's IDL-Demo screenshot uses a path named
+`snu-npb-1.0.3/NPB3.3-SER-C`, but equivalence between that demo input and the
+paper's evaluation checkout has not been established. This directory records
+Polygeist's structural recognition audit separately from native execution and
+end-to-end GPU timing.
 
-Pinned sources used locally:
+Pinned source mirrors used locally (not yet proven identical to the paper):
 
 - SNU NPB 1.0.3 mirror: `third_party/ginsbach-snu-npb`, commit
   `4f2aa1b4d3127dbb3612c8aef24b24c69e83013c`.
@@ -22,13 +26,17 @@ The generated CSV files and per-source diagnostics are written under
 Parboil execution additionally requires its separately distributed datasets;
 source compilation and structural recognition do not.
 
-`published_idiom_manifest.csv` is the reproducible denominator for comparison
+`published_idiom_manifest.csv` is the reproducible program/category denominator for comparison
 with the paper.  Its 60 rows are transcribed from the per-program stacked bars
 in Figure 16 and validated against the category totals in Table 1: 45 scalar
 reductions, 5 histogram reductions, 6 stencils, 1 dense matrix operation and
 3 sparse matrix operations.  The publication does not identify source lines,
 so the manifest deliberately assigns only a stable program/category ordinal;
-it does not fabricate a one-to-one source mapping.  The audit reports these
+it does not fabricate a one-to-one source mapping. `ginsbach_60_manifest.csv`
+and `polygeist_same_inputs.csv` carry the occurrence-level evidence recovered
+after bootstrapping. `scripts/initialize_occurrence_manifests.sh` now refuses
+to overwrite those reviewed manifests unless explicitly passed `--force`;
+that flag intentionally recreates unresolved skeletons. The audit reports the
 published counts beside Polygeist's independently detected and executable
 sites.
 
@@ -75,45 +83,28 @@ combined region equivalent to SGEMM and rewrites it to the executable
 extractions exercise the same downstream FP32 alpha/beta cuBLAS route through
 already-shaped Linalg.
 
-## Structured loop audit (2026-09-04)
+## External-library-only structured audit (2026-09-05)
 
-The loop-aware Egglog audit represents parent loop domains, affine submap
-accesses, reductions and safe producer/consumer fusion.  Its family tests cover
-scalar/axis reductions, affine stencils, dense GEMM, indirect histograms, CSR
-SpMV and Parboil's JDS SpMV.  Indirect candidates remain analysis-only until
-their operand roles, collision semantics and CUDA ABI are validated.
+The loop-aware Egglog analysis represents parent loop domains, affine submap
+accesses, reductions, and safe producer/consumer fusion. Detection is kept
+separate from executable library lowering.
 
-The initial loop-aware audit proved 41 structured regions: 17 reduction-shaped
-and 17 stencil-shaped regions, with no reachable GEMM.  The implementation has
-since closed the concrete blockers needed by the important benchmark families:
+All project-authored computational CUDA implementations and their matcher
+routes have been removed. The current audit covers 103 real translation units;
+MRI-Q `computeQ.cc` is textually included by `main.c` and is not counted twice.
+All 103 units complete both frontend translation and the raising pipeline,
+producing 555 `linalg.generic` operations.
 
-- source-faithful Parboil SGEMM lowers to the FP32 alpha/beta cuBLAS ABI;
-- NPB MG `resid` and `psinv` lower to CUDA 3-D stencil implementations;
-- Parboil's FP32 stencil lowers to the same seven-tap CUDA implementation;
-- Parboil histo and tpacf lower to collision-safe CUDA histogram routes;
-- Parboil SpMV lowers its JDS loop and NPB CG lowers its CSR loops; and
-- incompatible flat-to-ranked C pointer views no longer make CG's frontend IR
-  invalid, while `remove-iter-args` preserves SpMV store dominance.
+The audit emits 30 executable external/platform launch sites: six NPB-BT and
+one NPB-LU CUDA memset operations, four NPB-CG cuSPARSE CSR SpMV operations,
+three NPB-UA cuBLAS DAXPBY compositions, fourteen NPB-UA cuBLAS Ddot
+operations, one Parboil SGEMM cuBLAS operation, and one Parboil stencil cuDNN
+operation. The analysis-only inventory separately reports 55 Egglog-proved
+structured regions, 26 reduction-shaped regions, 17 stencil-shaped regions,
+15 histogram candidates, and 6 CSR SpMV candidates. Analysis-only candidates
+must not be reported as successful library matches.
 
-The generated audit output remains the authority for current whole-corpus
-counts; unlike the published manifest, it changes as compiler coverage grows.
+The checked-in per-program snapshot is `program_summary_2026-09-05.csv`.
 
-The 2026-09-04 whole-corpus run is saved as
-`program_summary_2026-09-04.csv`.  It contains 18 executable launches: the
-original seven initialization launches plus four CG CSR sites, two MG sites,
-and one site each for histo, tpacf, SGEMM, JDS SpMV and the Parboil FP32
-stencil.  These are compiler sites, not claimed as a one-to-one subset of the
-paper's 60 instances because Figure 16 does not publish source locations.
-
-CUDA silicon compilation was attempted on Orin #2 at `192.0.2.1` through
-`configured-host`.  Login succeeds and the CUDA 12 runtime/driver is present, but
-the machine currently has no `nvcc`, CUDA toolkit, cuBLAS, or cuDNN development
-installation and no Polygeist checkout.  Therefore this run validates source
-recognition, ABI lowering, and CPU-reference numerics, but not the newly added
-device object on silicon.
-
-The reusable device-runtime smoke test is `ginsbach_cuda_smoke.cu`.  It checks
-the MG residual and smoother, saturating histogram, TPACF histogram, JDS and
-CSR SpMV, and flat seven-point stencil directly against CUDA allocations.
-`ginsbach_runtime_cuda_smoke.c` separately checks the production host-mapped
-cuBLAS SGEMM wrapper using heap-backed benchmark operands.
+See `SILICON_STATUS.md` for the exact external-only status and permitted
+next backends.

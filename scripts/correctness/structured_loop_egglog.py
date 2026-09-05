@@ -728,11 +728,19 @@ def analyze_residual_loops(text: str) -> list[ResidualIdiomCandidate]:
             if any(start >= loop.span[0] and end <= loop.span[1] and
                    kind == spmv_kind for start, end, kind in covered):
                 continue
+            if spmv_kind == "csr_spmv":
+                lowering_status = (
+                    "cuSPARSE route available after i32-index and f32/f64 "
+                    "operand validation")
+            else:
+                lowering_status = (
+                    "JDS is not supported by cuSPARSE; convert to CSR or "
+                    "use another external library")
             results.append(ResidualIdiomCandidate(
                 spmv_kind, loop,
                 (f"row bounds loaded from {bounds_buffer}", "column-indexed gather",
                  "multiply-add row reduction"),
-                "needs sparse operand-role validation and cuSPARSE ABI lowering"))
+                lowering_status))
             covered.append((loop.span[0], loop.span[1], spmv_kind))
     return results
 

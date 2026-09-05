@@ -204,6 +204,22 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
       assert(smt.getShape().size() <= 2);
 
       if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
+        if (mt.getRank() > smt.getRank()) {
+          Value target = val;
+          do {
+            SmallVector<int64_t> shape(mt.getShape().begin(),
+                                       mt.getShape().end());
+            shape.erase(shape.begin());
+            mt = MemRefType::get(shape, mt.getElementType(),
+                                 MemRefLayoutAttrInterface(),
+                                 mt.getMemorySpace());
+            target = builder.create<polygeist::SubIndexOp>(loc, mt, target,
+                                                            zeroIndex);
+          } while (mt.getRank() > smt.getRank());
+          ValueCategory(target, /*isReference=*/true)
+              .store(loc, builder, toStore, /*isArray=*/true);
+          return;
+        }
         if (mt.getShape().size() == 1) {
           if (auto pt = dyn_cast<LLVM::LLVMPointerType>(mt.getElementType())) {
             if (pt.getElementType() == smt.getElementType()) {
@@ -231,6 +247,16 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
           llvm::errs() << " mt: " << mt << " smt: " << smt << "\n";
         }
         assert(mt.getShape().size() == smt.getShape().size());
+        // VLA-derived references can have a dynamic trailing dimension even
+        // when the assigned aggregate has a fixed extent (for example a
+        // two-double complex struct viewed through a VLA).  The descriptors
+        // carry the runtime extent, and memref.copy performs the same
+        // aggregate assignment without requiring identical static spelling.
+        if (smt.getShape().back() == ShapedType::kDynamic ||
+            mt.getShape().back() == ShapedType::kDynamic) {
+          builder.create<mlir::memref::CopyOp>(loc, toStore.val, val);
+          return;
+        }
         assert(smt.getShape().back() == mt.getShape().back());
 
         for (ssize_t i = 0; i < smt.getShape().back(); i++) {
@@ -245,20 +271,20 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
       } else {
         auto pt = val.getType().cast<mlir::LLVM::LLVMPointerType>();
         mlir::Type elty;
+        int64_t aggregateSize = 0;
         if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
           elty = at.getElementType();
-          if (smt.getShape().back() != at.getNumElements()) {
-            llvm::errs() << " pt: " << pt << " smt: " << smt << "\n";
-            llvm::errs() << " val: " << val << " val.isRef: " << isReference
-                         << " ts: " << toStore.val
-                         << " ts.isRef: " << toStore.isReference
-                         << " isArray: " << isArray << "\n";
-          }
-          assert(smt.getShape().back() == at.getNumElements());
+          aggregateSize = at.getNumElements();
+          assert((smt.getShape().back() == ShapedType::kDynamic ||
+                  smt.getShape().back() == aggregateSize) &&
+                 "incompatible aggregate assignment");
         } else {
           auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
           elty = st.getBody()[0];
-          assert(smt.getShape().back() == (ssize_t)st.getBody().size());
+          aggregateSize = st.getBody().size();
+          assert((smt.getShape().back() == ShapedType::kDynamic ||
+                  smt.getShape().back() == aggregateSize) &&
+                 "incompatible aggregate assignment");
         }
         if (elty != smt.getElementType()) {
           llvm::errs() << " pt: " << pt << " smt: " << smt << "\n";
@@ -274,7 +300,7 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
         elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
 
         auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
-        for (ssize_t i = 0; i < smt.getShape().back(); i++) {
+        for (int64_t i = 0; i < aggregateSize; i++) {
           SmallVector<mlir::Value, 2> idx;
           if (smt.getShape().size() == 2)
             idx.push_back(zeroIndex);
@@ -291,19 +317,26 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
 
       auto pt = toStore.val.getType().cast<LLVM::LLVMPointerType>();
       mlir::Type elty;
+      int64_t aggregateSize = 0;
       if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
         elty = at.getElementType();
-        assert(smt.getShape().back() == at.getNumElements());
+        aggregateSize = at.getNumElements();
+        assert((smt.getShape().back() == ShapedType::kDynamic ||
+                smt.getShape().back() >= aggregateSize) &&
+               "incompatible aggregate assignment");
       } else {
         auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
         elty = st.getBody()[0];
-        assert(smt.getShape().back() == (ssize_t)st.getBody().size());
+        aggregateSize = st.getBody().size();
+        assert((smt.getShape().back() == ShapedType::kDynamic ||
+                smt.getShape().back() >= aggregateSize) &&
+               "incompatible aggregate assignment");
       }
       assert(elty == smt.getElementType());
       elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
 
       auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
-      for (ssize_t i = 0; i < smt.getShape().back(); i++) {
+      for (int64_t i = 0; i < aggregateSize; i++) {
         SmallVector<mlir::Value, 2> idx;
         if (smt.getShape().size() == 2)
           idx.push_back(zeroIndex);
@@ -316,6 +349,20 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
                 loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, toStore.val,
                                                        lidx)),
             val, idx);
+      }
+      // C permits a shorter aggregate initializer (most visibly, a string
+      // literal initializing a larger character array).  The unspecified
+      // tail is zero-initialized rather than making the aggregate assignment
+      // ill-formed or leaving stack bytes undefined.
+      if (!smt.isDynamicDim(smt.getRank() - 1)) {
+        Value zero = builder.create<arith::ConstantOp>(
+            loc, smt.getElementType(), builder.getZeroAttr(smt.getElementType()));
+        for (int64_t i = aggregateSize; i < smt.getShape().back(); ++i) {
+          SmallVector<Value, 2> idx;
+          if (smt.getRank() == 2) idx.push_back(zeroIndex);
+          idx.push_back(builder.create<ConstantIndexOp>(loc, i));
+          builder.create<memref::StoreOp>(loc, zero, val, idx);
+        }
       }
     } else
       store(loc, builder, toStore.getValue(loc, builder));

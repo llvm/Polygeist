@@ -89,6 +89,19 @@ module {
     }
     return
   }
+
+  // A memref of memrefs is a descriptor array, not a dense numerical array.
+  // It must remain in memory form while independent dense roots may still be
+  // tensorized.  Constructing tensor<4xmemref<?xf32>> is invalid MLIR.
+  func.func @leave_descriptor_array_in_memory(
+      %rows: memref<4xmemref<?xf32>>, %out: memref<4xf32>) {
+    affine.for %i = 0 to 4 {
+      %row = affine.load %rows[%i] : memref<4xmemref<?xf32>>
+      %value = affine.load %row[0] : memref<?xf32>
+      affine.store %value, %out[%i] : memref<4xf32>
+    }
+    return
+  }
 }
 
 // CHECK-LABEL: func.func @subview_after_cross_root
@@ -112,3 +125,7 @@ module {
 // CHECK-LABEL: func.func @cross_root_temporary_chain
 // CHECK-COUNT-3: linalg.generic
 // CHECK-NOT: memref.alloca
+
+// CHECK-LABEL: func.func @leave_descriptor_array_in_memory
+// CHECK: affine.load {{.*}} : memref<4xmemref<?xf32>>
+// CHECK-NOT: tensor<4xmemref<?xf32>>

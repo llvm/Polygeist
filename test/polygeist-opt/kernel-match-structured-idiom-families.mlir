@@ -112,7 +112,7 @@ module {
 // CHECK-SAME: extracted=dense_gemm
 // CHECK: residual_idiom_candidate body#[]
 // CHECK-SAME: kind=csr_spmv
-// CHECK-SAME: lowering_blocker=needs sparse operand-role validation and cuSPARSE ABI lowering
+// CHECK-SAME: lowering_blocker=cuSPARSE route available after i32-index and f32/f64 operand validation
 // CHECK: residual_idiom_candidate body#[]
 // CHECK-SAME: kind=indirect_histogram
 // CHECK-SAME: lowering_blocker=needs bin-range proof and atomic/collision-safe GPU lowering

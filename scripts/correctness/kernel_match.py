@@ -1613,6 +1613,24 @@ def _dot_f32() -> CompositionEntry:
     return _mlir_metadata("cublasSdot", element_type="f32")
 
 
+def _dot_memref(name: str, element_type: str) -> CompositionEntry:
+    """Buffer-form dot whose logical output view aliases one scalar.
+
+    The physical scalar-alias proof is deliberately enforced by the textual
+    rewriter before this semantic candidate can become an executable launch.
+    """
+    return CompositionEntry(
+        name=name,
+        form="memref",
+        element_type=element_type,
+        steps=[CompositionStep(
+            body=Term.Out(0) + Term.In(0) * Term.In(1),
+            num_ins=2, num_outs=1,
+            parallel_dim_count=0, reduction_dim_count=1,
+        )],
+    )
+
+
 def _asum() -> CompositionEntry:
     """s = sum_i |x[i]|"""
     body = Term.Out(0) + Term.Abs(Term.In(0))
@@ -3114,6 +3132,26 @@ def _miniamr_average_7pt_tensor() -> CompositionEntry:
     )
 
 
+def _parboil_stencil_7pt_tensor() -> CompositionEntry:
+    """Parboil's 3D axial stencil.
+
+    The backend adapter proves the seven operands are the center and six
+    axial neighbours of one flattened dense grid before selecting cuDNN.
+    Egglog remains responsible for the scalar reassociation/commutation.
+    """
+    neighbours = Term.In(0)
+    for idx in range(1, 6):
+        neighbours = neighbours + Term.In(idx)
+    body = ((neighbours * T_cap("%neighbor_scale")) -
+            (Term.In(6) * T_cap("%center_scale")))
+    return CompositionEntry(
+        name="parboil_stencil_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=7, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
 def _hpgmg_apply_op_7pt_tensor() -> CompositionEntry:
     """HPGMG 7-point operator: a*center + b*(6*center - neighbours)."""
     c = Term.In(0)
@@ -3517,6 +3555,7 @@ def composition_library() -> list[CompositionEntry]:
         _miniamr_pointwise_update_tensor(),
         _miniamr_weighted_7pt_tensor(),
         _miniamr_directional_stencil_tensor(),
+        _parboil_stencil_7pt_tensor(),
         _miniamr_average_7pt_tensor(),
         _hpgmg_interpolation_p1_tensor(),
         _hpgmg_interpolation_p2_tensor(),
@@ -3549,6 +3588,8 @@ def composition_library() -> list[CompositionEntry]:
         _sgemm_broadcast3d_memref(),
         _dot(),
         _dot_f32(),
+        _dot_memref("cublasDdot_memref", "f64"),
+        _dot_memref("cublasSdot_memref", "f32"),
         _asum(),
         _segmented_logical_and_i32(),
         _segmented_logical_or_i32(),
@@ -4121,7 +4162,11 @@ def _egglog_accepts_binding(body_ast, template_ast, bindings: dict) -> bool:
     # a real wall timeout can safely terminate Rust work. The in-process
     # production matcher must remain responsive and therefore declines those
     # cases instead of falling back to a handwritten algebraic implementation.
-    if max(_ast_node_count(body_ast), _ast_node_count(instantiated)) > 16:
+    # AC-normalized stencil expressions with seven taps are 17 nodes, yet
+    # saturate in a few milliseconds because distributivity is disabled and
+    # the fingerprint already agrees.  Keep a conservative ceiling for truly
+    # large graphs while allowing these ordinary library-sized formulas.
+    if max(_ast_node_count(body_ast), _ast_node_count(instantiated)) > 32:
         return False
     return equivalent(_ast_to_term(body_ast), _ast_to_term(instantiated),
                       include_distributivity=False)

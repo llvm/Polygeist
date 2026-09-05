@@ -16,6 +16,31 @@
 // signature whose body computes the canonical semantics for that library op.
 
 module {
+  // NVIDIA cuSPARSE generic-API CSR SpMV. These are ABI contracts: the
+  // matcher proves the row-pointer traversal and multiply-add reduction, and
+  // the CUDA runtime invokes cusparseSpMV with alpha=1 and beta=0.
+  kernel.defn @cusparseSpMV_CSR_f32_memref(
+      %rows: index, %row_offsets: memref<?xi32>,
+      %column_indices: memref<?xi32>, %values: memref<?xf32>,
+      %x: memref<?xf32>, %y: memref<?xf32>) { kernel.yield }
+  kernel.defn @cusparseSpMV_CSR_f64_memref(
+      %rows: index, %row_offsets: memref<?xi32>,
+      %column_indices: memref<?xi32>, %values: memref<?xf64>,
+      %x: memref<?xf64>, %y: memref<?xf64>) { kernel.yield }
+
+  // cuSten's compiled 2D XY non-periodic weighted-stencil API. The packed
+  // KxK weights and valid-region layout are the same operands used by the
+  // existing generalized convolution matcher; only f64 is exposed upstream.
+  kernel.defn @custenStencil2DXY_f64_memref(
+      %input: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %output: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %weights: memref<?xf64>, %K: i32) { kernel.yield }
+  kernel.defn @custenStencil2DXY_f64_tensor(
+      %input: tensor<?x?xf64>, %output: tensor<?x?xf64>,
+      %weights: tensor<?xf64>, %K: i32) -> tensor<?x?xf64> {
+    kernel.yield %output : tensor<?x?xf64>
+  }
+
   kernel.defn @cublasGemmEx_i8_i32_tensor(
       %A: tensor<?x?xi8>, %B: tensor<?x?xi8>, %C: tensor<?x?xi32>)
       -> tensor<?x?xi32> { kernel.yield %C : tensor<?x?xi32> }
@@ -63,6 +88,9 @@ module {
   kernel.defn @cublasSdot_memref(
       %x: memref<?xf32>, %y: memref<?xf32>,
       %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cublasDdot_memref(
+      %x: memref<?xf64>, %y: memref<?xf64>,
+      %out: memref<?xf64>) { kernel.yield }
   kernel.defn @cubSegmentedArgMax_f32_i32_memref(
       %x: memref<?x64xf32>, %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubSegmentedArgMin_f32_i32_memref(
@@ -528,42 +556,6 @@ module {
       %M: index, %N: index, %K: index,
       %lda: index, %ldb: index, %ldc: index,
       %beta: f32, %alpha: f32) {
-    kernel.yield
-  }
-
-  // NPB-MG flattened 3-D residual and smoother. The structured matcher proves
-  // the source loop algebra before selecting these pointer-preserving ABIs.
-  kernel.defn @customMGResid_f64_memref(
-      %u: memref<?xi8>, %v: memref<?xi8>, %r: memref<?xi8>,
-      %n1: i32, %n2: i32, %n3: i32, %a: memref<?xf64>) {
-    kernel.yield
-  }
-  kernel.defn @customMGPSInv_f64_memref(
-      %r: memref<?xi8>, %u: memref<?xi8>,
-      %n1: i32, %n2: i32, %n3: i32, %c: memref<?xf64>) {
-    kernel.yield
-  }
-  kernel.defn @customHistogramSaturatingU8_memref(
-      %values: memref<?xi32>, %bins: memref<?xi8>,
-      %count: i32, %num_bins: i32) {
-    kernel.yield
-  }
-  kernel.defn @customTPACFHistogram_f32_memref(
-      %data1: memref<?x3xf32>, %n1: i32,
-      %data2: memref<?x3xf32>, %n2: i32, %self: i32,
-      %bins: memref<?xi64>, %nbins: i32, %bounds: memref<?xf32>) {
-    kernel.yield
-  }
-  kernel.defn @customJdsSpmv_f32_memref(
-      %rows: index, %nzcnt: memref<?xi32>, %ptr: memref<?xi32>,
-      %indices: memref<?xi32>, %data: memref<?xf32>, %x: memref<?xf32>,
-      %perm: memref<?xi32>, %out: memref<?xf32>) {
-    kernel.yield
-  }
-  kernel.defn @customCsrSpmv_f64_memref(
-      %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
-      %data: memref<?xf64>, %x: memref<?xf64>,
-      %out: memref<?xf64>) {
     kernel.yield
   }
 
@@ -1994,6 +1986,17 @@ module {
     kernel.yield %C : tensor<?x?x?xf32>
   }
 
+  // Flattened dense-grid form of the standard 3D seven-point axial stencil.
+  // The adapter materializes the sparse 3x3x3 filter and dispatches cuDNN;
+  // it does not implement the stencil arithmetic itself.
+  kernel.defn @cudnnStencil3D7pt_f32_flat_tensor(
+      %A: tensor<?xf32>, %C: tensor<?xf32>,
+      %center_scale: f32, %neighbor_scale: f32,
+      %ny: index, %nx: index,
+      %out_x: index, %out_y: index, %out_z: index) -> tensor<?xf32> {
+    kernel.yield %C : tensor<?xf32>
+  }
+
   // Multi-channel, single-batch valid Conv3D. The rank-8 operand is the
   // logical [OC,OD,OH,OW,IC,KD,KH,KW] window; ABI lowering recovers the
   // underlying rank-4/5 NCDHW input before calling cuDNN.
@@ -2020,56 +2023,6 @@ module {
       %windows: tensor<?x?x?x?x?x?xf32>,
       %filter: tensor<?x?x?x?xf32>, %output: tensor<?x?x?xf32>)
       -> tensor<?x?x?xf32> { kernel.yield %output : tensor<?x?x?xf32> }
-
-  // Custom structured 3D 7-point stencil definitions. These operate on the
-  // raised form directly: seven same-shaped tap tensors plus an output tensor.
-  // The lowering maps all variants to one runtime ABI and passes null pointers
-  // for missing optional operands.
-  kernel.defn @customStencil3D7pt_f64_tensor(
-      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
-      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
-      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
-      %a6: tensor<?x?x?xf64>, %out: tensor<?x?x?xf64>,
-      %base0: f64, %base_extra: f64, %coeff_extra: f64,
-      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
-      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
-    kernel.yield %out : tensor<?x?x?xf64>
-  }
-
-  kernel.defn @customStencil3D7ptCoeff_f64_tensor(
-      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
-      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
-      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
-      %a6: tensor<?x?x?xf64>, %coeff: tensor<?x?x?xf64>,
-      %out: tensor<?x?x?xf64>,
-      %base0: f64, %base_extra: f64, %coeff_extra: f64,
-      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
-      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
-    kernel.yield %out : tensor<?x?x?xf64>
-  }
-
-  kernel.defn @customStencil3D7ptExtra_f64_tensor(
-      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>,
-      %a2: tensor<?x?x?xf64>, %a3: tensor<?x?x?xf64>,
-      %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
-      %a6: tensor<?x?x?xf64>, %extra: tensor<?x?x?xf64>,
-      %out: tensor<?x?x?xf64>,
-      %base0: f64, %base_extra: f64, %coeff_extra: f64,
-      %c0: f64, %c1: f64, %c2: f64, %c3: f64,
-      %c4: f64, %c5: f64, %c6: f64) -> tensor<?x?x?xf64> {
-    kernel.yield %out : tensor<?x?x?xf64>
-  }
-
-  kernel.defn @customStencil3D7pt_f32_tensor(
-      %a0: tensor<?x?x?xf32>, %a1: tensor<?x?x?xf32>,
-      %a2: tensor<?x?x?xf32>, %a3: tensor<?x?x?xf32>,
-      %a4: tensor<?x?x?xf32>, %a5: tensor<?x?x?xf32>,
-      %a6: tensor<?x?x?xf32>, %out: tensor<?x?x?xf32>,
-      %base0: f32, %base_extra: f32, %coeff_extra: f32,
-      %c0: f32, %c1: f32, %c2: f32, %c3: f32,
-      %c4: f32, %c5: f32, %c6: f32) -> tensor<?x?x?xf32> {
-    kernel.yield %out : tensor<?x?x?xf32>
-  }
 
   // 1D complex FFT ABI declarations. Complex values are represented as
   // interleaved real/imag pairs in the trailing dimension of size 2. The

@@ -2400,6 +2400,18 @@ struct FuseScalarAddReductionIntoOutput
         *scratchView.getUsers().begin() != generic.getOperation())
       return failure();
 
+    // Projecting the scalar output off every reduction dimension is legal
+    // only when another shaped operand still defines the iteration domain.
+    // An indirect reduction with all array loads embedded in the body has no
+    // such operand; changing its sole output map to () would make the generic
+    // unverifiable before any enclosing loop can consume it.
+    SmallVector<AffineMap> indexingMaps = generic.getIndexingMapsArray();
+    indexingMaps.back() = AffineMap::get(
+        generic.getNumLoops(), /*symbolCount=*/0, /*results=*/{},
+        rewriter.getContext());
+    if (!inversePermutation(concatAffineMaps(indexingMaps)))
+      return failure();
+
     // Build a rank-zero submap selecting output[affine-index].  Submap keeps
     // the affine address visible to getLinalgArgMap, allowing each enclosing
     // affine loop to be prepended to the generic's indexing maps later.
@@ -2430,10 +2442,6 @@ struct FuseScalarAddReductionIntoOutput
         generic.getLoc(), scalarType, outputStore.getMemref(), mapOperands,
         scalarMap);
 
-    SmallVector<AffineMap> indexingMaps = generic.getIndexingMapsArray();
-    indexingMaps.back() = AffineMap::get(
-        generic.getNumLoops(), /*symbolCount=*/0, /*results=*/{},
-        rewriter.getContext());
     generic.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(indexingMaps));
     generic->setOperand(generic.getNumDpsInputs(), outputView.getResult());
 
@@ -2831,6 +2839,26 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     if (result.wasInterrupted()) {
       LLVM_DEBUG(llvm::dbgs() << "REJECTED: Walk was interrupted (invalid operations found)\n\n");
+      return failure();
+    }
+
+    // A memref whose element is itself a memref is an array of descriptors,
+    // not a dense numeric tensor.  Building a submap for it loses the loaded
+    // descriptor/indirection and can hoist the loop IV outside its region,
+    // producing non-dominating SSA uses.  Leave descriptor-array loops in
+    // affine form; they are control/plumbing rather than library kernels.
+    auto isDescriptorArray = [](Value value) {
+      auto type = dyn_cast<MemRefType>(value.getType());
+      return type && isa<MemRefType>(type.getElementType());
+    };
+    if (llvm::any_of(loads, [&](auto &item) {
+          return isDescriptorArray(item.second.getMemref());
+        }) ||
+        llvm::any_of(stores, [&](auto &item) {
+          return isDescriptorArray(item.second.getMemref());
+        })) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "REJECTED: descriptor-array access is not dense Linalg\n");
       return failure();
     }
 
@@ -3391,6 +3419,16 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     LLVM_DEBUG(llvm::dbgs() << "Total iterator types: " << iteratorTypes.size() << "\n");
     LLVM_DEBUG(llvm::dbgs() << "Total inputs: " << inputs.size() << "\n");
     LLVM_DEBUG(llvm::dbgs() << "Total outputs: " << outputs.size() << "\n");
+
+    // The verifier requires the concatenated operand maps to cover every loop
+    // dimension. This catches scalar reductions whose array accesses remain
+    // indirect inside the body, including cases reached after wrapping a
+    // partially raised inner reduction.
+    if (!inversePermutation(concatAffineMaps(affineMaps))) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "REJECTED: operand maps do not span the loop domain\n");
+      return failure();
+    }
 
     StringAttr empty = StringAttr::get(loop.getContext());
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(

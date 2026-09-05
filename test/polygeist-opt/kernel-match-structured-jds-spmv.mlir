@@ -1,4 +1,5 @@
 // RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s --dry-run --show-structured-regions 2>&1 | FileCheck %s
+// RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s --enable-structured-rewrite | FileCheck %s --check-prefix=NO-LIBRARY
 
 module {
   // Parboil SpMV uses jagged diagonal storage: each row has a nonzero count,
@@ -35,4 +36,8 @@ module {
 // CHECK: residual_idiom_candidate body#[]
 // CHECK-SAME: kind=jds_spmv
 // CHECK-SAME: evidence=['row bounds loaded from %counts', 'column-indexed gather', 'multiply-add row reduction']
-// CHECK-SAME: lowering_blocker=needs sparse operand-role validation and cuSPARSE ABI lowering
+// CHECK-SAME: lowering_blocker=JDS is not supported by cuSPARSE; convert to CSR or use another external library
+
+// NO-LIBRARY-LABEL: func.func @jds_spmv
+// NO-LIBRARY: scf.for
+// NO-LIBRARY-NOT: kernel.{{launch}}

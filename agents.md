@@ -1,5 +1,29 @@
 # Agent Notes
 
+## External-Library-Only Matching Rule
+
+- Do not write custom CUDA, HIP, OpenCL, CPU, or other computational kernels
+  to make a raised operation appear matched or executable.
+- A successful kernel match must lower to a pre-existing implementation from
+  an external library or platform API (for example cuBLAS, cuDNN, cuSPARSE,
+  cuFFT, cuTENSOR, cuTensorNet, or a standard CUDA runtime primitive).
+- Compiler/runtime adapter code may marshal arguments, descriptors, layouts,
+  and memory for an external API, but it must not reimplement the matched
+  computation with project-authored loops or device kernels.
+- Matches backed only by project-authored computational implementations must
+  be labeled `custom/non-library` and must not count as supported library
+  lowerings, passing library matches, or paper-comparison successes.
+- Do not add benchmark names, source-function names, or benchmark-specific
+  arithmetic checks to force a match. Matching must be derived from the
+  raised IR and a real external-library specification.
+- Before adding or retaining a lowering, record the external library symbol
+  that implements it. If no such implementation exists, leave the operation
+  unmatched and report the missing library route honestly.
+- The former project-authored 7-point stencil, MG, histogram, TPACF, JDS
+  SpMV, and CSR SpMV CUDA routes were removed in September 2026. Keep their
+  structural/Egglog recognition analysis-only until a permitted external
+  library implementation is wired.
+
 ## Proxy-App Raising Fixes: miniAMR and HyPar
 
 - miniAMR direct-source `stencil_calc` no longer fails in `cgeist` on the
@@ -345,7 +369,7 @@
   - For actual GPU execution, each emitted symbol still needs a matching
     `LowerKernelLaunchToCuBLAS.cpp` lowering case plus a runtime implementation
     or decomposition. For example, `elemwise_scale_input_1D` could lower to
-    `copy + cublasDscal` or to a fused custom CUDA elementwise kernel; until
+    `copy + cublasDscal`; a project-authored CUDA kernel is not permitted. Until
     that ABI/runtime path exists, the IR explorer can show a successful kernel
     match but CUDA lowering may still reject or leave the launch unsupported.
 
@@ -879,7 +903,7 @@
 - Scope/caveat:
   - This fixes the constant-filter 27-point convolution route. It does not make
     variable-coefficient stencil pieces standard cuDNN convolutions; those stay
-    residual Linalg or need generated/custom CUDA kernels.
+    residual Linalg until an external-library route exists.
 
 ### CUDA Library Clones And First cuFFT Integration
 
@@ -1100,8 +1124,7 @@
   definition with an implementation path:
   - vendor library definitions, e.g. cuBLAS GEMM/GEMV, cuDNN convolution,
     cuFFT FFT;
-  - custom optimized kernel definitions, e.g. a custom CUDA minmod or stencil
-    kernel once such runtime/lowering support exists;
+  - externally implemented optimized kernel definitions only;
   - residual Linalg only for unmatched leftovers.
 - Revised flow:
   - Raise C to Linalg.
@@ -1130,13 +1153,13 @@
 - Example: HyPar minmod should not primarily become `hypar_slope_minmod`
   unless that name is backed by a real implementation. The useful target is a
   library/custom-kernel definition such as `external_elementwise_minmod(a,b)`
-  only once there is a custom CUDA or other backend lowering for it.
+  only once there is a permitted external-library lowering for it.
 - Paper framing:
   - Linalg raising exposes algebraic loop bodies and tensor access structure.
   - Optimized kernels are treated as an ISA.
   - The matcher maps raised Linalg fragments to that ISA using equality,
     specialization/defaults, and subexpression matching.
-  - Matched ISA nodes lower to vendor libraries or custom optimized kernels.
+  - Matched ISA nodes lower to pre-existing external libraries or platform APIs.
   - Unmatched residual Linalg lowers through standard MLIR codegen, retaining a
     systematic path for code that does not map to a library definition.
 - Follow-up implementation adjustment:
@@ -1161,108 +1184,3 @@
   - HPGMG, HyPar, and current SWFFT proxy reports have zero backend-capable
     candidates in the default view because their current recognitions do not
     yet have real backend definitions/lowerings.
-
-### Custom CUDA 7-Point Stencil Library
-
-- 2026-06-06 added and wired a standalone custom CUDA library directory:
-  `custom_library/cuda`.
-- Added:
-  - `custom_library/cuda/polygeist_stencil3d_7pt.h`
-  - `custom_library/cuda/polygeist_stencil3d_7pt.cu`
-  - `custom_library/cuda/README.md`
-- The exported C ABI has f64/f32 structured launch wrappers:
-  - `polygeist_custom_stencil3d_7pt_f64`
-  - `polygeist_custom_stencil3d_7pt_f32`
-- It also has flat f64/f32 device launchers used by the current
-  compiler/runtime ABI after the runtime shim maps pointers:
-  - `polygeist_custom_stencil3d_7pt_flat_f64_device`
-  - `polygeist_custom_stencil3d_7pt_flat_f32_device`
-- The structured wrappers are device-pointer based and stride-aware. The flat
-  device launchers are also device-pointer based: they do not allocate, copy,
-  or synchronize. The public runtime ABI symbols
-  `polygeist_custom_stencil3d_7pt_flat_{f64,f32}` live in
-  `runtime/polygeist_cublas_rt_cuda.c`; they use `register_host_safe` like the
-  other Jetson CUDA shims, then call the linked custom CUDA device launcher.
-- Kernel computation:
-  - Inputs are an interior `input_center` pointer, optional `extra`, optional
-    per-cell `coeff`, and output.
-  - Strides are in elements and can represent halo-backed C arrays or tensor
-    slices.
-  - Computation:
-    `base = base_center * center + base_extra * extra`
-    `inner = coeff_center * center + coeff_xm*xm + coeff_xp*xp +
-             coeff_ym*ym + coeff_yp*yp + coeff_zm*zm + coeff_zp*zp +
-             coeff_extra * extra`
-    `out = base + (coeff ? coeff[i,j,k] : 1) * inner`
-- Intended one-kernel coverage:
-  - MiniAMR `miniamr_average_7pt_tensor`
-  - MiniAMR `miniamr_weighted_7pt_tensor`
-  - HPGMG `hpgmg_apply_op_7pt_tensor`
-  - HPGMG `hpgmg_residual_7pt_tensor`
-  - HPGMG weighted-Jacobi-style smoother
-  - PolyBench-style 3D heat/Jacobi 7-point stencils
-- Compiler/runtime integration now complete for MiniAMR f64 tensor 7-point
-  bodies:
-  - `generic_solver/kernel_library_phase2.mlir` declares
-    `customStencil3D7pt_f64_tensor`,
-    `customStencil3D7ptCoeff_f64_tensor`, and
-    `customStencil3D7ptExtra_f64_tensor`.
-  - `scripts/correctness/kernel_match_rewrite.py` emits:
-    - `miniamr_average_7pt_tensor -> customStencil3D7pt_f64_tensor`
-      with coefficients `[0, 0, 0, 1/7, ..., 1/7]`;
-    - `miniamr_weighted_7pt_tensor -> customStencil3D7ptCoeff_f64_tensor`
-      with coefficients `[1, 0, 0, -6, 1, 1, 1, 1, 1, 1]`.
-  - `lib/polygeist/Passes/LowerKernelLaunchToCuBLAS.cpp` lowers those
-    `kernel.launch` ops to `polygeist_custom_stencil3d_7pt_flat_f64`.
-  - `runtime/polygeist_cublas_rt_cpu.c` has CPU reference implementations.
-  - `runtime/polygeist_cublas_rt_cuda.c` has public runtime shims. Each shim
-    uses the linked custom CUDA `*_device` launcher if present, otherwise falls
-    back to the CPU reference loop so Jetson binaries still link/run without
-    the custom object.
-  - `scripts/correctness/polygeist_build.sh` accepts
-    `POLYGEIST_CUSTOM_CUDA_OBJ` / `POLYGEIST_CUSTOM_CUDA_OBJS`; a strong CUDA
-    object overrides the weak fallback at link time.
-- Validation:
-  - `cc -fsyntax-only -I custom_library/cuda -include
-    polygeist_stencil3d_7pt.h -xc /dev/null` passed.
-  - `git diff --check -- custom_library/cuda/...` passed.
-  - `ninja -C build polygeist-opt` passed.
-  - Host MiniAMR proxy build emitted 3 launches / 3 shim calls and produced
-    checksum `miniamr 49.901192783357`, `total 83.800132012080`.
-  - Jetson cross-build without custom object passed; the two 7-point calls ran
-    through weak fallback and the 27-point call ran through cuDNN. Log:
-    `scripts/correctness/logs/miniamr_custom7_20260606_212752.silicon.log`.
-  - Compiled `polygeist_stencil3d_7pt.cu` on Jetson with
-    `/usr/local/cuda/bin/nvcc` and copied the aarch64 object back to
-    `/tmp/polygeist_stencil3d_7pt_jetson.o`.
-  - Earlier Jetson cross-build with the pre-split custom object passed, but
-    that object overrode the runtime shim and did its own per-call
-    `cudaMalloc/cudaMemcpy/cudaFree`. This was fixed after the commit by
-    renaming the custom CUDA exports to `*_device` and moving pointer mapping
-    back into the runtime shim.
-- Remaining optimization:
-  - 2026-06-07 rebuilt the custom CUDA object on Jetson after the `*_device`
-    split. New object:
-    `/tmp/polygeist_stencil3d_7pt_device_jetson.o`.
-  - Verified the object exports only:
-    `polygeist_custom_stencil3d_7pt_flat_f64_device` and
-    `polygeist_custom_stencil3d_7pt_flat_f32_device`; it no longer exports the
-    public runtime shim symbol.
-  - Cross-built MiniAMR with
-    `POLYGEIST_WRAP_KERNEL_PIPELINE=1` and
-    `POLYGEIST_CUSTOM_CUDA_OBJ=/tmp/polygeist_stencil3d_7pt_device_jetson.o`.
-    The ABI MLIR had exactly one scoped sequence:
-    `polygeist_cublas_pipeline_begin`, two
-    `polygeist_custom_stencil3d_7pt_flat_f64` calls, one
-    `polygeist_cudnn_conv3d_ntap_f64` call, then
-    `polygeist_cublas_pipeline_end`.
-  - Jetson silicon run passed with checksum
-    `miniamr 49.901192783357`, `total 83.800132012080`.
-    Timing labels were `customStencil3D7pt_f64` rather than
-    `_cpu_fallback`, proving the runtime shim called the custom CUDA device
-    launcher. Log:
-    `scripts/correctness/logs/miniamr_custom7_device_20260607_075129.silicon.log`.
-- Remaining optimization:
-  - timing inside a pipeline scope intentionally reports `device_ms=0` because
-    the runtime does not synchronize per op inside the scope; add aggregate
-    scope timing if needed for performance reporting.
