@@ -229,7 +229,10 @@ fi
 
 # ─── Step 3: matcher (linalg.generic → kernel.launch) ───────────────────
 echo "  [3/9] matcher: linalg.generic → kernel.launch"
-MATCHER_ARGS=()
+# Structured loop matching is part of the production matcher.  It recognizes
+# loop-carried idioms such as the source-faithful Parboil SGEMM, MG stencils,
+# histograms, and sparse matrix-vector products before ABI lowering.
+MATCHER_ARGS=(--enable-structured-rewrite)
 if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
   MATCHER_ARGS+=(--disable-pointwise-matching)
   echo "         generic pointwise matching disabled"

@@ -25,7 +25,7 @@ for k in $built; do
     echo "[sweep] ($i/$n) $k: already measured, skip"; continue
   fi
   ST_TRACKER_JETSON_HOST=192.0.2.1 POLYGEIST_SILICON_PROFILE=configured-host \
-    POLYGEIST_JETSON_LD_LIBRARY_PATH="/home/nvidia/polygeist_cuda_libs:/usr/local/cuda/lib64:/usr/local/cuda/targets/aarch64-linux/lib:/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/home/nvidia/venv/lib/python3.12/site-packages/nvidia/cudnn/lib" \
+    POLYGEIST_JETSON_LD_LIBRARY_PATH="/home/nvidia/cuda-12.6/lib64:/home/nvidia/cuda-12.6/targets/sbsa-linux/lib:/home/nvidia/cuda-12.6/targets/aarch64-linux/lib:/home/nvidia/polygeist_cuda_libs:/usr/local/cuda/lib64:/usr/local/cuda/targets/aarch64-linux/lib:/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/home/nvidia/venv/lib/python3.12/site-packages/nvidia/cudnn/lib" \
     POLYGEIST_JETSON_RUNS=3 timeout 200 scripts/correctness/run_jetson.sh \
     --exe "$OUT/$k/$k" "res_$k" > "$OUT/$k.run.log" 2>&1
   line=$(grep "RESULT" "$OUT/$k.run.log" | tail -1)

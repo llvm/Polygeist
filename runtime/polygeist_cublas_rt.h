@@ -310,6 +310,20 @@ void polygeist_custom_stencil3d_7pt_flat_f32(
     float c0, float c1, float c2, float c3,
     float c4, float c5, float c6);
 
+void polygeist_custom_stencil3d_7pt_strided_f32(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6);
+
 // Basic 1D complex-to-complex FFT shims. Complex values are represented as
 // interleaved real/imag pairs: A[2*i+0], A[2*i+1]. `inverse != 0` selects the
 // inverse transform. Like cuFFT, the inverse is not normalized by N.

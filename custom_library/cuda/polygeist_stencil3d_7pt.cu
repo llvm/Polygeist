@@ -464,3 +464,64 @@ extern "C" void polygeist_custom_stencil3d_7pt_flat_f32_device(
       base0, base_extra, coeff_extra, c0, c1, c2, c3, c4, c5, c6,
       cuda_stream);
 }
+
+__global__ void polygeist_stencil3d_7pt_strided_f32_kernel(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6) {
+  int32_t i = (int32_t)(blockIdx.x * blockDim.x + threadIdx.x);
+  int32_t j = (int32_t)(blockIdx.y * blockDim.y + threadIdx.y);
+  int32_t k = (int32_t)(blockIdx.z * blockDim.z + threadIdx.z);
+  if (i >= nx || j >= ny || k >= nz) return;
+  int64_t o0 = (int64_t)i * a0i + (int64_t)j * a0j + (int64_t)k * a0k;
+  int64_t o1 = (int64_t)i * a1i + (int64_t)j * a1j + (int64_t)k * a1k;
+  int64_t o2 = (int64_t)i * a2i + (int64_t)j * a2j + (int64_t)k * a2k;
+  int64_t o3 = (int64_t)i * a3i + (int64_t)j * a3j + (int64_t)k * a3k;
+  int64_t o4 = (int64_t)i * a4i + (int64_t)j * a4j + (int64_t)k * a4k;
+  int64_t o5 = (int64_t)i * a5i + (int64_t)j * a5j + (int64_t)k * a5k;
+  int64_t o6 = (int64_t)i * a6i + (int64_t)j * a6j + (int64_t)k * a6k;
+  int64_t oo = (int64_t)i * oi + (int64_t)j * oj + (int64_t)k * ok;
+  out[oo] = base0 * a0[o0] + c0 * a0[o0] + c1 * a1[o1] +
+            c2 * a2[o2] + c3 * a3[o3] + c4 * a4[o4] +
+            c5 * a5[o5] + c6 * a6[o6];
+}
+
+extern "C" void polygeist_custom_stencil3d_7pt_strided_f32_device(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6,
+    void *cuda_stream) {
+  (void)base_extra;
+  (void)coeff_extra;
+  if (nx <= 0 || ny <= 0 || nz <= 0) return;
+  dim3 block(8, 8, 4);
+  dim3 grid((nx + block.x - 1) / block.x,
+            (ny + block.y - 1) / block.y,
+            (nz + block.z - 1) / block.z);
+  polygeist_stencil3d_7pt_strided_f32_kernel<<<
+      grid, block, 0, (cudaStream_t)cuda_stream>>>(
+      nx, ny, nz,
+      a0, a0i, a0j, a0k, a1, a1i, a1j, a1k,
+      a2, a2i, a2j, a2k, a3, a3i, a3j, a3k,
+      a4, a4i, a4j, a4k, a5, a5i, a5j, a5k,
+      a6, a6i, a6j, a6k, out, oi, oj, ok,
+      base0, c0, c1, c2, c3, c4, c5, c6);
+  POLYGEIST_CUSTOM_CUDA_CHECK(cudaGetLastError());
+}

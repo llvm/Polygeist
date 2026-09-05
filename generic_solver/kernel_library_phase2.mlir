@@ -561,9 +561,9 @@ module {
     kernel.yield
   }
   kernel.defn @customCsrSpmv_f64_memref(
-      %rows: index, %rowptr: memref<101xi32>, %cols: memref<3600xi32>,
-      %data: memref<3600xf64>, %x: memref<102xf64>,
-      %out: memref<102xf64>) {
+      %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
+      %data: memref<?xf64>, %x: memref<?xf64>,
+      %out: memref<?xf64>) {
     kernel.yield
   }
 

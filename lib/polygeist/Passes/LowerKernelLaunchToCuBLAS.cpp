@@ -34,6 +34,7 @@
 
 #include "KernelLaunchLoweringUtils.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -576,8 +577,97 @@ static Value valueToMemrefPreservingSlice(OpBuilder &b, Location loc, Value v);
 static Value memrefToTensor(OpBuilder &b, Location loc, Value m,
                             Type tensorType);
 
+// Return the address of logical element zero of a flattened affine submap.
+// C frontends commonly describe a 3-D view over a flat pointer with a map
+// such as ((d2 + 1) * ny + d1 + 1) * nx + d0 + 1.  Materializing that tensor
+// view leaves polygeist.submap operations after an opaque library call.  The
+// runtime only needs the starting address, so evaluate the map at zero view
+// coordinates and add that element offset to the flat ABI buffer directly.
+static Value pointerForFlatAffineSubmap(OpBuilder &b, Location loc, Value v) {
+  Value stripped = stripTensorCasts(v);
+  auto submap = stripped.getDefiningOp<polygeist::SubmapOp>();
+  if (!submap || submap.getMap().getNumResults() != 1)
+    return Value();
+  auto baseTensor = sourceToTensorOp(submap.getBase());
+  if (!baseTensor)
+    return Value();
+  Value base = baseTensor.getMemref();
+  auto baseTy = dyn_cast<MemRefType>(base.getType());
+  if (!baseTy || baseTy.getRank() != 1)
+    return Value();
+
+  SmallVector<Value> mapOperands;
+  mapOperands.reserve(submap.getMap().getNumInputs());
+  for (unsigned i = 0; i < submap.getMap().getNumDims(); ++i)
+    mapOperands.push_back(b.create<arith::ConstantIndexOp>(loc, 0));
+  mapOperands.append(submap.getSymbols().begin(), submap.getSymbols().end());
+  Value viewOffset = b.create<affine::AffineApplyOp>(
+      loc, submap.getMap(), mapOperands);
+
+  Value alignedIdx =
+      b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, base);
+  Value alignedI64 =
+      b.create<arith::IndexCastOp>(loc, b.getI64Type(), alignedIdx);
+  auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, base);
+  Value baseOffset = integerLikeAsI64(b, loc, metadata.getOffset());
+  Value totalOffset = b.create<arith::AddIOp>(
+      loc, baseOffset, integerLikeAsI64(b, loc, viewOffset));
+  unsigned bits = baseTy.getElementType().getIntOrFloatBitWidth();
+  Value eltBytes = b.create<arith::ConstantOp>(
+      loc, b.getI64Type(), b.getI64IntegerAttr(bits / 8));
+  Value byteOffset = b.create<arith::MulIOp>(loc, totalOffset, eltBytes);
+  Value address = b.create<arith::AddIOp>(loc, alignedI64, byteOffset);
+  return b.create<LLVM::IntToPtrOp>(
+      loc, LLVM::LLVMPointerType::get(b.getContext()), address);
+}
+
+struct FlatAffineSubmap3D {
+  Value pointer;
+  SmallVector<Value, 3> sizes;
+  SmallVector<Value, 3> strides;
+};
+
+// Recover the logical extents and physical element strides of a rank-3 view
+// over a flat ABI buffer.  Affine maps may contain dynamic leading dimensions
+// as symbols, so compute a stride as address(unit_dim)-address(origin).
+static FailureOr<FlatAffineSubmap3D>
+getFlatAffineSubmap3D(OpBuilder &b, Location loc, Value value) {
+  Value stripped = stripTensorCasts(value);
+  auto submap = stripped.getDefiningOp<polygeist::SubmapOp>();
+  if (!submap || submap.getMap().getNumDims() != 3 ||
+      submap.getMap().getNumResults() != 1 || submap.getSizes().size() != 3)
+    return failure();
+  Value pointer = pointerForFlatAffineSubmap(b, loc, stripped);
+  if (!pointer)
+    return failure();
+
+  auto applyAt = [&](int unitDim) -> Value {
+    SmallVector<Value> operands;
+    operands.reserve(submap.getMap().getNumInputs());
+    for (unsigned dim = 0; dim < 3; ++dim)
+      operands.push_back(
+          b.create<arith::ConstantIndexOp>(loc, unitDim == (int)dim ? 1 : 0));
+    operands.append(submap.getSymbols().begin(), submap.getSymbols().end());
+    return b.create<affine::AffineApplyOp>(loc, submap.getMap(), operands);
+  };
+
+  Value origin = applyAt(-1);
+  FlatAffineSubmap3D result;
+  result.pointer = pointer;
+  for (Value size : submap.getSizes())
+    result.sizes.push_back(valueAsI32(b, loc, size));
+  for (unsigned dim = 0; dim < 3; ++dim) {
+    Value unit = applyAt(dim);
+    Value stride = b.create<arith::SubIOp>(loc, unit, origin);
+    result.strides.push_back(integerLikeAsI64(b, loc, stride));
+  }
+  return result;
+}
+
 static Value pointerForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
   Value stripped = stripTensorCasts(v);
+  if (Value pointer = pointerForFlatAffineSubmap(b, loc, stripped))
+    return pointer;
   if (auto toTensor = sourceToTensorOp(stripped))
     return memrefBasePtr(b, loc, toTensor.getMemref());
   if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
@@ -633,6 +723,14 @@ static Value memrefDataPtr(OpBuilder &b, Location loc, Value mr) {
 
 static Value numElementsForTensorOrMemref(OpBuilder &b, Location loc, Value v) {
   Value stripped = stripTensorCasts(v);
+  if (auto submap = stripped.getDefiningOp<polygeist::SubmapOp>()) {
+    Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
+                                              b.getI32IntegerAttr(1));
+    for (Value size : submap.getSizes())
+      total = b.create<arith::MulIOp>(loc, total,
+                                      valueAsI32(b, loc, size));
+    return total;
+  }
   if (auto slice = stripped.getDefiningOp<tensor::ExtractSliceOp>()) {
     Value total = b.create<arith::ConstantOp>(loc, b.getI32Type(),
                                               b.getI32IntegerAttr(1));
@@ -1980,8 +2078,12 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
   if (launch.getNumOperands() != expected)
     return launch.emitError("customStencil3D7pt lowering: expected ")
            << expected << " operands, got " << launch.getNumOperands();
-  if (launch.getNumResults() != 1)
-    return launch.emitError("customStencil3D7pt lowering: expected 1 result");
+  bool bufferized = launch.getNumResults() == 0 &&
+                    launch->hasAttr("polygeist.bufferized");
+  if (launch.getNumResults() != 1 && !bufferized)
+    return launch.emitError(
+        "customStencil3D7pt lowering: expected 1 tensor result or a "
+        "bufferized destination launch");
 
   SmallVector<Value> taps;
   taps.reserve(7);
@@ -2002,8 +2104,10 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
     return launch.emitError("customStencil3D7pt lowering: expected 10 scalar "
                             "coefficients");
 
-  auto outTy = dyn_cast<RankedTensorType>(out.getType());
-  auto resTy = dyn_cast<RankedTensorType>(launch.getResult(0).getType());
+  auto outTy = dyn_cast<ShapedType>(out.getType());
+  auto resTy = bufferized
+                   ? outTy
+                   : dyn_cast<ShapedType>(launch.getResult(0).getType());
   if (!outTy || !resTy || outTy.getRank() != 3 || resTy.getRank() != 3 ||
       outTy.getElementType().isF32() != useF32 ||
       resTy.getElementType().isF32() != useF32 ||
@@ -2012,7 +2116,7 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
     return launch.emitError(
         "customStencil3D7pt lowering: output/result element type mismatch");
   for (Value tap : taps) {
-    auto ty = dyn_cast<RankedTensorType>(tap.getType());
+    auto ty = dyn_cast<ShapedType>(tap.getType());
     if (!ty || ty.getRank() != 3 ||
         (useF32 ? !ty.getElementType().isF32()
                 : !ty.getElementType().isF64()))
@@ -2020,13 +2124,13 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
           "customStencil3D7pt lowering: tap element type mismatch");
   }
   if (hasExtra) {
-    auto ty = dyn_cast<RankedTensorType>(extra.getType());
+    auto ty = dyn_cast<ShapedType>(extra.getType());
     if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
       return launch.emitError(
           "customStencil3D7pt lowering: extra operand must be rank-3 f64 tensor");
   }
   if (hasCoeff) {
-    auto ty = dyn_cast<RankedTensorType>(coeff.getType());
+    auto ty = dyn_cast<ShapedType>(coeff.getType());
     if (!ty || ty.getRank() != 3 || !ty.getElementType().isF64())
       return launch.emitError(
           "customStencil3D7pt lowering: coeff operand must be rank-3 f64 tensor");
@@ -2039,6 +2143,57 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+
+  // The source-faithful Parboil stencil exposes non-contiguous interior views
+  // of flat C arrays.  Preserve their affine strides instead of incorrectly
+  // flattening the logical tensor into consecutive addresses.
+  if (useF32 && !hasExtra && !hasCoeff && !bufferized) {
+    SmallVector<FlatAffineSubmap3D, 8> views;
+    for (Value tap : taps) {
+      FailureOr<FlatAffineSubmap3D> view =
+          getFlatAffineSubmap3D(b, loc, tap);
+      if (failed(view)) {
+        views.clear();
+        break;
+      }
+      views.push_back(*view);
+    }
+    FailureOr<FlatAffineSubmap3D> outputView =
+        getFlatAffineSubmap3D(b, loc, out);
+    if (views.size() == 7 && succeeded(outputView)) {
+      SmallVector<Value> args;
+      args.append(outputView->sizes.begin(), outputView->sizes.end());
+      for (const FlatAffineSubmap3D &view : views) {
+        args.push_back(view.pointer);
+        args.append(view.strides.begin(), view.strides.end());
+      }
+      args.push_back(outputView->pointer);
+      args.append(outputView->strides.begin(), outputView->strides.end());
+      args.append(scalars.begin(), scalars.end());
+
+      SmallVector<Type> types(3, b.getI32Type());
+      for (unsigned i = 0; i < 8; ++i) {
+        types.push_back(ptrTy);
+        types.append(3, b.getI64Type());
+      }
+      types.append(10, b.getF32Type());
+      func::FuncOp shim = ensureShimDecl(
+          module, "polygeist_custom_stencil3d_7pt_strided_f32", types, b);
+      b.create<func::CallOp>(loc, shim, args);
+
+      Value submapBase = resolveSubmapBase(out);
+      auto baseTensor = sourceToTensorOp(submapBase);
+      if (!baseTensor)
+        return launch.emitError(
+            "customStencil3D7pt lowering: strided output has no ABI base");
+      Value updatedBase = memrefToTensor(
+          b, loc, baseTensor.getMemref(), submapBase.getType());
+      rewireLaunchResult(launch, updatedBase);
+      launch.erase();
+      return success();
+    }
+  }
+
   Value nullPtr = b.create<LLVM::ZeroOp>(loc, ptrTy);
   Value N = numElementsForTensorOrMemref(b, loc, out);
 
@@ -2065,11 +2220,25 @@ static LogicalResult lowerCustomStencil3D7ptTensor(LaunchOp launch,
       argTypes, b);
   b.create<func::CallOp>(loc, shim, callOperands);
 
-  Value updatedBase = tensorForSliceSource(b, loc, out);
-  Value updated = updatedBase ? Value()
-      : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
-                       launch.getResult(0).getType());
-  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+  if (!bufferized) {
+    Value submapBase = resolveSubmapBase(out);
+    if (submapBase != out) {
+      auto baseTensor = sourceToTensorOp(submapBase);
+      if (!baseTensor)
+        return launch.emitError(
+            "customStencil3D7pt lowering: affine output submap has no ABI "
+            "memref base");
+      Value updatedBase = memrefToTensor(
+          b, loc, baseTensor.getMemref(), submapBase.getType());
+      rewireLaunchResult(launch, updatedBase);
+    } else {
+      Value updatedBase = tensorForSliceSource(b, loc, out);
+      Value updated = updatedBase ? Value()
+          : memrefToTensor(b, loc, valueToMemrefPreservingSlice(b, loc, out),
+                           launch.getResult(0).getType());
+      rewireTensorSliceLaunchResult(launch, updated, updatedBase);
+    }
+  }
   launch.erase();
   return success();
 }

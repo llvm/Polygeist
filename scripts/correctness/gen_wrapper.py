@@ -38,7 +38,8 @@ def infer_dtype(c_text: str) -> str:
                   c_text, re.MULTILINE)
     if m:
         return m.group(1)
-    if re.search(r"\bfloat\s+[A-Za-z_]\w*\s*\[", c_text):
+    if (re.search(r"\bfloat\s+[A-Za-z_]\w*\s*\[", c_text) or
+            re.search(r"\b(?:const\s+)?float\s*\*\s*[A-Za-z_]\w*", c_text)):
         return "float"
     return "double"
 
@@ -47,6 +48,7 @@ def parse_signature(c_text: str, kernel_name: str):
     """Return list of (kind, *fields) tuples describing each argument.
 
     Kinds:
+      ('char', name)
       ('int', name)
       ('double', name)
       ('1D', name, size_var)
@@ -57,7 +59,7 @@ def parse_signature(c_text: str, kernel_name: str):
     """
     # The signature can be split across many lines. Find the function head.
     m = re.search(
-        rf"(?:void|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}"
+        rf"(?:void|int|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}"
         rf"\s*\((.*?)\)\s*(?:\n)?\s*\{{",
         c_text,
         re.DOTALL,
@@ -97,8 +99,20 @@ def parse_signature(c_text: str, kernel_name: str):
 
     out = []
     plain_array_indices = []
-    scalar_ints = set()
+    # Collect scalar extents before parsing pointers because C APIs commonly
+    # place pointer operands before their trailing dimension arguments.
+    scalar_ints = {
+        a.split()[-1].strip('*') for a in args
+        if re.match(r"^\s*(?:const\s+)?int\b", a)
+    }
     for a in args:
+        cartesian = re.match(
+            r"^\s*(?:const\s+)?struct\s+cartesian\s*\*\s*(\w+)\s*$", a)
+        if cartesian:
+            name = cartesian.group(1)
+            size = "n1" if name == "data1" else "n2"
+            out.append(('CART3', name, size))
+            continue
         if 'POLYBENCH_3D' in a:
             m3 = re.search(
                 r"POLYBENCH_3D\s*\(\s*(\w+)\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,"
@@ -135,27 +149,39 @@ def parse_signature(c_text: str, kernel_name: str):
             kind, name, dims = _parse_plain_c_array(a)
             out.append((kind, name, *dims))
             plain_array_indices.append(len(out) - 1)
-        elif re.match(r"^\s*int\b", a):
+        elif re.match(r"^\s*char\b", a):
+            name = a.split()[-1].strip('*')
+            out.append(('char', name))
+        elif re.match(r"^\s*(?:const\s+)?int\s+[A-Za-z_]\w*\s*$", a):
             name = a.split()[-1].strip('*')
             out.append(('int', name))
             scalar_ints.add(name)
         elif _is_plain_c_pointer(a):
             # Extracted kernels often use pointer signatures instead of fixed
             # C arrays. Infer the 1D memref extent from common scalar args.
-            name, is_const = _parse_plain_c_pointer(a)
+            name, is_const, pointer_type = _parse_plain_c_pointer(a)
             if name in extent_map:
                 size = extent_map[name]
             elif name == "out" and "n" in scalar_ints and "k" in scalar_ints:
                 size = "(n - k + 1)"
             elif name in ("filter", "kernel", "weights") and "k" in scalar_ints:
                 size = "k"
+            elif name == "data_bins" and "nbins" in scalar_ints:
+                size = "(nbins + 2)"
+            elif name == "binb" and "nbins" in scalar_ints:
+                size = "(nbins + 1)"
+            elif {"nx", "ny", "nz"}.issubset(scalar_ints):
+                size = "(nx * ny * nz)"
             elif "n" in scalar_ints:
                 size = "n"
             elif "N" in c_text:
                 size = "N"
             else:
                 raise ValueError(f"Couldn't infer pointer extent for arg: {a}")
-            out.append(('1D', name, size))
+            prefix = ('I' if pointer_type == 'int' else
+                      'L' if pointer_type in ('long long',
+                                              'unsigned long long') else '')
+            out.append((f'{prefix}1D', name, size))
         elif re.match(r"^\s*float\b", a):
             name = a.split()[-1].strip('*')
             out.append(('float', name))
@@ -178,7 +204,7 @@ def parse_signature(c_text: str, kernel_name: str):
 
 def parse_return_type(c_text: str, kernel_name: str, dtype: str) -> str:
     m = re.search(
-        rf"\b(void|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}\s*\(",
+        rf"\b(void|int|DATA_TYPE|float|double)\s+{re.escape(kernel_name)}\s*\(",
         c_text,
     )
     if not m:
@@ -192,9 +218,9 @@ def _is_plain_c_array(a: str) -> bool:
     (e.g. 'double A[NI][NJ]' or 'int A[N]' or 'short A[NI][NJ][NK]').
     Distinguishable from a pointer-to-scalar (`double *alpha`) because
     array params always have a square-bracket dim list."""
-    if not re.match(r"^\s*(?:const\s+)?(?:unsigned\s+char|signed\s+char|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
+    if not re.match(r"^\s*(?:const\s+)?(?:unsigned\s+char|signed\s+char|unsigned\s+int|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)\b", a):
         return False
-    return re.search(r"\[\s*[^\]]+\s*\]\s*(?:\[\s*[^\]]+\s*\])*\s*$", a) is not None
+    return re.search(r"\[\s*[^\]]*\s*\]\s*(?:\[\s*[^\]]*\s*\])*\s*$", a) is not None
 
 
 def _parse_plain_c_array(a: str):
@@ -204,35 +230,39 @@ def _parse_plain_c_array(a: str):
     it identically to the POLYBENCH macro form.
     """
     m = re.match(
-        r"^\s*(?:const\s+)?(unsigned\s+char|signed\s+char|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
-        r"\s+(\w+)((?:\s*\[\s*[^\]]+\s*\])+)\s*$",
+        r"^\s*(?:const\s+)?(unsigned\s+char|signed\s+char|unsigned\s+int|unsigned|double|float|int|short|long|DATA_TYPE|_Float16|__bf16)"
+        r"\s+(\w+)((?:\s*\[\s*[^\]]*\s*\])+)\s*$",
         a,
     )
     if not m:
         raise ValueError(f"Couldn't parse plain-C-array arg: {a!r}")
     ctype, name = m.group(1), m.group(2)
-    dims = [d.strip() for d in re.findall(r"\[\s*([^\]]+)\s*\]", m.group(3))]
+    dims = [d.strip() for d in re.findall(r"\[\s*([^\]]*)\s*\]", m.group(3))]
     if not dims:
         raise ValueError(f"Plain-C-array arg has no dimensions: {a!r}")
+    dims = ["(size + 1)" if not d and name == "lhs" else d for d in dims]
+    if any(not d for d in dims):
+        raise ValueError(f"Cannot infer empty leading dimension: {a!r}")
     prefix = ('U' if ctype == 'unsigned char' else
               'B' if ctype == 'signed char' else
-              'I' if ctype in ('unsigned', 'int', 'short', 'long') else '')
+              'I' if ctype in ('unsigned int', 'unsigned', 'int', 'short',
+                               'long') else '')
     return (f'{prefix}{len(dims)}D', name, dims)
 
 
 def _is_plain_c_pointer(a: str) -> bool:
     return re.match(
-        r"^\s*(?:const\s+)?(?:double|float|DATA_TYPE)\s*\*\s*\w+\s*$", a
+        r"^\s*(?:const\s+)?(?:int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE)\s*\*\s*\w+\s*$", a
     ) is not None
 
 
 def _parse_plain_c_pointer(a: str):
     m = re.match(
-        r"^\s*(const\s+)?(?:double|float|DATA_TYPE)\s*\*\s*(\w+)\s*$", a
+        r"^\s*(const\s+)?(int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE)\s*\*\s*(\w+)\s*$", a
     )
     if not m:
         raise ValueError(f"Couldn't parse pointer arg: {a!r}")
-    return m.group(2), bool(m.group(1))
+    return m.group(3), bool(m.group(1)), m.group(2)
 
 
 def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
@@ -241,7 +271,11 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
     extern_args, wrapper_args, call_args = [], [], []
     for a in args:
         k = a[0]
-        if k == 'int':
+        if k == 'char':
+            extern_args.append(f"char {a[1]}")
+            wrapper_args.append(f"char {a[1]}")
+            call_args.append(a[1])
+        elif k == 'int':
             extern_args.append(f"int {a[1]}")
             wrapper_args.append(f"int {a[1]}")
             call_args.append(a[1])
@@ -253,12 +287,24 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
             extern_args.append(f"float {a[1]}")
             wrapper_args.append(f"float {a[1]}")
             call_args.append(a[1])
-        elif re.fullmatch(r'(?:I|U|B)?[1-9][0-9]*D', k):
+        elif k == 'CART3':
+            name, size = a[1], a[2]
+            extern_args.extend([
+                f"float *{name}_b", f"float *{name}_a",
+                f"int64_t {name}_off", f"int64_t {name}_s0",
+                f"int64_t {name}_s1", f"int64_t {name}_t0",
+                f"int64_t {name}_t1",
+            ])
+            wrapper_args.append(f"struct cartesian *{name}")
+            call_args.append(
+                f"(float *){name}, (float *){name}, 0, {size}, 3, 3, 1")
+        elif re.fullmatch(r'(?:I|U|B|L)?[1-9][0-9]*D', k):
             is_integer = k.startswith('I')
             is_unsigned_byte = k.startswith('U')
             is_signed_byte = k.startswith('B')
+            is_long_long = k.startswith('L')
             rank = int(k[1:-1] if (is_integer or is_unsigned_byte or
-                                   is_signed_byte) else k[:-1])
+                                   is_signed_byte or is_long_long) else k[:-1])
             name = a[1]
             dims = list(a[2:])
             if len(dims) != rank:
@@ -268,6 +314,8 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
                          "unsigned char" if is_unsigned_byte else dtype)
             if is_signed_byte:
                 arg_dtype = "signed char"
+            if is_long_long:
+                arg_dtype = "long long"
             extern_args.extend([
                 f"{arg_dtype} *{name}_b", f"{arg_dtype} *{name}_a",
                 f"int64_t {name}_off",
@@ -305,6 +353,8 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
         f"{body}\n}}"
     )
     prefix = "#include <stdint.h>"
+    if any(a[0] == 'CART3' for a in args):
+        prefix += "\nstruct cartesian { float x, y, z; };"
     if prelude:
         prefix += "\n" + prelude
     return f"{prefix}\n\n{extern}\n\n{wrapper}\n"

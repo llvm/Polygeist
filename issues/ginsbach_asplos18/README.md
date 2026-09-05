@@ -111,3 +111,9 @@ the machine currently has no `nvcc`, CUDA toolkit, cuBLAS, or cuDNN development
 installation and no Polygeist checkout.  Therefore this run validates source
 recognition, ABI lowering, and CPU-reference numerics, but not the newly added
 device object on silicon.
+
+The reusable device-runtime smoke test is `ginsbach_cuda_smoke.cu`.  It checks
+the MG residual and smoother, saturating histogram, TPACF histogram, JDS and
+CSR SpMV, and flat seven-point stencil directly against CUDA allocations.
+`ginsbach_runtime_cuda_smoke.c` separately checks the production host-mapped
+cuBLAS SGEMM wrapper using heap-backed benchmark operands.

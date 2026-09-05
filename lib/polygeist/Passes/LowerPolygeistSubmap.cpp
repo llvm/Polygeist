@@ -1132,7 +1132,12 @@ struct LowerSymbolBearingSubmapToSubview : public OpRewritePattern<SubmapOp> {
       offsets.push_back(offset);
       if (hasViewDim) {
         if (viewDim >= sizes.size()) return failure();
-        subSizes.push_back(sizes[viewDim]);
+        if (viewDimToBaseDim[viewDim] != -1)
+          return failure();
+        if (auto constant = getConstantIndex(sizes[viewDim]))
+          subSizes.push_back(rewriter.getIndexAttr(*constant));
+        else
+          subSizes.push_back(sizes[viewDim]);
         strides.push_back(oneAttr);
         viewDimToBaseDim[viewDim] = k;
       } else {
@@ -1156,6 +1161,13 @@ struct LowerSymbolBearingSubmapToSubview : public OpRewritePattern<SubmapOp> {
     if (dimBearingBaseDims != numViewDims) return failure();
 
     SmallVector<int64_t> resultShape(numViewDims, ShapedType::kDynamic);
+    for (unsigned viewDim = 0; viewDim < numViewDims; ++viewDim) {
+      int64_t baseDim = viewDimToBaseDim[viewDim];
+      if (baseDim < 0)
+        continue;
+      if (auto attr = subSizes[baseDim].dyn_cast<Attribute>())
+        resultShape[viewDim] = cast<IntegerAttr>(attr).getInt();
+    }
 
     MemRefType inferredTy = cast<MemRefType>(
         memref::SubViewOp::inferRankReducedResultType(
@@ -1293,6 +1305,69 @@ struct LowerSymbolBearingSubmapToExtractSlice
     ValueRange sizes = submap.getSizes();
     unsigned numViewDims = submapMap.getNumDims();
 
+    // A view dimension used by more than one base dimension describes a
+    // gather (most commonly a diagonal), not a rectangular slice.  When the
+    // map also has symbols, linalg.generic cannot carry those runtime offsets
+    // in its indexing maps, so materialize the gather explicitly.
+    bool hasRepeatedViewDim = false;
+    for (unsigned dim = 0; dim < numViewDims; ++dim) {
+      unsigned uses = 0;
+      for (AffineExpr result : submapMap.getResults())
+        uses += result.isFunctionOfDim(dim);
+      hasRepeatedViewDim |= uses > 1;
+    }
+    if (hasRepeatedViewDim && submapMap.getNumSymbols() != 0 &&
+        outTy.getRank() == (int64_t)numViewDims && numViewDims != 0) {
+      auto mixedSizes = getMixedSizeOperands(sizes, numViewDims, rewriter);
+      if (!mixedSizes)
+        return failure();
+      Value empty = rewriter.create<tensor::EmptyOp>(
+          loc, *mixedSizes, outTy.getElementType());
+      Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      SmallVector<Value> inductionVars;
+      auto emitLoopNest = [&](auto &self, unsigned depth,
+                              Value destination) -> Value {
+        auto loop = rewriter.create<scf::ForOp>(
+            loc, zero, sizes[depth], one, ValueRange{destination});
+        if (!loop.getBody()->empty())
+          rewriter.eraseOp(loop.getBody()->getTerminator());
+
+        OpBuilder::InsertionGuard guard(rewriter);
+        rewriter.setInsertionPointToStart(loop.getBody());
+        inductionVars.push_back(loop.getInductionVar());
+        Value updated;
+        if (depth + 1 < numViewDims) {
+          updated = self(self, depth + 1, loop.getRegionIterArg(0));
+        } else {
+          SmallVector<Value> mapOperands(inductionVars.begin(),
+                                         inductionVars.end());
+          mapOperands.append(symbols.begin(), symbols.end());
+          SmallVector<Value> baseIndices;
+          baseIndices.reserve(submapMap.getNumResults());
+          for (AffineExpr resultExpr : submapMap.getResults()) {
+            AffineMap resultMap = AffineMap::get(
+                numViewDims, submapMap.getNumSymbols(), resultExpr,
+                rewriter.getContext());
+            baseIndices.push_back(rewriter.create<affine::AffineApplyOp>(
+                loc, resultMap, mapOperands));
+          }
+          Value element = rewriter.create<tensor::ExtractOp>(
+              loc, submap.getBase(), baseIndices);
+          updated = rewriter.create<tensor::InsertOp>(
+              loc, element, loop.getRegionIterArg(0), inductionVars);
+        }
+        inductionVars.pop_back();
+        rewriter.create<scf::YieldOp>(loc, updated);
+        return loop.getResult(0);
+      };
+      Value result = emitLoopNest(emitLoopNest, 0, empty);
+      if (result.getType() != outTy)
+        result = rewriter.create<tensor::CastOp>(loc, outTy, result);
+      rewriter.replaceOp(submap, result);
+      return success();
+    }
+
     // Do not represent a rank-expanding DPS output view as tensor.expand_shape.
     // Canonicalizing that reshape through linalg.generic can replace the
     // output operand with its rank-1 base while leaving the generic's ranked
@@ -1339,9 +1414,15 @@ struct LowerSymbolBearingSubmapToExtractSlice
       }
     }
 
+    // Materialize any symbol-free affine gather that could not be represented
+    // as an ordinary rectangular slice above.  This includes rank expansion,
+    // partial flat views, and diagonal reads such as
+    //   (d0) -> (0, 1, d0, d0).
+    // linalg.generic permits the input map to project or repeat loop dims, so
+    // it preserves the exact affine read while producing the logical view
+    // shape described by the submap result.
     if (submapMap.getNumSymbols() == 0 &&
-        outTy.getRank() == (int64_t)numViewDims &&
-        outTy.getRank() > baseTy.getRank()) {
+        outTy.getRank() == (int64_t)numViewDims) {
       auto mixedSizes = getMixedSizeOperands(sizes, numViewDims, rewriter);
       if (mixedSizes) {
         Value empty = rewriter.create<tensor::EmptyOp>(
@@ -1448,7 +1529,12 @@ struct LowerSymbolBearingSubmapToExtractSlice
       offsets.push_back(offset);
       if (hasViewDim) {
         if (viewDim >= sizes.size()) return failure();
-        subSizes.push_back(sizes[viewDim]);
+        if (viewDimToBaseDim[viewDim] != -1)
+          return failure();
+        if (auto constant = getConstantIndex(sizes[viewDim]))
+          subSizes.push_back(rewriter.getIndexAttr(*constant));
+        else
+          subSizes.push_back(sizes[viewDim]);
         strides.push_back(stride);
         viewDimToBaseDim[viewDim] = k;
       } else {
@@ -1464,6 +1550,13 @@ struct LowerSymbolBearingSubmapToExtractSlice
     if (dimBearingBaseDims != numViewDims) return failure();
 
     SmallVector<int64_t> resultShape(numViewDims, ShapedType::kDynamic);
+    for (unsigned viewDim = 0; viewDim < numViewDims; ++viewDim) {
+      int64_t baseDim = viewDimToBaseDim[viewDim];
+      if (baseDim < 0)
+        continue;
+      if (auto attr = subSizes[baseDim].dyn_cast<Attribute>())
+        resultShape[viewDim] = cast<IntegerAttr>(attr).getInt();
+    }
     auto inferredTy = RankedTensorType::get(resultShape, baseTy.getElementType());
     Value sliced = rewriter.create<tensor::ExtractSliceOp>(
         loc, inferredTy, submap.getBase(), offsets, subSizes, strides);
@@ -1579,7 +1672,10 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         if (i < (unsigned)baseTy.getRank()) {
           if (i >= sizes.size())
             return failure();
-          sliceSizes.push_back(sizes[i]);
+          if (auto constant = getConstantIndex(sizes[i]))
+            sliceSizes.push_back(rewriter.getIndexAttr(*constant));
+          else
+            sliceSizes.push_back(sizes[i]);
         } else {
           sliceSizes.push_back(oneAttr);
         }
@@ -1644,9 +1740,13 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         compactSizes.push_back((*staticSizes)[mapDim]);
       }
       SmallVector<AffineExpr> compactResults;
+      SmallVector<AffineExpr> symbolReplacements(
+          m.getNumSymbols(),
+          getAffineConstantExpr(0, rewriter.getContext()));
       for (AffineExpr result : m.getResults())
         compactResults.push_back(
-            result.replaceDimsAndSymbols(compactReplacements, {}));
+            result.replaceDimsAndSymbols(compactReplacements,
+                                         symbolReplacements));
       AffineMap compactMap = AffineMap::get(
           sourceToMapDim.size(), 0, compactResults, rewriter.getContext());
       std::optional<bool> isInjective =
@@ -1793,7 +1893,10 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       if (hasViewDim) {
         if (viewDim >= sizes.size())
           return lowerElementwiseAffineWriteback();
-        subSizes.push_back(sizes[viewDim]);
+        if (auto constant = getConstantIndex(sizes[viewDim]))
+          subSizes.push_back(rewriter.getIndexAttr(*constant));
+        else
+          subSizes.push_back(sizes[viewDim]);
         strides.push_back(stride);
         viewDimSeen[viewDim] = 1;
       } else {

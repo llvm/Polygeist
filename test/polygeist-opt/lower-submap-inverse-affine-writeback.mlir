@@ -164,6 +164,17 @@ module {
         (tensor<1xf64>, tensor<?xf64>, index) -> tensor<1xf64>
     return %updated : tensor<1xf64>
   }
+
+  func.func @symbol_offset_writeback(
+      %base: tensor<2x5xf64>, %view: tensor<5xf64>, %which: index)
+      -> tensor<2x5xf64> {
+    %c5 = arith.constant 5 : index
+    %updated = polygeist.submapInverse(%base, %view, %which, %c5)
+        {map = affine_map<(d0)[s0] -> (s0, d0)>} :
+        (tensor<2x5xf64>, tensor<5xf64>, index, index)
+        -> tensor<2x5xf64>
+    return %updated : tensor<2x5xf64>
+  }
 }
 
 // CHECK-DAG: #[[FLAT:map[0-9]*]] = affine_map<(d0, d1) -> (d0 * 4 + d1)>
@@ -216,4 +227,9 @@ module {
 // CHECK-SAME: outs({{.*}} : tensor<f64>)
 // CHECK-NOT: polygeist.submapInverse
 // CHECK: tensor.insert
+// CHECK: return
+
+// CHECK-LABEL: func.func @symbol_offset_writeback
+// CHECK-NOT: polygeist.submapInverse
+// CHECK: tensor.insert_slice
 // CHECK: return

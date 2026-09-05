@@ -2741,6 +2741,13 @@ def _scan_simple_memref_types(text: str, position: int | None = None) -> dict[st
     for match in re.finditer(
             r"(%[\w.$-]+)\s*:\s*(memref<[^,()\n]+>)", text):
         result.setdefault(match.group(1), match.group(2))
+    # Also learn result types from definitions such as
+    # `%rowptr = memref.get_global @rowstr : memref<101xi32>`; fixed-size NPB
+    # arrays appear this way rather than as function arguments.
+    for match in re.finditer(
+            r"(?m)^\s*(%[\w.$-]+)\s*=\s*[^\n]*:\s*"
+            r"(memref<[^,()\n]+>)\s*$", text):
+        result.setdefault(match.group(1), match.group(2))
     return result
 
 
@@ -3031,6 +3038,59 @@ def _render_saturating_u8_histogram(text: str) -> tuple[int, int, str] | None:
             f"{image.group(1)}, {hist.group(1)}, {names[2]}, {names[5]}) : "
             f"(memref<?xi32>, memref<?xi8>, i32, i32) -> ()")
         return loop_start, loop_end, indent + replacement
+
+    # A standalone/source-extracted form has no surrounding command-line and
+    # allocation control flow, so cgeist represents the same idiom directly
+    # as an affine.for.  Recognize the semantic essentials: an i32 value load,
+    # an indirect i8 bin load/store through that value, saturation at 255, and
+    # an increment/select update.  Derive both ABI extents from the loop and
+    # destination memref rather than relying on Parboil main's local allocas.
+    for loop in parse_loops(text):
+        if loop.kind != "affine.for":
+            continue
+        bound = re.fullmatch(r"0 to (%[\w.$-]+)", loop.bounds)
+        if not bound:
+            continue
+        body = text[loop.span[0]:loop.span[1]]
+        iv = re.escape(loop.induction)
+        image = re.search(
+            rf"(?:affine|memref)\.load\s+(%[\w.$-]+)\[{iv}\]\s*:\s*"
+            r"memref<\?xi32>", body)
+        if not image:
+            continue
+        loaded_index = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+%[\w.$-]+\s*:"
+            r"\s*i32\s+to\s+index", body)
+        if not loaded_index:
+            continue
+        index = re.escape(loaded_index.group(1))
+        hist = re.search(
+            rf"memref\.load\s+(%[\w.$-]+)\[{index}\]\s*:\s*memref<\?xi8>",
+            body)
+        store = re.search(
+            rf"memref\.store\s+%[\w.$-]+,\s*(%[\w.$-]+)\[{index}\]\s*:"
+            r"\s*memref<\?xi8>", body)
+        if (not hist or not store or hist.group(1) != store.group(1) or
+                "arith.cmpi slt" not in body or "c255_i32" not in body or
+                "arith.addi" not in body or "arith.select" not in body):
+            continue
+        line_start = text.rfind("\n", 0, loop.span[0]) + 1
+        indent = re.match(r"\s*", text[line_start:loop.span[0]]).group(0)
+        uid = loop.span[0]
+        count = f"%hist_count_{uid}"
+        zero = f"%hist_zero_{uid}"
+        bin_count_index = f"%hist_bins_index_{uid}"
+        bin_count = f"%hist_bins_{uid}"
+        replacement = (
+            f"{count} = arith.index_cast {bound.group(1)} : index to i32\n"
+            f"{indent}{zero} = arith.constant 0 : index\n{indent}"
+            f"{bin_count_index} = memref.dim {hist.group(1)}, {zero} : "
+            f"memref<?xi8>\n{indent}"
+            f"{bin_count} = arith.index_cast {bin_count_index} : index to i32\n"
+            f"{indent}kernel.launch @customHistogramSaturatingU8_memref("
+            f"{image.group(1)}, {hist.group(1)}, {count}, {bin_count}) : "
+            f"(memref<?xi32>, memref<?xi8>, i32, i32) -> ()")
+        return loop.span[0], loop.span[1], indent + replacement
     return None
 
 
@@ -3125,8 +3185,30 @@ def _render_sparse_spmv(text: str) -> list[tuple[int, int, str, str]]:
                 rows = f"%csr_rows_{uid}"
                 prefix = f"{rows} = affine.apply {mapped.group(1)}\n{indent}"
             operands = [rows, rowptr.group(1), cols.group(1), values.group(1), x, out]
-            types = ["index", "memref<101xi32>", "memref<3600xi32>",
-                     "memref<3600xf64>", "memref<102xf64>", "memref<102xf64>"]
+            # CSR is an algorithmic idiom, not a Class-S-only idiom.  Keep a
+            # uniformly dynamic ABI and cast fixed-size globals at the launch
+            # boundary instead of baking 101/3600/102 into every match.
+            target_types = ["memref<?xi32>", "memref<?xi32>",
+                            "memref<?xf64>", "memref<?xf64>",
+                            "memref<?xf64>"]
+            known_types = _scan_simple_memref_types(text, row_loop.span[0])
+            normalized = [rows]
+            cast_lines: list[str] = []
+            for index, (operand, target) in enumerate(
+                    zip(operands[1:], target_types)):
+                source = known_types.get(operand)
+                if source is not None and source != target:
+                    cast = f"%csr_arg_{uid}_{index}"
+                    cast_lines.append(
+                        f"{indent}{cast} = memref.cast {operand} : "
+                        f"{source} to {target}")
+                    normalized.append(cast)
+                else:
+                    normalized.append(operand)
+            operands = normalized
+            if cast_lines:
+                prefix += "\n".join(cast_lines) + "\n" + indent
+            types = ["index"] + target_types
             symbol = "customCsrSpmv_f64_memref"
             indent = indent + prefix
         launch = (f"kernel.launch @{symbol}(" + ", ".join(operands) +

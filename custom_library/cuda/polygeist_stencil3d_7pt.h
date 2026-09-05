@@ -121,6 +121,21 @@ void polygeist_custom_stencil3d_7pt_flat_f32_device(
     float c4, float c5, float c6,
     void *cuda_stream);
 
+void polygeist_custom_stencil3d_7pt_strided_f32_device(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6,
+    void *cuda_stream);
+
 void polygeist_mg_resid_f64_device(
     const double *u, const double *v, double *r,
     int32_t n1, int32_t n2, int32_t n3, const double *a,

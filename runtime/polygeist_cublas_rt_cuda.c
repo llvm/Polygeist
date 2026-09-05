@@ -3347,6 +3347,21 @@ extern void polygeist_custom_stencil3d_7pt_flat_f32_device(
     float c4, float c5, float c6,
     void *cuda_stream) __attribute__((weak));
 
+extern void polygeist_custom_stencil3d_7pt_strided_f32_device(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6,
+    void *cuda_stream) __attribute__((weak));
+
 static void polygeist_custom_stencil3d_7pt_flat_f64_cpu(
     int32_t N,
     const double *a0, const double *a1, const double *a2,
@@ -3511,6 +3526,72 @@ void polygeist_custom_stencil3d_7pt_flat_f32(
   if (coeff)
     unregister_host_safe((void *)coeff);
   unregister_host_safe(out);
+}
+
+static size_t stencil3d_strided_span_bytes(
+    int32_t nx, int32_t ny, int32_t nz,
+    int64_t si, int64_t sj, int64_t sk) {
+  if (nx <= 0 || ny <= 0 || nz <= 0 || si < 0 || sj < 0 || sk < 0)
+    return 0;
+  uint64_t last = (uint64_t)(nx - 1) * (uint64_t)si +
+                  (uint64_t)(ny - 1) * (uint64_t)sj +
+                  (uint64_t)(nz - 1) * (uint64_t)sk;
+  return (size_t)(last + 1) * sizeof(float);
+}
+
+void polygeist_custom_stencil3d_7pt_strided_f32(
+    int32_t nx, int32_t ny, int32_t nz,
+    const float *a0, int64_t a0i, int64_t a0j, int64_t a0k,
+    const float *a1, int64_t a1i, int64_t a1j, int64_t a1k,
+    const float *a2, int64_t a2i, int64_t a2j, int64_t a2k,
+    const float *a3, int64_t a3i, int64_t a3j, int64_t a3k,
+    const float *a4, int64_t a4i, int64_t a4j, int64_t a4k,
+    const float *a5, int64_t a5i, int64_t a5j, int64_t a5k,
+    const float *a6, int64_t a6i, int64_t a6j, int64_t a6k,
+    float *out, int64_t oi, int64_t oj, int64_t ok,
+    float base0, float base_extra, float coeff_extra,
+    float c0, float c1, float c2, float c3,
+    float c4, float c5, float c6) {
+  if (nx <= 0 || ny <= 0 || nz <= 0) return;
+  if (!polygeist_custom_stencil3d_7pt_strided_f32_device) {
+    for (int32_t i = 0; i < nx; ++i)
+      for (int32_t j = 0; j < ny; ++j)
+        for (int32_t k = 0; k < nz; ++k) {
+          int64_t x0 = (int64_t)i*a0i + (int64_t)j*a0j + (int64_t)k*a0k;
+          int64_t x1 = (int64_t)i*a1i + (int64_t)j*a1j + (int64_t)k*a1k;
+          int64_t x2 = (int64_t)i*a2i + (int64_t)j*a2j + (int64_t)k*a2k;
+          int64_t x3 = (int64_t)i*a3i + (int64_t)j*a3j + (int64_t)k*a3k;
+          int64_t x4 = (int64_t)i*a4i + (int64_t)j*a4j + (int64_t)k*a4k;
+          int64_t x5 = (int64_t)i*a5i + (int64_t)j*a5j + (int64_t)k*a5k;
+          int64_t x6 = (int64_t)i*a6i + (int64_t)j*a6j + (int64_t)k*a6k;
+          int64_t xo = (int64_t)i*oi + (int64_t)j*oj + (int64_t)k*ok;
+          out[xo] = base0*a0[x0] + c0*a0[x0] + c1*a1[x1] + c2*a2[x2] +
+                    c3*a3[x3] + c4*a4[x4] + c5*a5[x5] + c6*a6[x6];
+        }
+    return;
+  }
+  polygeist_cublas_init();
+  void *host[8] = {(void *)a0, (void *)a1, (void *)a2, (void *)a3,
+                   (void *)a4, (void *)a5, (void *)a6, out};
+  size_t bytes[8] = {
+      stencil3d_strided_span_bytes(nx,ny,nz,a0i,a0j,a0k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a1i,a1j,a1k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a2i,a2j,a2k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a3i,a3j,a3k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a4i,a4j,a4k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a5i,a5j,a5k),
+      stencil3d_strided_span_bytes(nx,ny,nz,a6i,a6j,a6k),
+      stencil3d_strided_span_bytes(nx,ny,nz,oi,oj,ok)};
+  void *device[8];
+  register_host_operands_safe(host, bytes, device, 8);
+  polygeist_custom_stencil3d_7pt_strided_f32_device(
+      nx, ny, nz,
+      device[0],a0i,a0j,a0k, device[1],a1i,a1j,a1k,
+      device[2],a2i,a2j,a2k, device[3],a3i,a3j,a3k,
+      device[4],a4i,a4j,a4k, device[5],a5i,a5j,a5k,
+      device[6],a6i,a6j,a6k, device[7],oi,oj,ok,
+      base0,base_extra,coeff_extra,c0,c1,c2,c3,c4,c5,c6,g_stream);
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
 }
 
 static void polygeist_dft_z2z_1d_cpu(
