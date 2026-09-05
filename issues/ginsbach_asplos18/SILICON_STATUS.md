@@ -121,8 +121,13 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   permitted external operations or remains unmatched.
 - Parboil stencil: its primary seven-point compute unit now has a cuDNN route;
   complete benchmark build/run validation remains.
-- NPB IS: six direct/shifted integer histogram sites now lower to CUB; complete
-  benchmark composition/correctness validation remains.
+- NPB IS: six corpus sites lower to CUB. The full Class-S application now
+  preserves the original driver and `full_verify`, replaces only `rank` with a
+  source-faithful extracted core, and executes its two static histogram sites
+  through CUB. All three Orin runs pass NASA verification (median 110.00
+  Mop/s; benchmark-reported time 0.01 s). Each process makes 22 CUB calls:
+  two sites in the warm-up rank plus ten timed ranks. Log:
+  `scripts/correctness/logs/npb_is_cub_full_repro_20260905_133503.silicon.log`.
 - Parboil histogram: its saturating packed-byte form is detected, but does not
   satisfy the semantics of the new integer-count CUB route.
 - Parboil JDS SpMV: detected; cuSPARSE has no direct JDS operation, so it
@@ -137,7 +142,9 @@ The authoritative generated audit for this round is
 
 - Fixed: NPB IS no longer crashes in `FoldSCFIf`; a branch-local
   `memref.get_global` target is cloned and remapped before the old `scf.if` is
-  erased. IS now raises to 55 Linalg generics.
+  erased. IS now raises to 55 Linalg generics. Dynamic pointer memrefs can now
+  use the CUB histogram route when a constant count-loop bound and a complete
+  zero-filled submap prove the sample and bin extents.
 - Fixed: NPB FT `fft3d.c` now accepts aggregate assignment between a
   fixed-size complex pair and its VLA-derived dynamic view. It completes both
   frontend and raising pipelines; the FFT loops still need cuFFT recognition.
@@ -165,3 +172,20 @@ The authoritative generated audit for this round is
   indirect histograms, MG's
   factorized 3D residual stages, FT's residual FFT loop nests, JDS SpMV, LBM's
   residual loop bodies, and full-application composition/validation.
+
+## Dense solver validation
+
+- PolyBench/C Cholesky MEDIUM (`n=400`) is recognized as one whole cuSOLVER
+  DPOTRF operation despite the source recurrence. It passes a high-precision
+  source-reference comparison in all three Orin runs (`max_rel` 2.743e-14).
+  Median library-call timing is 13.737 ms host / 13.124 ms device.
+- PolyBench/C Trisolv MEDIUM (`n=400`) is recognized as one whole cuBLAS DTRSV
+  operation. It passes in all three Orin runs (`max_rel` 2.464e-13). Median
+  library-call timing is 3.492 ms host / 2.729 ms device.
+- These source kernels currently use the memref-Linalg route (`--no-debuf`).
+  The default tensor/debufferized representation retains tensor submaps and is
+  not yet accepted by the whole-algorithm factorization matcher.
+- Logs:
+  `scripts/correctness/logs/polybench_cholesky_medium_raised_timed_20260905_133515.silicon.log`
+  and
+  `scripts/correctness/logs/polybench_trisolv_medium_raised_timed_20260905_133520.silicon.log`.

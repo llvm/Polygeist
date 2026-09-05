@@ -3231,7 +3231,18 @@ def _render_dense_factorization_regions(
         # Forward substitution: x[i]=b[i]; x[i]-=A[i,j]*x[j];
         # x[i]/=A[i,i].  The loop-carried recurrence is the evidence for
         # DTRSV, not a reason to leave the algorithm unmatched.
-        if (len(args) == 4 and args[1][1] == "memref<?x?xf64>" and
+        matrix_is_dynamic_f64 = bool(re.fullmatch(
+            r"memref<\?x(?:\?|[1-9][0-9]*)xf64>", args[1][1])) \
+            if len(args) >= 2 else False
+        matrix_operand = args[1][0] if len(args) >= 2 else ""
+        matrix_prefix: list[str] = []
+        if matrix_is_dynamic_f64 and args[1][1] != "memref<?x?xf64>":
+            matrix_operand = f"%factor_matrix_{loop.span[0]}"
+            matrix_prefix.append(
+                f"{indent}{matrix_operand} = memref.cast {args[1][0]} : "
+                f"{args[1][1]} to memref<?x?xf64>")
+
+        if (len(args) == 4 and matrix_is_dynamic_f64 and
                 args[2][1] == "memref<?xf64>" and
                 args[3][1] == "memref<?xf64>" and
                 body.count("linalg.generic") == 1 and
@@ -3245,10 +3256,10 @@ def _render_dense_factorization_regions(
                 re.search(rf"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
                           rf"{re.escape(args[2][0])}\[{iv}\]", body)):
             symbol = "cublasDtrsvLowerRowMajor_memref"
-            launch = (
+            launch = "\n".join(matrix_prefix + [
                 f"{indent}kernel.launch @{symbol}("
-                f"{args[1][0]}, {args[3][0]}, {args[2][0]}) : "
-                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()")
+                f"{matrix_operand}, {args[3][0]}, {args[2][0]}) : "
+                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()"])
             rendered.append((loop.span[0], loop.span[1], launch, symbol,
                              consumed))
             claimed.append(loop.span)
@@ -3256,7 +3267,7 @@ def _render_dense_factorization_regions(
 
         # Unblocked lower Cholesky: an off-diagonal dot/subtract/divide
         # recurrence followed by a diagonal sum-of-squares and sqrt.
-        if (len(args) == 2 and args[1][1] == "memref<?x?xf64>" and
+        if (len(args) == 2 and matrix_is_dynamic_f64 and
                 body.count("linalg.generic") == 2 and
                 body.count('iterator_types = ["reduction"]') == 2 and
                 body.count("arith.mulf") >= 2 and
@@ -3268,8 +3279,9 @@ def _render_dense_factorization_regions(
                           rf"{re.escape(args[1][0])}\[{iv},\s*{iv}\]", body)):
             symbol = "cusolverDnDpotrfLowerRowMajor_memref"
             launch = (
-                f"{indent}kernel.launch @{symbol}({args[1][0]}) : "
-                "(memref<?x?xf64>) -> ()")
+                "\n".join(matrix_prefix + [
+                f"{indent}kernel.launch @{symbol}({matrix_operand}) : "
+                "(memref<?x?xf64>) -> ()"]))
             rendered.append((loop.span[0], loop.span[1], launch, symbol,
                              consumed))
             claimed.append(loop.span)
@@ -3371,6 +3383,25 @@ def _render_zeroed_i32_histograms(
 
         count_extent = static_extent(samples_type)
         bin_extent = static_extent(histogram_type)
+        # Pointer arguments arrive as dynamic memrefs even when the complete
+        # source loop supplies a constant extent.  Recover that proof from the
+        # loop bound and from the complete submap used by the preceding zero
+        # fill.  This keeps the rule shape-driven while allowing extracted
+        # application routines to use ordinary pointer ABIs.
+        if count_extent is None:
+            constant_bound = re.fullmatch(r"0 to (\d+)", count_loop.bounds)
+            if constant_bound:
+                count_extent = int(constant_bound.group(1))
+        function_start = text.rfind("func.func", 0, count_loop.span[0])
+        before_count = text[function_start:count_loop.span[0]]
+        if bin_extent is None:
+            extent_uses = list(re.finditer(
+                rf"%[\w.$-]+\s*=\s*polygeist\.submap\("
+                rf"{re.escape(histogram)},\s*(%[\w.$-]+)\)",
+                before_count))
+            if extent_uses:
+                bin_extent = _constant_index_value(
+                    before_count, extent_uses[-1].group(1))
         if count_extent is None or bin_extent is None:
             continue
         if count_loop.bounds != f"0 to {count_extent}":

@@ -1329,14 +1329,14 @@ POLYBENCHGPU_RUNTIMES: dict[str, list[dict]] = {
          "notes": "Raised path is warmed ger/gemv/axpy sequence"},
     ],
     "cholesky": [
-        {"size": "ABI smoke N=3", "raised": "host 1.145 ms<br>device 1.084 ms",
+        {"size": "PolyBench MEDIUM N=400", "raised": "host 13.737 ms<br>device 13.124 ms",
          "reference": "not measured", "winner": "raised-only",
-         "notes": "3/3 PASS on Orin; complete recurrence recovered as cuSOLVER DPOTRF"},
+         "notes": "3/3 high-precision PASS on Orin (max relative error 2.743e-14); complete source recurrence recovered as one cuSOLVER DPOTRF call via the memref-Linalg route"},
     ],
     "trisolv": [
-        {"size": "ABI smoke N=3", "raised": "host 2.313 ms<br>device 2.115 ms",
+        {"size": "PolyBench MEDIUM N=400", "raised": "host 3.492 ms<br>device 2.729 ms",
          "reference": "not measured", "winner": "raised-only",
-         "notes": "3/3 PASS on Orin; complete recurrence recovered as cuBLAS DTRSV"},
+         "notes": "3/3 high-precision PASS on Orin (max relative error 2.464e-13); complete source recurrence recovered as one cuBLAS DTRSV call via the memref-Linalg route"},
     ],
 }
 
@@ -2165,6 +2165,12 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     abi_text: str | None = None
     abi_error: str | None = None
     report = [("launches", 0), ("residual_lg", 0)]
+    # Whole-algorithm Cholesky/Trisolv recognition currently consumes the
+    # memref-Linalg form.  Their tensor/debufferized form remains a distinct
+    # pipeline gap, so show the route that was actually built and run.
+    prefer_memref_match = (
+        kset == "polybench" and kernel in {"cholesky", "trisolv"}
+    )
 
     source = find_kernel_c(kernel, kset=kset)
     if source and source.exists():
@@ -2198,16 +2204,28 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             matched_text = rewritten
             rendered, css = syntax_highlight(rewritten)
             pages["matched"] = rendered
+        if prefer_memref_match:
+            n_for = count_for_loops(raised_text)
+            rewritten, report = run_rewriter(raised)
+            matched_text = rewritten
+            matched_symbols = sorted(set(
+                re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
+            ))
+            rendered, css = syntax_highlight(rewritten)
+            pages["matched"] = rendered
     if debuf.exists():
         debuf_text = debuf.read_text()
-        n_for = count_for_loops(debuf_text)
+        if not prefer_memref_match:
+            n_for = count_for_loops(debuf_text)
         rendered, css = syntax_highlight(debuf_text)
         pages["debuf"] = rendered
         # The exhaustive ATen sweep stores the authoritative matcher output
         # beside its diagnostics. Reuse it instead of starting one Egglog
         # process per page (hundreds of avoidable process launches).
         stored_match = mlir_dir / kernel / "matched.mlir"
-        if kset == "aten_c" and stored_match.exists():
+        if prefer_memref_match:
+            rewritten = matched_text or debuf_text
+        elif kset == "aten_c" and stored_match.exists():
             rewritten = stored_match.read_text()
             report = [
                 ("launches", len(re.findall(r"kernel\.launch\s+@", rewritten))),
@@ -2218,12 +2236,13 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
         # Keep raising coverage tied to the matcher input. A whole-function
         # rewrite may remove every loop, but that must not retroactively claim
         # that RaiseToLinalg raised those loops.
-        matched_text = rewritten
-        matched_symbols = sorted(set(
-            re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
-        ))
-        rendered, css = syntax_highlight(rewritten)
-        pages["matched"] = rendered
+        if not prefer_memref_match:
+            matched_text = rewritten
+            matched_symbols = sorted(set(
+                re.findall(r"kernel\.launch\s+@([A-Za-z0-9_]+)", rewritten)
+            ))
+            rendered, css = syntax_highlight(rewritten)
+            pages["matched"] = rendered
     if debuf_mr.exists():
         debuf_mr_text = debuf_mr.read_text()
         rendered, css = syntax_highlight(debuf_mr_text)
@@ -4585,7 +4604,8 @@ def _render_section_rows(kernel_stats: dict[str, dict],
         s = kernel_stats[k]
         page_file = s.get("page_filename", f"{k}.html")
         l = s["launches"]; r = s["residual"]; f = s["residual_for"]
-        if l > 0 and r == 0 and f == 0:
+        matched_f = s.get("matched_residual_for", f)
+        if l > 0 and r == 0 and matched_f == 0:
             cls = "pass"; status = "FULL"
         elif l > 0:
             cls = "partial"; status = "PARTIAL"
@@ -5837,7 +5857,7 @@ def _ginsbach_page() -> tuple[str, int]:
     )
     backend_routes = {
         ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
-        ("snu-npb", "IS"): "CUB DeviceHistogram ×6",
+        ("snu-npb", "IS"): "CUB histogram ×6 corpus sites; ×2 in rank",
         ("snu-npb", "UA"): "cuBLAS DAXPBY ×3 + Ddot ×14",
         ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
         ("parboil", "stencil"): "cuDNN 3D convolution ×1",
@@ -5939,8 +5959,10 @@ def _ginsbach_page() -> tuple[str, int]:
         'complete verified application run (0.13 s). Parboil SGEMM is a '
         'source-faithful kernel run with a 16.620 ms median host-call time. '
         'NPB UA DAXPBY/Ddot and the Parboil seven-point stencil have passed '
-        'timed external-library correctness smokes. NPB IS has also passed a '
-        'timed CUB histogram ABI smoke. Their exact sizes and '
+        'timed external-library correctness smokes. NPB IS now passes full '
+        'Class-S verification with the original driver and full_verify around '
+        'a source-faithful rank core containing two CUB histogram sites. '
+        'Their exact sizes and '
         'host/device timing scopes are shown in the table. See '
         '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the '
         'exact evidence and remaining gaps.</div>'
