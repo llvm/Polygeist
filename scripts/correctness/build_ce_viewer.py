@@ -2489,14 +2489,6 @@ ATEN_RETIRED_EARLY_MATCH_KERNELS = {
 }
 
 
-def _aten_page_filename(sort_by: str, page: int) -> str:
-    prefix = {"alphabetical": "numerical",
-              "raised": "numerical-raised",
-              "resident": "numerical-resident"}.get(sort_by,
-                                                    "numerical-correctness")
-    return f"{prefix}.html" if page == 1 else f"{prefix}-{page}.html"
-
-
 def _aten_performance_by_kernel() -> dict[str, dict[str, str]]:
     """Return only measurements that describe the current matcher output.
 
@@ -2511,69 +2503,6 @@ def _aten_performance_by_kernel() -> dict[str, dict[str, str]]:
             continue
         performance[row.get("kernel", "")] = row
     return performance
-
-
-_RAISED_MATCHED_CACHE: set[str] | None = None
-
-
-def _raised_matched_kernels() -> set[str]:
-    """Kernels whose matcher output contains a library launch (fully raised +
-    matched to a library op).  Scans results/*/matched.mlir once."""
-    global _RAISED_MATCHED_CACHE
-    if _RAISED_MATCHED_CACHE is None:
-        found: set[str] = set()
-        for mm in (ATEN_C_ROOT / "results").glob("*/matched.mlir"):
-            try:
-                if "kernel.launch @" in mm.read_text():
-                    found.add(mm.parent.name)
-            except OSError:
-                pass
-        _RAISED_MATCHED_CACHE = found
-    return _RAISED_MATCHED_CACHE
-
-
-def _aten_sorted_kernels(sort_by: str) -> list[str]:
-    if sort_by == "alphabetical":
-        return sorted(ATEN_C_ORDER)
-    if sort_by == "raised":
-        # Every kernel that raised + matched to a library op.  Ones we already
-        # measured on silicon (resident) float to the top, then the rest
-        # alphabetically — so the browsable set shows measured work first.
-        matched = _raised_matched_kernels()
-        return sorted(
-            (k for k in ATEN_C_ORDER if k in matched),
-            key=lambda k: (0 if _RESIDENT_SILICON.get(k, {}).get("resident_us")
-                           else 1, k),
-        )
-    if sort_by == "resident":
-        # Only kernels with resident + native measured at the SAME shape (so
-        # resident/native is valid), best ratio first.
-        scored = []
-        for kernel in ATEN_C_ORDER:
-            rs = _RESIDENT_SILICON.get(kernel)
-            nr = _NATIVE_RESIDENT.get(kernel)
-            if not (rs and rs.get("resident_us") and nr and nr.get("native_us")):
-                continue
-            if not rs.get("shape") or (sorted(rs["shape"].split("_"))
-                                       != sorted(nr.get("shape", "").split("_"))):
-                continue
-            try:
-                scored.append(
-                    (float(rs["resident_us"]) / float(nr["native_us"]), kernel))
-            except (ValueError, ZeroDivisionError):
-                pass
-        return [k for _, k in sorted(scored)]
-    performance = _aten_performance_by_kernel()
-    correctness_rank = {"PASS": 0, "FAIL": 1, "—": 2, "": 2}
-    return sorted(
-        ATEN_C_ORDER,
-        key=lambda kernel: (
-            correctness_rank.get(
-                performance.get(kernel, {}).get("correctness", "—"), 2
-            ),
-            kernel,
-        ),
-    )
 
 
 def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[str, str, str]:
@@ -2859,8 +2788,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
     )
 
 
-def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
-                  sort_by: str, page: int, page_count: int) -> str:
+def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
     performance = _aten_performance_by_kernel()
     cuda_audit = {
         row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
@@ -2887,37 +2815,46 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             if upstream_url else "—"
         )
         symbols = stats.get("matched_symbols", [])
-        symbol_html = ", ".join(f"<code>@{s}</code>" for s in symbols) or "—"
-        # All abi-lowerable library ops the matcher's enumeration found for this
-        # body — surfaces alternatives the greedy "first match wins" hides.
+        # Combine emitted launches and every enumerated alternative in one
+        # deduplicated cell.  Bold entries are emitted by the current matcher;
+        # green entries are other ABI-lowerable candidates; gray entries are
+        # semantic candidates without a lowering backend.
         _mc = _MATCH_CANDIDATES.get(kernel, {})
         _cands = _mc.get("candidates", [])
-        if _cands:
-            _win = _mc.get("winner")
-            _parts = []
-            for c in _cands:
-                _nm = c.get("name", "") if isinstance(c, dict) else c
-                _abi = c.get("abi", True) if isinstance(c, dict) else True
-                if _nm == _win:
-                    _parts.append(f"<code><b>{html.escape(_nm)}</b></code>")
-                elif _abi:
-                    _parts.append(f'<code style="color:#137333">'
-                                  f'{html.escape(_nm)}</code>')
-                else:
-                    _parts.append(f'<code style="color:#999" title="semantic '
-                                  f'match, no library backend">'
-                                  f'{html.escape(_nm)}</code>')
-            candidates_cell = ", ".join(_parts)
-            _nabi = sum(1 for c in _cands
-                        if (c.get("abi", True) if isinstance(c, dict) else True))
-            if len(_cands) > 1:
-                candidates_cell = (
-                    f'<span title="{len(_cands)} candidates ({_nabi} '
-                    f'abi-lowerable); greedy match takes the first">'
-                    f'{candidates_cell}</span>'
+        _matches: dict[str, dict[str, bool]] = {}
+        for symbol in symbols:
+            _matches[symbol] = {"selected": True, "abi": True}
+        for candidate_entry in _cands:
+            _name = (candidate_entry.get("name", "")
+                     if isinstance(candidate_entry, dict)
+                     else candidate_entry)
+            if not _name:
+                continue
+            _abi = (candidate_entry.get("abi", True)
+                    if isinstance(candidate_entry, dict) else True)
+            _entry = _matches.setdefault(
+                _name, {"selected": False, "abi": bool(_abi)}
+            )
+            _entry["abi"] = _entry["abi"] or bool(_abi)
+        _parts = []
+        for _name, _entry in _matches.items():
+            _escaped = html.escape(_name)
+            if _entry["selected"]:
+                _parts.append(
+                    f'<code title="emitted by the current matcher"><b>'
+                    f'@{_escaped}</b></code>'
                 )
-        else:
-            candidates_cell = "—"
+            elif _entry["abi"]:
+                _parts.append(
+                    f'<code style="color:#137333" title="ABI-lowerable '
+                    f'candidate">@{_escaped}</code>'
+                )
+            else:
+                _parts.append(
+                    f'<code style="color:#999" title="semantic candidate, '
+                    f'no library backend">@{_escaped}</code>'
+                )
+        matches_cell = ", ".join(_parts) or "—"
         # Residency leaks: buffer allocs/copies the lowered chain carries.
         # green = clean/elidable, red = genuine copies or inter-call leaks.
         _rl = _RESIDENCY_LEAKS.get(kernel)
@@ -2938,9 +2875,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         else:
             residency_cell = "—"
         launches = stats.get("launches", 0)
-        residual = stats.get("residual", 0)
         loops = stats.get("residual_for", 0)
-        matched_loops = stats.get("matched_residual_for", loops)
         linalg_ops = stats.get("linalg_ops", 0)
         if linalg_ops > 0 and loops == 0:
             raise_status_class, raise_status = "pass", "FULL"
@@ -2948,23 +2883,12 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             raise_status_class, raise_status = "partial", "PARTIAL"
         else:
             raise_status_class, raise_status = "none", "NONE"
-        if kernel in ATEN_C_UNSAFE_MATCHES:
-            status_class, status = "none", "UNSAFE"
-        elif launches and residual == 0 and matched_loops == 0:
-            status_class, status = "pass", "FULL"
-        elif launches:
-            status_class, status = "partial", "PARTIAL"
-        else:
-            status_class, status = "none", "NONE"
         assessment = ATEN_C_MATCH_ASSESSMENT.get(kernel, "")
         if "thrust" in assessment.lower():
             assessment = ""
         perf = performance.get(kernel, {})
-        execution = html.escape(perf.get("executable_status", "—"))
         correctness = html.escape(perf.get("correctness", "—"))
         problem = html.escape(perf.get("problem", "—"))
-        raised_us = html.escape(perf.get("raised_us", "—"))
-        resident_us = html.escape(perf.get("resident_cuda_us", "—"))
         baseline = html.escape(perf.get("baseline", "—"))
         # Resident (raised) + native are BOTH measured at the resident shape
         # (single source of truth), so the ratio is same-shape by construction.
@@ -2979,7 +2903,6 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             sorted(_res_shape.split("_")) == sorted(_nat_shape.split("_")))
         # native_us used for the column + ratio is the shape-matched one.
         native_us = _nr.get("native_us") if _nr else None
-        native_prov = "resident-shape" if native_us else None
         try:
             _res = float(_rs["resident_us"]) if _rs and _rs.get("resident_us") else 0.0
             _nv = float(native_us) if native_us else 0.0
@@ -3022,43 +2945,6 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             )
         else:
             dtype_tag = ""
-        audit = cuda_audit.get(kernel, {})
-        library = audit.get("candidate_library", "")
-        api = audit.get("candidate_api", "")
-        evidence = audit.get("evidence_url", "")
-        if library:
-            candidate_text = (
-                f'<b>{html.escape(library)}</b><br><code>{html.escape(api)}</code>'
-            )
-            candidate = (
-                f'<a class="viewer" href="{html.escape(evidence)}" target="_blank">'
-                f'{candidate_text}</a>' if evidence else candidate_text
-            )
-        else:
-            candidate = '<span class="none">no tensor-library API</span>'
-        audit_scope = html.escape(
-            audit.get("current_match_scope", "—").replace("_", " ")
-        )
-        implementation_class = audit.get(
-            "current_implementation_class", "UNVERIFIED_IMPLEMENTATION")
-        implementation_detail = audit.get("current_implementation_detail", "")
-        counts_as_library = audit.get("counts_as_library_reuse") == "yes"
-        implementation_provenance = (
-            f'<b>{html.escape(implementation_class.replace("_", " "))}</b>'
-            f'<br><span>{html.escape(implementation_detail)}</span>'
-        )
-        if status == "FULL" and not counts_as_library:
-            status_class, status = "partial", "GPU FALLBACK"
-        if any(
-            symbol.startswith("cudnnAveragePool_f32_") or
-            symbol.startswith("cudnnBatchNormBackward_f32_")
-            for symbol in symbols
-        ):
-            audit_scope = "COMPLETE REWRITE CANDIDATE"
-        execution_class = (
-            "pass" if execution == "EXECUTED" else
-            "partial" if execution.startswith("EXECUTED_") else "none"
-        )
         correctness_class = "pass" if correctness == "PASS" else "none"
         if native_us:
             native_cell = (
@@ -3101,9 +2987,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             f"<td>{linalg_ops}</td><td>{loops}</td>"
             f'<td class="{raise_status_class}">{raise_status}</td>'
             f"<td>{launches}</td>"
-            f'<td class="{status_class}">{status}</td>'
-            f"<td>{symbol_html}</td>"
-            f"<td>{candidates_cell}</td>"
+            f"<td>{matches_cell}</td>"
             f"<td>{residency_cell}</td>"
             f'<td class="{correctness_class}">{correctness}</td>'
             f"<td><code>{html.escape(_res_shape.replace('_',' ')) if _res_shape else problem}</code></td>"
@@ -3137,91 +3021,122 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         row.get("current_match_scope") == "PARTIAL_STAGE_ONLY"
         for row in cuda_audit.values()
     )
-    sort_links = (
-        f'<b>Sort:</b> <a href="{_aten_page_filename("alphabetical", 1)}">'
-        f'{"<b>alphabetical</b>" if sort_by == "alphabetical" else "alphabetical"}</a> &middot; '
-        f'<a href="{_aten_page_filename("raised", 1)}">'
-        f'{"<b>raised (matched)</b>" if sort_by == "raised" else "raised (matched)"}</a> &middot; '
-        f'<a href="{_aten_page_filename("resident", 1)}">'
-        f'{"<b>resident/native (measured only)</b>" if sort_by == "resident" else "resident/native (measured only)"}</a>'
-    )
-    page_links = " &middot; ".join(
-        (
-            f'<b>{number}</b>' if number == page else
-            f'<a href="{_aten_page_filename(sort_by, number)}">{number}</a>'
-        )
-        for number in range(1, page_count + 1)
-    )
-    # Global op search: embed every kernel name + its detail-page link so
-    # typing filters across ALL pages, not just the current pagination slice.
-    search_index = []
     native_total = 0
     for k in ATEN_C_ORDER:
-        us, prov = native_cuda_for(k)
-        if us:
+        if _NATIVE_RESIDENT.get(k, {}).get("native_us"):
             native_total += 1
-        search_index.append([
-            k,
-            aten_stats.get(k, {}).get("page_filename", ""),
-            (f"{float(us):.1f}" if us else ""),
-        ])
-    search_json = json.dumps(search_index)
-    search_box = (
+    # The ATen table is small enough to keep all rows in the document.  The
+    # browser sorts and filters that complete set, then renders one page.  This
+    # avoids the misleading behavior of sorting only the current 20-row slice.
+    live_search_box = (
         '<div class="intro" style="padding-top:10px;padding-bottom:4px">'
         '<b>Search op:</b> '
         '<input id="aten-search" type="text" autocomplete="off" spellcheck="false" '
         'placeholder="type an op name, e.g. gelu, conv2d, softmax…" '
         'style="width:340px;padding:5px 8px;font-size:14px;font-family:monospace;'
-        'border:1px solid #bbb;border-radius:4px" '
-        'oninput="atenSearch()" onkeydown="atenSearchKey(event)">'
+        'border:1px solid #bbb;border-radius:4px" oninput="atenSearch()" '
+        'onkeydown="atenSearchKey(event)">'
         '<label style="margin-left:12px;font-size:13px">'
         '<input id="aten-native-only" type="checkbox" onchange="atenSearch()"> '
         'only ops with a <span style="color:#137333">native number</span></label>'
         '<span id="aten-search-count" style="margin-left:10px;color:#666"></span>'
-        '<div id="aten-search-offpage" style="margin-top:6px;font-family:monospace;'
-        'font-size:12px;color:#666;line-height:1.8"></div>'
         f'<div style="margin-top:4px;color:#666;font-size:12px">'
         f'<span style="color:#137333">&#9679;</span> = has a real ATen native '
-        f'runtime ({native_total} of {len(ATEN_C_ORDER)} ops). Filters the table '
-        f'below; matches on other pages are linked here.</div></div>'
+        f'runtime ({native_total} of {len(ATEN_C_ORDER)} ops). Search and native '
+        f'filtering apply to the complete table.</div></div>'
+    )
+    table_script = (
         '<script>'
-        f'var ATEN_OPS={search_json};'
-        'function atenSearch(){'
+        f'const ATEN_PAGE_SIZE={ATEN_PAGE_SIZE};'
+        'let atenRows=[];let atenPage=1;'
+        'let atenSortColumn=0;let atenSortDirection=1;'
+        'const atenNumericColumns=new Set([3,4,6,11,12,13,14]);'
+        'function atenMissing(v){return !v||v==="—"||v==="-"||v==="N/A";}'
+        'function atenValue(row,column){'
+        'var v=row.cells[column].textContent.trim();'
+        'if(atenNumericColumns.has(column)){'
+        'var n=parseFloat(v.replace(/,/g,"").replace(/×$/, ""));'
+        'return Number.isFinite(n)?n:null;}return atenMissing(v)?null:v;}'
+        'function atenCompare(a,b){'
+        'var av=atenValue(a.row,atenSortColumn);'
+        'var bv=atenValue(b.row,atenSortColumn);'
+        'if(av===null&&bv===null)return a.order-b.order;'
+        'if(av===null)return 1;if(bv===null)return -1;'
+        'var cmp=typeof av==="number"?av-bv:String(av).localeCompare(String(bv),'
+        'undefined,{numeric:true,sensitivity:"base"});'
+        'return cmp?cmp*atenSortDirection:a.order-b.order;}'
+        'function atenFilteredRows(){'
         'var q=document.getElementById("aten-search").value.trim().toLowerCase();'
         'var nativeOnly=document.getElementById("aten-native-only").checked;'
-        'var c=document.getElementById("aten-search-count");'
-        'var off=document.getElementById("aten-search-offpage");'
-        'var trs=document.querySelectorAll("tr[data-op]");'
-        'var here={},shown=0;'
-        'trs.forEach(function(tr){'
-        'var op=tr.getAttribute("data-op").toLowerCase();here[op]=1;'
-        'var ok=op.indexOf(q)>=0&&(!nativeOnly||tr.getAttribute("data-native")=="1");'
-        'tr.style.display=((q||nativeOnly)&&!ok)?"none":"";'
-        'if(ok)shown++;});'
-        'if(!q&&!nativeOnly){c.textContent="";off.innerHTML="";return;}'
-        'var all=ATEN_OPS.filter(function(o){'
-        'return o[0].toLowerCase().indexOf(q)>=0&&(!nativeOnly||o[2]);});'
-        'c.textContent=shown+" shown on this page, "+all.length+" total match"+(all.length==1?"":"es");'
-        'var elsewhere=all.filter(function(o){return !here[o[0].toLowerCase()];});'
-        'if(elsewhere.length){'
-        'off.innerHTML="On other pages: "+elsewhere.slice(0,60).map(function(o){'
-        'var badge=o[2]?"<span style=\\"color:#137333\\">&#9679;</span> ":"";'
-        'var link=o[1]?"<a href=\\""+o[1]+"\\">"+o[0]+"</a>":o[0];'
-        'return badge+link;}).join(" &middot; ")'
-        '+(elsewhere.length>60?" &middot; +"+(elsewhere.length-60)+" more":"");'
-        '}else{off.innerHTML="";}'
-        '}'
-        'function atenSearchKey(e){if(e.key=="Enter"){atenSearch();}}'
+        'return atenRows.filter(function(item){var row=item.row;'
+        'return row.dataset.op.toLowerCase().indexOf(q)>=0&&'
+        '(!nativeOnly||row.dataset.native==="1");}).sort(atenCompare);}'
+        'function atenRender(){'
+        'var rows=atenFilteredRows();'
+        'var pages=Math.max(1,Math.ceil(rows.length/ATEN_PAGE_SIZE));'
+        'atenPage=Math.min(Math.max(1,atenPage),pages);'
+        'var begin=(atenPage-1)*ATEN_PAGE_SIZE;'
+        'var end=Math.min(begin+ATEN_PAGE_SIZE,rows.length);'
+        'var body=document.querySelector("#aten-table tbody");body.replaceChildren();'
+        'rows.slice(begin,end).forEach(function(item){body.appendChild(item.row);});'
+        'var count=document.getElementById("aten-search-count");'
+        'count.textContent=rows.length?"Showing "+(begin+1)+"–"+end+" of "+rows.length:'
+        '"No matching kernels";'
+        'var nav=document.getElementById("aten-page-links");nav.replaceChildren();'
+        'function add(label,page,disabled,current){var b=document.createElement("button");'
+        'b.type="button";b.textContent=label;b.disabled=disabled;'
+        'if(current)b.className="active";b.onclick=function(){atenPage=page;atenRender();};'
+        'nav.appendChild(b);}'
+        'add("‹",atenPage-1,atenPage===1,false);'
+        'var first=Math.max(1,atenPage-3),last=Math.min(pages,first+6);'
+        'first=Math.max(1,last-6);'
+        'if(first>1){add("1",1,false,false);if(first>2){'
+        'var s=document.createElement("span");s.textContent="…";nav.appendChild(s);}}'
+        'for(var p=first;p<=last;p++)add(String(p),p,false,p===atenPage);'
+        'if(last<pages){if(last<pages-1){var s=document.createElement("span");'
+        's.textContent="…";nav.appendChild(s);}add(String(pages),pages,false,false);}'
+        'add("›",atenPage+1,atenPage===pages,false);'
+        'document.querySelectorAll("#aten-table th").forEach(function(th,i){'
+        'th.setAttribute("aria-sort",i===atenSortColumn?'
+        '(atenSortDirection===1?"ascending":"descending"):"none");'
+        'var mark=th.querySelector(".sort-mark");if(mark)mark.textContent='
+        'i===atenSortColumn?(atenSortDirection===1?" ▲":" ▼"):" ↕";});}'
+        'function sortAten(column){if(column===atenSortColumn)atenSortDirection*=-1;'
+        'else{atenSortColumn=column;atenSortDirection=1;}atenPage=1;atenRender();}'
+        'function atenSearch(){atenPage=1;atenRender();}'
+        'function atenSearchKey(e){if(e.key==="Enter")atenSearch();}'
+        'document.addEventListener("DOMContentLoaded",function(){'
+        'atenRows=Array.from(document.querySelectorAll("#aten-table tbody tr"))'
+        '.map(function(row,i){return {row:row,order:i};});atenRender();});'
         '</script>'
     )
     controls = (
-        search_box +
+        live_search_box +
         '<div class="intro" style="padding-top:10px;padding-bottom:10px">'
-        f'{sort_links}<span style="margin-left:24px"><b>Page:</b> '
-        f'{page_links}</span><span style="margin-left:24px">Showing '
-        f'{(page - 1) * ATEN_PAGE_SIZE + 1}–'
-        f'{(page - 1) * ATEN_PAGE_SIZE + len(kernels)} of '
-        f'{len(_aten_sorted_kernels(sort_by))}</span></div>'
+        '<b>Sort:</b> click any column heading; click it again to reverse. '
+        '<span style="margin-left:24px"><b>Page:</b> '
+        '<span id="aten-page-links"></span></span></div>' + table_script
+    )
+    headers = [
+        "kernel", "original ATen CPU implementation", "standalone C form",
+        "Linalg ops", "residual loops", "raising status", "launches",
+        "library matches",
+        ('residency leaks<br><span style="font-weight:normal;'
+         'text-transform:none;font-size:10px">allocs/copies</span>'),
+        "correctness", "large problem",
+        ('mapped raised (<span style="text-transform:none">µs</span>)<br>'
+         '<span style="font-weight:normal;text-transform:none;font-size:10px">'
+         'host-pointer ABI</span>'),
+        'resident (<span style="text-transform:none">µs</span>)',
+        'ATen native (<span style="text-transform:none">µs</span>)',
+        "resident / native", "resident baseline", "assessment",
+    ]
+    header_html = "".join(
+        f'<th onclick="sortAten({index})" tabindex="0" role="button" '
+        f'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){{'
+        f'event.preventDefault();sortAten({index});}}">{label}'
+        f'<span class="sort-mark"> ↕</span></th>'
+        for index, label in enumerate(headers)
     )
     return (
         '<a name="aten-c"></a>'
@@ -3237,10 +3152,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         f'rewrites, {custom_fallbacks} complete generated GPU fallbacks, and '
         f'{partial_matches} partial stage matches. '
         'Raising FULL/PARTIAL/NONE means Linalg with no residual loops, Linalg '
-        'with residual loops, or no raised Linalg, respectively. Match '
-        'FULL/PARTIAL/NONE describes semantic matcher coverage; GPU FALLBACK '
-        'means the complete rewrite executes compiler-authored GPU code and is '
-        'not counted as CUDA-library reuse. '
+        'with residual loops, or no raised Linalg, respectively. '
         'The cuTENSOR permutation lowering preserves affine view strides and '
         'rank-reduced singleton dimensions. '
         'The newly available cuTensorNet tensor-product definition produced '
@@ -3265,26 +3177,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         '</div>'
         + controls
         +
-        '<table><thead><tr><th>kernel</th><th>original ATen CPU implementation</th>'
-        '<th>standalone C form</th><th>Linalg ops</th>'
-        '<th>residual loops</th><th>raising status</th>'
-        '<th>launches</th><th>match status</th>'
-        '<th>matched implementation</th>'
-        '<th>candidate matches</th>'
-        '<th>residency leaks<br><span style="font-weight:normal;'
-        'text-transform:none;font-size:10px">allocs/copies</span></th>'
-        '<th>correctness</th>'
-        '<th>large problem</th>'
-        '<th>mapped raised '
-        '(<span style="text-transform:none">µs</span>)<br>'
-        '<span style="font-weight:normal;text-transform:none;font-size:10px">'
-        'host-pointer ABI</span></th>'
-        '<th>resident '
-        '(<span style="text-transform:none">µs</span>)</th>'
-        '<th>ATen native '
-        '(<span style="text-transform:none">µs</span>)</th>'
-        '<th>resident / native</th>'
-        '<th>resident baseline</th><th>assessment</th>'
+        '<table id="aten-table"><thead><tr>' + header_html +
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
@@ -6302,6 +6195,16 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'background:#fafbfc; } .audit-metric b { display:block; color:#1a7f37; '
         'font-size:22px; } .audit-metric span { color:#555; font-size:12px; } '
         '.audit-table { font-size:12px; } .audit-table td { white-space:nowrap; } '
+        '#aten-table th { cursor:pointer; user-select:none; vertical-align:bottom; } '
+        '#aten-table th:hover { background:#eef3fb; color:#1f2d3d; } '
+        '#aten-table th:focus { outline:2px solid #0366d6; outline-offset:-2px; } '
+        '.sort-mark { color:#0366d6; white-space:nowrap; } '
+        '#aten-page-links button { margin:0 2px; padding:3px 7px; border:1px solid '
+        '#bbb; border-radius:4px; background:#fff; cursor:pointer; } '
+        '#aten-page-links button.active { background:#0366d6; color:#fff; '
+        'border-color:#0366d6; font-weight:600; } '
+        '#aten-page-links button:disabled { color:#aaa; cursor:default; } '
+        '#aten-page-links span { padding:0 4px; } '
         '.cause-tag { display:inline-block; border-radius:10px; padding:2px 7px; '
         'font-size:11px; font-weight:bold; margin-bottom:4px; } '
         '.cause-memory { background:#ffd9d9; color:#8b1a1a; } '
@@ -6373,21 +6276,13 @@ def build_site_pages(polybench_stats: dict[str, dict],
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
     modified = nav() + modified_body
-    numerical_pages: dict[str, str] = {}
-    for sort_by in ("alphabetical", "raised", "resident"):
-        ordered = _aten_sorted_kernels(sort_by)
-        page_count = max(1, (len(ordered) + ATEN_PAGE_SIZE - 1) // ATEN_PAGE_SIZE)
-        for page in range(1, page_count + 1):
-            begin = (page - 1) * ATEN_PAGE_SIZE
-            subset = ordered[begin:begin + ATEN_PAGE_SIZE]
-            filename = _aten_page_filename(sort_by, page)
-            numerical_pages[filename] = render_html(
-                "Polygeist: ATen numerical kernels",
-                nav() + _aten_section(
-                    aten_stats, subset, sort_by, page, page_count
-                ),
-                extra_css,
-            )
+    numerical_pages = {
+        "numerical.html": render_html(
+            "Polygeist: ATen numerical kernels",
+            nav() + _aten_section(aten_stats, sorted(ATEN_C_ORDER)),
+            extra_css,
+        )
+    }
     mfem = (nav()
             + _mfem_application_extraction_section(
                 mfem_application_extraction_stats
@@ -6486,6 +6381,8 @@ def main():
         return
     if aten_only:
         for stale in OUTPUT_DIR.glob("aten_*.html"):
+            stale.unlink()
+        for stale in OUTPUT_DIR.glob("numerical-*.html"):
             stale.unlink()
         aten_stats = {}
         print(f"Rendering {len(ATEN_C_ORDER)} ATen C kernels...", flush=True)
@@ -6771,6 +6668,8 @@ def main():
         stencil_conv2d_stats, llmc_stats, darknet_stats, ex_darknet_stats,
         fopt_stats,
     )
+    for stale in OUTPUT_DIR.glob("numerical-*.html"):
+        stale.unlink()
     for filename, html in pages.items():
         OUTPUT_DIR.joinpath(filename).write_text(html)
     write_polybench_results_page()

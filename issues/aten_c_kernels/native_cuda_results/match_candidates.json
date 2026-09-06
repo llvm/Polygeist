@@ -27,8 +27,12 @@
 ]
 },
 "aten_adaptive_avg_pool2d": {
-"winner": "cudnnConvolution2DWindow_f32",
+"winner": "cudnnAvgPoolWindow_f32",
 "candidates": [
+{
+"name": "cudnnAvgPoolWindow_f32",
+"abi": true
+},
 {
 "name": "cudnnConvolution2DWindow_f32",
 "abi": true
@@ -36,8 +40,12 @@
 ]
 },
 "aten_adaptive_avg_pool2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -53,12 +61,21 @@
 "candidates": []
 },
 "aten_adaptive_avg_pool3d": {
-"winner": null,
-"candidates": []
+"winner": "cudnnAveragePool_f32_r5",
+"candidates": [
+{
+"name": "cudnnAveragePool_f32_r5",
+"abi": true
+}
+]
 },
 "aten_adaptive_avg_pool3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -78,8 +95,12 @@
 "candidates": []
 },
 "aten_adaptive_max_pool2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -95,8 +116,12 @@
 "candidates": []
 },
 "aten_adaptive_max_pool3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -127,10 +152,6 @@
 "abi": true
 },
 {
-"name": "cublasDaxpby",
-"abi": true
-},
-{
 "name": "cublasDaxpy",
 "abi": false
 }
@@ -138,15 +159,30 @@
 },
 "aten_add_clamp": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_addcdiv": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_addcmul": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_addmm": {
 "winner": "cublasDgemm",
@@ -166,16 +202,26 @@
 ]
 },
 "aten_addr_elementwise": {
-"winner": null,
-"candidates": []
+"winner": "cudnnAddrElementwise_f32_memref",
+"candidates": [
+{
+"name": "cudnnAddrElementwise_f32_memref",
+"abi": true
+}
+]
 },
 "aten_airy_ai": {
 "winner": null,
 "candidates": []
 },
 "aten_allany_dims_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cubSegmentedLogicalSelect_i32_memref",
+"candidates": [
+{
+"name": "cubSegmentedLogicalSelect_i32_memref",
+"abi": true
+}
+]
 },
 "aten_aminmax_allreduce_cpu": {
 "winner": "cudnnReduceMinMax_f32",
@@ -187,7 +233,7 @@
 ]
 },
 "aten_aminmax_cpu": {
-"winner": "cudnnReduceMax_f32",
+"winner": "cudnnReduceMin_f32",
 "candidates": [
 {
 "name": "cudnnReduceMin_f32",
@@ -204,48 +250,79 @@
 "candidates": []
 },
 "aten_and_reduce_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cubSegmentedLogicalAnd_i32_memref",
+"candidates": [
+{
+"name": "cubSegmentedLogicalAnd_i32_memref",
+"abi": true
+}
+]
 },
 "aten_angle_complex_scalarized": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_angle_real": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_arange_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_argmax_cpu": {
-"winner": "cublasDcopy",
+"winner": "cubSegmentedArgMax_f32_i32_memref",
 "candidates": [
 {
-"name": "cublasDcopy",
+"name": "cubSegmentedArgMax_f32_i32_memref",
+"abi": true
+},
+{
+"name": "copy_input_memref_semantic",
 "abi": false
 }
 ]
 },
 "aten_argmin_cpu": {
-"winner": "cublasDcopy",
+"winner": "cubSegmentedArgMin_f32_i32_memref",
 "candidates": [
 {
-"name": "cublasDcopy",
+"name": "cubSegmentedArgMin_f32_i32_memref",
+"abi": true
+},
+{
+"name": "copy_input_memref_semantic",
 "abi": false
 }
 ]
 },
 "aten_as_complex_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -279,7 +356,12 @@
 },
 "aten_atan2": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_atanh": {
 "winner": "cutensorUnary_atanh_f32",
@@ -291,8 +373,12 @@
 ]
 },
 "aten_avg_pool2d": {
-"winner": "cudnnConvolution2DWindow_f32",
+"winner": "cudnnAvgPoolWindow_f32",
 "candidates": [
+{
+"name": "cudnnAvgPoolWindow_f32",
+"abi": true
+},
 {
 "name": "cudnnConvolution2DWindow_f32",
 "abi": true
@@ -300,8 +386,12 @@
 ]
 },
 "aten_avg_pool2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "cudnnAveragePool_f32_flat2",
 "candidates": [
+{
+"name": "cudnnAveragePool_f32_flat2",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -317,12 +407,21 @@
 "candidates": []
 },
 "aten_avg_pool3d": {
-"winner": null,
-"candidates": []
+"winner": "cudnnAveragePool_f32_r5",
+"candidates": [
+{
+"name": "cudnnAveragePool_f32_r5",
+"abi": true
+}
+]
 },
 "aten_avg_pool3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "cudnnAveragePool_f32_flat2",
 "candidates": [
+{
+"name": "cudnnAveragePool_f32_flat2",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -360,7 +459,12 @@
 },
 "aten_batch_norm_cpu_entry": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_batch_norm_stats_cpu": {
 "winner": null,
@@ -368,7 +472,12 @@
 },
 "aten_batch_norm_transform_cpu": {
 "winner": "cudnnBatchNormalizationForwardInference",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnBatchNormalizationForwardInference",
+"abi": true
+}
+]
 },
 "aten_bernoulli_scalar_cpu": {
 "winner": null,
@@ -395,16 +504,30 @@
 "candidates": []
 },
 "aten_bf16_dot_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cublasSdot_memref",
+"candidates": [
+{
+"name": "cublasSdot_memref",
+"abi": true
+}
+]
 },
 "aten_bf16_gemv_trans_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cublasSgemvTZero_memref",
+"candidates": [
+{
+"name": "cublasSgemvTZero_memref",
+"abi": true
+}
+]
 },
 "aten_bilinear_cpu": {
-"winner": "memset_zero_2D",
+"winner": "cutensornetNetwork_f32_n3_aten",
 "candidates": [
+{
+"name": "cutensornetNetwork_f32_n3_aten",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -416,16 +539,25 @@
 ]
 },
 "aten_binary_cross_entropy": {
-"winner": null,
-"candidates": []
+"winner": "cudnnBinaryCrossEntropyMean_f32_memref",
+"candidates": [
+{
+"name": "cudnnBinaryCrossEntropyMean_f32_memref",
+"abi": true
+}
+]
 },
 "aten_binary_search_strided_rightmost_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_bincount_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -457,8 +589,12 @@
 "candidates": []
 },
 "aten_blas_axpy_cpu": {
-"winner": "cublasDaxpby",
+"winner": "cublasSaxpby",
 "candidates": [
+{
+"name": "cublasSaxpby",
+"abi": true
+},
 {
 "name": "cublasDaxpby",
 "abi": true
@@ -470,14 +606,22 @@
 ]
 },
 "aten_blas_copy_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -492,8 +636,16 @@
 ]
 },
 "aten_blas_gemv_generic_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -517,8 +669,12 @@
 ]
 },
 "aten_blas_scale_cpu": {
-"winner": "cublasDscal",
+"winner": "cublasSscal",
 "candidates": [
+{
+"name": "cublasSscal",
+"abi": true
+},
 {
 "name": "cublasDscal",
 "abi": true
@@ -526,8 +682,12 @@
 ]
 },
 "aten_blas_sum_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -539,8 +699,16 @@
 ]
 },
 "aten_block_diag_cpu": {
-"winner": "cutensorPermute_f32_r3_tensor",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
+{
+"name": "cutensorPermute_f32_r3_tensor",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -573,8 +741,16 @@
 ]
 },
 "aten_cartesian_prod_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cublasBroadcastAxis0_f32",
 "candidates": [
+{
+"name": "cublasBroadcastAxis0_f32",
+"abi": true
+},
+{
+"name": "cublasBroadcastAxis1_f32",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -586,8 +762,12 @@
 ]
 },
 "aten_cat_serial_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -602,6 +782,10 @@
 "winner": "cutensorPermute_f32_r2_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r2_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 },
@@ -613,11 +797,20 @@
 },
 "aten_cauchy_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_cdist_backward_cpu": {
-"winner": "centered_sum_squares",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -658,6 +851,10 @@
 "winner": "cutensorPermute_f32_r5_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r5_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 }
@@ -666,6 +863,10 @@
 "aten_channel_shuffle_cpu": {
 "winner": "cutensorPermute_f32_r4_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r4_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -689,7 +890,7 @@
 "candidates": []
 },
 "aten_circular_pad_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -699,23 +900,48 @@
 },
 "aten_clamp": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_clamp_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_clamp_max_scalar_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_clamp_min_scalar_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_clamp_scalar_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_coalesce_sparse_cpu": {
 "winner": null,
@@ -730,25 +956,46 @@
 "candidates": []
 },
 "aten_complex_scalarized": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
 },
 "aten_compressed_block_convert_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cutensorPermute_f32_r4_tensor",
+"candidates": [
+{
+"name": "cutensorPermute_f32_r4_tensor",
+"abi": true
+}
+]
 },
 "aten_conj_complex_scalarized": {
-"winner": "cutensorUnary_neg_f32",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
+{
+"name": "cutensorUnary_neg_f32",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -758,14 +1005,18 @@
 "abi": false
 },
 {
-"name": "cutensorUnary_neg_f32",
-"abi": true
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_constant_pad_nd_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "memset_const_1D",
 "abi": false
@@ -777,12 +1028,20 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_conv1d": {
 "winner": "cudnnConvolution1D_f32_bias",
 "candidates": [
+{
+"name": "cudnnConvolution1D_f32_bias",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -810,6 +1069,10 @@
 "winner": "cutensorPermute_f32_r5_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r5_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 }
@@ -819,13 +1082,17 @@
 "winner": "cudnnConvolution3D_f32_bias",
 "candidates": [
 {
+"name": "cudnnConvolution3D_f32_bias",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 }
 ]
 },
 "aten_conv3d_columns_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": null,
 "candidates": [
 {
 "name": "cublasDcopy_tensor",
@@ -834,12 +1101,21 @@
 ]
 },
 "aten_conv_tbc_backward_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnConvolutionTBCBackward_f32_memref",
+"candidates": [
+{
+"name": "cudnnConvolutionTBCBackward_f32_memref",
+"abi": true
+}
+]
 },
 "aten_conv_tbc_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "cudnnConvolutionTBC_f32_memref",
 "candidates": [
+{
+"name": "cudnnConvolutionTBC_f32_memref",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -847,8 +1123,12 @@
 ]
 },
 "aten_conv_transpose2d": {
-"winner": "cutensornetContraction2_f64",
+"winner": "cudnnConvolutionTranspose2D_f32_memref",
 "candidates": [
+{
+"name": "cudnnConvolutionTranspose2D_f32_memref",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -856,8 +1136,12 @@
 ]
 },
 "aten_conv_transpose3d_backward_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "cudnnConvolution3D_f32",
 "candidates": [
+{
+"name": "cudnnConvolution3D_f32",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -865,24 +1149,48 @@
 ]
 },
 "aten_conv_transpose3d_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnConvolutionTranspose3D_f32_memref",
+"candidates": [
+{
+"name": "cudnnConvolutionTranspose3D_f32_memref",
+"abi": true
+}
+]
 },
 "aten_conv_transpose3d_grad_weight_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnConvolutionBackwardFilter3D_f32_memref",
+"candidates": [
+{
+"name": "cudnnConvolutionBackwardFilter3D_f32_memref",
+"abi": true
+}
+]
 },
 "aten_convert_coo_to_csr_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseXcoo2csr_i32_memref",
+"candidates": [
+{
+"name": "cusparseXcoo2csr_i32_memref",
+"abi": true
+}
+]
 },
 "aten_convert_csr_to_coo_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseXcsr2coo_i32_memref",
+"candidates": [
+{
+"name": "cusparseXcsr2coo_i32_memref",
+"abi": true
+}
+]
 },
 "aten_copy_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -890,12 +1198,20 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_copy_tensor_array_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -930,11 +1246,20 @@
 },
 "aten_count_nonzero_cpu": {
 "winner": "cubCountNonzero1D_f32_tensor",
-"candidates": []
+"candidates": [
+{
+"name": "cubCountNonzero1D_f32_tensor",
+"abi": true
+}
+]
 },
 "aten_count_nonzero_impl_cpu": {
 "winner": "cubSegmentedCountNonzero2D_f32_tensor",
 "candidates": [
+{
+"name": "cubSegmentedCountNonzero2D_f32_tensor",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1002,15 +1327,29 @@
 },
 "aten_cross": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_cross_cpu_backend": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_ctc_loss_backward_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -1022,17 +1361,25 @@
 ]
 },
 "aten_ctc_loss_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cutensorUnary_exp_f32",
 "candidates": [
 {
 "name": "cutensorUnary_exp_f32",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
 "abi": true
 }
 ]
 },
 "aten_cummax_cummin_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1048,12 +1395,20 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_cumprod_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1068,6 +1423,10 @@
 "winner": "cubSegmentedInclusiveProduct2D_f32_tensor",
 "candidates": [
 {
+"name": "cubSegmentedInclusiveProduct2D_f32_tensor",
+"abi": true
+},
+{
 "name": "memset_const_1D",
 "abi": false
 }
@@ -1075,11 +1434,20 @@
 },
 "aten_cumsum": {
 "winner": "cubInclusiveSum1D_f32_tensor",
-"candidates": []
+"candidates": [
+{
+"name": "cubInclusiveSum1D_f32_tensor",
+"abi": true
+}
+]
 },
 "aten_dense_sparse_add_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -1091,8 +1459,12 @@
 ]
 },
 "aten_depthwise_conv3x3_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudnnDepthwiseConvolution2D_f32_memref",
 "candidates": [
+{
+"name": "cudnnDepthwiseConvolution2D_f32_memref",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -1104,8 +1476,12 @@
 ]
 },
 "aten_diff_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cubAdjacentDifference_f32_memref",
 "candidates": [
+{
+"name": "cubAdjacentDifference_f32_memref",
+"abi": true
+},
 {
 "name": "elemwise_linear_reaction",
 "abi": false
@@ -1124,6 +1500,10 @@
 "winner": "cudnnConvolution2D_f32_dilated",
 "candidates": [
 {
+"name": "cudnnConvolution2D_f32_dilated",
+"abi": true
+},
+{
 "name": "cutensornetContraction2_f64",
 "abi": true
 }
@@ -1131,11 +1511,24 @@
 },
 "aten_dirichlet_grad_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_dirichlet_transform_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -1148,15 +1541,30 @@
 },
 "aten_div": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_div_floor": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_div_trunc": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_dot": {
 "winner": "cublasDdot",
@@ -1169,11 +1577,20 @@
 },
 "aten_dropout_feature_noise_cpu": {
 "winner": "cudnnFeatureMaskScale_f32_tensor",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnFeatureMaskScale_f32_tensor",
+"abi": true
+}
+]
 },
 "aten_dyn_quant_matmul_4bit_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1199,14 +1616,24 @@
 },
 "aten_elu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_elu_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_embedding": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -1215,8 +1642,12 @@
 ]
 },
 "aten_embedding_bag_backward_max_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1228,8 +1659,12 @@
 ]
 },
 "aten_embedding_bag_backward_sum_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1241,8 +1676,12 @@
 ]
 },
 "aten_embedding_bag_counts_cpu": {
-"winner": "memset_zero_1D",
+"winner": "cubHistogramEvenI32ShiftZero_memref",
 "candidates": [
+{
+"name": "cubHistogramEvenI32ShiftZero_memref",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1254,7 +1693,7 @@
 ]
 },
 "aten_embedding_bag_counts_uniq_cpu": {
-"winner": "memset_zero_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_zero_1D",
@@ -1271,8 +1710,12 @@
 "candidates": []
 },
 "aten_embedding_bag_per_sample_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1284,7 +1727,7 @@
 ]
 },
 "aten_entr": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -1298,15 +1741,30 @@
 },
 "aten_equal_cpu": {
 "winner": "cubEqualAll1D_f32_tensor",
-"candidates": []
+"candidates": [
+{
+"name": "cubEqualAll1D_f32_tensor",
+"abi": true
+}
+]
 },
 "aten_erf": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_erfc": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_erfcx": {
 "winner": null,
@@ -1327,15 +1785,30 @@
 },
 "aten_exp2": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_expm1": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_exponential_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_eye_cpu": {
 "winner": null,
@@ -1344,6 +1817,10 @@
 "aten_fast_cat_dim0_cpu": {
 "winner": "cutensorPermute_f32_r2_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r2_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -1355,7 +1832,7 @@
 ]
 },
 "aten_fft_conjugate_symmetry_cpu": {
-"winner": "cutensorUnary_neg_f32",
+"winner": null,
 "candidates": [
 {
 "name": "cublasDcopy_tensor",
@@ -1366,13 +1843,17 @@
 "abi": false
 },
 {
+"name": "elemwise_add_scalar_1D",
+"abi": false
+},
+{
 "name": "cutensorUnary_neg_f32",
 "abi": true
 }
 ]
 },
 "aten_fftshift_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -1381,7 +1862,7 @@
 ]
 },
 "aten_fill": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -1390,7 +1871,7 @@
 ]
 },
 "aten_fill_diagonal_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -1400,13 +1881,22 @@
 },
 "aten_flash_attention_backward_cpu": {
 "winner": null,
-"candidates": []
+"candidates": [
+{
+"name": "cublasSdot_memref",
+"abi": true
+}
+]
 },
 "aten_flash_attention_cpu": {
-"winner": "memset_zero_1D",
+"winner": "cublasSdot",
 "candidates": [
 {
 "name": "cublasSdot",
+"abi": true
+},
+{
+"name": "memset_zero_1D_f32",
 "abi": true
 },
 {
@@ -1420,7 +1910,7 @@
 ]
 },
 "aten_flatten_indices_launch_cpu": {
-"winner": "memset_zero_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_zero_1D",
@@ -1433,8 +1923,12 @@
 ]
 },
 "aten_flatten_nd_linear_cpu": {
-"winner": "cublasSgemm_strided_batched_nn_zero",
+"winner": "cublasSgemm_strided_batched_broadcast_rhs",
 "candidates": [
+{
+"name": "cublasSgemm_strided_batched_broadcast_rhs",
+"abi": true
+},
 {
 "name": "cublasSgemm_strided_batched_nn_zero",
 "abi": true
@@ -1446,7 +1940,7 @@
 ]
 },
 "aten_flip_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -1457,6 +1951,10 @@
 "aten_flip_tensor_transform_cpu": {
 "winner": "cutensorPermute_f32_r2_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r2_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -1478,15 +1976,30 @@
 },
 "aten_fmax": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_fmin": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_fmod": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_fp16_dot_cpu": {
 "winner": "cublasSdot",
@@ -1498,8 +2011,16 @@
 ]
 },
 "aten_fp16_gemv_f16arith_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -1523,8 +2044,16 @@
 ]
 },
 "aten_fp16_gemv_f32arith_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -1548,8 +2077,16 @@
 ]
 },
 "aten_fp16_gemv_notrans_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -1573,8 +2110,16 @@
 ]
 },
 "aten_fp16_gemv_trans_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv_T",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -1599,21 +2144,34 @@
 },
 "aten_frac": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_fractional_max_pool2d_backward_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_fractional_max_pool2d_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -1623,14 +2181,22 @@
 "candidates": []
 },
 "aten_fractional_max_pool3d_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -1649,10 +2215,15 @@
 },
 "aten_gamma_transform_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gather_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -1661,7 +2232,7 @@
 ]
 },
 "aten_gather_expanded_index_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -1679,27 +2250,56 @@
 },
 "aten_gelu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gelu_backward_cpu_exact": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gelu_backward_cpu_tanh": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gelu_cpu_exact": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gelu_cpu_tanh": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gemm_notrans_cpu": {
-"winner": "cublasDgemm_simple",
+"winner": "cublasSgemm_nn",
 "candidates": [
+{
+"name": "cublasSgemm_nn",
+"abi": true
+},
 {
 "name": "cublasDgemm_simple",
 "abi": true
@@ -1711,8 +2311,12 @@
 ]
 },
 "aten_gemm_transa_cpu": {
-"winner": "cublasDgemm_simple",
+"winner": "cublasSgemm_tn",
 "candidates": [
+{
+"name": "cublasSgemm_tn",
+"abi": true
+},
 {
 "name": "cublasDgemm_simple",
 "abi": true
@@ -1724,8 +2328,12 @@
 ]
 },
 "aten_gemm_transab_cpu": {
-"winner": "cublasDgemm_simple",
+"winner": "cublasSgemm_tt",
 "candidates": [
+{
+"name": "cublasSgemm_tt",
+"abi": true
+},
 {
 "name": "cublasDgemm_simple",
 "abi": true
@@ -1737,8 +2345,12 @@
 ]
 },
 "aten_gemm_transb_cpu": {
-"winner": "cublasDgemm_simple",
+"winner": "cublasSgemm_nt",
 "candidates": [
+{
+"name": "cublasSgemm_nt",
+"abi": true
+},
 {
 "name": "cublasDgemm_simple",
 "abi": true
@@ -1751,31 +2363,69 @@
 },
 "aten_geometric_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_glu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_glu_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_glu_jvp": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gradient_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_gradient_float_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_grid_sampler_2d_backward_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1803,8 +2453,12 @@
 "candidates": []
 },
 "aten_grid_sampler_3d_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -1829,31 +2483,66 @@
 },
 "aten_hardshrink": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardsigmoid": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardsigmoid_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardswish": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardswish_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardtanh": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hardtanh_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_heaviside": {
 "winner": null,
@@ -1877,8 +2566,12 @@
 ]
 },
 "aten_histogramdd_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -1890,8 +2583,12 @@
 ]
 },
 "aten_histogramdd_linear_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -1903,10 +2600,14 @@
 ]
 },
 "aten_host_softmax_backward_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cublasSdot",
 "candidates": [
 {
 "name": "cublasSdot",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
 "abi": true
 }
 ]
@@ -1933,8 +2634,12 @@
 ]
 },
 "aten_hspmm_cpu": {
-"winner": "memset_zero_2D",
+"winner": "cusparseSpMM_COO_f32_memref",
 "candidates": [
+{
+"name": "cusparseSpMM_COO_f32_memref",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -1947,15 +2652,30 @@
 },
 "aten_huber_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_huber_elementwise": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_hypot": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_i0": {
 "winner": null,
@@ -1974,7 +2694,7 @@
 "candidates": []
 },
 "aten_ifftshift_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -1994,6 +2714,10 @@
 "winner": "cutensorPermute_f32_r6_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r6_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 },
@@ -2008,7 +2732,7 @@
 "candidates": []
 },
 "aten_index_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -2029,8 +2753,12 @@
 "candidates": []
 },
 "aten_index_reduce_impl_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2042,7 +2770,7 @@
 ]
 },
 "aten_index_select_dim1_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -2051,7 +2779,7 @@
 ]
 },
 "aten_index_select_out_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -2060,7 +2788,7 @@
 ]
 },
 "aten_index_select_sparse_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -2069,8 +2797,12 @@
 ]
 },
 "aten_int4pack_mm_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2082,8 +2814,12 @@
 ]
 },
 "aten_int8pack_mm_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -2098,7 +2834,7 @@
 "winner": "cublasGemmEx_i8_i32_tensor",
 "candidates": [
 {
-"name": "cublasSgemm_nn_zero",
+"name": "cublasGemmEx_i8_i32_tensor",
 "abi": true
 },
 {
@@ -2124,7 +2860,7 @@
 ]
 },
 "aten_isin_default_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": null,
 "candidates": [
 {
 "name": "memset_zero_1D",
@@ -2140,6 +2876,10 @@
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -2157,8 +2897,12 @@
 "candidates": []
 },
 "aten_joint_scaling_cpu": {
-"winner": "reduce_max_abs_1D",
+"winner": "cublasJointMaxAbsProduct_f32_memref",
 "candidates": [
+{
+"name": "cublasJointMaxAbsProduct_f32_memref",
+"abi": true
+},
 {
 "name": "reduce_max_abs_1D",
 "abi": false
@@ -2170,8 +2914,12 @@
 "candidates": []
 },
 "aten_kron_impl_cpu": {
-"winner": "elemwise_mul_inputs",
+"winner": "cutensorKroneckerProduct2D_f32_memref",
 "candidates": [
+{
+"name": "cutensorKroneckerProduct2D_f32_memref",
+"abi": true
+},
 {
 "name": "elemwise_mul_inputs",
 "abi": false
@@ -2179,8 +2927,12 @@
 ]
 },
 "aten_kron_out_cpu": {
-"winner": "elemwise_mul_inputs",
+"winner": "cutensorKroneckerProduct2D_f32_memref",
 "candidates": [
+{
+"name": "cutensorKroneckerProduct2D_f32_memref",
+"abi": true
+},
 {
 "name": "elemwise_mul_inputs",
 "abi": false
@@ -2188,14 +2940,22 @@
 ]
 },
 "aten_kthvalue_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -2209,8 +2969,16 @@
 "candidates": []
 },
 "aten_layer_norm": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -2222,8 +2990,12 @@
 ]
 },
 "aten_layer_norm_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2235,8 +3007,12 @@
 ]
 },
 "aten_layer_norm_cpu_backend": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -2261,7 +3037,12 @@
 },
 "aten_leaky_relu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_legendre_polynomial_p": {
 "winner": null,
@@ -2269,27 +3050,51 @@
 },
 "aten_lerp": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_lerp_scalar": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_lerp_scalar_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_lerp_tensor_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_lgamma": {
 "winner": null,
 "candidates": []
 },
 "aten_linalg_powsum_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2301,8 +3106,24 @@
 ]
 },
 "aten_linear_combination_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cublasSgemv_T",
+"abi": true
+},
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
+{
+"name": "cublasDgemv_T_zero",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -2330,6 +3151,10 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
@@ -2348,15 +3173,30 @@
 },
 "aten_log10": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_log1p": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_log2": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_log_ndtr": {
 "winner": null,
@@ -2364,23 +3204,48 @@
 },
 "aten_log_normal_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_log_sigmoid_backward_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_log_sigmoid_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnLogSigmoid_f32_memref",
+"candidates": [
+{
+"name": "cudnnLogSigmoid_f32_memref",
+"abi": true
+}
+]
 },
 "aten_logaddexp": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_logaddexp2": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_logcumsumexp_cpu": {
 "winner": null,
@@ -2404,11 +3269,21 @@
 },
 "aten_logit": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_logit_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_logspace_cpu": {
 "winner": null,
@@ -2433,6 +3308,10 @@
 "aten_masked_scale": {
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
@@ -2465,14 +3344,22 @@
 ]
 },
 "aten_max_pool1d_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -2487,8 +3374,12 @@
 ]
 },
 "aten_max_pool3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2500,14 +3391,22 @@
 ]
 },
 "aten_max_pool3d_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -2522,8 +3421,12 @@
 ]
 },
 "aten_max_unpool2d_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2535,8 +3438,12 @@
 ]
 },
 "aten_max_unpool3d_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2548,7 +3455,7 @@
 ]
 },
 "aten_max_unpool_backward_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -2557,8 +3464,12 @@
 ]
 },
 "aten_max_values_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cubSegmentedMax_f32_memref",
 "candidates": [
+{
+"name": "cubSegmentedMax_f32_memref",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -2566,16 +3477,29 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_maximum": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_mean": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f64",
 "candidates": [
+{
+"name": "cudnnReduceSum_f64",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -2587,14 +3511,22 @@
 ]
 },
 "aten_median_indices_cpu": {
-"winner": "memset_const_1D",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 },
 {
@@ -2622,8 +3554,12 @@
 ]
 },
 "aten_min_values_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cubSegmentedMin_f32_memref",
 "candidates": [
+{
+"name": "cubSegmentedMin_f32_memref",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -2631,12 +3567,21 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_minimum": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_mish": {
 "winner": "cutensorUnary_mish_f32",
@@ -2649,13 +3594,22 @@
 },
 "aten_mish_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
-},
-"aten_mm": {
-"winner": "cublasSgemm_nn_zero",
 "candidates": [
 {
-"name": "cublasSgemm_nn_zero",
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
+},
+"aten_mm": {
+"winner": "memset_zero_2D",
+"candidates": [
+{
+"name": "memset_zero_2D",
+"abi": true
+},
+{
+"name": "cublasDgemm_simple",
 "abi": true
 },
 {
@@ -2663,16 +3617,8 @@
 "abi": true
 },
 {
-"name": "memset_zero_2D",
-"abi": true
-},
-{
 "name": "memset_const_2D",
 "abi": false
-},
-{
-"name": "cublasDgemm_simple",
-"abi": true
 },
 {
 "name": "cublasDgemm_alpha_only",
@@ -2681,14 +3627,22 @@
 ]
 },
 "aten_mode_cpu": {
-"winner": "memset_const_1D",
+"winner": "cudaCopy1D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy1D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 },
 {
@@ -2715,15 +3669,33 @@
 },
 "aten_mse_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_mse_elementwise": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_mse_loss": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnPointwiseGraph_f32",
 "candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -2738,6 +3710,10 @@
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
 {
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
 "name": "elemwise_mul_inputs_scaled_1D",
 "abi": false
 },
@@ -2748,8 +3724,12 @@
 ]
 },
 "aten_multi_margin_loss_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2765,8 +3745,12 @@
 "candidates": []
 },
 "aten_multilabel_margin_loss_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2803,8 +3787,12 @@
 "candidates": []
 },
 "aten_nansum_cpu": {
-"winner": "memset_zero_1D",
+"winner": "cubSegmentedNanSum_f32_memref",
 "candidates": [
+{
+"name": "cubSegmentedNanSum_f32_memref",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -2816,8 +3804,12 @@
 ]
 },
 "aten_narrow_copy_dense_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -2859,8 +3851,12 @@
 ]
 },
 "aten_nested_batch_offsets_cpu": {
-"winner": "elemwise_axpby_inputs_1D",
+"winner": "cubExclusiveSum1D_i32_memref",
 "candidates": [
+{
+"name": "cubExclusiveSum1D_i32_memref",
+"abi": true
+},
 {
 "name": "elemwise_axpby_inputs_1D",
 "abi": false
@@ -2885,8 +3881,12 @@
 ]
 },
 "aten_nested_clone_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -2902,8 +3902,12 @@
 "candidates": []
 },
 "aten_nested_matmul_broadcast_cpu": {
-"winner": "cublasSgemm_strided_batched_nn_zero",
+"winner": "cublasSgemm_strided_batched_broadcast_rhs",
 "candidates": [
+{
+"name": "cublasSgemm_strided_batched_broadcast_rhs",
+"abi": true
+},
 {
 "name": "cublasSgemm_strided_batched_nn_zero",
 "abi": true
@@ -2919,7 +3923,7 @@
 "candidates": []
 },
 "aten_nested_select_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -2928,10 +3932,14 @@
 ]
 },
 "aten_nested_softmax_backward_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cublasSdot",
 "candidates": [
 {
 "name": "cublasSdot",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
 "abi": true
 }
 ]
@@ -2941,7 +3949,7 @@
 "candidates": []
 },
 "aten_nested_softmax_dropout_cpu": {
-"winner": "elemwise_div_scalar",
+"winner": null,
 "candidates": [
 {
 "name": "elemwise_div_scalar",
@@ -2950,8 +3958,12 @@
 ]
 },
 "aten_nested_squeeze_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -2963,8 +3975,12 @@
 ]
 },
 "aten_nested_sum_backward_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cublasBroadcastAxis0_f32",
 "candidates": [
+{
+"name": "cublasBroadcastAxis0_f32",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3021,8 +4037,12 @@
 "candidates": []
 },
 "aten_nll_loss_backward_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -3042,8 +4062,16 @@
 "candidates": []
 },
 "aten_norm_cpu": {
-"winner": "cutensorUnary_sqrt_f32",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3051,16 +4079,17 @@
 {
 "name": "memset_const_1D",
 "abi": false
-},
-{
-"name": "cutensorUnary_sqrt_f32",
-"abi": true
 }
 ]
 },
 "aten_normal_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_or_reduce_cpu": {
 "winner": "cubSegmentedLogicalOr_i32",
@@ -3080,8 +4109,12 @@
 ]
 },
 "aten_outer": {
-"winner": "cutensornetContraction2_f64",
+"winner": "cublasDgemm_outer_product",
 "candidates": [
+{
+"name": "cublasDgemm_outer_product",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -3101,8 +4134,12 @@
 "candidates": []
 },
 "aten_pdist_backward_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -3118,7 +4155,7 @@
 "candidates": []
 },
 "aten_permute_sparse_coo_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -3129,6 +4166,10 @@
 "aten_pixel_shuffle": {
 "winner": "cutensorPermute_f32_r6_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r6_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3143,6 +4184,10 @@
 "winner": "cutensorPermute_f32_r5_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r5_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 }
@@ -3151,6 +4196,10 @@
 "aten_pixel_unshuffle_cpu_backend": {
 "winner": "cutensorPermute_f32_r5_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r5_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3163,7 +4212,12 @@
 },
 "aten_polar_scalarized": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_polygamma": {
 "winner": null,
@@ -3171,15 +4225,29 @@
 },
 "aten_pow": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_pow_tensor_scalar": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_powsum_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3204,8 +4272,16 @@
 "candidates": []
 },
 "aten_quant_col_offsets_cpu": {
-"winner": "reduce_sum_axis",
+"winner": "cubQuantColOffsets_i8_i32_memref",
 "candidates": [
+{
+"name": "cubQuantColOffsets_i8_i32_memref",
+"abi": true
+},
+{
+"name": "atenSegmentedSum",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3237,7 +4313,7 @@
 "candidates": []
 },
 "aten_random_full_64_bits_range_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": null,
 "candidates": [
 {
 "name": "cublasDcopy_tensor",
@@ -3246,11 +4322,15 @@
 {
 "name": "elemwise_scale_input_1D",
 "abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
+"abi": false
 }
 ]
 },
 "aten_randperm_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -3280,8 +4360,12 @@
 "candidates": []
 },
 "aten_reflection_pad1d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3293,7 +4377,7 @@
 ]
 },
 "aten_reflection_pad1d_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -3306,8 +4390,12 @@
 "candidates": []
 },
 "aten_reflection_pad2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3323,8 +4411,12 @@
 "candidates": []
 },
 "aten_reflection_pad3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3354,11 +4446,20 @@
 },
 "aten_renorm_scale_factor": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_repeat_compute_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cublasBroadcastAxis1_f32",
 "candidates": [
+{
+"name": "cublasBroadcastAxis1_f32",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3370,8 +4471,12 @@
 ]
 },
 "aten_repeat_tensor_shape_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cublasBroadcastAxis1_f32",
 "candidates": [
+{
+"name": "cublasBroadcastAxis1_f32",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3383,8 +4488,12 @@
 ]
 },
 "aten_replication_pad1d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3396,7 +4505,7 @@
 ]
 },
 "aten_replication_pad1d_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -3409,8 +4518,12 @@
 "candidates": []
 },
 "aten_replication_pad2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3426,8 +4539,12 @@
 "candidates": []
 },
 "aten_replication_pad3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3444,19 +4561,42 @@
 },
 "aten_rms_norm": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
+"name": "elemwise_mul_inputs_scaled_1D",
+"abi": false
+}
+]
 },
 "aten_round": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_round_decimals": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_rowwise_prune_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3473,15 +4613,25 @@
 },
 "aten_rsqrt": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sample_poisson_transform_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_sampled_addmm_sparse_csr_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseSDDMM_CSR_f32_memref",
+"candidates": [
+{
+"name": "cusparseSDDMM_CSR_f32_memref",
+"abi": true
+}
+]
 },
 "aten_scaled_modified_bessel_k0": {
 "winner": null,
@@ -3541,7 +4691,12 @@
 },
 "aten_shrink_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sigmoid": {
 "winner": "cutensorUnary_sigmoid_f32",
@@ -3554,7 +4709,12 @@
 },
 "aten_sigmoid_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sign": {
 "winner": null,
@@ -3575,7 +4735,12 @@
 },
 "aten_silu_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_silu_cpu": {
 "winner": "cutensorUnary_silu_f32",
@@ -3596,7 +4761,7 @@
 ]
 },
 "aten_sinc": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -3614,16 +4779,30 @@
 ]
 },
 "aten_slow_conv3d_backward_input_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnConvolutionTranspose3D_f32_memref",
+"candidates": [
+{
+"name": "cudnnConvolutionTranspose3D_f32_memref",
+"abi": true
+}
+]
 },
 "aten_slow_conv3d_backward_weight_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnConvolutionBackwardFilter3D_f32_memref",
+"candidates": [
+{
+"name": "cudnnConvolutionBackwardFilter3D_f32_memref",
+"abi": true
+}
+]
 },
 "aten_slow_conv3d_forward_cpu": {
-"winner": "cutensornetContraction2_f64",
+"winner": "cudnnConvolution3D_f32",
 "candidates": [
+{
+"name": "cudnnConvolution3D_f32",
+"abi": true
+},
 {
 "name": "cutensornetContraction2_f64",
 "abi": true
@@ -3632,11 +4811,21 @@
 },
 "aten_smooth_l1_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_smooth_l1_elementwise": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sobol_draw_cpu": {
 "winner": null,
@@ -3647,7 +4836,7 @@
 "candidates": []
 },
 "aten_sobol_initialize_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": null,
 "candidates": [
 {
 "name": "cublasDcopy_tensor",
@@ -3655,6 +4844,10 @@
 },
 {
 "name": "elemwise_scale_input_1D",
+"abi": false
+},
+{
+"name": "elemwise_add_scalar_1D",
 "abi": false
 }
 ]
@@ -3682,19 +4875,38 @@
 },
 "aten_softplus": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_softplus_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_softshrink": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sort_cpu": {
-"winner": "memset_const_2D",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -3713,14 +4925,22 @@
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
 {
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
 "name": "elemwise_axpby_inputs_1D",
 "abi": false
 }
 ]
 },
 "aten_sparse_addmm_cpu": {
-"winner": "memset_zero_2D",
+"winner": "cusparseSpMM_COO_f32_memref",
 "candidates": [
+{
+"name": "cusparseSpMM_COO_f32_memref",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -3732,12 +4952,22 @@
 ]
 },
 "aten_sparse_addmv_bsr_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseSpMM_BSR_f32_memref",
+"candidates": [
+{
+"name": "cusparseSpMM_BSR_f32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_addmv_csr_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseSpMV_CSR_f32_memref",
+"candidates": [
+{
+"name": "cusparseSpMV_CSR_f32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_bmm_cpu": {
 "winner": "cublasSgemm_strided_batched_nn_zero",
@@ -3753,16 +4983,20 @@
 ]
 },
 "aten_sparse_coo_softmax_backward_cpu": {
-"winner": "cudnnPointwiseGraph_f32",
+"winner": "cublasSdot",
 "candidates": [
 {
 "name": "cublasSdot",
+"abi": true
+},
+{
+"name": "cudnnPointwiseGraph_f32",
 "abi": true
 }
 ]
 },
 "aten_sparse_coo_softmax_cpu": {
-"winner": "elemwise_div_scalar",
+"winner": null,
 "candidates": [
 {
 "name": "elemwise_div_scalar",
@@ -3771,20 +5005,34 @@
 ]
 },
 "aten_sparse_coo_to_csr_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseXcoo2csr_i32_memref",
+"candidates": [
+{
+"name": "cusparseXcoo2csr_i32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_csr_add_dense_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_sparse_csr_addmm_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseSpMM_CSR_f32_memref",
+"candidates": [
+{
+"name": "cusparseSpMM_CSR_f32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_csr_reduce_all_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -3796,8 +5044,12 @@
 ]
 },
 "aten_sparse_csr_reduce_dim0_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3817,7 +5069,7 @@
 "candidates": []
 },
 "aten_sparse_flatten_indices_cpu": {
-"winner": "memset_zero_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_zero_1D",
@@ -3837,6 +5089,10 @@
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
 {
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
 "name": "elemwise_mul_inputs_scaled_1D",
 "abi": false
 },
@@ -3850,6 +5106,10 @@
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
 {
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
+{
 "name": "elemwise_mul_inputs_scaled_1D",
 "abi": false
 },
@@ -3860,12 +5120,22 @@
 ]
 },
 "aten_sparse_matmul_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseSpMM_CSR_f32_memref",
+"candidates": [
+{
+"name": "cusparseSpMM_CSR_f32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_matmul_csr_to_coo_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cusparseXcsr2coo_i32_memref",
+"candidates": [
+{
+"name": "cusparseXcsr2coo_i32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_matmul_maxnnz_cpu": {
 "winner": null,
@@ -3874,6 +5144,10 @@
 "aten_sparse_mul_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
 "candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+},
 {
 "name": "elemwise_mul_inputs_scaled_1D",
 "abi": false
@@ -3885,15 +5159,20 @@
 ]
 },
 "aten_sparse_norm_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cublasSnrm2_f32_memref",
+"candidates": [
+{
+"name": "cublasSnrm2_f32_memref",
+"abi": true
+}
+]
 },
 "aten_sparse_softmax_offsets_cpu": {
 "winner": null,
 "candidates": []
 },
 "aten_sparse_softmax_pools_cpu": {
-"winner": "elemwise_linear_reaction",
+"winner": null,
 "candidates": [
 {
 "name": "elemwise_linear_reaction",
@@ -3906,7 +5185,7 @@
 ]
 },
 "aten_sparse_sum_backward_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -3915,8 +5194,12 @@
 ]
 },
 "aten_sparse_sum_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -3928,8 +5211,12 @@
 ]
 },
 "aten_spdiags_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -3948,6 +5235,10 @@
 "winner": "cutensorPermute_f32_r2_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r2_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 },
@@ -3962,8 +5253,12 @@
 "candidates": []
 },
 "aten_spmm_reduce_backward_input_arg_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -3979,8 +5274,12 @@
 "candidates": []
 },
 "aten_spmm_reduce_backward_other_arg_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -3992,8 +5291,12 @@
 ]
 },
 "aten_spmm_reduce_backward_other_cpu": {
-"winner": "memset_zero_2D",
+"winner": "memset_zero_2D_f32",
 "candidates": [
+{
+"name": "memset_zero_2D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -4019,11 +5322,20 @@
 },
 "aten_square": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_sspaddmm_cpu": {
-"winner": "memset_zero_2D",
+"winner": "cusparseSpMM_COO_f32_memref",
 "candidates": [
+{
+"name": "cusparseSpMM_COO_f32_memref",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -4038,6 +5350,10 @@
 "winner": "cutensorPermute_f32_r3_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r3_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 },
@@ -4049,11 +5365,20 @@
 },
 "aten_standard_gamma_grad_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_std_var_all_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -4065,8 +5390,12 @@
 ]
 },
 "aten_std_var_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceSum_f32",
 "candidates": [
+{
+"name": "cudnnReduceSum_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -4078,8 +5407,16 @@
 ]
 },
 "aten_sum": {
-"winner": "reduce_sum_axis",
+"winner": "cubSegmentedSum_f64_memref",
 "candidates": [
+{
+"name": "cubSegmentedSum_f64_memref",
+"abi": true
+},
+{
+"name": "atenSegmentedSum",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4095,8 +5432,16 @@
 ]
 },
 "aten_sum_cpu_backend": {
-"winner": "reduce_sum_axis",
+"winner": "cubSegmentedSum_f32_memref",
 "candidates": [
+{
+"name": "cubSegmentedSum_f32_memref",
+"abi": true
+},
+{
+"name": "atenSegmentedSum",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4125,7 +5470,7 @@
 ]
 },
 "aten_take_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -4153,15 +5498,29 @@
 },
 "aten_tanh_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_threshold_backward": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_topk_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -4173,8 +5532,12 @@
 ]
 },
 "aten_trace_cpu": {
-"winner": "reduce_sum_1D",
+"winner": "cudnnReduceTrace_f32",
 "candidates": [
+{
+"name": "cudnnReduceTrace_f32",
+"abi": true
+},
 {
 "name": "reduce_sum_1D",
 "abi": false
@@ -4186,12 +5549,21 @@
 ]
 },
 "aten_transform_bias_rescale_qkv_cpu": {
-"winner": null,
-"candidates": []
+"winner": "cudnnTransformBiasRescaleQKV_f32_memref",
+"candidates": [
+{
+"name": "cudnnTransformBiasRescaleQKV_f32_memref",
+"abi": true
+}
+]
 },
 "aten_transpose_copy": {
 "winner": "cutensorPermute_f32_r2_tensor",
 "candidates": [
+{
+"name": "cutensorPermute_f32_r2_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -4211,8 +5583,12 @@
 "candidates": []
 },
 "aten_trilinear_cpu": {
-"winner": "memset_zero_2D",
+"winner": "cutensornetNetwork_f32_n3_aten",
 "candidates": [
+{
+"name": "cutensornetNetwork_f32_n3_aten",
+"abi": true
+},
 {
 "name": "memset_zero_2D",
 "abi": true
@@ -4241,11 +5617,20 @@
 },
 "aten_trunc": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_unbind_copy_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": "cudaCopy2D_f32_tensor",
 "candidates": [
+{
+"name": "cudaCopy2D_f32_tensor",
+"abi": true
+},
 {
 "name": "cublasDcopy_tensor",
 "abi": false
@@ -4261,7 +5646,7 @@
 "candidates": []
 },
 "aten_unfold3d_copy_cpu": {
-"winner": "cublasDcopy_tensor",
+"winner": null,
 "candidates": [
 {
 "name": "cublasDcopy_tensor",
@@ -4278,8 +5663,12 @@
 "candidates": []
 },
 "aten_unfold_backward_cpu": {
-"winner": "cublasDaxpby",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4289,22 +5678,14 @@
 "abi": false
 },
 {
-"name": "cublasDaxpby",
-"abi": true
-},
-{
 "name": "cublasDaxpy",
 "abi": false
 }
 ]
 },
 "aten_unfolded2d_acc_cpu": {
-"winner": "cublasDaxpby",
+"winner": null,
 "candidates": [
-{
-"name": "cublasDaxpby",
-"abi": true
-},
 {
 "name": "cublasDaxpy",
 "abi": false
@@ -4315,6 +5696,10 @@
 "winner": "cutensorPermute_f32_r5_tensor",
 "candidates": [
 {
+"name": "cutensorPermute_f32_r5_tensor",
+"abi": true
+},
+{
 "name": "cublasDcopy_tensor",
 "abi": false
 }
@@ -4322,7 +5707,12 @@
 },
 "aten_uniform_cpu": {
 "winner": "cudnnPointwiseGraph_f32",
-"candidates": []
+"candidates": [
+{
+"name": "cudnnPointwiseGraph_f32",
+"abi": true
+}
+]
 },
 "aten_unique_bool_cpu": {
 "winner": null,
@@ -4345,7 +5735,7 @@
 "candidates": []
 },
 "aten_unpack_pivots_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -4354,7 +5744,7 @@
 ]
 },
 "aten_unsafe_index_cpu": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -4367,8 +5757,12 @@
 "candidates": []
 },
 "aten_upsample_bicubic2d_aa_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4384,8 +5778,12 @@
 "candidates": []
 },
 "aten_upsample_bicubic2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4401,12 +5799,21 @@
 "candidates": []
 },
 "aten_upsample_bilinear2d": {
-"winner": null,
-"candidates": []
+"winner": "cudnnBilinearUpsample2x_f32_r4",
+"candidates": [
+{
+"name": "cudnnBilinearUpsample2x_f32_r4",
+"abi": true
+}
+]
 },
 "aten_upsample_bilinear2d_aa_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4422,8 +5829,12 @@
 "candidates": []
 },
 "aten_upsample_bilinear2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4439,8 +5850,12 @@
 "candidates": []
 },
 "aten_upsample_lanczos2d_aa_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4456,8 +5871,12 @@
 "candidates": []
 },
 "aten_upsample_linear1d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4473,8 +5892,12 @@
 "candidates": []
 },
 "aten_upsample_nearest1d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4486,7 +5909,7 @@
 ]
 },
 "aten_upsample_nearest1d_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -4499,8 +5922,12 @@
 "candidates": []
 },
 "aten_upsample_nearest2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4516,8 +5943,12 @@
 "candidates": []
 },
 "aten_upsample_nearest3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4533,8 +5964,12 @@
 "candidates": []
 },
 "aten_upsample_nearest_exact1d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4546,7 +5981,7 @@
 ]
 },
 "aten_upsample_nearest_exact1d_cpu": {
-"winner": "memset_const_2D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_2D",
@@ -4555,8 +5990,12 @@
 ]
 },
 "aten_upsample_nearest_exact2d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4572,8 +6011,12 @@
 "candidates": []
 },
 "aten_upsample_nearest_exact3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4589,8 +6032,12 @@
 "candidates": []
 },
 "aten_upsample_trilinear3d_backward_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4606,8 +6053,16 @@
 "candidates": []
 },
 "aten_vector_norm_out_cpu": {
-"winner": "cutensorUnary_sqrt_f32",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
+{
+"name": "cutensorUnary_sqrt_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
@@ -4615,10 +6070,6 @@
 {
 "name": "memset_const_1D",
 "abi": false
-},
-{
-"name": "cutensorUnary_sqrt_f32",
-"abi": true
 }
 ]
 },
@@ -4644,7 +6095,7 @@
 "candidates": []
 },
 "aten_xlog1py": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -4653,7 +6104,7 @@
 ]
 },
 "aten_xlogy": {
-"winner": "memset_const_1D",
+"winner": null,
 "candidates": [
 {
 "name": "memset_const_1D",
@@ -4679,8 +6130,12 @@
 ]
 },
 "aten_zeros_cpu": {
-"winner": "memset_zero_1D",
+"winner": "memset_zero_1D_f32",
 "candidates": [
+{
+"name": "memset_zero_1D_f32",
+"abi": true
+},
 {
 "name": "memset_zero_1D",
 "abi": true
