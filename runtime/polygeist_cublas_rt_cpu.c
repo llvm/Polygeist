@@ -100,6 +100,22 @@ void polygeist_cusparse_spmv_csr_f64_sized(
   require_cusparse_runtime();
 }
 
+void polygeist_cusparse_spmv_jds_f32_sized(
+    int32_t rows, int32_t repetitions,
+    int32_t row_count_capacity, const int32_t *row_counts,
+    int32_t diagonal_count, const int32_t *diagonal_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t permutation_count, const int32_t *row_permutation,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  (void)rows; (void)repetitions; (void)row_count_capacity; (void)row_counts;
+  (void)diagonal_count; (void)diagonal_offsets;
+  (void)column_index_count; (void)column_indices; (void)value_count;
+  (void)values; (void)permutation_count; (void)row_permutation;
+  (void)x_count; (void)x; (void)y_count; (void)y;
+  require_cusparse_runtime();
+}
+
 void polygeist_custen_stencil2d_xy_f64(
     int32_t M, int32_t N, int32_t K,
     const double *W, const double *A, double *B) {

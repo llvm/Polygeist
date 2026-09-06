@@ -440,10 +440,22 @@ def parse_generics(mlir_text: str,
     """Extract every linalg.generic with its body."""
     if constants is None:
         constants = parse_constants(mlir_text)
-    scalar_defs = _encode_scalar_defs(mlir_text, constants)
     mlir_text = _resolve_map_aliases(mlir_text)
     results = []
     for m in _GEN_RE.finditer(mlir_text):
+        # SSA names are function-local.  Whole-module parsing used to let a
+        # later function's `%cst` overwrite the value of an earlier function's
+        # `%cst`, which could make Egglog prove the wrong scalar expression.
+        # Only constants and scalar definitions in the enclosing function's
+        # dominating textual prefix are visible to this generic.
+        function_start = mlir_text.rfind("func.func", 0, m.start())
+        scope_start = function_start if function_start >= 0 else 0
+        dominating_prefix = mlir_text[scope_start:m.start()]
+        scoped_constants = parse_constants(dominating_prefix)
+        if not scoped_constants and function_start < 0:
+            scoped_constants = constants
+        scalar_defs = _encode_scalar_defs(
+            dominating_prefix, scoped_constants)
         result_base, result_count, maps_str, iters_str, args_str, body_str, yield_operands_str = m.groups()
         if result_base and result_count:
             result_names = [
@@ -575,9 +587,9 @@ def parse_generics(mlir_text: str,
                 # extsi result) is compared to the block input arg.
                 a_root = root_alias(a)
                 b_root = root_alias(b)
-                if a_root == in_arg and b in constants:
+                if a_root == in_arg and b in scoped_constants:
                     constant_ssas.append(b)
-                elif b_root == in_arg and a in constants:
+                elif b_root == in_arg and a in scoped_constants:
                     constant_ssas.append(a)
             # Empty list -> no constants paired with this input (rare); the
             # rewriter sees None and won't surface a weight for it. Single
@@ -595,9 +607,9 @@ def parse_generics(mlir_text: str,
             indexing_maps=maps,
             iterator_types=iters,
             constants={
-                name: constants[name]
+                name: scoped_constants[name]
                 for name in captures
-                if name in constants
+                if name in scoped_constants
             },
             result_names=result_names,
             scalar_defs=scalar_defs,

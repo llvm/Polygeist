@@ -42,6 +42,14 @@ module {
       %rows: index, %row_offsets: memref<?xi32>,
       %column_indices: memref<?xi32>, %values: memref<?xf64>,
       %x: memref<?xf64>, %y: memref<?xf64>) { kernel.yield }
+  // Parboil's source matrix is JDS.  The external-runtime adapter converts
+  // only the storage metadata to CSR, then dispatches every repetition to
+  // NVIDIA cuSPARSE (there is no project-authored GPU compute kernel).
+  kernel.defn @cusparseSpMV_JDS_f32_memref(
+      %rows: index, %repetitions: index, %row_counts: memref<?xi32>,
+      %diagonal_offsets: memref<?xi32>, %column_indices: memref<?xi32>,
+      %values: memref<?xf32>, %row_permutation: memref<?xi32>,
+      %x: memref<?xf32>, %y: memref<?xf32>) { kernel.yield }
 
   // cuSten's compiled 2D XY non-periodic weighted-stencil API. The packed
   // KxK weights and valid-region layout are the same operands used by the

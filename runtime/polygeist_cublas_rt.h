@@ -52,6 +52,14 @@ void polygeist_cusparse_spmv_csr_f64_sized(
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const double *values,
     int32_t x_count, const double *x, int32_t y_count, double *y);
+void polygeist_cusparse_spmv_jds_f32_sized(
+    int32_t rows, int32_t repetitions,
+    int32_t row_count_capacity, const int32_t *row_counts,
+    int32_t diagonal_count, const int32_t *diagonal_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t permutation_count, const int32_t *row_permutation,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
 
 // External cuSten 2D XY non-periodic weighted stencil. K is an odd square
 // filter width; A/B are full row-major MxN allocations and W has K*K values.

@@ -749,8 +749,8 @@ def analyze_residual_loops(text: str) -> list[ResidualIdiomCandidate]:
                     "operand validation")
             else:
                 lowering_status = (
-                    "JDS is not supported by cuSPARSE; convert to CSR or "
-                    "use another external library")
+                    "cuSPARSE route available through the validated JDS-to-CSR "
+                    "storage adapter after exact operand-role validation")
             results.append(ResidualIdiomCandidate(
                 spmv_kind, loop,
                 (f"row bounds loaded from {bounds_buffer}", "column-indexed gather",

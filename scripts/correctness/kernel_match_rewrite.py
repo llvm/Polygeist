@@ -52,6 +52,7 @@ ABI_LOWERABLE_KERNELS = {
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
+    "cusparseSpMV_JDS_f32_memref",
     "custenStencil2DXY_f64_memref",
     "custenStencil2DXY_f64_tensor",
     "cublasDgemm",
@@ -3729,6 +3730,169 @@ def _render_cusparse_csr_spmv(
     return rendered
 
 
+def _render_cusparse_jds_spmv(
+        text: str) -> list[tuple[int, int, str, str]]:
+    """Replace a proven repeated JDS SpMV with a cuSPARSE adapter call.
+
+    cuSPARSE has no JDS descriptor.  The runtime ABI therefore receives the
+    source JDS arrays, converts their storage metadata to CSR, and performs
+    the numerical operation with cuSPARSE.  Keep the recognition deliberately
+    strict: the Parboil loop must load one row count, traverse
+    ``offset[k] + row``, gather ``x[column]``, accumulate value*x, and scatter
+    through the JDS row permutation.
+    """
+    loops = parse_loops(text)
+    rendered: list[tuple[int, int, str, str]] = []
+    seen: set[tuple[int, int]] = set()
+    for candidate in analyze_residual_loops(text):
+        if candidate.kind != "jds_spmv":
+            continue
+        parents = [loop for loop in loops
+                   if loop.span[0] < candidate.loop.span[0]
+                   and candidate.loop.span[1] < loop.span[1]]
+        if len(parents) < 2:
+            continue
+        row_loop = max(parents, key=lambda loop: loop.span[0])
+        repeat_parents = [loop for loop in parents if loop is not row_loop]
+        repeat_loop = max(repeat_parents, key=lambda loop: loop.span[0])
+        if repeat_loop.span in seen:
+            continue
+        row_bound = re.fullmatch(
+            r"(?:0|%c0(?:_[\w.$-]+)?) to (%[\w.$-]+)"
+            r"(?: step %c1(?:_[\w.$-]+)?)?", row_loop.bounds)
+        repeat_bound = re.fullmatch(r"0 to ([1-9][0-9]*)", repeat_loop.bounds)
+        if not row_bound or not repeat_bound:
+            continue
+        rows = row_bound.group(1)
+        row_iv = re.escape(row_loop.induction)
+        k_iv = re.escape(candidate.loop.induction)
+        before_inner = text[row_loop.span[0]:candidate.loop.span[0]]
+        inner = text[candidate.loop.span[0]:candidate.loop.span[1]]
+        after_inner = text[candidate.loop.span[1]:row_loop.span[1]]
+
+        count = re.search(
+            rf"(%[\w.$-]+)\s*=\s*(?:affine|memref)\.load\s+"
+            rf"(%[\w.$-]+)\[{row_iv}\]\s*:\s*(memref<[^>]*xi32>)",
+            before_inner)
+        if not count:
+            continue
+        upper = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(count.group(1))}\s*:\s*i32\s+to\s+index",
+            before_inner)
+        if not upper or upper.group(1) not in candidate.loop.bounds:
+            continue
+        row32 = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{row_iv}\s*:\s*"
+            r"index\s+to\s+i32", before_inner + inner)
+        offset = re.search(
+            rf"(%[\w.$-]+)\s*=\s*memref\.load\s+(%[\w.$-]+)\[{k_iv}\]"
+            r"\s*:\s*(memref<[^>]*xi32>)", inner)
+        if not row32 or not offset:
+            continue
+        position32 = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+"
+            rf"(?:{re.escape(offset.group(1))},\s*{re.escape(row32.group(1))}|"
+            rf"{re.escape(row32.group(1))},\s*{re.escape(offset.group(1))})"
+            r"\s*:\s*i32", inner)
+        if not position32:
+            continue
+        position = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(position32.group(1))}\s*:\s*i32\s+to\s+index", inner)
+        if not position:
+            continue
+        pos = re.escape(position.group(1))
+        column = re.search(
+            rf"(%[\w.$-]+)\s*=\s*memref\.load\s+(%[\w.$-]+)\[{pos}\]"
+            r"\s*:\s*(memref<[^>]*xi32>)", inner)
+        value = re.search(
+            rf"(%[\w.$-]+)\s*=\s*memref\.load\s+(%[\w.$-]+)\[{pos}\]"
+            r"\s*:\s*(memref<[^>]*x(f32|f64)>)", inner)
+        if not column or not value or value.group(4) != "f32":
+            continue
+        column_index = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(column.group(1))}\s*:\s*i32\s+to\s+index", inner)
+        if not column_index:
+            continue
+        xvalue = re.search(
+            rf"(%[\w.$-]+)\s*=\s*memref\.load\s+(%[\w.$-]+)"
+            rf"\[{re.escape(column_index.group(1))}\]\s*:\s*"
+            r"(memref<[^>]*xf32>)", inner)
+        if not xvalue:
+            continue
+        product = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+            rf"(?:{re.escape(value.group(1))},\s*{re.escape(xvalue.group(1))}|"
+            rf"{re.escape(xvalue.group(1))},\s*{re.escape(value.group(1))})"
+            r"\s*:\s*f32", inner)
+        if not product or not re.search(
+                rf"arith\.addf\s+[^\n]*{re.escape(product.group(1))}[^\n]*"
+                r":\s*f32", inner):
+            continue
+        loop_prefix = text[max(row_loop.span[0], candidate.loop.span[0] - 96):
+                           candidate.loop.span[0]]
+        result_match = re.search(r"(%[\w.$-]+)\s*=\s*$", loop_prefix)
+        if not result_match:
+            continue
+        result = result_match.group(1)
+        permutation = re.search(
+            rf"(%[\w.$-]+)\s*=\s*(?:affine|memref)\.load\s+"
+            rf"(%[\w.$-]+)\[{row_iv}\]\s*:\s*(memref<[^>]*xi32>)",
+            after_inner)
+        if not permutation:
+            continue
+        perm_index = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(permutation.group(1))}\s*:\s*i32\s+to\s+index",
+            after_inner)
+        if not perm_index:
+            continue
+        output = re.search(
+            rf"memref\.store\s+{re.escape(result)},\s*(%[\w.$-]+)"
+            rf"\[{re.escape(perm_index.group(1))}\]\s*:\s*(memref<[^>]*xf32>)",
+            after_inner)
+        if not output:
+            continue
+
+        roots = [count.group(2), offset.group(2), column.group(2),
+                 value.group(2), permutation.group(2), xvalue.group(2),
+                 output.group(1)]
+        source_types = [count.group(3), offset.group(3), column.group(3),
+                        value.group(3), permutation.group(3), xvalue.group(3),
+                        output.group(2)]
+        targets = ["memref<?xi32>", "memref<?xi32>", "memref<?xi32>",
+                   "memref<?xf32>", "memref<?xi32>", "memref<?xf32>",
+                   "memref<?xf32>"]
+        uid = repeat_loop.span[0]
+        prefix_lines = [
+            f"%cusparse_repeats_{uid} = arith.constant {repeat_bound.group(1)} : index"]
+        normalized: list[str] = []
+        for index, (operand, source, target) in enumerate(
+                zip(roots, source_types, targets)):
+            if source != target:
+                cast = f"%cusparse_jds_arg_{uid}_{index}"
+                prefix_lines.append(
+                    f"{cast} = memref.cast {operand} : {source} to {target}")
+                normalized.append(cast)
+            else:
+                normalized.append(operand)
+        symbol = "cusparseSpMV_JDS_f32_memref"
+        operands = [rows, f"%cusparse_repeats_{uid}", *normalized]
+        operand_types = ["index", "index", *targets]
+        launch = (f"kernel.launch @{symbol}(" + ", ".join(operands) +
+                  ") : (" + ", ".join(operand_types) + ") -> ()")
+        line_start = text.rfind("\n", 0, repeat_loop.span[0]) + 1
+        indent = text[line_start:repeat_loop.span[0]]
+        replacement = "\n".join(
+            f"{indent}{line}" for line in [*prefix_lines, launch])
+        rendered.append((repeat_loop.span[0], repeat_loop.span[1], replacement,
+                         symbol))
+        seen.add(repeat_loop.span)
+    return rendered
+
+
 def _render_dense_factorization_regions(
         text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
     """Recognize whole sequential algorithms hidden around Linalg reductions.
@@ -4223,6 +4387,13 @@ def rewrite_mlir(
                 continue
             edits.append((start, end, replacement))
             report.append(("match", [], symbol + "[indirect-row-reduction]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol in _render_cusparse_jds_spmv(text):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.append((start, end, replacement))
+            report.append(("match", [], symbol + "[jds-to-csr+indirect-row-reduction]"))
             emitted_launches += 1
     i = 0
     while i < len(body_terms):

@@ -1327,6 +1327,113 @@ void polygeist_cusparse_spmv_csr_f64_sized(
       value_count, values, x_count, x, y_count, y, CUDA_R_64F, sizeof(double),
       "cusparseSpMV_CSR_f64");
 }
+
+void polygeist_cusparse_spmv_jds_f32_sized(
+    int32_t rows, int32_t repetitions,
+    int32_t row_count_capacity, const int32_t *row_counts,
+    int32_t diagonal_count, const int32_t *diagonal_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t permutation_count, const int32_t *row_permutation,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  if (rows <= 0 || repetitions <= 0)
+    return;
+  if (!row_counts || !diagonal_offsets || !column_indices || !values ||
+      !row_permutation || !x || !y || row_count_capacity < rows ||
+      permutation_count < rows || y_count < rows || x_count <= 0) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid JDS SpMV operands\n");
+    abort();
+  }
+
+  /* Parboil constructs these arrays on the host immediately before the timed
+   * loop. Convert storage metadata once; all numerical repetitions below are
+   * NVIDIA cuSPARSE calls, not a project-authored GPU kernel. */
+  int32_t nnz = 0;
+  int32_t max_diagonals = 0;
+  for (int32_t row = 0; row < rows; ++row) {
+    int32_t count = row_counts[row];
+    if (count < 0 || count > diagonal_count || nnz > INT32_MAX - count) {
+      fprintf(stderr, "Polygeist cuSPARSE: malformed JDS row counts\n");
+      abort();
+    }
+    nnz += count;
+    if (count > max_diagonals)
+      max_diagonals = count;
+  }
+  if (nnz > column_index_count || nnz > value_count ||
+      max_diagonals > diagonal_count) {
+    fprintf(stderr, "Polygeist cuSPARSE: JDS capacities are inconsistent\n");
+    abort();
+  }
+
+  int32_t *csr_rows = (int32_t *)calloc((size_t)rows + 1, sizeof(int32_t));
+  int32_t *cursor = (int32_t *)malloc((size_t)rows * sizeof(int32_t));
+  int32_t *seen = (int32_t *)calloc((size_t)rows, sizeof(int32_t));
+  int32_t *csr_columns = (int32_t *)malloc((size_t)nnz * sizeof(int32_t));
+  float *csr_values = (float *)malloc((size_t)nnz * sizeof(float));
+  if (!csr_rows || !cursor || !seen || (nnz && (!csr_columns || !csr_values))) {
+    fprintf(stderr, "Polygeist cuSPARSE: JDS-to-CSR allocation failed\n");
+    abort();
+  }
+  for (int32_t jds_row = 0; jds_row < rows; ++jds_row) {
+    int32_t row = row_permutation[jds_row];
+    if (row < 0 || row >= rows || seen[row]) {
+      fprintf(stderr, "Polygeist cuSPARSE: invalid JDS row permutation\n");
+      abort();
+    }
+    seen[row] = 1;
+    csr_rows[row + 1] = row_counts[jds_row];
+  }
+  for (int32_t row = 0; row < rows; ++row) {
+    csr_rows[row + 1] += csr_rows[row];
+    cursor[row] = csr_rows[row];
+  }
+  for (int32_t jds_row = 0; jds_row < rows; ++jds_row) {
+    int32_t row = row_permutation[jds_row];
+    for (int32_t diagonal = 0; diagonal < row_counts[jds_row]; ++diagonal) {
+      int64_t source = (int64_t)diagonal_offsets[diagonal] + jds_row;
+      if (source < 0 || source >= column_index_count || source >= value_count) {
+        fprintf(stderr, "Polygeist cuSPARSE: invalid JDS diagonal offset\n");
+        abort();
+      }
+      int32_t destination = cursor[row]++;
+      csr_columns[destination] = column_indices[source];
+      csr_values[destination] = values[source];
+    }
+  }
+
+  int32_t *device_rows = NULL, *device_columns = NULL;
+  float *device_values = NULL;
+  DEVICE_MALLOC((void **)&device_rows, ((size_t)rows + 1) * sizeof(int32_t));
+  if (nnz) {
+    DEVICE_MALLOC((void **)&device_columns, (size_t)nnz * sizeof(int32_t));
+    DEVICE_MALLOC((void **)&device_values, (size_t)nnz * sizeof(float));
+  }
+  CUDA_CHECK(cudaMemcpyAsync(device_rows, csr_rows,
+                             ((size_t)rows + 1) * sizeof(int32_t),
+                             cudaMemcpyHostToDevice, g_stream));
+  if (nnz) {
+    CUDA_CHECK(cudaMemcpyAsync(device_columns, csr_columns,
+                               (size_t)nnz * sizeof(int32_t),
+                               cudaMemcpyHostToDevice, g_stream));
+    CUDA_CHECK(cudaMemcpyAsync(device_values, csr_values,
+                               (size_t)nnz * sizeof(float),
+                               cudaMemcpyHostToDevice, g_stream));
+  }
+  for (int32_t iteration = 0; iteration < repetitions; ++iteration)
+    polygeist_cusparse_spmv_csr_f32_sized(
+        rows, rows + 1, device_rows, nnz, device_columns, nnz, device_values,
+        x_count, x, y_count, y);
+  sync_stream_if_outside_pipeline();
+  if (device_values) DEVICE_FREE(device_values);
+  if (device_columns) DEVICE_FREE(device_columns);
+  DEVICE_FREE(device_rows);
+  free(csr_values);
+  free(csr_columns);
+  free(seen);
+  free(cursor);
+  free(csr_rows);
+}
 #else
 static void cusparse_disabled(void) {
   fprintf(stderr,
@@ -1353,6 +1460,22 @@ void polygeist_cusparse_spmv_csr_f64_sized(
   (void)rows; (void)row_offset_count; (void)row_offsets;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_spmv_jds_f32_sized(
+    int32_t rows, int32_t repetitions,
+    int32_t row_count_capacity, const int32_t *row_counts,
+    int32_t diagonal_count, const int32_t *diagonal_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t permutation_count, const int32_t *row_permutation,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  (void)rows; (void)repetitions; (void)row_count_capacity; (void)row_counts;
+  (void)diagonal_count; (void)diagonal_offsets;
+  (void)column_index_count; (void)column_indices; (void)value_count;
+  (void)values; (void)permutation_count; (void)row_permutation;
+  (void)x_count; (void)x; (void)y_count; (void)y;
   cusparse_disabled();
 }
 #endif

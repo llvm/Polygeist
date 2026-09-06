@@ -5949,6 +5949,9 @@ def _ginsbach_page() -> tuple[str, int]:
             "profitability-gated"
         ),
         ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
+        ("parboil", "spmv"): (
+            "JDS-to-CSR storage adapter + NVIDIA cuSPARSE SpMV ×1"
+        ),
         ("parboil", "stencil"): "cuDNN 3D convolution ×1",
     }
     silicon_rows = _read_csv(GINSBACH_SILICON)

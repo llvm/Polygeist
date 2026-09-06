@@ -25,7 +25,7 @@ reports:
 - 103 frontend successes
 - 103 successful raising pipelines
 - 677 raised `linalg.generic` operations
-- 24 executable external/platform launch sites (17 computational; 7
+- 25 executable external/platform launch sites (18 computational; 7
   memory-initialization sites excluded from the compute comparison)
 
 The twenty-four launch sites are:
@@ -40,6 +40,8 @@ The twenty-four launch sites are:
 - NPB UA: 14 scalar-alias dot products are recognized, but the profitability
   guard leaves these statically tiny length-5 operations in Linalg
 - Parboil SGEMM: 1 launch lowered to cuBLAS SGEMM
+- Parboil SpMV: 1 whole-region JDS match lowered through a storage-only
+  JDS-to-CSR adapter to 50 NVIDIA cuSPARSE SpMV calls
 - Parboil stencil: 1 seven-point match lowered to a sparse 3x3x3 cuDNN
   convolution
 
@@ -146,8 +148,16 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   `scripts/correctness/logs/npb_is_cub_post_reboot_with_companion_20260905_202650.silicon.log`.
 - Parboil histogram: its saturating packed-byte form is detected, but does not
   satisfy the semantics of the new integer-count CUB route.
-- Parboil JDS SpMV: detected; cuSPARSE has no direct JDS operation, so it
-  remains unmatched unless an external supported conversion route is found.
+- Parboil JDS SpMV: fixed. The exact repeated JDS gather/reduction/permutation
+  loop is matched as one region. A runtime adapter converts storage metadata
+  to CSR once and preserves the source's 50 numerical repetitions as external
+  NVIDIA cuSPARSE calls. Its cross-compiled ABI smoke passed 3/3 on Orin #2
+  with expected output `[11, 14, 18]`. Log:
+  `scripts/correctness/logs/cusparse_jds_external_20260905_230355.silicon.log`.
+  A complete original-main executable is not yet claimed: downstream generic
+  MLIR lowering rejects Parboil's raised opaque `FILE`-structure memref before
+  linking. This is outside the matched SpMV region; the real corpus IR match,
+  ABI lowering test, cross-build, and vendor-library silicon smoke all pass.
 - Parboil TPACF: detected as an indirect histogram; remains unmatched until a
   suitable external implementation exists.
 
