@@ -3702,6 +3702,180 @@ def _render_cusparse_csr_spmv(
         row_loop = max(parents, key=lambda loop: loop.span[0])
         if row_loop.span in seen:
             continue
+
+        # Joint multi-root debufferization keeps the ATen CSR kernel as a
+        # tensor loop nest: rowPtr/column/value/x reads are tensor.extract,
+        # the scalar reduction is an scf.for iter_arg, and every row is
+        # inserted into a loop-carried output tensor.  Prove that complete
+        # form here and recover the original memrefs for the cuSPARSE ABI.
+        row_body = text[row_loop.span[0]:row_loop.span[1]]
+        if "tensor.extract" in row_body:
+            line_start = text.rfind("\n", 0, row_loop.span[0]) + 1
+            assignment = re.match(
+                r"\s*(%[\w.$-]+)\s*=\s*$",
+                text[line_start:row_loop.span[0]])
+            row_header = re.match(
+                rf"affine\.for\s+{re.escape(row_loop.induction)}\s*=\s*"
+                r"0\s+to\s+(\d+)\s+iter_args\s*\(\s*"
+                r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\s*\)\s*->\s*"
+                r"\(tensor<[^>]+>\)\s*\{",
+                row_body)
+            if assignment is None or row_header is None:
+                continue
+            row_result = assignment.group(1)
+            row_count = int(row_header.group(1))
+            output_iter, output_init = row_header.group(2), row_header.group(3)
+            if row_count <= 0:
+                continue
+
+            before_inner = text[row_loop.span[0]:candidate.loop.span[0]]
+            inner = text[candidate.loop.span[0]:candidate.loop.span[1]]
+            row_iv = re.escape(row_loop.induction)
+            rowptr_loads = re.findall(
+                r"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                r"(%[\w.$-]+)\[([^]]+)\]\s*:\s*tensor<[^>]*xi32>",
+                before_inner)
+            if len(rowptr_loads) != 2 or rowptr_loads[0][1] != rowptr_loads[1][1]:
+                continue
+            direct_index = next((index for index, load in enumerate(rowptr_loads)
+                                 if load[2].strip() == row_loop.induction), None)
+            if direct_index is None:
+                continue
+            direct = rowptr_loads[direct_index]
+            successor = rowptr_loads[1 - direct_index]
+            successor_apply = re.search(
+                rf"{re.escape(successor[2].strip())}\s*=\s*affine\.apply\s+"
+                rf"([^\n]+)\(\s*{row_iv}\s*\)", before_inner)
+            if successor_apply is None:
+                continue
+            successor_map = _compact_affine_map(_resolve_affine_map_text(
+                text[:candidate.loop.span[0]], successor_apply.group(1).strip()))
+            if successor_map != "affine_map<(d0)->(d0+1)>":
+                continue
+
+            inner_assignment_start = text.rfind(
+                "\n", row_loop.span[0], candidate.loop.span[0]) + 1
+            inner_assignment = re.match(
+                r"\s*(%[\w.$-]+)\s*=\s*$",
+                text[inner_assignment_start:candidate.loop.span[0]])
+            inner_header = re.match(
+                rf"scf\.for\s+{re.escape(candidate.loop.induction)}\s*=\s*"
+                rf"%[\w.$-]+\s+to\s+%[\w.$-]+\s+step\s+%[\w.$-]+\s+"
+                r"iter_args\s*\(\s*(%[\w.$-]+)\s*=\s*"
+                r"(%[\w.$-]+)\s*\)\s*->\s*\(f32\)\s*\{",
+                inner)
+            if inner_assignment is None or inner_header is None:
+                continue
+            inner_result = inner_assignment.group(1)
+            accumulator, zero = inner_header.group(1), inner_header.group(2)
+            if not re.search(
+                    rf"{re.escape(zero)}\s*=\s*arith\.constant\s+"
+                    r"(?:0(?:\.0+)?(?:e[+-]?0+)?|0x0+)\s*:\s*f32",
+                    text[:candidate.loop.span[0]], re.IGNORECASE):
+                continue
+
+            inner_iv = re.escape(candidate.loop.induction)
+            values = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"(%[\w.$-]+)\[{inner_iv}\]\s*:\s*tensor<[^>]*xf32>",
+                inner)
+            cols = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"(%[\w.$-]+)\[{inner_iv}\]\s*:\s*tensor<[^>]*xi32>",
+                inner)
+            if values is None or cols is None:
+                continue
+            column_index = cols.group(1)
+            cast = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(column_index)}\s*:\s*i32\s+to\s+index", inner)
+            if cast is None:
+                continue
+            gather = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"(%[\w.$-]+)\[{re.escape(cast.group(1))}\]\s*:\s*"
+                r"tensor<[^>]*xf32>", inner)
+            if gather is None:
+                continue
+            product = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+                rf"(?:{re.escape(values.group(1))},\s*{re.escape(gather.group(1))}|"
+                rf"{re.escape(gather.group(1))},\s*{re.escape(values.group(1))})"
+                r"\s*:\s*f32", inner)
+            if product is None:
+                continue
+            total = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.addf\s+"
+                rf"(?:{re.escape(accumulator)},\s*{re.escape(product.group(1))}|"
+                rf"{re.escape(product.group(1))},\s*{re.escape(accumulator)})"
+                r"\s*:\s*f32", inner)
+            if total is None or re.search(
+                    rf"scf\.yield\s+{re.escape(total.group(1))}\s*:\s*f32",
+                    inner) is None:
+                continue
+            inserted = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+                rf"{re.escape(inner_result)}\s+into\s+"
+                rf"{re.escape(output_iter)}\[{row_iv}\]", row_body)
+            if inserted is None or re.search(
+                    rf"affine\.yield\s+{re.escape(inserted.group(1))}\s*:",
+                    row_body) is None:
+                continue
+
+            tensor_values = [rowptr_loads[0][1], cols.group(2),
+                             values.group(2), gather.group(2), output_init]
+            sources = [_to_tensor_memref_source(text, value, row_loop.span[0])
+                       for value in tensor_values]
+            if any(source is None for source in sources):
+                continue
+            physical_operands = [source[0] for source in sources]
+            physical_types = [source[1] for source in sources]
+            if (len(set(physical_operands)) != 5 or
+                    [_sniff_elem_type(ty) for ty in physical_types] !=
+                    ["i32", "i32", "f32", "f32", "f32"] or
+                    [_shaped_rank(ty) for ty in physical_types] != [1] * 5):
+                continue
+
+            tail = re.match(
+                rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                rf"{re.escape(row_result)}\s*:\s*memref<[^>]*xf32>\s*\n"
+                rf"\s*memref\.copy\s+\1,\s*"
+                rf"{re.escape(physical_operands[4])}\s*:\s*[^\n]*",
+                text[row_loop.span[1]:])
+            if tail is None:
+                continue
+
+            uid = row_loop.span[0]
+            rows = f"%cusparse_rows_{uid}"
+            target_types = ["memref<?xi32>", "memref<?xi32>",
+                            "memref<?xf32>", "memref<?xf32>",
+                            "memref<?xf32>"]
+            indent = text[line_start:line_start + len(
+                text[line_start:row_loop.span[0]])]
+            indent = re.match(r"\s*", indent).group(0)
+            lines = [f"{rows} = arith.constant {row_count} : index"]
+            normalized = []
+            for index, (operand, source_type, target_type) in enumerate(zip(
+                    physical_operands, physical_types, target_types)):
+                if source_type != target_type:
+                    cast_name = f"%cusparse_arg_{uid}_{index}"
+                    lines.append(
+                        f"{cast_name} = memref.cast {operand} : "
+                        f"{source_type} to {target_type}")
+                    normalized.append(cast_name)
+                else:
+                    normalized.append(operand)
+            lines.append(
+                "kernel.launch @cusparseSpMV_CSR_f32_memref("
+                + ", ".join([rows, *normalized]) + ") : (index, "
+                + ", ".join(target_types) + ") -> ()")
+            replacement = ("\n" + indent).join(lines)
+            rendered.append((line_start, row_loop.span[1] + tail.end(),
+                             indent + replacement,
+                             "cusparseSpMV_CSR_f32_memref"))
+            seen.add(row_loop.span)
+            continue
+
         row_bound = re.fullmatch(
             r"(?:0|%c0(?:_[\w.$-]+)?) to (%[\w.$-]+)"
             r"(?: step %c1(?:_[\w.$-]+)?)?", row_loop.bounds)

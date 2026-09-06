@@ -470,6 +470,12 @@ CASES = {
     "aten_rsqrt": spec({"N": N}, [ptr("x", "N", init="positive"), ptr("out", "N", True)]),
     "aten_sigmoid_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
     "aten_sparse_coo_softmax_backward_cpu": spec({"R": 524_288, "K": 8}, [ptr("grad", "R*K"), ptr("y", "R*K", init="unit"), ptr("out", "R*K", True)], "partial graph epilogue"),
+    "aten_sparse_addmv_csr_cpu": spec(
+        {"R": 65_536, "C": 65_536, "N": 4_194_304},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col"), ptr("val", "N"),
+         ptr("x", "C"), ptr("out", "R", True)],
+        "full structured-loop CSR SpMV via cuSPARSE"),
     "aten_square": spec({"N": N}, [ptr("x", "N"), ptr("out", "N", True)]),
     "aten_tanh_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
     "aten_uniform_cpu": spec({"N": N}, [ptr("uniform01", "N", init="unit"), scalar("from", -2.), scalar("to", 3.), ptr("out", "N", True)]),
@@ -618,7 +624,10 @@ def harness_text(kernel: str, cfg: dict) -> str:
         if kind == "iptr":
             modulus = re.fullmatch(r"index(\d+)", init_kind)
             expr = (f"(int)(i%{modulus.group(1)})" if modulus else
-                    "(int)((i%7)!=0)" if init_kind == "bool" else "0")
+                    "(int)((i%7)!=0)" if init_kind == "bool" else
+                    "(int)(i*(N/R))" if init_kind == "csr_rowptr" else
+                    "(int)(((i*17)+(i/(N/R))*13)%C)"
+                    if init_kind == "csr_col" else "0")
             init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
             init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(int));")
             call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
@@ -740,7 +749,12 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     run(["aarch64-linux-gnu-gcc", "-O3", f"-D{kernel}={kernel}_reference", "-c", str(source), "-o", str(reference)], work / "reference.build.log")
     exe = work / kernel
     env = os.environ.copy()
-    env.update({"PYTHON": "/usr/bin/python3", "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference), "POLYGEIST_MINIMAL_CUDNN_RUNTIME": "1"})
+    env.update({"PYTHON": "/usr/bin/python3",
+                "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference)})
+    # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
+    # Keep the full fixed-library runtime for sparse linear-algebra cases.
+    if not cfg["coverage"].startswith("full structured-loop CSR"):
+        env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"
     if os.path.isdir(_ct):  # enable cutensorUnary etc. when the SDK is staged
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct

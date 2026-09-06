@@ -8,27 +8,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %2 = bufferization.to_tensor %arg2 : memref<?xf32>
     %3 = bufferization.to_tensor %arg1 : memref<?xi32>
     %4 = bufferization.to_tensor %arg0 : memref<?xi32>
-    %5 = affine.for %arg5 = 0 to 64 iter_args(%arg6 = %0) -> (tensor<?xf32>) {
-      %extracted = tensor.extract %4[%arg5] : tensor<?xi32>
-      %7 = affine.apply #map(%arg5)
-      %extracted_0 = tensor.extract %4[%7] : tensor<?xi32>
-      %8 = arith.index_cast %extracted_0 : i32 to index
-      %9 = arith.index_cast %extracted : i32 to index
-      %10 = scf.for %arg7 = %9 to %8 step %c1 iter_args(%arg8 = %cst) -> (f32) {
-        %extracted_1 = tensor.extract %2[%arg7] : tensor<?xf32>
-        %extracted_2 = tensor.extract %3[%arg7] : tensor<?xi32>
-        %11 = arith.index_cast %extracted_2 : i32 to index
-        %extracted_3 = tensor.extract %1[%11] : tensor<?xf32>
-        %12 = arith.mulf %extracted_1, %extracted_3 : f32
-        %13 = arith.addf %arg8, %12 : f32
-        scf.yield %13 : f32
-      }
-      %inserted = tensor.insert %10 into %arg6[%arg5] : tensor<?xf32>
-      affine.yield %inserted : tensor<?xf32>
-    }
-    %6 = bufferization.to_memref %5 : memref<?xf32>
-    memref.copy %6, %arg4 : memref<?xf32> to memref<?xf32>
+    %cusparse_rows_1694 = arith.constant 64 : index
+    kernel.launch @cusparseSpMV_CSR_f32_memref(%cusparse_rows_1694, %arg0, %arg1, %arg2, %arg3, %arg4) : (index, memref<?xi32>, memref<?xi32>, memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }
-

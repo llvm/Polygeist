@@ -3,10 +3,10 @@
 This audit adjudicates every provenance-linked standalone ATen C fixture against public NVIDIA libraries. It separately records whether the current rewrite covers the complete function or only an initialization/copy stage. The machine-readable CSV is the authoritative per-kernel list.
 
 - Fixtures reviewed: 598
-- Complete current rewrite candidates: 249
+- Complete current rewrite candidates: 250
 - Partial stage-only current matches: 89
-- No current launch: 260
-- Complete rewrites using genuine library/runtime algorithms: 249
+- No current launch: 259
+- Complete rewrites using genuine library/runtime algorithms: 250
 - Complete generated/custom GPU fallbacks (not library matches): 0
 
 ## What exists in NVIDIA libraries
@@ -22,19 +22,19 @@ A named CUB algorithm means NVIDIA ships the substantive generic algorithm. Comp
 ## Current implementation provenance
 
 - `CUDA_RUNTIME_PRIMITIVE`: 81
-- `DIRECT_VENDOR_API`: 229
+- `DIRECT_VENDOR_API`: 230
 - `LIBRARY_API_COMPOSITION`: 13
-- `NO_IMPLEMENTATION`: 260
+- `NO_IMPLEMENTATION`: 259
 - `STANDARD_LIBRARY_ALGORITHM`: 15
 
 ## Compiler diagnosis
 
-- `ALREADY_FOUND`: 249
+- `ALREADY_FOUND`: 250
 - `BACKEND_AND_MATCHER_GAP`: 62
 - `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 58
 - `NO_LIBRARY_MATCH_EXPECTED`: 36
 - `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 89
-- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 104
+- `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 103
 
 Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which a selected runtime-wrapper family is already present locally. The remaining positive library candidates need raising work, a new API backend, graph composition, or some combination.
 

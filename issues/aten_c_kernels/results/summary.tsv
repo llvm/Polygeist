@@ -482,7 +482,7 @@ aten_sort_cpu	pass	2	3	1	cudaCopy2D_f32_tensor
 aten_sparse_add_values_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_sparse_addmm_cpu	pass	1	2	1	memset_zero_2D_f32
 aten_sparse_addmv_bsr_cpu	pass	1	3	0	-
-aten_sparse_addmv_csr_cpu	pass	0	2	0	-
+aten_sparse_addmv_csr_cpu	pass	0	2	1	cusparseSpMV_CSR_f32_memref
 aten_sparse_bmm_cpu	pass	2	0	1	cublasSgemm_strided_batched_nn_zero
 aten_sparse_coo_softmax_backward_cpu	pass	2	1	2	cublasSdot,cudnnPointwiseGraph_f32
 aten_sparse_coo_softmax_cpu	pass	2	1	0	-

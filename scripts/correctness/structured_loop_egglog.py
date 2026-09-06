@@ -602,7 +602,8 @@ def _spmv_bound_structure(text: str, loop: LoopInfo,
             seen.add(value)
             value = casts[value]
         matches = re.findall(
-            rf"{re.escape(value)}\s*=\s*(?:memref|affine)\.load\s+"
+            rf"{re.escape(value)}\s*=\s*(?:(?:memref|affine)\.load|"
+            rf"tensor\.extract)\s+"
             rf"(%[\w.$-]+)\[[^]]+\]", prefix)
         return matches[-1] if matches else None
 
@@ -712,7 +713,7 @@ def analyze_residual_loops(text: str) -> list[ResidualIdiomCandidate]:
         load_defs = {
             result: (buffer, indices)
             for result, buffer, indices in re.findall(
-                r"(%[\w.$-]+)\s*=\s*memref\.load\s+"
+                r"(%[\w.$-]+)\s*=\s*(?:memref\.load|tensor\.extract)\s+"
                 r"(%[\w.$-]+)\[([^]]+)\]", body)
         }
         bound_structure = _spmv_bound_structure(text, loop, all_loops)
@@ -732,7 +733,8 @@ def analyze_residual_loops(text: str) -> list[ResidualIdiomCandidate]:
         indirect_gather = False
         for loaded_name in gather_indices:
             if re.search(
-                    rf"(?:memref|affine)\.load\s+%[\w.$-]+"
+                    rf"(?:(?:memref|affine)\.load|tensor\.extract)\s+"
+                    rf"%[\w.$-]+"
                     rf"\[{re.escape(loaded_name)}\]", body):
                 indirect_gather = True
                 break
