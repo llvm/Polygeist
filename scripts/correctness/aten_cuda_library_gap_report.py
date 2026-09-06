@@ -350,6 +350,13 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "contiguous embedding and gradient rows; segment width equals embedding dimension",
                  "recognize the affine gather plus inner dot reduction and lower a generated transform iterator",
                  priority="MEDIUM")
+    if fam == "indexed_segmented_max":
+        return r("CUB", "DeviceSegmentedReduce + gather transform iterator + custom max state",
+                 "EXACT_TEMPLATE_PRIMITIVE", "whole logical reduction",
+                 "embedding IDs must be in bounds; first-element tie/NaN behavior, signed zero, and empty bags must match",
+                 "contiguous embedding rows and regular bag length/feature width, or explicit logical segment offsets",
+                 "recognize the affine bag/feature/gather loop nest and lower a generated iterator/state",
+                 priority="HIGH")
     if fam == "rowwise_l1_threshold":
         return r("CUB", "DeviceSegmentedReduce + absolute-value transform input iterator",
                  "EXACT_TEMPLATE_PRIMITIVE", "row-score reduction stage",

@@ -456,6 +456,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "multi_stage",
                       "global frequency-by-key requires sorting/counting unique runs and "
                       "mapping counts back to the original order; it is not a segmented reduction")
+    if n == "embedding_bag_max_cpu":
+        return result("indexed_segmented_max", "CUB",
+                      "DeviceSegmentedReduce with gather transform iterator and custom max state",
+                      "FULL_GENERIC_API", "whole",
+                      "logical bag/feature segments gather embedding rows through runtime IDs; "
+                      "a configured iterator and state can preserve ordered comparison semantics")
     if n in {"embedding_bag_backward_sum_cpu", "embedding_bag_backward_max_cpu"}:
         return result("indexed_scatter_reduce", "CUB",
                       "DeviceRadixSort plus DeviceReduceByKey plus scatter",
