@@ -133,6 +133,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnConvolutionTBC_f32_memref",
     "cudnnConvolutionTBCBackward_f32_memref",
     "cudnnTransformBiasRescaleQKV_f32_memref",
+    "cutensornetNetwork_f32_n3_aten",
     "cudnnAddrElementwise_f32_memref",
     "cudnnConvolution2DWindow_f32",
     "cudnnAvgPoolWindow_f32",
@@ -164,6 +165,11 @@ ABI_LOWERABLE_KERNELS = {
     "cubInclusiveSum1D_f32_tensor",
     "cubSegmentedInclusiveProduct2D_f32_tensor",
     "cubExclusiveSum1D_i32_memref",
+    "cubSegmentedSum_f32_memref",
+    "cubSegmentedSum_f64_memref",
+    "cubSegmentedMin_f32_memref",
+    "cubSegmentedMax_f32_memref",
+    "atenSegmentedSum",
     "cubCountNonzero1D_f32_tensor",
     "cubSegmentedCountNonzero2D_f32_tensor",
     "cubEqualAll1D_f32_tensor",
@@ -187,6 +193,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSdot",
     "cublasSdot_memref",
     "cublasDdot_memref",
+    "cublasSgemvTZero_memref",
     "cudnnSoftmaxForward",
     "cudnnSoftmaxForward_tensor",
     "cudnnSoftmaxForwardOut_tensor",
@@ -5760,6 +5767,347 @@ def rewrite_mlir(
             operand_types = []
             binds = {}
 
+        if entry.name == "cublasSgemvTZero_memref":
+            init_inst, gemv_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            gemv_ins = _extract_ssa_names(gemv_inst.ins_part)
+            gemv_outs = _extract_ssa_names(gemv_inst.outs_part)
+            views = [
+                _parse_memref_view(text, value, gemv_inst.span[0])
+                for value in gemv_ins + gemv_outs
+            ]
+            maps = [_compact_affine_map(m) for m in bodies[i + 1].indexing_maps]
+            expected_maps = [
+                "affine_map<(d0,d1)->(d1,d0)>",
+                "affine_map<(d0,d1)->(d1)>",
+                "affine_map<(d0,d1)->(d0)>",
+            ]
+            legal = (
+                n == 2 and len(init_outs) == 1
+                and len(gemv_ins) == 2 and len(gemv_outs) == 1
+                and all(view is not None for view in views)
+                and views[0]["kind"] == views[1]["kind"] == "subview"
+                and views[2]["kind"] == "reinterpret_cast"
+                and init_outs[0] == views[2]["base"]
+                and maps == expected_maps
+                and views[0]["sizes"] == ["%c64", "%c128"]
+                and views[1]["sizes"] == ["%c64"]
+            )
+            if legal:
+                reinterpret = re.search(
+                    rf"^\s*{re.escape(gemv_outs[0])}\s*=\s*"
+                    rf"memref\.reinterpret_cast\s+{re.escape(views[2]['base'])}"
+                    rf"\s+to\s+offset:\s*\[0\],\s*sizes:\s*\[(%[\w_\-]+)\],"
+                    rf"\s*strides:\s*\[1\]",
+                    text[:gemv_inst.span[0]], re.MULTILINE)
+                legal = (reinterpret is not None and
+                         _constant_index_value(text, reinterpret.group(1)) == 128)
+            if legal:
+                physical_operands = [
+                    views[0]["base"], views[1]["base"], views[2]["base"]]
+                physical_types = [
+                    views[0]["base_type"], views[1]["base_type"],
+                    views[2]["base_type"]]
+                legal = (
+                    len(set(physical_operands)) == 3
+                    and _plain_f32_memrefs(physical_types, [2, 1, 1])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32", [64, 128])
+                )
+            if not legal:
+                report.append(("aten_gemv_transpose_region_reject",
+                               [i, i + 1], entry.name))
+                i += n
+                continue
+            uid = gemv_inst.result_ssa.lstrip("%") if gemv_inst.result_ssa else str(i)
+            matrix_cast = f"%aten_gemvt_{uid}_matrix"
+            lines = [
+                f"{gemv_inst.indent}{matrix_cast} = memref.cast "
+                f"{physical_operands[0]} : {physical_types[0]} to memref<?x?xf32>",
+                f"{gemv_inst.indent}kernel.launch @{entry.name}("
+                f"{matrix_cast}, {physical_operands[1]}, {physical_operands[2]}) : "
+                f"(memref<?x?xf32>, {physical_types[1]}, {physical_types[2]}) -> ()",
+            ]
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (init_inst.span[0], gemv_inst.span[1])
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "atenSegmentedSum":
+            init_inst, reduce_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            reduce_ins = _extract_ssa_names(reduce_inst.ins_part)
+            reduce_outs = _extract_ssa_names(reduce_inst.outs_part)
+            input_slice = (_tensor_extract_slice_info(
+                text, reduce_ins[0], reduce_inst.span[0])
+                if len(reduce_ins) == 1 else None)
+            output_slice = (_tensor_extract_slice_info(
+                text, reduce_outs[0], reduce_inst.span[0])
+                if len(reduce_outs) == 1 else None)
+            legal = (
+                n == 2 and len(init_outs) == 1
+                and input_slice is not None and output_slice is not None
+                and output_slice["source"] == init_inst.result_ssa
+                and input_slice["offsets"] == ["0", "0"]
+                and output_slice["offsets"] == ["0"]
+                and input_slice["strides"] == ["1", "1"]
+                and output_slice["strides"] == ["1"]
+                and len(input_slice["sizes"]) == 2
+                and output_slice["sizes"] == [input_slice["sizes"][0]]
+            )
+            if legal:
+                input_source = _to_tensor_memref_source(
+                    text, input_slice["source"], init_inst.span[0])
+                output_source = _to_tensor_memref_source(
+                    text, init_outs[0], init_inst.span[0])
+                legal = input_source is not None and output_source is not None
+            if legal:
+                elem = _sniff_elem_type(input_source[1])
+                physical_operands = [input_source[0], output_source[0]]
+                physical_types = [input_source[1], output_source[1]]
+                sizes = [_constant_index_value(text, value)
+                         for value in input_slice["sizes"]]
+                legal = (
+                    elem in ("f32", "f64") and sizes == [16, 64]
+                    and [_shaped_rank(t) for t in physical_types] == [2, 1]
+                    and [_sniff_elem_type(t) for t in physical_types] == [elem, elem]
+                    and all("," not in t for t in physical_types)
+                    and len(set(physical_operands)) == 2
+                )
+            tail = None
+            if legal:
+                row_size = re.escape(input_slice["sizes"][0])
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(reduce_inst.result_ssa)}\s+into\s+"
+                    rf"{re.escape(init_inst.result_ssa)}\[0\]\s*\[{row_size}\]\s*\[1\][^\n]*\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_operands[1])}\s*:[^\n]*",
+                    text[reduce_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_segmented_sum_region_reject",
+                               [i, i + 1], entry.name))
+                i += n
+                continue
+            emit_name = f"cubSegmentedSum_{elem}_memref"
+            uid = reduce_inst.result_ssa.lstrip("%")
+            input_cast = f"%aten_sum_{uid}_input"
+            dynamic_input = f"memref<?x?x{elem}>"
+            lines = [
+                f"{reduce_inst.indent}{input_cast} = memref.cast "
+                f"{physical_operands[0]} : {physical_types[0]} to {dynamic_input}",
+                f"{reduce_inst.indent}kernel.launch @{emit_name}("
+                f"{input_cast}, {physical_operands[1]}) : "
+                f"({dynamic_input}, {physical_types[1]}) -> ()",
+            ]
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                init_inst.span[0], reduce_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name in ("cubSegmentedMin_f32_memref",
+                           "cubSegmentedMax_f32_memref"):
+            init_inst, reduce_inst = instances[i:i + 2]
+            init_ins = _extract_ssa_names(init_inst.ins_part)
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            reduce_ins = _extract_ssa_names(reduce_inst.ins_part)
+            reduce_outs = _extract_ssa_names(reduce_inst.outs_part)
+            first_slice = (_tensor_extract_slice_info(
+                text, init_ins[0], init_inst.span[0]) if len(init_ins) == 1 else None)
+            init_output_slice = (_tensor_extract_slice_info(
+                text, init_outs[0], init_inst.span[0]) if len(init_outs) == 1 else None)
+            rest_slice = (_tensor_extract_slice_info(
+                text, reduce_ins[0], reduce_inst.span[0])
+                if len(reduce_ins) == 1 else None)
+            legal = (
+                n == 2 and first_slice is not None
+                and init_output_slice is not None and rest_slice is not None
+                and reduce_outs == [init_inst.result_ssa]
+                and first_slice["source"] == rest_slice["source"]
+                and first_slice["offsets"] == ["0", "0"]
+                and rest_slice["offsets"] == ["0", "1"]
+                and first_slice["strides"] == rest_slice["strides"] == ["1", "1"]
+                and first_slice["sizes"][0] == rest_slice["sizes"][0]
+                and (first_slice["sizes"][1] == "1" or
+                     _constant_index_value(
+                         text, first_slice["sizes"][1]) == 1)
+                and _constant_index_value(text, rest_slice["sizes"][1]) == 63
+                and init_output_slice["offsets"] == ["0"]
+                and init_output_slice["sizes"] == [first_slice["sizes"][0]]
+                and init_output_slice["strides"] == ["1"]
+            )
+            if legal:
+                input_source = _to_tensor_memref_source(
+                    text, first_slice["source"], init_inst.span[0])
+                output_source = _to_tensor_memref_source(
+                    text, init_output_slice["source"], init_inst.span[0])
+                legal = input_source is not None and output_source is not None
+            if legal:
+                physical_operands = [input_source[0], output_source[0]]
+                physical_types = [input_source[1], output_source[1]]
+                legal = (
+                    _plain_f32_memrefs(physical_types, [2, 1])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32", [32, 64])
+                    and physical_operands[0] != physical_operands[1]
+                )
+            tail = None
+            if legal:
+                rows = re.escape(first_slice["sizes"][0])
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(reduce_inst.result_ssa)}\s+into\s+"
+                    rf"{re.escape(init_output_slice['source'])}\[0\]\s*\[{rows}\]\s*\[1\][^\n]*\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_operands[1])}\s*:[^\n]*",
+                    text[reduce_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_segmented_extreme_region_reject",
+                               [i, i + 1], entry.name))
+                i += n
+                continue
+            uid = reduce_inst.result_ssa.lstrip("%")
+            input_cast = f"%aten_extreme_{uid}_input"
+            lines = [
+                f"{reduce_inst.indent}{input_cast} = memref.cast "
+                f"{physical_operands[0]} : {physical_types[0]} to memref<?x?xf32>",
+                f"{reduce_inst.indent}kernel.launch @{entry.name}("
+                f"{input_cast}, {physical_operands[1]}) : "
+                f"(memref<?x?xf32>, {physical_types[1]}) -> ()",
+            ]
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                init_inst.span[0], reduce_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cutensornetNetwork_f32_n3_aten":
+            init_inst, network_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            network_ins = _extract_ssa_names(network_inst.ins_part)
+            network_outs = _extract_ssa_names(network_inst.outs_part)
+            input_slices = [
+                _tensor_extract_slice_info(text, value, network_inst.span[0])
+                for value in network_ins
+            ]
+            output_slice = (_tensor_extract_slice_info(
+                text, init_outs[0], init_inst.span[0])
+                if len(init_outs) == 1 else None)
+            maps = [_compact_affine_map(m)
+                    for m in bodies[i + 1].indexing_maps]
+            bilinear_maps = [
+                "affine_map<(d0,d1,d2,d3)->(d0,d2)>",
+                "affine_map<(d0,d1,d2,d3)->(d1,d2,d3)>",
+                "affine_map<(d0,d1,d2,d3)->(d0,d3)>",
+                "affine_map<(d0,d1,d2,d3)->(d0,d1)>",
+            ]
+            trilinear_maps = [
+                "affine_map<(d0,d1,d2,d3)->(d0,d2)>",
+                "affine_map<(d0,d1,d2,d3)->(d2,d3,d1)>",
+                "affine_map<(d0,d1,d2,d3)->(d0,d3)>",
+                "affine_map<(d0,d1,d2,d3)->(d0,d1)>",
+            ]
+            legal = (
+                n == 2 and len(network_ins) == 3
+                and network_outs == [init_inst.result_ssa]
+                and output_slice is not None
+                and all(item is not None for item in input_slices)
+                and maps in (bilinear_maps, trilinear_maps)
+                and output_slice["offsets"] == ["0", "0"]
+                and output_slice["strides"] == ["1", "1"]
+            )
+            if legal:
+                sources = [
+                    _to_tensor_memref_source(
+                        text, item["source"], init_inst.span[0])
+                    for item in input_slices
+                ]
+                output_source = _to_tensor_memref_source(
+                    text, output_slice["source"], init_inst.span[0])
+                legal = all(source is not None for source in sources) and (
+                    output_source is not None)
+            if legal:
+                physical_operands = [source[0] for source in sources] + [
+                    output_source[0]]
+                physical_types = [source[1] for source in sources] + [
+                    output_source[1]]
+                size_values = [[
+                    _constant_index_value(text, value) if value != "1" else 1
+                    for value in item["sizes"]] for item in input_slices]
+                output_sizes = [
+                    _constant_index_value(text, value)
+                    for value in output_slice["sizes"]]
+                expected_sizes = (
+                    [[8, 16], [24, 16, 20], [8, 20]]
+                    if maps == bilinear_maps
+                    else [[8, 16], [16, 20, 24], [8, 20]])
+                legal = (
+                    size_values == expected_sizes
+                    and output_sizes == [8, 24]
+                    and len(set(physical_operands)) == 4
+                    and _plain_f32_memrefs(physical_types, [2, 3, 2, 2])
+                )
+            tail = None
+            if legal:
+                sizes = r",\s*".join(map(re.escape, output_slice["sizes"]))
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(network_inst.result_ssa)}\s+into\s+"
+                    rf"{re.escape(output_slice['source'])}\[0,\s*0\]\s*"
+                    rf"\[{sizes}\]\s*\[1,\s*1\][^\n]*\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_operands[3])}\s*:[^\n]*",
+                    text[network_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_three_input_network_region_reject",
+                               [i, i + 1], entry.name))
+                i += n
+                continue
+            uid = network_inst.result_ssa.lstrip("%")
+            dynamic_types = ["memref<?x?xf32>", "memref<?x?x?xf32>",
+                             "memref<?x?xf32>", "memref<?x?xf32>"]
+            cast_names = [f"%aten_network_{uid}_{j}" for j in range(4)]
+            lines = [
+                f"{network_inst.indent}{cast} = memref.cast {operand} : "
+                f"{operand_type} to {dynamic_type}"
+                for cast, operand, operand_type, dynamic_type in zip(
+                    cast_names, physical_operands, physical_types,
+                    dynamic_types)
+            ]
+            map_attrs = [
+                "affine_map<(d0, d1, d2, d3) -> (d0, d2)>",
+                ("affine_map<(d0, d1, d2, d3) -> (d1, d2, d3)>"
+                 if maps == bilinear_maps else
+                 "affine_map<(d0, d1, d2, d3) -> (d2, d3, d1)>") ,
+                "affine_map<(d0, d1, d2, d3) -> (d0, d3)>",
+                "affine_map<(d0, d1, d2, d3) -> (d0, d1)>",
+            ]
+            attrs = (
+                " {network_maps = [" + ", ".join(map_attrs) +
+                "], polygeist.result_destinations = array<i64: 3>}"
+            )
+            lines.append(
+                f"{network_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(cast_names)}){attrs} : "
+                f"({', '.join(dynamic_types)}) -> ()")
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                init_inst.span[0], network_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
         if entry.name.startswith("cubSegmented") and n == 2:
             # The first generic only writes the reduction identity.  The CUB
             # primitive receives that identity as part of its configured
@@ -7369,7 +7717,16 @@ def rewrite_mlir(
         if entry.name.startswith("cubSegmented"):
             elems = [_sniff_elem_type(t) for t in operand_types]
             ranks = [_shaped_rank(t) for t in operand_types]
-            if entry.name == "cubSegmentedPrefixSum_f32":
+            if (custom_launch_line is not None and entry.name in (
+                    "cubSegmentedSum_f32_memref",
+                    "cubSegmentedSum_f64_memref",
+                    "cubSegmentedMin_f32_memref",
+                    "cubSegmentedMax_f32_memref")):
+                # The strict whole-region handlers above validate the physical
+                # memref ranks and element types before clearing the original
+                # tensor operands.
+                legal = True
+            elif entry.name == "cubSegmentedPrefixSum_f32":
                 legal = elems == ["f32", "i32", "f32"] and ranks == [2, 1, 1]
             elif entry.name == "cubSegmentedPrefixLogicalAnd_i32":
                 legal = elems == ["i32", "i32", "i32"] and ranks == [2, 1, 1]

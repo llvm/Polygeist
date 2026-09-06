@@ -7899,6 +7899,21 @@ void polygeist_cub_segmented_reduce_f32(
   timing_gpu_end("cubSegmentedReduce_f32", rows, cols, op, hs);
 }
 
+typedef int (*polygeist_cub_segmented_f64_fn)(
+    int32_t, int32_t, int32_t, const double *, double *, cudaStream_t);
+void polygeist_cub_segmented_reduce_f64(
+    int32_t op, int32_t rows, int32_t cols, const double *x, double *out) {
+  static polygeist_cub_segmented_f64_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_segmented_f64_fn)polygeist_cub_companion_symbol(
+        "polygeist_cub_segmented_reduce_f64_cuda");
+  polygeist_cublas_init();
+  double hs = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin(); int status = function(op, rows, cols, x, out, g_stream);
+  if (status) { fprintf(stderr, "CUB segmented f64 reduction failed: %d\n", status); abort(); }
+  timing_gpu_end("cubSegmentedReduce_f64", rows, cols, op, hs);
+}
+
 typedef int (*polygeist_cub_segmented_prefix_sum_f32_fn)(
     int32_t, int32_t, const float *, const int32_t *, float *, cudaStream_t);
 typedef int (*polygeist_cub_segmented_prefix_and_i32_fn)(

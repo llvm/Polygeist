@@ -2213,6 +2213,21 @@ void polygeist_cub_segmented_reduce_f32(
   }
 }
 
+void polygeist_cub_segmented_reduce_f64(
+    int32_t op, int32_t rows, int32_t cols, const double *x, double *out) {
+  for (int32_t row = 0; row < rows; ++row) {
+    double acc = op == 0 ? 0.0 : x[(size_t)row * cols];
+    int32_t begin = op == 0 ? 0 : 1;
+    for (int32_t col = begin; col < cols; ++col) {
+      double value = x[(size_t)row * cols + col];
+      if (op == 0) acc += value;
+      else if (op == 1) acc = value < acc ? value : acc;
+      else acc = value > acc ? value : acc;
+    }
+    out[row] = acc;
+  }
+}
+
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
     const float *x, int32_t *out) {

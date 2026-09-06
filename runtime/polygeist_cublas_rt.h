@@ -792,6 +792,8 @@ void polygeist_cub_segmented_prefix_logical_and_i32(
     const int32_t *lengths, int32_t *out);
 void polygeist_cub_segmented_reduce_f32(
     int32_t op, int32_t rows, int32_t cols, const float *x, float *out);
+void polygeist_cub_segmented_reduce_f64(
+    int32_t op, int32_t rows, int32_t cols, const double *x, double *out);
 void polygeist_cub_count_nonzero1d_f32(
     int32_t n, const float *input, int32_t *out);
 void polygeist_cub_segmented_count_nonzero2d_f32(

@@ -231,7 +231,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "cutensorCreateElementwiseTrinary",
                       "FULL_GENERIC_API", "whole",
                       "broadcast multiply with explicit input/output modes and strides")
-    if hit(r"bilinear|trilinear|sumproduct|contraction|tensor_product", n):
+    if "upsample" not in n and hit(r"bilinear|trilinear", n):
+        return result("tensor_contraction", "cuTensorNet",
+                      "cutensornetCreateNetworkDescriptor/ContractionOptimizer",
+                      "FULL_GENERIC_API", "whole",
+                      "three-input Einstein network; a single binary cuTENSOR contraction is insufficient")
+    if hit(r"sumproduct|contraction|tensor_product", n):
         return result("tensor_contraction", "cuTENSOR", "cutensorCreateContraction",
                       "FULL_GENERIC_API", "whole",
                       "Einstein-style multiply/reduce with explicit modes")

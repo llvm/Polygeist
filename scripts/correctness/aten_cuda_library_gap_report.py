@@ -23,6 +23,7 @@ DOC = {
     "cuBLAS": "https://docs.nvidia.com/cuda/cublas/contents.html",
     "cuDNN": "https://docs.nvidia.com/deeplearning/cudnn/latest/index.html",
     "cuTENSOR": "https://docs.nvidia.com/cuda/cutensor/latest/api/cutensor.html",
+    "cuTensorNet": "https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/overview.html",
     "cuSPARSE": "https://docs.nvidia.com/cuda/cusparse/index.html",
     "cuSOLVER": "https://docs.nvidia.com/cuda/cusolver/contents.html",
     "cuRAND": "https://docs.nvidia.com/cuda/curand/host-api-overview.html",
@@ -171,6 +172,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "two dense rank-2 inputs and the interleaved rank-4 output view are representable by descriptors",
                  "recognize the complete reshape/product/writeback region and emit the existing cuTENSOR wrapper",
                  priority="HIGH")
+    if fam == "tensor_contraction" and any(x in n for x in ("bilinear", "trilinear")):
+        return r("cuTensorNet", "tensor-network contraction plan",
+                 "EXACT_CONFIGURED_PRIMITIVE", "whole",
+                 "three-input multiply/reduce, output overwrite, reduction reassociation and NaN behavior",
+                 "all input/output modes, extents and physical strides must form a dense supported network",
+                 "recognize the complete initialization/contraction/writeback region and emit a three-input network descriptor",
+                 priority="HIGHEST",
+                 note="A single cutensorCreateContraction is binary and is not a legal replacement.")
     if fam == "tensor_contraction" and "upsample" not in n:
         return r("cuTENSOR", "cutensorCreateContraction", "EXACT_CONFIGURED_PRIMITIVE", "whole",
                  "multiply-add reduction; alpha/beta and reassociation policy",

@@ -58,8 +58,8 @@ aten_bessel_j1	pass	1	0	0	-
 aten_bessel_y0	pass	1	0	0	-
 aten_bessel_y1	pass	1	0	0	-
 aten_bf16_dot_cpu	pass	1	0	1	cublasSdot_memref
-aten_bf16_gemv_trans_cpu	pass	2	0	0	-
-aten_bilinear_cpu	pass	2	0	1	memset_zero_2D_f32
+aten_bf16_gemv_trans_cpu	pass	2	0	1	cublasSgemvTZero_memref
+aten_bilinear_cpu	pass	2	0	1	cutensornetNetwork_f32_n3_aten
 aten_binary_cross_entropy	pass	1	0	1	cudnnBinaryCrossEntropyMean_f32_memref
 aten_binary_search_strided_rightmost_cpu	pass	0	2	0	-
 aten_bincount_cpu	pass	1	1	1	memset_zero_1D_f32
@@ -328,13 +328,13 @@ aten_max_reduce_cpu	pass	1	0	1	cudnnReduceMax_f32
 aten_max_unpool2d_cpu	pass	1	2	1	memset_zero_1D_f32
 aten_max_unpool3d_cpu	pass	1	2	1	memset_zero_1D_f32
 aten_max_unpool_backward_cpu	pass	1	0	0	-
-aten_max_values_cpu	pass	2	0	1	cudaCopy1D_f32_tensor
+aten_max_values_cpu	pass	2	0	1	cubSegmentedMax_f32_memref
 aten_maximum	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_mean	pass	1	0	1	cudnnReduceSum_f64
 aten_median_indices_cpu	pass	2	3	1	cudaCopy1D_f32_tensor
 aten_min_all_cpu	pass	1	0	1	cudnnReduceMin_f32
 aten_min_reduce_cpu	pass	1	0	1	cudnnReduceMin_f32
-aten_min_values_cpu	pass	2	0	1	cudaCopy1D_f32_tensor
+aten_min_values_cpu	pass	2	0	1	cubSegmentedMin_f32_memref
 aten_minimum	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_mish	pass	1	0	1	cutensorUnary_mish_f32
 aten_mish_backward	pass	1	0	1	cudnnPointwiseGraph_f32
@@ -522,8 +522,8 @@ aten_stack_serial_cpu	pass	1	0	1	cutensorPermute_f32_r3_tensor
 aten_standard_gamma_grad_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_std_var_all_cpu	pass	2	0	1	cudnnReduceSum_f32
 aten_std_var_cpu	pass	2	1	1	cudnnReduceSum_f32
-aten_sum	pass	2	0	1	memset_zero_1D
-aten_sum_cpu_backend	pass	2	0	1	memset_zero_1D_f32
+aten_sum	pass	2	0	1	cubSegmentedSum_f64_memref
+aten_sum_cpu_backend	pass	2	0	1	cubSegmentedSum_f32_memref
 aten_sumproduct_pair_cpu	pass	2	0	1	cublasSgemm_strided_batched_nn_zero
 aten_take_cpu	pass	1	0	0	-
 aten_tan	pass	1	0	1	cutensorUnary_tan_f32
@@ -536,7 +536,7 @@ aten_transform_bias_rescale_qkv_cpu	pass	3	0	1	cudnnTransformBiasRescaleQKV_f32_
 aten_transpose_copy	pass	1	0	1	cutensorPermute_f32_r2_tensor
 aten_trigamma	pass	1	0	0	-
 aten_tril_indices_cpu	pass	0	2	0	-
-aten_trilinear_cpu	pass	2	0	1	memset_zero_2D_f32
+aten_trilinear_cpu	pass	2	0	1	cutensornetNetwork_f32_n3_aten
 aten_triu_indices_cpu	pass	0	2	0	-
 aten_triu_mask_cpu	pass	1	0	0	-
 aten_triu_tril_batch_cpu	pass	1	0	0	-

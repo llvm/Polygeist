@@ -245,6 +245,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
       libSym == "cubSegmentedMin_f32_memref" ||
       libSym == "cubSegmentedMax_f32_memref")
     return "polygeist_cub_segmented_reduce_f32";
+  if (libSym == "cubSegmentedSum_f64_memref")
+    return "polygeist_cub_segmented_reduce_f64";
   if (libSym == "cubSegmentedBitXor_i32_memref")
     return "polygeist_cub_segmented_reduce_i32";
   if (libSym == "cublasSdot_memref" || libSym == "cublasDdot_memref")
@@ -5779,17 +5781,20 @@ static LogicalResult lowerCubSegmentedFullMemref(LaunchOp launch,
   if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
     return launch.emitError("bufferized segmented reduction expects input, output");
   bool isI32 = libSym == "cubSegmentedBitXor_i32_memref";
+  bool isF64 = libSym == "cubSegmentedSum_f64_memref";
   auto inputTy = dyn_cast<MemRefType>(launch.getOperand(0).getType());
   auto outputTy = dyn_cast<MemRefType>(launch.getOperand(1).getType());
   if (!inputTy || inputTy.getRank() != 2 || !outputTy ||
       outputTy.getRank() != 1 ||
       (isI32 ? (!inputTy.getElementType().isInteger(32) ||
                 !outputTy.getElementType().isInteger(32))
-             : (!inputTy.getElementType().isF32() ||
-                !outputTy.getElementType().isF32())))
+       : isF64 ? (!inputTy.getElementType().isF64() ||
+                  !outputTy.getElementType().isF64())
+               : (!inputTy.getElementType().isF32() ||
+                  !outputTy.getElementType().isF32())))
     return launch.emitError("invalid bufferized segmented reduction types");
   int32_t opId = isI32 ? 2
-      : libSym == "cubSegmentedSum_f32_memref" ? 0
+      : (libSym == "cubSegmentedSum_f32_memref" || isF64) ? 0
       : libSym == "cubSegmentedMin_f32_memref" ? 1 : 2;
   OpBuilder b(launch); Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
@@ -5803,7 +5808,8 @@ static LogicalResult lowerCubSegmentedFullMemref(LaunchOp launch,
                           ptr, ptr};
   auto shim = ensureShimDecl(
       module, isI32 ? "polygeist_cub_segmented_reduce_i32"
-                    : "polygeist_cub_segmented_reduce_f32",
+             : isF64 ? "polygeist_cub_segmented_reduce_f64"
+                     : "polygeist_cub_segmented_reduce_f32",
       types, b);
   b.create<func::CallOp>(loc, shim, args);
   launch.erase();
@@ -6715,6 +6721,7 @@ struct LowerKernelLaunchToCuBLASPass
                       libSym == "cubSegmentedPrefixSum_f32_memref")
                 : lowerCubSegmentedPrefix(launch, module, libSym);
       } else if (libSym == "cubSegmentedSum_f32_memref" ||
+                 libSym == "cubSegmentedSum_f64_memref" ||
                  libSym == "cubSegmentedMin_f32_memref" ||
                  libSym == "cubSegmentedMax_f32_memref" ||
                  libSym == "cubSegmentedBitXor_i32_memref") {

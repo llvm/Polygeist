@@ -8,17 +8,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %c16 = arith.constant 16 : index
     %0 = bufferization.to_tensor %arg0 : memref<?x64xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = kernel.launch @memset_zero_1D_f32(%1) : (tensor<?xf32>) -> tensor<?xf32>
-    %extracted_slice = tensor.extract_slice %0[0, 0] [%c16, %c64] [1, 1] : tensor<?x64xf32> to tensor<?x?xf32>
-    %extracted_slice_0 = tensor.extract_slice %2[0] [%c16] [1] : tensor<?xf32> to tensor<?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%extracted_slice : tensor<?x?xf32>) outs(%extracted_slice_0 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %5 = arith.addf %out, %in : f32
-      linalg.yield %5 : f32
-    } -> tensor<?xf32>
-    %inserted_slice = tensor.insert_slice %3 into %2[0] [%c16] [1] : tensor<?xf32> into tensor<?xf32>
-    %4 = bufferization.to_memref %inserted_slice : memref<?xf32>
-    memref.copy %4, %arg1 : memref<?xf32> to memref<?xf32>
+    %aten_sum_3_input = memref.cast %arg0 : memref<?x64xf32> to memref<?x?xf32>
+
+    kernel.launch @cubSegmentedSum_f32_memref(%aten_sum_3_input, %arg1) : (memref<?x?xf32>, memref<?xf32>) -> ()
     return
   }
 }

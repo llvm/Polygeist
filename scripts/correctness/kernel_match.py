@@ -1339,6 +1339,67 @@ def _aten_qkv_transform() -> CompositionEntry:
         form="tensor", element_type="f32")
 
 
+def _aten_gemv_transpose_zero_memref() -> CompositionEntry:
+    return CompositionEntry(
+        name="cublasSgemvTZero_memref",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0) * Term.In(1),
+                num_ins=2, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=1),
+        ],
+        form="memref", element_type="f32")
+
+
+def _aten_segmented_sum() -> CompositionEntry:
+    return CompositionEntry(
+        name="atenSegmentedSum",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0), num_ins=1, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=1),
+        ],
+        form="tensor")
+
+
+def _aten_segmented_extreme(name: str, predicate: str) -> CompositionEntry:
+    value, prior = Term.In(0), Term.Out(0)
+    return CompositionEntry(
+        name=name,
+        steps=[
+            CompositionStep(
+                body=Term.In(0), num_ins=1, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.Select(Term.Cmp(predicate, value, prior),
+                                 value, prior),
+                num_ins=1, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=1),
+        ],
+        form="tensor", element_type="f32")
+
+
+def _aten_three_input_einsum() -> CompositionEntry:
+    return CompositionEntry(
+        name="cutensornetNetwork_f32_n3_aten",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=2, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0) * Term.In(1) * Term.In(2),
+                num_ins=3, num_outs=1,
+                parallel_dim_count=2, reduction_dim_count=2),
+        ],
+        form="tensor", element_type="f32")
+
+
 def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
     """Fused matmul + bias + relu — transformer-FFN-shape op.
     4-step composition:
@@ -3679,6 +3740,11 @@ def composition_library() -> list[CompositionEntry]:
             "cudnnConvolutionTBC_f32_memref", 3, 2,
             form="tensor", include_init=True),
         _fixed_depthwise_convolution2d(),
+        _aten_three_input_einsum(),
+        _aten_gemv_transpose_zero_memref(),
+        _aten_segmented_sum(),
+        _aten_segmented_extreme("cubSegmentedMin_f32_memref", "olt"),
+        _aten_segmented_extreme("cubSegmentedMax_f32_memref", "ogt"),
         _generic_two_input_sum_contraction_tensor(),
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map

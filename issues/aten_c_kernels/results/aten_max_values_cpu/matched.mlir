@@ -9,17 +9,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c32, 1] [1, 1] : tensor<?x64xf32> to tensor<?xf32>
     %extracted_slice_0 = tensor.extract_slice %1[0] [%c32] [1] : tensor<?xf32> to tensor<?xf32>
-    %2 = kernel.launch @cudaCopy1D_f32_tensor(%extracted_slice, %extracted_slice_0) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
-    %extracted_slice_1 = tensor.extract_slice %0[0, 1] [%c32, %c63] [1, 1] : tensor<?x64xf32> to tensor<?x?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%extracted_slice_1 : tensor<?x?xf32>) outs(%2 : tensor<?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %5 = arith.cmpf ogt, %in, %out : f32
-      %6 = arith.select %5, %in, %out : f32
-      linalg.yield %6 : f32
-    } -> tensor<?xf32>
-    %inserted_slice = tensor.insert_slice %3 into %1[0] [%c32] [1] : tensor<?xf32> into tensor<?xf32>
-    %4 = bufferization.to_memref %inserted_slice : memref<?xf32>
-    memref.copy %4, %arg1 : memref<?xf32> to memref<?xf32>
+    %aten_extreme_3_input = memref.cast %arg0 : memref<?x64xf32> to memref<?x?xf32>
+
+    kernel.launch @cubSegmentedMax_f32_memref(%aten_extreme_3_input, %arg1) : (memref<?x?xf32>, memref<?xf32>) -> ()
     return
   }
 }

@@ -4,10 +4,10 @@ This report audits every ATen fixture that does **not** currently end in a compl
 
 ## Scope and headline
 
-- Unresolved fixtures audited: **362** (the other 236/598 already have a complete genuine library/runtime rewrite).
+- Unresolved fixtures audited: **355** (the other 243/598 already have a complete genuine library/runtime rewrite).
 - Complete generated/custom GPU fallbacks still requiring a true library route: **0**.
-- No current match: **262**.
-- Partial stage match with residual IR: **100**.
+- No current match: **261**.
+- Partial stage match with residual IR: **94**.
 - Residual loops still block whole-operation recognition: **179**.
 - A related library primitive is not automatically a legal or profitable replacement. The compiler must prove the constraints recorded for that row.
 
@@ -17,8 +17,7 @@ This report audits every ATen fixture that does **not** currently end in a compl
 - **BUILDING_BLOCKS_ONLY**: 128
 - **NO_PUBLIC_LIBRARY_EQUIVALENT**: 39
 - **EXACT_GRAPH_IF_SUPPORTED**: 36
-- **EXACT_FIXED_CALL**: 10
-- **EXACT_CONFIGURED_PRIMITIVE**: 6
+- **EXACT_FIXED_CALL**: 9
 
 By closest library:
 
@@ -28,18 +27,18 @@ By closest library:
 - **none**: 39
 - **cuSPARSE**: 35
 - **cuRAND**: 19
-- **cuTENSOR**: 14
-- **cuBLAS**: 4
+- **cuTENSOR**: 8
 - **CUDA Runtime**: 3
+- **cuBLAS**: 3
 - **cuSOLVER**: 3
 
 Priority:
 
 - **LOW**: 131
 - **MEDIUM**: 108
-- **HIGH**: 70
+- **HIGH**: 66
 - **NONE**: 38
-- **HIGHEST**: 15
+- **HIGHEST**: 12
 
 By concrete compiler gap:
 
@@ -47,8 +46,8 @@ By concrete compiler gap:
 - **LEGALITY_SPECIALIZATION_AND_BACKEND**: 50
 - **MULTI_CALL_COMPOSITION_NOT_MATCHER_ONLY**: 47
 - **NO_LINK_ONLY_LIBRARY_ROUTE**: 35
-- **SEMANTIC_MATCHER_AND_LIBRARY_BACKEND**: 26
-- **GRAPH_PARTITION_RESIDUAL_THEN_LIBRARY_LOWERING**: 25
+- **SEMANTIC_MATCHER_AND_LIBRARY_BACKEND**: 25
+- **GRAPH_PARTITION_RESIDUAL_THEN_LIBRARY_LOWERING**: 19
 
 Current local backend status:
 
@@ -56,8 +55,8 @@ Current local backend status:
 - **GENERAL_CUDNN_GRAPH_BACKEND_ABSENT**: 59
 - **RELATED_CUDNN_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 46
 - **NO_PUBLIC_LIBRARY_BACKEND_POSSIBLE**: 39
-- **GENERAL_CUTENSOR_BACKEND_ABSENT_CUTENSORNET_IS_NOT_EQUIVALENT**: 14
-- **RELATED_CUBLAS_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 4
+- **GENERAL_CUTENSOR_BACKEND_ABSENT_CUTENSORNET_IS_NOT_EQUIVALENT**: 8
+- **RELATED_CUBLAS_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 3
 
 ## Important corrections to the previous audit
 
@@ -92,8 +91,6 @@ Current local backend status:
 - **`aten_batch_norm_backward_template_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (EXACT_GRAPH_IF_SUPPORTED, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_batch_norm_collect_stats_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (SUBSET_WITH_CONSTRAINTS, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_batch_norm_stats_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (SUBSET_WITH_CONSTRAINTS, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
-- **`aten_bf16_gemv_trans_cpu`** → cuBLAS `GEMM/StridedBatchedGEMM/GemmBatched` (EXACT_FIXED_CALL, whole). Work: generalize GEMM matcher and device-resident cuBLAS ABI.
-- **`aten_bilinear_cpu`** → cuTENSOR `cutensorCreateContraction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then iterator-count-independent contraction recognition + generic descriptor lowering.
 - **`aten_cummax_cummin_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
 - **`aten_cumprod_backward_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: finish raising residual loops; then scan matcher + CUB template backend + axis specialization.
 - **`aten_cumprod_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
@@ -125,8 +122,6 @@ Current local backend status:
 - **`aten_max_pool2d`** → cuDNN `Resample forward/backward (MAXPOOL/AVGPOOL)` (EXACT_FIXED_CALL, whole). Work: preserve current partial match and partition residual graph; then pool descriptor matcher + generic forward/backward lowering.
 - **`aten_max_pool3d_backward_cpu`** → cuDNN `Resample forward/backward (MAXPOOL/AVGPOOL)` (EXACT_FIXED_CALL, whole). Work: finish raising residual loops; then pool descriptor matcher + generic forward/backward lowering.
 - **`aten_max_pool3d_cpu`** → cuDNN `Resample forward/backward (MAXPOOL/AVGPOOL)` (EXACT_FIXED_CALL, whole). Work: finish raising residual loops; then pool descriptor matcher + generic forward/backward lowering.
-- **`aten_max_values_cpu`** → cuTENSOR `cutensorCreateReduction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
-- **`aten_min_values_cpu`** → cuTENSOR `cutensorCreateReduction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
 - **`aten_nan_to_num`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_ne`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_remainder`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
@@ -144,9 +139,6 @@ Current local backend status:
 - **`aten_spmm_reduce_backward_other_cpu`** → cuSPARSE `SpMV/SpMM/SpGEMM/SDDMM` (SUBSET_WITH_CONSTRAINTS, whole for standardized sparse algebra). Work: finish raising residual loops; then sparse descriptor extraction + cuSPARSE generic-API backend.
 - **`aten_spmm_reduce_cpu`** → cuSPARSE `SpMV/SpMM/SpGEMM/SDDMM` (SUBSET_WITH_CONSTRAINTS, whole for standardized sparse algebra). Work: finish raising residual loops; then sparse descriptor extraction + cuSPARSE generic-API backend.
 - **`aten_sspaddmm_cpu`** → cuSPARSE `SpMV/SpMM/SpGEMM/SDDMM` (SUBSET_WITH_CONSTRAINTS, whole for standardized sparse algebra). Work: finish raising residual loops; then sparse descriptor extraction + cuSPARSE generic-API backend.
-- **`aten_sum`** → cuTENSOR `cutensorCreateReduction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
-- **`aten_sum_cpu_backend`** → cuTENSOR `cutensorCreateReduction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
-- **`aten_trilinear_cpu`** → cuTENSOR `cutensorCreateContraction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then iterator-count-independent contraction recognition + generic descriptor lowering.
 - **`aten_upsample_bilinear2d`** → cuDNN `Resample forward/backward` (SUBSET_WITH_CONSTRAINTS, whole for supported coordinate mode). Work: coordinate-mode proof + resample descriptor lowering.
 - **`aten_upsample_bilinear2d_aa_backward_cpu`** → cuDNN `Resample forward/backward` (SUBSET_WITH_CONSTRAINTS, whole for supported coordinate mode). Work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
 - **`aten_upsample_bilinear2d_aa_cpu`** → cuDNN `Resample forward/backward` (SUBSET_WITH_CONSTRAINTS, whole for supported coordinate mode). Work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
@@ -238,9 +230,8 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_copysign` — CUDA Runtime / `cudaMemcpy*/Memset or CUB building blocks`; **BUILDING_BLOCKS_ONLY**; coverage: regular contiguous stages; work: shape specialization and multi-call composition.
 - `aten_nested_select_cpu` — CUDA Runtime / `cudaMemcpy*/Memset or CUB building blocks`; **BUILDING_BLOCKS_ONLY**; coverage: regular contiguous stages; work: shape specialization and multi-call composition.
 
-### dense_linear_algebra (3)
+### dense_linear_algebra (2)
 
-- `aten_bf16_gemv_trans_cpu` — cuBLAS / `GEMM/StridedBatchedGEMM/GemmBatched`; **EXACT_FIXED_CALL**; coverage: whole; work: generalize GEMM matcher and device-resident cuBLAS ABI.
 - `aten_int4pack_mm_cpu` — cuBLAS / `cublasLtMatmul`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole when supported; work: finish raising residual loops; then quantized-matmul recognizer + cuBLASLt descriptor/runtime backend.
 - `aten_int8pack_mm_cpu` — cuBLAS / `cublasLtMatmul`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole when supported; work: preserve current partial match and partition residual graph; then quantized-matmul recognizer + cuBLASLt descriptor/runtime backend.
 
@@ -506,19 +497,15 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 
 - `aten_rowwise_prune_cpu` — CUB / `DeviceSelect or sort/reduce-by-key primitives`; **BUILDING_BLOCKS_ONLY**; coverage: supported indexing stages; work: preserve current partial match and partition residual graph; then indexed-op semantic matcher + collision proof or reduce-by-key composition.
 
-### reduction (9)
+### reduction (5)
 
 - `aten_and_reduce_cpu` — CUB / `DeviceReduce with logical/bitwise operator`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for a flat/segmented supported type; work: CUB reduction backend + boolean/integer semantic matcher.
-- `aten_max_values_cpu` — cuTENSOR / `cutensorCreateReduction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
-- `aten_min_values_cpu` — cuTENSOR / `cutensorCreateReduction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
 - `aten_norm_cpu` — cuTENSOR / `cutensorCreateReduction plus elementwise stages`; **BUILDING_BLOCKS_ONLY**; coverage: reduction stage; work: preserve current partial match and partition residual graph; then raise stages, partition graph, and lower generic reduction descriptors.
 - `aten_std_var_all_cpu` — cuTENSOR / `cutensorCreateReduction plus elementwise stages`; **BUILDING_BLOCKS_ONLY**; coverage: reduction stage; work: preserve current partial match and partition residual graph; then raise stages, partition graph, and lower generic reduction descriptors.
 - `aten_std_var_cpu` — cuTENSOR / `cutensorCreateReduction plus elementwise stages`; **BUILDING_BLOCKS_ONLY**; coverage: reduction stage; work: finish raising residual loops; then raise stages, partition graph, and lower generic reduction descriptors.
-- `aten_sum` — cuTENSOR / `cutensorCreateReduction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
-- `aten_sum_cpu_backend` — cuTENSOR / `cutensorCreateReduction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
 - `aten_vector_norm_out_cpu` — cuTENSOR / `cutensorCreateReduction plus elementwise stages`; **BUILDING_BLOCKS_ONLY**; coverage: reduction stage; work: preserve current partial match and partition residual graph; then raise stages, partition graph, and lower generic reduction descriptors.
 
-### resampling (27)
+### resampling (34)
 
 - `aten_grid_sampler_2d_backward_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
 - `aten_grid_sampler_2d_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: specialize proven-compatible 2D forward cases; no generic one-call route.
@@ -530,6 +517,11 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_upsample_bicubic2d_aa_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
 - `aten_upsample_bicubic2d_backward_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
 - `aten_upsample_bicubic2d_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
+- `aten_upsample_bilinear2d` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
+- `aten_upsample_bilinear2d_aa_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
+- `aten_upsample_bilinear2d_aa_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
+- `aten_upsample_bilinear2d_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
+- `aten_upsample_bilinear2d_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
 - `aten_upsample_lanczos2d_aa_backward_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
 - `aten_upsample_lanczos2d_aa_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
 - `aten_upsample_linear1d_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
@@ -547,6 +539,8 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_upsample_nearest_exact2d_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
 - `aten_upsample_nearest_exact3d_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
 - `aten_upsample_nearest_exact3d_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
+- `aten_upsample_trilinear3d_backward_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
+- `aten_upsample_trilinear3d_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: specialize proven-compatible 2D forward cases; no generic one-call route.
 
 ### reverse (1)
 
@@ -676,18 +670,6 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 ### statistical_mode (1)
 
 - `aten_mode_cpu` — CUB / `DeviceReduce/SegmentedReduce on value-index pairs; sort+RLE for mode`; **BUILDING_BLOCKS_ONLY**; coverage: algorithmic stages; work: finish raising residual loops; then CUB template backend + index-aware matcher + composition.
-
-### tensor_contraction (9)
-
-- `aten_bilinear_cpu` — cuTENSOR / `cutensorCreateContraction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then iterator-count-independent contraction recognition + generic descriptor lowering.
-- `aten_trilinear_cpu` — cuTENSOR / `cutensorCreateContraction`; **EXACT_CONFIGURED_PRIMITIVE**; coverage: whole; work: preserve current partial match and partition residual graph; then iterator-count-independent contraction recognition + generic descriptor lowering.
-- `aten_upsample_bilinear2d` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
-- `aten_upsample_bilinear2d_aa_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
-- `aten_upsample_bilinear2d_aa_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
-- `aten_upsample_bilinear2d_backward_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: finish raising residual loops; then coordinate-mode proof + resample descriptor lowering.
-- `aten_upsample_bilinear2d_cpu` — cuDNN / `Resample forward/backward`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for supported coordinate mode; work: coordinate-mode proof + resample descriptor lowering.
-- `aten_upsample_trilinear3d_backward_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: finish raising residual loops; then specialize proven-compatible 2D forward cases; no generic one-call route.
-- `aten_upsample_trilinear3d_cpu` — NPP / `nppiResize/nppiRemap`; **SUBSET_WITH_CONSTRAINTS**; coverage: forward 2D image subset; work: specialize proven-compatible 2D forward cases; no generic one-call route.
 
 ### tensor_initialization (8)
 

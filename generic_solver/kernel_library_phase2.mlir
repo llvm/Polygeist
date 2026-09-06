@@ -122,6 +122,17 @@ module {
   kernel.defn @cublasSgemvTZero_memref(
       %matrix: memref<?x?xf32>, %vector: memref<?xf32>,
       %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedSum_f32_memref(
+      %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedSum_f64_memref(
+      %input: memref<?x?xf64>, %out: memref<?xf64>) { kernel.yield }
+  kernel.defn @cubSegmentedMin_f32_memref(
+      %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedMax_f32_memref(
+      %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cutensornetNetwork_f32_n3_aten(
+      %lhs: memref<?x?xf32>, %weights: memref<?x?x?xf32>,
+      %rhs: memref<?x?xf32>, %out: memref<?x?xf32>) { kernel.yield }
   kernel.defn @cudnnSinc_f32_memref(
       %x: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
 

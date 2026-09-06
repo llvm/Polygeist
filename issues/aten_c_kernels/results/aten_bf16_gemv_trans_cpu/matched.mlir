@@ -7,19 +7,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %c128 = arith.constant 128 : index
     %c64 = arith.constant 64 : index
     %cst = arith.constant 0.000000e+00 : f32
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel"]} outs(%arg2 : memref<?xf32>) {
-    ^bb0(%out: f32):
-      linalg.yield %cst : f32
-    }
-    %subview = memref.subview %arg0[0, 0] [%c64, %c128] [1, 1] : memref<?x128xf32> to memref<?x?xf32, strided<[128, 1]>>
-    %subview_0 = memref.subview %arg1[0] [%c64] [1] : memref<?xf32> to memref<?xf32, strided<[1]>>
-    %reinterpret_cast = memref.reinterpret_cast %arg2 to offset: [0], sizes: [%c128], strides: [1] : memref<?xf32> to memref<128xf32>
-    linalg.generic {indexing_maps = [#map1, #map2, #map3], iterator_types = ["parallel", "reduction"]} ins(%subview, %subview_0 : memref<?x?xf32, strided<[128, 1]>>, memref<?xf32, strided<[1]>>) outs(%reinterpret_cast : memref<128xf32>) {
-    ^bb0(%in: f32, %in_1: f32, %out: f32):
-      %0 = arith.mulf %in, %in_1 : f32
-      %1 = arith.addf %out, %0 : f32
-      linalg.yield %1 : f32
-    }
+    %aten_gemvt_0_matrix = memref.cast %arg0 : memref<?x128xf32> to memref<?x?xf32>
+
+    kernel.launch @cublasSgemvTZero_memref(%aten_gemvt_0_matrix, %arg1, %arg2) : (memref<?x?xf32>, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }

@@ -15,20 +15,15 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<270>, d
     %2 = bufferization.to_tensor %arg2 : memref<?x20xf32>
     %3 = bufferization.to_tensor %arg3 : memref<?x24xf32>
     %extracted_slice = tensor.extract_slice %3[0, 0] [%c8, %c24] [1, 1] : tensor<?x24xf32> to tensor<?x?xf32>
-    %4 = kernel.launch @memset_zero_2D_f32(%extracted_slice) : (tensor<?x?xf32>) -> tensor<?x?xf32>
-    %extracted_slice_0 = tensor.extract_slice %0[0, 0] [%c8, %c16] [1, 1] : tensor<?x16xf32> to tensor<?x?xf32>
-    %extracted_slice_1 = tensor.extract_slice %1[0, 0, 0] [%c24, %c16, %c20] [1, 1, 1] : tensor<?x16x20xf32> to tensor<?x?x?xf32>
-    %extracted_slice_2 = tensor.extract_slice %2[0, 0] [%c8, %c20] [1, 1] : tensor<?x20xf32> to tensor<?x?xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map1, #map2, #map3, #map4], iterator_types = ["parallel", "parallel", "reduction", "reduction"], library_call = ""} ins(%extracted_slice_0, %extracted_slice_1, %extracted_slice_2 : tensor<?x?xf32>, tensor<?x?x?xf32>, tensor<?x?xf32>) outs(%4 : tensor<?x?xf32>) {
-    ^bb0(%in: f32, %in_3: f32, %in_4: f32, %out: f32):
-      %7 = arith.mulf %in, %in_3 : f32
-      %8 = arith.mulf %7, %in_4 : f32
-      %9 = arith.addf %out, %8 : f32
-      linalg.yield %9 : f32
-    } -> tensor<?x?xf32>
-    %inserted_slice = tensor.insert_slice %5 into %3[0, 0] [%c8, %c24] [1, 1] : tensor<?x?xf32> into tensor<?x24xf32>
-    %6 = bufferization.to_memref %inserted_slice : memref<?x24xf32>
-    memref.copy %6, %arg3 : memref<?x24xf32> to memref<?x24xf32>
+    %aten_network_5_0 = memref.cast %arg0 : memref<?x16xf32> to memref<?x?xf32>
+
+    %aten_network_5_1 = memref.cast %arg1 : memref<?x16x20xf32> to memref<?x?x?xf32>
+
+    %aten_network_5_2 = memref.cast %arg2 : memref<?x20xf32> to memref<?x?xf32>
+
+    %aten_network_5_3 = memref.cast %arg3 : memref<?x24xf32> to memref<?x?xf32>
+
+    kernel.launch @cutensornetNetwork_f32_n3_aten(%aten_network_5_0, %aten_network_5_1, %aten_network_5_2, %aten_network_5_3) {network_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d2)>, affine_map<(d0, d1, d2, d3) -> (d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1)>], polygeist.result_destinations = array<i64: 3>} : (memref<?x?xf32>, memref<?x?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     return
   }
 }

@@ -524,15 +524,15 @@ extern "C" int polygeist_cub_segmented_reduce_i32_cuda(
   return static_cast<int>(status);
 }
 
-template <typename Op>
-static cudaError_t segmented_reduce_f32(
-    int32_t rows, int32_t cols, const float *host_x, float *host_out,
-    float identity, Op op, cudaStream_t stream) {
+template <typename T, typename Op>
+static cudaError_t segmented_reduce_numeric(
+    int32_t rows, int32_t cols, const T *host_x, T *host_out,
+    T identity, Op op, cudaStream_t stream) {
   if (rows <= 0) return cudaSuccess;
   if (cols <= 0) return cudaErrorInvalidValue;
-  size_t input_bytes = (size_t)rows * cols * sizeof(float);
-  size_t output_bytes = (size_t)rows * sizeof(float);
-  float *device_x = nullptr, *device_out = nullptr;
+  size_t input_bytes = (size_t)rows * cols * sizeof(T);
+  size_t output_bytes = (size_t)rows * sizeof(T);
+  T *device_x = nullptr, *device_out = nullptr;
   using Counting = cub::CountingInputIterator<int32_t>;
   using Offsets = cub::TransformInputIterator<int32_t, SegmentOffset, Counting>;
   Counting counting(0); Offsets offsets(counting, SegmentOffset{cols});
@@ -567,13 +567,21 @@ extern "C" int polygeist_cub_segmented_reduce_f32_cuda(
     cudaStream_t stream) {
   cudaError_t status;
   if (op == 0)
-    status = segmented_reduce_f32(rows, cols, x, out, 0.0f, cub::Sum{}, stream);
+    status = segmented_reduce_numeric(rows, cols, x, out, 0.0f, cub::Sum{}, stream);
   else if (op == 1)
-    status = segmented_reduce_f32(rows, cols, x, out, INFINITY, cub::Min{}, stream);
+    status = segmented_reduce_numeric(rows, cols, x, out, INFINITY, cub::Min{}, stream);
   else if (op == 2)
-    status = segmented_reduce_f32(rows, cols, x, out, -INFINITY, cub::Max{}, stream);
+    status = segmented_reduce_numeric(rows, cols, x, out, -INFINITY, cub::Max{}, stream);
   else return -1;
   return (int)status;
+}
+
+extern "C" int polygeist_cub_segmented_reduce_f64_cuda(
+    int32_t op, int32_t rows, int32_t cols, const double *x, double *out,
+    cudaStream_t stream) {
+  if (op != 0) return -1;
+  return (int)segmented_reduce_numeric(
+      rows, cols, x, out, 0.0, cub::Sum{}, stream);
 }
 
 struct IndexedValueF32 {

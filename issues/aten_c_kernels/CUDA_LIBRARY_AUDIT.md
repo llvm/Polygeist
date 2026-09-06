@@ -3,16 +3,16 @@
 This audit adjudicates every provenance-linked standalone ATen C fixture against public NVIDIA libraries. It separately records whether the current rewrite covers the complete function or only an initialization/copy stage. The machine-readable CSV is the authoritative per-kernel list.
 
 - Fixtures reviewed: 598
-- Complete current rewrite candidates: 236
-- Partial stage-only current matches: 100
-- No current launch: 262
-- Complete rewrites using genuine library/runtime algorithms: 236
+- Complete current rewrite candidates: 243
+- Partial stage-only current matches: 94
+- No current launch: 261
+- Complete rewrites using genuine library/runtime algorithms: 243
 - Complete generated/custom GPU fallbacks (not library matches): 0
 
 ## What exists in NVIDIA libraries
 
-- One fixed public call: 119
-- One configurable generic primitive: 99
+- One fixed public call: 126
+- One configurable generic primitive: 92
 - Complete multi-node library graph/composition: 175
 - Only some stages have library primitives: 162
 - No direct tensor-library implementation: 43
@@ -21,19 +21,19 @@ A named CUB algorithm means NVIDIA ships the substantive generic algorithm. Comp
 
 ## Current implementation provenance
 
-- `CUDA_RUNTIME_PRIMITIVE`: 89
-- `DIRECT_VENDOR_API`: 225
+- `CUDA_RUNTIME_PRIMITIVE`: 83
+- `DIRECT_VENDOR_API`: 228
 - `LIBRARY_API_COMPOSITION`: 12
-- `NO_IMPLEMENTATION`: 262
-- `STANDARD_LIBRARY_ALGORITHM`: 10
+- `NO_IMPLEMENTATION`: 261
+- `STANDARD_LIBRARY_ALGORITHM`: 14
 
 ## Compiler diagnosis
 
-- `ALREADY_FOUND`: 236
-- `BACKEND_AND_MATCHER_GAP`: 64
+- `ALREADY_FOUND`: 243
+- `BACKEND_AND_MATCHER_GAP`: 63
 - `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 58
 - `NO_LIBRARY_MATCH_EXPECTED`: 36
-- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 100
+- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 94
 - `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 104
 
 Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which a selected runtime-wrapper family is already present locally. The remaining positive library candidates need raising work, a new API backend, graph composition, or some combination.
@@ -45,15 +45,16 @@ Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which 
 
 - cuDNN: 202
 - CUB: 110
+- cuDNN Resample: 49
 - NPP: 45
 - none: 43
-- cuDNN Resample: 42
 - cuBLAS: 34
-- cuTENSOR: 32
 - cuSPARSE: 32
 - cuRAND: 27
 - CUDA Runtime: 26
+- cuTENSOR: 23
 - cuSOLVER: 3
+- cuTensorNet: 2
 - cuDNN CTC: 2
 
 ## Per-kernel results
