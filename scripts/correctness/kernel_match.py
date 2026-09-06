@@ -1221,6 +1221,27 @@ def _fixed_memref_convolution_contraction(
     )
 
 
+def _cutensor_kronecker_product2d() -> CompositionEntry:
+    """Rank-2 Kronecker product surfaced as a rank-4 tensor product.
+
+    The rewrite layer proves the two rank-2 source slices, the interleaved
+    output flattening, physical extents, and complete writeback before it
+    selects the existing cuTENSOR elementwise-trinary implementation.
+    """
+    return CompositionEntry(
+        name="cutensorKroneckerProduct2D_f32_memref",
+        steps=[CompositionStep(
+            body=Term.In(0) * Term.In(1),
+            num_ins=2,
+            num_outs=1,
+            parallel_dim_count=4,
+            reduction_dim_count=0,
+        )],
+        form="tensor",
+        element_type="f32",
+    )
+
+
 def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
     """Fused matmul + bias + relu — transformer-FFN-shape op.
     4-step composition:
@@ -3558,6 +3579,7 @@ def composition_library() -> list[CompositionEntry]:
             "cudnnConvolutionBackwardFilter3D_f32_memref", 5, 3),
         _fixed_memref_convolution_contraction(
             "cudnnConvolutionTBCBackward_f32_memref", 4, 1),
+        _cutensor_kronecker_product2d(),
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 

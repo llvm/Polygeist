@@ -226,7 +226,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("dense_linear_algebra", "cuBLAS", api,
                       "FULL_FIXED_API", "whole",
                       "standard vector/matrix product or update")
-    if hit(r"bilinear|trilinear|sumproduct|kron|contraction|tensor_product", n):
+    if "kron" in n:
+        return result("tensor_product", "cuTENSOR",
+                      "cutensorCreateElementwiseTrinary",
+                      "FULL_GENERIC_API", "whole",
+                      "broadcast multiply with explicit input/output modes and strides")
+    if hit(r"bilinear|trilinear|sumproduct|contraction|tensor_product", n):
         return result("tensor_contraction", "cuTENSOR", "cutensorCreateContraction",
                       "FULL_GENERIC_API", "whole",
                       "Einstein-style multiply/reduce with explicit modes")

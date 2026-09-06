@@ -1400,6 +1400,39 @@ def _compact_affine_map(map_text: str | None) -> str:
     return re.sub(r"\s+", "", map_text or "")
 
 
+def _to_tensor_memref_source(
+    text: str, value: str | None, before: int
+) -> tuple[str, str] | None:
+    """Return the physical memref behind a direct to_tensor conversion."""
+    if value is None:
+        return None
+    match = re.search(
+        rf"^\s*{re.escape(value)}\s*=\s*bufferization\.to_tensor\s+"
+        rf"(%[\w_\-]+)(?:\s+[^:]*)?\s*:\s*(memref<[^\n]+>)$",
+        text[:before],
+        re.MULTILINE,
+    )
+    return (match.group(1), match.group(2).strip()) if match else None
+
+
+def _plain_shape_compatible(
+    mlir_type: str, element_type: str, expected: list[int]
+) -> bool:
+    """Check static dimensions where present on a default-layout memref."""
+    payload = _type_payload(mlir_type, "memref")
+    if payload is None or "," in payload:
+        return False
+    shaped = _top_level_first_type_piece(payload)
+    suffix = "x" + element_type
+    if not shaped.endswith(suffix):
+        return False
+    dims = shaped[:-len(suffix)].split("x")
+    return len(dims) == len(expected) and all(
+        dim == "?" or (dim.isdigit() and int(dim) == want)
+        for dim, want in zip(dims, expected)
+    )
+
+
 def _resolve_affine_map_text(text: str, map_ref: str) -> str | None:
     map_ref = map_ref.strip()
     if map_ref.startswith("affine_map<"):
@@ -4714,6 +4747,157 @@ def rewrite_mlir(
             replace_full_span = True
             custom_edit_span = (
                 init_inst.span[0], pool_inst.span[1] + tail_match.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cutensorKroneckerProduct2D_f32_memref":
+            kron_inst = instances[i]
+            kron_ins = _extract_ssa_names(kron_inst.ins_part)
+            kron_outs = _extract_ssa_names(kron_inst.outs_part)
+            maps = [_compact_affine_map(m) for m in bodies[i].indexing_maps]
+            expected_maps = [
+                "affine_map<(d0,d1,d2,d3)->(d0,d1)>",
+                "affine_map<(d0,d1,d2,d3)->(d2,d3)>",
+                "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
+            ]
+            legal = (
+                n == 1
+                and len(kron_ins) == 2
+                and len(kron_outs) == 1
+                and kron_inst.result_ssa is not None
+                and maps == expected_maps
+            )
+
+            slices: list[tuple[str, list[str]]] = []
+            if legal:
+                prefix = text[:kron_inst.span[0]]
+                for value in kron_ins:
+                    slice_match = re.search(
+                        rf"^\s*{re.escape(value)}\s*=\s*"
+                        rf"tensor\.extract_slice\s+(%[\w_\-]+)"
+                        rf"\[0,\s*0\]\s*\[([^]]+)\]\s*\[1,\s*1\]",
+                        prefix,
+                        re.MULTILINE,
+                    )
+                    if slice_match is None:
+                        legal = False
+                        break
+                    slice_sizes = [
+                        part.strip() for part in slice_match.group(2).split(",")
+                    ]
+                    if len(slice_sizes) != 2:
+                        legal = False
+                        break
+                    slices.append((slice_match.group(1), slice_sizes))
+
+            output_tensor = output_map_ref = None
+            logical_sizes: list[str] = []
+            if legal:
+                output_match = re.search(
+                    rf"^\s*{re.escape(kron_outs[0])}\s*=\s*"
+                    rf"polygeist\.submap\s*\(\s*(%[\w_\-]+)\s*,\s*"
+                    rf"([^)]+)\)\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:",
+                    prefix,
+                    re.MULTILINE,
+                )
+                legal = output_match is not None
+            if legal:
+                output_tensor = output_match.group(1)
+                logical_sizes = [
+                    part.strip() for part in output_match.group(2).split(",")
+                ]
+                output_map_ref = output_match.group(3).strip()
+                legal = len(logical_sizes) == 4
+
+            input_sources = []
+            output_source = None
+            size_values: list[int | None] = []
+            if legal:
+                input_sources = [
+                    _to_tensor_memref_source(text, tensor, kron_inst.span[0])
+                    for tensor, _ in slices
+                ]
+                output_source = _to_tensor_memref_source(
+                    text, output_tensor, kron_inst.span[0])
+                legal = all(source is not None for source in input_sources) and (
+                    output_source is not None
+                )
+            if legal:
+                size_values = [
+                    _constant_index_value(text, value) for value in logical_sizes
+                ]
+                a, b, c, d = size_values
+                expected_output_map = (
+                    f"affine_map<(d0,d1,d2,d3)->"
+                    f"(d2+d0*{c},d3+d1*{d})>"
+                )
+                resolved_output_map = _compact_affine_map(
+                    _resolve_affine_map_text(prefix, output_map_ref))
+                physical_operands = [
+                    input_sources[0][0], input_sources[1][0], output_source[0]
+                ]
+                physical_types = [
+                    input_sources[0][1], input_sources[1][1], output_source[1]
+                ]
+                legal = (
+                    all(value is not None and value > 0 for value in size_values)
+                    and slices[0][1] == logical_sizes[:2]
+                    and slices[1][1] == logical_sizes[2:]
+                    and resolved_output_map == expected_output_map
+                    and len(set(physical_operands)) == 3
+                    and _plain_f32_memrefs(physical_types, [2, 2, 2])
+                    and _plain_shape_compatible(physical_types[0], "f32", [a, b])
+                    and _plain_shape_compatible(physical_types[1], "f32", [c, d])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32", [a * c, b * d])
+                )
+
+            tail_match = None
+            if legal:
+                size_pattern = r",\s*".join(map(re.escape, logical_sizes))
+                tail_match = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                    rf"\(\s*{re.escape(output_tensor)}\s*,\s*"
+                    rf"{re.escape(kron_inst.result_ssa)}\s*,\s*{size_pattern}\)"
+                    rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                    rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\3\s*,\s*"
+                    rf"{re.escape(physical_operands[2])}\s*:\s*[^\n]+",
+                    text[kron_inst.span[1]:],
+                )
+                legal = tail_match is not None
+            if legal:
+                inverse_map = _compact_affine_map(_resolve_affine_map_text(
+                    text[:kron_inst.span[1] + tail_match.end()],
+                    tail_match.group(2).strip(),
+                ))
+                legal = inverse_map == expected_output_map
+
+            if not legal:
+                report.append(("kronecker_layout_reject", i, entry.name))
+                i += 1
+                continue
+
+            uid = kron_inst.result_ssa.lstrip("%").replace(".", "_")
+            dynamic_type = "memref<?x?xf32>"
+            cast_names = [f"%kron_{uid}_{label}" for label in ("x", "y", "out")]
+            lines = [
+                f"{kron_inst.indent}{cast_name} = memref.cast {operand} : "
+                f"{operand_type} to {dynamic_type}"
+                for cast_name, operand, operand_type in zip(
+                    cast_names, physical_operands, physical_types)
+            ]
+            lines.append(
+                f"{kron_inst.indent}kernel.launch "
+                f"@cutensorKroneckerProduct2D_f32_memref("
+                f"{', '.join(cast_names)}) : "
+                f"({', '.join([dynamic_type] * 3)}) -> ()"
+            )
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                kron_inst.span[0], kron_inst.span[1] + tail_match.end())
             operands = []
             operand_types = []
             binds = {}

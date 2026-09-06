@@ -3,10 +3,10 @@
 This audit adjudicates every provenance-linked standalone ATen C fixture against public NVIDIA libraries. It separately records whether the current rewrite covers the complete function or only an initialization/copy stage. The machine-readable CSV is the authoritative per-kernel list.
 
 - Fixtures reviewed: 598
-- Complete current rewrite candidates: 219
-- Partial stage-only current matches: 99
-- No current launch: 280
-- Complete rewrites using genuine library/runtime algorithms: 219
+- Complete current rewrite candidates: 227
+- Partial stage-only current matches: 100
+- No current launch: 271
+- Complete rewrites using genuine library/runtime algorithms: 227
 - Complete generated/custom GPU fallbacks (not library matches): 0
 
 ## What exists in NVIDIA libraries
@@ -22,19 +22,19 @@ A named CUB algorithm means NVIDIA ships the substantive generic algorithm. Comp
 ## Current implementation provenance
 
 - `CUDA_RUNTIME_PRIMITIVE`: 89
-- `DIRECT_VENDOR_API`: 208
+- `DIRECT_VENDOR_API`: 217
 - `LIBRARY_API_COMPOSITION`: 12
-- `NO_IMPLEMENTATION`: 280
+- `NO_IMPLEMENTATION`: 271
 - `STANDARD_LIBRARY_ALGORITHM`: 9
 
 ## Compiler diagnosis
 
-- `ALREADY_FOUND`: 219
-- `BACKEND_AND_MATCHER_GAP`: 69
-- `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 60
-- `MATCHER_COVERAGE_GAP`: 11
+- `ALREADY_FOUND`: 227
+- `BACKEND_AND_MATCHER_GAP`: 64
+- `COMPOSITION_REQUIRED_NOT_MATCHER_ONLY`: 58
+- `MATCHER_COVERAGE_GAP`: 9
 - `NO_LIBRARY_MATCH_EXPECTED`: 36
-- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 99
+- `PARTIAL_MATCH_ONLY_RESIDUAL_IR_REMAINS`: 100
 - `RAISING_BLOCKS_WHOLE_OP_RECOGNITION`: 104
 
 Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which a selected runtime-wrapper family is already present locally. The remaining positive library candidates need raising work, a new API backend, graph composition, or some combination.
@@ -47,8 +47,6 @@ Only the `MATCHER_COVERAGE_GAP` rows are clean, whole-operation cases for which 
 - `aten_conv_tbc_cpu`
 - `aten_conv_transpose2d`
 - `aten_depthwise_conv3x3_cpu`
-- `aten_kron_impl_cpu`
-- `aten_kron_out_cpu`
 - `aten_log_sigmoid_cpu`
 - `aten_nested_batch_offsets_cpu`
 - `aten_transform_bias_rescale_qkv_cpu`

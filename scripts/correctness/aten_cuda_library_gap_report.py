@@ -164,6 +164,13 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "normalization semantic matcher + cuDNN graph-plan backend", priority="HIGH")
 
     # General dense tensor algebra.
+    if fam == "tensor_product":
+        return r("cuTENSOR", "cutensorCreateElementwiseTrinary",
+                 "EXACT_CONFIGURED_PRIMITIVE", "whole",
+                 "broadcast modes, physical strides, overwrite semantics and non-aliasing",
+                 "two dense rank-2 inputs and the interleaved rank-4 output view are representable by descriptors",
+                 "recognize the complete reshape/product/writeback region and emit the existing cuTENSOR wrapper",
+                 priority="HIGH")
     if fam == "tensor_contraction" and "upsample" not in n:
         return r("cuTENSOR", "cutensorCreateContraction", "EXACT_CONFIGURED_PRIMITIVE", "whole",
                  "multiply-add reduction; alpha/beta and reassociation policy",
@@ -384,7 +391,7 @@ def alternatives(family: str, verdict: dict[str, str]) -> str:
     lib = verdict["closest_library"]
     if family == "dense_linear_algebra":
         return "cuDNN Matmul graph; CUTLASS templates"
-    if family == "tensor_contraction":
+    if family in {"tensor_contraction", "tensor_product"}:
         return "cuTensorNet for larger contraction networks; cuBLAS when flattenable to GEMM"
     if family in {"pointwise", "pointwise_formula", "pointwise_math", "pointwise_reduction_formula"}:
         return "cuTENSOR for its fixed unary/binary operator subset; NPP for flat supported signals"

@@ -14,14 +14,13 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : ve
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c16, %c12] [1, 1] : tensor<?x12xf32> to tensor<?x?xf32>
     %extracted_slice_0 = tensor.extract_slice %1[0, 0] [%c8, %c10] [1, 1] : tensor<?x10xf32> to tensor<?x?xf32>
     %3 = polygeist.submap(%2, %c16, %c12, %c8, %c10) {map = #map} : (tensor<?x120xf32>, index, index, index, index) -> tensor<?x?x?x?xf32>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map1, #map2, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice, %extracted_slice_0 : tensor<?x?xf32>, tensor<?x?xf32>) outs(%3 : tensor<?x?x?x?xf32>) {
-    ^bb0(%in: f32, %in_1: f32, %out: f32):
-      %7 = arith.mulf %in, %in_1 : f32
-      linalg.yield %7 : f32
-    } -> tensor<?x?x?x?xf32>
-    %5 = polygeist.submapInverse(%2, %4, %c16, %c12, %c8, %c10) {map = #map} : (tensor<?x120xf32>, tensor<?x?x?x?xf32>, index, index, index, index) -> tensor<?x120xf32>
-    %6 = bufferization.to_memref %5 : memref<?x120xf32>
-    memref.copy %6, %arg2 : memref<?x120xf32> to memref<?x120xf32>
+    %kron_4_x = memref.cast %arg0 : memref<?x12xf32> to memref<?x?xf32>
+
+    %kron_4_y = memref.cast %arg1 : memref<?x10xf32> to memref<?x?xf32>
+
+    %kron_4_out = memref.cast %arg2 : memref<?x120xf32> to memref<?x?xf32>
+
+    kernel.launch @cutensorKroneckerProduct2D_f32_memref(%kron_4_x, %kron_4_y, %kron_4_out) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     return
   }
 }

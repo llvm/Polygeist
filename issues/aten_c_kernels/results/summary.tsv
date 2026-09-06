@@ -271,8 +271,8 @@ aten_isposinf	pass	1	0	0	-
 aten_jagged_to_padded_cpu	pass	0	2	0	-
 aten_joint_scaling_cpu	pass	2	0	0	-
 aten_kaiser_window	pass	1	0	0	-
-aten_kron_impl_cpu	pass	1	0	0	-
-aten_kron_out_cpu	pass	1	0	0	-
+aten_kron_impl_cpu	pass	1	0	1	cutensorKroneckerProduct2D_f32_memref
+aten_kron_out_cpu	pass	1	0	1	cutensorKroneckerProduct2D_f32_memref
 aten_kthvalue_cpu	pass	1	3	1	cudaCopy1D_f32_tensor
 aten_l1_loss	pass	1	0	0	-
 aten_laguerre_polynomial_l	pass	1	0	0	-
