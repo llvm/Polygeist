@@ -406,6 +406,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("ordering_selection", "CUB", "DeviceRadixSort/MergeSort/TopK/Select/RunLengthEncode",
                       "FULL_GENERIC_API", "whole",
                       "CUB provides device-wide ordering and selection primitives")
+    if n == "bincount_cpu":
+        return result("weighted_bincount", "CUB",
+                      "DeviceRadixSort plus DeviceReduceByKey plus dense scatter",
+                      "PARTIAL_API", "multi_stage",
+                      "this fixture accumulates floating weights by runtime integer key; "
+                      "DeviceHistogram only counts samples and is not a weighted histogram")
     if hit(r"hist|bincount|count_nonzero", n):
         return result("histogram_count", "CUB", "DeviceHistogram/DeviceReduce",
                       "FULL_GENERIC_API", "whole",

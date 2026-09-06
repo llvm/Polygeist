@@ -319,6 +319,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "contiguous keys; no dense bounded-key assumption is available",
                  "multi-call algorithm recognizer and CUB composition backend; no single fixed-library replacement",
                  priority="LOW")
+    if fam == "weighted_bincount":
+        return r("CUB", "DeviceRadixSort + DeviceReduceByKey + dense scatter",
+                 "BUILDING_BLOCKS_ONLY", "sort and key-reduction stages",
+                 "keys must be in the output range; duplicate-key floating accumulation order and determinism must be permitted",
+                 "contiguous int32 keys and FP32 weights/output; zero initialization of every absent bin",
+                 "recognize the indirect scatter-add loop and lower a multi-call CUB composition",
+                 priority="MEDIUM",
+                 note="DeviceHistogram is not a legal replacement because it cannot accumulate per-sample weights")
     if fam == "indexed_gather_dot":
         return r("CUB", "DeviceSegmentedReduce + transform input iterator",
                  "BUILDING_BLOCKS_ONLY", "whole through a configured iterator/reduction composition",
