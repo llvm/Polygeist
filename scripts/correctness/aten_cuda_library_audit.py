@@ -330,6 +330,13 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
             "NO_DIRECT_LIBRARY_API", "none",
             "installed cuDNN does not support nearest upsampling or general 1D/3D interpolation; coordinate/backward semantics lack a defensible fixed call")
 
+    # Sparse tensor norm operates on the stored value vector; the sparse index
+    # structure is irrelevant to this extracted kernel.
+    if n == "sparse_norm_cpu":
+        return result("euclidean_norm", "cuBLAS", "cublasSnrm2",
+                      "FULL_FIXED_API", "whole",
+                      "the kernel computes sqrt(sum(value[i]^2)) over the stored values")
+
     # Sparse linear algebra and sparse format manipulation.
     if hit(r"sparse.*(mm|mv|bmm|spmm|addmv)|(^|_)spmm|sspaddmm|hspmm", n):
         return result("sparse_linear_algebra", "cuSPARSE", "cusparseSpMV/SpMM/SpGEMM/SDDMM",
@@ -489,6 +496,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_dot", "aten_fp16_dot_cpu", "aten_mm", "aten_mv",
         "aten_blas_gemv_generic_cpu", "aten_linear_combination_cpu",
         "aten_nested_matmul_broadcast_cpu", "aten_outer",
+        "aten_sparse_norm_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and name in {

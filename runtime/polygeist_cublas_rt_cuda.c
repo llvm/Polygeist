@@ -5912,7 +5912,14 @@ void polygeist_cublas_snrm2_f32(
   polygeist_cublas_init();
   size_t bytes = (size_t)N * sizeof(float);
   float *deviceInput = (float *)register_host_safe((void *)input, bytes);
-  CUBLAS_CHECK(cublasSnrm2(g_handle, N, deviceInput, 1, output));
+  void *deviceOutput = NULL;
+  int outputIsDevice = pointer_is_device_resident(output, &deviceOutput);
+  if (outputIsDevice)
+    CUBLAS_CHECK(cublasSetPointerMode(g_handle, CUBLAS_POINTER_MODE_DEVICE));
+  CUBLAS_CHECK(cublasSnrm2(g_handle, N, deviceInput, 1,
+                           outputIsDevice ? (float *)deviceOutput : output));
+  if (outputIsDevice)
+    CUBLAS_CHECK(cublasSetPointerMode(g_handle, CUBLAS_POINTER_MODE_HOST));
   sync_stream_if_outside_pipeline();
 }
 

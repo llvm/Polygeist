@@ -3646,6 +3646,133 @@ def _render_rowwise_nansum(
              "cubSegmentedNanSum_f32_memref", indices)]
 
 
+def _render_sparse_euclidean_norm(
+    text: str, instances, bodies,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize a complete sqrt(sum(x*x)) scalar-output composition."""
+    function = re.search(
+        r"func\.func\s+@aten_sparse_norm_cpu\("
+        r"%arg0:\s*memref<\?xf32>,\s*%arg1:\s*memref<\?xf32>\)", text)
+    if function is None:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    function_text = text[function.start():function_end]
+    indices = [i for i, inst in enumerate(instances)
+               if function.start() <= inst.span[0] < function_end]
+    if len(indices) != 1 or function_text.count("linalg.generic") != 1:
+        return []
+    index = indices[0]
+    instance, body = instances[index], bodies[index]
+    maps = [_compact_affine_map(value) for value in body.indexing_maps]
+    direct_maps = maps == ["affine_map<(d0)->(d0)>",
+                           "affine_map<(d0)->()>"]
+    scaled_maps = maps == ["affine_map<(d0)->(d0)>",
+                           "affine_map<(d0)->(d0)>"]
+    if (not (direct_maps or scaled_maps) or
+            body.iterator_types != ["reduction"]):
+        return []
+    generic_text = text[instance.span[0]:instance.span[1]]
+    args = re.search(
+        r"\^bb0\((?P<input>%[\w.$-]+):\s*f32,\s*"
+        r"(?P<acc>%[\w.$-]+):\s*f32\)", generic_text)
+    if args is None:
+        return []
+    value, acc = args.group("input"), args.group("acc")
+    product = re.search(
+        rf"(?P<product>%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+        rf"{re.escape(value)},\s*{re.escape(value)}\s*:\s*f32", generic_text)
+    if product is None:
+        return []
+    total = re.search(
+        rf"(?P<total>%[\w.$-]+)\s*=\s*arith\.addf\s+"
+        rf"{re.escape(acc)},\s*{re.escape(product.group('product'))}\s*:\s*f32",
+        generic_text)
+    if (total is None or re.search(
+            rf"linalg\.yield\s+{re.escape(total.group('total'))}\s*:\s*f32",
+            generic_text) is None):
+        return []
+    prefix = function_text[:instance.span[0] - function.start()]
+    zero = re.search(
+        r"(?P<zero>%[\w.$-]+)\s*=\s*arith\.constant\s+"
+        r"0\.000000e\+00\s*:\s*f32", prefix)
+    init = (re.search(
+        rf"(?P<init>%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+        rf"{re.escape(zero.group('zero'))}\s+into\s+%[\w.$-]+\[\]",
+        prefix) if zero is not None else None)
+    generic_result = re.search(
+        r"(?P<result>%[\w.$-]+)\s*=\s*linalg\.generic", generic_text)
+    if zero is None or init is None or generic_result is None:
+        return []
+    init_operand = init.group("init")
+    extent = None
+    inverse_result = None
+    if scaled_maps:
+        input_tensor = re.search(
+            r"(?P<tensor>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg0\s*"
+            r":\s*memref<\?xf32>", prefix)
+        input_submap = (re.search(
+            rf"(?P<input>%[\w.$-]+)\s*=\s*polygeist\.submap\("
+            rf"{re.escape(input_tensor.group('tensor'))},\s*(?P<extent>%[\w.$-]+)\)",
+            prefix) if input_tensor is not None else None)
+        output_submap = re.search(
+            rf"(?P<output>%[\w.$-]+)\s*=\s*polygeist\.submap\("
+            rf"{re.escape(init.group('init'))},\s*(?P<extent>%[\w.$-]+)\)",
+            prefix)
+        if input_submap is None or output_submap is None:
+            return []
+        if input_submap.group("extent") != output_submap.group("extent"):
+            return []
+        extent = _constant_index_value(text, input_submap.group("extent"))
+        if extent is None or extent <= 0:
+            return []
+        if (re.search(rf"ins\({re.escape(input_submap.group('input'))}\s*:",
+                      generic_text) is None):
+            return []
+        init_operand = output_submap.group("output")
+        suffix_for_inverse = text[instance.span[1]:function_end]
+        inverse = re.search(
+            rf"(?P<result>%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+            rf"{re.escape(init.group('init'))},\s*"
+            rf"{re.escape(generic_result.group('result'))},\s*"
+            rf"{re.escape(input_submap.group('extent'))}\)", suffix_for_inverse)
+        if inverse is None:
+            return []
+        inverse_result = inverse.group("result")
+    if re.search(rf"outs\({re.escape(init_operand)}\s*:", generic_text) is None:
+        return []
+    suffix = text[instance.span[1]:function_end]
+    extraction_source = inverse_result or generic_result.group("result")
+    epilogue = re.search(
+        rf"(?P<extracted>%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+        rf"{re.escape(extraction_source)}\[\]\s*:\s*tensor<f32>\s*\n\s*"
+        rf"(?P<root>%[\w.$-]+)\s*=\s*math\.sqrt\s+"
+        rf"(?P=extracted)\s*:\s*f32.*?"
+        rf"tensor\.insert\s+(?P=root)\s+into\s+(?P<output>%[\w.$-]+)\["
+        rf"%[\w.$-]+\]\s*:\s*tensor<\?xf32>.*?"
+        rf"(?P<memref>%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+        rf"%[\w.$-]+\s*:\s*memref<\?xf32>\s*\n\s*memref\.copy\s+"
+        rf"(?P=memref),\s*%arg1\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>",
+        suffix, re.S)
+    output_tensor = re.search(
+        r"(?P<output>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg1\s*"
+        r":\s*memref<\?xf32>", prefix)
+    if (epilogue is None or output_tensor is None or
+            epilogue.group("output") != output_tensor.group("output")):
+        return []
+    edit_start = function.start() + zero.start()
+    edit_end = instance.span[1] + epilogue.end()
+    extent_attr = (f" {{polygeist.fixed_extents = array<i64: {extent}>}}"
+                   if extent is not None else "")
+    replacement = (
+        f"{instance.indent}kernel.launch @cublasSnrm2_f32_memref("
+        f"%arg0, %arg1){extent_attr} : "
+        "(memref<?xf32>, memref<?xf32>) -> ()")
+    return [(edit_start, edit_end, replacement,
+             "cublasSnrm2_f32_memref", indices)]
+
+
 def _render_rowwise_argreduce(
     text: str, instances, bodies, body_forms,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -7631,6 +7758,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[nan-filtered-reduction]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_sparse_euclidean_norm(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[reduction-sqrt]"))
         emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):

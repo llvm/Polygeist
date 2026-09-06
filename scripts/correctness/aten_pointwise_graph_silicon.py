@@ -216,7 +216,7 @@ CASES = {
         [ptr("x", "R*C"), ptr("out", "R*C", True)],
         "full dense-to-block-major layout conversion via cuTENSOR permutation"),
     "aten_sparse_norm_cpu": spec(
-        {"N": 16_777_216},
+        {"N": 2_097_152},
         [ptr("value", "N"), ptr("out", "1", True)],
         "full Euclidean norm through cuBLAS Snrm2"),
     "aten_joint_scaling_cpu": spec(
@@ -850,6 +850,7 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                                     "aten_nansum_cpu",
                                     "aten_argmax_cpu",
                                     "aten_argmin_cpu",
+                                    "aten_sparse_norm_cpu",
                                     "aten_compressed_block_convert_cpu",
                                     "aten_upsample_bilinear2d"})
     if "via cuSPARSE" not in cfg["coverage"]:

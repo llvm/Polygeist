@@ -501,7 +501,7 @@ aten_sparse_matmul_cpu	pass	0	3	0	-
 aten_sparse_matmul_csr_to_coo_cpu	pass	0	0	1	cusparseXcsr2coo_i32_memref
 aten_sparse_matmul_maxnnz_cpu	pass	0	2	0	-
 aten_sparse_mul_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
-aten_sparse_norm_cpu	pass	1	0	0	-
+aten_sparse_norm_cpu	pass	1	0	1	cublasSnrm2_f32_memref
 aten_sparse_softmax_offsets_cpu	pass	0	2	0	-
 aten_sparse_softmax_pools_cpu	pass	1	0	0	-
 aten_sparse_sum_backward_cpu	pass	1	0	0	-
