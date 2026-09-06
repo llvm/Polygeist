@@ -312,6 +312,22 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "bin-edge inclusivity, out-of-range/NaN handling and weighted/multidimensional bins",
                  "supported sample/bin types; histogramdd may require linearized keys",
                  "histogram matcher + CUB backend + semantic guards", priority="MEDIUM")
+    if fam == "frequency_by_key":
+        return r("CUB", "DeviceRadixSort + DeviceRunLengthEncode + lower-bound/gather composition",
+                 "BUILDING_BLOCKS_ONLY", "sort, run-length count, and original-order lookup stages",
+                 "full int32 key domain, stable restoration of original order, temporary storage, and aliasing",
+                 "contiguous keys; no dense bounded-key assumption is available",
+                 "multi-call algorithm recognizer and CUB composition backend; no single fixed-library replacement",
+                 priority="LOW")
+    if fam in {"arbitrary_gather", "cyclic_shift", "variable_bit_shift"}:
+        detail = {
+            "arbitrary_gather": "runtime per-row indices are not representable by memcpy or a cuTENSOR affine-mode permutation",
+            "cyclic_shift": "modular wraparound indexing is not a cuTENSOR affine-mode permutation",
+            "variable_bit_shift": "NPP signal shifts take one constant shift value, not one value per element",
+        }[fam]
+        return r("none", "no fixed public NVIDIA library call", "NO_PUBLIC_LIBRARY_EQUIVALENT", "none",
+                 detail, "not applicable",
+                 "retain the Linalg computation and use conventional GPU lowering", priority="NONE")
     if fam in {"indexed_data_movement", "indexed_scatter", "indexed_scatter_reduce", "patch_extract_scatter", "reduce_and_compact"}:
         return r("CUB", "DeviceSelect or sort/reduce-by-key primitives", "BUILDING_BLOCKS_ONLY", "supported indexing stages",
                  "bounds/negative indices, duplicate destinations, atomic reduction, determinism and write order",

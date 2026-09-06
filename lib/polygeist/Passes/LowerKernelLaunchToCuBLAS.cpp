@@ -261,6 +261,7 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cubSegmentedPrefixLogicalAnd_i32_memref")
     return "polygeist_cub_segmented_prefix_logical_and_i32";
   if (libSym == "cubSegmentedSum_f32_memref" ||
+      libSym == "cubSegmentedNanSum_f32_memref" ||
       libSym == "cubSegmentedMin_f32_memref" ||
       libSym == "cubSegmentedMax_f32_memref")
     return "polygeist_cub_segmented_reduce_f32";
@@ -6272,6 +6273,7 @@ static LogicalResult lowerCubSegmentedFullMemref(LaunchOp launch,
                   !outputTy.getElementType().isF32())))
     return launch.emitError("invalid bufferized segmented reduction types");
   int32_t opId = isI32 ? 2
+      : libSym == "cubSegmentedNanSum_f32_memref" ? 3
       : (libSym == "cubSegmentedSum_f32_memref" || isF64) ? 0
       : libSym == "cubSegmentedMin_f32_memref" ? 1 : 2;
   OpBuilder b(launch); Location loc = launch.getLoc();
@@ -7223,6 +7225,7 @@ struct LowerKernelLaunchToCuBLASPass
                       libSym == "cubSegmentedPrefixSum_f32_memref")
                 : lowerCubSegmentedPrefix(launch, module, libSym);
       } else if (libSym == "cubSegmentedSum_f32_memref" ||
+                 libSym == "cubSegmentedNanSum_f32_memref" ||
                  libSym == "cubSegmentedSum_f64_memref" ||
                  libSym == "cubSegmentedMin_f32_memref" ||
                  libSym == "cubSegmentedMax_f32_memref" ||

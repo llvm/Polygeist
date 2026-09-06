@@ -555,6 +555,8 @@ extern "C" int polygeist_cub_segmented_reduce_i32_cuda(
   return static_cast<int>(status);
 }
 
+static bool cub_device_pointer(const void *pointer, void **device_pointer);
+
 template <typename T, typename Op>
 static cudaError_t segmented_reduce_numeric(
     int32_t rows, int32_t cols, const T *host_x, T *host_out,
@@ -564,16 +566,20 @@ static cudaError_t segmented_reduce_numeric(
   size_t input_bytes = (size_t)rows * cols * sizeof(T);
   size_t output_bytes = (size_t)rows * sizeof(T);
   T *device_x = nullptr, *device_out = nullptr;
+  bool owns_x = !cub_device_pointer(host_x, (void **)&device_x);
+  bool owns_out = !cub_device_pointer(host_out, (void **)&device_out);
   using Counting = cub::CountingInputIterator<int32_t>;
   using Offsets = cub::TransformInputIterator<int32_t, SegmentOffset, Counting>;
   Counting counting(0); Offsets offsets(counting, SegmentOffset{cols});
   void *temporary = nullptr; size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&device_x, input_bytes);
+  cudaError_t status = cudaSuccess;
+  if (owns_x) status = cudaMalloc(&device_x, input_bytes);
   if (status != cudaSuccess) return status;
-  status = cudaMalloc(&device_out, output_bytes);
+  if (owns_out) status = cudaMalloc(&device_out, output_bytes);
   if (status != cudaSuccess) goto cleanup_f32_reduce;
-  status = cudaMemcpyAsync(device_x, host_x, input_bytes,
-                           cudaMemcpyHostToDevice, stream);
+  if (owns_x)
+    status = cudaMemcpyAsync(device_x, host_x, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
   if (status != cudaSuccess) goto cleanup_f32_reduce;
   status = cub::DeviceSegmentedReduce::Reduce(
       temporary, temporary_bytes, device_x, device_out, rows,
@@ -584,12 +590,70 @@ static cudaError_t segmented_reduce_numeric(
   status = cub::DeviceSegmentedReduce::Reduce(
       temporary, temporary_bytes, device_x, device_out, rows,
       offsets, offsets + 1, op, identity, stream);
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && owns_out)
     status = cudaMemcpyAsync(host_out, device_out, output_bytes,
                              cudaMemcpyDeviceToHost, stream);
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
 cleanup_f32_reduce:
-  cudaFree(temporary); cudaFree(device_out); cudaFree(device_x);
+  cudaFree(temporary);
+  if (owns_out) cudaFree(device_out);
+  if (owns_x) cudaFree(device_x);
+  return status;
+}
+
+struct NanToZeroF32 {
+  __host__ __device__ float operator()(float value) const {
+    return isnan(value) ? 0.0f : value;
+  }
+};
+
+static cudaError_t segmented_nansum_f32(
+    int32_t rows, int32_t cols, const float *host_x, float *host_out,
+    cudaStream_t stream) {
+  if (rows <= 0) return cudaSuccess;
+  if (cols <= 0) return cudaErrorInvalidValue;
+  size_t input_bytes = (size_t)rows * cols * sizeof(float);
+  size_t output_bytes = (size_t)rows * sizeof(float);
+  float *device_x = nullptr, *device_out = nullptr;
+  bool owns_x = !cub_device_pointer(host_x, (void **)&device_x);
+  bool owns_out = !cub_device_pointer(host_out, (void **)&device_out);
+  using Counting = cub::CountingInputIterator<int32_t>;
+  using Offsets = cub::TransformInputIterator<int32_t, SegmentOffset, Counting>;
+  Counting counting(0);
+  Offsets offsets(counting, SegmentOffset{cols});
+  void *temporary = nullptr;
+  size_t temporary_bytes = 0;
+  cudaError_t status = cudaSuccess;
+  if (owns_x) status = cudaMalloc(&device_x, input_bytes);
+  if (status != cudaSuccess) return status;
+  if (owns_out) status = cudaMalloc(&device_out, output_bytes);
+  if (status != cudaSuccess) goto cleanup_nansum;
+  if (owns_x)
+    status = cudaMemcpyAsync(device_x, host_x, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
+  if (status != cudaSuccess) goto cleanup_nansum;
+  {
+    using Input = cub::TransformInputIterator<
+        float, NanToZeroF32, const float *>;
+    Input input(device_x, NanToZeroF32{});
+    status = cub::DeviceSegmentedReduce::Reduce(
+        temporary, temporary_bytes, input, device_out, rows,
+        offsets, offsets + 1, cub::Sum{}, 0.0f, stream);
+    if (status != cudaSuccess) goto cleanup_nansum;
+    status = cudaMalloc(&temporary, temporary_bytes);
+    if (status != cudaSuccess) goto cleanup_nansum;
+    status = cub::DeviceSegmentedReduce::Reduce(
+        temporary, temporary_bytes, input, device_out, rows,
+        offsets, offsets + 1, cub::Sum{}, 0.0f, stream);
+  }
+  if (status == cudaSuccess && owns_out)
+    status = cudaMemcpyAsync(host_out, device_out, output_bytes,
+                             cudaMemcpyDeviceToHost, stream);
+  if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
+cleanup_nansum:
+  cudaFree(temporary);
+  if (owns_out) cudaFree(device_out);
+  if (owns_x) cudaFree(device_x);
   return status;
 }
 
@@ -603,6 +667,8 @@ extern "C" int polygeist_cub_segmented_reduce_f32_cuda(
     status = segmented_reduce_numeric(rows, cols, x, out, INFINITY, cub::Min{}, stream);
   else if (op == 2)
     status = segmented_reduce_numeric(rows, cols, x, out, -INFINITY, cub::Max{}, stream);
+  else if (op == 3)
+    status = segmented_nansum_f32(rows, cols, x, out, stream);
   else return -1;
   return (int)status;
 }

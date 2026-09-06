@@ -355,7 +355,7 @@ aten_multilabel_margin_loss_forward_cpu	pass	1	3	0	-
 aten_multinomial_with_replacement_cpu	pass	1	3	0	-
 aten_mv	pass	1	0	1	cublasDgemv
 aten_nan_to_num	pass	1	0	0	-
-aten_nansum_cpu	pass	2	0	1	memset_zero_1D_f32
+aten_nansum_cpu	pass	2	0	1	cubSegmentedNanSum_f32_memref
 aten_narrow_copy_dense_cpu	pass	1	0	1	cudaCopy2D_f32_tensor
 aten_ndtri	pass	1	0	0	-
 aten_ne	pass	1	0	0	-

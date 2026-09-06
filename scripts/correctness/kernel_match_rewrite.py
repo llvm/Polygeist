@@ -175,6 +175,7 @@ ABI_LOWERABLE_KERNELS = {
     "cubSegmentedInclusiveProduct2D_f32_tensor",
     "cubExclusiveSum1D_i32_memref",
     "cubSegmentedSum_f32_memref",
+    "cubSegmentedNanSum_f32_memref",
     "cubSegmentedSum_f64_memref",
     "cubSegmentedMin_f32_memref",
     "cubSegmentedMax_f32_memref",
@@ -3531,6 +3532,118 @@ def _render_dynamic_allany_reduction(
         "(memref<?x64xi32>, memref<?x64xi32>, i32, memref<?xi32>) -> ()")
     return [(init.span[0], edit_end, replacement,
              "cubSegmentedLogicalSelect_i32_memref", indices)]
+
+
+def _render_rowwise_nansum(
+    text: str, instances, bodies,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize zero-initialized row sums that discard NaN inputs."""
+    function = re.search(
+        r"func\.func\s+@aten_nansum_cpu\("
+        r"%arg0:\s*memref<\?x64xf32>,\s*%arg1:\s*memref<\?xf32>\)", text)
+    if function is None:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    function_text = text[function.start():function_end]
+    indices = [i for i, inst in enumerate(instances)
+               if function.start() <= inst.span[0] < function_end]
+    if len(indices) != 2:
+        return []
+    init_i, reduce_i = indices
+    init, reduce = instances[init_i], instances[reduce_i]
+    maps = [[_compact_affine_map(value) for value in bodies[i].indexing_maps]
+            for i in indices]
+    legal_maps = maps == [["affine_map<(d0)->(d0)>"], [
+        "affine_map<(d0,d1)->(d0,d1)>",
+        "affine_map<(d0,d1)->(d0)>"]]
+    scaled_maps = maps == [["affine_map<(d0)->(d0)>"], [
+        "affine_map<(d0,d1)->(d0,d1)>",
+        "affine_map<(d0,d1)->(d0,d1)>"]]
+    if (bodies[init_i].iterator_types != ["parallel"] or
+            bodies[reduce_i].iterator_types != ["parallel", "reduction"] or
+            not (legal_maps or scaled_maps)):
+        return []
+    init_body = text[init.span[0]:init.span[1]]
+    reduce_body = text[reduce.span[0]:reduce.span[1]]
+    init_zero = re.search(
+        r"(?P<zero>%[\w.$-]+)\s*=\s*arith\.constant\s+"
+        r"0\.000000e\+00\s*:\s*f32", function_text)
+    args = re.search(
+        r"\^bb0\((?P<input>%[\w.$-]+):\s*f32,\s*"
+        r"(?P<out>%[\w.$-]+):\s*f32\)", reduce_body)
+    legal_body = False
+    if init_zero is not None and args is not None:
+        value, out = args.group("input"), args.group("out")
+        cmp_match = re.search(
+            rf"(?P<cmp>%[\w.$-]+)\s*=\s*arith\.cmpf\s+oeq,\s*"
+            rf"{re.escape(value)},\s*{re.escape(value)}\s*:\s*f32",
+            reduce_body)
+        add_match = re.search(
+            rf"(?P<add>%[\w.$-]+)\s*=\s*arith\.addf\s+"
+            rf"{re.escape(out)},\s*{re.escape(value)}\s*:\s*f32",
+            reduce_body)
+        legal_body = (
+            cmp_match is not None and add_match is not None and
+            re.search(
+                rf"arith\.select\s+{re.escape(cmp_match.group('cmp'))},\s*"
+                rf"{re.escape(add_match.group('add'))},\s*{re.escape(out)}\s*:\s*f32",
+                reduce_body) is not None and
+            re.search(
+                rf"linalg\.yield\s+{re.escape(init_zero.group('zero'))}\s*:\s*f32",
+                init_body) is not None)
+    final_copy = re.search(
+        r"(?P<memref>%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+        r"%[\w.$-]+\s*:\s*memref<\?xf32>\s*\n\s*memref\.copy\s+"
+        r"(?P=memref),\s*%arg1\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>",
+        text[reduce.span[1]:function_end])
+    input_slice = re.search(
+        r"tensor\.extract_slice\s+%[\w.$-]+\[0,\s*0\]\s*"
+        r"\[(?P<rows>%[\w.$-]+),\s*(?P<cols>%[\w.$-]+)\]\s*\[1,\s*1\]",
+        function_text)
+    input_tensor = re.search(
+        r"(?P<tensor>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg0\s*"
+        r":\s*memref<\?x64xf32>", function_text)
+    input_submap = (re.search(
+        rf"polygeist\.submap\({re.escape(input_tensor.group('tensor'))},\s*"
+        r"(?P<rows>%[\w.$-]+),\s*(?P<cols>%[\w.$-]+)\)\s*"
+        r"\{map\s*=\s*#[\w.$-]+\}.*->\s*tensor<\?x\?xf32>",
+        function_text) if input_tensor is not None else None)
+    shape_match = input_slice or input_submap
+    rows = (_constant_index_value(text, shape_match.group("rows"))
+            if shape_match is not None else None)
+    cols = (_constant_index_value(text, shape_match.group("cols"))
+            if shape_match is not None else None)
+    legal_region = (
+        legal_body and final_copy is not None and
+        rows is not None and rows > 0 and cols == 64 and
+        function_text.count("linalg.generic") == 2 and
+        function_text.count("tensor.extract_slice") == 2 and
+        function_text.count("tensor.insert_slice") == 1 and
+        re.search(r"bufferization\.to_tensor\s+%arg0\s*:\s*memref<\?x64xf32>",
+                  function_text) is not None and
+        re.search(r"bufferization\.to_tensor\s+%arg1\s*:\s*memref<\?xf32>",
+                  function_text) is not None)
+    if scaled_maps:
+        legal_region = (
+            legal_body and final_copy is not None and
+            rows is not None and rows > 0 and cols == 64 and
+            function_text.count("linalg.generic") == 2 and
+            len(re.findall(r"polygeist\.submap\(", function_text)) == 3 and
+            function_text.count("polygeist.submapInverse") == 2 and
+            input_tensor is not None and
+            re.search(r"bufferization\.to_tensor\s+%arg1\s*:\s*memref<\?xf32>",
+                      function_text) is not None)
+    if not legal_region:
+        return []
+    edit_end = reduce.span[1] + final_copy.end()
+    replacement = (
+        f"{init.indent}kernel.launch @cubSegmentedNanSum_f32_memref("
+        f"%arg0, %arg1) {{polygeist.fixed_extents = array<i64: {rows}, 64>}} : "
+        "(memref<?x64xf32>, memref<?xf32>) -> ()")
+    return [(init.span[0], edit_end, replacement,
+             "cubSegmentedNanSum_f32_memref", indices)]
 
 
 def _render_rowwise_argreduce(
@@ -7506,6 +7619,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[seeded-argreduce]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_rowwise_nansum(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[nan-filtered-reduction]"))
         emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):

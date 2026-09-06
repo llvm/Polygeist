@@ -2355,11 +2355,14 @@ void polygeist_cub_segmented_reduce_i32(
 void polygeist_cub_segmented_reduce_f32(
     int32_t op, int32_t rows, int32_t cols, const float *x, float *out) {
   for (int32_t row = 0; row < rows; ++row) {
-    float acc = op == 0 ? 0.0f : x[(size_t)row * cols];
-    int32_t begin = op == 0 ? 0 : 1;
+    float acc = (op == 0 || op == 3) ? 0.0f : x[(size_t)row * cols];
+    int32_t begin = (op == 0 || op == 3) ? 0 : 1;
     for (int32_t col = begin; col < cols; ++col) {
       float value = x[(size_t)row * cols + col];
       if (op == 0) acc += value;
+      else if (op == 3) {
+        if (!isnan(value)) acc += value;
+      }
       else if (op == 1) acc = value < acc ? value : acc;
       else acc = value > acc ? value : acc;
     }

@@ -164,6 +164,8 @@ module {
       %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedSum_f32_memref(
       %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedNanSum_f32_memref(
+      %input: memref<?x64xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedSum_f64_memref(
       %input: memref<?x?xf64>, %out: memref<?xf64>) { kernel.yield }
   kernel.defn @cubSegmentedMin_f32_memref(

@@ -324,6 +324,10 @@ CASES = {
         [iptr("x", "R*C", init="bool"), iscalar("all", 1),
          iptr("out", "R", True)],
         "full dynamic CUB segmented all-or-any reduction"),
+    "aten_nansum_cpu": spec(
+        {"R": 131_072, "K": 64},
+        [ptr("x", "R*K", init="nanmix"), ptr("out", "R", True)],
+        "full NaN-filtered row reduction through CUB transform plus segmented sum"),
     "aten_and_reduce_cpu": spec(
         {"R": 131_072, "K": 64},
         [iptr("x", "R*K", init="bool"), iptr("out", "R", True)],
@@ -744,6 +748,9 @@ def harness_text(kernel: str, cfg: dict) -> str:
             expr = ("(((i/K)%4==0 && i%K==0) || "
                     "((i/K)%4==1 && (i%K==7 || i%K==19))) ? NAN : "
                     "(float)((int)((i%K)%11)-5)")
+        elif init_kind == "nanmix":
+            expr = ("((i/K)%4==0 || i%K==7 || i%K==19) ? NAN : "
+                    "((float)((int)(i%101)-50))/37.0f")
         else:
             expr = "((float)(i%101)-50.0f)/37.0f"
         init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
@@ -840,6 +847,7 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                                     "aten_diff_cpu",
                                     "aten_embedding_bag_counts_cpu",
                                     "aten_allany_dims_cpu",
+                                    "aten_nansum_cpu",
                                     "aten_argmax_cpu",
                                     "aten_argmin_cpu",
                                     "aten_compressed_block_convert_cpu",

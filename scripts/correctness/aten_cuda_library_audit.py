@@ -120,6 +120,18 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("indexed_data_movement", "CUB", "DeviceSelect/sort primitives",
                       "PARTIAL_API", "stages",
                       "CUB provides building blocks but no general gather/scatter tensor call")
+    if n == "nested_select_cpu":
+        return result("arbitrary_gather", "", "none",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "each row uses a runtime index, so this is neither a contiguous copy nor a regular tensor permutation")
+    if n in {"fftshift_cpu", "ifftshift_cpu"}:
+        return result("cyclic_shift", "", "none",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "a wraparound cyclic shift is not a cuTENSOR mode permutation")
+    if n in {"lshift_i32", "rshift_i32"}:
+        return result("variable_bit_shift", "", "none",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "NPP exposes constant-shift signal calls, but this fixture supplies a distinct shift count for every element")
     if hit(r"nested_(clone|squeeze)_cpu", n):
         return result("data_movement", "CUDA Runtime", "cudaMemcpyAsync",
                       "FULL_GENERIC_API", "whole",
@@ -157,9 +169,9 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "sort_and_count_stages",
                       "CUB supplies the sort and run counting stages but not one mode call with ATen tie/index semantics")
     if "nansum" in n:
-        return result("nan_ignoring_reduction", "cuDNN", "ISNAN/selection plus ADD reduction graph",
+        return result("nan_ignoring_reduction", "CUB", "transform iterator plus DeviceSegmentedReduce::Sum",
                       "FULL_GENERIC_API", "whole",
-                      "a pointwise NaN replacement followed by sum is graph-expressible")
+                      "a transform iterator maps source NaNs to the additive identity before segmented sum")
     if "quant_col_offsets" in n:
         return result("column_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",
@@ -390,6 +402,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("histogram_count", "CUB", "DeviceHistogram",
                       "FULL_GENERIC_API", "whole",
                       "bounded embedding IDs form a dense integer histogram")
+    if n == "embedding_bag_counts_uniq_cpu":
+        return result("frequency_by_key", "CUB",
+                      "DeviceRadixSort plus DeviceRunLengthEncode plus key lookup",
+                      "PARTIAL_API", "multi_stage",
+                      "global frequency-by-key requires sorting/counting unique runs and "
+                      "mapping counts back to the original order; it is not a segmented reduction")
     if hit(r"segment_reduce|segmented|embedding_bag", n):
         return result("segmented_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",
@@ -509,7 +527,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
     if library == "CUB" and name in {
         "aten_and_reduce_cpu", "aten_count_nonzero_impl_cpu",
         "aten_quant_col_offsets_cpu", "aten_diff_cpu",
-        "aten_embedding_bag_counts_cpu",
+        "aten_embedding_bag_counts_cpu", "aten_nansum_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and "graph" in audit["candidate_api"].lower():
