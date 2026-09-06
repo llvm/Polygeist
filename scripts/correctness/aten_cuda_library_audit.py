@@ -404,6 +404,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "cuTENSOR supports permutation and conjugate unary operators")
 
     # Device-wide algorithms: sort/select/scan/reduce/histogram/indexing.
+    if n == "cumprod_backward_cpu":
+        return result("cumprod_backward", "CUB",
+                      "prefix/suffix DeviceScan composition plus elementwise combine",
+                      "PARTIAL_API", "multi_stage",
+                      "the derivative is a suffix sum of products with one input omitted; "
+                      "correct handling of zero inputs requires multiple scans and case analysis")
     if hit(r"cumsum|cumprod|cummax|cummin|scan|prefix|batch_offsets", n):
         return result("scan", "CUB", "DeviceScan or DeviceSegmentedScan",
                       "FULL_GENERIC_API", "whole",

@@ -327,6 +327,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "recognize the indirect scatter-add loop and lower a multi-call CUB composition",
                  priority="MEDIUM",
                  note="DeviceHistogram is not a legal replacement because it cannot accumulate per-sample weights")
+    if fam == "cumprod_backward":
+        return r("CUB", "prefix/suffix DeviceScan composition",
+                 "BUILDING_BLOCKS_ONLY", "prefix product, zero-count, and suffix accumulation stages",
+                 "zero and multiple-zero cases, NaN/Inf propagation, floating reassociation, and mutation/aliasing must match",
+                 "contiguous scan axis or explicit segmented rows; temporary prefix/suffix state is required",
+                 "whole-algorithm recognizer + multi-call CUB scan composition + residual elementwise Linalg",
+                 priority="MEDIUM",
+                 note="The raised triple-nested derivative is not one associative scan")
     if fam == "indexed_gather_dot":
         return r("CUB", "DeviceSegmentedReduce + transform input iterator",
                  "BUILDING_BLOCKS_ONLY", "whole through a configured iterator/reduction composition",
