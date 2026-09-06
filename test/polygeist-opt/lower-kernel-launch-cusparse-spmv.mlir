@@ -22,6 +22,10 @@ module {
       %rowptr: memref<?xi32>, %cols: memref<?xi32>,
       %values: memref<?x?x?xf32>, %x: memref<?xf32>,
       %y: memref<?xf32>) { kernel.yield }
+  kernel.defn @cusparseSDDMM_CSR_f32_memref(
+      %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
+      %self: memref<?xf32>, %a: memref<?x?xf32>, %b: memref<?x?xf32>,
+      %alpha: f32, %beta: f32, %out: memref<?xf32>) { kernel.yield }
   func.func @spmv(%rows: index, %rowptr: memref<?xi32>,
                   %cols: memref<?xi32>, %values: memref<?xf64>,
                   %x: memref<?xf64>, %y: memref<?xf64>) {
@@ -88,11 +92,23 @@ module {
          memref<?xf32>, memref<?xf32>) -> ()
     return
   }
+
+  func.func @csr_sddmm(
+      %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
+      %self: memref<?xf32>, %a: memref<?x?xf32>, %b: memref<?x?xf32>,
+      %alpha: f32, %beta: f32, %out: memref<?xf32>) {
+    kernel.launch @cusparseSDDMM_CSR_f32_memref(
+        %rows, %rowptr, %cols, %self, %a, %b, %alpha, %beta, %out) :
+        (index, memref<?xi32>, memref<?xi32>, memref<?xf32>,
+         memref<?x?xf32>, memref<?x?xf32>, f32, f32, memref<?xf32>) -> ()
+    return
+  }
 }
 
 // CHECK: call @polygeist_cusparse_spmv_csr_f64_sized
 // CHECK: call @polygeist_cusparse_spmm_csr_f32_sized
 // CHECK: call @polygeist_cusparse_spmm_coo_f32_sized
 // CHECK: call @polygeist_cusparse_spmm_bsr_f32_sized
+// CHECK: call @polygeist_cusparse_sddmm_csr_f32_sized
 // CHECK-NOT: kernel.launch
 // CHECK-NOT: polygeist.submap

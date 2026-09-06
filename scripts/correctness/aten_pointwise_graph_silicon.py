@@ -488,6 +488,15 @@ CASES = {
          iptr("col", "N", init="csr_col"), ptr("val", "N*BR*BC"),
          ptr("x", "C*BC"), ptr("out", "R*BR", True)],
         "full structured-loop square-BSR SpMV via cuSPARSE SpMM"),
+    "aten_sampled_addmm_sparse_csr_cpu": spec(
+        {"R": 4_096, "K": 512, "C": 4_096,
+         "NNZ": 262_144, "N": 262_144},
+        [iptr("crow", "R+1", init="csr_rowptr"),
+         iptr("col", "NNZ", init="csr_col"), ptr("self", "NNZ"),
+         ptr("a", "R*K"), ptr("b", "K*C"),
+         scalar("alpha", .75), scalar("beta", -.25),
+         ptr("out", "NNZ", True)],
+        "full CSR sampled dense product via cuSPARSE SDDMM"),
     "aten_sparse_addmm_cpu": spec(
         {"R": 64, "C": 4_096, "N": 4_096},
         [iptr("row", "N", init="coo_row"),

@@ -439,7 +439,7 @@ aten_rowwise_prune_cpu	pass	3	0	1	memset_zero_1D_f32
 aten_rshift_i32	pass	1	0	0	-
 aten_rsqrt	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_sample_poisson_transform_cpu	pass	0	2	0	-
-aten_sampled_addmm_sparse_csr_cpu	pass	1	2	0	-
+aten_sampled_addmm_sparse_csr_cpu	pass	1	0	1	cusparseSDDMM_CSR_f32_memref
 aten_scaled_modified_bessel_k0	pass	1	0	0	-
 aten_scaled_modified_bessel_k1	pass	1	0	0	-
 aten_scatter_add_cpu	pass	0	2	0	-
