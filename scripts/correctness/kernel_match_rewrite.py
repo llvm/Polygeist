@@ -52,6 +52,7 @@ ABI_LOWERABLE_KERNELS = {
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
+    "cusparseSpMM_CSR_f32_memref",
     "cusparseSpMV_JDS_f32_memref",
     "custenStencil2DXY_f64_memref",
     "custenStencil2DXY_f64_tensor",
@@ -3959,6 +3960,213 @@ def _render_cusparse_csr_spmv(
     return rendered
 
 
+def _render_cusparse_csr_spmm(
+        text: str) -> list[tuple[int, int, str, str]]:
+    """Replace a complete tensorized CSR-times-dense loop nest with SpMM."""
+    loops = parse_loops(text)
+    rendered: list[tuple[int, int, str, str]] = []
+    for candidate in analyze_residual_loops(text):
+        if candidate.kind != "csr_spmm":
+            continue
+        parents = [loop for loop in loops
+                   if loop.span[0] < candidate.loop.span[0] and
+                   candidate.loop.span[1] < loop.span[1]]
+        if len(parents) != 2:
+            continue
+        row_loop = min(parents, key=lambda loop: loop.span[0])
+        column_loop = max(parents, key=lambda loop: loop.span[0])
+        if not (row_loop.span[0] < column_loop.span[0] and
+                column_loop.span[1] < row_loop.span[1]):
+            continue
+
+        row_line_start = text.rfind("\n", 0, row_loop.span[0]) + 1
+        row_assignment = re.match(
+            r"\s*(%[\w.$-]+)\s*=\s*$",
+            text[row_line_start:row_loop.span[0]])
+        row_body = text[row_loop.span[0]:row_loop.span[1]]
+        row_header = re.match(
+            rf"affine\.for\s+{re.escape(row_loop.induction)}\s*=\s*"
+            r"0\s+to\s+(\d+)\s+iter_args\s*\(\s*"
+            r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\s*\)\s*->\s*"
+            r"\(tensor<[^>]+>\)\s*\{", row_body)
+        column_line_start = text.rfind(
+            "\n", row_loop.span[0], column_loop.span[0]) + 1
+        column_assignment = re.match(
+            r"\s*(%[\w.$-]+)\s*=\s*$",
+            text[column_line_start:column_loop.span[0]])
+        column_body = text[column_loop.span[0]:column_loop.span[1]]
+        column_header = re.match(
+            rf"affine\.for\s+{re.escape(column_loop.induction)}\s*=\s*"
+            r"0\s+to\s+(\d+)\s+iter_args\s*\(\s*"
+            r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\s*\)\s*->\s*"
+            r"\(tensor<[^>]+>\)\s*\{", column_body)
+        if not all((row_assignment, row_header, column_assignment, column_header)):
+            continue
+        row_result = row_assignment.group(1)
+        row_count = int(row_header.group(1))
+        row_iter, output_init = row_header.group(2), row_header.group(3)
+        column_result = column_assignment.group(1)
+        column_count = int(column_header.group(1))
+        column_iter, column_init = column_header.group(2), column_header.group(3)
+        if (row_count <= 0 or column_count <= 0 or column_init != row_iter or
+                re.search(rf"affine\.yield\s+{re.escape(column_result)}\s*:",
+                          row_body) is None):
+            continue
+
+        before_inner = text[column_loop.span[0]:candidate.loop.span[0]]
+        inner = text[candidate.loop.span[0]:candidate.loop.span[1]]
+        rowptr_loads = re.findall(
+            r"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            r"(%[\w.$-]+)\[([^]]+)\]\s*:\s*tensor<[^>]*xi32>",
+            before_inner)
+        if len(rowptr_loads) != 2 or rowptr_loads[0][1] != rowptr_loads[1][1]:
+            continue
+        direct_index = next((i for i, load in enumerate(rowptr_loads)
+                             if load[2].strip() == row_loop.induction), None)
+        if direct_index is None:
+            continue
+        direct = rowptr_loads[direct_index]
+        successor = rowptr_loads[1 - direct_index]
+        successor_apply = re.search(
+            rf"{re.escape(successor[2].strip())}\s*=\s*affine\.apply\s+"
+            rf"([^\n]+)\(\s*{re.escape(row_loop.induction)}\s*\)",
+            before_inner)
+        if successor_apply is None or _compact_affine_map(
+                _resolve_affine_map_text(
+                    text[:candidate.loop.span[0]],
+                    successor_apply.group(1).strip())) != \
+                "affine_map<(d0)->(d0+1)>":
+            continue
+        direct_cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(direct[0])}\s*:\s*i32\s+to\s+index", before_inner)
+        successor_cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(successor[0])}\s*:\s*i32\s+to\s+index", before_inner)
+        if direct_cast is None or successor_cast is None:
+            continue
+
+        inner_line_start = text.rfind(
+            "\n", column_loop.span[0], candidate.loop.span[0]) + 1
+        inner_assignment = re.match(
+            r"\s*(%[\w.$-]+)\s*=\s*$",
+            text[inner_line_start:candidate.loop.span[0]])
+        inner_header = re.match(
+            rf"scf\.for\s+{re.escape(candidate.loop.induction)}\s*=\s*"
+            rf"{re.escape(direct_cast.group(1))}\s+to\s+"
+            rf"{re.escape(successor_cast.group(1))}\s+step\s+%[\w.$-]+\s+"
+            r"iter_args\s*\(\s*(%[\w.$-]+)\s*=\s*"
+            r"(%[\w.$-]+)\s*\)\s*->\s*\(f32\)\s*\{", inner)
+        if inner_assignment is None or inner_header is None:
+            continue
+        inner_result = inner_assignment.group(1)
+        accumulator, zero = inner_header.group(1), inner_header.group(2)
+        if re.search(
+                rf"{re.escape(zero)}\s*=\s*arith\.constant\s+"
+                r"(?:0(?:\.0+)?(?:e[+-]?0+)?|0x0+)\s*:\s*f32",
+                text[:candidate.loop.span[0]], re.IGNORECASE) is None:
+            continue
+
+        p = re.escape(candidate.loop.induction)
+        value = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"(%[\w.$-]+)\[{p}\]\s*:\s*tensor<[^>]*xf32>", inner)
+        index = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"(%[\w.$-]+)\[{p}\]\s*:\s*tensor<[^>]*xi32>", inner)
+        if value is None or index is None:
+            continue
+        index_cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(index.group(1))}\s*:\s*i32\s+to\s+index", inner)
+        if index_cast is None:
+            continue
+        dense = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"(%[\w.$-]+)\[{re.escape(index_cast.group(1))},\s*"
+            rf"{re.escape(column_loop.induction)}\]\s*:\s*"
+            r"tensor<[^>]*xf32>", inner)
+        if dense is None:
+            continue
+        product = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+            rf"(?:{re.escape(value.group(1))},\s*{re.escape(dense.group(1))}|"
+            rf"{re.escape(dense.group(1))},\s*{re.escape(value.group(1))})"
+            r"\s*:\s*f32", inner)
+        total = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addf\s+"
+            rf"(?:{re.escape(accumulator)},\s*{re.escape(product.group(1))}|"
+            rf"{re.escape(product.group(1))},\s*{re.escape(accumulator)})"
+            r"\s*:\s*f32", inner) if product else None)
+        if total is None or re.search(
+                rf"scf\.yield\s+{re.escape(total.group(1))}\s*:\s*f32",
+                inner) is None:
+            continue
+        inserted = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+            rf"{re.escape(inner_result)}\s+into\s+{re.escape(column_iter)}"
+            rf"\[{re.escape(row_loop.induction)},\s*"
+            rf"{re.escape(column_loop.induction)}\]", column_body)
+        if inserted is None or re.search(
+                rf"affine\.yield\s+{re.escape(inserted.group(1))}\s*:",
+                column_body) is None:
+            continue
+
+        tensors = [rowptr_loads[0][1], index.group(2), value.group(2),
+                   dense.group(2), output_init]
+        sources = [_to_tensor_memref_source(text, tensor, row_loop.span[0])
+                   for tensor in tensors]
+        if any(source is None for source in sources):
+            continue
+        operands = [source[0] for source in sources]
+        types = [source[1] for source in sources]
+        if (len(set(operands)) != 5 or
+                [_sniff_elem_type(ty) for ty in types] !=
+                ["i32", "i32", "f32", "f32", "f32"] or
+                [_shaped_rank(ty) for ty in types] != [1, 1, 1, 2, 2] or
+                any("," in ty for ty in types)):
+            continue
+        dense_type = re.fullmatch(r"memref<\?x(\d+)xf32>", types[3])
+        output_type = re.fullmatch(r"memref<\?x(\d+)xf32>", types[4])
+        if (dense_type is None or output_type is None or
+                int(dense_type.group(1)) != column_count or
+                int(output_type.group(1)) != column_count):
+            continue
+        tail = re.match(
+            rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(row_result)}\s*:\s*memref<[^>]*xf32>\s*\n"
+            rf"\s*memref\.copy\s+\1,\s*{re.escape(operands[4])}\s*:\s*[^\n]*",
+            text[row_loop.span[1]:])
+        if tail is None:
+            continue
+
+        uid = row_loop.span[0]
+        rows = f"%cusparse_spmm_rows_{uid}"
+        target_types = ["memref<?xi32>", "memref<?xi32>",
+                        "memref<?xf32>", "memref<?x?xf32>",
+                        "memref<?x?xf32>"]
+        indent = re.match(r"\s*", text[row_line_start:row_loop.span[0]]).group(0)
+        lines = [f"{rows} = arith.constant {row_count} : index"]
+        normalized: list[str] = []
+        for i, (operand, source_type, target_type) in enumerate(
+                zip(operands, types, target_types)):
+            if source_type != target_type:
+                cast = f"%cusparse_spmm_arg_{uid}_{i}"
+                lines.append(
+                    f"{cast} = memref.cast {operand} : {source_type} to {target_type}")
+                normalized.append(cast)
+            else:
+                normalized.append(operand)
+        symbol = "cusparseSpMM_CSR_f32_memref"
+        lines.append(
+            f"kernel.launch @{symbol}(" + ", ".join([rows, *normalized]) +
+            ") : (index, " + ", ".join(target_types) + ") -> ()")
+        replacement = ("\n" + indent).join(lines)
+        rendered.append((row_line_start, row_loop.span[1] + tail.end(),
+                         indent + replacement, symbol))
+    return rendered
+
+
 def _render_cusparse_jds_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Replace a proven repeated JDS SpMV with a cuSPARSE adapter call.
@@ -4616,6 +4824,13 @@ def rewrite_mlir(
                 continue
             edits.append((start, end, replacement))
             report.append(("match", [], symbol + "[indirect-row-reduction]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol in _render_cusparse_csr_spmm(text):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.append((start, end, replacement))
+            report.append(("match", [], symbol + "[indirect-row-matrix-reduction]"))
             emitted_launches += 1
         for start, end, replacement, symbol in _render_cusparse_jds_spmv(text):
             if max_launches is not None and emitted_launches >= max_launches:

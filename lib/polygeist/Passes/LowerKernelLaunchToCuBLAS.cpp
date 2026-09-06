@@ -82,6 +82,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cusparse_spmv_csr_f32_sized";
   if (libSym == "cusparseSpMV_CSR_f64_memref")
     return "polygeist_cusparse_spmv_csr_f64_sized";
+  if (libSym == "cusparseSpMM_CSR_f32_memref")
+    return "polygeist_cusparse_spmm_csr_f32_sized";
   if (libSym == "cusparseSpMV_JDS_f32_memref")
     return "polygeist_cusparse_spmv_jds_f32_sized";
   if (libSym == "custenStencil2DXY_f64_memref" ||
@@ -3606,6 +3608,44 @@ static LogicalResult lowerCusparseCsrSpmv(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+static LogicalResult lowerCusparseCsrSpmm(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 6 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "cuSPARSE CSR SpMM: expected rows, row offsets, column indices, "
+        "values, B, C and no result");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Value> args{valueAsI32(b, loc, launch.getOperand(0))};
+  for (unsigned i = 1; i < 4; ++i) {
+    args.push_back(
+        dimForTensorOrMemrefAsI32(b, loc, launch.getOperand(i), 0));
+    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
+  }
+  for (unsigned i = 4; i < 6; ++i) {
+    args.push_back(
+        dimForTensorOrMemrefAsI32(b, loc, launch.getOperand(i), 0));
+    args.push_back(
+        dimForTensorOrMemrefAsI32(b, loc, launch.getOperand(i), 1));
+    args.push_back(memrefDataPtr(b, loc, launch.getOperand(i)));
+  }
+  SmallVector<Type> types{b.getI32Type()};
+  for (unsigned i = 1; i < 4; ++i) {
+    types.push_back(b.getI32Type());
+    types.push_back(ptrTy);
+  }
+  for (unsigned i = 4; i < 6; ++i) {
+    types.push_back(b.getI32Type());
+    types.push_back(b.getI32Type());
+    types.push_back(ptrTy);
+  }
+  func::FuncOp decl = ensureShimDecl(
+      module, "polygeist_cusparse_spmm_csr_f32_sized", types, b);
+  b.create<func::CallOp>(loc, decl, args);
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCusparseJdsSpmv(LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 9 || launch.getNumResults() != 0)
     return launch.emitError(
@@ -6940,6 +6980,8 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cusparseSpMV_CSR_f32_memref" ||
           libSym == "cusparseSpMV_CSR_f64_memref") {
         r = lowerCusparseCsrSpmv(launch, module);
+      } else if (libSym == "cusparseSpMM_CSR_f32_memref") {
+        r = lowerCusparseCsrSpmm(launch, module);
       } else if (libSym == "cusparseSpMV_JDS_f32_memref") {
         r = lowerCusparseJdsSpmv(launch, module);
       } else if (libSym.starts_with("cubSegmentedPrefix")) {

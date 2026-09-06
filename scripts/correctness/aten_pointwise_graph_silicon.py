@@ -476,6 +476,12 @@ CASES = {
          iptr("col", "N", init="csr_col"), ptr("val", "N"),
          ptr("x", "C"), ptr("out", "R", True)],
         "full structured-loop CSR SpMV via cuSPARSE"),
+    "aten_sparse_csr_addmm_cpu": spec(
+        {"R": 65_536, "K": 65_536, "C": 64, "N": 4_194_304},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col_k"), ptr("val", "N"),
+         ptr("b", "K*C"), ptr("out", "R*C", True)],
+        "full structured-loop CSR SpMM via cuSPARSE"),
     "aten_square": spec({"N": N}, [ptr("x", "N"), ptr("out", "N", True)]),
     "aten_tanh_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
     "aten_uniform_cpu": spec({"N": N}, [ptr("uniform01", "N", init="unit"), scalar("from", -2.), scalar("to", 3.), ptr("out", "N", True)]),
@@ -627,7 +633,9 @@ def harness_text(kernel: str, cfg: dict) -> str:
                     "(int)((i%7)!=0)" if init_kind == "bool" else
                     "(int)(i*(N/R))" if init_kind == "csr_rowptr" else
                     "(int)(((i*17)+(i/(N/R))*13)%C)"
-                    if init_kind == "csr_col" else "0")
+                    if init_kind == "csr_col" else
+                    "(int)(((i*17)+(i/(N/R))*13)%K)"
+                    if init_kind == "csr_col_k" else "0")
             init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
             init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(int));")
             call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")

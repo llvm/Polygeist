@@ -731,24 +731,30 @@ def analyze_residual_loops(text: str) -> list[ResidualIdiomCandidate]:
                     gather_indices.add(result)
                     changed = True
         indirect_gather = False
+        matrix_gather = False
         for loaded_name in gather_indices:
             if re.search(
                     rf"(?:(?:memref|affine)\.load|tensor\.extract)\s+"
                     rf"%[\w.$-]+"
-                    rf"\[{re.escape(loaded_name)}\]", body):
+                    rf"\[{re.escape(loaded_name)}(?:,|\])", body):
                 indirect_gather = True
-                break
+                if re.search(
+                        rf"(?:(?:memref|affine)\.load|tensor\.extract)\s+"
+                        rf"%[\w.$-]+\[{re.escape(loaded_name)}\s*,", body):
+                    matrix_gather = True
         product_accumulate = (bool(re.search(r"\barith\.mulf\b", body)) and
                               bool(re.search(r"\barith\.addf\b", body)))
         if bound_structure and indirect_gather and product_accumulate:
             spmv_kind, bounds_buffer = bound_structure
+            if spmv_kind == "csr_spmv" and matrix_gather:
+                spmv_kind = "csr_spmm"
             if any(start >= loop.span[0] and end <= loop.span[1] and
                    kind == spmv_kind for start, end, kind in covered):
                 continue
-            if spmv_kind == "csr_spmv":
+            if spmv_kind in {"csr_spmv", "csr_spmm"}:
                 lowering_status = (
-                    "cuSPARSE route available after i32-index and f32/f64 "
-                    "operand validation")
+                    "cuSPARSE route available after CSR index, dense-layout, "
+                    "dtype, shape, and operand validation")
             else:
                 lowering_status = (
                     "cuSPARSE route available through the validated JDS-to-CSR "
