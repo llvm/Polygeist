@@ -829,6 +829,9 @@ void polygeist_cub_segmented_reduce_i32(
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
     const float *x, int32_t *out);
+void polygeist_cub_quant_col_offsets_i8_i32(
+    int32_t rows, int32_t cols, int32_t offset,
+    const int8_t *weights, int32_t *out);
 void polygeist_cudnn_sinc_f32(
     int32_t n, const float *x, float *out);
 void polygeist_cub_segmented_sort_descending_f32_i32(

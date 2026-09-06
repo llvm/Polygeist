@@ -476,6 +476,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "CUB" and name in {
         "aten_and_reduce_cpu", "aten_count_nonzero_impl_cpu",
+        "aten_quant_col_offsets_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and "graph" in audit["candidate_api"].lower():

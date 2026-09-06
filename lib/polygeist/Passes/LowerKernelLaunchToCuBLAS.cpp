@@ -274,6 +274,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cubSegmentedArgMax_f32_i32_memref" ||
       libSym == "cubSegmentedArgMin_f32_i32_memref")
     return "polygeist_cub_segmented_argreduce_f32";
+  if (libSym == "cubQuantColOffsets_i8_i32_memref")
+    return "polygeist_cub_quant_col_offsets_i8_i32";
   if (libSym == "cublasSgemvTZero_memref")
     return "polygeist_cublas_sgemv_T";
   if (libSym == "cudnnSinc_f32_memref")
@@ -5737,6 +5739,48 @@ static LogicalResult lowerCubSegmentedArgReduceF32(
   return success();
 }
 
+static LogicalResult lowerCubQuantColOffsetsI8I32(
+    LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "quantized column offsets expects weights, zero point, and output");
+  auto weightsType = dyn_cast<MemRefType>(launch.getOperand(0).getType());
+  auto outputType = dyn_cast<MemRefType>(launch.getOperand(2).getType());
+  if (!weightsType || weightsType.getRank() != 2 ||
+      !weightsType.getElementType().isInteger(8) ||
+      !launch.getOperand(1).getType().isInteger(32) || !outputType ||
+      outputType.getRank() != 1 ||
+      !outputType.getElementType().isInteger(32))
+    return launch.emitError(
+        "quantized column offsets requires 2D i8, i32, and 1D i32");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  Value rows;
+  Value cols;
+  if (auto fixed = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.fixed_extents")) {
+    if (fixed.size() != 2 || fixed[0] <= 0 || fixed[1] <= 0)
+      return launch.emitError(
+          "quantized column-offset extents must be two positive values");
+    rows = b.create<arith::ConstantIntOp>(loc, fixed[0], 32);
+    cols = b.create<arith::ConstantIntOp>(loc, fixed[1], 32);
+  } else {
+    rows = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
+    cols = memrefDimAsI32(b, loc, launch.getOperand(0), 1);
+  }
+  auto shim = ensureShimDecl(
+      module, "polygeist_cub_quant_col_offsets_i8_i32",
+      {b.getI32Type(), b.getI32Type(), b.getI32Type(), ptr, ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{rows, cols, launch.getOperand(1),
+                 memrefDataPtr(b, loc, launch.getOperand(0)),
+                 memrefDataPtr(b, loc, launch.getOperand(2))});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCublasSgemvTZeroMemref(
     LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
@@ -7350,6 +7394,8 @@ struct LowerKernelLaunchToCuBLASPass
                  libSym == "cubSegmentedArgMin_f32_i32_memref") {
         r = lowerCubSegmentedArgReduceF32(
             launch, module, libSym == "cubSegmentedArgMin_f32_i32_memref");
+      } else if (libSym == "cubQuantColOffsets_i8_i32_memref") {
+        r = lowerCubQuantColOffsetsI8I32(launch, module);
       } else if (libSym == "cublasSgemvTZero_memref") {
         r = lowerCublasSgemvTZeroMemref(launch, module);
       } else if (libSym == "cudnnSinc_f32_memref") {

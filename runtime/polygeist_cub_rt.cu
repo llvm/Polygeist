@@ -586,6 +586,106 @@ extern "C" int polygeist_cub_segmented_reduce_f64_cuda(
       rows, cols, x, out, 0.0, cub::Sum{}, stream);
 }
 
+static bool cub_device_pointer(const void *pointer, void **device_pointer) {
+  cudaPointerAttributes attributes;
+  cudaError_t status = cudaPointerGetAttributes(&attributes, pointer);
+  if (status != cudaSuccess) {
+    (void)cudaGetLastError();
+    return false;
+  }
+#if CUDART_VERSION >= 10000
+  if (attributes.type != cudaMemoryTypeDevice &&
+      attributes.type != cudaMemoryTypeManaged)
+    return false;
+#else
+  if (attributes.memoryType != cudaMemoryTypeDevice)
+    return false;
+#endif
+  *device_pointer = attributes.devicePointer
+                        ? attributes.devicePointer
+                        : const_cast<void *>(pointer);
+  return true;
+}
+
+struct QuantColOffsetValueI8I32 {
+  const int8_t *weights;
+  int32_t rows;
+  int32_t cols;
+  __host__ __device__ int32_t operator()(int32_t linear) const {
+    int32_t col = linear / rows;
+    int32_t row = linear - col * rows;
+    return (int32_t)weights[(int64_t)row * cols + col];
+  }
+};
+
+extern "C" int polygeist_cub_quant_col_offsets_i8_i32_cuda(
+    int32_t rows, int32_t cols, int32_t offset,
+    const int8_t *weights, int32_t *out, cudaStream_t stream) {
+  if (rows <= 0 || cols <= 0 || !weights || !out)
+    return -1;
+  if ((int64_t)rows * cols > INT32_MAX)
+    return -1;
+
+  const size_t input_bytes = (size_t)rows * cols * sizeof(int8_t);
+  const size_t output_bytes = (size_t)cols * sizeof(int32_t);
+  int8_t *device_weights = nullptr;
+  int32_t *device_out = nullptr;
+  void *resident = nullptr;
+  bool owns_weights = !cub_device_pointer(weights, &resident);
+  if (owns_weights) {
+    cudaError_t status = cudaMalloc(&device_weights, input_bytes);
+    if (status != cudaSuccess) return (int)status;
+    status = cudaMemcpyAsync(device_weights, weights, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) {
+      cudaFree(device_weights);
+      return (int)status;
+    }
+  } else {
+    device_weights = static_cast<int8_t *>(resident);
+  }
+  bool owns_out = !cub_device_pointer(out, &resident);
+  if (owns_out) {
+    cudaError_t status = cudaMalloc(&device_out, output_bytes);
+    if (status != cudaSuccess) {
+      if (owns_weights) cudaFree(device_weights);
+      return (int)status;
+    }
+  } else {
+    device_out = static_cast<int32_t *>(resident);
+  }
+
+  using Counting = cub::CountingInputIterator<int32_t>;
+  using Values = cub::TransformInputIterator<
+      int32_t, QuantColOffsetValueI8I32, Counting>;
+  using Offsets = cub::TransformInputIterator<
+      int32_t, SegmentOffset, Counting>;
+  Counting counting(0);
+  Values values(counting, QuantColOffsetValueI8I32{
+      device_weights, rows, cols});
+  Offsets offsets(counting, SegmentOffset{rows});
+  void *temporary = nullptr;
+  size_t temporary_bytes = 0;
+  cudaError_t status = cub::DeviceSegmentedReduce::Reduce(
+      temporary, temporary_bytes, values, device_out, cols,
+      offsets, offsets + 1, cub::Sum{}, -offset, stream);
+  if (status == cudaSuccess)
+    status = cudaMalloc(&temporary, temporary_bytes);
+  if (status == cudaSuccess)
+    status = cub::DeviceSegmentedReduce::Reduce(
+        temporary, temporary_bytes, values, device_out, cols,
+        offsets, offsets + 1, cub::Sum{}, -offset, stream);
+  if (status == cudaSuccess && owns_out)
+    status = cudaMemcpyAsync(out, device_out, output_bytes,
+                             cudaMemcpyDeviceToHost, stream);
+  if (status == cudaSuccess)
+    status = cudaStreamSynchronize(stream);
+  cudaFree(temporary);
+  if (owns_out) cudaFree(device_out);
+  if (owns_weights) cudaFree(device_weights);
+  return (int)status;
+}
+
 struct IndexedValueF32 {
   int32_t index;
   float value;

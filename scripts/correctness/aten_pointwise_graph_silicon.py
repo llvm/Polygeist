@@ -197,6 +197,11 @@ CASES = {
         [bptr("a", "M*K"), bptr("b", "K*N"),
          iptr("out", "M*N", True)],
         "full i8 by i8 to i32 matrix multiplication through cuBLAS GemmEx"),
+    "aten_quant_col_offsets_cpu": spec(
+        {"K": 1_048_576, "N": 48},
+        [bptr("w", "K*N"), iscalar("zero", 3),
+         iptr("out", "N", True)],
+        "full signed-int8 column reduction and zero-point offset via CUB"),
     "aten_sparse_norm_cpu": spec(
         {"N": 16_777_216},
         [ptr("value", "N"), ptr("out", "1", True)],
@@ -808,6 +813,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                 "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference)})
     # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
+    supports_resident = ("via cuSPARSE" in cfg["coverage"] or
+                         kernel == "aten_quant_col_offsets_cpu")
     if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"
@@ -815,7 +822,7 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct
     build_command = [str(BUILDER), "--target=jetson", f"--function={kernel}",
                      f"--harness={harness}", "-o", str(exe), str(source)]
-    if "via cuSPARSE" not in cfg["coverage"]:
+    if not supports_resident:
         build_command.append("-DBENCH_MAPPED_ONLY")
     run(build_command, work / "raised.build.log", env)
     return {"kernel": kernel, "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()), "coverage": cfg["coverage"], "executable": str(exe)}

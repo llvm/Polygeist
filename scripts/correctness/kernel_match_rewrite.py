@@ -5077,6 +5077,241 @@ def _render_cusparse_index_conversions(
     return rendered
 
 
+def _render_cub_quant_col_offsets(
+        text: str, instances: list, bodies: list
+        ) -> list[tuple[int, int, str, str, list[int]]]:
+    """Fuse the complete ATen quantized column-offset composition into CUB."""
+    rendered: list[tuple[int, int, str, str, list[int]]] = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@aten_quant_col_offsets_cpu\s*"
+        r"\(\s*(%[\w.$-]+)\s*:\s*memref<\?x(\d+)xi8>\s*,\s*"
+        r"(%[\w.$-]+)\s*:\s*i32\s*,\s*"
+        r"(%[\w.$-]+)\s*:\s*memref<\?xi32>\s*\)", re.MULTILINE)
+    constants = parse_constants(text)
+    for function in function_re.finditer(text):
+        weights, physical_cols, zero_point, output = function.groups()
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        owned = [i for i, inst in enumerate(instances)
+                 if opening < inst.span[0] and inst.span[1] < function_end]
+        if len(owned) != 3:
+            continue
+        i0, i1, i2 = owned
+        init, reduction, subtract = (bodies[i0], bodies[i1], bodies[i2])
+        if (init.iterator_types != ["parallel"] or
+                len(init.ins_arg_names) != 0 or
+                len(init.outs_arg_names) != 1 or
+                len(init.yield_values) != 1 or
+                constants.get(init.yield_values[0]) != 0.0):
+            continue
+        reduction_maps = [
+            _compact_affine_map(m) for m in reduction.indexing_maps]
+        direct_maps = ["affine_map<(d0,d1)->(d1,d0)>",
+                       "affine_map<(d0,d1)->(d0)>"]
+        submap_maps = ["affine_map<(d0,d1)->(d0,d1)>",
+                       "affine_map<(d0,d1)->(d0,d1)>"]
+        if (reduction.iterator_types != ["parallel", "reduction"] or
+                len(reduction.ins_arg_names) != 1 or
+                len(reduction.outs_arg_names) != 1 or
+                reduction_maps not in (direct_maps, submap_maps)):
+            continue
+        uses_submaps = reduction_maps == submap_maps
+        reduction_text = "\n".join(reduction.body_lines)
+        value = re.escape(reduction.ins_arg_names[0])
+        accumulator = re.escape(reduction.outs_arg_names[0])
+        widened = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.extsi\s+{value}\s*:\s*i8\s+to\s+i32",
+            reduction_text)
+        total = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+"
+            rf"(?:{accumulator},\s*{re.escape(widened.group(1))}|"
+            rf"{re.escape(widened.group(1))},\s*{accumulator})\s*:\s*i32",
+            reduction_text) if widened else None)
+        if (total is None or reduction.yield_values != [total.group(1)]):
+            continue
+        if (subtract.iterator_types != ["parallel"] or
+                len(subtract.ins_arg_names) != 1 or
+                len(subtract.outs_arg_names) != 1 or
+                [_compact_affine_map(m) for m in subtract.indexing_maps] != [
+                    "affine_map<(d0)->(d0)>",
+                    "affine_map<(d0)->(d0)>"]):
+            continue
+        subtract_text = "\n".join(subtract.body_lines)
+        sub_input = re.escape(subtract.ins_arg_names[0])
+        sub = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.subi\s+{sub_input},\s*"
+            r"(%[\w.$-]+)\s*:\s*i32", subtract_text)
+        if (sub is None or subtract.yield_values != [sub.group(1)]):
+            continue
+        offset = sub.group(2)
+
+        inst0, inst1, inst2 = instances[i0], instances[i1], instances[i2]
+        input_names = _extract_ssa_names(inst1.ins_part)
+        reduction_outs = _extract_ssa_names(inst1.outs_part)
+        subtract_ins = _extract_ssa_names(inst2.ins_part)
+        subtract_outs = _extract_ssa_names(inst2.outs_part)
+        if (len(input_names) != 1 or len(reduction_outs) != 1 or
+                len(subtract_ins) != 1 or len(subtract_outs) != 1 or
+                inst0.result_ssa is None or inst1.result_ssa is None or
+                inst2.result_ssa is None):
+            continue
+        prefix = text[opening:inst0.span[0]]
+        between01 = text[inst0.span[1]:inst1.span[0]]
+        between12 = text[inst1.span[1]:inst2.span[0]]
+        tail = text[inst2.span[1]:function_end]
+        weights_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(weights)}\s*:\s*memref<\?x{physical_cols}xi8>",
+            prefix)
+        output_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(output)}\s*:\s*memref<\?xi32>", prefix)
+        if weights_tensor is None or output_tensor is None:
+            continue
+        final_tensor = inst2.result_ssa
+        if not uses_submaps:
+            input_slice = re.search(
+                rf"{re.escape(input_names[0])}\s*=\s*tensor\.extract_slice\s+"
+                rf"{re.escape(weights_tensor.group(1))}\[0,\s*0\]\s*"
+                r"\[(%[\w.$-]+),\s*(%[\w.$-]+)\]\s*\[1,\s*1\]",
+                between01)
+            if input_slice is None:
+                continue
+            rows_ssa, cols_ssa = input_slice.groups()
+            init_slice = re.search(
+                rf"{re.escape(reduction_outs[0])}\s*=\s*"
+                rf"tensor\.extract_slice\s+{re.escape(inst0.result_ssa)}"
+                rf"\[0\]\s*\[{re.escape(cols_ssa)}\]\s*\[1\]", between01)
+            inserted = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert_slice\s+"
+                rf"{re.escape(inst1.result_ssa)}\s+into\s+"
+                rf"{re.escape(inst0.result_ssa)}\[0\]\s*"
+                rf"\[{re.escape(cols_ssa)}\]\s*\[1\]", between12)
+            if (init_slice is None or inserted is None or
+                    subtract_ins[0] != inserted.group(1) or
+                    subtract_outs[0] != output_tensor.group(1)):
+                continue
+        else:
+            init_out = _extract_ssa_names(inst0.outs_part)
+            if len(init_out) != 1:
+                continue
+            init_submap = re.search(
+                rf"{re.escape(init_out[0])}\s*=\s*polygeist\.submap\("
+                r"(%[\w.$-]+),\s*(%[\w.$-]+)\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", prefix)
+            init_inverse = re.search(
+                rf"(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"{re.escape(init_submap.group(1))},\s*"
+                rf"{re.escape(inst0.result_ssa)},\s*"
+                rf"{re.escape(init_submap.group(2))}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between01) if init_submap else None
+            input_submap = re.search(
+                rf"{re.escape(input_names[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(weights_tensor.group(1))},\s*"
+                r"(%[\w.$-]+),\s*(%[\w.$-]+)\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between01)
+            reduction_submap = (re.search(
+                rf"{re.escape(reduction_outs[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(init_inverse.group(1))},\s*"
+                rf"{re.escape(input_submap.group(1))},\s*"
+                rf"{re.escape(input_submap.group(2))}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between01)
+                if init_inverse and input_submap else None)
+            if not all((init_submap, init_inverse, input_submap,
+                        reduction_submap)):
+                continue
+            cols_ssa, rows_ssa = input_submap.group(1), input_submap.group(2)
+            resolved_input_map = _compact_affine_map(_resolve_affine_map_text(
+                text[:inst1.span[0]], input_submap.group(3).strip()))
+            resolved_reduce_map = _compact_affine_map(_resolve_affine_map_text(
+                text[:inst1.span[0]], reduction_submap.group(1).strip()))
+            if (resolved_input_map != "affine_map<(d0,d1)->(d1,d0)>" or
+                    resolved_reduce_map != "affine_map<(d0,d1)->(d0)>" or
+                    init_submap.group(2) != cols_ssa):
+                continue
+            reduction_inverse = re.search(
+                rf"(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"{re.escape(init_inverse.group(1))},\s*"
+                rf"{re.escape(inst1.result_ssa)},\s*"
+                rf"{re.escape(cols_ssa)},\s*{re.escape(rows_ssa)}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between12)
+            subtract_input_view = (re.search(
+                rf"{re.escape(subtract_ins[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(reduction_inverse.group(1))},\s*"
+                rf"{re.escape(cols_ssa)}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between12)
+                if reduction_inverse else None)
+            subtract_output_view = re.search(
+                rf"{re.escape(subtract_outs[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(output_tensor.group(1))},\s*"
+                rf"{re.escape(cols_ssa)}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", between12)
+            final_inverse = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"{re.escape(output_tensor.group(1))},\s*"
+                rf"{re.escape(inst2.result_ssa)},\s*"
+                rf"{re.escape(cols_ssa)}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", tail)
+                if subtract_input_view and subtract_output_view else None)
+            if final_inverse is None:
+                continue
+            one_dim_identity = "affine_map<(d0)->(d0)>"
+            one_dim_projection = "affine_map<(d0,d1)->(d0)>"
+            map_operands = [
+                (init_submap.group(3), one_dim_identity),
+                (init_inverse.group(2), one_dim_identity),
+                (reduction_inverse.group(2), one_dim_projection),
+                (subtract_input_view.group(1), one_dim_identity),
+                (subtract_output_view.group(1), one_dim_identity),
+                (final_inverse.group(2), one_dim_identity),
+            ]
+            if any(_compact_affine_map(_resolve_affine_map_text(
+                    text[:function_end], actual.strip())) != expected
+                   for actual, expected in map_operands):
+                continue
+            final_tensor = final_inverse.group(1)
+
+        rows = constants.get(rows_ssa)
+        cols = constants.get(cols_ssa)
+        if (rows is None or cols is None or int(rows) != rows or
+                int(cols) != cols or rows <= 0 or cols <= 0 or
+                int(cols) != int(physical_cols)):
+            continue
+        offset_def = re.search(
+            rf"{re.escape(offset)}\s*=\s*arith\.muli\s+"
+            rf"(?:{re.escape(zero_point)},\s*(%[\w.$-]+)|"
+            rf"(%[\w.$-]+),\s*{re.escape(zero_point)})\s*:\s*i32", prefix)
+        if offset_def is None:
+            continue
+        row_i32 = offset_def.group(1) or offset_def.group(2)
+        if constants.get(row_i32) != rows:
+            continue
+        to_memref = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(final_tensor)}\s*:\s*memref<\?xi32>", tail)
+        copy = (re.search(
+            rf"memref\.copy\s+{re.escape(to_memref.group(1))},\s*"
+            rf"{re.escape(output)}\s*:\s*memref<\?xi32>\s+to\s+"
+            r"memref<\?xi32>", tail) if to_memref else None)
+        if copy is None:
+            continue
+
+        start = text.rfind("\n", 0, inst0.span[0]) + 1
+        indent = re.match(r"\s*", text[start:inst0.span[0]]).group(0)
+        attrs = (" {polygeist.fixed_extents = array<i64: "
+                 f"{int(rows)}, {int(cols)}>}}")
+        launch = (
+            f"{indent}kernel.launch @cubQuantColOffsets_i8_i32_memref("
+            f"{weights}, {offset}, {output}){attrs} : "
+            f"(memref<?x{physical_cols}xi8>, i32, memref<?xi32>) -> ()")
+        rendered.append((start, inst2.span[1] + copy.end(), launch,
+                         "cubQuantColOffsets_i8_i32_memref", owned))
+    return rendered
+
+
 def _render_cusparse_bsr_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Fuse the tensorized ATen square-BSR matvec into cuSPARSE SpMM.
@@ -6428,6 +6663,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[whole-algorithm]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_cub_quant_col_offsets(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[column-reduce+offset]"))
         emitted_launches += 1
     if enable_structured_rewrite:
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):

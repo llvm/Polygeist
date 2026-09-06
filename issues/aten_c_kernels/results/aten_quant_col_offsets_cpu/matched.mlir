@@ -10,27 +10,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<270>, d
     %0 = bufferization.to_tensor %arg0 : memref<?x48xi8>
     %1 = bufferization.to_tensor %arg2 : memref<?xi32>
     %2 = arith.muli %arg1, %c64_i32 : i32
-    %3 = tensor.empty(%c48) : tensor<?xi32>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%3 : tensor<?xi32>) {
-    ^bb0(%out: i32):
-      linalg.yield %c0_i32 : i32
-    } -> tensor<?xi32>
-    %extracted_slice = tensor.extract_slice %0[0, 0] [%c64, %c48] [1, 1] : tensor<?x48xi8> to tensor<?x?xi8>
-    %extracted_slice_0 = tensor.extract_slice %4[0] [%c48] [1] : tensor<?xi32> to tensor<?xi32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%extracted_slice : tensor<?x?xi8>) outs(%extracted_slice_0 : tensor<?xi32>) {
-    ^bb0(%in: i8, %out: i32):
-      %8 = arith.extsi %in : i8 to i32
-      %9 = arith.addi %out, %8 : i32
-      linalg.yield %9 : i32
-    } -> tensor<?xi32>
-    %inserted_slice = tensor.insert_slice %5 into %4[0] [%c48] [1] : tensor<?xi32> into tensor<?xi32>
-    %6 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%inserted_slice : tensor<?xi32>) outs(%1 : tensor<?xi32>) {
-    ^bb0(%in: i32, %out: i32):
-      %8 = arith.subi %in, %2 : i32
-      linalg.yield %8 : i32
-    } -> tensor<?xi32>
-    %7 = bufferization.to_memref %6 : memref<?xi32>
-    memref.copy %7, %arg2 : memref<?xi32> to memref<?xi32>
+    kernel.launch @cubQuantColOffsets_i8_i32_memref(%arg0, %2, %arg2) {polygeist.fixed_extents = array<i64: 64, 48>} : (memref<?x48xi8>, i32, memref<?xi32>) -> ()
     return
   }
 }

@@ -49,7 +49,8 @@ def main() -> None:
         if not debuf.exists() or row["status"] != "pass":
             return row
         proc = subprocess.run(
-            ["/usr/bin/python3", str(MATCHER), str(debuf)],
+            ["/usr/bin/python3", str(MATCHER), str(debuf),
+             "--enable-structured-rewrite"],
             text=True, capture_output=True, check=False, timeout=30,
         )
         if proc.returncode:

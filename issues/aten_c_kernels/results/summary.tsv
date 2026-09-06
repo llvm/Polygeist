@@ -403,7 +403,7 @@ aten_pow_tensor_scalar	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_powsum_cpu	pass	2	0	1	memset_zero_1D_f32
 aten_prod	pass	1	0	1	cudnnReduceProduct_f32
 aten_put_cpu	pass	0	1	0	-
-aten_quant_col_offsets_cpu	pass	3	0	0	-
+aten_quant_col_offsets_cpu	pass	3	0	1	cubQuantColOffsets_i8_i32_memref
 aten_quant_saturation_cpu	pass	1	0	0	-
 aten_quick_select_cpu	pass	0	2	0	-
 aten_random_cpu	pass	1	0	0	-

@@ -2378,6 +2378,17 @@ void polygeist_cub_segmented_argreduce_f32(
   }
 }
 
+void polygeist_cub_quant_col_offsets_i8_i32(
+    int32_t rows, int32_t cols, int32_t offset,
+    const int8_t *weights, int32_t *out) {
+  for (int32_t col = 0; col < cols; ++col) {
+    int32_t sum = 0;
+    for (int32_t row = 0; row < rows; ++row)
+      sum += (int32_t)weights[(size_t)row * cols + col];
+    out[col] = sum - offset;
+  }
+}
+
 void polygeist_cub_segmented_prefix_sum_f32(
     int32_t rows, int32_t cols, const float *x,
     const int32_t *lengths, float *out) {

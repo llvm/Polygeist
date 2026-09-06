@@ -8835,6 +8835,8 @@ static void *polygeist_cub_companion_symbol(const char *symbol) {
 
 typedef int (*polygeist_cub_segmented_argreduce_f32_fn)(
     int32_t, int32_t, int32_t, const float *, int32_t *, cudaStream_t);
+typedef int (*polygeist_cub_quant_col_offsets_i8_i32_fn)(
+    int32_t, int32_t, int32_t, const int8_t *, int32_t *, cudaStream_t);
 
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
@@ -8854,6 +8856,27 @@ void polygeist_cub_segmented_argreduce_f32(
     abort();
   }
   timing_gpu_end("cubSegmentedArgReduce_f32", rows, cols, op, host_start_ms);
+}
+
+void polygeist_cub_quant_col_offsets_i8_i32(
+    int32_t rows, int32_t cols, int32_t offset,
+    const int8_t *weights, int32_t *out) {
+  static polygeist_cub_quant_col_offsets_i8_i32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_quant_col_offsets_i8_i32_fn)
+        polygeist_cub_companion_symbol(
+            "polygeist_cub_quant_col_offsets_i8_i32_cuda");
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(rows, cols, offset, weights, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB quantized column offsets failed: %d\n",
+            status);
+    abort();
+  }
+  timing_gpu_end("cubQuantColOffsets_i8_i32", rows, cols, offset,
+                 host_start_ms);
 }
 
 void polygeist_cudnn_sinc_f32(int32_t n, const float *x, float *out) {
