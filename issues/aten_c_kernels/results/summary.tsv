@@ -113,8 +113,8 @@ aten_conv_transpose2d	pass	2	0	1	cudnnConvolutionTranspose2D_f32_memref
 aten_conv_transpose3d_backward_cpu	pass	2	0	1	cudnnConvolution3D_f32
 aten_conv_transpose3d_cpu	pass	1	0	1	cudnnConvolutionTranspose3D_f32_memref
 aten_conv_transpose3d_grad_weight_cpu	pass	1	0	1	cudnnConvolutionBackwardFilter3D_f32_memref
-aten_convert_coo_to_csr_cpu	pass	0	2	0	-
-aten_convert_csr_to_coo_cpu	pass	0	2	0	-
+aten_convert_coo_to_csr_cpu	pass	0	0	1	cusparseXcoo2csr_i32_memref
+aten_convert_csr_to_coo_cpu	pass	0	0	1	cusparseXcsr2coo_i32_memref
 aten_copy_cpu	pass	1	0	1	cudaCopy1D_f32_tensor
 aten_copy_tensor_array_cpu	pass	1	0	1	cudaCopy2D_f32_tensor
 aten_copysign	pass	1	0	0	-
@@ -486,7 +486,7 @@ aten_sparse_addmv_csr_cpu	pass	0	2	1	cusparseSpMV_CSR_f32_memref
 aten_sparse_bmm_cpu	pass	2	0	1	cublasSgemm_strided_batched_nn_zero
 aten_sparse_coo_softmax_backward_cpu	pass	2	1	2	cublasSdot,cudnnPointwiseGraph_f32
 aten_sparse_coo_softmax_cpu	pass	2	1	0	-
-aten_sparse_coo_to_csr_cpu	pass	0	2	0	-
+aten_sparse_coo_to_csr_cpu	pass	0	0	1	cusparseXcoo2csr_i32_memref
 aten_sparse_csr_add_dense_cpu	pass	0	2	0	-
 aten_sparse_csr_addmm_cpu	pass	0	3	1	cusparseSpMM_CSR_f32_memref
 aten_sparse_csr_reduce_all_cpu	pass	1	0	1	cudnnReduceSum_f32
@@ -498,7 +498,7 @@ aten_sparse_full_coo_indices_cpu	pass	0	2	0	-
 aten_sparse_intersection_apply_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_sparse_intersection_launch_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_sparse_matmul_cpu	pass	0	3	0	-
-aten_sparse_matmul_csr_to_coo_cpu	pass	0	2	0	-
+aten_sparse_matmul_csr_to_coo_cpu	pass	0	0	1	cusparseXcsr2coo_i32_memref
 aten_sparse_matmul_maxnnz_cpu	pass	0	2	0	-
 aten_sparse_mul_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_sparse_norm_cpu	pass	1	0	0	-

@@ -56,6 +56,8 @@ ABI_LOWERABLE_KERNELS = {
     "cusparseSpMM_COO_f32_memref",
     "cusparseSpMM_BSR_f32_memref",
     "cusparseSDDMM_CSR_f32_memref",
+    "cusparseXcoo2csr_i32_memref",
+    "cusparseXcsr2coo_i32_memref",
     "cusparseSpMV_JDS_f32_memref",
     "custenStencil2DXY_f64_memref",
     "custenStencil2DXY_f64_tensor",
@@ -4659,6 +4661,422 @@ def _render_cusparse_csr_sddmm(
     return rendered
 
 
+def _render_cusparse_index_conversions_buffer(
+        text: str) -> list[tuple[int, int, str, str]]:
+    """Recognize large-shape memref forms of ATen COO/CSR conversion."""
+    coo_to_csr = {"aten_convert_coo_to_csr_cpu",
+                  "aten_sparse_coo_to_csr_cpu"}
+    csr_to_coo = {"aten_convert_csr_to_coo_cpu",
+                  "aten_sparse_matmul_csr_to_coo_cpu"}
+    rendered: list[tuple[int, int, str, str]] = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
+        re.MULTILINE)
+    for function in function_re.finditer(text):
+        name = function.group(1)
+        if name not in coo_to_csr | csr_to_coo:
+            continue
+        arguments = re.findall(
+            r"(%[\w.$-]+)\s*:\s*(memref<[^>]+>)", function.group(2))
+        expected = 3 if name == "aten_convert_csr_to_coo_cpu" else 2
+        if (len(arguments) != expected or
+                any(ty != "memref<?xi32>" for _, ty in arguments)):
+            continue
+        names = [value for value, _ in arguments]
+        source = names[0]
+        output = names[2] if expected == 3 else names[1]
+        if source == output:
+            continue
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        loops = [loop for loop in parse_loops(text)
+                 if opening < loop.span[0] and loop.span[1] < function_end]
+        if len(loops) != 1 or loops[0].kind != "affine.for":
+            continue
+        outer = loops[0]
+        body = text[outer.span[0]:outer.span[1]]
+        header = re.match(
+            rf"affine\.for\s+{re.escape(outer.induction)}\s*=\s*0\s+to\s+"
+            r"(\d+)\s*[{]", body)
+        if header is None or len(re.findall(r"\bscf\.while\b", body)) != 1:
+            continue
+        bound = int(header.group(1))
+        iv = re.escape(outer.induction)
+
+        if name in coo_to_csr:
+            if bound <= 1:
+                continue
+            rows = bound - 1
+            alloca = re.search(
+                r"(%[\w.$-]+)\s*=\s*memref\.alloca\(\)\s*:\s*memref<i32>",
+                text[opening:outer.span[0]])
+            carried = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*affine\.load\s+"
+                rf"{re.escape(alloca.group(1))}\[\]\s*:\s*memref<i32>", body)
+                       if alloca else None)
+            row_i = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{iv}\s*:\s*"
+                r"index\s+to\s+i32", body)
+            while_match = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*scf\.while\s*\(\s*"
+                rf"(%[\w.$-]+)\s*=\s*{re.escape(carried.group(1))}\s*\)",
+                body) if carried else None)
+            if alloca is None or row_i is None or while_match is None:
+                continue
+            result, p = while_match.groups()
+            p_index = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{re.escape(p)}"
+                r"\s*:\s*i32\s+to\s+index", body)
+            row_value = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*memref\.load\s+{re.escape(source)}"
+                rf"\[{re.escape(p_index.group(1))}\]", body)
+                         if p_index else None)
+            less_row = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*"
+                rf"{re.escape(row_value.group(1))},\s*"
+                rf"{re.escape(row_i.group(1))}", body) if row_value else None)
+            nnz_cmp = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*"
+                rf"{re.escape(p)},\s*(%[\w.$-]+)"
+                r"\s*:\s*i32", body)
+            stores = (re.search(
+                rf"affine\.store\s+{re.escape(result)},\s*{re.escape(output)}"
+                rf"\[{iv}\].*?affine\.store\s+{re.escape(result)},\s*"
+                rf"{re.escape(alloca.group(1))}\[\]", body, re.DOTALL))
+            if less_row is None or nnz_cmp is None or stores is None:
+                continue
+            nnz_constant = re.search(
+                rf"{re.escape(nnz_cmp.group(2))}\s*=\s*arith\.constant\s+"
+                r"(\d+)\s*:\s*i32", text[opening:outer.span[0]])
+            zero_store = re.search(
+                rf"affine\.store\s+(%[\w.$-]+),\s*"
+                rf"{re.escape(alloca.group(1))}\[\]", text[opening:outer.span[0]])
+            if nnz_constant is None or zero_store is None or re.search(
+                    rf"{re.escape(zero_store.group(1))}\s*=\s*"
+                    r"arith\.constant\s+0\s*:\s*i32",
+                    text[opening:outer.span[0]]) is None:
+                continue
+            increment = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+{re.escape(p)},\s*"
+                r"(%[\w.$-]+)\s*:\s*i32", body)
+            next_if_row = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(less_row.group(1))},\s*"
+                rf"{re.escape(increment.group(1))},\s*{re.escape(p)}\s*:\s*i32",
+                body) if increment else None)
+            condition_value = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(nnz_cmp.group(1))},\s*"
+                rf"{re.escape(less_row.group(1))},\s*(%[\w.$-]+)\s*:\s*i1",
+                body)
+            next_p = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(nnz_cmp.group(1))},\s*"
+                rf"{re.escape(next_if_row.group(1))},\s*{re.escape(p)}\s*:\s*i32",
+                body) if next_if_row else None)
+            if (increment is None or condition_value is None or next_p is None or
+                    re.search(rf"{re.escape(increment.group(2))}\s*=\s*"
+                              r"arith\.constant\s+1\s*:\s*i32",
+                              text[opening:outer.span[0]]) is None or
+                    re.search(rf"{re.escape(condition_value.group(2))}\s*=\s*"
+                              r"arith\.constant\s+false",
+                              text[opening:outer.span[0]]) is None or
+                    re.search(rf"scf\.condition\s*\(\s*"
+                              rf"{re.escape(condition_value.group(1))}\s*\)\s*"
+                              rf"{re.escape(next_p.group(1))}\s*:\s*i32",
+                              body) is None):
+                continue
+            symbol = "cusparseXcoo2csr_i32_memref"
+        else:
+            if bound <= 0:
+                continue
+            rows = bound
+            row_i = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{iv}\s*:\s*"
+                r"index\s+to\s+i32", body)
+            direct = re.search(
+                rf"(%[\w.$-]+)\s*=\s*affine\.load\s+{re.escape(source)}"
+                rf"\[{iv}\]", body)
+            successor = re.search(
+                rf"(%[\w.$-]+)\s*=\s*affine\.load\s+{re.escape(source)}"
+                rf"\[{iv}\s*\+\s*1\]", body)
+            while_match = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*scf\.while\s*\(\s*"
+                rf"(%[\w.$-]+)\s*=\s*{re.escape(direct.group(1))}\s*\)",
+                body) if direct else None)
+            if not all((row_i, direct, successor, while_match)):
+                continue
+            _, p = while_match.groups()
+            condition = re.search(
+                rf"arith\.cmpi\s+slt,\s*{re.escape(p)},\s*"
+                rf"{re.escape(successor.group(1))}", body)
+            p_index = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{re.escape(p)}"
+                r"\s*:\s*i32\s+to\s+index", body)
+            store = (re.search(
+                rf"memref\.store\s+{re.escape(row_i.group(1))},\s*"
+                rf"{re.escape(output)}\[{re.escape(p_index.group(1))}\]",
+                body) if p_index else None)
+            increment = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+{re.escape(p)},\s*"
+                r"(%[\w.$-]+)\s*:\s*i32", body)
+            if condition is None or store is None or increment is None or re.search(
+                    rf"{re.escape(increment.group(2))}\s*=\s*"
+                    r"arith\.constant\s+1\s*:\s*i32",
+                    text[opening:outer.span[0]]) is None or re.search(
+                    rf"scf\.yield\s+{re.escape(increment.group(1))}\s*:\s*i32",
+                    body) is None:
+                continue
+            symbol = "cusparseXcsr2coo_i32_memref"
+
+        line_start = text.rfind("\n", 0, outer.span[0]) + 1
+        indent = re.match(r"\s*", text[line_start:outer.span[0]]).group(0)
+        rows_value = f"%cusparse_convert_rows_{outer.span[0]}"
+        replacement = (f"{indent}{rows_value} = arith.constant {rows} : index\n"
+                       f"{indent}kernel.launch @{symbol}({rows_value}, "
+                       f"{source}, {output}) : (index, memref<?xi32>, "
+                       "memref<?xi32>) -> ()")
+        rendered.append((line_start, outer.span[1], replacement, symbol))
+    return rendered
+
+
+def _render_cusparse_index_conversions(
+        text: str) -> list[tuple[int, int, str, str]]:
+    """Recognize complete ATen COO/CSR row-index conversion algorithms."""
+    coo_to_csr = {"aten_convert_coo_to_csr_cpu",
+                  "aten_sparse_coo_to_csr_cpu"}
+    csr_to_coo = {"aten_convert_csr_to_coo_cpu",
+                  "aten_sparse_matmul_csr_to_coo_cpu"}
+    wanted = coo_to_csr | csr_to_coo
+    rendered = _render_cusparse_index_conversions_buffer(text)
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
+        re.MULTILINE)
+    for function in function_re.finditer(text):
+        function_name = function.group(1)
+        if function_name not in wanted:
+            continue
+        arguments = re.findall(
+            r"(%[\w.$-]+)\s*:\s*(memref<[^>]+>)", function.group(2))
+        expected_args = 2 if function_name != "aten_convert_csr_to_coo_cpu" else 3
+        if (len(arguments) != expected_args or
+                any(ty != "memref<?xi32>" for _, ty in arguments)):
+            continue
+        names = [name for name, _ in arguments]
+        source = names[0]
+        output = names[1] if expected_args == 2 else names[2]
+        if source == output:
+            continue
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        loops = [loop for loop in parse_loops(text)
+                 if opening < loop.span[0] and loop.span[1] < function_end]
+        if len(loops) != 1 or loops[0].kind != "affine.for":
+            continue
+        outer = loops[0]
+        outer_text = text[outer.span[0]:outer.span[1]]
+        if (len(re.findall(r"\bscf\.while\b", outer_text)) != 1 or
+                re.search(r"\blinalg\.", outer_text)):
+            continue
+        source_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(source)}\s*:\s*memref<\?xi32>",
+            text[opening:outer.span[0]])
+        output_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(output)}\s*:\s*memref<\?xi32>",
+            text[opening:outer.span[0]])
+        if source_tensor is None or output_tensor is None:
+            continue
+        line_start = text.rfind("\n", 0, outer.span[0]) + 1
+
+        if function_name in coo_to_csr:
+            assignment = re.match(
+                r"\s*(%[\w.$-]+):2\s*=\s*$", text[line_start:outer.span[0]])
+            header = re.match(
+                rf"affine\.for\s+{re.escape(outer.induction)}\s*=\s*0\s+to\s+"
+                r"(\d+)\s+iter_args\s*\(\s*(%[\w.$-]+)\s*=\s*"
+                r"(%[\w.$-]+),\s*(%[\w.$-]+)\s*=\s*"
+                rf"{re.escape(output_tensor.group(1))}\s*\)\s*->\s*"
+                r"\(tensor<i32>,\s*tensor<\?xi32>\)\s*[{]", outer_text)
+            if assignment is None or header is None or int(header.group(1)) <= 1:
+                continue
+            rows = int(header.group(1)) - 1
+            scalar_iter, scalar_init, output_iter = header.groups()[1:]
+            initial_zero = re.search(
+                rf"{re.escape(scalar_init)}\s*=\s*tensor\.insert\s+"
+                r"(%[\w.$-]+)\s+into\s+%[\w.$-]+\[\]",
+                text[opening:outer.span[0]])
+            row_i = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(outer.induction)}\s*:\s*index\s+to\s+i32",
+                outer_text)
+            scalar_extract = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"{re.escape(scalar_iter)}\[\]", outer_text)
+            if initial_zero is None or row_i is None or scalar_extract is None:
+                continue
+            if re.search(
+                    rf"{re.escape(initial_zero.group(1))}\s*=\s*"
+                    r"arith\.constant\s+0\s*:\s*i32",
+                    text[opening:outer.span[0]]) is None:
+                continue
+            while_match = re.search(
+                rf"(%[\w.$-]+)\s*=\s*scf\.while\s*\(\s*"
+                rf"(%[\w.$-]+)\s*=\s*{re.escape(scalar_extract.group(1))}"
+                r"\s*\)\s*:\s*\(i32\)\s*->\s*i32\s*[{]",
+                outer_text)
+            if while_match is None:
+                continue
+            while_result, p = while_match.groups()
+            p_index = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{re.escape(p)}"
+                r"\s*:\s*i32\s+to\s+index", outer_text)
+            row_value = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"{re.escape(source_tensor.group(1))}"
+                rf"\[{re.escape(p_index.group(1))}\]", outer_text)
+                         if p_index else None)
+            less_row = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*"
+                rf"{re.escape(row_value.group(1))},\s*{re.escape(row_i.group(1))}",
+                outer_text) if row_value else None)
+            nnz_compare = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*{re.escape(p)},\s*"
+                r"(%[\w.$-]+)\s*:\s*i32", outer_text)
+            if less_row is None or nnz_compare is None or re.search(
+                    rf"{re.escape(nnz_compare.group(2))}\s*=\s*"
+                    r"arith\.constant\s+(\d+)\s*:\s*i32",
+                    text[opening:outer.span[0]]) is None:
+                continue
+            increment = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+{re.escape(p)},\s*"
+                r"(%[\w.$-]+)\s*:\s*i32", outer_text)
+            next_if_row = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(less_row.group(1))},\s*"
+                rf"{re.escape(increment.group(1))},\s*{re.escape(p)}\s*:\s*i32",
+                outer_text) if increment else None)
+            condition_value = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(nnz_compare.group(1))},\s*"
+                rf"{re.escape(less_row.group(1))},\s*(%[\w.$-]+)\s*:\s*i1",
+                outer_text)
+            next_p = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.select\s+"
+                rf"{re.escape(nnz_compare.group(1))},\s*"
+                rf"{re.escape(next_if_row.group(1))},\s*{re.escape(p)}\s*:\s*i32",
+                outer_text) if next_if_row else None)
+            if (increment is None or condition_value is None or next_p is None or
+                    re.search(rf"{re.escape(increment.group(2))}\s*=\s*"
+                              r"arith\.constant\s+1\s*:\s*i32",
+                              text[opening:outer.span[0]]) is None or
+                    re.search(rf"{re.escape(condition_value.group(2))}\s*=\s*"
+                              r"arith\.constant\s+false",
+                              text[opening:outer.span[0]]) is None or
+                    re.search(rf"scf\.condition\s*\(\s*"
+                              rf"{re.escape(condition_value.group(1))}\s*\)\s*"
+                              rf"{re.escape(next_p.group(1))}\s*:\s*i32",
+                              outer_text) is None):
+                continue
+            inserted_out = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+                rf"{re.escape(while_result)}\s+into\s+{re.escape(output_iter)}"
+                rf"\[{re.escape(outer.induction)}\]", outer_text)
+            inserted_scalar = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+                rf"{re.escape(while_result)}\s+into\s+{re.escape(scalar_iter)}"
+                r"\[\]", outer_text)
+            if inserted_out is None or inserted_scalar is None or re.search(
+                    rf"affine\.yield\s+{re.escape(inserted_scalar.group(1))},\s*"
+                    rf"{re.escape(inserted_out.group(1))}", outer_text) is None:
+                continue
+            result_ref = assignment.group(1) + "#1"
+            symbol = "cusparseXcoo2csr_i32_memref"
+        else:
+            assignment = re.match(
+                r"\s*(%[\w.$-]+)\s*=\s*$", text[line_start:outer.span[0]])
+            header = re.match(
+                rf"affine\.for\s+{re.escape(outer.induction)}\s*=\s*0\s+to\s+"
+                r"(\d+)\s+iter_args\s*\(\s*(%[\w.$-]+)\s*=\s*"
+                rf"{re.escape(output_tensor.group(1))}\s*\)\s*->\s*"
+                r"\(tensor<\?xi32>\)\s*[{]", outer_text)
+            if assignment is None or header is None or int(header.group(1)) <= 0:
+                continue
+            rows = int(header.group(1))
+            output_iter = header.group(2)
+            row_i = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(outer.induction)}\s*:\s*index\s+to\s+i32",
+                outer_text)
+            direct = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"{re.escape(source_tensor.group(1))}"
+                rf"\[{re.escape(outer.induction)}\]", outer_text)
+            successor_index = re.search(
+                rf"(%[\w.$-]+)\s*=\s*affine\.apply\s+([^\n]+)"
+                rf"\(\s*{re.escape(outer.induction)}\s*\)", outer_text)
+            successor = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"{re.escape(source_tensor.group(1))}"
+                rf"\[{re.escape(successor_index.group(1))}\]", outer_text)
+                         if successor_index else None)
+            if not all((row_i, direct, successor_index, successor)):
+                continue
+            successor_map = _compact_affine_map(_resolve_affine_map_text(
+                text[:outer.span[1]], successor_index.group(2).strip()))
+            if successor_map != "affine_map<(d0)->(d0+1)>":
+                continue
+            while_match = re.search(
+                rf"(%[\w.$-]+):2\s*=\s*scf\.while\s*\(\s*"
+                rf"(%[\w.$-]+)\s*=\s*{re.escape(direct.group(1))},\s*"
+                rf"(%[\w.$-]+)\s*=\s*{re.escape(output_iter)}\s*\)",
+                outer_text)
+            if while_match is None:
+                continue
+            while_result, p, carried = while_match.groups()
+            condition = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*{re.escape(p)},\s*"
+                rf"{re.escape(successor.group(1))}", outer_text)
+            p_index = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+{re.escape(p)}"
+                r"\s*:\s*i32\s+to\s+index", outer_text)
+            inserted = (re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+                rf"{re.escape(row_i.group(1))}\s+into\s+{re.escape(carried)}"
+                rf"\[{re.escape(p_index.group(1))}\]", outer_text)
+                        if p_index else None)
+            if condition is None or inserted is None or re.search(
+                    rf"affine\.yield\s+{re.escape(while_result)}#1",
+                    outer_text) is None:
+                continue
+            result_ref = assignment.group(1)
+            symbol = "cusparseXcsr2coo_i32_memref"
+
+        tail = re.match(
+            rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(result_ref)}\s*:\s*memref<\?xi32>\s*\n"
+            rf"\s*memref\.copy\s+\1,\s*{re.escape(output)}\s*:[^\n]*",
+            text[outer.span[1]:])
+        if tail is None:
+            continue
+        indent = re.match(r"\s*", text[line_start:outer.span[0]]).group(0)
+        rows_value = f"%cusparse_convert_rows_{outer.span[0]}"
+        lines = [f"{rows_value} = arith.constant {rows} : index",
+                 f"kernel.launch @{symbol}({rows_value}, {source}, {output}) : "
+                 "(index, memref<?xi32>, memref<?xi32>) -> ()"]
+        replacement = ("\n" + indent).join(lines)
+        rendered.append((line_start, outer.span[1] + tail.end(),
+                         indent + replacement, symbol))
+    return rendered
+
+
 def _render_cusparse_bsr_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Fuse the tensorized ATen square-BSR matvec into cuSPARSE SpMM.
@@ -6044,6 +6462,14 @@ def rewrite_mlir(
                 index for index, instance in enumerate(instances)
                 if start <= instance.span[0] and instance.span[1] <= end)
             report.append(("match", [], symbol + "[sampled-dense-product]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol in \
+                _render_cusparse_index_conversions(text):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.append((start, end, replacement))
+            report.append(("match", [], symbol + "[sparse-index-conversion]"))
             emitted_launches += 1
         for start, end, replacement, symbol in _render_cusparse_bsr_spmv(text):
             if max_launches is not None and emitted_launches >= max_launches:

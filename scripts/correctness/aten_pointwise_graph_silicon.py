@@ -497,6 +497,23 @@ CASES = {
          scalar("alpha", .75), scalar("beta", -.25),
          ptr("out", "NNZ", True)],
         "full CSR sampled dense product via cuSPARSE SDDMM"),
+    "aten_convert_coo_to_csr_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("row", "N", init="coo_row"), iptr("out", "R+1", True)],
+        "full COO-to-CSR index conversion via cuSPARSE"),
+    "aten_sparse_coo_to_csr_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("row", "N", init="coo_row"), iptr("out", "R+1", True)],
+        "full COO-to-CSR index conversion via cuSPARSE"),
+    "aten_convert_csr_to_coo_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N"), iptr("row", "N", True)],
+        "full CSR-to-COO row-index conversion via cuSPARSE"),
+    "aten_sparse_matmul_csr_to_coo_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("ptr", "R+1", init="csr_rowptr"), iptr("row", "N", True)],
+        "full CSR-to-COO row-index conversion via cuSPARSE"),
     "aten_sparse_addmm_cpu": spec(
         {"R": 64, "C": 4_096, "N": 4_096},
         [iptr("row", "N", init="coo_row"),

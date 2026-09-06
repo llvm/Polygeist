@@ -468,6 +468,8 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_sparse_addmm_cpu", "aten_hspmm_cpu",
         "aten_sparse_addmv_bsr_cpu",
         "aten_sampled_addmm_sparse_csr_cpu",
+        "aten_convert_coo_to_csr_cpu", "aten_sparse_coo_to_csr_cpu",
+        "aten_convert_csr_to_coo_cpu", "aten_sparse_matmul_csr_to_coo_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "CUB" and family == "scan":

@@ -1650,6 +1650,63 @@ void polygeist_cusparse_sddmm_csr_f32_sized(
   CUSPARSE_CHECK(cusparseDestroySpMat(product));
 }
 
+void polygeist_cusparse_coo2csr_i32_sized(
+    int32_t rows, int32_t coo_count, const int32_t *coo_rows,
+    int32_t csr_count, int32_t *csr_row_offsets) {
+  if (rows < 0 || coo_count < 0 || !coo_rows || !csr_row_offsets ||
+      csr_count < rows + 1) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid COO-to-CSR operands\n");
+    abort();
+  }
+  ensure_cusparse();
+  void *host_ptrs[] = {(void *)coo_rows, csr_row_offsets};
+  size_t byte_sizes[] = {(size_t)coo_count * sizeof(int32_t),
+                         (size_t)csr_count * sizeof(int32_t)};
+  void *device_ptrs[2] = {NULL, NULL};
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  CUSPARSE_CHECK(cusparseXcoo2csr(
+      g_sparse, (const int32_t *)device_ptrs[0], coo_count, rows,
+      (int32_t *)device_ptrs[1], CUSPARSE_INDEX_BASE_ZERO));
+  timing_gpu_end("cusparseXcoo2csr_i32", rows, coo_count, 0, host_start_ms);
+  sync_stream_if_outside_pipeline();
+}
+
+void polygeist_cusparse_csr2coo_i32_sized(
+    int32_t rows, int32_t csr_count, const int32_t *csr_row_offsets,
+    int32_t coo_capacity, int32_t *coo_rows) {
+  if (rows < 0 || !csr_row_offsets || !coo_rows || csr_count < rows + 1 ||
+      coo_capacity < 0) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid CSR-to-COO operands\n");
+    abort();
+  }
+  ensure_cusparse();
+  int32_t nnz = 0;
+  void *resident = NULL;
+  if (pointer_is_device_resident((void *)csr_row_offsets, &resident))
+    CUDA_CHECK(cudaMemcpy(&nnz, csr_row_offsets + rows, sizeof(nnz),
+                          cudaMemcpyDeviceToHost));
+  else
+    nnz = csr_row_offsets[rows];
+  if (nnz < 0 || nnz > coo_capacity) {
+    fprintf(stderr, "Polygeist cuSPARSE: CSR-to-COO nnz exceeds capacity\n");
+    abort();
+  }
+  void *host_ptrs[] = {(void *)csr_row_offsets, coo_rows};
+  size_t byte_sizes[] = {(size_t)csr_count * sizeof(int32_t),
+                         (size_t)coo_capacity * sizeof(int32_t)};
+  void *device_ptrs[2] = {NULL, NULL};
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  CUSPARSE_CHECK(cusparseXcsr2coo(
+      g_sparse, (const int32_t *)device_ptrs[0], nnz, rows,
+      (int32_t *)device_ptrs[1], CUSPARSE_INDEX_BASE_ZERO));
+  timing_gpu_end("cusparseXcsr2coo_i32", rows, nnz, 0, host_start_ms);
+  sync_stream_if_outside_pipeline();
+}
+
 void polygeist_cusparse_spmv_jds_f32_sized(
     int32_t rows, int32_t repetitions,
     int32_t row_count_capacity, const int32_t *row_counts,
@@ -1842,6 +1899,22 @@ void polygeist_cusparse_sddmm_csr_f32_sized(
   (void)a_rows; (void)a_cols; (void)a;
   (void)b_rows; (void)b_cols; (void)b;
   (void)alpha; (void)beta; (void)out_value_count; (void)out_values;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_coo2csr_i32_sized(
+    int32_t rows, int32_t coo_count, const int32_t *coo_rows,
+    int32_t csr_count, int32_t *csr_row_offsets) {
+  (void)rows; (void)coo_count; (void)coo_rows;
+  (void)csr_count; (void)csr_row_offsets;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_csr2coo_i32_sized(
+    int32_t rows, int32_t csr_count, const int32_t *csr_row_offsets,
+    int32_t coo_capacity, int32_t *coo_rows) {
+  (void)rows; (void)csr_count; (void)csr_row_offsets;
+  (void)coo_capacity; (void)coo_rows;
   cusparse_disabled();
 }
 

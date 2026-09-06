@@ -31,6 +31,8 @@ aten_complex_scalarized,406.496,3495.082,8.598,N=4194304,0,Jetson_AGX_Orin_sm87_
 aten_conj_complex_scalarized,1574.208,3648.413,2.318,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_conv1d,4695.424,7427.430,1.582,B=32_IC=64_OC=128_W=4096_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_conv2d_columns_cpu,1297.856,1405.213,1.083,C=11_H=61_K=11_W=61,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
+aten_convert_coo_to_csr_cpu,963.743999,993.958400,1.031351,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
+aten_convert_csr_to_coo_cpu,856.863998,1282.480000,1.496714,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_copy_cpu,206.144,1741.664,8.449,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_copy_tensor_array_cpu,207.552,1756.870,8.465,N=8192_B=512,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_cos,1373.568,1446.454,1.053,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
@@ -133,9 +135,11 @@ aten_sparse_add_values_cpu,881.952,6658.973,7.550,N=4194304,0,Jetson_AGX_Orin_sm
 aten_sparse_addmm_cpu,351.135998,2061.603200,5.871239,R=64_C=4096_N=4096,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_sparse_addmv_bsr_cpu,2260.832001,2748.441600,1.215677,R=4096_C=4096_BR=4_BC=4_N=262144,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_sparse_addmv_csr_cpu,991.200001,6599.436799,6.658027,R=65536_C=65536_N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
+aten_sparse_coo_to_csr_cpu,574.591999,956.457600,1.664586,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_sparse_csr_addmm_cpu,16970.464001,34844.960000,2.053271,R=65536_K=65536_C=64_N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_sparse_intersection_apply_cpu,884.128,6708.531,7.588,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_sparse_intersection_launch_cpu,892.032,6675.158,7.483,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
+aten_sparse_matmul_csr_to_coo_cpu,846.688000,1290.659201,1.524362,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
 aten_sparse_mul_cpu,893.088,6665.910,7.464,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_sqrt,1315.936,1399.648,1.064,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_square,638.400,4680.602,7.332,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30

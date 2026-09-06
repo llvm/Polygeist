@@ -4,26 +4,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f16, dense<16> : 
     %c1_i32 = arith.constant 1 : i32
     %0 = bufferization.to_tensor %arg1 : memref<?xi32>
     %1 = bufferization.to_tensor %arg0 : memref<?xi32>
-    %2 = affine.for %arg2 = 0 to 64 iter_args(%arg3 = %0) -> (tensor<?xi32>) {
-      %4 = arith.index_cast %arg2 : index to i32
-      %extracted = tensor.extract %1[%arg2] : tensor<?xi32>
-      %5:2 = scf.while (%arg4 = %extracted, %arg5 = %arg3) : (i32, tensor<?xi32>) -> (i32, tensor<?xi32>) {
-        %6 = affine.apply #map(%arg2)
-        %extracted_0 = tensor.extract %1[%6] : tensor<?xi32>
-        %7 = arith.cmpi slt, %arg4, %extracted_0 : i32
-        scf.condition(%7) %arg4, %arg5 : i32, tensor<?xi32>
-      } do {
-      ^bb0(%arg4: i32, %arg5: tensor<?xi32>):
-        %6 = arith.index_cast %arg4 : i32 to index
-        %inserted = tensor.insert %4 into %arg5[%6] : tensor<?xi32>
-        %7 = arith.addi %arg4, %c1_i32 : i32
-        scf.yield %7, %inserted : i32, tensor<?xi32>
-      }
-      affine.yield %5#1 : tensor<?xi32>
-    }
-    %3 = bufferization.to_memref %2 : memref<?xi32>
-    memref.copy %3, %arg1 : memref<?xi32> to memref<?xi32>
+    %cusparse_convert_rows_1428 = arith.constant 64 : index
+    kernel.launch @cusparseXcsr2coo_i32_memref(%cusparse_convert_rows_1428, %arg0, %arg1) : (index, memref<?xi32>, memref<?xi32>) -> ()
     return
   }
 }
-
