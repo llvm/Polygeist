@@ -28,6 +28,7 @@ DOC = {
     "cuSOLVER": "https://docs.nvidia.com/cuda/cusolver/contents.html",
     "cuRAND": "https://docs.nvidia.com/cuda/curand/host-api-overview.html",
     "CUB": "https://nvidia.github.io/cccl/unstable/cub/api/device.html",
+    "CUTLASS": "https://docs.nvidia.com/cutlass/",
     "NPP": "https://docs.nvidia.com/cuda/npp/",
     "CUDA Runtime": "https://docs.nvidia.com/cuda/cuda-runtime-api/",
     "none": "",
@@ -110,6 +111,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "alpha/beta, transpose and floating reassociation policy must agree",
                  "matrix/batch strides representable by cuBLAS; nested/ragged batches need grouping",
                  "generalize GEMM matcher and device-resident cuBLAS ABI", priority="HIGHEST")
+    if fam == "mixed_dtype_scaled_gemm":
+        return r("CUTLASS", "mixed-input GEMM template",
+                 "TEMPLATE_SUPPORT_UNCERTAIN", "whole only if the target architecture has an exact template",
+                 "INT8-to-FP32 conversion, per-output-column scale placement, accumulation order, NaN/Inf, and overflow behavior must agree",
+                 "FP32 A, INT8 B, FP32 output and scale vector; target-specific alignment/layout restrictions",
+                 "verify an exact CUTLASS instantiation before adding a semantic matcher; otherwise retain conventional Linalg/GPU lowering",
+                 confidence="MEDIUM", priority="LOW",
+                 note="cuBLASLt is not direct: its published regular-matrix table uses one shared Atype/Btype")
     if fam == "dense_vector_update":
         return r("cuBLAS", "Axpy/Scal", "EXACT_FIXED_CALL", "whole",
                  "standard BLAS update and supported scalar/type", "constant vector increments",

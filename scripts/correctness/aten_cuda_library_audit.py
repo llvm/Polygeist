@@ -33,6 +33,7 @@ EVIDENCE = {
     "cuFFT": "https://docs.nvidia.com/cuda/cufft/contents.html",
     "cuRAND": "https://docs.nvidia.com/cuda/curand/index.html",
     "CUB": "https://nvidia.github.io/cccl/cub/api/device.html",
+    "CUTLASS": "https://docs.nvidia.com/cutlass/",
     "NPP": "https://docs.nvidia.com/cuda/npp/index.html",
     "CUDA Runtime": "https://docs.nvidia.com/cuda/cuda-runtime-api/",
 }
@@ -74,6 +75,13 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "SGER outer products with vectors of ones",
                       "FULL_GENERIC_API", "whole",
                       "the two outputs broadcast each input across the Cartesian grid")
+    if n == "int8pack_mm_cpu":
+        return result("mixed_dtype_scaled_gemm", "CUTLASS",
+                      "mixed-input GEMM template (architecture support must be verified)",
+                      "PARTIAL_API", "whole_if_supported",
+                      "the fixture multiplies FP32 activations by INT8 weights converted "
+                      "to FP32 and applies a per-output-column scale; cuBLASLt's regular "
+                      "datatype table requires A and B to share one Atype/Btype")
     if n == "nested_sum_backward_cpu":
         return result("tensor_broadcast", "cuBLAS",
                       "SGER outer product with a vector of ones",
