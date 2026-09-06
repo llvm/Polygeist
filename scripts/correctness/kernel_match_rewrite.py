@@ -3409,6 +3409,130 @@ def _render_compressed_block_permutation(text: str) -> list[tuple[int, int, str,
              "cutensorPermute_f32_r4_tensor", [])]
 
 
+def _render_dynamic_allany_reduction(
+    text: str, instances, bodies, body_terms, body_forms,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize ATen's runtime-selected row-wise all/any reduction."""
+    function = re.search(
+        r"func\.func\s+@aten_allany_dims_cpu\("
+        r"%arg0:\s*memref<\?x64xi32>,\s*%arg1:\s*i32,\s*"
+        r"%arg2:\s*memref<\?xi32>\)", text)
+    if function is None:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    indices = [i for i, inst in enumerate(instances)
+               if function.start() <= inst.span[0] < function_end]
+    if len(indices) != 2:
+        return []
+    init_i, reduce_i = indices
+    init, reduce = instances[init_i], instances[reduce_i]
+    init_outs = _extract_ssa_names(init.outs_part)
+    reduce_ins = _extract_ssa_names(reduce.ins_part)
+    reduce_outs = _extract_ssa_names(reduce.outs_part)
+    input_views = [_parse_memref_view(text, value, reduce.span[0])
+                   for value in reduce_ins]
+    output_view = (_parse_memref_view(text, reduce_outs[0], reduce.span[0])
+                   if len(reduce_outs) == 1 else None)
+    maps = [_compact_affine_map(value)
+            for value in bodies[reduce_i].indexing_maps]
+    flag = _cub_dynamic_segmented_logical_flag(
+        bodies[reduce_i], body_terms[reduce_i], "tensor")
+    flag_definition = (re.search(
+        rf"{re.escape(flag)}\s*=\s*arith\.cmpi\s+ne,\s*%arg1,\s*"
+        r"(?P<zero>%[\w.$-]+)\s*:\s*i32", text[function.start():reduce.span[0]])
+                       if flag is not None else None)
+    zero_definition = (re.search(
+        rf"{re.escape(flag_definition.group('zero'))}\s*=\s*"
+        r"arith\.constant\s+0\s*:\s*i32", text[function.start():reduce.span[0]])
+                       if flag_definition is not None else None)
+    init_body = text[init.span[0]:init.span[1]]
+    direct_legal = (
+        len(init_outs) == 1 and init_outs[0] == "%arg2"
+        and re.search(r"linalg\.yield\s+%arg1\s*:\s*i32", init_body)
+        is not None
+        and len(input_views) == 2 and all(view is not None for view in input_views)
+        and all(view["kind"] == "subview" and view["base"] == "%arg0"
+                for view in input_views)
+        and all(view["base_type"] == "memref<?x64xi32>"
+                for view in input_views)
+        and output_view is not None
+        and output_view["kind"] == "reinterpret_cast"
+        and output_view["base"] == "%arg2"
+        and output_view["base_type"] == "memref<?xi32>"
+        and maps == [
+            "affine_map<(d0,d1)->(d0,d1)>",
+            "affine_map<(d0,d1)->(d0,d1)>",
+            "affine_map<(d0,d1)->(d0)>",
+        ]
+        and flag_definition is not None and zero_definition is not None
+        and text[function.start():function_end].count("linalg.generic") == 2
+    )
+    edit_end = reduce.span[1]
+    if not direct_legal:
+        function_text = text[function.start():function_end]
+        ast = (_parse_term(_term_repr(body_terms[reduce_i]))
+               if body_terms[reduce_i] is not None else None)
+        zero_ast, one_ast, out_ast = ("Lit", 0.0), ("Lit", 1.0), ("Out", 0)
+        truth_out = ("Cmp", "ne", out_ast, zero_ast)
+        expected_all = ("Select", truth_out,
+                        ("Cmp", "ne", ("In", 0), zero_ast), zero_ast)
+        expected_any = ("Select", truth_out, one_ast,
+                        ("Cmp", "ne", ("In", 0), zero_ast))
+        scaled_flag = (ast[1][1]
+                       if (isinstance(ast, tuple) and len(ast) == 4
+                           and ast[0] == "Select"
+                           and isinstance(ast[1], tuple) and ast[1][0] == "Cap"
+                           and ast[2] == expected_all and ast[3] == expected_any)
+                       else None)
+        x_tensor = re.search(
+            r"(?P<value>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg0"
+            r"\s*:\s*memref<\?x64xi32>", function_text)
+        out_tensor = re.search(
+            r"(?P<value>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg2"
+            r"\s*:\s*memref<\?xi32>", function_text)
+        reduce_input_names = _extract_ssa_names(reduce.ins_part)
+        reduce_output_names = _extract_ssa_names(reduce.outs_part)
+        final_copy = re.search(
+            r"(?P<tensor>%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            r"%[\w.$-]+\s*:\s*memref<\?xi32>\s*\n\s*memref\.copy\s+"
+            r"(?P=tensor),\s*%arg2\s*:\s*memref<\?xi32>\s+to\s+memref<\?xi32>",
+            text[reduce.span[1]:function_end])
+        scaled_legal = (
+            body_forms[init_i] == body_forms[reduce_i] == "tensor"
+            and init.result_ssa is not None and reduce.result_ssa is not None
+            and len(reduce_input_names) == len(reduce_output_names) == 1
+            and bodies[reduce_i].iterator_types == ["parallel", "reduction"]
+            and maps == [
+                "affine_map<(d0,d1)->(d0,d1)>",
+                "affine_map<(d0,d1)->(d0,d1)>",
+            ]
+            and scaled_flag is not None
+            and re.search(
+                rf"{re.escape(scaled_flag)}\s*=\s*arith\.cmpi\s+ne,\s*"
+                r"%arg1,\s*%[\w.$-]+\s*:\s*i32", function_text) is not None
+            and x_tensor is not None and out_tensor is not None
+            and re.search(
+                rf"{re.escape(reduce_input_names[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(x_tensor.group('value'))},\s*%[\w.$-]+,\s*%[\w.$-]+\)"
+                r"\s*\{map\s*=\s*#map1\}.*->\s*tensor<\?x\?xi32>",
+                function_text) is not None
+            and final_copy is not None
+            and function_text.count("linalg.generic") == 2
+            and function_text.count("polygeist.submapInverse") == 2
+        )
+        if not scaled_legal:
+            return []
+        edit_end = reduce.span[1] + final_copy.end()
+    replacement = (
+        f"{init.indent}kernel.launch @cubSegmentedLogicalSelect_i32_memref("
+        "%arg0, %arg0, %arg1, %arg2) : "
+        "(memref<?x64xi32>, memref<?x64xi32>, i32, memref<?xi32>) -> ()")
+    return [(init.span[0], edit_end, replacement,
+             "cubSegmentedLogicalSelect_i32_memref", indices)]
+
+
 def _render_fixed_average_pool_backward_regions(
     text: str, instances, bodies,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -7174,6 +7298,19 @@ def rewrite_mlir(
             continue
         edits.append((start, end, replacement))
         report.append(("match", consumed, symbol + "[block-layout]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_dynamic_allany_reduction(
+                text, instances, bodies, body_terms, body_forms):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[dynamic-allany]"))
         emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):

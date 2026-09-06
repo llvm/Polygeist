@@ -9,26 +9,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %false = arith.constant false
     %c0_i32 = arith.constant 0 : i32
     %0 = arith.cmpi ne, %arg1, %c0_i32 : i32
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel"]} outs(%arg2 : memref<?xi32>) {
-    ^bb0(%out: i32):
-      linalg.yield %arg1 : i32
-    }
-    %subview = memref.subview %arg0[0, 0] [%c32, %c64] [1, 1] : memref<?x64xi32> to memref<?x?xi32, strided<[64, 1]>>
-    %subview_0 = memref.subview %arg0[0, 0] [%c32, %c64] [1, 1] : memref<?x64xi32> to memref<?x?xi32, strided<[64, 1]>>
-    %reinterpret_cast = memref.reinterpret_cast %arg2 to offset: [0], sizes: [%c32], strides: [1] : memref<?xi32> to memref<32xi32>
-    linalg.generic {indexing_maps = [#map1, #map1, #map2], iterator_types = ["parallel", "reduction"]} ins(%subview, %subview_0 : memref<?x?xi32, strided<[64, 1]>>, memref<?x?xi32, strided<[64, 1]>>) outs(%reinterpret_cast : memref<32xi32>) {
-    ^bb0(%in: i32, %in_1: i32, %out: i32):
-      %1 = arith.cmpi ne, %out, %c0_i32 : i32
-      %2 = arith.cmpi ne, %in, %c0_i32 : i32
-      %3 = arith.select %1, %2, %false : i1
-      %4 = arith.extsi %3 : i1 to i32
-      %5 = arith.cmpi ne, %out, %c0_i32 : i32
-      %6 = arith.cmpi ne, %in_1, %c0_i32 : i32
-      %7 = arith.select %5, %true, %6 : i1
-      %8 = arith.extsi %7 : i1 to i32
-      %9 = arith.select %0, %4, %8 : i32
-      linalg.yield %9 : i32
-    }
+    kernel.launch @cubSegmentedLogicalSelect_i32_memref(%arg0, %arg0, %arg1, %arg2) : (memref<?x64xi32>, memref<?x64xi32>, i32, memref<?xi32>) -> ()
     return
   }
 }

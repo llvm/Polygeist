@@ -79,6 +79,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "SGER outer product with a vector of ones",
                       "FULL_GENERIC_API", "whole",
                       "sum backward replicates each row gradient; it performs no reduction")
+    if n == "allany_dims_cpu":
+        return result("boolean_reduction", "CUB",
+                      "DeviceSegmentedReduce with logical AND/OR",
+                      "FULL_GENERIC_API", "whole",
+                      "the runtime flag selects an associative row-wise all or any reduction")
     if "histogram" in n or "histogramdd" in n:
         return result("histogram_count", "CUB", "DeviceHistogram",
                       "FULL_GENERIC_API", "whole",

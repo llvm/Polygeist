@@ -484,6 +484,8 @@ struct PrefixEndOffset {
   }
 };
 
+static bool cub_device_pointer(const void *pointer, void **device_pointer);
+
 template <typename Op>
 static cudaError_t segmented_reduce(
     int32_t rows, int32_t cols, const int32_t *host_x, int32_t *host_out,
@@ -492,19 +494,31 @@ static cudaError_t segmented_reduce(
   size_t input_bytes = static_cast<size_t>(rows) * cols * sizeof(int32_t);
   size_t output_bytes = static_cast<size_t>(rows) * sizeof(int32_t);
   int32_t *device_x = nullptr, *device_out = nullptr;
+  void *resident = nullptr;
+  bool owns_x = !cub_device_pointer(host_x, &resident);
+  if (!owns_x)
+    device_x = static_cast<int32_t *>(resident);
+  bool owns_out = !cub_device_pointer(host_out, &resident);
+  if (!owns_out)
+    device_out = static_cast<int32_t *>(resident);
   using Counting = cub::CountingInputIterator<int32_t>;
   using Offsets = cub::TransformInputIterator<int32_t, SegmentOffset, Counting>;
   Counting counting(0);
   Offsets offsets(counting, SegmentOffset{cols});
   void *temporary = nullptr;
   size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&device_x, input_bytes);
-  if (status != cudaSuccess) return status;
-  status = cudaMalloc(&device_out, output_bytes);
-  if (status != cudaSuccess) { cudaFree(device_x); return status; }
-  status = cudaMemcpyAsync(device_x, host_x, input_bytes,
-                           cudaMemcpyHostToDevice, stream);
-  if (status != cudaSuccess) goto cleanup;
+  cudaError_t status = cudaSuccess;
+  if (owns_x) {
+    status = cudaMalloc(&device_x, input_bytes);
+    if (status != cudaSuccess) return status;
+    status = cudaMemcpyAsync(device_x, host_x, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) goto cleanup;
+  }
+  if (owns_out) {
+    status = cudaMalloc(&device_out, output_bytes);
+    if (status != cudaSuccess) goto cleanup;
+  }
 
   status = cub::DeviceSegmentedReduce::Reduce(
       temporary, temporary_bytes, device_x, device_out, rows,
@@ -515,14 +529,14 @@ static cudaError_t segmented_reduce(
   status = cub::DeviceSegmentedReduce::Reduce(
       temporary, temporary_bytes, device_x, device_out, rows,
       offsets, offsets + 1, op, identity, stream);
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && owns_out)
     status = cudaMemcpyAsync(host_out, device_out, output_bytes,
                              cudaMemcpyDeviceToHost, stream);
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
   cudaFree(temporary);
 cleanup:
-  cudaFree(device_out);
-  cudaFree(device_x);
+  if (owns_out) cudaFree(device_out);
+  if (owns_x) cudaFree(device_x);
   return status;
 }
 

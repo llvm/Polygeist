@@ -835,6 +835,7 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                          kernel in {"aten_quant_col_offsets_cpu",
                                     "aten_diff_cpu",
                                     "aten_embedding_bag_counts_cpu",
+                                    "aten_allany_dims_cpu",
                                     "aten_compressed_block_convert_cpu",
                                     "aten_upsample_bilinear2d"})
     if "via cuSPARSE" not in cfg["coverage"]:

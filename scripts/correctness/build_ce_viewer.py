@@ -2476,7 +2476,7 @@ ATEN_RETIRED_EARLY_MATCH_KERNELS = {
     "aten_adaptive_max_pool3d_backward_cpu", "aten_adaptive_max_pool3d_cpu",
     "aten_adaptive_max_pool3d_legacy_backward_cpu",
     "aten_adaptive_max_pool3d_legacy_cpu",
-    "aten_allany_dims_cpu", "aten_argmax_cpu",
+    "aten_argmax_cpu",
     "aten_argmin_cpu", "aten_avg_pool2d_cpu",
     "aten_avg_pool3d_cpu",
     "aten_batch_norm_backward_cpu",

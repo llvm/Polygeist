@@ -22,7 +22,7 @@ aten_addcmul	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_addmm	pass	2	0	1	cublasDgemm
 aten_addr_elementwise	pass	1	0	1	cudnnAddrElementwise_f32_memref
 aten_airy_ai	pass	1	0	0	-
-aten_allany_dims_cpu	pass	2	0	0	-
+aten_allany_dims_cpu	pass	2	0	1	cubSegmentedLogicalSelect_i32_memref
 aten_aminmax_allreduce_cpu	pass	1	0	1	cudnnReduceMinMax_f32
 aten_aminmax_cpu	pass	2	0	2	cudnnReduceMax_f32,cudnnReduceMin_f32
 aten_amp_update_scale_cpu	pass	0	0	0	-
