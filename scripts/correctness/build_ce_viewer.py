@@ -2487,7 +2487,6 @@ ATEN_RETIRED_EARLY_MATCH_KERNELS = {
     "aten_nested_sum_dim_cpu", "aten_or_reduce_cpu", "aten_powsum_cpu",
     "aten_sinc", "aten_sort_cpu",
     "aten_sparse_norm_cpu", "aten_topk_cpu",
-    "aten_transform_bias_rescale_qkv_cpu",
     "aten_upsample_lanczos2d_aa_backward_cpu",
     "aten_upsample_lanczos2d_aa_cpu", "aten_xor_sum_cpu",
 }

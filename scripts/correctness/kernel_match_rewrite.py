@@ -7014,60 +7014,132 @@ def rewrite_mlir(
             qkv_slices = []
             bias_slices = []
             output_slices = []
+            expanded_qkv = False
             if legal:
+                operand_names = []
                 for inst in qkv_insts:
                     names_in = _extract_ssa_names(inst.ins_part)
                     names_out = _extract_ssa_names(inst.outs_part)
                     if len(names_in) != 2 or len(names_out) != 1:
                         legal = False
                         break
-                    qkv_slices.append(_tensor_extract_slice_info(
-                        text, names_in[0], inst.span[0]))
-                    bias_slices.append(_tensor_extract_slice_info(
-                        text, names_in[1], inst.span[0]))
-                    output_slices.append(_tensor_extract_slice_info(
-                        text, names_out[0], inst.span[0]))
+                    operand_names.append((names_in[0], names_in[1],
+                                          names_out[0]))
+            if legal:
+                submap_groups = [
+                    tuple(_tensor_submap_info(text, value, inst.span[0])
+                          for value in names)
+                    for inst, names in zip(qkv_insts, operand_names)
+                ]
+                expanded_qkv = all(
+                    item is not None for group in submap_groups
+                    for item in group)
+                if expanded_qkv:
+                    qkv_slices = [group[0] for group in submap_groups]
+                    bias_slices = [group[1] for group in submap_groups]
+                    output_slices = [group[2] for group in submap_groups]
+                else:
+                    qkv_slices = [_tensor_extract_slice_info(
+                        text, names[0], inst.span[0])
+                        for inst, names in zip(qkv_insts, operand_names)]
+                    bias_slices = [_tensor_extract_slice_info(
+                        text, names[1], inst.span[0])
+                        for inst, names in zip(qkv_insts, operand_names)]
+                    output_slices = [_tensor_extract_slice_info(
+                        text, names[2], inst.span[0])
+                        for inst, names in zip(qkv_insts, operand_names)]
                 legal = legal and all(item is not None for item in
                                       qkv_slices + bias_slices + output_slices)
             if legal:
                 qkv_tensor = qkv_slices[0]["source"]
                 bias_tensor = bias_slices[0]["source"]
                 output_tensors = [item["source"] for item in output_slices]
-                expected_maps = [
-                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
-                    "affine_map<(d0,d1,d2,d3)->(d2,d3)>",
-                    "affine_map<(d0,d1,d2,d3)->(d0,d2,d1,d3)>",
-                ]
-                legal = (
-                    [item["source"] for item in qkv_slices] == [qkv_tensor] * 3
-                    and [item["source"] for item in bias_slices] == [bias_tensor] * 3
-                    and len(set(output_tensors)) == 3
-                    and [item["offsets"] for item in qkv_slices] == [
-                        ["0", "0", str(j), "0", "0"] for j in range(3)]
-                    and [item["offsets"] for item in bias_slices] == [
-                        [str(j), "0", "0"] for j in range(3)]
-                    and all(item["offsets"] == ["0"] * 4 for item in output_slices)
-                    and all(item["strides"] == ["1"] * 5 for item in qkv_slices)
-                    and all(item["strides"] == ["1"] * 3 for item in bias_slices)
-                    and all(item["strides"] == ["1"] * 4 for item in output_slices)
-                    and all([_compact_affine_map(m) for m in body.indexing_maps]
-                            == expected_maps for body in bodies[i:i + 3])
-                )
+                common_legal = (
+                    [item["source"] for item in qkv_slices] ==
+                    [qkv_tensor] * 3
+                    and [item["source"] for item in bias_slices] ==
+                    [bias_tensor] * 3
+                    and len(set(output_tensors)) == 3)
+                if expanded_qkv:
+                    expected_qkv_maps = [
+                        "affine_map<(d0,d1,d2,d3)->"
+                        f"(d0,d1,{j},d2,d3)>" for j in range(3)]
+                    expected_bias_maps = [
+                        "affine_map<(d0,d1,d2,d3)->"
+                        f"({j},d2,d3)>" for j in range(3)]
+                    expected_output_map = (
+                        "affine_map<(d0,d1,d2,d3)->(d0,d2,d1,d3)>")
+                    body_maps = [
+                        [_compact_affine_map(mapping)
+                         for mapping in body.indexing_maps]
+                        for body in bodies[i:i + 3]]
+                    legal = (
+                        common_legal
+                        and [_compact_affine_map(item["map"])
+                             for item in qkv_slices] == expected_qkv_maps
+                        and [_compact_affine_map(item["map"])
+                             for item in bias_slices] == expected_bias_maps
+                        and all(_compact_affine_map(item["map"]) ==
+                                expected_output_map
+                                for item in output_slices)
+                        and all(item["sizes"] == qkv_slices[0]["sizes"]
+                                for item in qkv_slices + bias_slices +
+                                output_slices)
+                        and len(qkv_slices[0]["sizes"]) == 4
+                        and all(len(set(maps)) == 1 for maps in body_maps)
+                        and all(maps[0] ==
+                                "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>"
+                                for maps in body_maps))
+                else:
+                    expected_maps = [
+                        "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
+                        "affine_map<(d0,d1,d2,d3)->(d2,d3)>",
+                        "affine_map<(d0,d1,d2,d3)->(d0,d2,d1,d3)>",
+                    ]
+                    legal = (
+                        common_legal
+                        and [item["offsets"] for item in qkv_slices] == [
+                            ["0", "0", str(j), "0", "0"] for j in range(3)]
+                        and [item["offsets"] for item in bias_slices] == [
+                            [str(j), "0", "0"] for j in range(3)]
+                        and all(item["offsets"] == ["0"] * 4
+                                for item in output_slices)
+                        and all(item["strides"] == ["1"] * 5
+                                for item in qkv_slices)
+                        and all(item["strides"] == ["1"] * 3
+                                for item in bias_slices)
+                        and all(item["strides"] == ["1"] * 4
+                                for item in output_slices)
+                        and all([_compact_affine_map(m)
+                                 for m in body.indexing_maps] == expected_maps
+                                for body in bodies[i:i + 3]))
             if legal:
-                qkv_values = [_constant_index_value(text, value) if value != "1" else 1
-                              for value in qkv_slices[0]["sizes"]]
-                bias_values = [_constant_index_value(text, value) if value != "1" else 1
-                               for value in bias_slices[0]["sizes"]]
-                output_values = [_constant_index_value(text, value) if value != "1" else 1
-                                 for value in output_slices[0]["sizes"]]
-                legal = (
-                    qkv_values == [2, 16, 1, 4, 8]
-                    and bias_values == [1, 4, 8]
-                    and output_values == [2, 4, 16, 8]
-                    and all(item["sizes"] == qkv_slices[0]["sizes"] for item in qkv_slices)
-                    and all(item["sizes"] == bias_slices[0]["sizes"] for item in bias_slices)
-                    and all(item["sizes"] == output_slices[0]["sizes"] for item in output_slices)
-                )
+                if expanded_qkv:
+                    logical_values = [
+                        _constant_index_value(text, value)
+                        for value in qkv_slices[0]["sizes"]]
+                    legal = all(value is not None and value > 0
+                                for value in logical_values)
+                else:
+                    qkv_values = [_constant_index_value(text, value)
+                                  if value != "1" else 1
+                                  for value in qkv_slices[0]["sizes"]]
+                    bias_values = [_constant_index_value(text, value)
+                                   if value != "1" else 1
+                                   for value in bias_slices[0]["sizes"]]
+                    output_values = [_constant_index_value(text, value)
+                                     if value != "1" else 1
+                                     for value in output_slices[0]["sizes"]]
+                    legal = (
+                        qkv_values == [2, 16, 1, 4, 8]
+                        and bias_values == [1, 4, 8]
+                        and output_values == [2, 4, 16, 8]
+                        and all(item["sizes"] == qkv_slices[0]["sizes"]
+                                for item in qkv_slices)
+                        and all(item["sizes"] == bias_slices[0]["sizes"]
+                                for item in bias_slices)
+                        and all(item["sizes"] == output_slices[0]["sizes"]
+                                for item in output_slices))
             if legal:
                 sources = [_to_tensor_memref_source(text, value, qkv_insts[0].span[0])
                            for value in [qkv_tensor, bias_tensor] + output_tensors]
@@ -7084,19 +7156,56 @@ def rewrite_mlir(
                 memref_types = physical_types[:2] + physical_types[3:]
                 legal = (len(set(memref_operands)) == 5 and
                          _plain_f32_memrefs(memref_types, [5, 3, 4, 4, 4]))
+                if legal and expanded_qkv:
+                    batch, sequence, heads, width = logical_values
+                    legal = (
+                        _plain_shape_compatible(
+                            memref_types[0], "f32",
+                            [batch, sequence, 3, heads, width])
+                        and _plain_shape_compatible(
+                            memref_types[1], "f32", [3, heads, width])
+                        and all(_plain_shape_compatible(
+                            output_type, "f32",
+                            [batch, heads, sequence, width])
+                            for output_type in memref_types[2:]))
             tails = []
             if legal:
                 for inst, output_slice, physical_output in zip(
                         qkv_insts, output_slices, physical_operands[3:]):
                     sizes = r",\s*".join(map(re.escape, output_slice["sizes"]))
-                    tail = re.match(
-                        rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
-                        rf"{re.escape(inst.result_ssa)}\s+into\s+"
-                        rf"{re.escape(output_slice['source'])}\[0,\s*0,\s*0,\s*0\]"
-                        rf"\s*\[{sizes}\]\s*\[1,\s*1,\s*1,\s*1\][^\n]*\n"
-                        rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
-                        rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_output)}\s*:[^\n]*",
-                        text[inst.span[1]:])
+                    if expanded_qkv:
+                        tail = re.match(
+                            rf"\s*(%[\w_\-]+)\s*=\s*"
+                            rf"polygeist\.submapInverse\s*\(\s*"
+                            rf"{re.escape(output_slice['source'])}\s*,\s*"
+                            rf"{re.escape(inst.result_ssa)}\s*,\s*{sizes}\)"
+                            rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                            rf"\s*(%[\w_\-]+)\s*=\s*"
+                            rf"bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                            rf"\s*memref\.copy\s+\3,\s*"
+                            rf"{re.escape(physical_output)}\s*:[^\n]*",
+                            text[inst.span[1]:])
+                        if tail is not None:
+                            inverse_map = _compact_affine_map(
+                                _resolve_affine_map_text(
+                                    text[:inst.span[1] + tail.end()],
+                                    tail.group(2).strip()))
+                            if inverse_map != _compact_affine_map(
+                                    output_slice["map"]):
+                                tail = None
+                    else:
+                        tail = re.match(
+                            rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                            rf"{re.escape(inst.result_ssa)}\s+into\s+"
+                            rf"{re.escape(output_slice['source'])}"
+                            rf"\[0,\s*0,\s*0,\s*0\]"
+                            rf"\s*\[{sizes}\]\s*"
+                            rf"\[1,\s*1,\s*1,\s*1\][^\n]*\n"
+                            rf"\s*(%[\w_\-]+)\s*=\s*"
+                            rf"bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                            rf"\s*memref\.copy\s+\2,\s*"
+                            rf"{re.escape(physical_output)}\s*:[^\n]*",
+                            text[inst.span[1]:])
                     if tail is None:
                         legal = False
                         break
