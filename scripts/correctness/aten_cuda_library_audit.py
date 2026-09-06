@@ -192,6 +192,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "the kernel emits a per-row threshold mask rather than a compacted "
                       "index list; CUB can compute the L1 row scores and leave the "
                       "comparison/cast as residual Linalg")
+    if n == "max_pool1d_cpu":
+        return result("pooling_with_indices", "CUB",
+                      "DeviceSegmentedReduce::ArgMax",
+                      "PARTIAL_API", "window_reduction",
+                      "the fixture returns both pooled values and ATen indices; cuDNN "
+                      "pooling does not expose that index output")
     if hit(r"flatten_indices|nested_to_mask|tril_indices|triu_indices|triu_mask|triu_tril_batch", n):
         return result("index_generation", "cuDNN", "GEN_INDEX plus arithmetic/comparison graph",
                       "FULL_GENERIC_API", "whole",

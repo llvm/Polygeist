@@ -129,7 +129,7 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "blank label, normalization, determinism, input lengths, gradient semantics, and elimination of the observable alpha DP table",
                  "cuDNN-supported CTC tensor layout/type/algorithm",
                  "fuse forward/backward and redesign the standalone ABI before adding a matcher", priority="LOW")
-    if fam == "pooling":
+    if fam in {"pooling", "pooling_with_indices"}:
         if "max_pool1d" in n:
             return r("CUB", "DeviceSegmentedReduce::ArgMax",
                      "SUBSET_WITH_CONSTRAINTS", "whole for explicit windows",
