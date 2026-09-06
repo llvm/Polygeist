@@ -13,7 +13,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c32, %c64] [1, 1] : tensor<?x64xf32> to tensor<?x?xf32>
     %extracted_slice_0 = tensor.extract_slice %1[0, 0] [%c32, %c64] [1, 1] : tensor<?x64xf32> to tensor<?x?xf32>
     %extracted_slice_1 = tensor.extract_slice %2[0] [%c32] [1] : tensor<?xf32> to tensor<?xf32>
-    %4:2 = kernel.launch @cubSegmentedInclusiveProduct2D_f32_tensor(%extracted_slice, %extracted_slice_0, %extracted_slice_1) : (tensor<?x?xf32>, tensor<?x?xf32>, tensor<?xf32>) -> (tensor<?x?xf32>, tensor<?xf32>)
+    %4:2 = kernel.launch @cubSegmentedInclusiveProduct2D_f32_tensor(%extracted_slice, %extracted_slice_0, %2) : (tensor<?x?xf32>, tensor<?x?xf32>, tensor<?xf32>) -> (tensor<?x?xf32>, tensor<?xf32>)
     %inserted_slice = tensor.insert_slice %4#0 into %1[0, 0] [%c32, %c64] [1, 1] : tensor<?x?xf32> into tensor<?x64xf32>
     %5 = bufferization.to_memref %inserted_slice : memref<?x64xf32>
     memref.copy %5, %arg1 : memref<?x64xf32> to memref<?x64xf32>

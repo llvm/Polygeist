@@ -15,7 +15,13 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %subview = memref.subview %arg0[0, 0, 0, 0] [%c3, %c6, %c7, %c8] [1, 1, 1, 1] : memref<?x6x7x8xf32> to memref<?x?x?x?xf32, strided<[336, 56, 8, 1]>>
     %subview_0 = memref.subview %arg1[0, 0, 0, 0, 0] [%c3, %c2, %c3, %c3, %c3] [1, 1, 1, 1, 1] : memref<?x2x3x3x3xf32> to memref<?x?x?x?x?xf32, strided<[54, 27, 9, 3, 1]>>
     %0 = polygeist.submap(%arg2, %c2, %c6, %c7, %c8, %c3, %c3, %c3) {map = #map} : (memref<?x8x9x10xf32>, index, index, index, index, index, index, index) -> memref<2x6x7x8x3x3x3xf32>
-    kernel.launch @cudnnConvolutionTranspose3D_f32_memref(%arg0, %arg1, %arg2) : (memref<?x6x7x8xf32>, memref<?x2x3x3x3xf32>, memref<?x8x9x10xf32>) -> ()
+    %fixed_conv_0_0 = memref.cast %arg0 : memref<?x6x7x8xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_0_1 = memref.cast %arg1 : memref<?x2x3x3x3xf32> to memref<?x?x?x?x?xf32>
+
+    %fixed_conv_0_2 = memref.cast %arg2 : memref<?x8x9x10xf32> to memref<?x?x?x?xf32>
+
+    kernel.launch @cudnnConvolutionTranspose3D_f32_memref(%fixed_conv_0_0, %fixed_conv_0_1, %fixed_conv_0_2) : (memref<?x?x?x?xf32>, memref<?x?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
     return
   }
 }
