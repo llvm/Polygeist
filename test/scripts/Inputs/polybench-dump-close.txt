@@ -1,0 +1,5 @@
+==BEGIN DUMP_ARRAYS==
+begin dump: A
+450.33 0.01 -2.00
+end   dump: A
+==END   DUMP_ARRAYS==

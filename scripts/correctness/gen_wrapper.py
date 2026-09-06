@@ -7,7 +7,7 @@ memref descriptor calling convention (each N-D memref expands to
 [base, aligned, offset, sizes..., strides...] arguments).
 
 Usage:
-  gen_wrapper.py <kernel.c> <kernel_name>
+  gen_wrapper.py [--cuda-timing] <kernel.c> <kernel_name>
 
 Prints the wrapper C source to stdout.
 """
@@ -266,7 +266,8 @@ def _parse_plain_c_pointer(a: str):
 
 
 def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
-                prelude: str = '', return_type: str = 'void'):
+                prelude: str = '', return_type: str = 'void',
+                cuda_timing: bool = False):
     """Emit wrapper C source for `kernel_name`."""
     extern_args, wrapper_args, call_args = [], [], []
     for a in args:
@@ -344,7 +345,16 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
         + ",\n      ".join(call_args)
         + ")"
     )
-    if return_type == 'void':
+    if cuda_timing and return_type != 'void':
+        raise ValueError("CUDA timing wrapper currently requires a void kernel")
+    if cuda_timing:
+        body = (
+            "  polygeist_cublas_time_begin();\n"
+            f"  {call};\n"
+            "  double polygeist_device_ms = polygeist_cublas_time_end_ms();\n"
+            f'  fprintf(stderr, "POLYGEIST_DEVICE_TIMING kernel={kernel_name} device_ms=%.6f\\n", polygeist_device_ms);'
+        )
+    elif return_type == 'void':
         body = f"  {call};"
     else:
         body = f"  return {call};"
@@ -353,6 +363,10 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
         f"{body}\n}}"
     )
     prefix = "#include <stdint.h>"
+    if cuda_timing:
+        prefix += ("\n#include <stdio.h>\n"
+                   "extern void polygeist_cublas_time_begin(void);\n"
+                   "extern double polygeist_cublas_time_end_ms(void);")
     if any(a[0] == 'CART3' for a in args):
         prefix += "\nstruct cartesian { float x, y, z; };"
     if prelude:
@@ -361,16 +375,19 @@ def gen_wrapper(kernel_name: str, args, dtype: str = 'double',
 
 
 def main():
-    if len(sys.argv) != 3:
+    cuda_timing = "--cuda-timing" in sys.argv[1:]
+    positional = [arg for arg in sys.argv[1:] if arg != "--cuda-timing"]
+    if len(positional) != 2:
         print(__doc__, file=sys.stderr)
         sys.exit(1)
-    src, name = sys.argv[1], sys.argv[2]
+    src, name = positional
     with open(src) as f:
         text = f.read()
     dtype = infer_dtype(text)
     args = parse_signature(text, name)
     ret = parse_return_type(text, name, dtype)
-    print(gen_wrapper(name, args, dtype, extract_macro_prelude(text), ret))
+    print(gen_wrapper(name, args, dtype, extract_macro_prelude(text), ret,
+                      cuda_timing))
 
 
 if __name__ == "__main__":

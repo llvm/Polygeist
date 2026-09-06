@@ -57,6 +57,10 @@ struct HoistPureAffineLoopInvariants
 
     for (Operation &op : loop.getBody()->without_terminator()) {
       if (op.getNumRegions() != 0 || !isMemoryEffectFree(&op) ||
+          op.getNumResults() == 0 ||
+          !llvm::all_of(op.getResultTypes(),
+                        [](Type type) { return type.isIndex(); }) ||
+          isa<arith::ConstantOp>(op) ||
           llvm::any_of(op.getOperands(), isInside))
         continue;
       op.moveBefore(loop);

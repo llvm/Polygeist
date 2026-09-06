@@ -235,18 +235,19 @@ void polygeist_cublas_dgemm_outer_product(
 
 void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
                                        double *A, int32_t lda) {
-  for (int32_t i = 0; i < M; ++i) {
-    double *row = &A[(size_t)i * (size_t)lda];
-    for (int32_t j = 0; j < N; ++j) row[j] = 0.0;
-  }
+  if (lda == N)
+    memset(A, 0, (size_t)M * (size_t)N * sizeof(double));
+  else
+    for (int32_t i = 0; i < M; ++i)
+      memset(&A[(size_t)i * (size_t)lda], 0, (size_t)N * sizeof(double));
 }
 
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
-  for (int32_t i = 0; i < N; ++i) v[i] = 0.0;
+  memset(v, 0, (size_t)N * sizeof(double));
 }
 
 void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
-  for (int32_t i = 0; i < N; ++i) v[i] = 0.0f;
+  memset(v, 0, (size_t)N * sizeof(float));
 }
 
 void polygeist_cublas_dgemv(
@@ -1560,7 +1561,7 @@ void polygeist_cudnn_binary_cross_entropy_mean_f32(
 }
 
 void polygeist_cudnn_conv_tbc_f32(
-    int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+    int32_t T, int32_t B, int32_t IC, int32_t O, int32_t K,
     const float *input, const float *filter, float *output) {
   int32_t TO = T - K + 1;
   for (int32_t t = 0; t < TO; ++t)
@@ -1568,21 +1569,21 @@ void polygeist_cudnn_conv_tbc_f32(
       for (int32_t o = 0; o < O; ++o) {
         float acc = 0.0f;
         for (int32_t k = 0; k < K; ++k)
-          for (int32_t i = 0; i < I; ++i)
-            acc += input[((size_t)(t + k) * B + b) * I + i] *
-                   filter[((size_t)k * I + i) * O + o];
+          for (int32_t i = 0; i < IC; ++i)
+            acc += input[((size_t)(t + k) * B + b) * IC + i] *
+                   filter[((size_t)k * IC + i) * O + o];
         output[((size_t)t * B + b) * O + o] = acc;
       }
 }
 void polygeist_cudnn_conv_tbc_backward_f32(
-    int32_t T,int32_t B,int32_t I,int32_t O,int32_t K,
+    int32_t T,int32_t B,int32_t IC,int32_t O,int32_t K,
     const float *grad,const float *filter,float *output) {
-  int32_t TO=T+K-1;memset(output,0,(size_t)TO*B*I*sizeof(float));
+  int32_t TO=T+K-1;memset(output,0,(size_t)TO*B*IC*sizeof(float));
   for(int32_t t=0;t<T;++t)for(int32_t b=0;b<B;++b)
     for(int32_t o=0;o<O;++o)for(int32_t k=0;k<K;++k)
-      for(int32_t i=0;i<I;++i)
-        output[((size_t)(t+k)*B+b)*I+i]+=
-          grad[((size_t)t*B+b)*O+o]*filter[((size_t)k*I+i)*O+o];
+      for(int32_t i=0;i<IC;++i)
+        output[((size_t)(t+k)*B+b)*IC+i]+=
+          grad[((size_t)t*B+b)*O+o]*filter[((size_t)k*IC+i)*O+o];
 }
 
 void polygeist_cudnn_transform_bias_rescale_qkv_f32(

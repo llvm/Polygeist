@@ -16,9 +16,9 @@
 set -e
 _CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_CORRECTNESS_DIR/common_env.sh"
-MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
-CLANG=$REPO_ROOT/llvm-project/build/bin/clang
+MLIR_OPT="${MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt}"
+MLIR_TRANSLATE="${MLIR_TRANSLATE:-$REPO_ROOT/llvm-project/build/bin/mlir-translate}"
+CLANG="${CLANG:-$REPO_ROOT/llvm-project/build/bin/clang}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ $# -lt 2 ]; then
@@ -53,11 +53,11 @@ TAG="$KERNEL"
 [ -n "$MATCH" ] && TAG="${KERNEL}_match"
 [ -n "$MATCH_CANONICAL" ] && TAG="${KERNEL}_p2"
 [ -n "$MULTIROOT" ] && TAG="${TAG}_mr"
-OUT=/tmp/e2e_${TAG}
+OUT="${POLYBENCH_E2E_OUTPUT_ROOT:-/tmp}/e2e_${TAG}"
 mkdir -p $OUT
 
-DATASET=-DMINI_DATASET
-CFLAGS="-O1 -I$UTIL -I$KERNEL_DIR -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS $DATASET"
+DATASET="-D${POLYBENCH_DATASET:-MINI}_DATASET"
+CFLAGS="${POLYBENCH_COMPILE_OPT:--O1} -I$UTIL -I$KERNEL_DIR -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS $DATASET"
 DYN_FLAGS="-Dstatic= -DPOLYBENCH_USE_C99_PROTO"
 
 # Pipeline ordering: lower-polygeist-submap BEFORE --linalg-debufferize so
@@ -169,7 +169,7 @@ $CLANG -c $OUT/kernel.ll -o $OUT/kernel.o
 # Link in mlir_c_runner_utils when memref.copy survived lowering (multi-root
 # debuferize emits to_memref+memref.copy that one-shot-bufferize can't always
 # collapse). Harmless when not needed.
-MLIR_LIBDIR=$REPO_ROOT/llvm-project/build/lib
+MLIR_LIBDIR="${MLIR_LIBDIR:-$REPO_ROOT/llvm-project/build/lib}"
 $CLANG $OUT/nokernel.o $OUT/wrapper.o $OUT/kernel.o $OUT/polybench.o -lm \
   -L$MLIR_LIBDIR -Wl,-rpath,$MLIR_LIBDIR -lmlir_c_runner_utils \
   -o $OUT/test_exe

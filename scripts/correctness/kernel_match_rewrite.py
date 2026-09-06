@@ -4293,6 +4293,7 @@ def rewrite_mlir(
         custom_first_launch_line: str | None = None
         custom_edit_span: tuple[int, int] | None = None
         composition_root_rewire: tuple[str, str] | None = None
+        pre_launch_lines: list[str] = []
 
         if entry.name.startswith("cubSegmented") and n == 2:
             # The first generic only writes the reduction identity.  The CUB
@@ -5640,8 +5641,48 @@ def rewrite_mlir(
         # defining ops, compare the submap-base SSA name.
         if entry.name in ("cublasDgemm", "cublasDgemm_simple",
                           "cublasDgemm_alpha_only"):
+            # Multi-step GEMM compositions subsume their first producer
+            # (typically output scaling or initialization). Any remaining
+            # view/update uses of that producer must instead use the original
+            # destination passed to the fused external-library call.
+            if n > 1 and instances[i].result_ssa and outs0:
+                composition_root_rewire = (
+                    instances[i].result_ssa, outs0[0])
             gemm_inst = instances[i + n - 1]  # last (contraction) generic
             gemm_ins = _extract_ssa_names(gemm_inst.ins_part)
+            gemm_in_types = _extract_ssa_types(gemm_inst.ins_part)
+            gemm_outs = _extract_ssa_names(gemm_inst.outs_part)
+            gemm_out_types = _extract_ssa_types(gemm_inst.outs_part)
+            # A scale-and-contract composition can have extract_slice views
+            # between its two generics.  The opaque GEMM must consume the
+            # contraction's actual destination view, while the deleted scale
+            # result is rewired to the original storage so that view remains
+            # defined.
+            if (n > 1 and len(gemm_ins) == 2 and len(gemm_outs) == 1 and
+                    len(gemm_in_types) == 2 and len(gemm_out_types) == 1):
+                if (composition_root_rewire is not None and
+                        gemm_outs[0] == composition_root_rewire[0]):
+                    gemm_outs[0] = composition_root_rewire[1]
+                operands = gemm_ins + gemm_outs
+                operand_types = gemm_in_types + gemm_out_types
+            # The full alpha/beta ABI requires both scalars even when the
+            # algebraic template bound one of them to a literal (for example
+            # alpha=1 in PolyBench 2mm).  Materialize such literals explicitly
+            # instead of silently dropping them in render_launch.
+            if entry.name == "cublasDgemm":
+                for scalar_name in ("%beta", "%alpha"):
+                    bound = binds.get(scalar_name)
+                    if (isinstance(bound, tuple) and len(bound) == 2 and
+                            bound[0] == "Lit"):
+                        suffix = scalar_name.lstrip("%")
+                        scalar = _derived_ssa_name(last.result_ssa, suffix)
+                        value = repr(float(bound[1]))
+                        if "." not in value and "e" not in value and "E" not in value:
+                            value += ".0"
+                        pre_launch_lines.append(
+                            f"{last.indent}{scalar} = arith.constant {value} : f64")
+                        binds[scalar_name] = ("Cap", scalar)
+                        scalar_types[scalar] = "f64"
             if len(gemm_ins) == 2:
                 # Walk each input SSA through polygeist.submap definitions
                 # to find the underlying base. The submap defining-op line
@@ -5880,6 +5921,8 @@ def rewrite_mlir(
                 body_constants=bodies[i].constants if inline_weights else None,
                 result_count=last.result_count,
             )
+            if pre_launch_lines:
+                launch_line = "\n".join(pre_launch_lines + [launch_line])
         if max_launches is not None and emitted_launches >= max_launches:
             report.append(("launch_limit", list(range(i, i + n)), emit_name))
             i += n
@@ -5943,6 +5986,22 @@ def rewrite_mlir(
                 edits.append((middle_start, middle_end, middle))
             last_inst = instances[i + n - 1]
             edits.append((last_inst.span[0], last_inst.span[1], replacement))
+            if composition_root_rewire is not None:
+                # The removed producer can also feed view/update operations
+                # after the final contraction (for example, an insert_slice
+                # destination). Rewire those uses through the function return.
+                # Limit the edit to this function because textual SSA names
+                # may be reused by a later function in the module.
+                old_root, new_root = composition_root_rewire
+                tail_start = last_inst.span[1]
+                return_match = re.search(
+                    r"\n[ \t]*return\b", text[tail_start:])
+                tail_end = (tail_start + return_match.start()
+                            if return_match else tail_start)
+                tail = re.sub(
+                    rf"(?<![\w]){re.escape(old_root)}(?![\w])",
+                    new_root, text[tail_start:tail_end])
+                edits.append((tail_start, tail_end, tail))
         i += n
 
     if dry_run:

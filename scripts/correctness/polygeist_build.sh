@@ -103,9 +103,9 @@ _CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_CORRECTNESS_DIR/common_env.sh"
 
 # ─── Tooling ────────────────────────────────────────────────────────────
-MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
-MLIR_TRANSLATE=$REPO_ROOT/llvm-project/build/bin/mlir-translate
-CLANG=$REPO_ROOT/llvm-project/build/bin/clang
+MLIR_OPT="${MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt}"
+MLIR_TRANSLATE="${MLIR_TRANSLATE:-$REPO_ROOT/llvm-project/build/bin/mlir-translate}"
+CLANG="${CLANG:-$REPO_ROOT/llvm-project/build/bin/clang}"
 PYTHON=$PYTHON
 SCRIPTS=$REPO_ROOT/scripts/correctness
 RT=$REPO_ROOT/runtime
@@ -127,6 +127,7 @@ DEBUFFERIZE=1
 SEMANTIC_MLIR=
 GCC_PASSTHROUGH=()
 RT_CFLAGS=()
+STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
 
 usage() {
   sed -n '3,40p' "$0" | sed 's/^# \?//'
@@ -248,7 +249,6 @@ echo "  [3/9] matcher: linalg.generic → kernel.launch"
 # loop-carried idioms such as the source-faithful Parboil SGEMM, MG stencils,
 # histograms, and sparse matrix-vector products before ABI lowering.
 MATCHER_ARGS=(--enable-structured-rewrite)
-STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
 case "$STENCIL_BACKEND" in
   cudnn|custen) ;;
   *)
@@ -438,7 +438,11 @@ fi
 
 # ─── Step 7: generate the ABI wrapper for the kernel ────────────────────
 echo "  [7/9] gen_wrapper.py: ABI bridge for $FUNCTION"
-$PYTHON $SCRIPTS/gen_wrapper.py "$INPUT" "$FUNCTION" > $WORK/wrapper.c
+WRAPPER_ARGS=()
+if [ "${POLYGEIST_CUDA_TIMING_WRAPPER:-0}" != "0" ]; then
+  WRAPPER_ARGS+=(--cuda-timing)
+fi
+$PYTHON $SCRIPTS/gen_wrapper.py "${WRAPPER_ARGS[@]}" "$INPUT" "$FUNCTION" > $WORK/wrapper.c
 
 # ─── Step 8: per-target compile + harness prep ──────────────────────────
 echo "  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=$TARGET)"
@@ -503,7 +507,7 @@ else
       # component.
       RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor \
                -L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
-               -lcudnn -lcusolver -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+               -lcudnn -lcusparse -lcusolver -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
                -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
       echo "         + contraction-only runtime linkage"
     fi
@@ -546,7 +550,16 @@ $CC -O2 "${GCC_PASSTHROUGH[@]}" -c $WORK/wrapper.c -o $WORK/wrapper.o
 # selected kernel, weaken that symbol so the lifted+matched wrapper wins.
 # Separate harness files only declare/call the kernel, so no weakening is
 # needed and the compiler cannot inline the original body into main.
-$CC -O0 -fno-inline -fno-inline-functions "${GCC_PASSTHROUGH[@]}" \
+HARNESS_EXTRA_CFLAGS=()
+for arg in "${GCC_PASSTHROUGH[@]}"; do
+  # PolyBench declares kernels `static`. Exposing them with `-Dstatic=` also
+  # changes its allocation helpers from `static inline` to `inline`; GNU89
+  # inline semantics retain a callable definition when inlining is disabled.
+  [ "$arg" = "-Dstatic=" ] && HARNESS_EXTRA_CFLAGS+=(-fgnu89-inline)
+done
+$CC "${GCC_PASSTHROUGH[@]}" -O3 -fno-inline -fno-inline-functions \
+  -fsemantic-interposition \
+  "${HARNESS_EXTRA_CFLAGS[@]}" \
   -c "$HARNESS_INPUT" -o $WORK/harness_full.o
 NM_TOOL=nm
 if [ "$TARGET" = "jetson" ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
@@ -590,7 +603,14 @@ if grep -q '#include\s*<polybench.h>\|#include\s*"polybench.h"' "$HARNESS_INPUT"
   done
   if [ -n "$POLYBENCH_C" ]; then
     echo "         + polybench utility from $POLYBENCH_C"
-    $CC -O2 "${GCC_PASSTHROUGH[@]}" -c "$POLYBENCH_C" -o $WORK/polybench.o
+    # `-Dstatic=` is needed to expose the selected kernel in the benchmark
+    # translation unit, but applying it to polybench.c breaks its static
+    # inline allocation helpers and produces undefined references at link.
+    POLYBENCH_CFLAGS=()
+    for arg in "${GCC_PASSTHROUGH[@]}"; do
+      [ "$arg" = "-Dstatic=" ] || POLYBENCH_CFLAGS+=("$arg")
+    done
+    $CC -O2 "${POLYBENCH_CFLAGS[@]}" -c "$POLYBENCH_C" -o $WORK/polybench.o
     POLYBENCH_OBJS=("$WORK/polybench.o")
   fi
 fi
@@ -610,8 +630,10 @@ fi
 
 if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
   mkdir -p "$POLYGEIST_EXPORT_OBJECT_DIR"
+  MATCHED_EXPORT="$WORK/matched.mlir"
+  [ -f "$MATCHED_EXPORT" ] || MATCHED_EXPORT="$SEMANTIC_MLIR"
   cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/rt.o" \
-     "$WORK/mlir_runner_utils.o" "$WORK/matched.mlir" "$WORK/abi.mlir" \
+     "$WORK/mlir_runner_utils.o" "$MATCHED_EXPORT" "$WORK/abi.mlir" \
      "$POLYGEIST_EXPORT_OBJECT_DIR/"
   echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
 fi

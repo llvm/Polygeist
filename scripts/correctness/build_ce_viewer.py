@@ -242,6 +242,10 @@ EXTRACTED_DARKNET_MLIR_DIR = env_path(
     "/tmp/extracted_darknet_mlir",
 )
 OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
+SECTION42_RESULTS_DIR = env_path(
+    "POLYGEIST_SECTION42_RESULTS_DIR",
+    REPO_ROOT / "issues/polybench_section42",
+)
 GINSBACH_SUMMARY = env_path(
     "POLYGEIST_GINSBACH_SUMMARY",
     REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
@@ -3323,6 +3327,148 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream))
 
 
+def write_section42_results_page() -> None:
+    """Render the correctness-gated Section 4.2 result ledger."""
+    manifest_path = SECTION42_RESULTS_DIR / "manifest.csv"
+    if not manifest_path.exists():
+        return
+    rows = _read_csv(manifest_path)
+    cpu_records = _read_csv(SECTION42_RESULTS_DIR / "performance_cpu.csv")
+    gpu_records = _read_csv(SECTION42_RESULTS_DIR / "performance_gpu.csv")
+
+    def time_map(records: list[dict[str, str]]) -> dict[tuple[str, str], str]:
+        result = {}
+        for record in records:
+            value = (record.get("time_ms") or record.get("device_time_ms") or
+                     record.get("end_to_end_time_ms") or "")
+            result[(record.get("kernel", ""),
+                    record.get("configuration", ""))] = value
+        return result
+
+    cpu = time_map(cpu_records)
+    gpu = time_map(gpu_records)
+
+    def fmt(value: str) -> str:
+        if not value:
+            return "&mdash;"
+        try:
+            return f"{float(value):.3f} ms"
+        except ValueError:
+            return html.escape(value)
+
+    def retained(path: Path, label: str) -> str:
+        if not path.exists():
+            return ""
+        rel = path.relative_to(SECTION42_RESULTS_DIR)
+        return (f'<a href="polybench_section42_artifacts/'
+                f'{html.escape(str(rel))}">{label}</a>')
+
+    rendered_rows = []
+    incomplete = []
+    for row in rows:
+        kernel = row["kernel"]
+        overall = row.get("overall_status", "unavailable").lower()
+        stages = [row.get(field, "") for field in (
+            "raise_status", "matcher_status", "residual_cpu_status",
+            "cpu_library_status", "raised_gpu_status")]
+        if row.get("modified_source", "false").lower() == "true":
+            bucket = "modified"
+        elif any(value in ("fail", "partial", "blocked") for value in stages):
+            bucket = "failed"
+        elif overall == "pass":
+            bucket = "passed"
+        else:
+            bucket = "unavailable"
+        if overall != "pass":
+            incomplete.append(
+                f'<li><b>{html.escape(kernel)}</b>: '
+                f'{html.escape(row.get("failure_reason", "not completed"))}</li>')
+        native = (cpu.get((kernel, "native_clang18_noinline"), "") or
+                  cpu.get((kernel, "native_clang18"), ""))
+        residual = cpu.get((kernel, "raised_residual_cpu"), "")
+        library = cpu.get((kernel, "openblas_cblas_1t"), "")
+        device = gpu.get((kernel, "raised_gpu_device"), "")
+        end_to_end = gpu.get((kernel, "raised_gpu_end_to_end"), "")
+        pbgpu = gpu.get((kernel, "polybenchgpu_device"), "")
+        speedup = "&mdash;"
+        try:
+            if native and library:
+                speedup = f"{float(native) / float(library):.2f}&times; CPU-lib"
+            elif native and end_to_end:
+                speedup = f"{float(native) / float(end_to_end):.2f}&times; GPU E2E"
+        except (ValueError, ZeroDivisionError):
+            pass
+        log_links = [retained(SECTION42_RESULTS_DIR / row["log_dir"] / name, label)
+                     for name, label in (("large_residual.log", "residual"),
+                                         ("cpu_library_correctness.log", "CPU-lib"),
+                                         ("raised_gpu_correctness.log", "GPU"))]
+        ir_links = [retained(SECTION42_RESULTS_DIR / row["ir_dir"] / name, label)
+                    for name, label in (("orig.mlir", "affine"),
+                                        ("raised_debufferized.mlir", "raised"),
+                                        ("matched.mlir", "matched"),
+                                        ("residual_llvm.mlir", "LLVM"))]
+        pipeline_fields = (
+            ("native", row.get("native_cpu_status", "")),
+            ("raise", row.get("raise_status", "")),
+            ("match", row.get("matcher_status", "")),
+            ("residual", row.get("residual_cpu_status", "")),
+            ("CPU-lib", row.get("cpu_library_status", "")),
+            ("GPU", row.get("raised_gpu_status", "")),
+            ("PBGPU", row.get("polybenchgpu_status", "")),
+        )
+        pipeline = "<br>".join(
+            f"{label}: {html.escape(value)}" for label, value in pipeline_fields)
+        rendered_rows.append(
+            f'<tr data-filter="{bucket}"><td><b>{html.escape(kernel)}</b></td>'
+            f'<td>{pipeline}</td><td>{fmt(native)}</td><td>{fmt(residual)}</td>'
+            f'<td>{fmt(library)}</td><td>{fmt(device)}</td><td>{fmt(end_to_end)}</td>'
+            f'<td>{fmt(pbgpu)}</td><td>{html.escape(row.get("kernelfarer_status", ""))}'
+            f' / {html.escape(row.get("polly_status", ""))}</td><td>{speedup}</td>'
+            f'<td>{" &middot; ".join(x for x in log_links if x) or "&mdash;"}</td>'
+            f'<td>{" &middot; ".join(x for x in ir_links if x) or "&mdash;"}</td></tr>')
+
+    body = (
+        '<div class="header"><h1><a href="index.html">Polygeist IR explorer</a></h1>'
+        '<div><a href="index.html">Overview</a> &middot; '
+        '<a href="polybench.html">PolyBench</a> &middot; '
+        '<a href="polybench-section42.html">Section 4.2 results</a></div></div>'
+        '<div class="intro"><b>PolyBench Section 4.2 correctness-gated results.</b> '
+        'All rows use checked-in PolyBench/C initialization, LARGE dimensions, and FP64. '
+        'CPU times are pinned single-core medians with one OpenBLAS thread. Raised GPU '
+        'device time uses CUDA events around the complete kernel; end-to-end is the '
+        'PolyBench kernel-call timer. A timing is shown only after correctness passes.</div>'
+        '<div class="s42-filters">Show: <button onclick="s42Filter(\'all\')">all</button> '
+        '<button onclick="s42Filter(\'passed\')">passed</button> '
+        '<button onclick="s42Filter(\'failed\')">failed</button> '
+        '<button onclick="s42Filter(\'unavailable\')">unavailable</button> '
+        '<button onclick="s42Filter(\'modified\')">modified source</button></div>'
+        '<div class="table-wrap"><table class="s42"><thead><tr><th>kernel</th>'
+        '<th>pipeline correctness/status</th><th>native</th>'
+        '<th>residual</th><th>CPU library</th><th>GPU device</th><th>GPU E2E</th>'
+        '<th>PolyBenchGPU</th><th>KernelFaRer / Polly</th><th>speedup</th>'
+        '<th>logs</th><th>IR</th></tr></thead><tbody>' + "".join(rendered_rows) +
+        '</tbody></table></div><div class="section-header"><h2 class="section-title">'
+        'Incomplete or blocked experiments</h2></div><div class="intro"><ul>' +
+        ("".join(incomplete) or '<li>None.</li>') + '</ul></div>'
+        '<script>function s42Filter(v){document.querySelectorAll("table.s42 tbody tr")'
+        '.forEach(r=>r.style.display=(v==="all"||r.dataset.filter===v)?"":"none");}</script>')
+    css = (
+        '.s42-filters{padding:12px 20px}.s42-filters button{margin-right:6px}'
+        '.table-wrap{overflow:auto;padding:0 20px}.s42{border-collapse:collapse;font-size:12px}'
+        '.s42 th,.s42 td{border:1px solid #d8dee8;padding:6px;vertical-align:top}'
+        '.s42 th{background:#eef2f7;position:sticky;top:0}.s42 td{white-space:nowrap}'
+        '.section-header{background:#eaeefa;padding:8px 20px;margin-top:20px}'
+        '.section-title{margin:0;font-size:16px}')
+    OUTPUT_DIR.joinpath("polybench-section42.html").write_text(
+        render_html("Polygeist: PolyBench Section 4.2", body, css))
+    artifact_link = OUTPUT_DIR / "polybench_section42_artifacts"
+    if artifact_link.is_symlink():
+        if artifact_link.resolve() != SECTION42_RESULTS_DIR.resolve():
+            raise RuntimeError(f"unexpected artifact symlink: {artifact_link}")
+    elif not artifact_link.exists():
+        artifact_link.symlink_to(SECTION42_RESULTS_DIR, target_is_directory=True)
+
+
 def _modified_kernels_page() -> tuple[str, int]:
     """Describe source forms introduced because upstream code was not directly usable.
 
@@ -6186,6 +6332,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<div style="margin-top:6px; font-size:13px;">'
             '<a href="index.html">Overview</a> &middot; '
             '<a href="polybench.html">PolyBench</a> &middot; '
+            '<a href="polybench-section42.html">Section 4.2 results</a> &middot; '
             '<a href="polybenchgpu.html">PolyBenchGPU</a> &middot; '
             '<a href="backends.html">CPU/GPU lowering</a> &middot; '
             '<a href="numerical.html">ATen</a> &middot; '
@@ -6263,6 +6410,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + '<div class="suite-grid">'
         + card("polybench.html", "PolyBench/C", len(polybench_stats),
                "Dense linear algebra, stencils, and data-mining kernels.")
+        + card("polybench-section42.html", "PolyBench Section 4.2", 30,
+               "Correctness-gated CPU/GPU timings, failures, baselines, logs, and IR.")
         + card("polybenchgpu.html", "PolyBenchGPU subset", len(POLYBENCHGPU_RUNTIMES),
                "Validated Jetson comparison against handwritten CUDA kernels.")
         + card("backends.html", "CPU + GPU lowering",
@@ -6377,6 +6526,7 @@ def main():
     if sum((mfem_only, aten_only, polybench_only, ginsbach_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    write_section42_results_page()
     if ginsbach_only:
         pages = build_site_pages(
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
