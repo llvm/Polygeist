@@ -13,6 +13,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Ops.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "raise-to-affine"
@@ -102,6 +103,88 @@ static bool hoistInvariantGlobalLoads(affine::AffineForOp loop) {
     }
   } while (localChange);
   return true;
+}
+
+// An affine.if is not a legal definition site for affine symbols used by a
+// nested loop bound. cgeist often places a statically in-bounds global load
+// and its scalar arithmetic at the start of a guarded region, even though the
+// values only describe the following loop domain. Speculating this read-only
+// prefix is safe and lets SCF loops below it become affine loops.
+static bool hoistSafeAffineIfPrefixes(Operation *root) {
+  SmallVector<affine::AffineIfOp> ifOps;
+  root->walk([&](affine::AffineIfOp ifOp) { ifOps.push_back(ifOp); });
+  bool changed = false;
+  for (affine::AffineIfOp ifOp : ifOps) {
+    if (!ifOp.getThenRegion().hasOneBlock())
+      continue;
+    Block &block = ifOp.getThenRegion().front();
+    // Restrict speculation to the backward slice of descendant loop bounds
+    // and loop guards. Moving unrelated coefficient/data loads can perturb
+    // otherwise independent raising decisions in large functions.
+    llvm::SmallPtrSet<Operation *, 16> needed;
+    SmallVector<Value> work;
+    ifOp.walk([&](scf::ForOp loop) {
+      work.push_back(loop.getLowerBound());
+      work.push_back(loop.getUpperBound());
+      work.push_back(loop.getStep());
+    });
+    ifOp.walk([&](scf::IfOp nestedIf) {
+      bool guardsLoop = false;
+      nestedIf.walk([&](Operation *nested) {
+        if (nested != nestedIf.getOperation() &&
+            isa<scf::ForOp, affine::AffineForOp>(nested))
+          guardsLoop = true;
+      });
+      if (guardsLoop)
+        work.push_back(nestedIf.getCondition());
+    });
+    while (!work.empty()) {
+      Operation *def = work.pop_back_val().getDefiningOp();
+      if (!def || def->getBlock() != &block || !needed.insert(def).second)
+        continue;
+      llvm::append_range(work, def->getOperands());
+    }
+
+    llvm::SmallPtrSet<Operation *, 16> moved;
+    SmallVector<Operation *> prefix;
+    for (Operation &op : block.without_terminator()) {
+      if (!needed.contains(&op))
+        continue;
+      bool safe = false;
+      if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
+        auto global = load.getMemref().getDefiningOp<memref::GetGlobalOp>();
+        auto type = dyn_cast<MemRefType>(load.getMemref().getType());
+        safe = global && type && type.hasStaticShape() &&
+               load.getMapOperands().empty() &&
+               load.getAffineMap().getNumResults() == type.getRank();
+        if (safe) {
+          for (auto [expr, size] :
+               llvm::zip(load.getAffineMap().getResults(), type.getShape())) {
+            auto constant = expr.dyn_cast<AffineConstantExpr>();
+            if (!constant || constant.getValue() < 0 ||
+                constant.getValue() >= size) {
+              safe = false;
+              break;
+            }
+          }
+        }
+      } else if (op.getNumRegions() == 0 && isMemoryEffectFree(&op)) {
+        safe = llvm::all_of(op.getOperands(), [&](Value operand) {
+          Operation *def = operand.getDefiningOp();
+          return !def || !ifOp->isProperAncestor(def) || moved.contains(def);
+        });
+      }
+      if (!safe)
+        continue;
+      prefix.push_back(&op);
+      moved.insert(&op);
+    }
+    for (Operation *op : prefix) {
+      op->moveBefore(ifOp);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
@@ -353,6 +436,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 };
 
 void RaiseSCFToAffine::runOnOperation() {
+  (void)hoistSafeAffineIfPrefixes(getOperation());
   SmallVector<affine::AffineForOp> affineLoops;
   getOperation()->walk(
       [&](affine::AffineForOp loop) { affineLoops.push_back(loop); });

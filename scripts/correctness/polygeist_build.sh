@@ -86,6 +86,9 @@
 #                       Stop after compiling/exporting those objects. This is
 #                       intended for application composition builds whose main
 #                       program is linked separately.
+#   POLYGEIST_HARNESS_CFLAGS="..."
+#                       Additional flags used only when compiling the native C
+#                       harness, not when cgeist translates the selected kernel.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -260,6 +263,20 @@ MATCHER_ARGS+=(--stencil-backend "$STENCIL_BACKEND")
 if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
   MATCHER_ARGS+=(--disable-pointwise-matching)
   echo "         generic pointwise matching disabled"
+fi
+if [ -n "${POLYGEIST_DISABLED_KERNELS:-}" ]; then
+  IFS=',' read -r -a DISABLED_KERNEL_LIST <<< "$POLYGEIST_DISABLED_KERNELS"
+  for disabled_kernel in "${DISABLED_KERNEL_LIST[@]}"; do
+    MATCHER_ARGS+=(--disable-kernel "$disabled_kernel")
+  done
+  echo "         disabled named kernels: ${POLYGEIST_DISABLED_KERNELS}"
+fi
+if [ -n "${POLYGEIST_ONLY_KERNELS:-}" ]; then
+  IFS=',' read -r -a ONLY_KERNEL_LIST <<< "$POLYGEIST_ONLY_KERNELS"
+  for only_kernel in "${ONLY_KERNEL_LIST[@]}"; do
+    MATCHER_ARGS+=(--only-kernel "$only_kernel")
+  done
+  echo "         only named kernels: ${POLYGEIST_ONLY_KERNELS}"
 fi
 if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != "0" ]; then
   cp $WORK/linalg.mlir $WORK/matched.mlir
@@ -557,9 +574,14 @@ for arg in "${GCC_PASSTHROUGH[@]}"; do
   # inline semantics retain a callable definition when inlining is disabled.
   [ "$arg" = "-Dstatic=" ] && HARNESS_EXTRA_CFLAGS+=(-fgnu89-inline)
 done
+HARNESS_USER_CFLAGS=()
+if [ -n "${POLYGEIST_HARNESS_CFLAGS:-}" ]; then
+  read -r -a HARNESS_USER_CFLAGS <<< "$POLYGEIST_HARNESS_CFLAGS"
+fi
 $CC "${GCC_PASSTHROUGH[@]}" -O3 -fno-inline -fno-inline-functions \
   -fsemantic-interposition \
   "${HARNESS_EXTRA_CFLAGS[@]}" \
+  "${HARNESS_USER_CFLAGS[@]}" \
   -c "$HARNESS_INPUT" -o $WORK/harness_full.o
 NM_TOOL=nm
 if [ "$TARGET" = "jetson" ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
@@ -603,9 +625,11 @@ if grep -q '#include\s*<polybench.h>\|#include\s*"polybench.h"' "$HARNESS_INPUT"
   done
   if [ -n "$POLYBENCH_C" ]; then
     echo "         + polybench utility from $POLYBENCH_C"
-    # `-Dstatic=` is needed to expose the selected kernel in the benchmark
-    # translation unit, but applying it to polybench.c breaks its static
-    # inline allocation helpers and produces undefined references at link.
+    # `-Dstatic=` is used to expose a source-local benchmark kernel so the
+    # lifted wrapper can replace it.  Do not apply it to polybench.c/header:
+    # that would turn the header's `static inline polybench_alloc_data` into
+    # an external inline declaration and leave application allocation calls
+    # unresolved at link time.
     POLYBENCH_CFLAGS=()
     for arg in "${GCC_PASSTHROUGH[@]}"; do
       [ "$arg" = "-Dstatic=" ] || POLYBENCH_CFLAGS+=("$arg")

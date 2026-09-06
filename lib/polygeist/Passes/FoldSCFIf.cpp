@@ -379,7 +379,13 @@ static bool sameLinearBound(Value value, AffineMap map, ValueRange operands) {
   if (map.getNumResults() != 1)
     return false;
   LinearIndexForm valueForm, mapForm;
-  if (!addLinearValue(value, 1, valueForm) ||
+  bool valueOK;
+  if (auto apply = value.getDefiningOp<affine::AffineApplyOp>())
+    valueOK = addLinearExpr(apply.getAffineMap().getResult(0), {},
+                            apply.getMapOperands(), 1, valueForm);
+  else
+    valueOK = addLinearValue(value, 1, valueForm);
+  if (!valueOK ||
       !addLinearExpr(map.getResult(0),
                      operands.take_front(map.getNumDims()),
                      operands.drop_front(map.getNumDims()), 1, mapForm))

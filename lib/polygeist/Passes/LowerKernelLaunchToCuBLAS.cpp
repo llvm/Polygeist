@@ -126,6 +126,7 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cub_segmented_reduce_i32";
   if (libSym == "cublasDgemm") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_simple") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgemm_subtract") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_zero") return "polygeist_cublas_dgemm";
   if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
@@ -156,6 +157,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_memset_zero_1d_f32";
   if (libSym == "cublasDgemv") return "polygeist_cublas_dgemv";
   if (libSym == "cublasDgemv_T") return "polygeist_cublas_dgemv_T";
+  if (libSym == "cublasDgemv_subtract") return "polygeist_cublas_dgemv";
+  if (libSym == "cublasDgemv_subtract_T") return "polygeist_cublas_dgemv_T";
   if (libSym == "cublasSgemv") return "polygeist_cublas_sgemv";
   if (libSym == "cublasSgemv_T") return "polygeist_cublas_sgemv_T";
   if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
@@ -1111,11 +1114,14 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
   } else if (variant == "cublasDgemm_alpha_only") {
     beta = one;
     alpha = launch.getOperand(3);
-  } else {  // _simple or zero-initialized
+  } else {  // _simple, subtract, or zero-initialized
     beta = variant == "cublasDgemm_zero"
         ? b.create<arith::ConstantOp>(loc, b.getF64Type(), b.getF64FloatAttr(0.0))
         : one;
-    alpha = one;
+    alpha = variant == "cublasDgemm_subtract"
+                ? b.create<arith::ConstantOp>(loc, b.getF64Type(),
+                                               b.getF64FloatAttr(-1.0))
+                : one;
   }
 
   auto At = dyn_cast<RankedTensorType>(A.getType());
@@ -3188,6 +3194,28 @@ static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
     return launch.emitError(
         "cublasSgemm_broadcast3d_simple: submap bases must be f32 tensors");
 
+  // Llama's split Q/K projections have the same scalar contraction body as
+  // the Darknet rank-3 GEMM fixture, but a different physical layout:
+  //   A[h,p,j] * x[j] -> C[h,p].
+  // Treat the two parallel dimensions as one GEMV row dimension.  Reusing
+  // the logical (H,P,J) sizes as (M,K,N) would read past x and C and was a
+  // shape-dependent false lowering that happened to evade the tiny fixture.
+  Value lda = K;
+  Value ldb = N;
+  Value ldc = N;
+  if (A_base_type.getRank() == 3 && B_base_type.getRank() == 1 &&
+      C_base_type.getRank() == 2) {
+    Value H = valueAsI32(b, loc, aSubmap.getSizes()[0]);
+    Value P = valueAsI32(b, loc, aSubmap.getSizes()[1]);
+    Value J = valueAsI32(b, loc, aSubmap.getSizes()[2]);
+    M = b.create<arith::MulIOp>(loc, H, P);
+    N = b.create<arith::ConstantIntOp>(loc, 1, 32);
+    K = J;
+    lda = J;
+    ldb = N;
+    ldc = N;
+  }
+
   Value A_mr = tensorToMemref(b, loc, A_base);
   Value B_mr = tensorToMemref(b, loc, B_base);
   Value C_mr = tensorToMemref(b, loc, C_base);
@@ -3206,8 +3234,8 @@ static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
   };
   func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_sgemm",
                                      argTypes, b);
-  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, K,
-                                     B_ptr, N, beta, C_ptr, N};
+  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, lda,
+                                     B_ptr, ldb, beta, C_ptr, ldc};
   b.create<func::CallOp>(loc, shim, callOperands);
 
   Value updatedBaseTensor = memrefToTensor(b, loc, C_mr, C_base.getType());
@@ -3545,7 +3573,8 @@ using mlir::polygeist::lowerCudnnConv2DNtapPacked;
 // Shared lowering for tensor GEMV. D/S variants differ only in element type
 // and runtime shim symbol; transpose picks A*x vs A^T*x.
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
-                                       bool transpose, bool useF32);
+                                       bool transpose, bool useF32,
+                                       bool subtract = false);
 
 static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
   return lowerDgemvImpl(launch, module, /*transpose=*/false, /*useF32=*/false);
@@ -3553,6 +3582,12 @@ static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
 
 static LogicalResult lowerDgemvT(LaunchOp launch, ModuleOp module) {
   return lowerDgemvImpl(launch, module, /*transpose=*/true, /*useF32=*/false);
+}
+
+static LogicalResult lowerDgemvSubtract(LaunchOp launch, ModuleOp module,
+                                        bool transpose) {
+  return lowerDgemvImpl(launch, module, transpose, /*useF32=*/false,
+                        /*subtract=*/true);
 }
 
 static LogicalResult lowerSgemv(LaunchOp launch, ModuleOp module) {
@@ -3571,7 +3606,8 @@ static LogicalResult lowerSgemvT(LaunchOp launch, ModuleOp module) {
 // cuBLAS gemv signature (in our row-major convention):
 //   polygeist_cublas_dgemv(M, N, alpha, A*, lda, x*, beta, y*)
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
-                                       bool transpose, bool useF32) {
+                                       bool transpose, bool useF32,
+                                       bool subtract) {
   StringRef libName = useF32 ? "cublasSgemv" : "cublasDgemv";
   StringRef elemName = useF32 ? "f32" : "f64";
   if (launch.getNumOperands() != 3)
@@ -3604,6 +3640,11 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   TypedAttr oneAttr = useF32 ? b.getF32FloatAttr(1.0f)
                              : b.getF64FloatAttr(1.0);
   Value one = b.create<arith::ConstantOp>(loc, scalarTy, oneAttr);
+  TypedAttr minusOneAttr = useF32 ? b.getF32FloatAttr(-1.0f)
+                                  : b.getF64FloatAttr(-1.0);
+  Value alpha = subtract
+                    ? b.create<arith::ConstantOp>(loc, scalarTy, minusOneAttr)
+                    : one;
 
   // Do not blindly materialize tensor operands with bufferization.to_memref.
   // Matched GEMVs commonly consume tensor.extract_slice views of the original
@@ -3636,7 +3677,7 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                           : "polygeist_cublas_dgemv");
   func::FuncOp shim = ensureShimDecl(module, shimSym, argTypes, b);
   b.create<func::CallOp>(loc, shim,
-      ValueRange{M, N, one, A_ptr, lda, x_ptr, one, y_ptr});
+      ValueRange{M, N, alpha, A_ptr, lda, x_ptr, one, y_ptr});
 
   // Keep the output as a view of its original destination buffer and bypass
   // the canonical tensor.insert_slice write-back.  The opaque cuBLAS call has
@@ -6692,7 +6733,9 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCutensorUnaryF32(launch, module, libSym);
       } else if (libSym == "cublasDgemm") {
         r = lowerDgemm(launch, module);
-      } else if (libSym == "cublasDgemm_simple" || libSym == "cublasDgemm_zero" ||
+      } else if (libSym == "cublasDgemm_simple" ||
+                 libSym == "cublasDgemm_subtract" ||
+                 libSym == "cublasDgemm_zero" ||
                  libSym == "cublasDgemm_alpha_only") {
         r = lowerDgemmVariant(launch, module, libSym);
       } else if (libSym ==
@@ -6726,6 +6769,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgemv(launch, module);
       } else if (libSym == "cublasDgemv_T") {
         r = lowerDgemvT(launch, module);
+      } else if (libSym == "cublasDgemv_subtract") {
+        r = lowerDgemvSubtract(launch, module, /*transpose=*/false);
+      } else if (libSym == "cublasDgemv_subtract_T") {
+        r = lowerDgemvSubtract(launch, module, /*transpose=*/true);
       } else if (libSym == "cublasSgemv") {
         r = lowerSgemv(launch, module);
       } else if (libSym == "cublasSgemv_T") {

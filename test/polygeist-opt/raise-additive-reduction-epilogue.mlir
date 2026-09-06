@@ -53,6 +53,9 @@ module {
 // CHECK: return
 
 // CHECK-LABEL: func.func @keep_nonadditive_epilogue
-// CHECK: affine.for
+// The loops may still raise independently, but the multiplicative epilogue
+// must not be fused into the additive reduction.
+// CHECK: linalg.generic {{.*}}iterator_types = ["parallel", "reduction"]
+// CHECK: linalg.generic {{.*}}iterator_types = ["parallel"]
 // CHECK: arith.mulf
 // CHECK: return

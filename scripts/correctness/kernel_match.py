@@ -1538,6 +1538,11 @@ def _gemm_no_alpha() -> CompositionEntry:
     return _mlir_metadata("cublasDgemm_simple")
 
 
+def _gemm_subtract() -> CompositionEntry:
+    """C -= A*B; scalar semantics come from the MLIR library definition."""
+    return _mlir_metadata("cublasDgemm_subtract")
+
+
 def _sgemm_zero_gemm() -> CompositionEntry:
     """FP32 C=0; C+=A*B, folded to SGEMM with beta=0."""
     return CompositionEntry(
@@ -1578,6 +1583,11 @@ def _sgemm_broadcast3d_memref() -> CompositionEntry:
 def _gemv_accumulate() -> CompositionEntry:
     """y += A * x  (no alpha/beta)."""
     return _mlir_metadata("cublasDgemv")
+
+
+def _gemv_subtract() -> CompositionEntry:
+    """y -= A*x; layout selects the normal or transpose ABI later."""
+    return _mlir_metadata("cublasDgemv_subtract")
 
 
 def _gemv_alpha_accumulate() -> CompositionEntry:
@@ -3515,6 +3525,12 @@ def composition_library() -> list[CompositionEntry]:
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map
                                                # legality is proved by rewrite
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTranspose3D_f32_memref", 7, 1),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionBackwardFilter3D_f32_memref", 5, 3),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTBCBackward_f32_memref", 4, 1),
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 
@@ -3525,18 +3541,14 @@ def composition_library() -> list[CompositionEntry]:
         # Parameterized arbitrary-rank unary tensor operations. These precede
         # generic formula entries so a complete fixed-function cuTENSOR call
         # wins over a lower-level pointwise interpretation.
-        _fixed_memref_convolution_contraction(
-            "cudnnConvolutionTranspose3D_f32_memref", 7, 1),
-        _fixed_memref_convolution_contraction(
-            "cudnnConvolutionBackwardFilter3D_f32_memref", 5, 3),
-        _fixed_memref_convolution_contraction(
-            "cudnnConvolutionTBCBackward_f32_memref", 4, 1),
         *_cutensor_unary_entries(),
 
         # 1-step BLAS with α capture.
         _gemm_no_alpha(),
+        _gemm_subtract(),
         _gemm_alpha_only(),
         _gemv_accumulate(),
+        _gemv_subtract(),
         _gemv_alpha_accumulate(),
         _axpby(),               # α*in + β*out  — most specific 2-cap form
         _axpby_inputs_1d(),     # α*in0 + β*in1 — out-of-place combine
@@ -3695,7 +3707,8 @@ def composition_library() -> list[CompositionEntry]:
 _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasDaxpby", "cublasDaxpy_unit",
     "cublasDdot", "cublasDgeam_scale2D", "cublasDgemm",
-    "cublasDgemm_alpha_only", "cublasDgemm_simple", "cublasDgemv",
+    "cublasDgemm_alpha_only", "cublasDgemm_simple", "cublasDgemm_subtract",
+    "cublasDgemv", "cublasDgemv_subtract", "cublasDgemv_subtract_T",
     "cublasDgemv_alpha", "cublasDger_rank2", "cublasSdot",
     "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
     "cudaMaskSelect_f32_tensor", "cudaRopeMulMulAdd_f32_tensor",

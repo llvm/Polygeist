@@ -66,6 +66,7 @@ class Unit:
     source: Path
     includes: tuple[Path, ...]
     function: str = "*"
+    companions: tuple[Path, ...] = ()
 
 
 def units() -> list[Unit]:
@@ -85,9 +86,16 @@ def units() -> list[Unit]:
             # contain libgomp's header, so mirror the native GCC include path.
             if program == "UA" and gcc_include:
                 includes.append(gcc_include)
+            companions = ()
+            # exact_rhs calls a small polynomial helper inside each grid
+            # point. The application build provides both definitions and
+            # cgeist can inline it; auditing the caller in isolation leaves an
+            # artificial opaque call boundary and C-style while nests.
+            if program == "BT" and source.name == "exact_rhs.c":
+                companions = (directory / "exact_solution.c",)
             result.append(Unit(
                 "snu-npb", program, source,
-                tuple(includes)))
+                tuple(includes), companions=companions))
     for program, variant in PARBOIL_VARIANTS.items():
         directory = PARBOIL_ROOT / "benchmarks" / program / "src" / variant
         for source in sorted((*directory.glob("*.c"), *directory.glob("*.cc"))):
@@ -156,7 +164,8 @@ def audit_unit(unit: Unit, out_root: Path, timeout: int,
     matched = directory / "matched.mlir"
 
     cgeist_cmd = [
-        str(CGEIST), str(unit.source), f"--function={unit.function}",
+        str(CGEIST), str(unit.source), *(str(path) for path in unit.companions),
+        f"--function={unit.function}",
         "--resource-dir=/usr/lib/clang/14", "--raise-scf-to-affine",
         "--mlir-print-op-generic", "-fPIC", "-S", "-o", str(affine),
     ]

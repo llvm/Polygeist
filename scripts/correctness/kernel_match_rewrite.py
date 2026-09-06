@@ -56,6 +56,7 @@ ABI_LOWERABLE_KERNELS = {
     "custenStencil2DXY_f64_tensor",
     "cublasDgemm",
     "cublasDgemm_simple",
+    "cublasDgemm_subtract",
     "cublasDgemm_alpha_only",
     "cublasSgemm_broadcast3d_simple",
     "cublasSgemm_broadcast3d_memref",
@@ -66,6 +67,8 @@ ABI_LOWERABLE_KERNELS = {
     "memset_zero_1D_f32",
     "cublasDgemv",
     "cublasDgemv_T",
+    "cublasDgemv_subtract",
+    "cublasDgemv_subtract_T",
     "cublasSgemv",
     "cublasSgemv_T",
     "cublasDgemm_outer_product",
@@ -120,16 +123,16 @@ ABI_LOWERABLE_KERNELS = {
     "cublasJointMaxAbsProduct_f32_memref",
     "cudnnFeatureMaskScale_f32_tensor",
     "cudnnConvolutionTranspose2D_f32_memref",
+    "cudnnConvolutionTranspose3D_f32_memref",
+    "cudnnConvolutionBackwardFilter3D_f32_memref",
     "cudnnDepthwiseConvolution2D_f32_memref",
     "cutensorKroneckerProduct2D_f32_memref",
     "cudnnBinaryCrossEntropyMean_f32_memref",
-    "cudnnConvolutionTranspose3D_f32_memref",
-    "cudnnConvolutionBackwardFilter3D_f32_memref",
     "cudnnConvolutionTBC_f32_memref",
+    "cudnnConvolutionTBCBackward_f32_memref",
     "cudnnTransformBiasRescaleQKV_f32_memref",
     "cudnnAddrElementwise_f32_memref",
     "cudnnConvolution2DWindow_f32",
-    "cudnnConvolutionTBCBackward_f32_memref",
     "cudnnAvgPoolWindow_f32",
     "cudnnAdaptivePool_f32_flat2",
     "cudnnAdaptivePool_f32_flat3_fwd",
@@ -1299,9 +1302,6 @@ def _parse_polygeist_submap_window(
     return m.group(1), sizes
 
 
-def _resolve_affine_map_text(text: str, map_ref: str) -> str | None:
-    map_ref = map_ref.strip()
-    if map_ref.startswith("affine_map<"):
 def _parse_memref_view(text: str, ssa: str, before: int) -> dict | None:
     """Resolve a raised memref view to its physical base and logical sizes."""
     prefix = text[:before]
@@ -1400,6 +1400,9 @@ def _compact_affine_map(map_text: str | None) -> str:
     return re.sub(r"\s+", "", map_text or "")
 
 
+def _resolve_affine_map_text(text: str, map_ref: str) -> str | None:
+    map_ref = map_ref.strip()
+    if map_ref.startswith("affine_map<"):
         return map_ref
     if not map_ref.startswith("#"):
         return None
@@ -3625,6 +3628,8 @@ def rewrite_mlir(
     show_structured_regions: bool = False,
     enable_structured_rewrite: bool = False,
     stencil_backend: str = "cudnn",
+    disabled_kernels: set[str] | None = None,
+    only_kernels: set[str] | None = None,
 ) -> tuple[str, list[tuple]]:
     """Run the matcher on `text` and return (rewritten_text, match_report).
 
@@ -3667,10 +3672,13 @@ def rewrite_mlir(
         for inst in instances
     ]
 
+    disabled_kernels = disabled_kernels or set()
     semantic_comps = composition_library()
     comps = [
         entry for entry in semantic_comps
-        if (entry.name in ABI_LOWERABLE_KERNELS or
+        if entry.name not in disabled_kernels and
+           (only_kernels is None or entry.name in only_kernels) and
+           (entry.name in ABI_LOWERABLE_KERNELS or
             entry.name in COMPOSITION_LOWERING_ADAPTERS)
     ]
 
@@ -4159,6 +4167,12 @@ def rewrite_mlir(
                 legal = view_defined
             if legal:
                 symbol = f"cutensorPermute_f32_r{rank}_tensor"
+                if (symbol in disabled_kernels or
+                        (only_kernels is not None and
+                         symbol not in only_kernels)):
+                    legal = False
+            if legal:
+                symbol = f"cutensorPermute_f32_r{rank}_tensor"
                 if max_launches is not None and emitted_launches >= max_launches:
                     report.append(("launch_limit", i, symbol))
                     i += 1
@@ -4185,6 +4199,11 @@ def rewrite_mlir(
             entry = match_elementwise_semantic(
                 bodies[i], body_terms[i], body_forms[i]
             )
+            if (entry is not None and
+                    (entry.name in disabled_kernels or
+                     (only_kernels is not None and
+                      entry.name not in only_kernels))):
+                entry = None
             if entry is None:
                 graph = (None if disable_pointwise_matching else
                          _compile_cudnn_pointwise_graph(
@@ -4395,25 +4414,6 @@ def rewrite_mlir(
         custom_edit_span: tuple[int, int] | None = None
         composition_root_rewire: tuple[str, str] | None = None
         pre_launch_lines: list[str] = []
-
-        if entry.name.startswith("cubSegmented") and n == 2:
-            # The first generic only writes the reduction identity.  The CUB
-            # primitive receives that identity as part of its configured
-            # operation and overwrites every output row, so retain an SSA
-            # alias for intervening extract_slice users without executing the
-            # redundant initializer generic.
-            init_inst = instances[i]
-            if (init_inst.result_ssa is not None and
-                    init_inst.result_type is not None and len(outs0) == 1 and
-                    len(outs0_types) == 1):
-                custom_first_launch_line = (
-                    f"{init_inst.indent}{init_inst.result_ssa} = tensor.cast "
-                    f"{outs0[0]} : {outs0_types[0]} to {init_inst.result_type}")
-
-        if entry.name == "cudnnConvolution2DWindow_f32":
-            init_inst = instances[i]
-            reduce_inst = instances[i + 1]
-            reduce_inputs = _extract_ssa_names(reduce_inst.ins_part)
         redundant_zero_fill_span: tuple[int, int] | None = None
 
         fixed_conv_symbols = {
@@ -4561,6 +4561,25 @@ def rewrite_mlir(
             operands = physical_operands
             operand_types = physical_types
             binds = {}
+
+        if entry.name.startswith("cubSegmented") and n == 2:
+            # The first generic only writes the reduction identity.  The CUB
+            # primitive receives that identity as part of its configured
+            # operation and overwrites every output row, so retain an SSA
+            # alias for intervening extract_slice users without executing the
+            # redundant initializer generic.
+            init_inst = instances[i]
+            if (init_inst.result_ssa is not None and
+                    init_inst.result_type is not None and len(outs0) == 1 and
+                    len(outs0_types) == 1):
+                custom_first_launch_line = (
+                    f"{init_inst.indent}{init_inst.result_ssa} = tensor.cast "
+                    f"{outs0[0]} : {outs0_types[0]} to {init_inst.result_type}")
+
+        if entry.name == "cudnnConvolution2DWindow_f32":
+            init_inst = instances[i]
+            reduce_inst = instances[i + 1]
+            reduce_inputs = _extract_ssa_names(reduce_inst.ins_part)
             reduce_input_types = _extract_ssa_types(reduce_inst.ins_part)
             reduce_outputs = _extract_ssa_names(reduce_inst.outs_part)
             init_outputs = _extract_ssa_names(init_inst.outs_part)
@@ -5454,14 +5473,17 @@ def rewrite_mlir(
             operands = [score_names[0], out_names[0]]
             operand_types = [score_types[0], out_types[0]]
             binds = {}
-            # The two extract_slice definitions live between the matched
-            # reduction generics. Re-emit them when replacing the full fused
-            # span; otherwise either the launch or dead scalar intermediates
-            # retain dangling SSA references.
+            # The two view definitions live between the matched reduction
+            # generics.  Depending on whether submap lowering ran before the
+            # matcher, these are either tensor.extract_slice or
+            # polygeist.submap operations.  Re-emit them when replacing the
+            # full fused span; otherwise the launch retains dangling SSA
+            # references.
             preserved_defs: list[str] = []
             for name in operands:
                 dm = re.search(
-                    rf"^\s*{re.escape(name)}\s*=\s*tensor\.extract_slice.*$",
+                    rf"^\s*{re.escape(name)}\s*=\s*(?:tensor\.extract_slice|"
+                    rf"polygeist\.submap\().*$",
                     text, re.MULTILINE)
                 if not dm:
                     preserved_defs = []
@@ -5471,6 +5493,34 @@ def rewrite_mlir(
                 report.append(("softmax_slice_reject", i, entry.name))
                 i += n
                 continue
+            # The normalized tensor returned by the source chain is produced
+            # by a submapInverse immediately after the final divide generic.
+            # Make that existing SSA value the launch result and replace the
+            # entire reduction/normalization chain.  Keeping the generic's
+            # result name here would leave the trailing inverses referring to
+            # deleted max/sum intermediates.
+            final_result = last.result_ssa
+            final_type = last.result_type
+            if last.result_ssa is not None:
+                inverse_match = re.search(
+                    rf"^\s*(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\([^\n]*"
+                    rf"{re.escape(last.result_ssa)}[^\n]*\)\s*\{{[^\n]*\}}\s*:"
+                    rf"[^\n]*->\s*([^\n]+)$",
+                    text[last.span[1]:], re.MULTILINE)
+                if inverse_match:
+                    final_result = inverse_match.group(1)
+                    final_type = inverse_match.group(2).strip()
+                    custom_edit_span = (
+                        start, last.span[1] + inverse_match.end())
+            last = LinalgInstance(
+                result_ssa=final_result,
+                result_count=1,
+                ins_part=last.ins_part,
+                outs_part=last.outs_part,
+                result_type=final_type,
+                span=last.span,
+                indent=last.indent,
+            )
             rendered = render_launch(
                 emit_name, last.result_ssa, last.result_type,
                 operands, last.indent, {}, [], operand_types=operand_types,
@@ -5888,6 +5938,7 @@ def rewrite_mlir(
         # scan the matched body's ins SSA names, walk back to find the
         # defining ops, compare the submap-base SSA name.
         if entry.name in ("cublasDgemm", "cublasDgemm_simple",
+                          "cublasDgemm_subtract",
                           "cublasDgemm_alpha_only"):
             # Multi-step GEMM compositions subsume their first producer
             # (typically output scaling or initialization). Any remaining
@@ -6105,7 +6156,7 @@ def rewrite_mlir(
                 report.append(("rank_or_dtype_reject", i, entry.name))
                 i += 1
                 continue
-        if entry.name == "cublasDgemv" and n == 1:
+        if entry.name in ("cublasDgemv", "cublasDgemv_subtract") and n == 1:
             elems = [_sniff_elem_type(t) for t in operand_types[:3]]
             elem = elems[0] if elems else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
@@ -6126,9 +6177,16 @@ def rewrite_mlir(
                 if A_dims and y_dims and A_dims[0] != y_dims[0]:
                     transposed = True
             if elem == "f32":
+                if entry.name == "cublasDgemv_subtract":
+                    report.append(("rank_or_dtype_reject", i, entry.name))
+                    i += 1
+                    continue
                 emit_name = "cublasSgemv_T" if transposed else "cublasSgemv"
             else:
-                emit_name = "cublasDgemv_T" if transposed else "cublasDgemv"
+                prefix = ("cublasDgemv_subtract"
+                          if entry.name == "cublasDgemv_subtract"
+                          else "cublasDgemv")
+                emit_name = prefix + ("_T" if transposed else "")
 
         if emit_name not in ABI_LOWERABLE_KERNELS:
             report.append(("unsupported_abi_reject", list(range(i, i + n)),
@@ -6181,6 +6239,8 @@ def rewrite_mlir(
         emitted_launches += 1
         if custom_first_launch_line is not None:
             emitted_launches += 1
+        if redundant_zero_fill_span is not None:
+            edits.append((*redundant_zero_fill_span, ""))
         if roundtrip_markers:
             # last.indent has a leading newline ("\n    ") because the parser
             # captures the line break before the op. Use only the spaces.
@@ -6239,8 +6299,6 @@ def rewrite_mlir(
                 # after the final contraction (for example, an insert_slice
                 # destination). Rewire those uses through the function return.
                 # Limit the edit to this function because textual SSA names
-        if redundant_zero_fill_span is not None:
-            edits.append((*redundant_zero_fill_span, ""))
                 # may be reused by a later function in the module.
                 old_root, new_root = composition_root_rewire
                 tail_start = last_inst.span[1]
@@ -6288,6 +6346,12 @@ def main():
     ap.add_argument("--disable-pointwise-matching", action="store_true",
                     help=("Disable the generic cuDNN scalar-expression graph "
                           "fallback while preserving named library matches."))
+    ap.add_argument("--disable-kernel", action="append", default=[],
+                    help=("Do not emit the named kernel; may be repeated. "
+                          "Useful for provenance audits and backend bisection."))
+    ap.add_argument("--only-kernel", action="append", default=None,
+                    help=("Emit only the named kernel family; may be repeated. "
+                          "Intended for correctness bisection."))
     ap.add_argument("--show-structured-regions", action="store_true",
                     help=("Run loop-aware Egglog analysis and report safe "
                           "producer/consumer regions and fusion proofs."))
@@ -6312,6 +6376,9 @@ def main():
         show_structured_regions=args.show_structured_regions,
         enable_structured_rewrite=args.enable_structured_rewrite,
         stencil_backend=args.stencil_backend,
+        disabled_kernels=set(args.disable_kernel),
+        only_kernels=(set(args.only_kernel)
+                      if args.only_kernel is not None else None),
     )
     if args.dry_run:
         print(f"== match report for {args.input} ==", file=sys.stderr)

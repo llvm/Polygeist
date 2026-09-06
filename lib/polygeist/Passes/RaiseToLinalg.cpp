@@ -21,7 +21,9 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/SmallSet.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <limits>
@@ -33,6 +35,277 @@ using namespace mlir::arith;
 using namespace polygeist;
 using namespace affine;
 using namespace linalg;
+
+namespace {
+
+// Return the constant subscripts of an affine load/store.  This is used by
+// the straight-line reroller below: unrolled C commonly has no SSA induction
+// variables left, but its constant access pattern still describes the loops
+// exactly.
+static FailureOr<SmallVector<int64_t>> getConstantSubscripts(Operation *op) {
+  AffineMap map;
+  ValueRange operands;
+  if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
+    map = load.getAffineMap();
+    operands = load.getMapOperands();
+  } else if (auto store = dyn_cast<affine::AffineStoreOp>(op)) {
+    map = store.getAffineMap();
+    operands = store.getMapOperands();
+  } else {
+    return failure();
+  }
+  if (!operands.empty())
+    return failure();
+  SmallVector<int64_t> result;
+  for (AffineExpr expr : map.getResults()) {
+    auto constant = expr.dyn_cast<AffineConstantExpr>();
+    if (!constant)
+      return failure();
+    result.push_back(constant.getValue());
+  }
+  return result;
+}
+
+struct UnrolledSubtractTerm {
+  affine::AffineLoadOp left;
+  affine::AffineLoadOp right;
+};
+
+// Match `out[p] - a[...] * b[...] - ...` without depending on a function or
+// benchmark name.  Keeping this deliberately strict prevents unrelated
+// straight-line scalar code from being reinterpreted as linear algebra.
+static LogicalResult matchUnrolledSubtractChain(
+    affine::AffineStoreOp store, unsigned termCount,
+    SmallVectorImpl<UnrolledSubtractTerm> &terms) {
+  Value current = store.getValueToStore();
+  while (auto sub = current.getDefiningOp<arith::SubFOp>()) {
+    auto mul = sub.getRhs().getDefiningOp<arith::MulFOp>();
+    if (!mul)
+      return failure();
+    auto left = mul.getLhs().getDefiningOp<affine::AffineLoadOp>();
+    auto right = mul.getRhs().getDefiningOp<affine::AffineLoadOp>();
+    if (!left || !right)
+      return failure();
+    terms.push_back({left, right});
+    current = sub.getLhs();
+  }
+  auto initial = current.getDefiningOp<affine::AffineLoadOp>();
+  if (!initial || initial.getMemref() != store.getMemref())
+    return failure();
+  auto initialIndices = getConstantSubscripts(initial);
+  auto storeIndices = getConstantSubscripts(store);
+  if (failed(initialIndices) || failed(storeIndices) ||
+      *initialIndices != *storeIndices || terms.size() != termCount)
+    return failure();
+  // The chain is collected from its last subtraction backwards.
+  std::reverse(terms.begin(), terms.end());
+  return success();
+}
+
+static bool containsOnlyStraightLineArithmetic(func::FuncOp func) {
+  for (Operation &op : func.getBody().front()) {
+    if (isa<func::ReturnOp, affine::AffineLoadOp, affine::AffineStoreOp,
+            arith::AddFOp, arith::SubFOp, arith::MulFOp,
+            arith::ConstantOp>(op))
+      continue;
+    return false;
+  }
+  return true;
+}
+
+// Recover fixed, fully-unrolled `y -= A*x` and `C -= B*A` programs as
+// structured Linalg reductions.  This is intentionally access-pattern based:
+// BT happens to contain 5x5 instances, while the implementation accepts any
+// square extent represented completely by constant-index stores.
+static bool raiseUnrolledSubtractLinearAlgebra(func::FuncOp func) {
+  if (func.isDeclaration() || !func.getBody().hasOneBlock() ||
+      !func.getFunctionType().getResults().empty() ||
+      !containsOnlyStraightLineArithmetic(func))
+    return false;
+
+  SmallVector<affine::AffineStoreOp> stores;
+  for (Operation &op : func.getBody().front())
+    if (auto store = dyn_cast<affine::AffineStoreOp>(op))
+      stores.push_back(store);
+  if (stores.empty())
+    return false;
+
+  Value output = stores.front().getMemref();
+  auto outputType = dyn_cast<MemRefType>(output.getType());
+  if (!outputType || (outputType.getRank() != 1 && outputType.getRank() != 2))
+    return false;
+  for (auto store : stores)
+    if (store.getMemref() != output)
+      return false;
+
+  // Infer the unrolled reduction extent from the number of output stores.
+  int64_t extent = static_cast<int64_t>(stores.size());
+  if (outputType.getRank() == 2) {
+    extent = 1;
+    while (extent * extent < static_cast<int64_t>(stores.size()))
+      ++extent;
+  }
+  if (extent <= 1 ||
+      (outputType.getRank() == 2 && extent * extent != (int64_t)stores.size()))
+    return false;
+
+  Value firstInput, secondInput;
+  llvm::SmallSet<int64_t, 16> seenOutputs;
+  for (auto [ordinal, store] : llvm::enumerate(stores)) {
+    auto outIndices = getConstantSubscripts(store);
+    if (failed(outIndices) || outIndices->size() != outputType.getRank())
+      return false;
+    int64_t row = outputType.getRank() == 1 ? (*outIndices)[0]
+                                            : (*outIndices)[0];
+    int64_t col = outputType.getRank() == 1 ? 0 : (*outIndices)[1];
+    if (row < 0 || row >= extent || col < 0 || col >= extent ||
+        !seenOutputs.insert(row * extent + col).second)
+      return false;
+
+    SmallVector<UnrolledSubtractTerm> terms;
+    if (failed(matchUnrolledSubtractChain(store, extent, terms)))
+      return false;
+    llvm::SmallSet<int64_t, 16> seenK;
+    for (auto [k, term] : llvm::enumerate(terms)) {
+      auto leftIndices = getConstantSubscripts(term.left);
+      auto rightIndices = getConstantSubscripts(term.right);
+      if (failed(leftIndices) || failed(rightIndices))
+        return false;
+
+      affine::AffineLoadOp matrixLoad;
+      affine::AffineLoadOp otherLoad;
+      if (outputType.getRank() == 1) {
+        if (leftIndices->size() == 2 && rightIndices->size() == 1) {
+          matrixLoad = term.left;
+          otherLoad = term.right;
+        } else if (rightIndices->size() == 2 && leftIndices->size() == 1) {
+          matrixLoad = term.right;
+          otherLoad = term.left;
+        } else {
+          return false;
+        }
+        auto otherIndices = getConstantSubscripts(otherLoad);
+        if (failed(otherIndices) || otherIndices->size() != 1)
+          return false;
+        int64_t reduction = (*otherIndices)[0];
+        auto matrixIndices = getConstantSubscripts(matrixLoad);
+        if ((*matrixIndices)[0] != reduction || (*matrixIndices)[1] != row ||
+            !seenK.insert(reduction).second)
+          return false;
+        if (!firstInput) {
+          firstInput = matrixLoad.getMemref();
+          secondInput = otherLoad.getMemref();
+        } else if (firstInput != matrixLoad.getMemref() ||
+                   secondInput != otherLoad.getMemref()) {
+          return false;
+        }
+      } else {
+        if (leftIndices->size() != 2 || rightIndices->size() != 2)
+          return false;
+        // Accept either operand ordering for B[row,k] * A[k,col].
+        affine::AffineLoadOp bLoad = term.left;
+        affine::AffineLoadOp aLoad = term.right;
+        auto bIndices = *leftIndices;
+        auto aIndices = *rightIndices;
+        bool direct = bIndices[0] == row && aIndices[1] == col &&
+                      bIndices[1] == aIndices[0];
+        bool swapped = (*rightIndices)[0] == row &&
+                       (*leftIndices)[1] == col &&
+                       (*rightIndices)[1] == (*leftIndices)[0];
+        if (firstInput) {
+          direct &= firstInput == term.left.getMemref() &&
+                    secondInput == term.right.getMemref();
+          swapped &= firstInput == term.right.getMemref() &&
+                     secondInput == term.left.getMemref();
+        }
+        if (!direct && swapped) {
+          bLoad = term.right;
+          aLoad = term.left;
+          bIndices = *rightIndices;
+          aIndices = *leftIndices;
+        }
+        if ((!direct && !swapped) || bIndices[0] != row ||
+            aIndices[1] != col ||
+            bIndices[1] != aIndices[0] ||
+            !seenK.insert(bIndices[1]).second)
+          return false;
+        // A diagonal product can satisfy both orientations. Delay fixing the
+        // operand roles until a non-ambiguous access identifies them.
+        if (!firstInput && direct != swapped) {
+          firstInput = bLoad.getMemref();
+          secondInput = aLoad.getMemref();
+        } else if (firstInput != bLoad.getMemref() ||
+                   secondInput != aLoad.getMemref()) {
+          if (!firstInput && direct && swapped)
+            continue;
+          return false;
+        }
+      }
+    }
+    for (int64_t k = 0; k < extent; ++k)
+      if (!seenK.contains(k))
+        return false;
+  }
+
+  auto firstType = dyn_cast<MemRefType>(firstInput.getType());
+  auto secondType = dyn_cast<MemRefType>(secondInput.getType());
+  if (!firstType || !secondType ||
+      firstType.getElementType() != outputType.getElementType() ||
+      secondType.getElementType() != outputType.getElementType())
+    return false;
+
+  Location loc = stores.front().getLoc();
+  IRRewriter rewriter(func.getContext());
+  rewriter.setInsertionPoint(func.getBody().front().getTerminator());
+  MLIRContext *ctx = func.getContext();
+  SmallVector<AffineMap> maps;
+  SmallVector<utils::IteratorType> iterators;
+  if (outputType.getRank() == 1) {
+    AffineExpr i = rewriter.getAffineDimExpr(0);
+    AffineExpr k = rewriter.getAffineDimExpr(1);
+    maps = {AffineMap::get(2, 0, {k, i}, ctx),
+            AffineMap::get(2, 0, {k}, ctx),
+            AffineMap::get(2, 0, {i}, ctx)};
+    iterators = {utils::IteratorType::parallel,
+                 utils::IteratorType::reduction};
+  } else {
+    AffineExpr i = rewriter.getAffineDimExpr(0);
+    AffineExpr j = rewriter.getAffineDimExpr(1);
+    AffineExpr k = rewriter.getAffineDimExpr(2);
+    maps = {AffineMap::get(3, 0, {i, k}, ctx),
+            AffineMap::get(3, 0, {k, j}, ctx),
+            AffineMap::get(3, 0, {i, j}, ctx)};
+    iterators = {utils::IteratorType::parallel,
+                 utils::IteratorType::parallel,
+                 utils::IteratorType::reduction};
+  }
+  auto generic = rewriter.create<linalg::GenericOp>(
+      loc, TypeRange(), ValueRange{firstInput, secondInput},
+      ValueRange{output}, maps, iterators, StringAttr::get(ctx),
+      StringAttr::get(ctx));
+  Block *body = new Block();
+  generic.getRegion().push_back(body);
+  Type elementType = outputType.getElementType();
+  Value left = body->addArgument(elementType, loc);
+  Value right = body->addArgument(elementType, loc);
+  Value accumulator = body->addArgument(elementType, loc);
+  rewriter.setInsertionPointToEnd(body);
+  Value product = rewriter.create<arith::MulFOp>(loc, left, right);
+  Value result = rewriter.create<arith::SubFOp>(loc, accumulator, product);
+  rewriter.create<linalg::YieldOp>(loc, result);
+
+  // Remove the matched scalar expansion, retaining only the new generic and
+  // the function terminator.
+  SmallVector<Operation *> oldOps;
+  for (Operation &op : func.getBody().front().without_terminator())
+    if (&op != generic.getOperation())
+      oldOps.push_back(&op);
+  for (Operation *op : llvm::reverse(oldOps))
+    rewriter.eraseOp(op);
+  return true;
+}
+
+} // namespace
 
 // Keep loop-domain arithmetic outside the payload before an inner loop is
 // folded into linalg.generic. Otherwise a later enclosing-loop raise can need
@@ -2303,8 +2576,7 @@ struct FuseScalarAddReductionIntoOutput
     // loop's induction variable.  An enclosing affine raise would then move
     // its submap outside the SCF region, violating dominance. Wait until the
     // surrounding SCF loop itself has been normalized to affine.
-    if (loop->getParentOfType<scf::ForOp>() ||
-        loop->getParentOfType<scf::IfOp>())
+    if (loop->getParentOfType<scf::ForOp>())
       return failure();
     if (loop.getNumResults() != 0)
       return failure();
@@ -2511,8 +2783,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
-    if (loop->getParentOfType<scf::ForOp>() ||
-        loop->getParentOfType<scf::IfOp>())
+    if (loop->getParentOfType<scf::ForOp>())
       return failure();
     bool containsSCFLoop = false;
     loop.walk([&](scf::ForOp) { containsSCFLoop = true; });
@@ -2818,8 +3089,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
 
-    if (loop->getParentOfType<scf::ForOp>() ||
-        loop->getParentOfType<scf::IfOp>())
+    if (loop->getParentOfType<scf::ForOp>())
       return failure();
     bool containsSCFLoop = false;
     loop.walk([&](scf::ForOp) { containsSCFLoop = true; });
@@ -3946,6 +4216,15 @@ void RaiseAffineToLinalg::runOnOperation() {
   LLVM_DEBUG(llvm::dbgs() << "****************************************\n\n");
 
   GreedyRewriteConfig config;
+
+  // Fixed-size legacy kernels are often completely unrolled, leaving no loop
+  // for AffineForOpRaising to see. Recover the loop semantics from the full
+  // constant-index access pattern before ordinary loop raising.
+  SmallVector<func::FuncOp> functions;
+  getOperation()->walk(
+      [&](func::FuncOp func) { functions.push_back(func); });
+  for (func::FuncOp func : functions)
+    (void)raiseUnrolledSubtractLinearAlgebra(func);
   
   // Step 1: Apply fission pattern first
   {

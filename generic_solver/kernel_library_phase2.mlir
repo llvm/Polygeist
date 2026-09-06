@@ -445,6 +445,28 @@ module {
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
   }
+
+  // GEMM-SUBTRACT: C -= A*B (alpha=-1, beta=1). This spelling occurs in
+  // block-tridiagonal elimination after fixed-size scalar code is rerolled.
+  kernel.defn @cublasDgemm_subtract(%A: tensor<?x?xf64>,
+                                     %B: tensor<?x?xf64>,
+                                     %C: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d2)>,
+        affine_map<(d0, d1, d2) -> (d2, d1)>,
+        affine_map<(d0, d1, d2) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel", "reduction"]
+    } ins(%A, %B : tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%C : tensor<?x?xf64>) {
+    ^bb0(%a: f64, %b: f64, %out: f64):
+      %p = arith.mulf %a, %b : f64
+      %s = arith.subf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
   kernel.defn @cublasDgemm_zero(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                 %C: tensor<?x?xf64>) -> tensor<?x?xf64> {
     kernel.yield %C : tensor<?x?xf64>
@@ -1011,6 +1033,42 @@ module {
     ^bb0(%a: f64, %xv: f64, %out: f64):
       %p = arith.mulf %a, %xv : f64
       %s = arith.addf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  // GEMV-SUBTRACT variants: y -= A*x (alpha=-1, beta=1).
+  kernel.defn @cublasDgemv_subtract(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
+                                     %y: tensor<?xf64>) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                       affine_map<(d0, d1) -> (d1)>,
+                       affine_map<(d0, d1) -> (d0)>],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%y : tensor<?xf64>) {
+    ^bb0(%a: f64, %xv: f64, %out: f64):
+      %p = arith.mulf %a, %xv : f64
+      %s = arith.subf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @cublasDgemv_subtract_T(%A: tensor<?x?xf64>,
+                                       %x: tensor<?xf64>,
+                                       %y: tensor<?xf64>) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d1, d0)>,
+                       affine_map<(d0, d1) -> (d1)>,
+                       affine_map<(d0, d1) -> (d0)>],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%y : tensor<?xf64>) {
+    ^bb0(%a: f64, %xv: f64, %out: f64):
+      %p = arith.mulf %a, %xv : f64
+      %s = arith.subf %out, %p : f64
       linalg.yield %s : f64
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>

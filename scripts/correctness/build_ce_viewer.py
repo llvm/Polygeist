@@ -1439,9 +1439,10 @@ LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
          "notes": "LM head GEMV to logits"},
     ],
     "extended_forward": [
-        {"size": "7B-size one layer warm", "raised": "host 13.480 ms<br>device 12.273 ms",
-         "reference": "ggml CUDA host 9.638 ms", "winner": "ggml 1.40x",
-         "notes": "MODEL_DIM=4096, FFN_DIM=11008, VOCAB=32000, SEQ_LEN=2048, HEADS=32; one layer only"},
+        {"size": "7B-size FP32 one layer", "raised": "external-library hybrid median 473.546 ms",
+         "reference": "Orin CPU 342.515 ms<br>ggml CUDA 15.954 ms",
+         "winner": "ggml 29.7x vs raised",
+         "notes": "Three processes, 2 warmup + 10 measured each; 13 external launches plus 32 residual Linalg bodies; full 32,000-logit PASS"},
         {"size": "toy one layer warm", "raised": "host 0.719 ms<br>device 0.447 ms",
          "reference": "ggml CUDA host 0.098 ms", "winner": "ggml 7.3x",
          "notes": "MODEL_DIM=64, FFN_DIM=128, VOCAB=256, SEQ_LEN=32; useful for IR/debugging"},
@@ -1561,7 +1562,7 @@ LLAMA_FORWARD_BLOCKERS: dict[str, tuple[str, str]] = {
     "down_projection":        ("none", ""),
     "final_rmsnorm":          ("none", ""),
     "lm_head_projection":     ("none", ""),
-    "extended_forward":       ("none", "Full fixture emits 34 runtime calls after lowering and matches native C logits on Jetson; it uses split RoPE and branchless mask to stay inside today's raising envelope."),
+    "extended_forward":       ("matcher-gap", "Current audited fixture emits 13 external-library launches but leaves 32 Linalg bodies on CPU. Full-logit correctness passes; split RoPE and branchless masking are still source accommodations."),
 }
 
 WHISPER_OPS_BLOCKERS: dict[str, tuple[str, str]] = {
@@ -4981,37 +4982,39 @@ def _llama_forward_runtime_summary() -> str:
         '<b>Exact one-token Llama fixture comparison</b>'
         '</div>'
         '<table style="margin-top:4px"><thead><tr>'
-        '<th>fixture</th>'
-        '<th>math compared</th>'
-        '<th>ggml CUDA</th>'
-        '<th>raised pipeline</th>'
+        '<th>implementation</th>'
+        '<th>median of process medians</th>'
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody>'
         '<tr>'
-        '<td><b>extended_forward, 7B-size one layer</b></td>'
-        '<td>one token at pos=1024: MODEL_DIM=4096, FFN_DIM=11008, '
-        'VOCAB=32000, SEQ_LEN=2048, HEADS=32</td>'
-        '<td>warm host median 9.638 ms</td>'
-        '<td>warm host median 13.480 ms<br>warm device median 12.273 ms<br>'
-        'cold first iter host 447.317 ms</td>'
-        '<td>first 4 logits match exactly to printed precision; checksum '
-        'diff is about 0.002 over 32000 logits</td>'
-        '<td>Same one-layer f32 fixture and dimensions, not the full 32-layer '
-        'Llama 2 model and not a quantized GGUF path.</td>'
+        '<td><b>native Orin CPU, strict -O3</b></td>'
+        '<td>342.515 ms</td><td>numerical reference</td>'
+        '<td>three processes; 2 warmup + 10 measured iterations each</td>'
         '</tr>'
         '<tr>'
-        '<td><b>extended_forward, toy one layer</b></td>'
-        '<td>one token at pos=16: MODEL_DIM=64, FFN_DIM=128, VOCAB=256, '
-        'SEQ_LEN=32, HEADS=4</td>'
-        '<td>warm host median 0.098 ms<br>cold one-iter 72.725 ms</td>'
-        '<td>warm host median 0.719 ms<br>warm device median 0.447 ms<br>'
-        'cold first iter host 269.634 ms</td>'
-        '<td>ggml CUDA vs native C max diff 8.46e-06</td>'
-        '<td>Kept for fast IR/debug iteration; the 7B-size row is the '
-        'headline size comparison.</td>'
+        '<td><b>native Orin CPU, -ffast-math</b></td>'
+        '<td>144.152 ms</td><td>informational; changes FP32 result</td>'
+        '<td>reported separately from the strict reference</td>'
+        '</tr><tr>'
+        '<td><b>Polygeist external-library hybrid</b></td>'
+        '<td>473.546 ms</td>'
+        '<td>PASS: max abs 8.201e-4; atol=1e-3, rtol=1e-4</td>'
+        '<td>13 CUDA/cuBLAS/cuTENSOR/cuDNN launches; 32 residual Linalg '
+        'bodies execute on CPU. Project-authored mask/add/SwiGLU helpers are excluded.</td>'
+        '</tr><tr>'
+        '<td><b>ggml CUDA expert implementation</b></td>'
+        '<td>15.954 ms</td>'
+        '<td>PASS: max abs 4.5185e-3; atol=1e-2, rtol=1e-4</td>'
+        '<td>ggml revision f24588a; identical FP32 fixture math</td>'
         '</tr>'
         '</tbody></table>'
+        '<div class="intro"><b>Scope:</b> one token at position 1024, one '
+        '7B-size layer (4096/11008/32000/2048, 32 heads). This is an extracted '
+        'FP32 fixture—not full 32-layer inference or quantized GGUF execution. '
+        'It uses split even/odd RoPE and branchless masking because the exact '
+        'interleaved and branchy forms remain raising gaps. Authoritative data: '
+        '<code>issues/llama_section42/performance.csv</code>.</div>'
     )
 
 
@@ -6002,6 +6005,10 @@ def _ginsbach_page() -> tuple[str, int]:
         memory_only_launches.values()
     )
     backend_routes = {
+        ("snu-npb", "BT"): (
+            "cuBLAS subtract GEMV ×1 + GEMM ×1 "
+            "(numerical ABI smoke 3/3 on Orin #2)"
+        ),
         ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
         ("snu-npb", "IS"): "CUB histogram ×6 corpus sites; ×2 in rank",
         ("snu-npb", "UA"): "cuBLAS DAXPBY ×3 + Ddot ×14",
@@ -6101,12 +6108,14 @@ def _ginsbach_page() -> tuple[str, int]:
         '<th>Egglog regions</th><th>reductions</th><th>stencils</th>'
         '<th>histograms</th><th>paper idioms</th>'
         '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
-        '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S is a '
-        'complete verified application run (0.13 s). Parboil SGEMM is a '
+        '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S passed '
+        'three post-reboot runs (0.13 s each; 501.82 median Mop/s). '
+        'Parboil SGEMM is a '
         'source-faithful kernel run with a 16.620 ms median host-call time. '
         'NPB UA DAXPBY/Ddot and the Parboil seven-point stencil have passed '
         'timed external-library correctness smokes. NPB IS now passes full '
-        'Class-S verification with the original driver and full_verify around '
+        'Class-S verification in three post-reboot runs (122.61 median Mop/s) '
+        'with the original driver and full_verify around '
         'a source-faithful rank core containing two CUB histogram sites. '
         'Their exact sizes and '
         'host/device timing scopes are shown in the table. See '
@@ -6698,6 +6707,13 @@ def main():
             k, mlir_dir=LLAMA_FORWARD_MLIR_DIR, kset="llama_forward",
             file_prefix="llamafwd_",
         )
+        # The paper's extended-forward row deliberately excludes four
+        # project-authored computational helpers (mask, two adds, and
+        # SwiGLU).  Keep its displayed denominator aligned with the audited
+        # external-library-only run instead of the broader exploratory match.
+        if k == "extended_forward":
+            llama_forward_stats[k]["launches"] = 13
+            llama_forward_stats[k]["residual"] = 32
 
     # Whisper/ggml-style extracted operation fixtures.
     whisper_ops_kernels_from_files = discover_kernels(WHISPER_OPS_MLIR_DIR)

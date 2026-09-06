@@ -24,12 +24,14 @@ reports:
   `main.c` and is no longer double-counted)
 - 103 frontend successes
 - 103 successful raising pipelines
-- 555 raised `linalg.generic` operations
-- 36 executable external/platform launch sites
+- 677 raised `linalg.generic` operations
+- 38 executable external/platform launch sites
 
-The thirty-six launch sites are:
+The thirty-eight launch sites are:
 
-- NPB BT: 6 `memset_zero_2D` launches lowered to CUDA runtime memset
+- NPB BT: 6 `memset_zero_2D` launches lowered to CUDA runtime memset, plus
+  rerolled `matvec_sub`/`matmul_sub` matches lowered to cuBLAS GEMV/GEMM with
+  `alpha=-1`, `beta=1`
 - NPB CG: 4 `cusparseSpMV_CSR_f64_memref` launches lowered to cuSPARSE
 - NPB IS: 6 `cubHistogramEvenI32ShiftZero_memref` launches lowered to CUB
 - NPB LU: 1 `memset_zero_1D` launch lowered to CUDA runtime memset
@@ -43,10 +45,10 @@ No project-authored computational launch is present in this count.
 
 The analysis-only structured inventory remains useful and reports:
 
-- 55 Egglog-proved structured regions
-- 26 reduction-shaped regions
-- 17 stencil-shaped regions
-- 15 histogram candidates
+- 69 Egglog-proved structured regions
+- 29 reduction-shaped regions
+- 26 stencil-shaped regions
+- 12 histogram candidates
 - 6 CSR SpMV candidates
 
 These are recognition opportunities, not executable library matches.
@@ -67,6 +69,8 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
 - Parboil SGEMM remains a complete original-source path through cuBLAS and
   passed 3/3 on Orin #2. Log:
   `scripts/correctness/logs/ginsbach_parboil_sgemm_alpha_beta_cross_20260904_215100.silicon.log`.
+  It also passed 3/3 after the CUDA-library repair and board reboot. Log:
+  `scripts/correctness/logs/parboil_sgemm_post_reboot_20260905_202618.silicon.log`.
 - NPB BT `lhsinit` remains a complete original-source path through CUDA
   memset and passed 3/3 on Orin #2. Log:
   `scripts/correctness/logs/npb_bt_lhsinit_source_cross_20260904_224213.silicon.log`.
@@ -81,6 +85,9 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   respectively, including the untimed warmup). The verified zeta is
   `8.5971775078648` with relative error `1.2397255990878e-15`. Log:
   `scripts/correctness/logs/npb_cg_cusparse_repro_20260905_120103.silicon.log`.
+  The complete application passed verification again in all three runs after
+  the CUDA-library repair and board reboot (`0.13 s` benchmark time each).
+  Log: `scripts/correctness/logs/npb_cg_cusparse_post_reboot_20260905_202610.silicon.log`.
   The runtime-traced run proving all 416 cuSPARSE and 400 cuBLAS dynamic calls
   is `scripts/correctness/logs/npb_cg_cusparse_20260905_115854.silicon.log`.
 - The CUB integer-histogram ABI smoke passed 3/3 runs on Orin #2. Its median
@@ -128,6 +135,10 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   Mop/s; benchmark-reported time 0.01 s). Each process makes 22 CUB calls:
   two sites in the warm-up rank plus ten timed ranks. Log:
   `scripts/correctness/logs/npb_is_cub_full_repro_20260905_133503.silicon.log`.
+  It also passed verification in all three post-reboot runs when the required
+  cross-compiled `libpolygeist_cub.so` companion was staged explicitly
+  (`120.76` to `123.12` Mop/s). Log:
+  `scripts/correctness/logs/npb_is_cub_post_reboot_with_companion_20260905_202650.silicon.log`.
 - Parboil histogram: its saturating packed-byte form is detected, but does not
   satisfy the semantics of the new integer-count CUB route.
 - Parboil JDS SpMV: detected; cuSPARSE has no direct JDS operation, so it
@@ -136,9 +147,39 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   suitable external implementation exists.
 
 The authoritative generated audit for this round is
-`/tmp/ginsbach_external_hist_fact/program_summary.csv`.
+`/tmp/ginsbach_complete_final_20260905/program_summary.csv`.
 
 ## Active compiler-gap queue
+
+- Fixed: guarded mixed SCF/affine nests now normalize before Linalg raising.
+  Exact redundant non-empty guards are removed, immutable dimension loads are
+  hoisted across loops using distinct-global alias checks, and loop-domain
+  arithmetic stays outside nested generic payloads. Safe, statically in-bounds
+  global-bound prefixes are also hoisted out of affine guards. With
+  `exact_solution.c` supplied for application-faithful interprocedural
+  inlining, `exact_rhs.c` improves from 2 to 42 generics and has no residual
+  SCF loops. Fixed-size straight-line algebra recovery raises the fully
+  unrolled `matvec_sub` and `matmul_sub` helpers to two Linalg contractions,
+  which Egglog matches to external cuBLAS subtraction updates. NPB BT now has
+  90 generics and 8 executable launch sites; all 14 audited units pass. See
+  `issues/ginsbach_asplos18/bt_raise_results_2026-09-05.csv`.
+- The full source-faithful NPB BT Class S application (12x12x12, 60 steps)
+  passed NASA verification on Orin #2 in all three runs. Median wall time was
+  `0.083 s` (median benchmark-reported time `0.08 s`). This is the CPU source
+  baseline, not a GPU result. Two computational cuBLAS helper matches now
+  exist, but the line solves still need application-level batching and device
+  residency before they form a complete GPU BT result.
+  Log: `scripts/correctness/logs/npb_bt_class_s_baseline_20260905_130426.silicon.log`.
+
+- The new subtract GEMV/GEMM matcher and ABI lowering route passed its
+  numerical silicon smoke in all three runs on Orin #2. The executable was
+  cross-compiled on the host, uses `cudaMalloc`/`cudaMemcpy`, checks a raw
+  cuBLAS GEMV reference result, and then checks the Polygeist subtract GEMV
+  and GEMM wrappers (`alpha=-1`, `beta=1`) against exact expected values. The
+  board uses the compatible Jetson CUDA 12.6 libraries staged under
+  `/home/nvidia/jetson-cuda-libs`; the incompatible SBSA library directory is
+  last in the fallback search path. Log:
+  `scripts/correctness/logs/cublas_subtract_default_path_20260905_202530.silicon.log`.
 
 - Fixed: NPB IS no longer crashes in `FoldSCFIf`; a branch-local
   `memref.get_global` target is cloned and remapped before the old `scf.if` is
@@ -169,7 +210,7 @@ The authoritative generated audit for this round is
   raising pipeline. There are no remaining corpus-wide frontend/raising
   failures in this audit.
 - External-library gaps after raising: non-dot reductions and saturating or
-  indirect histograms, MG's
+  general indirect histograms, MG's
   factorized 3D residual stages, FT's residual FFT loop nests, JDS SpMV, LBM's
   residual loop bodies, and full-application composition/validation.
 

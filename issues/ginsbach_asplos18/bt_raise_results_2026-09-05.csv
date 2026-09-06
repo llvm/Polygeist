@@ -1,0 +1,15 @@
+unit,previous_linalg,current_linalg,residual_affine_for,residual_scf_for,residual_scf_while,external_launches,status
+add.c,0,1,0,0,0,0,PASS
+adi.c,0,0,0,0,0,0,PASS
+bt.c,0,0,5,0,2,0,PASS
+error.c,8,8,0,0,6,0,PASS
+exact_rhs.c,0,42,9,0,0,0,PASS
+exact_solution.c,1,1,0,0,0,0,PASS
+initialize.c,8,9,10,0,15,6,PASS
+rhs.c,0,19,6,0,0,0,PASS
+set_constants.c,0,0,0,0,0,0,PASS
+solve_subs.c,0,2,0,0,0,2,PASS
+verify.c,5,5,2,0,0,0,PASS
+x_solve.c,1,1,5,0,2,0,PASS
+y_solve.c,1,1,5,0,2,0,PASS
+z_solve.c,1,1,5,0,2,0,PASS

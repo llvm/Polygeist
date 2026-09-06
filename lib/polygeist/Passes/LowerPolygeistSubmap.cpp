@@ -1305,18 +1305,13 @@ struct LowerSymbolBearingSubmapToExtractSlice
     ValueRange sizes = submap.getSizes();
     unsigned numViewDims = submapMap.getNumDims();
 
-    // A view dimension used by more than one base dimension describes a
-    // gather (most commonly a diagonal), not a rectangular slice.  When the
-    // map also has symbols, linalg.generic cannot carry those runtime offsets
-    // in its indexing maps, so materialize the gather explicitly.
-    bool hasRepeatedViewDim = false;
-    for (unsigned dim = 0; dim < numViewDims; ++dim) {
-      unsigned uses = 0;
-      for (AffineExpr result : submapMap.getResults())
-        uses += result.isFunctionOfDim(dim);
-      hasRepeatedViewDim |= uses > 1;
-    }
-    if (hasRepeatedViewDim && submapMap.getNumSymbols() != 0 &&
+    // A symbol-bearing tensor map cannot be represented directly by a
+    // linalg.generic indexing map because Linalg maps have no runtime symbol
+    // operands.  Materialize the logical view explicitly.  This covers both
+    // gathers (a repeated view dimension, commonly a diagonal) and broadcasts
+    // such as (d0, d1)[s0] -> (s0, d1), where d0 intentionally does not
+    // participate in the physical read.
+    if (submapMap.getNumSymbols() != 0 &&
         outTy.getRank() == (int64_t)numViewDims && numViewDims != 0) {
       auto mixedSizes = getMixedSizeOperands(sizes, numViewDims, rewriter);
       if (!mixedSizes)
@@ -1810,6 +1805,7 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     };
 
     SmallVector<OpFoldResult> offsets, subSizes, strides;
+    SmallVector<int64_t> sourceShape;
     SmallVector<int64_t> viewDimSeen(numViewDims, 0);
     OpFoldResult zeroAttr = rewriter.getIndexAttr(0);
     OpFoldResult oneAttr = rewriter.getIndexAttr(1);
@@ -1893,10 +1889,13 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       if (hasViewDim) {
         if (viewDim >= sizes.size())
           return lowerElementwiseAffineWriteback();
-        if (auto constant = getConstantIndex(sizes[viewDim]))
+        if (auto constant = getConstantIndex(sizes[viewDim])) {
           subSizes.push_back(rewriter.getIndexAttr(*constant));
-        else
+          sourceShape.push_back(*constant);
+        } else {
           subSizes.push_back(sizes[viewDim]);
+          sourceShape.push_back(ShapedType::kDynamic);
+        }
         strides.push_back(stride);
         viewDimSeen[viewDim] = 1;
       } else {
@@ -1919,8 +1918,20 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     if (numDimBearingBaseDims != (unsigned)viewTy.getRank())
       return lowerElementwiseAffineWriteback();
 
+    // `submap` deliberately uses dynamic view types even when its size
+    // operands are constants.  tensor.insert_slice, however, requires the
+    // source type to reflect every static, non-rank-reduced slice dimension.
+    // Refine the source type before constructing the write-back so a
+    // `tensor<?xf32>` view with size 64 becomes `tensor<64xf32>` rather than
+    // producing an invalid insert_slice.
+    Value source = view;
+    auto refinedSourceTy =
+        RankedTensorType::get(sourceShape, viewTy.getElementType());
+    if (source.getType() != refinedSourceTy)
+      source = rewriter.create<tensor::CastOp>(loc, refinedSourceTy, source);
+
     Value result = rewriter.create<tensor::InsertSliceOp>(
-        loc, view, base, offsets, subSizes, strides);
+        loc, source, base, offsets, subSizes, strides);
     rewriter.replaceOp(inv, result);
     return success();
   }
