@@ -686,6 +686,67 @@ extern "C" int polygeist_cub_quant_col_offsets_i8_i32_cuda(
   return (int)status;
 }
 
+extern "C" int polygeist_cub_adjacent_difference_f32_cuda(
+    int32_t count, const float *input, float *out, cudaStream_t stream) {
+  if (count < 2 || !input || !out)
+    return -1;
+
+  const size_t input_bytes = (size_t)count * sizeof(float);
+  const size_t output_bytes = (size_t)(count - 1) * sizeof(float);
+  const uintptr_t input_begin = reinterpret_cast<uintptr_t>(input);
+  const uintptr_t output_begin = reinterpret_cast<uintptr_t>(out);
+  if (input_begin < output_begin + output_bytes &&
+      output_begin < input_begin + input_bytes)
+    return -1;
+  float *device_input = nullptr;
+  float *device_result = nullptr;
+  void *resident = nullptr;
+  bool owns_input = !cub_device_pointer(input, &resident);
+  cudaError_t status = cudaSuccess;
+  if (owns_input) {
+    status = cudaMalloc(&device_input, input_bytes);
+    if (status != cudaSuccess) return (int)status;
+    status = cudaMemcpyAsync(device_input, input, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) goto cleanup_adjacent_difference;
+  } else {
+    device_input = static_cast<float *>(resident);
+  }
+  status = cudaMalloc(&device_result, input_bytes);
+  if (status != cudaSuccess) goto cleanup_adjacent_difference;
+
+  {
+    void *temporary = nullptr;
+    size_t temporary_bytes = 0;
+    status = cub::DeviceAdjacentDifference::SubtractLeftCopy(
+        temporary, temporary_bytes, device_input, device_result,
+        count, cub::Difference{}, stream);
+    if (status == cudaSuccess)
+      status = cudaMalloc(&temporary, temporary_bytes);
+    if (status == cudaSuccess)
+      status = cub::DeviceAdjacentDifference::SubtractLeftCopy(
+          temporary, temporary_bytes, device_input, device_result,
+          count, cub::Difference{}, stream);
+    if (status == cudaSuccess) {
+      void *device_out = nullptr;
+      if (cub_device_pointer(out, &device_out))
+        status = cudaMemcpyAsync(device_out, device_result + 1, output_bytes,
+                                 cudaMemcpyDeviceToDevice, stream);
+      else
+        status = cudaMemcpyAsync(out, device_result + 1, output_bytes,
+                                 cudaMemcpyDeviceToHost, stream);
+    }
+    if (status == cudaSuccess)
+      status = cudaStreamSynchronize(stream);
+    cudaFree(temporary);
+  }
+
+cleanup_adjacent_difference:
+  cudaFree(device_result);
+  if (owns_input) cudaFree(device_input);
+  return (int)status;
+}
+
 struct IndexedValueF32 {
   int32_t index;
   float value;

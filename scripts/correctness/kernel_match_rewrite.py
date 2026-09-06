@@ -5312,6 +5312,147 @@ def _render_cub_quant_col_offsets(
     return rendered
 
 
+def _render_cub_adjacent_difference(
+        text: str, instances: list, bodies: list
+        ) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize ATen's complete forward adjacent-difference operation."""
+    rendered: list[tuple[int, int, str, str, list[int]]] = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@aten_diff_cpu\s*"
+        r"\(\s*(%[\w.$-]+)\s*:\s*memref<\?xf32>\s*,\s*"
+        r"(%[\w.$-]+)\s*:\s*memref<\?xf32>\s*\)", re.MULTILINE)
+    constants = parse_constants(text)
+    for function in function_re.finditer(text):
+        input_memref, output_memref = function.groups()
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        owned = [i for i, instance in enumerate(instances)
+                 if opening < instance.span[0] and
+                 instance.span[1] < function_end]
+        if len(owned) != 1:
+            continue
+        body = bodies[owned[0]]
+        if (body.iterator_types != ["parallel"] or
+                len(body.ins_arg_names) != 2 or
+                len(body.outs_arg_names) != 1 or
+                [_compact_affine_map(m) for m in body.indexing_maps] != [
+                    "affine_map<(d0)->(d0)>",
+                    "affine_map<(d0)->(d0)>",
+                    "affine_map<(d0)->(d0)>"]):
+            continue
+        body_text = "\n".join(body.body_lines)
+        difference = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.subf\s+"
+            rf"{re.escape(body.ins_arg_names[0])},\s*"
+            rf"{re.escape(body.ins_arg_names[1])}\s*:\s*f32", body_text)
+        if difference is None or body.yield_values != [difference.group(1)]:
+            continue
+
+        instance = instances[owned[0]]
+        inputs = _extract_ssa_names(instance.ins_part)
+        outputs = _extract_ssa_names(instance.outs_part)
+        if (len(inputs) != 2 or len(outputs) != 1 or
+                instance.result_ssa is None):
+            continue
+        prefix = text[opening:instance.span[0]]
+        input_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(input_memref)}\s*:\s*memref<\?xf32>", prefix)
+        output_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(output_memref)}\s*:\s*memref<\?xf32>", prefix)
+        if input_tensor is None or output_tensor is None:
+            continue
+
+        def exact_slice(value: str, source: str, offset: int):
+            return re.search(
+                rf"{re.escape(value)}\s*=\s*tensor\.extract_slice\s+"
+                rf"{re.escape(source)}\[{offset}\]\s*"
+                r"\[(%[\w.$-]+)\]\s*\[1\]\s*:\s*"
+                r"tensor<\?xf32>\s+to\s+tensor<\?xf32>", prefix)
+
+        right = exact_slice(inputs[0], input_tensor.group(1), 1)
+        left = exact_slice(inputs[1], input_tensor.group(1), 0)
+        destination = exact_slice(outputs[0], output_tensor.group(1), 0)
+        uses_submaps = not all((right, left, destination))
+        if uses_submaps:
+            def exact_submap(value: str, source: str):
+                return re.search(
+                    rf"{re.escape(value)}\s*=\s*polygeist\.submap\("
+                    rf"{re.escape(source)},\s*(%[\w.$-]+)\)\s*"
+                    r"[{]map\s*=\s*([^}]+)[}]", prefix)
+
+            right = exact_submap(inputs[0], input_tensor.group(1))
+            left = exact_submap(inputs[1], input_tensor.group(1))
+            destination = exact_submap(outputs[0], output_tensor.group(1))
+            if right is None or left is None or destination is None:
+                continue
+            resolved_maps = [
+                _compact_affine_map(_resolve_affine_map_text(
+                    text[:instance.span[0]], match.group(2).strip()))
+                for match in (right, left, destination)]
+            if resolved_maps != ["affine_map<(d0)->(d0+1)>",
+                                 "affine_map<(d0)->(d0)>",
+                                 "affine_map<(d0)->(d0)>"]:
+                continue
+        extent_ssa = right.group(1)
+        if left.group(1) != extent_ssa or destination.group(1) != extent_ssa:
+            continue
+        output_count = constants.get(extent_ssa)
+        if (output_count is None or int(output_count) != output_count or
+                output_count < 1 or output_count >= 2147483647):
+            continue
+
+        tail = text[instance.span[1]:function_end]
+        if uses_submaps:
+            inserted = re.search(
+                rf"(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"{re.escape(output_tensor.group(1))},\s*"
+                rf"{re.escape(instance.result_ssa)},\s*"
+                rf"{re.escape(extent_ssa)}\)\s*"
+                r"[{]map\s*=\s*([^}]+)[}]", tail)
+            if (inserted is None or
+                    _compact_affine_map(_resolve_affine_map_text(
+                        text[:function_end], inserted.group(2).strip())) !=
+                    "affine_map<(d0)->(d0)>"):
+                continue
+        else:
+            inserted = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.insert_slice\s+"
+                rf"{re.escape(instance.result_ssa)}\s+into\s+"
+                rf"{re.escape(output_tensor.group(1))}\[0\]\s*"
+                rf"\[{re.escape(extent_ssa)}\]\s*\[1\]", tail)
+        to_memref = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(inserted.group(1))}\s*:\s*memref<\?xf32>", tail)
+                     if inserted else None)
+        copy = (re.search(
+            rf"memref\.copy\s+{re.escape(to_memref.group(1))},\s*"
+            rf"{re.escape(output_memref)}\s*:\s*memref<\?xf32>\s+to\s+"
+            r"memref<\?xf32>", tail) if to_memref else None)
+        if copy is None:
+            continue
+
+        slice_starts = [prefix.rfind(value + " =") for value in inputs + outputs]
+        if any(position < 0 for position in slice_starts):
+            continue
+        start = opening + min(slice_starts)
+        start = text.rfind("\n", 0, start) + 1
+        indent = re.match(r"\s*", text[start:instance.span[0]]).group(0)
+        input_count = int(output_count) + 1
+        launch = (
+            f"{indent}kernel.launch @cubAdjacentDifference_f32_memref("
+            f"{input_memref}, {output_memref}) "
+            f"{{polygeist.fixed_extents = array<i64: {input_count}>}} : "
+            f"(memref<?xf32>, memref<?xf32>) -> ()")
+        rendered.append((start, instance.span[1] + copy.end(), launch,
+                         "cubAdjacentDifference_f32_memref", owned))
+    return rendered
+
+
 def _render_cusparse_bsr_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Fuse the tensorized ATen square-BSR matvec into cuSPARSE SpMM.
@@ -6675,6 +6816,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[column-reduce+offset]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_cub_adjacent_difference(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[whole-adjacent-difference]"))
         emitted_launches += 1
     if enable_structured_rewrite:
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):

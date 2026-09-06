@@ -4,29 +4,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<272>, d
     %c127 = arith.constant 127 : index
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %extracted_slice = tensor.extract_slice %0[1] [%c127] [1] : tensor<?xf32> to tensor<?xf32>
-    %extracted_slice_0 = tensor.extract_slice %0[0] [%c127] [1] : tensor<?xf32> to tensor<?xf32>
-    %extracted_slice_1 = tensor.extract_slice %1[0] [%c127] [1] : tensor<?xf32> to tensor<?xf32>
-    %v2_pw_single_pad_0 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_1 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_2 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_3 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_4 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_5 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_6 = arith.constant 0.0 : f32
-
-    %v2_pw_single_pad_7 = arith.constant 0.0 : f32
-
-    %2 = kernel.launch @cudnnPointwiseGraph_f32(%extracted_slice, %extracted_slice_0, %extracted_slice, %extracted_slice, %extracted_slice_1, %v2_pw_single_pad_0, %v2_pw_single_pad_1, %v2_pw_single_pad_2, %v2_pw_single_pad_3, %v2_pw_single_pad_4, %v2_pw_single_pad_5, %v2_pw_single_pad_6, %v2_pw_single_pad_7) {pointwise_graph = array<i64: 50331904, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>, pointwise_num_nodes = 1 : i64} : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, f32, f32, f32, f32, f32, f32, f32, f32) -> tensor<?xf32>
-    %inserted_slice = tensor.insert_slice %2 into %1[0] [%c127] [1] : tensor<?xf32> into tensor<?xf32>
-    %3 = bufferization.to_memref %inserted_slice : memref<?xf32>
-    memref.copy %3, %arg1 : memref<?xf32> to memref<?xf32>
+    kernel.launch @cubAdjacentDifference_f32_memref(%arg0, %arg1) {polygeist.fixed_extents = array<i64: 128>} : (memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }

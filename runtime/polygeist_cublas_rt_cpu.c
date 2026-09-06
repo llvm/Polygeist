@@ -2389,6 +2389,12 @@ void polygeist_cub_quant_col_offsets_i8_i32(
   }
 }
 
+void polygeist_cub_adjacent_difference_f32(
+    int32_t count, const float *input, float *out) {
+  for (int32_t i = 0; i + 1 < count; ++i)
+    out[i] = input[i + 1] - input[i];
+}
+
 void polygeist_cub_segmented_prefix_sum_f32(
     int32_t rows, int32_t cols, const float *x,
     const int32_t *lengths, float *out) {

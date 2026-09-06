@@ -276,6 +276,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cub_segmented_argreduce_f32";
   if (libSym == "cubQuantColOffsets_i8_i32_memref")
     return "polygeist_cub_quant_col_offsets_i8_i32";
+  if (libSym == "cubAdjacentDifference_f32_memref")
+    return "polygeist_cub_adjacent_difference_f32";
   if (libSym == "cublasSgemvTZero_memref")
     return "polygeist_cublas_sgemv_T";
   if (libSym == "cudnnSinc_f32_memref")
@@ -5781,6 +5783,42 @@ static LogicalResult lowerCubQuantColOffsetsI8I32(
   return success();
 }
 
+static LogicalResult lowerCubAdjacentDifferenceF32(
+    LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "adjacent difference expects input and output memrefs");
+  auto inputType = dyn_cast<MemRefType>(launch.getOperand(0).getType());
+  auto outputType = dyn_cast<MemRefType>(launch.getOperand(1).getType());
+  if (!inputType || inputType.getRank() != 1 ||
+      !inputType.getElementType().isF32() || !outputType ||
+      outputType.getRank() != 1 || !outputType.getElementType().isF32())
+    return launch.emitError(
+        "adjacent difference requires two one-dimensional f32 memrefs");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value count;
+  if (auto fixed = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.fixed_extents")) {
+    if (fixed.size() != 1 || fixed[0] < 2 || fixed[0] > INT32_MAX)
+      return launch.emitError(
+          "adjacent-difference extent must fit a positive i32 count");
+    count = b.create<arith::ConstantIntOp>(loc, fixed[0], 32);
+  } else {
+    count = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
+  }
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(
+      module, "polygeist_cub_adjacent_difference_f32",
+      {b.getI32Type(), ptr, ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{count, memrefDataPtr(b, loc, launch.getOperand(0)),
+                 memrefDataPtr(b, loc, launch.getOperand(1))});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCublasSgemvTZeroMemref(
     LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
@@ -7396,6 +7434,8 @@ struct LowerKernelLaunchToCuBLASPass
             launch, module, libSym == "cubSegmentedArgMin_f32_i32_memref");
       } else if (libSym == "cubQuantColOffsets_i8_i32_memref") {
         r = lowerCubQuantColOffsetsI8I32(launch, module);
+      } else if (libSym == "cubAdjacentDifference_f32_memref") {
+        r = lowerCubAdjacentDifferenceF32(launch, module);
       } else if (libSym == "cublasSgemvTZero_memref") {
         r = lowerCublasSgemvTZeroMemref(launch, module);
       } else if (libSym == "cudnnSinc_f32_memref") {

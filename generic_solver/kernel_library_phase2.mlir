@@ -157,6 +157,8 @@ module {
   kernel.defn @cubQuantColOffsets_i8_i32_memref(
       %weights: memref<?x48xi8>, %offset: i32,
       %out: memref<?xi32>) { kernel.yield }
+  kernel.defn @cubAdjacentDifference_f32_memref(
+      %input: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cublasSgemvTZero_memref(
       %matrix: memref<?x?xf32>, %vector: memref<?xf32>,
       %out: memref<?xf32>) { kernel.yield }

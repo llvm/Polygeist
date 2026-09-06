@@ -8837,6 +8837,8 @@ typedef int (*polygeist_cub_segmented_argreduce_f32_fn)(
     int32_t, int32_t, int32_t, const float *, int32_t *, cudaStream_t);
 typedef int (*polygeist_cub_quant_col_offsets_i8_i32_fn)(
     int32_t, int32_t, int32_t, const int8_t *, int32_t *, cudaStream_t);
+typedef int (*polygeist_cub_adjacent_difference_f32_fn)(
+    int32_t, const float *, float *, cudaStream_t);
 
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
@@ -8877,6 +8879,24 @@ void polygeist_cub_quant_col_offsets_i8_i32(
   }
   timing_gpu_end("cubQuantColOffsets_i8_i32", rows, cols, offset,
                  host_start_ms);
+}
+
+void polygeist_cub_adjacent_difference_f32(
+    int32_t count, const float *input, float *out) {
+  static polygeist_cub_adjacent_difference_f32_fn function = NULL;
+  if (!function)
+    function = (polygeist_cub_adjacent_difference_f32_fn)
+        polygeist_cub_companion_symbol(
+            "polygeist_cub_adjacent_difference_f32_cuda");
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  int status = function(count, input, out, g_stream);
+  if (status != 0) {
+    fprintf(stderr, "polygeist CUB adjacent difference failed: %d\n", status);
+    abort();
+  }
+  timing_gpu_end("cubAdjacentDifference_f32", count, 0, 0, host_start_ms);
 }
 
 void polygeist_cudnn_sinc_f32(int32_t n, const float *x, float *out) {

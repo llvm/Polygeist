@@ -202,6 +202,10 @@ CASES = {
         [bptr("w", "K*N"), iscalar("zero", 3),
          iptr("out", "N", True)],
         "full signed-int8 column reduction and zero-point offset via CUB"),
+    "aten_diff_cpu": spec(
+        {"N": 16_777_216},
+        [ptr("x", "N"), ptr("out", "N-1", True)],
+        "full forward adjacent difference via CUB"),
     "aten_sparse_norm_cpu": spec(
         {"N": 16_777_216},
         [ptr("value", "N"), ptr("out", "1", True)],
@@ -814,7 +818,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
     supports_resident = ("via cuSPARSE" in cfg["coverage"] or
-                         kernel == "aten_quant_col_offsets_cpu")
+                         kernel in {"aten_quant_col_offsets_cpu",
+                                    "aten_diff_cpu"})
     if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"
