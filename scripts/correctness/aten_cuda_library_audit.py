@@ -132,6 +132,10 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("variable_bit_shift", "", "none",
                       "NO_DIRECT_LIBRARY_API", "none",
                       "NPP exposes constant-shift signal calls, but this fixture supplies a distinct shift count for every element")
+    if n == "copysign":
+        return result("scalar_copysign", "", "none",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "copying a sign bit is pointwise arithmetic, not tensor data movement")
     if hit(r"nested_(clone|squeeze)_cpu", n):
         return result("data_movement", "CUDA Runtime", "cudaMemcpyAsync",
                       "FULL_GENERIC_API", "whole",
@@ -334,6 +338,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
             "resampling", "", "conventional Linalg/GPU lowering",
             "NO_DIRECT_LIBRARY_API", "none",
             "installed cuDNN does not support nearest upsampling or general 1D/3D interpolation; coordinate/backward semantics lack a defensible fixed call")
+
+    if n == "sparse_sum_backward_cpu":
+        return result("scalar_fill", "", "none",
+                      "NO_DIRECT_LIBRARY_API", "none",
+                      "the kernel broadcasts an arbitrary runtime float; cudaMemset only represents zero")
 
     # Sparse tensor norm operates on the stored value vector; the sparse index
     # structure is irrelevant to this extracted kernel.

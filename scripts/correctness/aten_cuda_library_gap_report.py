@@ -319,11 +319,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "contiguous keys; no dense bounded-key assumption is available",
                  "multi-call algorithm recognizer and CUB composition backend; no single fixed-library replacement",
                  priority="LOW")
-    if fam in {"arbitrary_gather", "cyclic_shift", "variable_bit_shift"}:
+    if fam in {"arbitrary_gather", "cyclic_shift", "variable_bit_shift",
+               "scalar_copysign", "scalar_fill"}:
         detail = {
             "arbitrary_gather": "runtime per-row indices are not representable by memcpy or a cuTENSOR affine-mode permutation",
             "cyclic_shift": "modular wraparound indexing is not a cuTENSOR affine-mode permutation",
             "variable_bit_shift": "NPP signal shifts take one constant shift value, not one value per element",
+            "scalar_copysign": "copying a sign bit is scalar pointwise arithmetic rather than tensor data movement",
+            "scalar_fill": "an arbitrary runtime float fill is not representable by bytewise cudaMemset",
         }[fam]
         return r("none", "no fixed public NVIDIA library call", "NO_PUBLIC_LIBRARY_EQUIVALENT", "none",
                  detail, "not applicable",
