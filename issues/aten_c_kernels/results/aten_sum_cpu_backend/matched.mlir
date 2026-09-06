@@ -10,7 +10,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
     %aten_sum_3_input = memref.cast %arg0 : memref<?x64xf32> to memref<?x?xf32>
 
-    kernel.launch @cubSegmentedSum_f32_memref(%aten_sum_3_input, %arg1) : (memref<?x?xf32>, memref<?xf32>) -> ()
+    kernel.launch @cubSegmentedSum_f32_memref(%aten_sum_3_input, %arg1) {polygeist.fixed_extents = array<i64: 16, 64>} : (memref<?x?xf32>, memref<?xf32>) -> ()
     return
   }
 }

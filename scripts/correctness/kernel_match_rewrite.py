@@ -174,6 +174,7 @@ ABI_LOWERABLE_KERNELS = {
     "atenSegmentedSum",
     "cubCountNonzero1D_f32_tensor",
     "cubSegmentedCountNonzero2D_f32_tensor",
+    "cubSegmentedLogicalAnd_i32_memref",
     "cubEqualAll1D_f32_tensor",
     "cubSegmentedLogicalSelect_i32_tensor",
     "cudnnReduceSum_f32",
@@ -3137,6 +3138,108 @@ _ADAPTIVE_POOL_CONSTANT_FINGERPRINTS: dict[str, set[int]] = {
 }
 
 
+def _render_fixed_average_pool_backward_regions(
+    text: str, instances, bodies,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Replace the complete fixed-window average-pool backward algorithm.
+
+    The ATen fixtures flatten NCHW/NCDHW storage, initialize the complete
+    destination, form affine logical views, distribute each output gradient
+    over a 2^rank window, and write the view back.  The fixed-pool cuDNN ABI
+    consumes the flat base buffers directly, so recognizing only the second
+    generic would both leave work behind and lose the physical padding in the
+    6x7 2-D destination.
+    """
+    supported = {
+        "aten_avg_pool2d_backward_cpu": (
+            2, (6, 7, 1), (3, 3, 1), 4.0,
+            "affine_map<(d0,d1,d2,d3,d4)->(d2+d0*9+d1*3)>",
+            "affine_map<(d0,d1,d2)->(d2+d1*7+d0*42)>",
+        ),
+        "aten_avg_pool3d_backward_cpu": (
+            3, (6, 7, 8), (3, 3, 4), 8.0,
+            "affine_map<(d0,d1,d2,d3,d4,d5,d6)->(d3+d0*36+d1*12+d2*4)>",
+            "affine_map<(d0,d1,d2,d3)->(d3+d1*56+d0*336+d2*8)>",
+        ),
+    }
+    rendered = []
+    for name, (rank, input_spatial, output_spatial, divisor,
+               expected_input_map, expected_output_map) in supported.items():
+        function = re.search(rf"func\.func\s+@{re.escape(name)}\b", text)
+        if function is None:
+            continue
+        next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+        function_end = (function.end() + next_function.start()
+                        if next_function is not None else len(text))
+        indices = [
+            j for j, inst in enumerate(instances)
+            if function.start() <= inst.span[0] < function_end
+        ]
+        if len(indices) != 2:
+            continue
+        init_i, pool_i = indices
+        init, pool = bodies[init_i], bodies[pool_i]
+        pool_text = text[instances[pool_i].span[0]:instances[pool_i].span[1]]
+        function_text = text[function.start():function_end]
+        constants = {int(value) for value in re.findall(
+            r"arith\.constant\s+(-?\d+)\s*:\s*index", function_text)}
+        fingerprints = _ADAPTIVE_POOL_CONSTANT_FINGERPRINTS[name]
+        legal = (
+            len(init.ins_arg_names) == 0 and len(init.outs_arg_names) == 1
+            and init.iterator_types == ["parallel"]
+            and len(pool.ins_arg_names) == len(pool.outs_arg_names) == 1
+            and pool.iterator_types.count("parallel") == rank + 1
+            and pool.iterator_types.count("reduction") == rank
+            and len(pool.indexing_maps) == 2
+            and _compact_affine_map(pool.indexing_maps[0]).endswith(
+                "->(d0," + ",".join(
+                    f"d{i}" for i in range(rank + 1, 2 * rank + 1)) +
+                "," + ",".join(f"d{i}" for i in range(1, rank + 1)) + ")>")
+            and _compact_affine_map(pool.indexing_maps[1]).endswith(
+                "->(d0," + ",".join(
+                    f"d{i}" for i in range(1, rank + 1)) + ")>")
+            and fingerprints.issubset(constants)
+            and all(token in pool_text for token in (
+                "arith.divf", "arith.addf", "arith.cmpi sge",
+                "arith.cmpi slt", "arith.andi", "arith.select"))
+            and pool_text.count("affine.apply") == 2
+            and re.search(rf"arith\.constant\s+{divisor:g}(?:\.0+)?(?:e\+00)?\s*:\s*f32",
+                          function_text, re.IGNORECASE) is not None
+            and _compact_affine_map(expected_input_map) in
+                _compact_affine_map(text)
+            and _compact_affine_map(expected_output_map) in
+                _compact_affine_map(text)
+            and re.search(
+                rf"func\.func\s+@{re.escape(name)}\("
+                r"%arg0:\s*memref<\?xf32>,\s*%arg1:\s*memref<\?xf32>\)",
+                function_text) is not None
+        )
+        if not legal:
+            continue
+        copy = re.search(r"\n[ \t]*memref\.copy\b[^\n]*", text[instances[pool_i].span[1]:function_end])
+        if copy is None:
+            continue
+        edit_start = instances[init_i].span[0]
+        edit_end = instances[pool_i].span[1] + copy.end()
+        indent = instances[init_i].indent.lstrip("\n")
+        uid = edit_start
+        values = (5, rank, 1, 2, *input_spatial, *output_spatial)
+        names = [f"%fixed_avg_pool_{uid}_{j}" for j in range(10)]
+        lines = [
+            f"{indent}{ssa} = arith.constant {value} : i32"
+            for ssa, value in zip(names, values)
+        ]
+        signature = ", ".join(["i32"] * 10 +
+                              ["memref<?xf32>", "memref<?xf32>"])
+        lines.append(
+            f"{indent}kernel.launch @cudnnAveragePool_f32_flat2("
+            f"{', '.join(names + ['%arg0', '%arg1'])}) : "
+            f"({signature}) -> ()")
+        rendered.append((edit_start, edit_end, "\n" + "\n".join(lines),
+                         "cudnnAveragePool_f32_flat2", indices))
+    return rendered
+
+
 def _cutensor_permutation_modes(body, term, body_form: str):
     """Prove a one-input, one-output pure affine dimension permutation.
 
@@ -4084,6 +4187,19 @@ def rewrite_mlir(
             consumed_structured_bodies.update(consumed)
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
+    for start, end, replacement, symbol, consumed in \
+            _render_fixed_average_pool_backward_regions(
+                text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[whole-algorithm]"))
+        emitted_launches += 1
     if enable_structured_rewrite:
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):
             if max_launches is not None and emitted_launches >= max_launches:
@@ -4563,6 +4679,21 @@ def rewrite_mlir(
                     [entry for entry in comps
                      if entry.name != "cublasDgemv_strided_batched_subtract"],
                     start=i, body_forms=body_forms)
+        # The scratch-eliding overwrite ABI is currently FP64-only.  Do not
+        # let its longer scalar pattern shadow the established FP32 sequence
+        # (zero + SGEMV + copy) when the legality check cannot select DGEMV.
+        if (m is not None and m[0].name == "cublasDgemv_T_zero" and
+                i + 1 < len(instances)):
+            contraction_types = (
+                _extract_ssa_types(instances[i + 1].ins_part) +
+                _extract_ssa_types(instances[i + 1].outs_part))
+            if any(_sniff_elem_type(ty) != "f64"
+                   for ty in contraction_types):
+                m = match_composition(
+                    bodies, body_terms,
+                    [entry for entry in comps
+                     if entry.name != "cublasDgemv_T_zero"],
+                    start=i, body_forms=body_forms)
         if m is None:
             entry = match_elementwise_semantic(
                 bodies[i], body_terms[i], body_forms[i]
@@ -4797,6 +4928,37 @@ def rewrite_mlir(
         tail_only_rewires: list[tuple[str, str]] = []
         pre_launch_lines: list[str] = []
         redundant_zero_fill_span: tuple[int, int] | None = None
+
+        # These CUB operations overwrite their destinations.  Their raised
+        # forms nevertheless contain an explicit initializer because that is
+        # how the source loop expresses the reduction identity.  Once the
+        # two bodies match as a composition, pass the real reduction outputs
+        # to CUB and rewire any slice/writeback uses of the removed identity
+        # tensor to its original destination.
+        if (entry.name == "cubSegmentedCountNonzero2D_f32_tensor" and
+                n == 2):
+            init_result = instances[i].result_ssa
+            init_out_names = _extract_ssa_names(instances[i].outs_part)
+            if init_result is not None and len(init_out_names) == 1:
+                composition_root_rewires.append(
+                    (init_result, init_out_names[0]))
+
+        if (entry.name == "cubSegmentedInclusiveProduct2D_f32_tensor" and
+                n == 2):
+            product_inst = instances[i + 1]
+            product_ins = _extract_ssa_names(product_inst.ins_part)
+            product_in_types = _extract_ssa_types(product_inst.ins_part)
+            product_outs = _extract_ssa_names(product_inst.outs_part)
+            product_out_types = _extract_ssa_types(product_inst.outs_part)
+            init_result = instances[i].result_ssa
+            init_out_names = _extract_ssa_names(instances[i].outs_part)
+            if (len(product_ins) == len(product_in_types) == 1 and
+                    len(product_outs) == len(product_out_types) == 2 and
+                    init_result is not None and len(init_out_names) == 1):
+                operands = product_ins + product_outs
+                operand_types = product_in_types + product_out_types
+                composition_root_rewires.append(
+                    (init_result, init_out_names[0]))
 
         fixed_conv_symbols = {
             "cudnnConvolutionTranspose3D_f32_memref",
@@ -6163,12 +6325,62 @@ def rewrite_mlir(
                 f"{gemv_inst.indent}{matrix_cast} = memref.cast "
                 f"{physical_operands[0]} : {physical_types[0]} to memref<?x?xf32>",
                 f"{gemv_inst.indent}kernel.launch @{entry.name}("
-                f"{matrix_cast}, {physical_operands[1]}, {physical_operands[2]}) : "
+                f"{matrix_cast}, {physical_operands[1]}, {physical_operands[2]}) "
+                "{polygeist.fixed_extents = array<i64: 64, 128>} : "
                 f"(memref<?x?xf32>, {physical_types[1]}, {physical_types[2]}) -> ()",
             ]
             custom_launch_line = "\n".join(lines)
             replace_full_span = True
             custom_edit_span = (init_inst.span[0], gemv_inst.span[1])
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cubSegmentedLogicalAnd_i32_memref":
+            init_inst, reduce_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            reduce_ins = _extract_ssa_names(reduce_inst.ins_part)
+            reduce_outs = _extract_ssa_names(reduce_inst.outs_part)
+            input_view = (_parse_memref_view(
+                text, reduce_ins[0], reduce_inst.span[0])
+                if len(reduce_ins) == 1 else None)
+            output_view = (_parse_memref_view(
+                text, reduce_outs[0], reduce_inst.span[0])
+                if len(reduce_outs) == 1 else None)
+            maps = [_compact_affine_map(m)
+                    for m in bodies[i + 1].indexing_maps]
+            legal = (
+                n == 2 and len(init_outs) == 1
+                and input_view is not None and output_view is not None
+                and input_view["kind"] == "subview"
+                and output_view["kind"] == "reinterpret_cast"
+                and input_view["sizes"] == ["%c32", "%c64"]
+                and output_view["base"] == init_outs[0]
+                and maps == [
+                    "affine_map<(d0,d1)->(d0,d1)>",
+                    "affine_map<(d0,d1)->(d0)>",
+                ]
+                and _constant_index_value(text, "%c32") == 32
+                and _constant_index_value(text, "%c64") == 64
+                and _shaped_rank(input_view["base_type"]) == 2
+                and _shaped_rank(output_view["base_type"]) == 1
+                and _sniff_elem_type(input_view["base_type"]) == "i32"
+                and _sniff_elem_type(output_view["base_type"]) == "i32"
+                and input_view["base"] != output_view["base"]
+            )
+            if not legal:
+                report.append(("aten_segmented_logical_region_reject",
+                               [i, i + 1], entry.name))
+                i += n
+                continue
+            custom_launch_line = (
+                f"{reduce_inst.indent}kernel.launch @{entry.name}("
+                f"{input_view['base']}, {output_view['base']}) "
+                "{polygeist.fixed_extents = array<i64: 32, 64>} : "
+                f"({input_view['base_type']}, {output_view['base_type']}) -> ()"
+            )
+            replace_full_span = True
+            custom_edit_span = (init_inst.span[0], reduce_inst.span[1])
             operands = []
             operand_types = []
             binds = {}
@@ -6238,7 +6450,8 @@ def rewrite_mlir(
                 f"{reduce_inst.indent}{input_cast} = memref.cast "
                 f"{physical_operands[0]} : {physical_types[0]} to {dynamic_input}",
                 f"{reduce_inst.indent}kernel.launch @{emit_name}("
-                f"{input_cast}, {physical_operands[1]}) : "
+                f"{input_cast}, {physical_operands[1]}) "
+                "{polygeist.fixed_extents = array<i64: 16, 64>} : "
                 f"({dynamic_input}, {physical_types[1]}) -> ()",
             ]
             custom_launch_line = "\n".join(lines)
@@ -6317,7 +6530,8 @@ def rewrite_mlir(
                 f"{reduce_inst.indent}{input_cast} = memref.cast "
                 f"{physical_operands[0]} : {physical_types[0]} to memref<?x?xf32>",
                 f"{reduce_inst.indent}kernel.launch @{entry.name}("
-                f"{input_cast}, {physical_operands[1]}) : "
+                f"{input_cast}, {physical_operands[1]}) "
+                "{polygeist.fixed_extents = array<i64: 32, 64>} : "
                 f"(memref<?x?xf32>, {physical_types[1]}) -> ()",
             ]
             custom_launch_line = "\n".join(lines)
@@ -6432,7 +6646,11 @@ def rewrite_mlir(
             ]
             attrs = (
                 " {network_maps = [" + ", ".join(map_attrs) +
-                "], polygeist.result_destinations = array<i64: 3>}"
+                "], polygeist.fixed_operand_extents = array<i64: " +
+                ("8, 16, 24, 16, 20, 8, 20, 8, 24"
+                 if maps == bilinear_maps else
+                 "8, 16, 16, 20, 24, 8, 20, 8, 24") +
+                ">, polygeist.result_destinations = array<i64: 3>}"
             )
             lines.append(
                 f"{network_inst.indent}kernel.launch @{entry.name}("
@@ -8106,7 +8324,8 @@ def rewrite_mlir(
                     "cubSegmentedSum_f32_memref",
                     "cubSegmentedSum_f64_memref",
                     "cubSegmentedMin_f32_memref",
-                    "cubSegmentedMax_f32_memref")):
+                    "cubSegmentedMax_f32_memref",
+                    "cubSegmentedLogicalAnd_i32_memref")):
                 # The strict whole-region handlers above validate the physical
                 # memref ranks and element types before clearing the original
                 # tensor operands.
@@ -8115,6 +8334,10 @@ def rewrite_mlir(
                 legal = elems == ["f32", "i32", "f32"] and ranks == [2, 1, 1]
             elif entry.name == "cubSegmentedPrefixLogicalAnd_i32":
                 legal = elems == ["i32", "i32", "i32"] and ranks == [2, 1, 1]
+            elif entry.name == "cubSegmentedCountNonzero2D_f32_tensor":
+                legal = elems == ["f32", "i32"] and ranks == [2, 1]
+            elif entry.name == "cubSegmentedInclusiveProduct2D_f32_tensor":
+                legal = elems == ["f32", "f32", "f32"] and ranks == [2, 2, 1]
             else:
                 legal = elems == ["i32", "i32"] and ranks == [2, 1]
             if not legal:

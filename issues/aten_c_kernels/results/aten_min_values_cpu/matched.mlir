@@ -11,7 +11,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %extracted_slice_0 = tensor.extract_slice %1[0] [%c32] [1] : tensor<?xf32> to tensor<?xf32>
     %aten_extreme_3_input = memref.cast %arg0 : memref<?x64xf32> to memref<?x?xf32>
 
-    kernel.launch @cubSegmentedMin_f32_memref(%aten_extreme_3_input, %arg1) : (memref<?x?xf32>, memref<?xf32>) -> ()
+    kernel.launch @cubSegmentedMin_f32_memref(%aten_extreme_3_input, %arg1) {polygeist.fixed_extents = array<i64: 32, 64>} : (memref<?x?xf32>, memref<?xf32>) -> ()
     return
   }
 }

@@ -9,14 +9,11 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %c32 = arith.constant 32 : index
     %0 = bufferization.to_tensor %arg0 : memref<?x64xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xi32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%1 : tensor<?xi32>) {
-    ^bb0(%out: i32):
-      linalg.yield %c0_i32 : i32
-    } -> tensor<?xi32>
+    %2 = tensor.cast %1 : tensor<?xi32> to tensor<?xi32>
     %extracted_slice = tensor.extract_slice %0[0, 0] [%c32, %c64] [1, 1] : tensor<?x64xf32> to tensor<?x?xf32>
-    %extracted_slice_0 = tensor.extract_slice %2[0] [%c32] [1] : tensor<?xi32> to tensor<?xi32>
-    %3 = kernel.launch @cubSegmentedCountNonzero2D_f32_tensor(%extracted_slice, %extracted_slice_0) : (tensor<?x?xf32>, tensor<?xi32>) -> tensor<?xi32>
-    %inserted_slice = tensor.insert_slice %3 into %2[0] [%c32] [1] : tensor<?xi32> into tensor<?xi32>
+    %extracted_slice_0 = tensor.extract_slice %1[0] [%c32] [1] : tensor<?xi32> to tensor<?xi32>
+    %3 = kernel.launch @cubSegmentedCountNonzero2D_f32_tensor(%extracted_slice, %1) : (tensor<?x?xf32>, tensor<?xi32>) -> tensor<?xi32>
+    %inserted_slice = tensor.insert_slice %3 into %1[0] [%c32] [1] : tensor<?xi32> into tensor<?xi32>
     %4 = bufferization.to_memref %inserted_slice : memref<?xi32>
     memref.copy %4, %arg1 : memref<?xi32> to memref<?xi32>
     return

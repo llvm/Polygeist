@@ -14,26 +14,17 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %c2 = arith.constant 2 : index
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
-    %2 = kernel.launch @memset_zero_1D_f32(%1) : (tensor<?xf32>) -> tensor<?xf32>
-    %3 = polygeist.submap(%0, %c2, %c3, %c3, %c6, %c6) {map = #map1} : (tensor<?xf32>, index, index, index, index, index) -> tensor<?x?x?x?x?xf32>
-    %4 = polygeist.submap(%2, %c2, %c6, %c6) {map = #map2} : (tensor<?xf32>, index, index, index) -> tensor<2x6x6xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map3, #map4], iterator_types = ["parallel", "reduction", "reduction", "parallel", "parallel"], library_call = ""} ins(%3 : tensor<?x?x?x?x?xf32>) outs(%4 : tensor<2x6x6xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %8 = linalg.index 2 : index
-      %9 = arith.divf %in, %cst_0 : f32
-      %10 = arith.addf %out, %9 : f32
-      %11 = linalg.index 4 : index
-      %12 = affine.apply #map5(%8)
-      %13 = arith.cmpi sge, %11, %12 : index
-      %14 = affine.apply #map6(%8)
-      %15 = arith.cmpi slt, %11, %14 : index
-      %16 = arith.andi %13, %15 : i1
-      %17 = arith.select %16, %10, %out : f32
-      linalg.yield %17 : f32
-    } -> tensor<2x6x6xf32>
-    %6 = polygeist.submapInverse(%2, %5, %c2, %c6, %c6) {map = #map2} : (tensor<?xf32>, tensor<2x6x6xf32>, index, index, index) -> tensor<?xf32>
-    %7 = bufferization.to_memref %6 : memref<?xf32>
-    memref.copy %7, %arg1 : memref<?xf32> to memref<?xf32>
+    %fixed_avg_pool_1896_0 = arith.constant 5 : i32
+    %fixed_avg_pool_1896_1 = arith.constant 2 : i32
+    %fixed_avg_pool_1896_2 = arith.constant 1 : i32
+    %fixed_avg_pool_1896_3 = arith.constant 2 : i32
+    %fixed_avg_pool_1896_4 = arith.constant 6 : i32
+    %fixed_avg_pool_1896_5 = arith.constant 7 : i32
+    %fixed_avg_pool_1896_6 = arith.constant 1 : i32
+    %fixed_avg_pool_1896_7 = arith.constant 3 : i32
+    %fixed_avg_pool_1896_8 = arith.constant 3 : i32
+    %fixed_avg_pool_1896_9 = arith.constant 1 : i32
+    kernel.launch @cudnnAveragePool_f32_flat2(%fixed_avg_pool_1896_0, %fixed_avg_pool_1896_1, %fixed_avg_pool_1896_2, %fixed_avg_pool_1896_3, %fixed_avg_pool_1896_4, %fixed_avg_pool_1896_5, %fixed_avg_pool_1896_6, %fixed_avg_pool_1896_7, %fixed_avg_pool_1896_8, %fixed_avg_pool_1896_9, %arg0, %arg1) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }

@@ -26,7 +26,7 @@ aten_allany_dims_cpu	pass	2	0	0	-
 aten_aminmax_allreduce_cpu	pass	1	0	1	cudnnReduceMinMax_f32
 aten_aminmax_cpu	pass	2	0	2	cudnnReduceMax_f32,cudnnReduceMin_f32
 aten_amp_update_scale_cpu	pass	0	0	0	-
-aten_and_reduce_cpu	pass	2	0	0	-
+aten_and_reduce_cpu	pass	2	0	1	cubSegmentedLogicalAnd_i32_memref
 aten_angle_complex_scalarized	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_angle_real	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_arange_cpu	pass	1	0	0	-
@@ -39,10 +39,10 @@ aten_atan	pass	1	0	1	cutensorUnary_atan_f32
 aten_atan2	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_atanh	pass	1	0	1	cutensorUnary_atanh_f32
 aten_avg_pool2d	pass	2	0	1	cudnnAvgPoolWindow_f32
-aten_avg_pool2d_backward_cpu	pass	2	0	1	memset_zero_1D_f32
+aten_avg_pool2d_backward_cpu	pass	2	0	1	cudnnAveragePool_f32_flat2
 aten_avg_pool2d_cpu	pass	4	4	0	-
 aten_avg_pool3d	pass	2	0	1	cudnnAveragePool_f32_r5
-aten_avg_pool3d_backward_cpu	pass	2	0	1	memset_zero_1D_f32
+aten_avg_pool3d_backward_cpu	pass	2	0	1	cudnnAveragePool_f32_flat2
 aten_avg_pool3d_cpu	pass	4	6	0	-
 aten_batch_norm	pass	1	0	1	cudnnBatchNormalizationForwardInference
 aten_batch_norm_backward_cpu	pass	2	2	0	-

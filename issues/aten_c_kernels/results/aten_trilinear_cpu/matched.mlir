@@ -23,7 +23,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
 
     %aten_network_5_3 = memref.cast %arg3 : memref<?x24xf32> to memref<?x?xf32>
 
-    kernel.launch @cutensornetNetwork_f32_n3_aten(%aten_network_5_0, %aten_network_5_1, %aten_network_5_2, %aten_network_5_3) {network_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d2)>, affine_map<(d0, d1, d2, d3) -> (d2, d3, d1)>, affine_map<(d0, d1, d2, d3) -> (d0, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1)>], polygeist.result_destinations = array<i64: 3>} : (memref<?x?xf32>, memref<?x?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+    kernel.launch @cutensornetNetwork_f32_n3_aten(%aten_network_5_0, %aten_network_5_1, %aten_network_5_2, %aten_network_5_3) {network_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d2)>, affine_map<(d0, d1, d2, d3) -> (d2, d3, d1)>, affine_map<(d0, d1, d2, d3) -> (d0, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1)>], polygeist.fixed_operand_extents = array<i64: 8, 16, 16, 20, 24, 8, 20, 8, 24>, polygeist.result_destinations = array<i64: 3>} : (memref<?x?xf32>, memref<?x?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     return
   }
 }

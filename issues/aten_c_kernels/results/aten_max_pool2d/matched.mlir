@@ -10,12 +10,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %0 = bufferization.to_tensor %arg0 : memref<?x8x16x16xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?x8x8x8xf32>
     %extracted_slice = tensor.extract_slice %1[0, 0, 0, 0] [%c2, %c8, %c8, %c8] [1, 1, 1, 1] : tensor<?x8x8x8xf32> to tensor<?x?x?x?xf32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%extracted_slice : tensor<?x?x?x?xf32>) {
-    ^bb0(%out: f32):
-      linalg.yield %cst : f32
-    } -> tensor<?x?x?x?xf32>
     %3 = polygeist.submap(%0, %c2, %c8, %c8, %c8, %c2, %c2) {map = #map1} : (tensor<?x8x16x16xf32>, index, index, index, index, index, index) -> tensor<?x?x?x?x?x?xf32>
-    %4 = kernel.launch @cudnnMaxPoolFwd_batched(%3, %2) : (tensor<?x?x?x?x?x?xf32>, tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
+    %4 = kernel.launch @cudnnMaxPoolFwd_batched(%3, %extracted_slice) : (tensor<?x?x?x?x?x?xf32>, tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
     %inserted_slice = tensor.insert_slice %4 into %1[0, 0, 0, 0] [%c2, %c8, %c8, %c8] [1, 1, 1, 1] : tensor<?x?x?x?xf32> into tensor<?x8x8x8xf32>
     %5 = bufferization.to_memref %inserted_slice : memref<?x8x8x8xf32>
     memref.copy %5, %arg1 : memref<?x8x8x8xf32> to memref<?x8x8x8xf32>

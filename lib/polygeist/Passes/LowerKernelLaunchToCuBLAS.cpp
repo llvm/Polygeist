@@ -3101,6 +3101,24 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
       tensorOrder.push_back(i);
   tensorOrder.push_back(outputOperand);
 
+  auto fixedExtents = launch->getAttrOfType<DenseI64ArrayAttr>(
+      "polygeist.fixed_operand_extents");
+  if (fixedExtents) {
+    unsigned expectedCount = 0;
+    for (Value operand : launch.getOperands()) {
+      auto shaped = getRankedShapedType(operand);
+      if (!shaped)
+        return launch.emitError(
+            "fixed cuTensorNet extents require ranked operands");
+      expectedCount += shaped.getRank();
+    }
+    if (fixedExtents.size() != expectedCount ||
+        llvm::any_of(fixedExtents.asArrayRef(),
+                     [](int64_t extent) { return extent <= 0; }))
+      return launch.emitError(
+          "fixed cuTensorNet extents must provide one positive value per dimension");
+  }
+
   SmallVector<ContractionViewMetadata, 4> metadata;
   metadata.reserve(tensorOrder.size());
   Type expectedElementType = useF64 ? b.getF64Type() : b.getF32Type();
@@ -3122,6 +3140,19 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
     if (failed(view))
       return launch.emitError(
           "unsupported cuTensorNet network operand view or access map");
+    if (fixedExtents) {
+      unsigned extentOffset = 0;
+      for (unsigned prior = 0; prior < operandNumber; ++prior)
+        extentOffset += getRankedShapedType(
+            launch.getOperand(prior)).getRank();
+      if (view->extents.size() != (unsigned)shaped.getRank())
+        return launch.emitError(
+            "fixed cuTensorNet extents cannot describe broadcast operands");
+      for (unsigned dim = 0; dim < view->extents.size(); ++dim)
+        view->extents[dim] = b.create<arith::ConstantOp>(
+            loc, b.getI64Type(),
+            b.getI64IntegerAttr(fixedExtents[extentOffset + dim]));
+    }
     metadata.push_back(*view);
   }
   if (globalModeCount > kContractionMaxModes)
@@ -4578,9 +4609,13 @@ static LogicalResult lowerCudnnMaxpoolBatched(LaunchOp launch,
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value A_mr = tensorToMemref(b, loc, inBase);
-  Value O_mr = valueToOutputMemrefPreservingSlice(b, loc, outBase);
-  Value B  = memrefDimAsI32(b, loc, A_mr, 0);
-  Value C  = memrefDimAsI32(b, loc, A_mr, 1);
+  // Keep the selected output slice: the physical parent can have a larger
+  // dynamic batch extent than the fixed region recognized by the matcher.
+  // H/W come from the input base because the rank-6 window submap encodes
+  // them indirectly, while N/C/OH/OW are explicit on the output slice.
+  Value O_mr = valueToOutputMemrefPreservingSlice(b, loc, outView);
+  Value B  = memrefDimAsI32(b, loc, O_mr, 0);
+  Value C  = memrefDimAsI32(b, loc, O_mr, 1);
   Value H  = memrefDimAsI32(b, loc, A_mr, 2);
   Value W  = memrefDimAsI32(b, loc, A_mr, 3);
   Value OH = memrefDimAsI32(b, loc, O_mr, 2);
@@ -5528,6 +5563,14 @@ static LogicalResult lowerCublasSgemvTZeroMemref(
   Location loc = launch.getLoc();
   Value rows = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
   Value cols = memrefDimAsI32(b, loc, launch.getOperand(0), 1);
+  if (auto fixed = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.fixed_extents")) {
+    if (fixed.size() != 2 || fixed[0] <= 0 || fixed[1] <= 0)
+      return launch.emitError(
+          "SgemvT fixed extents must be two positive values");
+    rows = b.create<arith::ConstantIntOp>(loc, fixed[0], 32);
+    cols = b.create<arith::ConstantIntOp>(loc, fixed[1], 32);
+  }
   Value one = b.create<arith::ConstantOp>(loc, b.getF32Type(),
                                           b.getF32FloatAttr(1.0f));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32Type(),
@@ -5942,11 +5985,20 @@ static LogicalResult lowerCubSegmentedFullMemref(LaunchOp launch,
       : (libSym == "cubSegmentedSum_f32_memref" || isF64) ? 0
       : libSym == "cubSegmentedMin_f32_memref" ? 1 : 2;
   OpBuilder b(launch); Location loc = launch.getLoc();
+  Value rows = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
+  Value cols = memrefDimAsI32(b, loc, launch.getOperand(0), 1);
+  if (auto fixed = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.fixed_extents")) {
+    if (fixed.size() != 2 || fixed[0] <= 0 || fixed[1] <= 0)
+      return launch.emitError(
+          "segmented reduction fixed extents must be two positive values");
+    rows = b.create<arith::ConstantIntOp>(loc, fixed[0], 32);
+    cols = b.create<arith::ConstantIntOp>(loc, fixed[1], 32);
+  }
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
   Value op = b.create<arith::ConstantIntOp>(loc, opId, 32);
   SmallVector<Value> args{
-      op, memrefDimAsI32(b, loc, launch.getOperand(0), 0),
-      memrefDimAsI32(b, loc, launch.getOperand(0), 1),
+      op, rows, cols,
       memrefDataPtr(b, loc, launch.getOperand(0)),
       memrefDataPtr(b, loc, launch.getOperand(1))};
   SmallVector<Type> types{b.getI32Type(), b.getI32Type(), b.getI32Type(),

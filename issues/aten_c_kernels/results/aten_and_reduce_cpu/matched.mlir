@@ -8,20 +8,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i16, dense<16> : 
     %false = arith.constant false
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
-    linalg.generic {indexing_maps = [#map], iterator_types = ["parallel"]} outs(%arg1 : memref<?xi32>) {
-    ^bb0(%out: i32):
-      linalg.yield %c1_i32 : i32
-    }
-    %subview = memref.subview %arg0[0, 0] [%c32, %c64] [1, 1] : memref<?x64xi32> to memref<?x?xi32, strided<[64, 1]>>
-    %reinterpret_cast = memref.reinterpret_cast %arg1 to offset: [0], sizes: [%c32], strides: [1] : memref<?xi32> to memref<32xi32>
-    linalg.generic {indexing_maps = [#map1, #map2], iterator_types = ["parallel", "reduction"]} ins(%subview : memref<?x?xi32, strided<[64, 1]>>) outs(%reinterpret_cast : memref<32xi32>) {
-    ^bb0(%in: i32, %out: i32):
-      %0 = arith.cmpi ne, %out, %c0_i32 : i32
-      %1 = arith.cmpi ne, %in, %c0_i32 : i32
-      %2 = arith.select %0, %1, %false : i1
-      %3 = arith.extsi %2 : i1 to i32
-      linalg.yield %3 : i32
-    }
+    kernel.launch @cubSegmentedLogicalAnd_i32_memref(%arg0, %arg1) {polygeist.fixed_extents = array<i64: 32, 64>} : (memref<?x64xi32>, memref<?xi32>) -> ()
     return
   }
 }

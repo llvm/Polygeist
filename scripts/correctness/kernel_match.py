@@ -1631,7 +1631,65 @@ def _cudnn_maxpool_batched() -> CompositionEntry:
     sees the select as a max op and produces a clean max-reduction
     body shape.
     """
-    return _mlir_metadata("cudnnMaxPoolFwd_batched")
+    maximum = Term.Select(
+        Term.Cmp("ogt", Term.In(0), Term.Out(0)),
+        Term.In(0), Term.Out(0))
+    return CompositionEntry(
+        name="cudnnMaxPoolFwd_batched",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(-3.40282347e38), num_ins=0, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=maximum, num_ins=1, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=2,
+            ),
+        ],
+        form="tensor",
+        element_type="f32",
+    )
+
+
+def _cub_segmented_count_nonzero2d() -> CompositionEntry:
+    """Zero initialization plus one count-nonzero reduction per row."""
+    return CompositionEntry(
+        name="cubSegmentedCountNonzero2D_f32_tensor",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=Term.Out(0) +
+                    Term.Cmp("une", Term.In(0), Term.Lit(0.0)),
+                num_ins=1, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=1,
+            ),
+        ],
+        form="tensor",
+    )
+
+
+def _cub_segmented_inclusive_product2d() -> CompositionEntry:
+    """Initialize each row carry to one, then compute inclusive products."""
+    product = Term.Out(1) * Term.In(0)
+    return CompositionEntry(
+        name="cubSegmentedInclusiveProduct2D_f32_tensor",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(1.0), num_ins=0, num_outs=1,
+                parallel_dim_count=1, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=product, body_per_yield=[product, product],
+                num_ins=1, num_outs=2,
+                parallel_dim_count=1, reduction_dim_count=1,
+            ),
+        ],
+        form="tensor",
+        element_type="f32",
+    )
 
 
 def _cudnn_uniform_window_conv2d() -> CompositionEntry:
@@ -2827,6 +2885,24 @@ def _segmented_logical_and_i32() -> CompositionEntry:
     )
 
 
+def _segmented_logical_and_i32_memref() -> CompositionEntry:
+    """Memref-form counterpart used when debufferization cannot lift it."""
+    init = Term.Lit(1.0)
+    reduce = Term.Select(
+        Term.Cmp("ne", Term.Out(0), Term.Lit(0.0)),
+        Term.Cmp("ne", Term.In(0), Term.Lit(0.0)), Term.Lit(0.0))
+    return CompositionEntry(
+        name="cubSegmentedLogicalAnd_i32_memref",
+        steps=[
+            CompositionStep(body=init, num_ins=0, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=0),
+            CompositionStep(body=reduce, num_ins=1, num_outs=1,
+                            parallel_dim_count=1, reduction_dim_count=1),
+        ],
+        form="memref",
+    )
+
+
 def _segmented_logical_or_i32() -> CompositionEntry:
     init = Term.Lit(0.0)
     reduce = Term.Select(
@@ -3758,6 +3834,8 @@ def composition_library() -> list[CompositionEntry]:
         _cudnn_fixed_average_pool3d(),
                                   # 2-step: zero + NCDHW 2x2x2 average
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
+        _cub_segmented_count_nonzero2d(),
+        _cub_segmented_inclusive_product2d(),
         _sgemm_strided_batched_zero(),
         _sgemm_zero_gemm(),
         _fixed_memref_convolution_contraction(
@@ -3773,6 +3851,7 @@ def composition_library() -> list[CompositionEntry]:
         _aten_segmented_extreme("cubSegmentedMin_f32_memref", "olt"),
         _aten_segmented_extreme("cubSegmentedMax_f32_memref", "ogt"),
         _gemv_overwrite_via_scratch(),
+        _segmented_logical_and_i32_memref(),
         _generic_two_input_sum_contraction_tensor(),
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map
@@ -3974,7 +4053,7 @@ _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
     "cudaMaskSelect_f32_tensor", "cudaRopeMulMulAdd_f32_tensor",
     "cudaRopeMulMulSub_f32_tensor", "cudaSwiGLU_f32_tensor",
-    "cudnnAddTensor_batched", "cudnnMaxPoolFwd_batched",
+    "cudnnAddTensor_batched",
     "memset_zero_1D", "memset_zero_2D", "whisperExpShiftSum_f32_tensor",
 }
 

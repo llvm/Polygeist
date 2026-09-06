@@ -453,7 +453,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_batch_norm", "aten_batch_norm_cpu_entry", "aten_rms_norm"
     }:
         return "SELECTED_WRAPPERS_PRESENT"
-    if library == "cuDNN Resample" and family == "pooling" and "max_pool" in name:
+    if library == "cuDNN Resample" and family == "pooling":
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuFFT" and family == "fourier_transform":
         return "SELECTED_WRAPPERS_PRESENT"
@@ -464,6 +464,10 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "CUB" and family == "scan":
+        return "SELECTED_WRAPPERS_PRESENT"
+    if library == "CUB" and name in {
+        "aten_and_reduce_cpu", "aten_count_nonzero_impl_cpu",
+    }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and "graph" in audit["candidate_api"].lower():
         if name in {"aten_binary_cross_entropy",

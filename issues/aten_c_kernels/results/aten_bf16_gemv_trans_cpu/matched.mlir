@@ -9,7 +9,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %cst = arith.constant 0.000000e+00 : f32
     %aten_gemvt_0_matrix = memref.cast %arg0 : memref<?x128xf32> to memref<?x?xf32>
 
-    kernel.launch @cublasSgemvTZero_memref(%aten_gemvt_0_matrix, %arg1, %arg2) : (memref<?x?xf32>, memref<?xf32>, memref<?xf32>) -> ()
+    kernel.launch @cublasSgemvTZero_memref(%aten_gemvt_0_matrix, %arg1, %arg2) {polygeist.fixed_extents = array<i64: 64, 128>} : (memref<?x?xf32>, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }

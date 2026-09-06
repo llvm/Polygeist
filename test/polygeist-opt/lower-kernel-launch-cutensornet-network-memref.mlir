@@ -15,6 +15,7 @@ module {
       %y: memref<?x?xf32>, %out: memref<?x?xf32>) {
     kernel.launch @cutensornetNetwork_f32_n3_aten(%x, %w, %y, %out)
         {network_maps = [#x, #w, #y, #out],
+         polygeist.fixed_operand_extents = array<i64: 8, 16, 24, 16, 20, 8, 20, 8, 24>,
          polygeist.result_destinations = array<i64: 3>} :
         (memref<?x?xf32>, memref<?x?x?xf32>,
          memref<?x?xf32>, memref<?x?xf32>) -> ()
