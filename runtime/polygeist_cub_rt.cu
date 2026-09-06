@@ -267,6 +267,8 @@ extern "C" int polygeist_cub_segmented_count_nonzero2d_f32_cuda(
   size_t temporary_bytes = 0;
   cudaError_t status = cudaMalloc(&device_input, input_bytes);
   if (status != cudaSuccess) return static_cast<int>(status);
+  status = cudaMalloc(&device_out, output_bytes);
+  if (status != cudaSuccess) goto cleanup;
   status = cudaMemcpyAsync(device_input, host_input, input_bytes,
                            cudaMemcpyHostToDevice, stream);
   if (status != cudaSuccess) goto cleanup;

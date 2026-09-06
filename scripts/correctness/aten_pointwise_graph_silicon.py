@@ -24,6 +24,11 @@ def ptr(name: str, size: str, output: bool = False, init: str = "normal") -> tup
     return (name, "ptr", size, output, init)
 
 
+def dptr(name: str, size: str, output: bool = False,
+         init: str = "normal") -> tuple:
+    return (name, "dptr", size, output, init)
+
+
 def iptr(name: str, size: str, output: bool = False,
          init: str = "index") -> tuple:
     return (name, "iptr", size, output, init)
@@ -48,6 +53,10 @@ def spec(dims: dict[str, int], args: list[tuple], coverage: str = "full graph",
 
 N = 4_194_304
 CASES = {
+    "aten_sum": spec(
+        {"M": 65_536, "N": 64},
+        [dptr("x", "M*N"), dptr("out", "M", True)],
+        "full segmented CUB f64 sum reduction", rtol=1e-11),
     "aten_mul": spec(
         {"N": N}, [ptr("a", "N"), ptr("b", "N"),
                     ptr("out", "N", True)], "generic graph multiply"),
@@ -562,7 +571,8 @@ def harness_text(kernel: str, cfg: dict) -> str:
             continue
         allocations.append(f"size_t {name}_n = (size_t)({value});")
         ctype = ("int" if kind == "iptr" else
-                 "signed char" if kind == "bptr" else "float")
+                 "signed char" if kind == "bptr" else
+                 "double" if kind == "dptr" else "float")
         allocations.append(f"{ctype} *{name}_ref = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
         allocations.append(f"{ctype} *{name}_got = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
         allocations.append(f"{ctype} *{name}_dev = 0;")
@@ -589,6 +599,17 @@ def harness_text(kernel: str, cfg: dict) -> str:
             call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
             if output:
                 comparisons.append(f"CHECK_IARRAY({name});")
+            frees.extend([f"free({name}_ref);", f"free({name}_got);"])
+            continue
+        if kind == "dptr":
+            expr = "((double)(i%101)-50.0)/37.0"
+            init.append(
+                f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
+            init.append(
+                f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(double));")
+            call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
+            if output:
+                comparisons.append(f"CHECK_DARRAY({name});")
             frees.extend([f"free({name}_ref);", f"free({name}_got);"])
             continue
         if init_kind == "coord":
@@ -619,7 +640,8 @@ def harness_text(kernel: str, cfg: dict) -> str:
         "float" if a[1] == "scalar" else
         "int" if a[1] == "iscalar" else
         "int *" if a[1] == "iptr" else
-        "signed char *" if a[1] == "bptr" else "float *"
+        "signed char *" if a[1] == "bptr" else
+        "double *" if a[1] == "dptr" else "float *"
         for a in cfg["args"]
     ]
     signature = ", ".join(types)
@@ -644,6 +666,7 @@ static double now_us(void) {{ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&
 #define CHECK_ARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ float r=name##_ref[i], g=name##_got[i]; float e=fabsf(r-g); if(!isfinite(g)||e>{cfg.get('rtol', 2e-3):.9g}f*(1.0f+fabsf(r))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%g got=%g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
 #define CHECK_IARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=name##_ref[i], g=name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
 #define CHECK_BARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=(int)name##_ref[i], g=(int)name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
+#define CHECK_DARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ double r=name##_ref[i], g=name##_got[i]; double e=fabs(r-g); if(!isfinite(g)||e>{cfg.get('rtol', 2e-3):.17g}*(1.0+fabs(r))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%.17g got=%.17g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
 int main(void) {{
   {' '.join(decls)}
   {' '.join(allocations)}
@@ -696,7 +719,9 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     _ct = "/home/arjaiswal/cutensor_sbsa"
     if os.path.isdir(_ct):  # enable cutensorUnary etc. when the SDK is staged
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct
-    run([str(BUILDER), "--target=jetson", f"--function={kernel}", f"--harness={harness}", "-o", str(exe), str(source)], work / "raised.build.log", env)
+    run([str(BUILDER), "--target=jetson", f"--function={kernel}",
+         f"--harness={harness}", "-o", str(exe), str(source),
+         "-DBENCH_MAPPED_ONLY"], work / "raised.build.log", env)
     return {"kernel": kernel, "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()), "coverage": cfg["coverage"], "executable": str(exe)}
 
 

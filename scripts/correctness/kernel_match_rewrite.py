@@ -1533,10 +1533,14 @@ def _to_tensor_memref_source(
     """Return the physical memref behind a direct to_tensor conversion."""
     if value is None:
         return None
+    prefix = text[:before]
+    function_start = prefix.rfind("func.func")
+    if function_start >= 0:
+        prefix = prefix[function_start:]
     match = re.search(
         rf"^\s*{re.escape(value)}\s*=\s*bufferization\.to_tensor\s+"
         rf"(%[\w_\-]+)(?:\s+[^:]*)?\s*:\s*(memref<[^\n]+>)$",
-        text[:before],
+        prefix,
         re.MULTILINE,
     )
     return (match.group(1), match.group(2).strip()) if match else None
@@ -1562,17 +1566,22 @@ def _tensor_extract_slice_info(
 
 def _tensor_submap_info(text: str, value: str, before: int) -> dict | None:
     prefix = text[:before]
+    # SSA names are function-local.  Searching the complete module prefix can
+    # accidentally select an identically named submap from an earlier
+    # function in multi-kernel test/audit modules.
+    function_start = prefix.rfind("func.func")
+    scoped_prefix = prefix[function_start:] if function_start >= 0 else prefix
     match = re.search(
         rf"^\s*{re.escape(value)}\s*=\s*polygeist\.submap\s*"
         rf"\(\s*(%[\w_\-]+)\s*,\s*([^)]+)\)\s*"
         rf"\{{\s*map\s*=\s*([^}}]+)\}}\s*:",
-        prefix, re.MULTILINE)
+        scoped_prefix, re.MULTILINE)
     if match is None:
         return None
     return {
         "source": match.group(1),
         "sizes": [part.strip() for part in match.group(2).split(",")],
-        "map": _resolve_affine_map_text(prefix, match.group(3).strip()),
+        "map": _resolve_affine_map_text(text, match.group(3).strip()),
         "map_ref": match.group(3).strip(),
     }
 
@@ -2301,6 +2310,29 @@ def _find_flat_submap_inverse(text: str, start: int, generic_result: str):
         return None
     return (match.group(1), match.group(4), match.group(2),
             tail_operands, (start + match.start(), start + match.end()))
+
+
+def _find_tensor_submap_inverse(
+    text: str, start: int, generic_result: str
+) -> tuple[str, str, tuple[int, int]] | None:
+    """Find the tensor writeback immediately consuming a generic result.
+
+    Raised reductions over expanded window/segment views return a higher-rank
+    tensor and then fold it back into the real destination with
+    submapInverse.  Library calls for those compositions return the real
+    destination shape directly, so the rewrite must replace that writeback's
+    SSA result and type rather than the generic's expanded result.
+    """
+    match = re.search(
+        rf"(?m)^\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+        rf"\([^,\n]+,\s*{re.escape(generic_result)}\s*,[^\n]*"
+        rf"->\s*(tensor<[^>\n]+>)\s*$",
+        text[start:],
+    )
+    if not match:
+        return None
+    return (match.group(1), match.group(2),
+            (start + match.start(), start + match.end()))
 
 
 def _render_cufft_1d_tensor_launch(
@@ -3155,17 +3187,20 @@ def _render_fixed_average_pool_backward_regions(
         "aten_avg_pool2d_backward_cpu": (
             2, (6, 7, 1), (3, 3, 1), 4.0,
             "affine_map<(d0,d1,d2,d3,d4)->(d2+d0*9+d1*3)>",
-            "affine_map<(d0,d1,d2)->(d2+d1*7+d0*42)>",
+            ("affine_map<(d0,d1,d2)->(d2+d1*7+d0*42)>",
+             "affine_map<(d0,d1,d2,d3,d4)->(d4+d3*7+d0*42)>"),
         ),
         "aten_avg_pool3d_backward_cpu": (
             3, (6, 7, 8), (3, 3, 4), 8.0,
             "affine_map<(d0,d1,d2,d3,d4,d5,d6)->(d3+d0*36+d1*12+d2*4)>",
-            "affine_map<(d0,d1,d2,d3)->(d3+d1*56+d0*336+d2*8)>",
+            ("affine_map<(d0,d1,d2,d3)->(d3+d1*56+d0*336+d2*8)>",
+             "affine_map<(d0,d1,d2,d3,d4,d5,d6)->"
+             "(d6+d4*56+d0*336+d5*8)>"),
         ),
     }
     rendered = []
     for name, (rank, input_spatial, output_spatial, divisor,
-               expected_input_map, expected_output_map) in supported.items():
+               expected_input_map, expected_output_maps) in supported.items():
         function = re.search(rf"func\.func\s+@{re.escape(name)}\b", text)
         if function is None:
             continue
@@ -3196,9 +3231,10 @@ def _render_fixed_average_pool_backward_regions(
                 "->(d0," + ",".join(
                     f"d{i}" for i in range(rank + 1, 2 * rank + 1)) +
                 "," + ",".join(f"d{i}" for i in range(1, rank + 1)) + ")>")
-            and _compact_affine_map(pool.indexing_maps[1]).endswith(
-                "->(d0," + ",".join(
-                    f"d{i}" for i in range(1, rank + 1)) + ")>")
+            and (_compact_affine_map(pool.indexing_maps[1]).endswith(
+                    "->(d0," + ",".join(
+                        f"d{i}" for i in range(1, rank + 1)) + ")>")
+                 or pool.indexing_maps[1] == pool.indexing_maps[0])
             and fingerprints.issubset(constants)
             and all(token in pool_text for token in (
                 "arith.divf", "arith.addf", "arith.cmpi sge",
@@ -3208,8 +3244,9 @@ def _render_fixed_average_pool_backward_regions(
                           function_text, re.IGNORECASE) is not None
             and _compact_affine_map(expected_input_map) in
                 _compact_affine_map(text)
-            and _compact_affine_map(expected_output_map) in
-                _compact_affine_map(text)
+            and any(_compact_affine_map(output_map) in
+                    _compact_affine_map(text)
+                    for output_map in expected_output_maps)
             and re.search(
                 rf"func\.func\s+@{re.escape(name)}\("
                 r"%arg0:\s*memref<\?xf32>,\s*%arg1:\s*memref<\?xf32>\)",
@@ -5097,6 +5134,7 @@ def rewrite_mlir(
         custom_edit_span: tuple[int, int] | None = None
         composition_root_rewires: list[tuple[str, str]] = []
         tail_only_rewires: list[tuple[str, str]] = []
+        suppress_composition_tail_rewire = False
         pre_launch_lines: list[str] = []
         redundant_zero_fill_span: tuple[int, int] | None = None
 
@@ -5114,6 +5152,17 @@ def rewrite_mlir(
                 composition_root_rewires.append(
                     (init_result, init_out_names[0]))
 
+        if (entry.name in (
+                "cubSegmentedLogicalAnd_i32",
+                "cubSegmentedLogicalOr_i32",
+                "cubSegmentedBitXor_i32",
+                "cudnnMaxPoolFwd_batched") and n == 2):
+            init_result = instances[i].result_ssa
+            init_out_names = _extract_ssa_names(instances[i].outs_part)
+            if init_result is not None and len(init_out_names) == 1:
+                composition_root_rewires.append(
+                    (init_result, init_out_names[0]))
+
         if (entry.name == "cubSegmentedInclusiveProduct2D_f32_tensor" and
                 n == 2):
             product_inst = instances[i + 1]
@@ -5123,13 +5172,56 @@ def rewrite_mlir(
             product_out_types = _extract_ssa_types(product_inst.outs_part)
             init_result = instances[i].result_ssa
             init_out_names = _extract_ssa_names(instances[i].outs_part)
+            init_out_types = _extract_ssa_types(instances[i].outs_part)
             if (len(product_ins) == len(product_in_types) == 1 and
                     len(product_outs) == len(product_out_types) == 2 and
-                    init_result is not None and len(init_out_names) == 1):
-                operands = product_ins + product_outs
-                operand_types = product_in_types + product_out_types
+                    init_result is not None and
+                    len(init_out_names) == len(init_out_types) == 1):
+                # Some raised forms expand the row-final tensor to the full
+                # [R,K] iteration domain and fold it back afterward.  CUB's
+                # ABI writes one final value per row, so bind that operand and
+                # result to the initializer's true [R] destination.
+                operands = product_ins + [product_outs[0], init_out_names[0]]
+                operand_types = (product_in_types + [product_out_types[0],
+                                                      init_out_types[0]])
                 composition_root_rewires.append(
                     (init_result, init_out_names[0]))
+                if (product_inst.result_ssa is not None and
+                        _shaped_rank(init_out_types[0]) == 1):
+                    result_type = (f"({product_out_types[0]}, "
+                                   f"{init_out_types[0]})")
+                    custom_launch_line = render_launch(
+                        entry.name, product_inst.result_ssa, result_type,
+                        operands, product_inst.indent, binds, [],
+                        operand_types=operand_types,
+                        scalar_type_map=scalar_types,
+                        result_count=2,
+                    )
+
+        destination_shaped_compositions = {
+            "cubSegmentedCountNonzero2D_f32_tensor",
+            "cubSegmentedLogicalAnd_i32",
+            "cubSegmentedLogicalOr_i32",
+            "cubSegmentedBitXor_i32",
+            "cudnnMaxPoolFwd_batched",
+        }
+        if (entry.name in destination_shaped_compositions and n == 2 and
+                last.result_ssa is not None):
+            writeback = _find_tensor_submap_inverse(
+                text, last.span[1], last.result_ssa)
+            if writeback is not None:
+                writeback_result, writeback_type, writeback_span = writeback
+                custom_launch_line = render_launch(
+                    entry.name, writeback_result, writeback_type,
+                    operands, last.indent, binds, [],
+                    operand_types=operand_types,
+                    scalar_type_map=scalar_types,
+                    result_count=1,
+                )
+                # The library result already has the enclosing destination
+                # shape and defines writeback_result directly.
+                edits.append((*writeback_span, ""))
+                suppress_composition_tail_rewire = True
 
         fixed_conv_symbols = {
             "cudnnConvolutionTranspose3D_f32_memref",
@@ -6556,7 +6648,85 @@ def rewrite_mlir(
             operand_types = []
             binds = {}
 
-        if entry.name == "atenSegmentedSum":
+        if entry.name == "atenSegmentedSum" and n == 2:
+            init_inst, reduce_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            reduce_ins = _extract_ssa_names(reduce_inst.ins_part)
+            reduce_outs = _extract_ssa_names(reduce_inst.outs_part)
+            input_view = (_tensor_submap_info(
+                text, reduce_ins[0], reduce_inst.span[0])
+                if len(reduce_ins) == 1 else None)
+            output_view = (_tensor_submap_info(
+                text, reduce_outs[0], reduce_inst.span[0])
+                if len(reduce_outs) == 1 else None)
+            init_view = (_tensor_submap_info(
+                text, init_outs[0], init_inst.span[0])
+                if len(init_outs) == 1 else None)
+            expanded_legal = (
+                input_view is not None and output_view is not None
+                and init_view is not None
+                and input_view["sizes"] == output_view["sizes"]
+                and len(input_view["sizes"]) == 2
+                and _compact_affine_map(input_view["map"]) ==
+                    "affine_map<(d0,d1)->(d0,d1)>"
+                and _compact_affine_map(output_view["map"]) ==
+                    "affine_map<(d0,d1)->(d0)>"
+            )
+            if expanded_legal:
+                input_source = _to_tensor_memref_source(
+                    text, input_view["source"], init_inst.span[0])
+                output_source = _to_tensor_memref_source(
+                    text, init_view["source"], init_inst.span[0])
+                sizes = [_constant_index_value(text, value)
+                         for value in input_view["sizes"]]
+                expanded_legal = (
+                    input_source is not None and output_source is not None
+                    and sizes[0] is not None and sizes[0] > 0
+                    and sizes[1] == 64
+                    and [_shaped_rank(input_source[1]),
+                         _shaped_rank(output_source[1])] == [2, 1]
+                    and _sniff_elem_type(input_source[1]) in ("f32", "f64")
+                    and _sniff_elem_type(output_source[1]) ==
+                        _sniff_elem_type(input_source[1])
+                    and "," not in input_source[1]
+                    and "," not in output_source[1]
+                    and input_source[0] != output_source[0]
+                )
+            expanded_tail = None
+            if expanded_legal and reduce_inst.result_ssa is not None:
+                expanded_tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                    rf"\([^,\n]+,\s*{re.escape(reduce_inst.result_ssa)}\s*,"
+                    rf"[^\n]*\)[^\n]*\n\s*(%[\w_\-]+)\s*=\s*"
+                    rf"bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*"
+                    rf"{re.escape(output_source[0])}\s*:[^\n]*",
+                    text[reduce_inst.span[1]:])
+                expanded_legal = expanded_tail is not None
+            if expanded_legal:
+                elem = _sniff_elem_type(input_source[1])
+                emit_name = f"cubSegmentedSum_{elem}_memref"
+                uid = reduce_inst.result_ssa.lstrip("%")
+                input_cast = f"%aten_sum_{uid}_input"
+                dynamic_input = f"memref<?x?x{elem}>"
+                fixed = f"{sizes[0]}, {sizes[1]}"
+                custom_launch_line = "\n".join([
+                    f"{reduce_inst.indent}{input_cast} = memref.cast "
+                    f"{input_source[0]} : {input_source[1]} to {dynamic_input}",
+                    f"{reduce_inst.indent}kernel.launch @{emit_name}("
+                    f"{input_cast}, {output_source[0]}) "
+                    f"{{polygeist.fixed_extents = array<i64: {fixed}>}} : "
+                    f"({dynamic_input}, {output_source[1]}) -> ()",
+                ])
+                replace_full_span = True
+                custom_edit_span = (
+                    init_inst.span[0],
+                    reduce_inst.span[1] + expanded_tail.end())
+                operands = []
+                operand_types = []
+                binds = {}
+
+        if entry.name == "atenSegmentedSum" and custom_launch_line is None:
             init_inst, reduce_inst = instances[i:i + 2]
             init_outs = _extract_ssa_names(init_inst.outs_part)
             reduce_ins = _extract_ssa_names(reduce_inst.ins_part)
@@ -8717,7 +8887,8 @@ def rewrite_mlir(
                     edits.append((middle_start, middle_end, middle))
             last_inst = instances[i + n - 1]
             edits.append((last_inst.span[0], last_inst.span[1], replacement))
-            if composition_root_rewires:
+            if (composition_root_rewires and
+                    not suppress_composition_tail_rewire):
                 # The removed producer can also feed view/update operations
                 # after the final contraction (for example, an insert_slice
                 # destination). Rewire those uses through the function return.

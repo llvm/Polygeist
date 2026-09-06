@@ -3078,6 +3078,112 @@ static void adaptive_pool_host_f32(
     }
 }
 
+static void fixed_average_pool_backward_convolution_f32(
+    int32_t rank, int32_t N, int32_t C,
+    int32_t I0, int32_t I1, int32_t I2,
+    int32_t O0, int32_t O1, int32_t O2,
+    const float *grad_output, float *grad_input) {
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  int spatial = rank == 3 ? 3 : 2;
+  int tensor_rank = spatial + 2;
+  int32_t input_spatial[3] = {I0, I1, I2};
+  int32_t output_spatial[3] = {O0, O1, O2};
+  int32_t window[3] = {1, 1, 1};
+  size_t window_volume = 1;
+  for (int d = 0; d < spatial; ++d) {
+    window[d] = input_spatial[d] / output_spatial[d];
+    if (window[d] <= 0 ||
+        (input_spatial[d] - window[d]) / window[d] + 1 !=
+            output_spatial[d]) {
+      fprintf(stderr, "cuDNN fixed average-pool backward: irregular window\n");
+      abort();
+    }
+    window_volume *= (size_t)window[d];
+  }
+
+  int dims_dx[5] = {N, C, I0, I1, I2};
+  int dims_dy[5] = {N, C, O0, O1, O2};
+  int dims_filter[5] = {C, 1, window[0], window[1], window[2]};
+  int pad[3] = {0, 0, 0};
+  int dilation[3] = {1, 1, 1};
+  size_t dx_bytes = (size_t)N * C * I0 * I1 * I2 * sizeof(float);
+  size_t dy_bytes = (size_t)N * C * O0 * O1 * O2 * sizeof(float);
+  size_t filter_count = (size_t)C * window_volume;
+  size_t filter_bytes = filter_count * sizeof(float);
+  float *filter = (float *)malloc(filter_bytes);
+  if (!filter) {
+    fprintf(stderr, "cuDNN fixed average-pool backward: filter allocation failed\n");
+    abort();
+  }
+  float coefficient = 1.0f / (float)window_volume;
+  for (size_t i = 0; i < filter_count; ++i) filter[i] = coefficient;
+
+  float *d_dx = NULL, *d_dy = NULL, *d_filter = NULL;
+  void *workspace = NULL;
+  DEVICE_MALLOC((void **)&d_dx, dx_bytes);
+  DEVICE_MALLOC((void **)&d_dy, dy_bytes);
+  DEVICE_MALLOC((void **)&d_filter, filter_bytes);
+  CUDA_CHECK(cudaMemcpyAsync(
+      d_dy, grad_output, dy_bytes, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(
+      d_filter, filter, filter_bytes, cudaMemcpyHostToDevice, g_stream));
+
+  cudnnTensorDescriptor_t dx_desc, dy_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dx_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dy_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptorEx(
+      dx_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, tensor_rank, dims_dx));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptorEx(
+      dy_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, tensor_rank, dims_dy));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW,
+      tensor_rank, dims_filter));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      conv_desc, spatial, pad, window, dilation,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionGroupCount(conv_desc, C));
+
+  cudnnConvolutionBwdDataAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(
+      g_cudnn, filter_desc, dy_desc, conv_desc, dx_desc, 1,
+      &returned, &perf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN fixed average-pool backward: no algorithm\n");
+    abort();
+  }
+  size_t workspace_bytes = 0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(
+      g_cudnn, filter_desc, dy_desc, conv_desc, dx_desc, perf.algo,
+      &workspace_bytes));
+  if (workspace_bytes) DEVICE_MALLOC(&workspace, workspace_bytes);
+  const float alpha = 1.0f, beta = 0.0f;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionBackwardData(
+      g_cudnn, &alpha, filter_desc, d_filter, dy_desc, d_dy,
+      conv_desc, perf.algo, workspace, workspace_bytes,
+      &beta, dx_desc, d_dx));
+  timing_gpu_end("cudnnFixedAveragePoolBackward_f32", N * C, I0 * I1 * I2,
+                 (int32_t)window_volume, host_start_ms);
+  CUDA_CHECK(cudaMemcpyAsync(
+      grad_input, d_dx, dx_bytes, cudaMemcpyDeviceToHost, g_stream));
+  sync_stream_if_outside_pipeline();
+
+  if (workspace) DEVICE_FREE(workspace);
+  DEVICE_FREE(d_filter);
+  DEVICE_FREE(d_dy);
+  DEVICE_FREE(d_dx);
+  free(filter);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
+  cudnnDestroyFilterDescriptor(filter_desc);
+  cudnnDestroyTensorDescriptor(dy_desc);
+  cudnnDestroyTensorDescriptor(dx_desc);
+}
+
 // Shape-keyed cache of finalized cuDNN pooling execution plans plus their
 // device staging buffers. Building the backend operation graph (heuristic
 // query + plan finalize) costs milliseconds; without a cache every call
@@ -3489,6 +3595,12 @@ void polygeist_cudnn_adaptive_pool_f32(
   }
   polygeist_cublas_init();
   ensure_cudnn();
+  if (operation == 5) {
+    fixed_average_pool_backward_convolution_f32(
+        rank, N, C, I0, I1, I2, O0, O1, O2,
+        (const float *)ptr0, (float *)ptr1);
+    return;
+  }
   // ATen max-pool backward consumes absolute int32 spatial indices.  cuDNN's
   // resample-backward ABI instead consumes its packed private forward index
   // tensor, so those representations cannot be interchanged.
