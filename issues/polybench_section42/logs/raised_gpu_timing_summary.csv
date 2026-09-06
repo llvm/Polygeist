@@ -1,3 +1,10 @@
 kernel,status,build_rc,deploy_rc,samples
-3mm,fail,0,0,0
-atax,fail,0,0,0
+2mm,pass,0,0,5
+3mm,pass,0,0,5
+atax,pass,0,0,5
+bicg,pass,0,0,5
+doitgen,pass,0,0,5
+gemm,pass,0,0,5
+gemver,pass,0,0,5
+gesummv,pass,0,0,5
+mvt,pass,0,0,5

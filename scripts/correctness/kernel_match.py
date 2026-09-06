@@ -1197,6 +1197,28 @@ def _generic_two_input_sum_contraction_tensor() -> CompositionEntry:
     )
 
 
+def _gemv_overwrite_via_scratch() -> CompositionEntry:
+    """Zero scratch, contract into it, then copy into the true destination.
+
+    The rewrite layer proves the rank/map ABI and redirects the contraction
+    to the final destination with BLAS beta=0.  This removes functional tensor
+    scratch state from loop-carried pipelines without encoding any benchmark
+    name or dimensions.
+    """
+    return CompositionEntry(
+        name="cublasDgemv_T_zero",
+        steps=[
+            CompositionStep(body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                            reduction_dim_count=0),
+            CompositionStep(body=Term.Out(0) + Term.In(0) * Term.In(1),
+                            num_ins=2, num_outs=1),
+            CompositionStep(body=Term.In(0), num_ins=1, num_outs=1,
+                            reduction_dim_count=0),
+        ],
+        form="tensor",
+    )
+
+
 def _fixed_memref_convolution_contraction(
     name: str, parallel_dims: int, reduction_dims: int,
     *, form: str = "memref", include_init: bool = False
@@ -3750,6 +3772,7 @@ def composition_library() -> list[CompositionEntry]:
         _aten_segmented_sum(),
         _aten_segmented_extreme("cubSegmentedMin_f32_memref", "olt"),
         _aten_segmented_extreme("cubSegmentedMax_f32_memref", "ogt"),
+        _gemv_overwrite_via_scratch(),
         _generic_two_input_sum_contraction_tensor(),
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map

@@ -13,19 +13,14 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %5 = arith.index_cast %arg0 : i32 to index
     %6:2 = affine.for %arg6 = 0 to %5 iter_args(%arg7 = %2, %arg8 = %0) -> (tensor<?xf64>, tensor<?x?x?xf64>) {
       %9:2 = affine.for %arg9 = 0 to %3 iter_args(%arg10 = %arg7, %arg11 = %arg8) -> (tensor<?xf64>, tensor<?x?x?xf64>) {
-        %10 = kernel.launch @memset_zero_1D(%arg10) : (tensor<?xf64>) -> tensor<?xf64>
         %extracted_slice = tensor.extract_slice %arg11[%arg6, %arg9, 0] [1, 1, %4] [1, 1, 1] : tensor<?x?x?xf64> to tensor<?xf64>
         %extracted_slice_0 = tensor.extract_slice %1[0, 0] [%4, %4] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-        %extracted_slice_1 = tensor.extract_slice %10[0] [%4] [1] : tensor<?xf64> to tensor<?xf64>
-        %11 = kernel.launch @cublasDgemv_T(%extracted_slice_0, %extracted_slice, %extracted_slice_1) : (tensor<?x?xf64>, tensor<?xf64>, tensor<?xf64>) -> tensor<?xf64>
-        %inserted_slice = tensor.insert_slice %11 into %10[0] [%4] [1] : tensor<?xf64> into tensor<?xf64>
+        %extracted_slice_1 = tensor.extract_slice %arg10[0] [%4] [1] : tensor<?xf64> to tensor<?xf64>
+        %inserted_slice = tensor.insert_slice %extracted_slice_1 into %arg10[0] [%4] [1] : tensor<?xf64> into tensor<?xf64>
         %extracted_slice_2 = tensor.extract_slice %arg11[%arg6, %arg9, 0] [1, 1, %4] [1, 1, 1] : tensor<?x?x?xf64> to tensor<?xf64>
-        %12 = linalg.generic {doc = "", indexing_maps = [#map, #map], iterator_types = ["parallel"], library_call = ""} ins(%11 : tensor<?xf64>) outs(%extracted_slice_2 : tensor<?xf64>) {
-        ^bb0(%in: f64, %out: f64):
-          linalg.yield %in : f64
-        } -> tensor<?xf64>
+        %12 = kernel.launch @cublasDgemv_T_zero(%extracted_slice_0, %extracted_slice, %extracted_slice_2) : (tensor<?x?xf64>, tensor<?xf64>, tensor<?xf64>) -> tensor<?xf64>
         %inserted_slice_3 = tensor.insert_slice %12 into %arg11[%arg6, %arg9, 0] [1, 1, %4] [1, 1, 1] : tensor<?xf64> into tensor<?x?x?xf64>
-        affine.yield %inserted_slice, %inserted_slice_3 : tensor<?xf64>, tensor<?x?x?xf64>
+        affine.yield %arg10, %arg11 : tensor<?xf64>, tensor<?x?x?xf64>
       }
       affine.yield %9#0, %9#1 : tensor<?xf64>, tensor<?x?x?xf64>
     }

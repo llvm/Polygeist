@@ -1,2 +1,1 @@
-FAIL values=4000 failures=2098 max_abs=233.72 max_rel=0.548475351 rtol=0.0005 atol=0.011
-first_failure index=1901 reference=573.02 candidate=339.3
+PASS values=4000 failures=0 max_abs=0.01 max_rel=2.54045677e-05 rtol=0.0005 atol=0.011

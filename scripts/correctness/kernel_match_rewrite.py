@@ -69,6 +69,7 @@ ABI_LOWERABLE_KERNELS = {
     "memset_zero_1D_f32",
     "cublasDgemv",
     "cublasDgemv_T",
+    "cublasDgemv_T_zero",
     "cublasDgemv_subtract",
     "cublasDgemv_subtract_T",
     "cublasSgemv",
@@ -4792,7 +4793,8 @@ def rewrite_mlir(
         custom_launch_line: str | None = None
         custom_first_launch_line: str | None = None
         custom_edit_span: tuple[int, int] | None = None
-        composition_root_rewire: tuple[str, str] | None = None
+        composition_root_rewires: list[tuple[str, str]] = []
+        tail_only_rewires: list[tuple[str, str]] = []
         pre_launch_lines: list[str] = []
         redundant_zero_fill_span: tuple[int, int] | None = None
 
@@ -4801,7 +4803,123 @@ def rewrite_mlir(
             "cudnnConvolutionBackwardFilter3D_f32_memref",
             "cudnnConvolutionTBCBackward_f32_memref",
         }
-        if entry.name in fixed_conv_symbols:
+        if entry.name == "cublasDgemv_T_zero":
+            init_inst = instances[i]
+            contraction_inst = instances[i + 1]
+            copy_inst = instances[i + 2]
+            contraction_ins = _extract_ssa_names(contraction_inst.ins_part)
+            contraction_in_types = _extract_ssa_types(
+                contraction_inst.ins_part)
+            contraction_outs = _extract_ssa_names(
+                contraction_inst.outs_part)
+            contraction_out_types = _extract_ssa_types(
+                contraction_inst.outs_part)
+            copy_ins = _extract_ssa_names(copy_inst.ins_part)
+            copy_outs = _extract_ssa_names(copy_inst.outs_part)
+            copy_out_types = _extract_ssa_types(copy_inst.outs_part)
+            maps = bodies[i + 1].indexing_maps
+
+            def _map_outputs(txt: str) -> list[int]:
+                resolved = _resolve_affine_map_text(text, txt)
+                match = (re.search(r"->\s*\(([^)]*)\)>", resolved)
+                         if resolved else None)
+                if not match:
+                    return []
+                dims: list[int] = []
+                for part in match.group(1).split(","):
+                    dim = re.fullmatch(r"\s*d(\d+)\s*", part)
+                    if not dim:
+                        return []
+                    dims.append(int(dim.group(1)))
+                return dims
+
+            map_dims = [_map_outputs(mapping) for mapping in maps]
+            ranks = [_tensor_rank(ty) for ty in
+                     contraction_in_types + contraction_out_types]
+            elems = [_sniff_elem_type(ty) for ty in
+                     contraction_in_types + contraction_out_types]
+            iterator_roles = bodies[i + 1].iterator_types
+            parallel_dims = {dim for dim, role in enumerate(iterator_roles)
+                             if role == "parallel"}
+            reduction_dims = {dim for dim, role in enumerate(iterator_roles)
+                              if role == "reduction"}
+            matrix_index = (ranks[:2].index(2)
+                            if sorted(ranks[:2]) == [1, 2] else -1)
+            vector_index = 1 - matrix_index if matrix_index >= 0 else -1
+            legal = (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and sorted(ranks[:2]) == [1, 2]
+                and ranks[2:] == [1]
+                and elems == ["f64", "f64", "f64"]
+                and len(parallel_dims) == 1
+                and len(reduction_dims) == 1
+                and len(map_dims) == 3
+                and all(map_dims)
+                and map_dims[matrix_index][0] in reduction_dims
+                and map_dims[matrix_index][1] in parallel_dims
+                and map_dims[vector_index] == [map_dims[matrix_index][0]]
+                and map_dims[2] == [map_dims[matrix_index][1]]
+                and copy_ins == [contraction_inst.result_ssa]
+                and len(copy_outs) == len(copy_out_types) == 1
+                and _tensor_rank(copy_out_types[0]) == 1
+                and _sniff_elem_type(copy_out_types[0]) == "f64"
+                and init_inst.result_ssa is not None
+                and contraction_inst.result_ssa is not None
+                and copy_inst.result_ssa is not None
+                and copy_inst.result_type is not None
+            )
+            if not legal:
+                report.append(("gemv_overwrite_abi_reject", i, entry.name))
+                i += n
+                continue
+            emit_name = entry.name
+            operands = [contraction_ins[matrix_index],
+                        contraction_ins[vector_index]] + copy_outs
+            operand_types = [contraction_in_types[matrix_index],
+                             contraction_in_types[vector_index]] + \
+                copy_out_types
+            custom_launch_line = render_launch(
+                emit_name, copy_inst.result_ssa, copy_inst.result_type,
+                operands, copy_inst.indent, {}, [],
+                operand_types=operand_types,
+                scalar_type_map=scalar_types,
+                result_count=copy_inst.result_count,
+            )
+            if outs0:
+                composition_root_rewires.append(
+                    (init_inst.result_ssa, outs0[0]))
+            composition_root_rewires.append(
+                (contraction_inst.result_ssa, contraction_outs[0]))
+            # Both insert_slice operations become self-updates after the
+            # scratch contraction is redirected to the true destination.
+            # Rewire their loop-carried results to the original destination
+            # tensors; leaving a functional "new tensor" yield would make
+            # one-shot bufferization allocate and copy an entire parent tensor
+            # for each loop iteration.
+            between = text[contraction_inst.span[1]:copy_inst.span[0]]
+            scratch_insert = re.search(
+                rf"(?m)^\s*(%[\w_]+)\s*=\s*tensor\.insert_slice\s+"
+                rf"{re.escape(contraction_inst.result_ssa)}\s+into\s+"
+                rf"(%[\w_]+)[^\n]*(?:\n|$)", between)
+            if scratch_insert:
+                scratch_destination = scratch_insert.group(2)
+                if (outs0 and
+                        scratch_destination == init_inst.result_ssa):
+                    scratch_destination = outs0[0]
+                tail_only_rewires.append(
+                    (scratch_insert.group(1), scratch_destination))
+            after_copy = text[copy_inst.span[1]:]
+            destination_insert = re.search(
+                rf"(?m)^\s*(%[\w_]+)\s*=\s*tensor\.insert_slice\s+"
+                rf"{re.escape(copy_inst.result_ssa)}\s+into\s+"
+                rf"(%[\w_]+)[^\n]*(?:\n|$)",
+                after_copy)
+            if destination_insert:
+                tail_only_rewires.append(
+                    (destination_insert.group(1),
+                     destination_insert.group(2)))
+        elif entry.name in fixed_conv_symbols:
             conv_inst = instances[i]
             conv_ins = _extract_ssa_names(conv_inst.ins_part)
             conv_outs = _extract_ssa_names(conv_inst.outs_part)
@@ -7041,6 +7159,53 @@ def rewrite_mlir(
                 operand_types = gemv_types
                 custom_first_launch_line = init_line
                 custom_launch_line = gemv_line
+            # A canonical rank-2 matrix product is better represented by the
+            # cuBLAS ABI than by the general cuTensorNet ABI.  Keep this
+            # deliberately layout-strict: A[m,k] * B[k,n] -> C[m,n].  The
+            # matched composition includes a zero initializer and the simple
+            # GEMM shim has beta=1, so retain both external-library calls.
+            elif (
+                len(contraction_ins) == 2
+                and len(contraction_outs) == 1
+                and ranks == [2, 2, 2]
+                and elem_types == ["f64", "f64", "f64"]
+                and len(parallel_dims) == 2
+                and len(reduction_dims) == 1
+                and len(map_dims) == 3
+                and all(dims is not None for dims in map_dims)
+                and len(map_dims[0]) == len(map_dims[1]) == 2
+                and len(map_dims[2]) == 2
+                and map_dims[0][0] == map_dims[2][0]
+                and map_dims[1][1] == map_dims[2][1]
+                and map_dims[0][1] == map_dims[1][0]
+                and map_dims[0][1] in reduction_dims
+                and last.result_ssa is not None
+                and last.result_type is not None
+            ):
+                init_outs = _extract_ssa_names(instances[i].outs_part)
+                init_types = _extract_ssa_types(instances[i].outs_part)
+                if len(init_outs) != 1 or len(init_types) != 1:
+                    report.append(("gemm_init_reject", i, entry.name))
+                    i += n
+                    continue
+                init_line = render_launch(
+                    "memset_zero_2D", instances[i].result_ssa,
+                    instances[i].result_type, init_outs,
+                    instances[i].indent, {}, [], operand_types=init_types,
+                    scalar_type_map=scalar_types,
+                    result_count=instances[i].result_count,
+                )
+                emit_name = "cublasDgemm_simple"
+                operands = contraction_ins + contraction_outs
+                operand_types = contraction_in_types + contraction_out_types
+                custom_first_launch_line = init_line
+                custom_launch_line = render_launch(
+                    emit_name, last.result_ssa, last.result_type,
+                    operands, last.indent, {}, [],
+                    operand_types=operand_types,
+                    scalar_type_map=scalar_types,
+                    result_count=last.result_count,
+                )
             # A pair of vectors contracted without a reduction is an outer
             # product.  The composition's first generic is a zero fill, so
             # use an overwrite-mode runtime entry and replace both stages.
@@ -7741,8 +7906,8 @@ def rewrite_mlir(
             # view/update uses of that producer must instead use the original
             # destination passed to the fused external-library call.
             if n > 1 and instances[i].result_ssa and outs0:
-                composition_root_rewire = (
-                    instances[i].result_ssa, outs0[0])
+                composition_root_rewires = [(
+                    instances[i].result_ssa, outs0[0])]
             gemm_inst = instances[i + n - 1]  # last (contraction) generic
             gemm_ins = _extract_ssa_names(gemm_inst.ins_part)
             gemm_in_types = _extract_ssa_types(gemm_inst.ins_part)
@@ -7755,9 +7920,9 @@ def rewrite_mlir(
             # defined.
             if (n > 1 and len(gemm_ins) == 2 and len(gemm_outs) == 1 and
                     len(gemm_in_types) == 2 and len(gemm_out_types) == 1):
-                if (composition_root_rewire is not None and
-                        gemm_outs[0] == composition_root_rewire[0]):
-                    gemm_outs[0] = composition_root_rewire[1]
+                if (composition_root_rewires and
+                        gemm_outs[0] == composition_root_rewires[0][0]):
+                    gemm_outs[0] = composition_root_rewires[0][1]
                 operands = gemm_ins + gemm_outs
                 operand_types = gemm_in_types + gemm_out_types
             # The full alpha/beta ABI requires both scalars even when the
@@ -7828,8 +7993,8 @@ def rewrite_mlir(
                 # chain but point it at the original C view after deleting the
                 # first generic.
                 if instances[i].result_ssa and outs0:
-                    composition_root_rewire = (
-                        instances[i].result_ssa, outs0[0])
+                    composition_root_rewires = [(
+                        instances[i].result_ssa, outs0[0])]
             elif (entry.name == "cublasDgemm_simple" and elem == "f32" and
                     operand_ranks == [3, 3, 3]):
                 # Darknet im2col+GEMM reaches linalg as a rank-3 broadcasted
@@ -8017,6 +8182,30 @@ def rewrite_mlir(
                           else "cublasDgemv")
                 emit_name = prefix + ("_T" if transposed else "")
 
+            # A masked initializer may intentionally restrict a GEMV update
+            # to a dynamic suffix (for example, preserving an already-filled
+            # triangular prefix). A full-vector BLAS call is not equivalent.
+            # Recognize the generic shape of that mask and reject the
+            # otherwise tempting full-vector cuBLAS substitution.
+            if elem == "f64" and transposed and entry.name == "cublasDgemv":
+                output_name = operands[2]
+                producer_index = next(
+                    (p for p in range(i) if
+                     instances[p].result_ssa == output_name), None)
+                if producer_index is not None:
+                    producer = instances[producer_index]
+                    producer_text = text[producer.span[0]:producer.span[1]]
+                    masked = ("linalg.index" in producer_text and
+                              "arith.select" in producer_text)
+                    if masked:
+                        # A full-vector GEMV is not equivalent to a
+                        # dynamically masked/triangular update. Leave this
+                        # operation as residual Linalg until an external ABI
+                        # can express the exact active slice and its
+                        # loop-carried storage without stale snapshots.
+                        report.append(("masked_gemv_reject", i, entry.name))
+                        i += n
+                        continue
         if emit_name not in ABI_LOWERABLE_KERNELS:
             report.append(("unsupported_abi_reject", list(range(i, i + n)),
                            emit_name))
@@ -8118,31 +8307,43 @@ def rewrite_mlir(
                 )
                 edits.append((inst_j.span[0], inst_j.span[1],
                               earlier_replacement))
-            if composition_root_rewire is not None:
-                old_root, new_root = composition_root_rewire
-                middle_start = instances[i].span[1]
-                middle_end = instances[i + n - 1].span[0]
-                middle = re.sub(
-                    rf"(?<![\w]){re.escape(old_root)}(?![\w])",
-                    new_root, text[middle_start:middle_end])
-                edits.append((middle_start, middle_end, middle))
+            if composition_root_rewires or tail_only_rewires:
+                # Rewrite only the gaps between matched generics.  A single
+                # span worked for two-step compositions, but with three or
+                # more steps it overlaps the generic-deletion edits and can
+                # accidentally resurrect a deleted producer.
+                for j in range(n - 1):
+                    middle_start = instances[i + j].span[1]
+                    middle_end = instances[i + j + 1].span[0]
+                    middle = text[middle_start:middle_end]
+                    for old_root, new_root in composition_root_rewires:
+                        middle = re.sub(
+                            rf"(?<![\w]){re.escape(old_root)}(?![\w])",
+                            new_root, middle)
+                    edits.append((middle_start, middle_end, middle))
             last_inst = instances[i + n - 1]
             edits.append((last_inst.span[0], last_inst.span[1], replacement))
-            if composition_root_rewire is not None:
+            if composition_root_rewires:
                 # The removed producer can also feed view/update operations
                 # after the final contraction (for example, an insert_slice
                 # destination). Rewire those uses through the function return.
                 # Limit the edit to this function because textual SSA names
                 # may be reused by a later function in the module.
-                old_root, new_root = composition_root_rewire
                 tail_start = last_inst.span[1]
                 return_match = re.search(
                     r"\n[ \t]*return\b", text[tail_start:])
                 tail_end = (tail_start + return_match.start()
                             if return_match else tail_start)
-                tail = re.sub(
-                    rf"(?<![\w]){re.escape(old_root)}(?![\w])",
-                    new_root, text[tail_start:tail_end])
+                tail = text[tail_start:tail_end]
+                for old_root, new_root in composition_root_rewires:
+                    tail = re.sub(
+                        rf"(?<![\w]){re.escape(old_root)}(?![\w])",
+                        new_root, tail)
+                for old_root, new_root in tail_only_rewires:
+                    tail = re.sub(
+                        rf"(affine\.yield[^\n]*)(?<![\w])"
+                        rf"{re.escape(old_root)}(?![\w])",
+                        rf"\1{new_root}", tail)
                 edits.append((tail_start, tail_end, tail))
         i += n
 

@@ -17,58 +17,25 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %9 = arith.index_cast %arg4 : i32 to index
     %10 = arith.index_cast %arg3 : i32 to index
     %11 = arith.index_cast %arg0 : i32 to index
-    %12 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel"], library_call = ""} outs(%0 : tensor<?x?xf64>) {
-    ^bb0(%out: f64):
-      linalg.yield %cst : f64
-    } -> tensor<?x?xf64>
+    %12 = kernel.launch @memset_zero_2D(%0) : (tensor<?x?xf64>) -> tensor<?x?xf64>
     %extracted_slice = tensor.extract_slice %1[0, 0] [%11, %8] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
     %extracted_slice_0 = tensor.extract_slice %2[0, 0] [%8, %7] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
     %extracted_slice_1 = tensor.extract_slice %12[0, 0] [%11, %7] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-    %extracted_slice_contract_13_tc0 = tensor.cast %extracted_slice : tensor<?x?xf64> to tensor<*xf64>
-
-    %extracted_slice_0_contract_13_tc1 = tensor.cast %extracted_slice_0 : tensor<?x?xf64> to tensor<*xf64>
-
-    %extracted_slice_1_contract_13_tc2 = tensor.cast %extracted_slice_1 : tensor<?x?xf64> to tensor<*xf64>
-
-    %v13_tdyn = kernel.launch @cutensornetContraction2_f64(%extracted_slice_contract_13_tc0, %extracted_slice_0_contract_13_tc1, %extracted_slice_1_contract_13_tc2) {contraction_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d2, d1)>, affine_map<(d0, d1, d2) -> (d0, d1)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
-
-    %13 = tensor.cast %v13_tdyn : tensor<*xf64> to tensor<?x?xf64>
+    %13 = kernel.launch @cublasDgemm_simple(%extracted_slice, %extracted_slice_0, %extracted_slice_1) : (tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>) -> tensor<?x?xf64>
     %inserted_slice = tensor.insert_slice %13 into %12[0, 0] [%11, %7] [1, 1] : tensor<?x?xf64> into tensor<?x?xf64>
     %14 = bufferization.to_memref %inserted_slice : memref<?x?xf64>
     memref.copy %14, %arg5 : memref<?x?xf64> to memref<?x?xf64>
-    %15 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel"], library_call = ""} outs(%3 : tensor<?x?xf64>) {
-    ^bb0(%out: f64):
-      linalg.yield %cst : f64
-    } -> tensor<?x?xf64>
+    %15 = kernel.launch @memset_zero_2D(%3) : (tensor<?x?xf64>) -> tensor<?x?xf64>
     %extracted_slice_2 = tensor.extract_slice %4[0, 0] [%7, %9] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
     %extracted_slice_3 = tensor.extract_slice %5[0, 0] [%9, %10] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
     %extracted_slice_4 = tensor.extract_slice %15[0, 0] [%7, %10] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-    %extracted_slice_2_contract_16_tc0 = tensor.cast %extracted_slice_2 : tensor<?x?xf64> to tensor<*xf64>
-
-    %extracted_slice_3_contract_16_tc1 = tensor.cast %extracted_slice_3 : tensor<?x?xf64> to tensor<*xf64>
-
-    %extracted_slice_4_contract_16_tc2 = tensor.cast %extracted_slice_4 : tensor<?x?xf64> to tensor<*xf64>
-
-    %v16_tdyn = kernel.launch @cutensornetContraction2_f64(%extracted_slice_2_contract_16_tc0, %extracted_slice_3_contract_16_tc1, %extracted_slice_4_contract_16_tc2) {contraction_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d2, d1)>, affine_map<(d0, d1, d2) -> (d0, d1)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
-
-    %16 = tensor.cast %v16_tdyn : tensor<*xf64> to tensor<?x?xf64>
+    %16 = kernel.launch @cublasDgemm_simple(%extracted_slice_2, %extracted_slice_3, %extracted_slice_4) : (tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>) -> tensor<?x?xf64>
     %inserted_slice_5 = tensor.insert_slice %16 into %15[0, 0] [%7, %10] [1, 1] : tensor<?x?xf64> into tensor<?x?xf64>
     %17 = bufferization.to_memref %inserted_slice_5 : memref<?x?xf64>
     memref.copy %17, %arg8 : memref<?x?xf64> to memref<?x?xf64>
-    %18 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel"], library_call = ""} outs(%6 : tensor<?x?xf64>) {
-    ^bb0(%out: f64):
-      linalg.yield %cst : f64
-    } -> tensor<?x?xf64>
+    %18 = kernel.launch @memset_zero_2D(%6) : (tensor<?x?xf64>) -> tensor<?x?xf64>
     %extracted_slice_6 = tensor.extract_slice %18[0, 0] [%11, %10] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-    %v13_contract_19_tc0 = tensor.cast %13 : tensor<?x?xf64> to tensor<*xf64>
-
-    %v16_contract_19_tc1 = tensor.cast %16 : tensor<?x?xf64> to tensor<*xf64>
-
-    %extracted_slice_6_contract_19_tc2 = tensor.cast %extracted_slice_6 : tensor<?x?xf64> to tensor<*xf64>
-
-    %v19_tdyn = kernel.launch @cutensornetContraction2_f64(%v13_contract_19_tc0, %v16_contract_19_tc1, %extracted_slice_6_contract_19_tc2) {contraction_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d2, d1)>, affine_map<(d0, d1, d2) -> (d0, d1)>]} : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
-
-    %19 = tensor.cast %v19_tdyn : tensor<*xf64> to tensor<?x?xf64>
+    %19 = kernel.launch @cublasDgemm_simple(%13, %16, %extracted_slice_6) : (tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>) -> tensor<?x?xf64>
     %inserted_slice_7 = tensor.insert_slice %19 into %18[0, 0] [%11, %10] [1, 1] : tensor<?x?xf64> into tensor<?x?xf64>
     %20 = bufferization.to_memref %inserted_slice_7 : memref<?x?xf64>
     memref.copy %20, %arg11 : memref<?x?xf64> to memref<?x?xf64>

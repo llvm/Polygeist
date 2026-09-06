@@ -591,6 +591,11 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
     auto yieldOp =
         cast<affine::AffineYieldOp>(forOp.getBody()->getTerminator());
 
+    if (llvm::any_of(forOp.getRegionIterArgs(), [](BlockArgument arg) {
+          return isa<TensorType, BaseMemRefType>(arg.getType());
+        }))
+      return failure();
+
     auto ba = forOp.getRegionIterArgs()[numIterArgs - 1];
     auto init = forOp.getInits()[numIterArgs - 1];
     auto lastOp = yieldOp->getOperand(numIterArgs - 1);
@@ -793,6 +798,68 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
 // Registered at lower benefit than RemoveAffineIterArgs, so the existing
 // store-fusion fast path is tried first; this pattern catches everything else.
 
+// Drop loop-carried values that are yielded unchanged.  Affine canonicalize
+// does not currently remove these tensor iter_args, but matcher-generated
+// external calls can mutate their backing C ABI memrefs while the functional
+// tensor token itself remains invariant.  Removing only exact bbArg yields is
+// valid for every element type and avoids attempting to place a tensor inside
+// the scalar 0-D alloca fallback below.
+struct RemoveInvariantAffineIterArgs
+    : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(affine::AffineForOp forOp,
+                                PatternRewriter &rewriter) const override {
+    unsigned count = forOp.getNumRegionIterArgs();
+    if (count == 0 || !forOp.getRegion().hasOneBlock())
+      return failure();
+    auto yield = cast<affine::AffineYieldOp>(forOp.getBody()->getTerminator());
+    SmallVector<unsigned> retained;
+    SmallVector<bool> invariant(count, false);
+    for (unsigned i = 0; i < count; ++i) {
+      invariant[i] = yield.getOperand(i) == forOp.getRegionIterArgs()[i];
+      if (!invariant[i])
+        retained.push_back(i);
+    }
+    if (retained.size() == count)
+      return failure();
+
+    SmallVector<Value> newInits;
+    for (unsigned i : retained)
+      newInits.push_back(forOp.getInits()[i]);
+    auto replacement = rewriter.create<affine::AffineForOp>(
+        forOp.getLoc(), forOp.getLowerBoundOperands(),
+        forOp.getLowerBoundMap(), forOp.getUpperBoundOperands(),
+        forOp.getUpperBoundMap(), forOp.getStep(), newInits);
+
+    IRMapping mapping;
+    mapping.map(forOp.getInductionVar(), replacement.getInductionVar());
+    unsigned retainedPosition = 0;
+    for (unsigned i = 0; i < count; ++i) {
+      mapping.map(forOp.getRegionIterArgs()[i],
+                  invariant[i] ? forOp.getInits()[i]
+                               : replacement.getRegionIterArgs()[retainedPosition++]);
+    }
+    rewriter.setInsertionPointToStart(replacement.getBody());
+    for (Operation &op : forOp.getBody()->without_terminator())
+      rewriter.clone(op, mapping);
+    SmallVector<Value> newYields;
+    for (unsigned i : retained)
+      newYields.push_back(mapping.lookupOrDefault(yield.getOperand(i)));
+    rewriter.setInsertionPoint(replacement.getBody()->getTerminator());
+    rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(
+        replacement.getBody()->getTerminator(), newYields);
+
+    retainedPosition = 0;
+    for (unsigned i = 0; i < count; ++i)
+      rewriter.replaceAllUsesWith(
+          forOp.getResult(i), invariant[i] ? forOp.getInits()[i]
+                                           : replacement.getResult(retainedPosition++));
+    rewriter.eraseOp(forOp);
+    return success();
+  }
+};
+
 struct MaterializeAffineIterArgsViaAlloca
     : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
@@ -816,6 +883,11 @@ struct MaterializeAffineIterArgsViaAlloca
     auto loc = forOp.getLoc();
     auto yieldOp =
         cast<affine::AffineYieldOp>(forOp.getBody()->getTerminator());
+
+    if (llvm::any_of(forOp.getRegionIterArgs(), [](BlockArgument arg) {
+          return isa<TensorType, BaseMemRefType>(arg.getType());
+        }))
+      return failure();
 
     // Step 1 & 2: alloca + init store for each iter_arg, before the loop.
     rewriter.setInsertionPoint(forOp);
@@ -962,6 +1034,7 @@ struct RemoveIterArgs : public RemoveIterArgsBase<RemoveIterArgs> {
     // Fast-path patterns (store-fusion): higher benefit, tried first.
     patterns.add<RemoveSCFIterArgs>(context, /*benefit=*/2);
     patterns.add<RemoveAffineIterArgs>(context, /*benefit=*/2);
+    patterns.add<RemoveInvariantAffineIterArgs>(context, /*benefit=*/3);
     // Universal fallback (alloca materialization): lower benefit.
     patterns.add<MaterializeAffineIterArgsViaAlloca>(context, /*benefit=*/1);
     // Cleanup for the unchanged load/store round trips exposed by top-down

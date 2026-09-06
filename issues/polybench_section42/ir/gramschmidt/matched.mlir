@@ -47,7 +47,12 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
         linalg.yield %21 : f64
       } -> tensor<?xf64>
       %extracted_slice_5 = tensor.extract_slice %1[0, 0] [%6, %5] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-      %16 = kernel.launch @cublasDgemv_T(%extracted_slice_5, %14, %15) : (tensor<?x?xf64>, tensor<?xf64>, tensor<?xf64>) -> tensor<?xf64>
+      %16 = linalg.generic {doc = "", indexing_maps = [#map3, #map4, #map5], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%14, %extracted_slice_5 : tensor<?xf64>, tensor<?x?xf64>) outs(%15 : tensor<?xf64>) {
+      ^bb0(%in: f64, %in_9: f64, %out: f64):
+        %18 = arith.mulf %in, %in_9 : f64
+        %19 = arith.addf %out, %18 : f64
+        linalg.yield %19 : f64
+      } -> tensor<?xf64>
       %inserted_slice_6 = tensor.insert_slice %16 into %inserted_0[%arg5, 0] [1, %5] [1, 1] : tensor<?xf64> into tensor<?x?xf64>
       %extracted_slice_7 = tensor.extract_slice %arg6[0, 0] [%6, %5] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
       %17 = linalg.generic {doc = "", indexing_maps = [#map3, #map5, #map4], iterator_types = ["parallel", "parallel"], library_call = ""} ins(%14, %16 : tensor<?xf64>, tensor<?xf64>) outs(%extracted_slice_7 : tensor<?x?xf64>) {

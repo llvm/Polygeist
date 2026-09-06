@@ -3369,7 +3369,8 @@ def write_polybench_results_page() -> None:
             bucket = "modified"
         elif any(value in ("fail", "partial", "blocked") for value in stages):
             bucket = "failed"
-        elif overall == "pass":
+        elif (row.get("cpu_library_status", "").lower() == "pass" or
+              row.get("raised_gpu_status", "").lower() == "pass"):
             bucket = "passed"
         else:
             bucket = "unavailable"

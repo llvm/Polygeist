@@ -15,7 +15,7 @@ export POLYGEIST_CUDA_TIMING_WRAPPER=1
 summary="$result_root/logs/raised_gpu_timing_summary.csv"
 printf 'kernel,status,build_rc,deploy_rc,samples\n' > "$summary"
 
-default_kernels=(3mm atax bicg covariance deriche gemver gesummv gramschmidt mvt)
+default_kernels=(2mm 3mm atax bicg doitgen gemm gemver gesummv mvt)
 kernels=("${default_kernels[@]}")
 if [[ $# -gt 0 ]]; then kernels=("$@"); fi
 for kernel in "${kernels[@]}"; do
@@ -30,7 +30,7 @@ for kernel in "${kernels[@]}"; do
   : > "$raw"
   unset POLYGEIST_CUTENSORNET_ROOT POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME
   export POLYGEIST_MINIMAL_CUDA_RUNTIME=1
-  if [[ "$kernel" == 3mm ]]; then
+  if grep -q 'kernel.launch @cutensornet' "$matched"; then
     unset POLYGEIST_MINIMAL_CUDA_RUNTIME
     export POLYGEIST_CUTENSORNET_ROOT=/tmp/polygeist_cutensornet_aarch64/unified
     export POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME=1
@@ -38,7 +38,7 @@ for kernel in "${kernels[@]}"; do
   "$repo/scripts/correctness/polygeist_build.sh" \
     --target=jetson --function="$function" --semantic-mlir="$matched" \
     -o "$local_binary" "$source" -O3 -I"$util" -I"$(dirname "$source")" \
-    -Dstatic= \
+    '-Dstatic=__attribute__((noipa))' \
     -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO \
     -DPOLYBENCH_TIME > "$log_dir/raised_gpu_timing_build.log" 2>&1
   build_rc=$?
@@ -55,7 +55,16 @@ for kernel in "${kernels[@]}"; do
       >> "$log_dir/raised_gpu_timing_deploy.log" 2>&1
     deploy_rc=$?
     if [[ $deploy_rc -eq 0 ]]; then
-      for sample in 1 2 3 4 5; do
+      # One complete process warmup is excluded from the five recorded runs.
+      ssh configured-host "ssh nvidia@192.0.2.1 'export LD_LIBRARY_PATH=/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu; timeout 900s $remote_binary'" \
+        > "$log_dir/raised_gpu_timing_warmup.stdout" \
+        2> "$log_dir/raised_gpu_timing_warmup.stderr"
+      warmup_rc=$?
+      if [[ $warmup_rc -ne 0 ]]; then
+        printf '%s,warmup,%d,unavailable,unavailable\n' \
+          "$kernel" "$warmup_rc" | tee -a "$raw"
+      else
+        for sample in 1 2 3 4 5; do
         stdout="$log_dir/raised_gpu_timing_${sample}.stdout"
         stderr="$log_dir/raised_gpu_timing_${sample}.stderr"
         ssh configured-host "ssh nvidia@192.0.2.1 'export LD_LIBRARY_PATH=/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu; timeout 900s $remote_binary'" \
@@ -66,7 +75,8 @@ for kernel in "${kernels[@]}"; do
         printf '%s,%d,%d,%s,%s\n' "$kernel" "$sample" "$rc" "${e2e_s:-unavailable}" "${device_ms:-unavailable}" | tee -a "$raw"
         [[ $rc -eq 0 && -n "$e2e_s" && -n "$device_ms" ]] || break
         completed=$sample
-      done
+        done
+      fi
     fi
   fi
   status=fail

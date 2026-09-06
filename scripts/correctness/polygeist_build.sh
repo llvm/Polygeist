@@ -418,7 +418,11 @@ echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
 # sequential inlined stages can canonicalize to one tensor.empty SSA value;
 # one-shot bufferization may then select the same physical buffer for results
 # that are simultaneously live.  View lowering does not require CSE.
-polygeist-opt --lower-polygeist-submap \
+ABI_CLEANUP_PASSES=(--lower-polygeist-submap)
+if grep -q 'cublasDgemv_T_zero' "$SEMANTIC_INPUT"; then
+  ABI_CLEANUP_PASSES=(--remove-iter-args "${ABI_CLEANUP_PASSES[@]}")
+fi
+polygeist-opt "${ABI_CLEANUP_PASSES[@]}" \
   $WORK/abi.mlir -o $WORK/abi_canon.mlir 2>>$WORK/abi.err || {
     echo "ERROR: polygeist submap cleanup failed; see $WORK/abi.err" >&2
     cat $WORK/abi.err >&2
@@ -586,7 +590,7 @@ for arg in "${GCC_PASSTHROUGH[@]}"; do
   # PolyBench declares kernels `static`. Exposing them with `-Dstatic=` also
   # changes its allocation helpers from `static inline` to `inline`; GNU89
   # inline semantics retain a callable definition when inlining is disabled.
-  [ "$arg" = "-Dstatic=" ] && HARNESS_EXTRA_CFLAGS+=(-fgnu89-inline)
+  [[ "$arg" == -Dstatic=* ]] && HARNESS_EXTRA_CFLAGS+=(-fgnu89-inline)
 done
 HARNESS_USER_CFLAGS=()
 if [ -n "${POLYGEIST_HARNESS_CFLAGS:-}" ]; then
@@ -639,14 +643,14 @@ if grep -q '#include\s*<polybench.h>\|#include\s*"polybench.h"' "$HARNESS_INPUT"
   done
   if [ -n "$POLYBENCH_C" ]; then
     echo "         + polybench utility from $POLYBENCH_C"
-    # `-Dstatic=` is used to expose a source-local benchmark kernel so the
+    # `-Dstatic=...` is used to expose a source-local benchmark kernel so the
     # lifted wrapper can replace it.  Do not apply it to polybench.c/header:
     # that would turn the header's `static inline polybench_alloc_data` into
     # an external inline declaration and leave application allocation calls
     # unresolved at link time.
     POLYBENCH_CFLAGS=()
     for arg in "${GCC_PASSTHROUGH[@]}"; do
-      [ "$arg" = "-Dstatic=" ] || POLYBENCH_CFLAGS+=("$arg")
+      [[ "$arg" == -Dstatic=* ]] || POLYBENCH_CFLAGS+=("$arg")
     done
     $CC -O2 "${POLYBENCH_CFLAGS[@]}" -c "$POLYBENCH_C" -o $WORK/polybench.o
     POLYBENCH_OBJS=("$WORK/polybench.o")

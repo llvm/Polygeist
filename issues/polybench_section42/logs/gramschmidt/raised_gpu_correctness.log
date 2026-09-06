@@ -1,1 +1,2 @@
-PASS values=2640000 failures=0 max_abs=0 max_rel=0 rtol=0.0005 atol=0.011
+FAIL values=2640000 failures=2640000 max_abs=0 max_rel=0 rtol=0.0005 atol=0.011
+first_failure index=0 reference=316.23 candidate=inf

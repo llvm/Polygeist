@@ -1,2 +1,1 @@
-FAIL values=880000 failures=880000 max_abs=136791.32 max_rel=1 rtol=0.0005 atol=0.011
-first_failure index=0 reference=237.65 candidate=0.0
+PASS values=880000 failures=0 max_abs=0 max_rel=0 rtol=0.0005 atol=0.011

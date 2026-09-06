@@ -381,9 +381,25 @@ void polygeist_cublas_dgemv_T(
     const double *x,
     double beta,
     double *y) {
+  const double *x_input = x;
+  double *x_snapshot = NULL;
+  const char *x_begin = (const char *)x;
+  const char *x_end = x_begin + (size_t)M * sizeof(double);
+  const char *y_begin = (const char *)y;
+  const char *y_end = y_begin + (size_t)N * sizeof(double);
+  if (x_begin < y_end && y_begin < x_end) {
+    x_snapshot = (double *)malloc((size_t)M * sizeof(double));
+    if (!x_snapshot) {
+      fprintf(stderr, "polygeist CPU runtime: GEMV alias snapshot failed\n");
+      abort();
+    }
+    memcpy(x_snapshot, x, (size_t)M * sizeof(double));
+    x_input = x_snapshot;
+  }
 #ifdef POLYGEIST_CPU_USE_CBLAS
-  cblas_dgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x, 1, beta, y,
-              1);
+  cblas_dgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x_input, 1,
+              beta, y, 1);
+  free(x_snapshot);
   return;
 #endif
   // Row-major y[j] = alpha * sum_i A[i,j] * x[i] + beta * y[j]
@@ -391,9 +407,10 @@ void polygeist_cublas_dgemv_T(
   for (int32_t j = 0; j < N; ++j) {
     double acc = 0.0;
     for (int32_t i = 0; i < M; ++i)
-      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[i];
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x_input[i];
     y[j] = alpha * acc + beta * y[j];
   }
+  free(x_snapshot);
 }
 
 void polygeist_cublas_sgemv_T(

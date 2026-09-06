@@ -161,6 +161,7 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_memset_zero_1d_f32";
   if (libSym == "cublasDgemv") return "polygeist_cublas_dgemv";
   if (libSym == "cublasDgemv_T") return "polygeist_cublas_dgemv_T";
+  if (libSym == "cublasDgemv_T_zero") return "polygeist_cublas_dgemv_T";
   if (libSym == "cublasDgemv_subtract") return "polygeist_cublas_dgemv";
   if (libSym == "cublasDgemv_subtract_T") return "polygeist_cublas_dgemv_T";
   if (libSym == "cublasSgemv") return "polygeist_cublas_sgemv";
@@ -552,8 +553,20 @@ static Value stripTensorCasts(Value v) {
 
 static bufferization::ToTensorOp sourceToTensorOp(Value tensorValue) {
   Value v = stripTensorCasts(tensorValue);
-  if (auto toTensor = v.getDefiningOp<bufferization::ToTensorOp>())
-    return toTensor;
+  for (int hops = 0; hops < 8; ++hops) {
+    if (auto toTensor = v.getDefiningOp<bufferization::ToTensorOp>())
+      return toTensor;
+    if (auto blockArg = dyn_cast<BlockArgument>(v)) {
+      auto loop = dyn_cast_or_null<affine::AffineForOp>(
+          blockArg.getOwner()->getParentOp());
+      unsigned number = blockArg.getArgNumber();
+      if (loop && number > 0 && number <= loop.getInits().size()) {
+        v = stripTensorCasts(loop.getInits()[number - 1]);
+        continue;
+      }
+    }
+    break;
+  }
   return nullptr;
 }
 
@@ -574,6 +587,15 @@ static bufferization::ToTensorOp destinationToTensorOp(Value tensorValue) {
     if (auto insertSlice = v.getDefiningOp<tensor::InsertSliceOp>()) {
       v = stripTensorCasts(insertSlice.getDest());
       continue;
+    }
+    if (auto blockArg = dyn_cast<BlockArgument>(v)) {
+      auto loop = dyn_cast_or_null<affine::AffineForOp>(
+          blockArg.getOwner()->getParentOp());
+      unsigned number = blockArg.getArgNumber();
+      if (loop && number > 0 && number <= loop.getInits().size()) {
+        v = stripTensorCasts(loop.getInits()[number - 1]);
+        continue;
+      }
     }
     break;
   }
@@ -3667,7 +3689,8 @@ using mlir::polygeist::lowerCudnnConv2DNtapPacked;
 // and runtime shim symbol; transpose picks A*x vs A^T*x.
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                                        bool transpose, bool useF32,
-                                       bool subtract = false);
+                                       bool subtract = false,
+                                       bool overwrite = false);
 
 static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
   return lowerDgemvImpl(launch, module, /*transpose=*/false, /*useF32=*/false);
@@ -3675,6 +3698,11 @@ static LogicalResult lowerDgemv(LaunchOp launch, ModuleOp module) {
 
 static LogicalResult lowerDgemvT(LaunchOp launch, ModuleOp module) {
   return lowerDgemvImpl(launch, module, /*transpose=*/true, /*useF32=*/false);
+}
+
+static LogicalResult lowerDgemvTZero(LaunchOp launch, ModuleOp module) {
+  return lowerDgemvImpl(launch, module, /*transpose=*/true, /*useF32=*/false,
+                        /*subtract=*/false, /*overwrite=*/true);
 }
 
 static LogicalResult lowerDgemvSubtract(LaunchOp launch, ModuleOp module,
@@ -3700,7 +3728,7 @@ static LogicalResult lowerSgemvT(LaunchOp launch, ModuleOp module) {
 //   polygeist_cublas_dgemv(M, N, alpha, A*, lda, x*, beta, y*)
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                                        bool transpose, bool useF32,
-                                       bool subtract) {
+                                       bool subtract, bool overwrite) {
   StringRef libName = useF32 ? "cublasSgemv" : "cublasDgemv";
   StringRef elemName = useF32 ? "f32" : "f64";
   if (launch.getNumOperands() != 3)
@@ -3733,6 +3761,11 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   TypedAttr oneAttr = useF32 ? b.getF32FloatAttr(1.0f)
                              : b.getF64FloatAttr(1.0);
   Value one = b.create<arith::ConstantOp>(loc, scalarTy, oneAttr);
+  TypedAttr zeroAttr = useF32 ? b.getF32FloatAttr(0.0f)
+                              : b.getF64FloatAttr(0.0);
+  Value beta = overwrite
+                   ? b.create<arith::ConstantOp>(loc, scalarTy, zeroAttr)
+                   : one;
   TypedAttr minusOneAttr = useF32 ? b.getF32FloatAttr(-1.0f)
                                   : b.getF64FloatAttr(-1.0);
   Value alpha = subtract
@@ -3749,10 +3782,22 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   Value M = dimForTensorOrMemrefAsI32(b, loc, A, 0);
   Value N = dimForTensorOrMemrefAsI32(b, loc, A, 1);
   Value lda = N;  // row-major
+  if (auto slice = stripTensorCasts(A).getDefiningOp<tensor::ExtractSliceOp>()) {
+    auto sourceType = dyn_cast<RankedTensorType>(slice.getSource().getType());
+    auto mixedStrides = slice.getMixedStrides();
+    bool unitMinorStride = mixedStrides.size() == 2 &&
+        getConstantIntValue(mixedStrides[1]).value_or(0) == 1;
+    if (sourceType && sourceType.getRank() == 2 && unitMinorStride) {
+      Value axis = b.create<arith::ConstantIndexOp>(loc, 1);
+      Value sourceCols = b.create<tensor::DimOp>(loc, slice.getSource(), axis);
+      lda = b.create<arith::IndexCastOp>(loc, b.getI32Type(), sourceCols);
+    }
+  }
 
   Value A_ptr = pointerForTensorOrMemref(b, loc, A);
   Value x_ptr = pointerForTensorOrMemref(b, loc, x);
-  Value y_ptr = pointerForTensorOrMemref(b, loc, y);
+  Value y_mr = valueToOutputMemrefPreservingSlice(b, loc, y);
+  Value y_ptr = memrefDataPtr(b, loc, y_mr);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
@@ -3770,12 +3815,21 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                           : "polygeist_cublas_dgemv");
   func::FuncOp shim = ensureShimDecl(module, shimSym, argTypes, b);
   b.create<func::CallOp>(loc, shim,
-      ValueRange{M, N, alpha, A_ptr, lda, x_ptr, one, y_ptr});
+      ValueRange{M, N, alpha, A_ptr, lda, x_ptr, beta, y_ptr});
+
+  if (overwrite) {
+    // The beta=0 form was redirected to its final destination by the
+    // matcher. The opaque call mutates that storage directly; retaining a
+    // functional insert_slice result would recreate a loop-carried tensor
+    // allocation and later copy stale storage over the call's output.
+    launch.getResult(0).replaceAllUsesWith(y);
+    launch.erase();
+    return success();
+  }
 
   // Keep the output as a view of its original destination buffer and bypass
   // the canonical tensor.insert_slice write-back.  The opaque cuBLAS call has
   // already updated that storage in place.
-  Value y_mr = valueToMemrefPreservingSlice(b, loc, y);
   Value updatedView =
       memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
   Value updatedBase = tensorForSliceSource(b, loc, y);
@@ -6871,6 +6925,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgemv(launch, module);
       } else if (libSym == "cublasDgemv_T") {
         r = lowerDgemvT(launch, module);
+      } else if (libSym == "cublasDgemv_T_zero") {
+        r = lowerDgemvTZero(launch, module);
       } else if (libSym == "cublasDgemv_subtract") {
         r = lowerDgemvSubtract(launch, module, /*transpose=*/false);
       } else if (libSym == "cublasDgemv_subtract_T") {

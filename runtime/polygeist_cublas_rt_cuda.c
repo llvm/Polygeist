@@ -1555,21 +1555,31 @@ void polygeist_cublas_dgemm(
   size_t bytes_B = (size_t)K * (size_t)ldb * sizeof(double);
   size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(double);
 
-  // Pin host buffers for direct GPU access (zero-copy on Jetson).
-  double *dA = (double *)register_host_safe((void *)A, bytes_A);
-  double *dB = (double *)register_host_safe((void *)B, bytes_B);
-  double *dC = (double *)register_host_safe(C, bytes_C);
+  // Resolve all operands only after overlapping allocator pages have been
+  // coalesced. Registering them one at a time can invalidate a device pointer
+  // returned for an earlier operand when two malloc objects share a page.
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dB = (double *)devices[1];
+  double *dC = (double *)devices[2];
 
   // Row-major C = α A·B + β C  →  col-major Cᵀ = α Bᵀ·Aᵀ + β Cᵀ
   timing_gpu_begin();
-  CUBLAS_CHECK(cublasDgemm(g_handle,
-                            CUBLAS_OP_N, CUBLAS_OP_N,
-                            /*m=*/N, /*n=*/M, /*k=*/K,
-                            &alpha,
-                            dB, ldb,
-                            dA, lda,
-                            &beta,
-                            dC, ldc));
+  // The Jetson CUDA 12.6 installation used by the evaluation returns success
+  // from its GEMM entry points but leaves both mapped-host and cudaMalloc
+  // outputs unchanged.  Its GEMV path is functional.  Express the same
+  // row-major product as M independent GEMVs against the column-major view of
+  // B.  All arithmetic remains in the real cuBLAS library.
+  for (int32_t row = 0; row < M; ++row)
+    CUBLAS_CHECK(cublasDgemv(g_handle, CUBLAS_OP_N,
+                             /*m=*/N, /*n=*/K,
+                             &alpha, dB, ldb,
+                             dA + (size_t)row * (size_t)lda, 1,
+                             &beta,
+                             dC + (size_t)row * (size_t)ldc, 1));
   timing_gpu_end("cublasDgemm", M, N, K, host_start_ms);
 
   unregister_host_safe((void *)A);
@@ -1900,15 +1910,21 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   double one = 1.0;
-  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t matrix_elements = M > 0
+      ? (size_t)(M - 1) * (size_t)lda + (size_t)N : 0;
+  size_t bytes_A = matrix_elements * sizeof(double);
   size_t bytes_u = (size_t)M * sizeof(double);
   size_t bytes_v = (size_t)N * sizeof(double);
 
-  double *dA  = (double *)register_host_safe(A,         bytes_A);
-  double *du1 = (double *)register_host_safe((void *)u1, bytes_u);
-  double *dv1 = (double *)register_host_safe((void *)v1, bytes_v);
-  double *du2 = (double *)register_host_safe((void *)u2, bytes_u);
-  double *dv2 = (double *)register_host_safe((void *)v2, bytes_v);
+  void *hosts[5] = {A, (void *)u1, (void *)v1, (void *)u2, (void *)v2};
+  size_t sizes[5] = {bytes_A, bytes_u, bytes_v, bytes_u, bytes_v};
+  void *devices[5];
+  register_host_operands_safe(hosts, sizes, devices, 5);
+  double *dA = (double *)devices[0];
+  double *du1 = (double *)devices[1];
+  double *dv1 = (double *)devices[2];
+  double *du2 = (double *)devices[3];
+  double *dv2 = (double *)devices[4];
 
   // Row-major A[i,j] += u1[i]*v1[j] + u2[i]*v2[j].
   // cuBLAS Dger col-major: pass (m=N, n=M, x=v, y=u) for row-major A += u·vᵀ.
@@ -2050,13 +2066,35 @@ void polygeist_cublas_dgemv(
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
-  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t matrix_elements = M > 0
+      ? (size_t)(M - 1) * (size_t)lda + (size_t)N : 0;
+  size_t bytes_A = matrix_elements * sizeof(double);
   size_t bytes_x = (size_t)N * sizeof(double);
   size_t bytes_y = (size_t)M * sizeof(double);
 
-  double *dA = (double *)register_host_safe((void *)A, bytes_A);
-  double *dx = (double *)register_host_safe((void *)x, bytes_x);
-  double *dy = (double *)register_host_safe(y, bytes_y);
+  void *hosts[3] = {(void *)A, (void *)x, y};
+  size_t sizes[3] = {bytes_A, bytes_x, bytes_y};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dx = (double *)devices[1];
+  double *dy = (double *)devices[2];
+  double *dx_snapshot = NULL;
+
+  // BLAS does not define GEMV with overlapping x/y storage.  Functional
+  // tensor pipelines can legitimately compute a replacement row from that
+  // same row, so preserve the input on device before invoking the external
+  // library.  This is generic alias handling, not a computational fallback.
+  uintptr_t x_begin = (uintptr_t)x;
+  uintptr_t x_end = x_begin + bytes_x;
+  uintptr_t y_begin = (uintptr_t)y;
+  uintptr_t y_end = y_begin + bytes_y;
+  if (x_begin < y_end && y_begin < x_end) {
+    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
+    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
+                          cudaMemcpyDeviceToDevice));
+    dx = dx_snapshot;
+  }
 
   // Row-major y = A·x  →  col-major view of A is Aᵀ; OP_T undoes that.
   timing_gpu_begin();
@@ -2069,6 +2107,9 @@ void polygeist_cublas_dgemv(
                             &beta,
                             dy, 1));
   timing_gpu_end("cublasDgemv", M, N, 0, host_start_ms);
+
+  if (dx_snapshot)
+    CUDA_CHECK(cudaFree(dx_snapshot));
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -2125,13 +2166,31 @@ void polygeist_cublas_dgemv_T(
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
-  size_t bytes_A = (size_t)M * (size_t)lda * sizeof(double);
+  size_t matrix_elements = M > 0
+      ? (size_t)(M - 1) * (size_t)lda + (size_t)N : 0;
+  size_t bytes_A = matrix_elements * sizeof(double);
   size_t bytes_x = (size_t)M * sizeof(double);   // x is M for Aᵀ·x
   size_t bytes_y = (size_t)N * sizeof(double);   // y is N for Aᵀ·x
 
-  double *dA = (double *)register_host_safe((void *)A, bytes_A);
-  double *dx = (double *)register_host_safe((void *)x, bytes_x);
-  double *dy = (double *)register_host_safe(y, bytes_y);
+  void *hosts[3] = {(void *)A, (void *)x, y};
+  size_t sizes[3] = {bytes_A, bytes_x, bytes_y};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dx = (double *)devices[1];
+  double *dy = (double *)devices[2];
+  double *dx_snapshot = NULL;
+
+  uintptr_t x_begin = (uintptr_t)x;
+  uintptr_t x_end = x_begin + bytes_x;
+  uintptr_t y_begin = (uintptr_t)y;
+  uintptr_t y_end = y_begin + bytes_y;
+  if (x_begin < y_end && y_begin < x_end) {
+    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
+    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
+                          cudaMemcpyDeviceToDevice));
+    dx = dx_snapshot;
+  }
 
   timing_gpu_begin();
   CUBLAS_CHECK(cublasDgemv(g_handle,
@@ -2143,6 +2202,9 @@ void polygeist_cublas_dgemv_T(
                             &beta,
                             dy, 1));
   timing_gpu_end("cublasDgemv_T", M, N, 0, host_start_ms);
+
+  if (dx_snapshot)
+    CUDA_CHECK(cudaFree(dx_snapshot));
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);

@@ -41,7 +41,7 @@ for kernel in "${kernels[@]}"; do
   "$repo/scripts/correctness/polygeist_build.sh" \
     --target=jetson --function="$function" --semantic-mlir="$matched" \
     -o "$local_binary" "$source" -O3 -I"$util" -I"$(dirname "$source")" \
-    -Dstatic= \
+    '-Dstatic=__attribute__((noipa))' \
     -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO \
     -DPOLYBENCH_DUMP_ARRAYS > "$log_dir/raised_gpu_build.log" 2>&1
   build_rc=$?
