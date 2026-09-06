@@ -1407,6 +1407,74 @@ void polygeist_cusparse_spmm_csr_f32_sized(
   CUSPARSE_CHECK(cusparseDestroySpMat(matrix));
 }
 
+void polygeist_cusparse_spmm_coo_f32_sized(
+    int32_t rows, int32_t nnz,
+    int32_t row_index_count, const int32_t *row_indices,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t b_rows, int32_t b_cols, const float *b,
+    int32_t c_rows, int32_t c_cols, float *c) {
+  if (rows <= 0 || b_cols <= 0)
+    return;
+  if (!row_indices || !column_indices || !values || !b || !c ||
+      nnz < 0 || row_index_count < nnz || column_index_count < nnz ||
+      value_count < nnz || b_rows <= 0 ||
+      c_rows < rows || c_cols != b_cols) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid COO SpMM operands\n");
+    abort();
+  }
+  ensure_cusparse();
+
+  void *host_ptrs[] = {(void *)row_indices, (void *)column_indices,
+                       (void *)values, (void *)b, c};
+  size_t byte_sizes[] = {
+      (size_t)value_count * sizeof(int32_t),
+      (size_t)value_count * sizeof(int32_t),
+      (size_t)value_count * sizeof(float),
+      (size_t)b_rows * (size_t)b_cols * sizeof(float),
+      (size_t)c_rows * (size_t)c_cols * sizeof(float)};
+  void *device_ptrs[5] = {NULL, NULL, NULL, NULL, NULL};
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 5);
+
+  cusparseSpMatDescr_t matrix = NULL;
+  cusparseDnMatDescr_t dense_b = NULL, dense_c = NULL;
+  CUSPARSE_CHECK(cusparseCreateCoo(
+      &matrix, rows, b_rows, nnz, device_ptrs[0], device_ptrs[1],
+      device_ptrs[2], CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO,
+      CUDA_R_32F));
+  CUSPARSE_CHECK(cusparseCreateDnMat(
+      &dense_b, b_rows, b_cols, b_cols, device_ptrs[3], CUDA_R_32F,
+      CUSPARSE_ORDER_ROW));
+  CUSPARSE_CHECK(cusparseCreateDnMat(
+      &dense_c, rows, b_cols, c_cols, device_ptrs[4], CUDA_R_32F,
+      CUSPARSE_ORDER_ROW));
+
+  const float alpha = 1.0f, beta = 0.0f;
+  size_t workspace_size = 0;
+  CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+      CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matrix, dense_b, &beta,
+      dense_c, CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &workspace_size));
+  void *workspace = NULL;
+  if (workspace_size)
+    DEVICE_MALLOC(&workspace, workspace_size);
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  CUSPARSE_CHECK(cusparseSpMM(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+      CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matrix, dense_b, &beta,
+      dense_c, CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, workspace));
+  timing_gpu_end("cusparseSpMM_COO_f32", rows, b_cols, nnz,
+                 host_start_ms);
+  sync_stream_if_outside_pipeline();
+
+  if (workspace)
+    DEVICE_FREE(workspace);
+  CUSPARSE_CHECK(cusparseDestroyDnMat(dense_b));
+  CUSPARSE_CHECK(cusparseDestroyDnMat(dense_c));
+  CUSPARSE_CHECK(cusparseDestroySpMat(matrix));
+}
+
 void polygeist_cusparse_spmv_jds_f32_sized(
     int32_t rows, int32_t repetitions,
     int32_t row_count_capacity, const int32_t *row_counts,
@@ -1549,6 +1617,20 @@ void polygeist_cusparse_spmm_csr_f32_sized(
     int32_t b_rows, int32_t b_cols, const float *b,
     int32_t c_rows, int32_t c_cols, float *c) {
   (void)rows; (void)row_offset_count; (void)row_offsets;
+  (void)column_index_count; (void)column_indices; (void)value_count;
+  (void)values; (void)b_rows; (void)b_cols; (void)b;
+  (void)c_rows; (void)c_cols; (void)c;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_spmm_coo_f32_sized(
+    int32_t rows, int32_t nnz,
+    int32_t row_index_count, const int32_t *row_indices,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t b_rows, int32_t b_cols, const float *b,
+    int32_t c_rows, int32_t c_cols, float *c) {
+  (void)rows; (void)nnz; (void)row_index_count; (void)row_indices;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)b_rows; (void)b_cols; (void)b;
   (void)c_rows; (void)c_cols; (void)c;

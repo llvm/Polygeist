@@ -2226,18 +2226,18 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
             rendered, css = syntax_highlight(rewritten)
             pages["matched"] = rendered
 
-    # Prefer a stored build artifact when a suite has one. PolyBench and most
-    # flat bake directories do not, so materialize the exact production ABI
-    # lowering from the matcher output for the static snapshot.
+    # Materialize ABI lowering from the matcher text shown on this page so a
+    # stale stored artifact cannot describe a launch that is no longer
+    # selected.  Fall back to a stored ABI only when no matched text exists.
     stored_abi_candidates = [
         mlir_dir / kernel / "abi.mlir",
         mlir_dir / f"{kernel}_abi.mlir",
     ]
     stored_abi = next((p for p in stored_abi_candidates if p.exists()), None)
-    if stored_abi:
-        abi_text = stored_abi.read_text()
-    elif matched_text is not None:
+    if matched_text is not None:
         abi_text, abi_error = lower_matched_to_abi(matched_text)
+    elif stored_abi:
+        abi_text = stored_abi.read_text()
     if abi_text:
         abi_html, css = syntax_highlight(abi_text)
         pages["abi"] = abi_html

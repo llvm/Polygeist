@@ -482,6 +482,18 @@ CASES = {
          iptr("col", "N", init="csr_col_k"), ptr("val", "N"),
          ptr("b", "K*C"), ptr("out", "R*C", True)],
         "full structured-loop CSR SpMM via cuSPARSE"),
+    "aten_sparse_addmm_cpu": spec(
+        {"R": 64, "C": 4_096, "N": 4_096},
+        [iptr("row", "N", init="coo_row"),
+         iptr("col", "N", init="coo_col_dense"), ptr("value", "N"),
+         ptr("dense", "R*C"), ptr("out", "R*C", True)],
+        "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE"),
+    "aten_hspmm_cpu": spec(
+        {"R": 64, "C": 4_096, "N": 4_096},
+        [iptr("row", "N", init="coo_row"),
+         iptr("col", "N", init="coo_col_dense"), ptr("value", "N"),
+         ptr("dense", "R*C"), ptr("out", "R*C", True)],
+        "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE"),
     "aten_square": spec({"N": N}, [ptr("x", "N"), ptr("out", "N", True)]),
     "aten_tanh_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
     "aten_uniform_cpu": spec({"N": N}, [ptr("uniform01", "N", init="unit"), scalar("from", -2.), scalar("to", 3.), ptr("out", "N", True)]),
@@ -635,7 +647,10 @@ def harness_text(kernel: str, cfg: dict) -> str:
                     "(int)(((i*17)+(i/(N/R))*13)%C)"
                     if init_kind == "csr_col" else
                     "(int)(((i*17)+(i/(N/R))*13)%K)"
-                    if init_kind == "csr_col_k" else "0")
+                    if init_kind == "csr_col_k" else
+                    "(int)(i/(N/R))" if init_kind == "coo_row" else
+                    "(int)(((i*17)+(i/(N/R))*13)%R)"
+                    if init_kind == "coo_col_dense" else "0")
             init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
             init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(int));")
             call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
@@ -761,14 +776,16 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                 "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference)})
     # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
-    if not cfg["coverage"].startswith("full structured-loop CSR"):
+    if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"
     if os.path.isdir(_ct):  # enable cutensorUnary etc. when the SDK is staged
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct
-    run([str(BUILDER), "--target=jetson", f"--function={kernel}",
-         f"--harness={harness}", "-o", str(exe), str(source),
-         "-DBENCH_MAPPED_ONLY"], work / "raised.build.log", env)
+    build_command = [str(BUILDER), "--target=jetson", f"--function={kernel}",
+                     f"--harness={harness}", "-o", str(exe), str(source)]
+    if "via cuSPARSE" not in cfg["coverage"]:
+        build_command.append("-DBENCH_MAPPED_ONLY")
+    run(build_command, work / "raised.build.log", env)
     return {"kernel": kernel, "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()), "coverage": cfg["coverage"], "executable": str(exe)}
 
 

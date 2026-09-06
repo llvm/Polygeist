@@ -53,6 +53,7 @@ ABI_LOWERABLE_KERNELS = {
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
     "cusparseSpMM_CSR_f32_memref",
+    "cusparseSpMM_COO_f32_memref",
     "cusparseSpMV_JDS_f32_memref",
     "custenStencil2DXY_f64_memref",
     "custenStencil2DXY_f64_tensor",
@@ -4167,6 +4168,240 @@ def _render_cusparse_csr_spmm(
     return rendered
 
 
+def _render_cusparse_coo_spmm(
+        text: str) -> list[tuple[int, int, str, str]]:
+    """Fuse zero-fill plus an indexed COO update nest into cuSPARSE SpMM."""
+    loops = parse_loops(text)
+    rendered: list[tuple[int, int, str, str]] = []
+    for outer in loops:
+        children = [loop for loop in loops
+                    if outer.span[0] < loop.span[0] and
+                    loop.span[1] < outer.span[1]]
+        if len(children) != 1:
+            continue
+        inner_loop = children[0]
+        outer_line = text.rfind("\n", 0, outer.span[0]) + 1
+        outer_assignment = re.match(
+            r"\s*(%[\w.$-]+)\s*=\s*$", text[outer_line:outer.span[0]])
+        outer_body = text[outer.span[0]:outer.span[1]]
+        outer_header = re.match(
+            rf"affine\.for\s+{re.escape(outer.induction)}\s*=\s*"
+            r"0\s+to\s+(\d+)\s+iter_args\s*\(\s*"
+            r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\s*\)\s*->\s*"
+            r"\(tensor<[^>]+>\)\s*\{", outer_body)
+        inner_line = text.rfind("\n", outer.span[0], inner_loop.span[0]) + 1
+        inner_assignment = re.match(
+            r"\s*(%[\w.$-]+)\s*=\s*$", text[inner_line:inner_loop.span[0]])
+        inner_body = text[inner_loop.span[0]:inner_loop.span[1]]
+        inner_header = re.match(
+            rf"affine\.for\s+{re.escape(inner_loop.induction)}\s*=\s*"
+            r"0\s+to\s+(\d+)\s+iter_args\s*\(\s*"
+            r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\s*\)\s*->\s*"
+            r"\(tensor<[^>]+>\)\s*\{", inner_body)
+        if not all((outer_assignment, outer_header,
+                    inner_assignment, inner_header)):
+            continue
+        outer_result = outer_assignment.group(1)
+        nnz = int(outer_header.group(1))
+        outer_iter, initialized_output = outer_header.group(2), outer_header.group(3)
+        inner_result = inner_assignment.group(1)
+        columns = int(inner_header.group(1))
+        inner_iter, inner_init = inner_header.group(2), inner_header.group(3)
+        if (nnz <= 0 or columns <= 0 or inner_init != outer_iter or
+                re.search(rf"affine\.yield\s+{re.escape(inner_result)}\s*:",
+                          outer_body) is None):
+            continue
+
+        function_start = text.rfind("func.func", 0, outer.span[0])
+        preamble = text[function_start:outer.span[0]]
+        inserted_slice = re.search(
+            rf"{re.escape(initialized_output)}\s*=\s*tensor\.insert_slice\s+"
+            r"(%[\w.$-]+)\s+into\s+(%[\w.$-]+)"
+            r"\[0,\s*0\]\s*\[([^,\]]+),\s*([^\]]+)\]\s*"
+            r"\[1,\s*1\]", preamble)
+        region_start = None
+        if inserted_slice is not None:
+            fill_result = inserted_slice.group(1)
+            output_tensor = inserted_slice.group(2)
+            row_size, column_size = (inserted_slice.group(3).strip(),
+                                     inserted_slice.group(4).strip())
+            extracted_slice = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract_slice\s+"
+                rf"{re.escape(output_tensor)}\[0,\s*0\]\s*"
+                rf"\[{re.escape(row_size)},\s*{re.escape(column_size)}\]\s*"
+                r"\[1,\s*1\]", preamble)
+            if extracted_slice is None:
+                continue
+            extracted_tensor = extracted_slice.group(1)
+            region_start = extracted_slice.start()
+        else:
+            # The production raising pipeline preserves Polygeist submaps.
+            # Accept the equivalent full-prefix view / inverse pair, but only
+            # with the same base tensor, extents, and identity access map.
+            inverse = re.search(
+                rf"{re.escape(initialized_output)}\s*=\s*"
+                rf"polygeist\.submapInverse\(\s*(%[\w.$-]+),\s*"
+                rf"(%[\w.$-]+),\s*([^,]+),\s*([^\)]+)\)\s*"
+                r"\{\s*map\s*=\s*([^}]+)\}", preamble)
+            if inverse is None:
+                continue
+            output_tensor, fill_result = inverse.group(1), inverse.group(2)
+            row_size, column_size = (inverse.group(3).strip(),
+                                     inverse.group(4).strip())
+            submap = re.search(
+                rf"(%[\w.$-]+)\s*=\s*polygeist\.submap\(\s*"
+                rf"{re.escape(output_tensor)},\s*{re.escape(row_size)},\s*"
+                rf"{re.escape(column_size)}\s*\)\s*"
+                rf"\{{\s*map\s*=\s*{re.escape(inverse.group(5).strip())}\s*\}}",
+                preamble)
+            if submap is None:
+                continue
+            extracted_tensor = submap.group(1)
+            region_start = submap.start()
+        fill = re.search(
+            rf"{re.escape(fill_result)}\s*=\s*linalg\.generic\s*"
+            r"\{[^}]*iterator_types\s*=\s*\[\"parallel\",\s*\"parallel\"\]"
+            rf"[^}}]*\}}\s*outs\(\s*{re.escape(extracted_tensor)}\s*:"
+            r"\s*tensor<[^>]+>\)\s*\{.*?linalg\.yield\s+(%[\w.$-]+)\s*:"
+            r"\s*f32\s*\}\s*->\s*tensor<[^>]+>", preamble, re.DOTALL)
+        if fill is None or re.search(
+                rf"{re.escape(fill.group(1))}\s*=\s*arith\.constant\s+"
+                r"(?:0(?:\.0+)?(?:e[+-]?0+)?|0x0+)\s*:\s*f32",
+                preamble, re.IGNORECASE) is None:
+            continue
+
+        def constant_extent(value: str) -> int | None:
+            if value.isdigit():
+                return int(value)
+            match = re.search(
+                rf"{re.escape(value)}\s*=\s*arith\.constant\s+(\d+)\s*:\s*index",
+                preamble)
+            return int(match.group(1)) if match else None
+
+        rows = constant_extent(row_size)
+        if rows is None or rows <= 0 or constant_extent(column_size) != columns:
+            continue
+
+        p = re.escape(outer.induction)
+        c = re.escape(inner_loop.induction)
+        index_loads = re.findall(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"(%[\w.$-]+)\[{p}\]\s*:\s*tensor<[^>]*xi32>", inner_body)
+        if len(index_loads) != 2 or index_loads[0][1] == index_loads[1][1]:
+            continue
+        casts = {}
+        for loaded, tensor in index_loads:
+            cast = re.search(
+                rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(loaded)}\s*:\s*i32\s+to\s+index", inner_body)
+            if cast:
+                casts[cast.group(1)] = tensor
+        if len(casts) != 2:
+            continue
+        dense = None
+        dense_index = None
+        for cast, tensor in casts.items():
+            match = re.search(
+                rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+                rf"(%[\w.$-]+)\[{re.escape(cast)},\s*{c}\]\s*:"
+                r"\s*tensor<[^>]*xf32>", inner_body)
+            if match and match.group(2) != inner_iter:
+                dense, dense_index = match, cast
+                break
+        if dense is None:
+            continue
+        row_index = next((cast for cast in casts if cast != dense_index), None)
+        value = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"(%[\w.$-]+)\[{p}\]\s*:\s*tensor<[^>]*xf32>", inner_body)
+        old_output = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"{re.escape(inner_iter)}\[{re.escape(row_index)},\s*{c}\]",
+            inner_body) if row_index else None
+        if value is None or old_output is None:
+            continue
+        product = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+            rf"(?:{re.escape(value.group(1))},\s*{re.escape(dense.group(1))}|"
+            rf"{re.escape(dense.group(1))},\s*{re.escape(value.group(1))})"
+            r"\s*:\s*f32", inner_body)
+        total = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addf\s+"
+            rf"(?:{re.escape(old_output.group(1))},\s*{re.escape(product.group(1))}|"
+            rf"{re.escape(product.group(1))},\s*{re.escape(old_output.group(1))})"
+            r"\s*:\s*f32", inner_body) if product else None)
+        inserted = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+            rf"{re.escape(total.group(1))}\s+into\s+{re.escape(inner_iter)}"
+            rf"\[{re.escape(row_index)},\s*{c}\]", inner_body)
+                    if total and row_index else None)
+        if inserted is None or re.search(
+                rf"affine\.yield\s+{re.escape(inserted.group(1))}\s*:",
+                inner_body) is None:
+            continue
+
+        row_tensor = casts[row_index]
+        column_tensor = casts[dense_index]
+        tensors = [row_tensor, column_tensor, value.group(2),
+                   dense.group(2), output_tensor]
+        sources = [_to_tensor_memref_source(text, tensor, outer.span[0])
+                   for tensor in tensors]
+        if any(source is None for source in sources):
+            continue
+        operands = [source[0] for source in sources]
+        types = [source[1] for source in sources]
+        if (len(set(operands)) != 5 or
+                [_sniff_elem_type(ty) for ty in types] !=
+                ["i32", "i32", "f32", "f32", "f32"] or
+                [_shaped_rank(ty) for ty in types] != [1, 1, 1, 2, 2] or
+                any("," in ty for ty in types)):
+            continue
+        dense_type = re.fullmatch(r"memref<\?x(\d+)xf32>", types[3])
+        output_type = re.fullmatch(r"memref<\?x(\d+)xf32>", types[4])
+        if (dense_type is None or output_type is None or
+                int(dense_type.group(1)) != columns or
+                int(output_type.group(1)) != columns):
+            continue
+        tail = re.match(
+            rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(outer_result)}\s*:\s*memref<[^>]*xf32>\s*\n"
+            rf"\s*memref\.copy\s+\1,\s*{re.escape(operands[4])}\s*:\s*[^\n]*",
+            text[outer.span[1]:])
+        if tail is None:
+            continue
+
+        slice_line = text.rfind("\n", 0, function_start + region_start) + 1
+        uid = outer.span[0]
+        row_value = f"%cusparse_coo_rows_{uid}"
+        nnz_value = f"%cusparse_coo_nnz_{uid}"
+        target_types = ["memref<?xi32>", "memref<?xi32>",
+                        "memref<?xf32>", "memref<?x?xf32>",
+                        "memref<?x?xf32>"]
+        indent = re.match(r"\s*", text[slice_line:function_start +
+                                         region_start]).group(0)
+        lines = [f"{row_value} = arith.constant {rows} : index",
+                 f"{nnz_value} = arith.constant {nnz} : index"]
+        normalized: list[str] = []
+        for i, (operand, source_type, target_type) in enumerate(
+                zip(operands, types, target_types)):
+            if source_type != target_type:
+                cast = f"%cusparse_coo_arg_{uid}_{i}"
+                lines.append(
+                    f"{cast} = memref.cast {operand} : {source_type} to {target_type}")
+                normalized.append(cast)
+            else:
+                normalized.append(operand)
+        symbol = "cusparseSpMM_COO_f32_memref"
+        lines.append(
+            f"kernel.launch @{symbol}(" +
+            ", ".join([row_value, nnz_value, *normalized]) +
+            ") : (index, index, " + ", ".join(target_types) + ") -> ()")
+        replacement = ("\n" + indent).join(lines)
+        rendered.append((slice_line, outer.span[1] + tail.end(),
+                         indent + replacement, symbol))
+    return rendered
+
+
 def _render_cusparse_jds_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Replace a proven repeated JDS SpMV with a cuSPARSE adapter call.
@@ -4831,6 +5066,16 @@ def rewrite_mlir(
                 continue
             edits.append((start, end, replacement))
             report.append(("match", [], symbol + "[indirect-row-matrix-reduction]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol in _render_cusparse_coo_spmm(text):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(
+                index for index, instance in enumerate(instances)
+                if start <= instance.span[0] and instance.span[1] <= end)
+            report.append(("match", [], symbol + "[zero+indexed-matrix-update]"))
             emitted_launches += 1
         for start, end, replacement, symbol in _render_cusparse_jds_spmv(text):
             if max_launches is not None and emitted_launches >= max_launches:

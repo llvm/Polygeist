@@ -9,28 +9,11 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f16, dense<16> : 
     %2 = bufferization.to_tensor %arg2 : memref<?xf32>
     %3 = bufferization.to_tensor %arg1 : memref<?xi32>
     %4 = bufferization.to_tensor %arg0 : memref<?xi32>
-    %extracted_slice = tensor.extract_slice %0[0, 0] [%c64, %c48] [1, 1] : tensor<?x48xf32> to tensor<?x?xf32>
-    %5 = kernel.launch @memset_zero_2D_f32(%extracted_slice) : (tensor<?x?xf32>) -> tensor<?x?xf32>
-    %inserted_slice = tensor.insert_slice %5 into %0[0, 0] [%c64, %c48] [1, 1] : tensor<?x?xf32> into tensor<?x48xf32>
-    %6 = affine.for %arg5 = 0 to 512 iter_args(%arg6 = %inserted_slice) -> (tensor<?x48xf32>) {
-      %8 = affine.for %arg7 = 0 to 48 iter_args(%arg8 = %arg6) -> (tensor<?x48xf32>) {
-        %extracted = tensor.extract %4[%arg5] : tensor<?xi32>
-        %9 = arith.index_cast %extracted : i32 to index
-        %extracted_0 = tensor.extract %2[%arg5] : tensor<?xf32>
-        %extracted_1 = tensor.extract %3[%arg5] : tensor<?xi32>
-        %10 = arith.index_cast %extracted_1 : i32 to index
-        %extracted_2 = tensor.extract %1[%10, %arg7] : tensor<?x48xf32>
-        %11 = arith.mulf %extracted_0, %extracted_2 : f32
-        %extracted_3 = tensor.extract %arg8[%9, %arg7] : tensor<?x48xf32>
-        %12 = arith.addf %extracted_3, %11 : f32
-        %inserted = tensor.insert %12 into %arg8[%9, %arg7] : tensor<?x48xf32>
-        affine.yield %inserted : tensor<?x48xf32>
-      }
-      affine.yield %8 : tensor<?x48xf32>
-    }
-    %7 = bufferization.to_memref %6 : memref<?x48xf32>
-    memref.copy %7, %arg4 : memref<?x48xf32> to memref<?x48xf32>
+    %cusparse_coo_rows_2208 = arith.constant 64 : index
+    %cusparse_coo_nnz_2208 = arith.constant 512 : index
+    %cusparse_coo_arg_2208_3 = memref.cast %arg3 : memref<?x48xf32> to memref<?x?xf32>
+    %cusparse_coo_arg_2208_4 = memref.cast %arg4 : memref<?x48xf32> to memref<?x?xf32>
+    kernel.launch @cusparseSpMM_COO_f32_memref(%cusparse_coo_rows_2208, %cusparse_coo_nnz_2208, %arg0, %arg1, %arg2, %cusparse_coo_arg_2208_3, %cusparse_coo_arg_2208_4) : (index, index, memref<?xi32>, memref<?xi32>, memref<?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     return
   }
 }
-

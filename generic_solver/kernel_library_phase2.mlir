@@ -47,6 +47,10 @@ module {
       %rows: index, %row_offsets: memref<?xi32>,
       %column_indices: memref<?xi32>, %values: memref<?xf32>,
       %b: memref<?x?xf32>, %c: memref<?x?xf32>) { kernel.yield }
+  kernel.defn @cusparseSpMM_COO_f32_memref(
+      %rows: index, %nnz: index, %row_indices: memref<?xi32>,
+      %column_indices: memref<?xi32>, %values: memref<?xf32>,
+      %b: memref<?x?xf32>, %c: memref<?x?xf32>) { kernel.yield }
   // Parboil's source matrix is JDS.  The external-runtime adapter converts
   // only the storage metadata to CSR, then dispatches every repetition to
   // NVIDIA cuSPARSE (there is no project-authored GPU compute kernel).
