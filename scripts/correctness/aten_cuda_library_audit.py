@@ -186,9 +186,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_GENERIC_API", "whole",
                       "columns form regular reduction segments")
     if "rowwise_prune" in n:
-        return result("reduce_and_compact", "CUB", "DeviceSegmentedReduce plus DeviceSelect",
-                      "PARTIAL_API", "stages",
-                      "row scoring and compaction exist as separate primitives")
+        return result("rowwise_l1_threshold", "CUB",
+                      "DeviceSegmentedReduce with transform input iterator",
+                      "PARTIAL_API", "reduction_stage",
+                      "the kernel emits a per-row threshold mask rather than a compacted "
+                      "index list; CUB can compute the L1 row scores and leave the "
+                      "comparison/cast as residual Linalg")
     if hit(r"flatten_indices|nested_to_mask|tril_indices|triu_indices|triu_mask|triu_tril_batch", n):
         return result("index_generation", "cuDNN", "GEN_INDEX plus arithmetic/comparison graph",
                       "FULL_GENERIC_API", "whole",

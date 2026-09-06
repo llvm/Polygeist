@@ -326,6 +326,13 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "contiguous embedding and gradient rows; segment width equals embedding dimension",
                  "recognize the affine gather plus inner dot reduction and lower a generated transform iterator",
                  priority="MEDIUM")
+    if fam == "rowwise_l1_threshold":
+        return r("CUB", "DeviceSegmentedReduce + absolute-value transform input iterator",
+                 "EXACT_TEMPLATE_PRIMITIVE", "row-score reduction stage",
+                 "ordered absolute value and sum must preserve the intended NaN and floating-reassociation policy; threshold comparison remains ordered",
+                 "contiguous fixed-width rows, or explicit row offsets for a segmented reduction",
+                 "structured reduction matcher + CUB iterator backend; retain threshold/cast as residual Linalg",
+                 priority="HIGH")
     if fam in {"arbitrary_gather", "cyclic_shift", "variable_bit_shift",
                "scalar_copysign", "scalar_fill"}:
         detail = {
