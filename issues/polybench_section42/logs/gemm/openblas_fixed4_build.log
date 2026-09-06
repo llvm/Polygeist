@@ -1,0 +1,16 @@
+[polygeist] keeping workdir: /tmp/tmp.oU24z3rnst
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=host  output=/tmp/polybench-section42-gemm-openblas-fixed4
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -DPOLYBENCH_USE_C99_PROTO
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/gemm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_gemm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=host)
+         + optimized CPU CBLAS runtime enabled
+         + polybench utility from tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → /tmp/polybench-section42-gemm-openblas-fixed4
+
+═══ build complete ═══
+/tmp/polybench-section42-gemm-openblas-fixed4: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped

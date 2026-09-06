@@ -1,0 +1,5 @@
+gemm,raised_residual_cpu,1,0,0.603355
+gemm,raised_residual_cpu,2,0,0.670009
+gemm,raised_residual_cpu,3,0,0.608859
+gemm,raised_residual_cpu,4,0,0.596667
+gemm,raised_residual_cpu,5,0,0.604577

@@ -12,9 +12,15 @@ export MLIR_TRANSLATE="$llvm/mlir-translate"
 export CLANG="$llvm/clang"
 
 summary="$result_root/logs/raised_gpu_sweep_summary.csv"
+if [[ $# -gt 0 ]]; then
+  summary="$result_root/logs/raised_gpu_sweep_targeted_summary.csv"
+fi
 printf 'kernel,status,build_rc,deploy_rc,run_rc,compare_rc,reference_sha256,candidate_sha256\n' > "$summary"
 
-for kernel in 2mm 3mm atax bicg covariance deriche doitgen gemm gemver gesummv gramschmidt mvt; do
+default_kernels=(2mm 3mm atax bicg covariance deriche doitgen gemm gemver gesummv gramschmidt mvt)
+kernels=("${default_kernels[@]}")
+if [[ $# -gt 0 ]]; then kernels=("$@"); fi
+for kernel in "${kernels[@]}"; do
   source_rel=$(awk -F, -v k="$kernel" '$1==k {print $3}' "$result_root/manifest.csv")
   source="$repo/$source_rel"
   function="kernel_${kernel//-/_}"

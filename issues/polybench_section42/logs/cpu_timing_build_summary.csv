@@ -1,0 +1,8 @@
+kernel,configuration,status,build_rc,samples,cpu,threads
+2mm,openblas_cblas_1t,pass,0,5,21,1
+atax,openblas_cblas_1t,pass,0,5,21,1
+bicg,openblas_cblas_1t,pass,0,5,21,1
+gemm,openblas_cblas_1t,pass,0,5,21,1
+gemver,openblas_cblas_1t,pass,0,5,21,1
+gesummv,openblas_cblas_1t,pass,0,5,21,1
+mvt,openblas_cblas_1t,pass,0,5,21,1

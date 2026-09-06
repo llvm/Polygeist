@@ -1,0 +1,531 @@
+[1/74] Building PolygeistOpsDialect.h.inc...
+[2/74] Building PolygeistOpsDialect.cpp.inc...
+[3/74] Building PolygeistOps.h.inc...
+[4/74] Building PolygeistOps.cpp.inc...
+[5/74] Building Passes.h.inc...
+[6/74] Building PolygeistOpsTypes.cpp.inc...
+[7/74] Building PolygeistOpsTypes.h.inc...
+[8/74] Building KernelOps.cpp.inc...
+[9/74] Building KernelOps.h.inc...
+[10/74] Building KernelOpsDialect.cpp.inc...
+[11/74] Building KernelOpsDialect.h.inc...
+[12/74] Building KernelOpsTypes.cpp.inc...
+[13/74] Building KernelOpsTypes.h.inc...
+[14/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/SelectFunc.cpp.o
+[15/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ConvertToOpaquePtr.cpp.o
+[16/74] Building CXX object lib/polygeist/CMakeFiles/obj.MLIRPolygeist.dir/Dialect.cpp.o
+[17/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/AffineReduction.cpp.o
+[18/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/AffineCFG.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp: In constructor ‘AffineApplyNormalizer::AffineApplyNormalizer(mlir::AffineMap, llvm::ArrayRef<mlir::Value>, mlir::PatternRewriter&, mlir::DominanceInfo&)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:200:12: warning: unused variable ‘numSymbols’ [-Wunused-variable]
+  200 |   unsigned numSymbols = map.getNumSymbols();
+      |            ^~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp: In function ‘bool handle(mlir::PatternRewriter&, mlir::arith::CmpIOp, llvm::SmallVectorImpl<mlir::AffineExpr>&, llvm::SmallVectorImpl<bool>&, llvm::SmallVectorImpl<mlir::Value>&)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:1134:7: warning: this statement may fall through [-Wimplicit-fallthrough=]
+ 1134 |       }
+      |       ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:1136:3: note: here
+ 1136 |   case CmpIPredicate::sge:
+      |   ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:1172:7: warning: this statement may fall through [-Wimplicit-fallthrough=]
+ 1172 |       }
+      |       ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:1174:3: note: here
+ 1174 |   case CmpIPredicate::slt:
+      |   ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/AffineCFG.cpp:727:13: warning: ‘void setLocationAfter(mlir::PatternRewriter&, mlir::Value)’ defined but not used [-Wunused-function]
+  727 | static void setLocationAfter(PatternRewriter &b, mlir::Value val) {
+      |             ^~~~~~~~~~~~~~~~
+[19/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/CanonicalizeFor.cpp.o
+[20/74] Building CXX object lib/polygeist/CMakeFiles/obj.MLIRPolygeist.dir/Ops.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp: In member function ‘virtual mlir::LogicalResult ConstantRankReduction::matchAndRewrite(mlir::memref::AllocaOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:3088:32: warning: comparison of integer expressions of different signedness: ‘int64_t’ {aka ‘long int’} and ‘long unsigned int’ [-Wsign-compare]
+ 3088 |             if (opd.getValue() != std::get<1>(pair))
+      |                 ~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp: In member function ‘virtual mlir::LogicalResult MergeNestedAffineParallelIf::matchAndRewrite(mlir::affine::AffineParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:4408:30: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+ 4408 |         for (size_t i = 0; i < uboundGroup[pair.first]; i++) {
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp: In member function ‘virtual mlir::LogicalResult RemoveAffineParallelSingleIter::matchAndRewrite(mlir::affine::AffineParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:4889:28: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘ssize_t’ {aka ‘long int’} [-Wsign-compare]
+ 4889 |       for (size_t i = 0; i < idx; i++)
+      |                          ~~^~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:4893:28: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘ssize_t’ {aka ‘long int’} [-Wsign-compare]
+ 4893 |       for (size_t i = 0; i < idx; i++)
+      |                          ~~^~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp: In function ‘bool canConvertSubmapToSubView(mlir::polygeist::SubmapOp)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:5992:8: warning: variable ‘symbols’ set but not used [-Wunused-but-set-variable]
+ 5992 |   auto symbols = submapOp.getSymbols();
+      |        ^~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp: In member function ‘virtual mlir::LogicalResult EnhancedSubmapToSubviewOp::matchAndRewrite(mlir::polygeist::SubmapOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Ops.cpp:6364:12: warning: variable ‘transposeType’ set but not used [-Wunused-but-set-variable]
+ 6364 |       auto transposeType = MemRefType::get(
+      |            ^~~~~~~~~~~~~
+[21/74] Linking CXX static library lib/libMLIRPolygeist.a
+[22/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LoopRestructure.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp: In member function ‘RWrapper* Wrapper::getParent() const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp:55:18: warning: cast from type ‘const Wrapper*’ to type ‘mlir::Block*’ casts away qualifiers [-Wcast-qual]
+   55 |     Region *R = ((Block *)(this))->getParent();
+      |                  ^~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp: In member function ‘mlir::Block& Wrapper::operator*() const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp:58:44: warning: cast from type ‘const Wrapper*’ to type ‘mlir::Block*’ casts away qualifiers [-Wcast-qual]
+   58 |   mlir::Block &operator*() const { return *(Block *)(this); }
+      |                                            ^~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp: In member function ‘mlir::Block* Wrapper::operator->() const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LoopRestructure.cpp:59:44: warning: cast from type ‘const Wrapper*’ to type ‘mlir::Block*’ casts away qualifiers [-Wcast-qual]
+   59 |   mlir::Block *operator->() const { return (Block *)(this); }
+      |                                            ^~~~~~~~~~~~~~~
+[23/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/PolygeistMem2Reg.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp: In member function ‘bool {anonymous}::PolygeistMem2Reg::forwardStoreToLoad(mlir::Value, std::vector<Offset>, llvm::SmallVectorImpl<mlir::Operation*>&, mlir::DenseMap<mlir::Operation*, llvm::SmallVector<mlir::Operation*> >&)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp:1778:14: warning: variable ‘newop’ set but not used [-Wunused-but-set-variable]
+ 1778 |         auto newop = builder.create<cf::SwitchOp>(
+      |              ^~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp: In function ‘llvm::raw_ostream& operator<<(llvm::raw_ostream&, Offset)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp:169:1: warning: control reaches end of non-void function [-Wreturn-type]
+  169 | }
+      | ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp: In member function ‘Match Offset::matches(Offset) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp:130:3: warning: control reaches end of non-void function [-Wreturn-type]
+  130 |   }
+      |   ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp: In member function ‘bool Offset::operator<(Offset) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PolygeistMem2Reg.cpp:157:3: warning: control reaches end of non-void function [-Wreturn-type]
+  157 |   }
+      |   ^
+[24/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/PolygeistCanonicalize.cpp.o
+[25/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/OpenMPOpt.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/OpenMPOpt.cpp: In member function ‘virtual mlir::LogicalResult CombineParallel::matchAndRewrite(mlir::omp::ParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/OpenMPOpt.cpp:156:24: warning: suggest parentheses around assignment used as truth value [-Wparentheses]
+  156 |       if (prevParallel = dyn_cast<omp::ParallelOp>(prevOp)) {
+      |           ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/OpenMPOpt.cpp: In member function ‘virtual mlir::LogicalResult ParallelForInterchange::matchAndRewrite(mlir::omp::ParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/OpenMPOpt.cpp:221:11: warning: unused variable ‘newYield’ [-Wunused-variable]
+  221 |     auto *newYield = rewriter.clone(*yield);
+      |           ^~~~~~~~
+[26/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ParallelLICM.cpp.o
+[27/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/BarrierRemovalContinuation.cpp.o
+In file included from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/BarrierRemovalContinuation.cpp:30:
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:97:13: warning: ‘mlir::Value allocateTemporaryBuffer(mlir::OpBuilder&, mlir::Value, mlir::ValueRange, bool, mlir::DataLayout*) [with T = mlir::LLVM::CallOp]’ defined but not used [-Wunused-function]
+   97 | mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:78:13: warning: ‘mlir::Value allocateTemporaryBuffer(mlir::OpBuilder&, mlir::Value, mlir::ValueRange, bool, mlir::DataLayout*) [with T = mlir::LLVM::AllocaOp]’ defined but not used [-Wunused-function]
+   78 | mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[28/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ParallelLoopDistribute.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In function ‘void minCutCache(mlir::polygeist::BarrierOp, llvm::SetVector<mlir::Value>&, llvm::SetVector<mlir::Value>&)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:305:10: warning: variable ‘found’ set but not used [-Wunused-but-set-variable]
+  305 |     auto found = Orig.find(N);
+      |          ^~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::affine::AffineIfOp; ParallelOpType = mlir::scf::ParallelOp; bool UseMinCut = false]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+ 2073 |         auto cloned = rewriter.clone(*op, mapping);
+      |              ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::scf::IfOp; ParallelOpType = mlir::scf::ParallelOp; bool UseMinCut = false]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::affine::AffineIfOp; ParallelOpType = mlir::affine::AffineParallelOp; bool UseMinCut = false]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::scf::IfOp; ParallelOpType = mlir::affine::AffineParallelOp; bool UseMinCut = false]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::affine::AffineIfOp; ParallelOpType = mlir::scf::ParallelOp; bool UseMinCut = true]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::scf::IfOp; ParallelOpType = mlir::scf::ParallelOp; bool UseMinCut = true]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::affine::AffineIfOp; ParallelOpType = mlir::affine::AffineParallelOp; bool UseMinCut = true]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: In instantiation of ‘mlir::LogicalResult {anonymous}::DistributeIfAroundBarrier<IfOpType, ParallelOpType, UseMinCut>::matchAndRewrite(IfOpType, mlir::PatternRewriter&) const [with IfOpType = mlir::scf::IfOp; ParallelOpType = mlir::affine::AffineParallelOp; bool UseMinCut = true]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2001:17:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:2073:14: warning: unused variable ‘cloned’ [-Wunused-variable]
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:1488:1: warning: ‘std::pair<mlir::Block*, llvm::ilist_iterator<llvm::ilist_detail::node_options<mlir::Operation, true, false, void>, false, false> > {anonymous}::findNearestPostDominatingInsertionPoint(llvm::ArrayRef<mlir::Value>, const mlir::PostDominanceInfo&)’ defined but not used [-Wunused-function]
+ 1488 | findNearestPostDominatingInsertionPoint(
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:136:13: warning: ‘void getIndVars(mlir::Operation*, llvm::SmallPtrSet<mlir::Value, 3>&)’ defined but not used [-Wunused-function]
+  136 | static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
+      |             ^~~~~~~~~~
+In file included from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopDistribute.cpp:26:
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:97:13: warning: ‘mlir::Value allocateTemporaryBuffer(mlir::OpBuilder&, mlir::Value, mlir::ValueRange, bool, mlir::DataLayout*) [with T = mlir::LLVM::CallOp]’ defined but not used [-Wunused-function]
+   97 | mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[29/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/RaiseToAffine.cpp.o
+[30/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/RemoveIterArgs.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RemoveIterArgs.cpp: In function ‘mlir::LogicalResult RemoveIterArgsHelpers::pullOperationsIntoLoop(mlir::IRMapping&, llvm::SmallVectorImpl<std::pair<mlir::Operation*, mlir::Value> >&, mlir::Value, mlir::Value, mlir::Operation*, mlir::PatternRewriter&, mlir::Location, mlir::Value&)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RemoveIterArgs.cpp:213:10: warning: variable ‘newBody’ set but not used [-Wunused-but-set-variable]
+  213 |   Block *newBody = nullptr;
+      |          ^~~~~~~
+[31/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/FoldSCFIf.cpp.o
+[32/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/RaiseToLinalg.cpp.o
+In file included from /usr/include/c++/11/cassert:44,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/ProfileSummary.h:17,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/Module.h:30,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMDialect.h:37,
+                 from /home/arjaiswal/Polygeist-section42/include/polygeist/Ops.h:14,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PassDetails.h:21,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:1:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In function ‘mlir::Value remap_in_affine_dim(bool&, mlir::OpBuilder&, mlir::AffineMap, mlir::Value, mlir::Value, mlir::Value, mlir::affine::AffineApplyOp, int, mlir::ValueRange, mlir::Value, bool&, bool)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:629:16: warning: comparison of integer expressions of different signedness: ‘std::tuple_element<0, std::tuple<long unsigned int, mlir::Value> >::type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  629 |       assert(i < firstNDims);
+      |              ~~^~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:632:14: warning: comparison of integer expressions of different signedness: ‘std::tuple_element<0, std::tuple<long unsigned int, mlir::Value> >::type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  632 |     assert(i >= firstNDims);
+      |            ~~^~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:704:21: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+  704 |   for (int i = 0; i < oldmap.getNumDims(); i++) {
+      |                   ~~^~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:727:21: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+  727 |   for (int i = 0; i < oldmap.getNumSymbols(); i++) {
+      |                   ~~^~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In member function ‘virtual mlir::LogicalResult AffineForOpRaising::matchAndRewrite(mlir::affine::AffineForOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3181:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+ 3181 |         for (int i = 0; i < lgMap.getNumDims(); i++) {
+      |                         ~~^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3253:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+ 3253 |         for (int i = 0; i < lgMap.getNumDims(); i++) {
+      |                         ~~^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:2832:10: warning: variable ‘module’ set but not used [-Wunused-but-set-variable]
+ 2832 |     auto module = loop->getParentOfType<ModuleOp>();
+      |          ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3126:13: warning: unused variable ‘step’ [-Wunused-variable]
+ 3126 |     int64_t step = loop.getStep();
+      |             ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3129:16: warning: variable ‘ubExpr’ set but not used [-Wunused-but-set-variable]
+ 3129 |     AffineExpr ubExpr = ubMap.getResult(0);
+      |                ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3133:16: warning: variable ‘lbExpr’ set but not used [-Wunused-but-set-variable]
+ 3133 |     AffineExpr lbExpr = lbMap.getResult(0);
+      |                ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3629:10: warning: variable ‘func’ set but not used [-Wunused-but-set-variable]
+ 3629 |     auto func = loop->getParentOfType<func::FuncOp>();
+      |          ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In member function ‘virtual mlir::LogicalResult AffineParallelFission::matchAndRewrite(mlir::affine::AffineParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3649:10: warning: variable ‘module’ set but not used [-Wunused-but-set-variable]
+ 3649 |     auto module = parallelOp->getParentOfType<ModuleOp>();
+      |          ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:1979:13: warning: ‘void shiftLinalgIndexDims(mlir::Region&, unsigned int)’ defined but not used [-Wunused-function]
+ 1979 | static void shiftLinalgIndexDims(Region &region, unsigned shift) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+[33/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LowerKernelLaunch.cpp.o
+[34/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LinalgDebufferize.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LinalgDebufferize.cpp: In lambda function:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LinalgDebufferize.cpp:1389:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<mlir::Operation*, std::allocator<mlir::Operation*> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 1389 |           if (userIdx < expandedUserList.size()) {
+      |               ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LinalgDebufferize.cpp: In member function ‘virtual void {anonymous}::LinalgDebufferize::runOnOperation()’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/LinalgDebufferize.cpp:3005:8: warning: variable ‘module’ set but not used [-Wunused-but-set-variable]
+ 3005 |   auto module = getOperation()->getParentOfType<ModuleOp>();
+      |        ^~~~~~
+[35/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LowerPolygeistSubmap.cpp.o
+[36/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/PlanPersistentGpuWorkspace.cpp.o
+[37/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/WrapKernelLaunchPipeline.cpp.o
+[38/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ComposeCutensornetNetworks.cpp.o
+[39/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/PrepareGpuResidualPipeline.cpp.o
+[40/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/KernelLaunchLoweringUtils.cpp.o
+[41/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LowerKernelLaunchToPVA.cpp.o
+[42/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/TrivialUse.cpp.o
+[43/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LinalgToKernel.cpp.o
+[44/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LowerKernelLaunchToCuBLAS.cpp.o
+[45/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ParallelLower.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp: In lambda function:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp:1031:14: warning: variable ‘loc’ set but not used [-Wunused-but-set-variable]
+ 1031 |         auto loc = call->getLoc();
+      |              ^~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp: In instantiation of ‘void replaceCallOp(mlir::ModuleOp, CallOpTy, llvm::StringRef) [with CallOpTy = mlir::LLVM::CallOp; FuncOpTy = mlir::LLVM::LLVMFuncOp]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp:1010:50:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp:983:8: warning: variable ‘loc’ set but not used [-Wunused-but-set-variable]
+  983 |   auto loc = call->getLoc();
+      |        ^~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp: In instantiation of ‘void replaceCallOp(mlir::ModuleOp, CallOpTy, llvm::StringRef) [with CallOpTy = mlir::func::CallOp; FuncOpTy = mlir::func::FuncOp]’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp:1017:40:   required from here
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLower.cpp:983:8: warning: variable ‘loc’ set but not used [-Wunused-but-set-variable]
+[46/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/InnerSerialization.cpp.o
+[47/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ForBreakToWhile.cpp.o
+[48/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/SerializeToCubin.cpp.o
+[49/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/SerializeToHsaco.cpp.o
+[50/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ParallelLoopUnroll.cpp.o
+In file included from /usr/include/c++/11/cassert:44,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/ProfileSummary.h:17,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/Module.h:30,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMDialect.h:37,
+                 from /home/arjaiswal/Polygeist-section42/include/polygeist/Ops.h:14,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PassDetails.h:21,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp:13:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp: In function ‘mlir::LogicalResult mlir::polygeist::scfParallelUnrollByFactor(mlir::scf::ParallelOp&, uint64_t, unsigned int, bool, bool, mlir::function_ref<void(unsigned int, mlir::Operation*, mlir::OpBuilder)>)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp:307:14: warning: comparison of unsigned expression in ‘>= 0’ is always true [-Wtype-limits]
+  307 |   assert(dim >= 0 && dim < pop.getUpperBound().size());
+      |          ~~~~^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp:291:14: warning: ‘mlir::Value ceilDivPositive(mlir::OpBuilder&, mlir::Location, mlir::Value, mlir::Value)’ defined but not used [-Wunused-function]
+  291 | static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
+      |              ^~~~~~~~~~~~~~~
+In file included from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.cpp:34:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ParallelLoopUnroll.h:9:22: warning: ‘mlir::LogicalResult mlir::polygeist::scfParallelUnrollByFactors(mlir::scf::ParallelOp&, llvm::ArrayRef<long unsigned int>, bool, bool, mlir::function_ref<void(unsigned int, mlir::Operation*, mlir::OpBuilder)>)’ defined but not used [-Wunused-function]
+    9 | static LogicalResult scfParallelUnrollByFactors(
+      |                      ^~~~~~~~~~~~~~~~~~~~~~~~~~
+[51/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ConvertParallelToGPU.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:159:6: warning: ‘void {anonymous}::insertReturn(mlir::PatternRewriter&, mlir::LLVM::LLVMFuncOp)’ defined but not used [-Wunused-function]
+  159 | void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
+      |      ^~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:156:6: warning: ‘void {anonymous}::insertReturn(mlir::PatternRewriter&, mlir::func::FuncOp)’ defined but not used [-Wunused-function]
+  156 | void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
+      |      ^~~~~~~~~~~~
+In file included from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:30:
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:97:13: warning: ‘mlir::Value allocateTemporaryBuffer(mlir::OpBuilder&, mlir::Value, mlir::ValueRange, bool, mlir::DataLayout*) [with T = mlir::LLVM::CallOp]’ defined but not used [-Wunused-function]
+   97 | mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:78:13: warning: ‘mlir::Value allocateTemporaryBuffer(mlir::OpBuilder&, mlir::Value, mlir::ValueRange, bool, mlir::DataLayout*) [with T = mlir::LLVM::AllocaOp]’ defined but not used [-Wunused-function]
+   78 | mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/include/polygeist/BarrierUtils.h:28:1: warning: ‘llvm::SmallVector<mlir::Value> emitIterationCounts(mlir::OpBuilder&, mlir::scf::ParallelOp)’ defined but not used [-Wunused-function]
+   28 | emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
+      | ^~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp: In member function ‘virtual void {anonymous}::ConvertParallelToGPU1Pass::runOnOperation()’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:1788:18: warning: ‘x’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1788 |         uint64_t x, y, z;
+      |                  ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:1788:21: warning: ‘y’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1788 |         uint64_t x, y, z;
+      |                     ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:1791:29: warning: ‘x’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1791 |           return fun(x, dims);
+      |                             ^
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertParallelToGPU.cpp:1788:21: warning: ‘y’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1788 |         uint64_t x, y, z;
+      |                     ^
+[52/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/LowerAlternatives.cpp.o
+[53/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/ConvertPolygeistToLLVM.cpp.o
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: In member function ‘virtual mlir::LogicalResult {anonymous}::AsyncOpLowering::matchAndRewrite(mlir::async::ExecuteOp, mlir::ConvertOpToLLVMPattern<mlir::async::ExecuteOp>::OpAdaptor, mlir::ConversionPatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:764:14: warning: variable ‘ST’ set but not used [-Wunused-but-set-variable]
+  764 |         auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
+      |              ^~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: In member function ‘virtual mlir::LogicalResult {anonymous}::CAllocOpLowering::matchAndRewrite(mlir::memref::AllocOp, mlir::ConvertOpToLLVMPattern<mlir::memref::AllocOp>::OpAdaptor, mlir::ConversionPatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:1036:11: warning: variable ‘null’ set but not used [-Wunused-but-set-variable]
+ 1036 |     Value null = rewriter.create<LLVM::ZeroOp>(loc, convertedType);
+      |           ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: In lambda function:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:1517:12: warning: variable ‘gatherLLVMInfos’ set but not used [-Wunused-but-set-variable]
+ 1517 |       auto gatherLLVMInfos = [&](Operation *gpuFunc) -> kernelLLVMInfoTy {
+      |            ^~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: In member function ‘mlir::Value {anonymous}::ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateParamsArray(mlir::gpu::LaunchFuncOp, mlir::ConvertOpToLLVMPattern<mlir::gpu::LaunchFuncOp>::OpAdaptor, mlir::OpBuilder&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:1956:54: warning: narrowing conversion of ‘(& en)->llvm::detail::enumerator_result<long unsigned int, mlir::Value&>::index()’ from ‘std::size_t’ {aka ‘long unsigned int’} to ‘int32_t’ {aka ‘int’} [-Wnarrowing]
+ 1956 |         structPtr, ArrayRef<LLVM::GEPArg>{0, en.index()});
+      |                                              ~~~~~~~~^~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:1960:40: warning: narrowing conversion of ‘(& en)->llvm::detail::enumerator_result<long unsigned int, mlir::Value&>::index()’ from ‘std::size_t’ {aka ‘long unsigned int’} to ‘int32_t’ {aka ‘int’} [-Wnarrowing]
+ 1960 |         ArrayRef<LLVM::GEPArg>{en.index()});
+      |                                ~~~~~~~~^~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: In member function ‘virtual mlir::LogicalResult {anonymous}::ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(mlir::gpu::LaunchFuncOp, mlir::ConvertOpToLLVMPattern<mlir::gpu::LaunchFuncOp>::OpAdaptor, mlir::ConversionPatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2226:16: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+ 2226 |           auto ret = rtRegisterFunctionCallBuilder.create(
+      |                ^~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2264:16: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+ 2264 |           auto ret = rtRegisterVarCallBuilder.create(
+      |                ^~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2104:19: warning: variable ‘fatbinConstantName’ set but not used [-Wunused-but-set-variable]
+ 2104 |       const char *fatbinConstantName;
+      |                   ^~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2106:19: warning: variable ‘moduleIDSectionName’ set but not used [-Wunused-but-set-variable]
+ 2106 |       const char *moduleIDSectionName;
+      |                   ^~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2056:8: warning: variable ‘getFuncGlobalName’ set but not used [-Wunused-but-set-variable]
+ 2056 |   auto getFuncGlobalName = [](StringRef moduleName, StringRef name) {
+      |        ^~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2321:8: warning: variable ‘nullpointerpointer’ set but not used [-Wunused-but-set-variable]
+ 2321 |   auto nullpointerpointer =
+      |        ^~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2521:1: warning: ‘mlir::LogicalResult {anonymous}::isAsyncWithOneDependency(mlir::ConversionPatternRewriter&, mlir::gpu::AsyncOpInterface)’ defined but not used [-Wunused-function]
+ 2521 | isAsyncWithOneDependency(ConversionPatternRewriter &rewriter,
+      | ^~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/ConvertPolygeistToLLVM.cpp:2509:1: warning: ‘mlir::LogicalResult {anonymous}::isAsyncWithZeroDependencies(mlir::ConversionPatternRewriter&, mlir::gpu::AsyncOpInterface)’ defined but not used [-Wunused-function]
+ 2509 | isAsyncWithZeroDependencies(ConversionPatternRewriter &rewriter,
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+[54/74] Building CXX object lib/polygeist/Kernel/CMakeFiles/obj.MLIRPolygeistKernel.dir/KernelDialect.cpp.o
+[55/74] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/CollectKernelStatistics.cpp.o
+[56/74] Building CXX object lib/polygeist/Kernel/CMakeFiles/obj.MLIRPolygeistKernel.dir/KernelBufferizableOpInterfaceImpl.cpp.o
+[57/74] Building CXX object lib/polygeist/Kernel/CMakeFiles/obj.MLIRPolygeistKernel.dir/KernelOps.cpp.o
+[58/74] Linking CXX static library lib/libMLIRPolygeistKernel.a
+[59/74] Linking CXX static library lib/libMLIRPolygeistTransforms.a
+[60/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/home/arjaiswal/Polygeist/llvm-project/clang/tools/driver/cc1_main.cpp.o
+[61/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/home/arjaiswal/Polygeist/llvm-project/clang/tools/driver/cc1as_main.cpp.o
+/home/arjaiswal/Polygeist/llvm-project/clang/tools/driver/cc1as_main.cpp: In function ‘bool ExecuteAssemblerImpl({anonymous}::AssemblerInvocation&, clang::DiagnosticsEngine&)’:
+/home/arjaiswal/Polygeist/llvm-project/clang/tools/driver/cc1as_main.cpp:583:23: warning: ‘Value’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  583 |     Ctx.setSymbolValue(Parser->getStreamer(), Sym, Value);
+      |     ~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[62/74] Building CXX object tools/polygeist-opt/CMakeFiles/polygeist-opt.dir/polygeist-opt.cpp.o
+[63/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/home/arjaiswal/Polygeist/llvm-project/clang/tools/driver/cc1gen_reproducer_main.cpp.o
+[64/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/CGStmt.cc.o
+[65/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/AffineUtils.cc.o
+[66/74] Linking CXX executable bin/polygeist-opt
+[67/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/pragmaHandler.cc.o
+[68/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/ValueCategory.cc.o
+[69/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/TypeUtils.cc.o
+[70/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/utils.cc.o
+[71/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/IfScope.cc.o
+[72/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/driver.cc.o
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc: In function ‘int ExecuteCC1Tool(llvm::SmallVectorImpl<const char*>&, const llvm::ToolContext&)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:346: warning: ‘llvm::ArrayRef<T> llvm::makeArrayRef(const llvm::SmallVectorImpl<T>&) [with T = const char*]’ is deprecated: Use deduction guide instead [-Wdeprecated-declarations]
+  346 |     return cc1_main(makeArrayRef(ArgV).slice(1), ArgV[0], GetExecutablePathVP);
+      | 
+In file included from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/Option/ArgList.h:12,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Types.h:14,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Action.h:13,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/../../lib/Driver/ToolChains/Cuda.h:13,
+                 from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:13:
+/home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/ADT/ArrayRef.h:533:15: note: declared here
+  533 |   ArrayRef<T> makeArrayRef(const SmallVectorImpl<T> &Vec) {
+      |               ^~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:348: warning: ‘llvm::ArrayRef<T> llvm::makeArrayRef(const llvm::SmallVectorImpl<T>&) [with T = const char*]’ is deprecated: Use deduction guide instead [-Wdeprecated-declarations]
+  348 |     return cc1as_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+      | 
+In file included from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/Option/ArgList.h:12,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Types.h:14,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Action.h:13,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/../../lib/Driver/ToolChains/Cuda.h:13,
+                 from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:13:
+/home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/ADT/ArrayRef.h:533:15: note: declared here
+  533 |   ArrayRef<T> makeArrayRef(const SmallVectorImpl<T> &Vec) {
+      |               ^~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:351: warning: ‘llvm::ArrayRef<T> llvm::makeArrayRef(const llvm::SmallVectorImpl<T>&) [with T = const char*]’ is deprecated: Use deduction guide instead [-Wdeprecated-declarations]
+  351 |     return cc1gen_reproducer_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+      | 
+In file included from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/Option/ArgList.h:12,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Types.h:14,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/Driver/Action.h:13,
+                 from /home/arjaiswal/Polygeist/llvm-project/clang/include/clang/../../lib/Driver/ToolChains/Cuda.h:13,
+                 from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:13:
+/home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/ADT/ArrayRef.h:533:15: note: declared here
+  533 |   ArrayRef<T> makeArrayRef(const SmallVectorImpl<T> &Vec) {
+      |               ^~~~~~~~~~~~
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator*)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:2955: warning: unused variable ‘cty’ [-Wunused-variable]
+ 2955 |     if (auto cty = dyn_cast<clang::ComplexType>(BO->getType())) {
+      | 
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘ValueCategory MLIRScanner::VisitCastExpr(clang::CastExpr*)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:4491: warning: variable ‘complex’ set but not used [-Wunused-but-set-variable]
+ 4491 |     auto complex = sub.val;
+      | 
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘std::pair<mlir::memref::GlobalOp, bool> MLIRASTConsumer::GetOrCreateGlobal(const clang::ValueDecl*, std::string, bool)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:4952: warning: variable ‘rt’ set but not used [-Wunused-but-set-variable]
+ 4952 |   auto rt = getMLIRType(FD->getType(), &isArray);
+      | 
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc: In function ‘int main(int, char**)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:624: warning: variable ‘optLevel’ set but not used [-Wunused-but-set-variable]
+  624 |   int optLevel = 0;
+      | 
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const clang::FunctionDecl*, bool)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:5333: warning: ‘lnk’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 5333 |             mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
+      | 
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr*, clang::VarDecl*, unsigned int, mlir::Value, mlir::Value)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:1679: warning: ‘oldblock’ is used uninitialized [-Wuninitialized]
+ 1679 |   mlir::Block *oldblock;
+      | 
+In file included from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/IR/PatternMatch.h:12,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Interfaces/MemorySlotInterfaces.h:14,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMTypes.h:19,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMAttrs.h:17,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMDialect.h:18,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Conversion/GPUCommon/GPUCommonPass.h:12,
+                 from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:26:
+/home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/IR/Builders.h: In member function ‘mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const clang::ValueDecl*, std::string)’:
+/home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/IR/Builders.h:494:16: warning: ‘lnk’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  494 |     OpTy::build(*this, state, std::forward<Args>(args)...);
+      |     ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:4809: note: ‘lnk’ was declared here
+ 4809 |   LLVM::Linkage lnk;
+      | 
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/driver.cc:456:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc: In member function ‘std::pair<mlir::memref::GlobalOp, bool> MLIRASTConsumer::GetOrCreateGlobal(const clang::ValueDecl*, std::string, bool)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/clang-mlir.cc:5023: warning: ‘lnk’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 5023 |   SymbolTable::setSymbolVisibility(globalOp, lnk);
+      | 
+[73/74] Building CXX object tools/cgeist/CMakeFiles/cgeist.dir/Lib/CGCall.cc.o
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc: In member function ‘std::pair<ValueCategory, bool> MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr*)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:552:12: warning: variable ‘PT’ set but not used [-Wunused-but-set-variable]
+  552 |       auto PT = ty.cast<LLVM::LLVMPointerType>();
+      |            ^~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:602:10: warning: variable ‘postTy’ set but not used [-Wunused-but-set-variable]
+  602 |     auto postTy = getMLIRType(expr->getType());
+      |          ^~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:502:8: warning: variable ‘failure’ set but not used [-Wunused-but-set-variable]
+  502 |   auto failure = [&]() { return make_pair(ValueCategory(), false); };
+      |        ^~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc: In member function ‘ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr*)’:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:1728:15: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<clang::QualType, std::allocator<clang::QualType> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 1728 |         if (i < types.size())
+      |             ~~^~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:1807:15: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<clang::QualType, std::allocator<clang::QualType> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 1807 |         if (i < types.size()) {
+      |             ~~^~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:1833:15: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+ 1833 |         if (i < FI->arg_size()) {
+      |             ~~^~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Lib/CGCall.cc:1767:12: warning: variable ‘CT’ set but not used [-Wunused-but-set-variable]
+ 1767 |       auto CT = expr->getType();
+      |            ^~
+[74/74] Linking CXX executable bin/cgeist
+[1/3] Building CXX object lib/polygeist/Passes/CMakeFiles/obj.MLIRPolygeistTransforms.dir/RaiseToLinalg.cpp.o
+In file included from /usr/include/c++/11/cassert:44,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/ProfileSummary.h:17,
+                 from /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/IR/Module.h:30,
+                 from /home/arjaiswal/Polygeist/llvm-project/mlir/include/mlir/Dialect/LLVMIR/LLVMDialect.h:37,
+                 from /home/arjaiswal/Polygeist-section42/include/polygeist/Ops.h:14,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/PassDetails.h:21,
+                 from /home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:1:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In function ‘mlir::Value remap_in_affine_dim(bool&, mlir::OpBuilder&, mlir::AffineMap, mlir::Value, mlir::Value, mlir::Value, mlir::affine::AffineApplyOp, int, mlir::ValueRange, mlir::Value, bool&, bool)’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:633:16: warning: comparison of integer expressions of different signedness: ‘std::tuple_element<0, std::tuple<long unsigned int, mlir::Value> >::type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  633 |       assert(i < firstNDims);
+      |              ~~^~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:636:14: warning: comparison of integer expressions of different signedness: ‘std::tuple_element<0, std::tuple<long unsigned int, mlir::Value> >::type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  636 |     assert(i >= firstNDims);
+      |            ~~^~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:708:21: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+  708 |   for (int i = 0; i < oldmap.getNumDims(); i++) {
+      |                   ~~^~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:731:21: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+  731 |   for (int i = 0; i < oldmap.getNumSymbols(); i++) {
+      |                   ~~^~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In member function ‘virtual mlir::LogicalResult AffineForOpRaising::matchAndRewrite(mlir::affine::AffineForOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3185:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+ 3185 |         for (int i = 0; i < lgMap.getNumDims(); i++) {
+      |                         ~~^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3257:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+ 3257 |         for (int i = 0; i < lgMap.getNumDims(); i++) {
+      |                         ~~^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:2836:10: warning: variable ‘module’ set but not used [-Wunused-but-set-variable]
+ 2836 |     auto module = loop->getParentOfType<ModuleOp>();
+      |          ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3130:13: warning: unused variable ‘step’ [-Wunused-variable]
+ 3130 |     int64_t step = loop.getStep();
+      |             ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3133:16: warning: variable ‘ubExpr’ set but not used [-Wunused-but-set-variable]
+ 3133 |     AffineExpr ubExpr = ubMap.getResult(0);
+      |                ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3137:16: warning: variable ‘lbExpr’ set but not used [-Wunused-but-set-variable]
+ 3137 |     AffineExpr lbExpr = lbMap.getResult(0);
+      |                ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3633:10: warning: variable ‘func’ set but not used [-Wunused-but-set-variable]
+ 3633 |     auto func = loop->getParentOfType<func::FuncOp>();
+      |          ^~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: In member function ‘virtual mlir::LogicalResult AffineParallelFission::matchAndRewrite(mlir::affine::AffineParallelOp, mlir::PatternRewriter&) const’:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:3653:10: warning: variable ‘module’ set but not used [-Wunused-but-set-variable]
+ 3653 |     auto module = parallelOp->getParentOfType<ModuleOp>();
+      |          ^~~~~~
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp: At global scope:
+/home/arjaiswal/Polygeist-section42/lib/polygeist/Passes/RaiseToLinalg.cpp:1983:13: warning: ‘void shiftLinalgIndexDims(mlir::Region&, unsigned int)’ defined but not used [-Wunused-function]
+ 1983 | static void shiftLinalgIndexDims(Region &region, unsigned shift) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+[2/3] Linking CXX static library lib/libMLIRPolygeistTransforms.a
+[3/3] Linking CXX executable bin/polygeist-opt

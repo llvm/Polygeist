@@ -19,7 +19,10 @@ printf 'kernel,status,build_rc,run_rc,compare_rc,reference_sha256,candidate_sha2
 # These are the rows whose matches include at least one CBLAS operation.
 # 3mm is cuTensorNet-only; covariance and deriche are memset-only and are not
 # represented as OpenBLAS/CBLAS configurations.
-for kernel in 2mm atax bicg doitgen gemm gemver gesummv gramschmidt mvt; do
+default_kernels=(2mm atax bicg doitgen gemm gemver gesummv gramschmidt mvt)
+kernels=("${default_kernels[@]}")
+if [[ $# -gt 0 ]]; then kernels=("$@"); fi
+for kernel in "${kernels[@]}"; do
   source_rel=$(awk -F, -v k="$kernel" '$1==k {print $3}' "$result_root/manifest.csv")
   source="$repo/$source_rel"
   function="kernel_${kernel//-/_}"

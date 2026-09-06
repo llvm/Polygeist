@@ -10,6 +10,7 @@ build=/tmp/polygeist-section42-build
 cpu=${POLYBENCH_TIMING_CPU:-21}
 skip_native=${POLYBENCH_SKIP_NATIVE:-0}
 start_at=${POLYBENCH_START_AT:-}
+library_only=${POLYBENCH_LIBRARY_ONLY:-0}
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export PATH="$build/bin:$llvm:$PATH"
@@ -43,6 +44,7 @@ run_samples() {
 }
 
 started=0
+if [[ "$library_only" != 1 ]]; then
 while IFS=, read -r kernel category source_rel dataset datatype hash native raise matcher residual rest; do
   [[ "$kernel" == kernel || "$residual" != pass ]] && continue
   if [[ -n "$start_at" && $started -eq 0 ]]; then
@@ -90,8 +92,12 @@ while IFS=, read -r kernel category source_rel dataset datatype hash native rais
   fi
   printf '%s,raised_residual_cpu,%s,%d,%s,%s,1\n' "$kernel" "$residual_status" "$residual_build" 5 "$cpu" | tee -a "$summary"
 done < "$result_root/manifest.csv"
+fi
 
-for kernel in 2mm atax bicg gemm gemver gesummv mvt; do
+default_library_kernels=(2mm atax bicg gemm gemver gesummv mvt)
+library_kernels=("${default_library_kernels[@]}")
+if [[ $# -gt 0 ]]; then library_kernels=("$@"); fi
+for kernel in "${library_kernels[@]}"; do
   source_rel=$(awk -F, -v k="$kernel" '$1==k {print $3}' "$result_root/manifest.csv")
   source="$repo/$source_rel"
   function="kernel_${kernel//-/_}"

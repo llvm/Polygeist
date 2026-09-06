@@ -15,7 +15,9 @@ NUMBER = re.compile(
 def values(path: Path) -> list[float]:
     result: list[float] = []
     for line in path.read_text(errors="replace").splitlines():
-        if "DUMP_ARRAYS" in line or "dump:" in line:
+        if ("DUMP_ARRAYS" in line or "dump:" in line or
+                "POLYBENCH_NATIVE_GPU_TIMING" in line or
+                "POLYGEIST_DEVICE_TIMING" in line):
             continue
         result.extend(float(token) for token in NUMBER.findall(line))
     return result

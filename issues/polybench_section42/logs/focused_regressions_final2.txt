@@ -1,0 +1,53 @@
+-- Testing: 6 of 180 tests, 6 workers --
+PASS: polygeist :: polygeist-opt/raise-hoist-index-only.mlir (1 of 6)
+PASS: polygeist :: scripts/polybench-e2e-config.c (2 of 6)
+PASS: polygeist :: scripts/gen-wrapper-cuda-timing.c (3 of 6)
+FAIL: polygeist :: scripts/compare-polybench-dumps.c (4 of 6)
+******************** TEST 'polygeist :: scripts/compare-polybench-dumps.c' FAILED ********************
+Exit Code: 1
+
+Command Output (stderr):
+--
+RUN: at line 1: /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-close.txt | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=PASS
++ /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-close.txt
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=PASS
+RUN: at line 2: not /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-far.txt | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=FAIL
++ not /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-far.txt
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=FAIL
+RUN: at line 3: not /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-nan.txt | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=NAN
++ not /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/compare_polybench_dumps.py /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-reference.txt /home/arjaiswal/Polygeist-section42/test/scripts/Inputs/polybench-dump-nan.txt
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c --check-prefix=NAN
+/home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c:7:9: error: NAN: expected string not found in input
+// NAN: FAIL values=3 failures=1
+        ^
+<stdin>:1:1: note: scanning from here
+FAIL values=3 failures=3 max_abs=449.34 max_rel=2.5 rtol=0.0005 atol=0.011
+^
+
+Input file: <stdin>
+Check file: /home/arjaiswal/Polygeist-section42/test/scripts/compare-polybench-dumps.c
+
+-dump-input=help explains the following input dump.
+
+Input was:
+<<<<<<
+         1: FAIL values=3 failures=3 max_abs=449.34 max_rel=2.5 rtol=0.0005 atol=0.011 
+check:7     X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ error: no match found
+         2: first_failure index=0 reference=450.34 candidate=1.0 
+check:7     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+>>>>>>
+
+--
+
+********************
+PASS: polygeist :: scripts/kernel-match-composition-root-rewire.mlir (5 of 6)
+PASS: polygeist :: runtime/cblas-runtime-compiles.c (6 of 6)
+********************
+Failed Tests (1):
+  polygeist :: scripts/compare-polybench-dumps.c
+
+
+Testing Time: 2.47s
+  Excluded: 174
+  Passed  :   5
+  Failed  :   1

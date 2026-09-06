@@ -1,0 +1,16 @@
+[polygeist] input=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen/doitgen.c  function=kernel_doitgen  target=jetson  output=/tmp/polybench-section42-doitgen-jetson-correctness
+[polygeist] harness=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen/doitgen.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS
+  [1-4/9] reuse stored semantic MLIR: /home/arjaiswal/Polygeist-section42/issues/polybench_section42/ir/doitgen/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 6 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+ERROR: mlir-opt lowering failed; see /tmp/tmp.lgPUSU9ntj/mlir.err
+/tmp/tmp.lgPUSU9ntj/abi_canon.mlir:49:9: error: Yield operand #0 is not equivalent to the corresponding iter bbArg
+        affine.yield %25, %inserted_slice : tensor<?xf64>, tensor<?x?x?xf64>
+        ^
+/tmp/tmp.lgPUSU9ntj/abi_canon.mlir:49:9: note: see current operation: "scf.yield"(%38, %41) : (tensor<?xf64>, tensor<?x?x?xf64>) -> ()
+/tmp/tmp.lgPUSU9ntj/abi_canon.mlir:51:7: error: Yield operand #0 is not equivalent to the corresponding iter bbArg
+      affine.yield %8#0, %8#1 : tensor<?xf64>, tensor<?x?x?xf64>
+      ^
+/tmp/tmp.lgPUSU9ntj/abi_canon.mlir:51:7: note: see current operation: "scf.yield"(%14#0, %14#1) : (tensor<?xf64>, tensor<?x?x?xf64>) -> ()

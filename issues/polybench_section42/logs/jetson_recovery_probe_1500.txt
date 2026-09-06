@@ -1,0 +1,5 @@
+[N/A], [N/A]
+-rwxr-xr-x 1 nvidia nvidia 31544 Sep  5 21:27 /tmp/polybench-section42-covariance-jetson-correctness
+rc=134
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:1055 cuda error: CUDA-capable device(s) is/are busy or unavailable
+timeout: the monitored command dumped core

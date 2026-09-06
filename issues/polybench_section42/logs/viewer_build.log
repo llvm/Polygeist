@@ -1,0 +1,21 @@
+Rendering 30 PolyBench kernels...
+  [PB  1/30] 2mm
+Traceback (most recent call last):
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/build_ce_viewer.py", line 6825, in <module>
+    main()
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/build_ce_viewer.py", line 6615, in main
+    pb_stats[k] = build_kernel_page(k, mlir_dir=MLIR_DIR,
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/build_ce_viewer.py", line 2221, in build_kernel_page
+    rewritten, report = run_rewriter(debuf)
+                        ^^^^^^^^^^^^^^^^^^^
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/build_ce_viewer.py", line 1948, in run_rewriter
+    raise RuntimeError(
+RuntimeError: kernel matcher failed for /tmp/polybench_new/2mm_debuf.mlir with /home/arjaiswal/slacker/.venv/bin/python3:
+Traceback (most recent call last):
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/kernel_match_rewrite.py", line 27, in <module>
+    from kernel_match import (
+  File "/home/arjaiswal/Polygeist-section42/scripts/correctness/kernel_match.py", line 28, in <module>
+    from egglog import EGraph, Expr, StringLike, f64, f64Like, i64Like, rewrite, ruleset, vars_
+ModuleNotFoundError: No module named 'egglog'
+

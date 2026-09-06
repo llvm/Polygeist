@@ -1,0 +1,6 @@
+-- Testing: 2 tests, 2 workers --
+PASS: polygeist :: scripts/polybench-viewer-four-runtimes.c (1 of 2)
+PASS: polygeist :: scripts/compare-polybench-dumps.c (2 of 2)
+
+Testing Time: 0.23s
+  Passed: 2

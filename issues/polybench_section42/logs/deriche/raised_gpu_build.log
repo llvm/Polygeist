@@ -1,0 +1,25 @@
+[polygeist] input=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/medley/deriche/deriche.c  function=kernel_deriche  target=jetson  output=/tmp/polybench-section42-deriche-jetson-correctness
+[polygeist] harness=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/medley/deriche/deriche.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/medley/deriche -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS
+  [1-4/9] reuse stored semantic MLIR: /home/arjaiswal/Polygeist-section42/issues/polybench_section42/ir/deriche/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 9 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_deriche
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + minimal cuBLAS/CUDA runtime linkage
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c: In function ‘polygeist_cudnn_batchnorm_inference’:
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:5757:34: warning: passing argument 1 of ‘pointer_is_device_resident’ discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 5757 |   if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+      |                                  ^~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:772:45: note: expected ‘void *’ but argument is of type ‘const float *’
+  772 | static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+      |                                       ~~~~~~^~~
+         + polybench utility from /home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.c
+         exported link objects to /home/arjaiswal/Polygeist-section42/issues/polybench_section42/ir/deriche/raised_gpu
+  [9/9] link → /tmp/polybench-section42-deriche-jetson-correctness
+
+═══ build complete ═══
+/tmp/polybench-section42-deriche-jetson-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=6e321c205b63dc945e32cd7b4a42c58a9a70f22a, for GNU/Linux 3.7.0, not stripped

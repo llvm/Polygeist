@@ -15,7 +15,10 @@ export POLYGEIST_CUDA_TIMING_WRAPPER=1
 summary="$result_root/logs/raised_gpu_timing_summary.csv"
 printf 'kernel,status,build_rc,deploy_rc,samples\n' > "$summary"
 
-for kernel in 3mm atax bicg covariance deriche gemver gesummv gramschmidt mvt; do
+default_kernels=(3mm atax bicg covariance deriche gemver gesummv gramschmidt mvt)
+kernels=("${default_kernels[@]}")
+if [[ $# -gt 0 ]]; then kernels=("$@"); fi
+for kernel in "${kernels[@]}"; do
   source_rel=$(awk -F, -v k="$kernel" '$1==k {print $3}' "$result_root/manifest.csv")
   source="$repo/$source_rel"
   function="kernel_${kernel//-/_}"

@@ -1,0 +1,360 @@
+[1/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/DataAnalysis.cpp.o
+[2/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o
+FAILED: passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o 
+/usr/bin/c++  -I/usr/lib/llvm-14/include -I/tmp/polybench-section42-kernelfarer-9d04406/include -I/tmp/polybench-section42-kernelfarer-9d04406/passes/include -O3 -DNDEBUG -fPIC   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -MD -MT passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o -MF passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o.d -o passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o -c /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:69:31: error: template placeholder type ‘MatrixBuilder<...auto...>’ must be followed by a simple declarator-id
+   69 | Value *loadMatrixToFlatVector(MatrixBuilder &MBuilder, Type &EltTy,
+      |                               ^~~~~~~~~~~~~
+In file included from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:19:
+/usr/lib/llvm-14/include/llvm/IR/MatrixBuilder.h:33:36: note: ‘template<class IRBuilderTy> class llvm::MatrixBuilder’ declared here
+   33 | template <class IRBuilderTy> class MatrixBuilder {
+      |                                    ^~~~~~~~~~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:69:54: error: expected ‘)’ before ‘,’ token
+   69 | Value *loadMatrixToFlatVector(MatrixBuilder &MBuilder, Type &EltTy,
+      |                              ~                       ^
+      |                                                      )
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:69:61: error: expected initializer before ‘&’ token
+   69 | Value *loadMatrixToFlatVector(MatrixBuilder &MBuilder, Type &EltTy,
+      |                                                             ^
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:93:28: error: template placeholder type ‘MatrixBuilder<...auto...>’ must be followed by a simple declarator-id
+   93 | void storeFlatVectorMatrix(MatrixBuilder &MBuilder, Value &Matrix, Value &Dest,
+      |                            ^~~~~~~~~~~~~
+In file included from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:19:
+/usr/lib/llvm-14/include/llvm/IR/MatrixBuilder.h:33:36: note: ‘template<class IRBuilderTy> class llvm::MatrixBuilder’ declared here
+   33 | template <class IRBuilderTy> class MatrixBuilder {
+      |                                    ^~~~~~~~~~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:93:51: error: expected ‘)’ before ‘,’ token
+   93 | void storeFlatVectorMatrix(MatrixBuilder &MBuilder, Value &Matrix, Value &Dest,
+      |                           ~                       ^
+      |                                                   )
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:93:59: error: expected initializer before ‘&’ token
+   93 | void storeFlatVectorMatrix(MatrixBuilder &MBuilder, Value &Matrix, Value &Dest,
+      |                                                           ^
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp: In function ‘void {anonymous}::buildMMIntrinsicCall(llvm::IRBuilder<>&, const KernelFaRer::GEMM&)’:
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:351:39: error: ‘llvm::Type::~Type()’ is protected within this context
+  351 |   Value *AVec = loadMatrixToFlatVector(MBuilder, *AElType, APtr, *M, *K, *LDA,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  352 |                                        IsAColMajor, AAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/DerivedTypes.h:23,
+                 from /usr/lib/llvm-14/include/llvm/IR/Function.h:29,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:26,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Type.h:94:3: note: declared protected here
+   94 |   ~Type() = default;
+      |   ^
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:351:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  351 |   Value *AVec = loadMatrixToFlatVector(MBuilder, *AElType, APtr, *M, *K, *LDA,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  352 |                                        IsAColMajor, AAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:351:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  351 |   Value *AVec = loadMatrixToFlatVector(MBuilder, *AElType, APtr, *M, *K, *LDA,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  352 |                                        IsAColMajor, AAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:351:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  351 |   Value *AVec = loadMatrixToFlatVector(MBuilder, *AElType, APtr, *M, *K, *LDA,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  352 |                                        IsAColMajor, AAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:351:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  351 |   Value *AVec = loadMatrixToFlatVector(MBuilder, *AElType, APtr, *M, *K, *LDA,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  352 |                                        IsAColMajor, AAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:353:39: error: ‘llvm::Type::~Type()’ is protected within this context
+  353 |   Value *BVec = loadMatrixToFlatVector(MBuilder, *BElType, BPtr, *K, *N, *LDB,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  354 |                                        IsBColMajor, BAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/DerivedTypes.h:23,
+                 from /usr/lib/llvm-14/include/llvm/IR/Function.h:29,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:26,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Type.h:94:3: note: declared protected here
+   94 |   ~Type() = default;
+      |   ^
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:353:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  353 |   Value *BVec = loadMatrixToFlatVector(MBuilder, *BElType, BPtr, *K, *N, *LDB,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  354 |                                        IsBColMajor, BAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:353:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  353 |   Value *BVec = loadMatrixToFlatVector(MBuilder, *BElType, BPtr, *K, *N, *LDB,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  354 |                                        IsBColMajor, BAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:353:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  353 |   Value *BVec = loadMatrixToFlatVector(MBuilder, *BElType, BPtr, *K, *N, *LDB,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  354 |                                        IsBColMajor, BAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:353:39: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  353 |   Value *BVec = loadMatrixToFlatVector(MBuilder, *BElType, BPtr, *K, *N, *LDB,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  354 |                                        IsBColMajor, BAlign);
+      |                                        ~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:375:47: error: ‘llvm::Type::~Type()’ is protected within this context
+  375 |                   Beta, loadMatrixToFlatVector(MBuilder, *CElType, CPtr, *M, *N,
+      |                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  376 |                                                *LDC, IsCColMajor, CAlign)));
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/DerivedTypes.h:23,
+                 from /usr/lib/llvm-14/include/llvm/IR/Function.h:29,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:26,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Type.h:94:3: note: declared protected here
+   94 |   ~Type() = default;
+      |   ^
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:375:47: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  375 |                   Beta, loadMatrixToFlatVector(MBuilder, *CElType, CPtr, *M, *N,
+      |                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  376 |                                                *LDC, IsCColMajor, CAlign)));
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:375:47: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  375 |                   Beta, loadMatrixToFlatVector(MBuilder, *CElType, CPtr, *M, *N,
+      |                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  376 |                                                *LDC, IsCColMajor, CAlign)));
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:375:47: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  375 |                   Beta, loadMatrixToFlatVector(MBuilder, *CElType, CPtr, *M, *N,
+      |                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  376 |                                                *LDC, IsCColMajor, CAlign)));
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:375:47: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  375 |                   Beta, loadMatrixToFlatVector(MBuilder, *CElType, CPtr, *M, *N,
+      |                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  376 |                                                *LDC, IsCColMajor, CAlign)));
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:380:24: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  380 |   storeFlatVectorMatrix(MBuilder, *NewC, CPtr, *M, *N, *LDC, IsCColMajor,
+      |   ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  381 |                         CAlign);
+      |                         ~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:380:24: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  380 |   storeFlatVectorMatrix(MBuilder, *NewC, CPtr, *M, *N, *LDC, IsCColMajor,
+      |   ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  381 |                         CAlign);
+      |                         ~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:380:24: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  380 |   storeFlatVectorMatrix(MBuilder, *NewC, CPtr, *M, *N, *LDC, IsCColMajor,
+      |   ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  381 |                         CAlign);
+      |                         ~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:380:24: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  380 |   storeFlatVectorMatrix(MBuilder, *NewC, CPtr, *M, *N, *LDC, IsCColMajor,
+      |   ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  381 |                         CAlign);
+      |                         ~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+/tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:380:24: error: use of deleted function ‘llvm::Value::Value(const llvm::Value&)’
+  380 |   storeFlatVectorMatrix(MBuilder, *NewC, CPtr, *M, *N, *LDC, IsCColMajor,
+      |   ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  381 |                         CAlign);
+      |                         ~~~~~~~
+In file included from /usr/lib/llvm-14/include/llvm/IR/User.h:24,
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+[3/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o
+ninja: build stopped: subcommand failed.

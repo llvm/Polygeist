@@ -1,0 +1,3 @@
+gemm_match: kernel-match emitted 1 kernel.launch op(s) (1 markers)
+Command exited with non-zero status 1
+wall_seconds=1.27 maxrss_kb=101432

@@ -14,9 +14,11 @@ MANIFEST = ROOT / "manifest.csv"
 
 CPU_LIBRARY_PASS = {"2mm", "atax", "bicg", "gemm", "gemver", "gesummv", "mvt"}
 CPU_LIBRARY_FAIL = {"doitgen", "gramschmidt"}
-GPU_PASS = {"covariance", "deriche"}
-GPU_FAIL = {"2mm", "atax", "bicg", "doitgen", "gemm", "gemver"}
-GPU_BLOCKED = {"3mm", "gesummv", "gramschmidt", "mvt"}
+GPU_FAIL = {
+    "2mm", "3mm", "atax", "bicg", "doitgen", "gemm", "gemver",
+    "gesummv", "gramschmidt", "mvt",
+}
+PBGPU_PASS = {"2mm", "3mm", "gemm", "gemver", "gesummv"}
 COMMON = {"gemm", "syr2k", "2mm", "3mm"}
 
 REASONS = {
@@ -27,17 +29,17 @@ REASONS = {
     "nussinov": "raising retains memref submap operations",
     "seidel-2d": "raising retains eight tensor submap operations",
     "doitgen": "matched CPU/GPU ABI lowering rejects changed loop-carried tensor values",
-    "gramschmidt": "OpenBLAS result is non-finite/wrong; audited GPU rerun blocked by device failure",
-    "2mm": "CPU library passes; audited cuBLAS result is numerically wrong; PolyBenchGPU is not equivalent",
-    "atax": "CPU library passes; audited cuBLAS result is numerically wrong; PolyBenchGPU is not equivalent",
-    "bicg": "CPU library passes; audited cuBLAS result is numerically wrong; PolyBenchGPU is not equivalent",
-    "gemm": "CPU library passes; audited cuBLAS result is numerically wrong; external baselines unavailable",
-    "gemver": "CPU library passes; audited cuBLAS result is numerically wrong; PolyBenchGPU is not equivalent",
-    "3mm": "cuTensorNet rerun and timing blocked after CUDA device failure; CPU library unavailable",
-    "gesummv": "CPU library passes; audited GPU run timed out and left CUDA unavailable",
-    "mvt": "CPU library passes; audited GPU rerun blocked after CUDA device failure",
-    "covariance": "residual and audited GPU correctness pass; no eligible CBLAS match and GPU timing blocked",
-    "deriche": "residual and audited GPU correctness pass; no eligible CBLAS match and GPU timing blocked",
+    "gramschmidt": "OpenBLAS output is non-finite/wrong; raised CUDA launch times out",
+    "2mm": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
+    "atax": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
+    "bicg": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
+    "gemm": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
+    "gemver": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
+    "3mm": "canonical PolyBenchGPU passes; raised cuTensorNet output is all zero; CPU library unavailable",
+    "gesummv": "CPU library and canonical PolyBenchGPU pass; raised CUDA path has an illegal memory access",
+    "mvt": "CPU library passes; raised CUDA path has an illegal memory access",
+    "covariance": "residual correctness passes; match is only zero-fill, not an eligible GPU computational-library path",
+    "deriche": "residual correctness passes; match is only zero-fill, not an eligible GPU computational-library path",
     "lu": "residual correctness passes, but its timing warmup was killed by the host; no external-library match",
 }
 
@@ -58,7 +60,8 @@ rows = read_rows(MANIFEST)
 for row in rows:
     kernel = row["kernel"]
     row["native_cpu_status"] = "pass"
-    row["polybenchgpu_status"] = "unavailable"
+    row["polybenchgpu_status"] = "pass" if kernel in PBGPU_PASS else "unavailable"
+    row["modified_source"] = "true" if kernel in PBGPU_PASS else "false"
     row["kernelfarer_status"] = "unavailable" if kernel in COMMON else "not_applicable"
     row["polly_status"] = "unavailable" if kernel in COMMON else "not_applicable"
     if kernel in COMMON:
@@ -74,21 +77,15 @@ for row in rows:
     if row["residual_cpu_status"] != "pass":
         row["raised_gpu_status"] = "unavailable"
         row["overall_status"] = "fail"
-    elif kernel in GPU_PASS:
-        row["raised_gpu_status"] = "pass"
-        row["overall_status"] = "partial"
     elif kernel in GPU_FAIL:
         row["raised_gpu_status"] = "fail"
-        row["overall_status"] = "partial"
-    elif kernel in GPU_BLOCKED:
-        row["raised_gpu_status"] = "blocked"
         row["overall_status"] = "partial"
     else:
         row["raised_gpu_status"] = "unavailable"
         row["overall_status"] = "partial"
     row["failure_reason"] = REASONS.get(
         kernel,
-        "residual correctness passes; no external-library match; PolyBenchGPU is not equivalent",
+        "residual correctness passes; no eligible external-library match or canonical native-GPU adapter",
     )
 
 write_rows(MANIFEST, rows, list(rows[0]))
@@ -182,8 +179,58 @@ gpu_fields = [
     "samples", "warmups", "statistic", "device_time_ms", "end_to_end_time_ms",
     "speedup_vs_native", "library", "device", "measurement_scope", "command", "log",
 ]
-# No audited GPU configuration reached both correctness and final timing.
-write_rows(ROOT / "performance_gpu.csv", [], gpu_fields)
+
+
+def gpu_samples(path: Path) -> tuple[list[float], list[float]]:
+    device_values = []
+    end_to_end_values = []
+    if not path.exists():
+        return device_values, end_to_end_values
+    for line in path.read_text(errors="replace").splitlines():
+        fields = line.split(",")
+        if len(fields) != 5:
+            continue
+        _, sample, rc, end_to_end_s, device_ms = fields
+        try:
+            if int(sample) in range(1, 6) and int(rc) == 0:
+                end_to_end_values.append(float(end_to_end_s) * 1000.0)
+                device_values.append(float(device_ms))
+        except ValueError:
+            continue
+    if len(device_values) != 5 or len(end_to_end_values) != 5:
+        return [], []
+    return device_values, end_to_end_values
+
+
+gpu_records = []
+for kernel in sorted(PBGPU_PASS):
+    device_values, end_to_end_values = gpu_samples(
+        LOGS / kernel / "polybenchgpu_timing_raw.log")
+    if not device_values:
+        continue
+    gpu_records.append({
+        "kernel": kernel,
+        "configuration": "native_gpu_polybenchgpu",
+        "dataset": "LARGE",
+        "datatype": "double",
+        "correctness_status": "pass",
+        "samples": "5",
+        "warmups": "1",
+        "statistic": "median",
+        "device_time_ms": f"{statistics.median(device_values):.6f}",
+        "end_to_end_time_ms": f"{statistics.median(end_to_end_values):.6f}",
+        "speedup_vs_native": "",
+        "library": "PolyBenchGPU 1.0 handwritten CUDA, commit 5584aaa7",
+        "device": "Jetson Orin sm_87",
+        "measurement_scope": (
+            "device CUDA events around the external kernel sequence; E2E "
+            "PolyBench kernel call including allocation and transfers"
+        ),
+        "command": "issues/polybench_section42/run_polybenchgpu_native.sh",
+        "log": f"logs/{kernel}/polybenchgpu_timing_raw.log",
+    })
+
+write_rows(ROOT / "performance_gpu.csv", gpu_records, gpu_fields)
 
 pending = [(row["kernel"], key) for row in rows for key, value in row.items()
            if value.upper() == "PENDING"]

@@ -1,0 +1,18 @@
+[polygeist] keeping workdir: /tmp/tmp.ihMMwa21Sg
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=host  output=/tmp/polybench-section42-gemm-openblas-fixed2
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Dstatic= -DPOLYBENCH_USE_C99_PROTO
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/gemm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_gemm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=host)
+         + optimized CPU CBLAS runtime enabled
+         + polybench utility from tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → /tmp/polybench-section42-gemm-openblas-fixed2
+/usr/bin/ld: /tmp/tmp.ihMMwa21Sg/harness.o: in function `main':
+gemm.c:(.text+0x884): undefined reference to `polybench_alloc_data'
+/usr/bin/ld: gemm.c:(.text+0x896): undefined reference to `polybench_alloc_data'
+/usr/bin/ld: gemm.c:(.text+0x8a8): undefined reference to `polybench_alloc_data'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
