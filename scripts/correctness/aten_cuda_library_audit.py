@@ -97,8 +97,8 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "the extracted loop is a standard BLAS vector update")
     if hit(r"(^|_)(ctc_loss)(_|$)", n):
         return result("ctc_loss", "cuDNN CTC", "cudnnCTCLoss_v8",
-                      "FULL_FIXED_API", "whole",
-                      "cuDNN has a public CTC loss API that computes costs and gradients")
+                      "PARTIAL_API", "fused_loss_and_gradient_only",
+                      "cuDNN computes costs and gradients, but the extracted forward exposes its alpha DP table and the backward consumes that table plus grad_loss")
     if hit(r"(^|_)(argmax|argmin)(_|$)", n):
         return result("arg_reduction", "CUB", "DeviceSegmentedReduce ArgMax/ArgMin",
                       "FULL_GENERIC_API", "whole",
@@ -215,7 +215,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("ragged_softmax", "CUB", "segmented max/sum reductions plus pointwise transforms",
                       "PARTIAL_API", "stages",
                       "ragged offsets define segments, but softmax needs a multi-stage composition")
-    if hit(r"convert_(coo|csr)|compressed_block_convert", n):
+    if "compressed_block_convert" in n:
+        return result("tensor_permutation", "cuTENSOR", "cutensorPermute",
+                      "FULL_GENERIC_API", "whole",
+                      "the dense-to-block-major transform is a rank-4 mode permutation after a zero-copy logical reshape")
+    if hit(r"convert_(coo|csr)", n):
         return result("sparse_format", "cuSPARSE", "cusparseXcoo2csr/csr2coo or conversion APIs",
                       "FULL_FIXED_API", "whole",
                       "cuSPARSE directly exposes standard sparse index/format conversions")

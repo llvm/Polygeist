@@ -211,6 +211,10 @@ CASES = {
         [iptr("index", "N", init="index65536"),
          iptr("out", "E", True)],
         "full bounded embedding-index histogram via CUB"),
+    "aten_compressed_block_convert_cpu": spec(
+        {"R": 2048, "C": 2048, "BR": 4, "BC": 4},
+        [ptr("x", "R*C"), ptr("out", "R*C", True)],
+        "full dense-to-block-major layout conversion via cuTENSOR permutation"),
     "aten_sparse_norm_cpu": spec(
         {"N": 16_777_216},
         [ptr("value", "N"), ptr("out", "1", True)],
@@ -831,6 +835,7 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                          kernel in {"aten_quant_col_offsets_cpu",
                                     "aten_diff_cpu",
                                     "aten_embedding_bag_counts_cpu",
+                                    "aten_compressed_block_convert_cpu",
                                     "aten_upsample_bilinear2d"})
     if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"

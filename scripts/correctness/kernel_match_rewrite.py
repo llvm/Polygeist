@@ -3293,6 +3293,122 @@ def _render_bilinear_upsample2x(
              "cudnnBilinearUpsample2x_f32_r4", [index])]
 
 
+def _render_compressed_block_permutation(text: str) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize dense R x C -> [R/4,C/4,4,4] block-major conversion."""
+    function = re.search(
+        r"func\.func\s+@aten_compressed_block_convert_cpu\("
+        r"%arg0:\s*memref<\?x(?P<cols>\d+)xf32>,\s*"
+        r"%arg1:\s*memref<\?x(?P<col_blocks>\d+)x4x4xf32>\)", text)
+    if function is None:
+        return []
+    cols = int(function.group("cols"))
+    col_blocks = int(function.group("col_blocks"))
+    if cols % 4 or col_blocks != cols // 4:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    function_text = text[function.start():function_end]
+    start = re.search(
+        r"(?m)^\s*%[\w.$-]+\s*=\s*bufferization\.to_tensor\s+%arg1\b",
+        function_text)
+    copy = re.search(
+        r"(?m)^\s*memref\.copy\s+%[\w.$-]+,\s*%arg1\b[^\n]*",
+        function_text)
+    loop_bounds = re.findall(
+        r"affine\.for\s+(%[\w.$-]+)\s*=\s*0\s+to\s+(\d+)",
+        function_text)
+    rows = int(loop_bounds[0][1]) if len(loop_bounds) == 2 else 0
+    outer_iv = loop_bounds[0][0] if len(loop_bounds) == 2 else ""
+    inner_iv = loop_bounds[1][0] if len(loop_bounds) == 2 else ""
+    row_blocks = rows // 4 if rows % 4 == 0 else 0
+    input_type = f"tensor<?x{cols}xf32>"
+    output_type = f"tensor<?x{col_blocks}x4x4xf32>"
+    extracted = re.search(
+        rf"(?P<value>%[\w.$-]+)\s*=\s*tensor\.extract\s+%[\w.$-]+"
+        rf"\[{re.escape(outer_iv)},\s*{re.escape(inner_iv)}\]\s*:\s*"
+        rf"{re.escape(input_type)}", function_text)
+    insert = re.search(
+        rf"tensor\.insert\s+{re.escape(extracted.group('value') if extracted else '%never')}"
+        rf"\s+into\s+%[\w.$-]+\[(?P<indices>[^]]+)\]\s*:\s*"
+        rf"{re.escape(output_type)}", function_text)
+    # The raising expands signed floor division/remainder into selects.  Prove
+    # that the four inserted indices are, in order, outer/4, inner/4,
+    # outer%4, inner%4 by tracing the div/rem results through those selects.
+    index_order_ok = False
+    if insert is not None:
+        indices = [part.strip() for part in insert.group("indices").split(",")]
+        if len(indices) == 4:
+            def derived(iv: str, operation: str, final: str) -> bool:
+                pattern = (
+                    rf"(?P<sign>%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*"
+                    rf"{re.escape(iv)},\s*%[\w.$-]+\s*:\s*index.*?"
+                    rf"(?P<raw>%[\w.$-]+)\s*=\s*arith\.{operation}\s+"
+                    rf"(?:%[\w.$-]+|{re.escape(iv)}),\s*%[\w.$-]+\s*:\s*index.*?"
+                    rf"{re.escape(final)}\s*=\s*arith\.select\s+%[\w.$-]+,\s*"
+                    rf"%[\w.$-]+,\s*(?P=raw)\s*:\s*index")
+                return re.search(pattern, function_text, re.DOTALL) is not None
+            index_order_ok = (
+                derived(outer_iv, "divsi", indices[0])
+                and derived(inner_iv, "divsi", indices[1])
+                and derived(outer_iv, "remsi", indices[2])
+                and derived(inner_iv, "remsi", indices[3]))
+    legal = (
+        start is not None and copy is not None
+        and rows > 0 and row_blocks > 0 and len(loop_bounds) == 2
+        and int(loop_bounds[1][1]) == cols
+        and function_text.count("affine.for") == 2
+        and function_text.count("tensor.extract ") == 1
+        and function_text.count("tensor.insert ") == 1
+        and function_text.count("arith.divsi") == 2
+        and function_text.count("arith.remsi") == 2
+        and extracted is not None and insert is not None and index_order_ok
+        and re.search(r"arith\.constant\s+4\s*:\s*index", function_text)
+        is not None
+    )
+    if not legal:
+        return []
+    edit_start = function.start() + start.start()
+    edit_end = function.start() + copy.end()
+    indent = "    "
+    uid = edit_start
+    p = f"%block_permute_{uid}"
+    lines = [
+        f"{p}_input_view = memref.reinterpret_cast %arg0 to "
+        f"offset: [0], sizes: [{row_blocks}, 4, {col_blocks}, 4], "
+        f"strides: [{4 * cols}, {cols}, 4, 1] : "
+        f"memref<?x{cols}xf32> to "
+        f"memref<{row_blocks}x4x{col_blocks}x4xf32, "
+        f"strided<[{4 * cols}, {cols}, 4, 1]>>",
+        f"{p}_input_static = bufferization.to_tensor {p}_input_view "
+        f"restrict : memref<{row_blocks}x4x{col_blocks}x4xf32, "
+        f"strided<[{4 * cols}, {cols}, 4, 1]>>",
+        f"{p}_input = tensor.cast {p}_input_static : "
+        f"tensor<{row_blocks}x4x{col_blocks}x4xf32> "
+        "to tensor<?x?x?x?xf32>",
+        f"{p}_output_static = bufferization.to_tensor %arg1 restrict writable "
+        f": memref<?x{col_blocks}x4x4xf32>",
+        f"{p}_output = tensor.cast {p}_output_static : "
+        f"tensor<?x{col_blocks}x4x4xf32> to tensor<?x?x?x?xf32>",
+        f"{p}_result = kernel.launch @cutensorPermute_f32_r4_tensor("
+        f"{p}_input, {p}_output) "
+        "{cutensor_input_modes = array<i64: 0, 2, 1, 3>, "
+        "cutensor_output_modes = array<i64: 0, 1, 2, 3>} : "
+        "(tensor<?x?x?x?xf32>, tensor<?x?x?x?xf32>) -> "
+        "tensor<?x?x?x?xf32>",
+        f"{p}_result_static = tensor.cast {p}_result : "
+        f"tensor<?x?x?x?xf32> to tensor<?x{col_blocks}x4x4xf32>",
+        f"{p}_result_memref = bufferization.to_memref {p}_result_static : "
+        f"memref<?x{col_blocks}x4x4xf32>",
+        f"memref.copy {p}_result_memref, %arg1 : "
+        f"memref<?x{col_blocks}x4x4xf32> to "
+        f"memref<?x{col_blocks}x4x4xf32>",
+    ]
+    replacement = "\n" + indent + ("\n" + indent).join(lines)
+    return [(edit_start, edit_end, replacement,
+             "cutensorPermute_f32_r4_tensor", [])]
+
+
 def _render_fixed_average_pool_backward_regions(
     text: str, instances, bodies,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -7048,6 +7164,17 @@ def rewrite_mlir(
             consumed_structured_bodies.update(consumed)
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
+    for start, end, replacement, symbol, consumed in \
+            _render_compressed_block_permutation(text):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        report.append(("match", consumed, symbol + "[block-layout]"))
+        emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):
         if max_launches is not None and emitted_launches >= max_launches:

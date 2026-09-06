@@ -99,7 +99,7 @@ aten_coalesce_sparse_cpu	pass	0	1	0	-
 aten_col2im_cpu	pass	1	0	0	-
 aten_combinations_cpu	pass	0	2	0	-
 aten_complex_scalarized	pass	2	0	2	cudaCopy1D_f32_tensor
-aten_compressed_block_convert_cpu	pass	0	2	0	-
+aten_compressed_block_convert_cpu	pass	0	2	1	cutensorPermute_f32_r4_tensor
 aten_conj_complex_scalarized	pass	2	0	2	cudaCopy1D_f32_tensor,cutensorUnary_neg_f32
 aten_constant_pad_nd_cpu	pass	2	0	1	cudaCopy1D_f32_tensor
 aten_conv1d	pass	2	0	1	cudnnConvolution1D_f32_bias

@@ -125,10 +125,10 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "cuDNN SDPA head-size/layout/dtype/device restrictions",
                  "recognize complete attention graph + cuDNN frontend plan backend", priority="HIGH")
     if fam == "ctc_loss":
-        return r("cuDNN", "CTC loss", "SUBSET_WITH_CONSTRAINTS", "whole",
-                 "blank label, normalization, determinism, input lengths and gradient semantics",
+        return r("cuDNN", "CTC loss", "SUBSET_WITH_CONSTRAINTS", "fused loss/gradient only",
+                 "blank label, normalization, determinism, input lengths, gradient semantics, and elimination of the observable alpha DP table",
                  "cuDNN-supported CTC tensor layout/type/algorithm",
-                 "CTC matcher + API wrapper", priority="MEDIUM")
+                 "fuse forward/backward and redesign the standalone ABI before adding a matcher", priority="LOW")
     if fam == "pooling":
         if "max_pool1d" in n:
             return r("CUB", "DeviceSegmentedReduce::ArgMax",
@@ -253,11 +253,16 @@ def route(row: dict[str, str]) -> dict[str, str]:
 
     # Resampling and layout transforms.
     if fam == "resampling" or (fam == "tensor_contraction" and "upsample" in n):
-        if "nearest" in n or "linear1d" in n or "bilinear" in n:
-            return r("cuDNN", "Resample forward/backward", "SUBSET_WITH_CONSTRAINTS", "whole for supported coordinate mode",
-                     "ATen align_corners, half-pixel/exact-nearest, antialias and backward accumulation must match",
-                     "cuDNN supported rank/layout/dtype and interpolation modes",
-                     "coordinate-mode proof + resample descriptor lowering", priority="HIGH")
+        if "bilinear" in n:
+            return r("cuDNN", "Backend Resample forward", "SUBSET_WITH_CONSTRAINTS", "whole for the aligned 2x half-pixel subset",
+                     "ATen coordinate mode, edge clamp, antialias, scale and backward accumulation must match exactly",
+                     "cuDNN v9 bilinear rank/layout/dtype plus integral-window and fractional-stride restrictions",
+                     "recognize additional exactly compatible bilinear shapes; retain residual IR otherwise", priority="MEDIUM")
+        if "nearest" in n or "linear1d" in n:
+            return r("NPP", "nppiResize", "SUBSET_WITH_CONSTRAINTS", "forward 2D image subset only",
+                     "ATen exact-nearest/half-pixel coordinates, layout, ROI and edge behavior must match",
+                     "NPP-supported 2D image channels, ROI, step and dtype; no direct cuDNN nearest route",
+                     "specialize proven-compatible NPP cases; keep general-rank interpolation in IR", priority="LOW")
         return r("NPP", "nppiResize/nppiRemap", "SUBSET_WITH_CONSTRAINTS", "forward 2D image subset",
                  "ATen grid normalization, padding mode, align_corners, antialias and backward are not generally identical",
                  "NPP 2D image channels/ROI/step and supported dtypes",

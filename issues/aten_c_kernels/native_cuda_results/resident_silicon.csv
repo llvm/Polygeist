@@ -156,3 +156,4 @@ aten_unbind_copy_cpu,207.776,1743.715,8.392,N=8192_B=512,0,Jetson_AGX_Orin_sm87_
 aten_uniform_cpu,635.680,4734.890,7.449,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_zeros_cpu,117.920,609.978,5.173,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30
 aten_upsample_bilinear2d,5472.800003,6388.454400,1.167310,B=4096_C=3_H=4_W=4,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06
+aten_compressed_block_convert_cpu,2047.680000,2071.513601,1.011639,R=2048_C=2048_BR=4_BC=4,0,Jetson_AGX_Orin_sm87_CUDA12.6_cuTENSOR,2026-09-06
