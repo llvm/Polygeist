@@ -82,6 +82,13 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "the fixture multiplies FP32 activations by INT8 weights converted "
                       "to FP32 and applies a per-output-column scale; cuBLASLt's regular "
                       "datatype table requires A and B to share one Atype/Btype")
+    if n == "int4pack_mm_cpu":
+        return result("packed_weight_scaled_gemm", "CUTLASS",
+                      "weight-only quantized GEMM template (architecture support must be verified)",
+                      "PARTIAL_API", "whole_if_supported",
+                      "the fixture unpacks unsigned 4-bit nibbles, subtracts a per-column "
+                      "zero point, scales them, and multiplies by FP32 activations; this is "
+                      "not a regular cuBLASLt INT8 matmul")
     if n == "nested_sum_backward_cpu":
         return result("tensor_broadcast", "cuBLAS",
                       "SGER outer product with a vector of ones",

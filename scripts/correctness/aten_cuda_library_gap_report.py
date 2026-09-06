@@ -119,6 +119,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "verify an exact CUTLASS instantiation before adding a semantic matcher; otherwise retain conventional Linalg/GPU lowering",
                  confidence="MEDIUM", priority="LOW",
                  note="cuBLASLt is not direct: its published regular-matrix table uses one shared Atype/Btype")
+    if fam == "packed_weight_scaled_gemm":
+        return r("CUTLASS", "weight-only quantized GEMM template",
+                 "TEMPLATE_SUPPORT_UNCERTAIN", "whole only if the target architecture has an exact template",
+                 "unsigned nibble unpacking, zero-point subtraction, per-column scaling, FP accumulation order, and packed-byte interpretation must agree",
+                 "FP32 A, packed two-per-byte INT4 B, FP32 output, per-column scale/zero point; target-specific layout/alignment",
+                 "verify an exact CUTLASS weight-only instantiation before matching; otherwise retain conventional Linalg/GPU lowering",
+                 confidence="MEDIUM", priority="LOW",
+                 note="The current cuBLASLt candidate is not a legal regular INT8 matmul replacement")
     if fam == "dense_vector_update":
         return r("cuBLAS", "Axpy/Scal", "EXACT_FIXED_CALL", "whole",
                  "standard BLAS update and supported scalar/type", "constant vector increments",
