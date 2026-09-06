@@ -194,6 +194,33 @@ module {
         (tensor<?x8xf32>, index, index, index) -> tensor<?x?xf32>
     return %view : tensor<?x?xf32>
   }
+
+  func.func @ordered_scalar_broadcast(%scalar: memref<f64>) {
+    %c5 = arith.constant 5 : index
+    %view = polygeist.submap(%scalar, %c5)
+        {map = affine_map<(d0) -> ()>} :
+        (memref<f64>, index) -> memref<?xf64>
+    %v = memref.load %view[%c5] : memref<?xf64>
+    memref.store %v, %view[%c5] : memref<?xf64>
+    return
+  }
+
+  func.func @dynamic_identity_prefix(%base: memref<32xf64>, %n: index) {
+    %view = polygeist.submap(%base, %n)
+        {map = affine_map<(d0) -> (d0)>} :
+        (memref<32xf64>, index) -> memref<?xf64>
+    %c0 = arith.constant 0 : index
+    %v = memref.load %view[%c0] : memref<?xf64>
+    memref.store %v, %view[%c0] : memref<?xf64>
+    return
+  }
+
+  func.func @external_c_array_call(%base: memref<5x5x5xf64>) {
+    %cast = memref.cast %base : memref<5x5x5xf64> to memref<?x5x5xf64>
+    func.call @external_array(%cast) : (memref<?x5x5xf64>) -> ()
+    return
+  }
+  func.func private @external_array(memref<?x5x5xf64>)
 }
 
 // CHECK-DAG: #[[FLAT:map[0-9]*]] = affine_map<(d0, d1) -> (d0 * 4 + d1)>
@@ -267,3 +294,16 @@ module {
 // CHECK: tensor.extract %{{.*}}[%{{.*}}, %{{.*}}]
 // CHECK: tensor.insert
 // CHECK: return
+
+// CHECK-LABEL: func.func @ordered_scalar_broadcast
+// CHECK-NOT: polygeist.submap
+// CHECK: memref.load %arg0[]
+// CHECK: memref.store {{.*}}, %arg0[]
+
+// CHECK-LABEL: func.func @dynamic_identity_prefix
+// CHECK-NOT: polygeist.submap
+// CHECK: memref.reinterpret_cast %arg0 to offset: [0], sizes: [%arg1], strides: [1]
+
+// CHECK-LABEL: func.func @external_c_array_call
+// CHECK: call @external_array(%arg0) : (memref<5x5x5xf64>) -> ()
+// CHECK: func.func private @external_array(memref<5x5x5xf64>) attributes {llvm.bareptr}

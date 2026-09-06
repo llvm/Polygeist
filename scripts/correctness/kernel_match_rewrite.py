@@ -58,6 +58,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemm_simple",
     "cublasDgemm_subtract",
     "cublasDgemm_strided_batched_subtract",
+    "cublasDgemv_strided_batched_subtract",
     "cublasDgemm_alpha_only",
     "cublasSgemm_broadcast3d_simple",
     "cublasSgemm_broadcast3d_memref",
@@ -822,6 +823,120 @@ def _shaped_rank(ty: str) -> int:
     if "x" not in shape_and_elem:
         return 0
     return shape_and_elem.rsplit("x", 1)[0].count("x") + 1
+
+
+# A library call has a fixed launch/dispatch cost.  Replacing a three- or
+# five-element loop with an individual cuBLAS call is therefore predictably
+# unprofitable, especially when that call remains inside an application loop.
+# Keep this deliberately conservative: it applies only when every linalg
+# iterator extent can be proved from static operand types or raised view sizes.
+_MIN_STANDALONE_BLAS_ITERATIONS = 256
+
+
+def _static_shaped_extents(
+    text: str, operand: str, operand_type: str, before: int
+) -> list[int] | None:
+    """Recover the logical shape of one generic operand, when fully static."""
+    rank = _shaped_rank(operand_type)
+    if rank < 0:
+        return None
+    if rank == 0:
+        return []
+
+    # SSA names are function-local and cgeist reuses names such as `%2` in
+    # every function.  Limit lookup to the enclosing function so an earlier
+    # function's same-named view cannot supply false static evidence.
+    function_start = text.rfind("func.func", 0, before)
+    scope = text[function_start:before] if function_start >= 0 else text[:before]
+    view = _parse_memref_view(scope, operand, len(scope))
+    if view is not None and view["kind"] in ("submap", "subview"):
+        # A submap may carry leading map-symbol/offset operands before its
+        # logical result sizes.  The final `rank` operands are the sizes.
+        size_tokens = view["sizes"][-rank:]
+        if len(size_tokens) != rank:
+            return None
+        extents: list[int] = []
+        for token in size_tokens:
+            if re.fullmatch(r"\d+", token):
+                value = int(token)
+            else:
+                value = _constant_index_value(text[:before], token)
+            if value is None or value < 0:
+                return None
+            extents.append(value)
+        return extents
+
+    payload = _type_payload(operand_type.strip(), "memref")
+    if payload is None:
+        payload = _type_payload(operand_type.strip(), "tensor")
+    if payload is None:
+        return None
+    shaped = _top_level_first_type_piece(payload)
+    pieces = shaped.rsplit("x", 1)[0].split("x")
+    if len(pieces) != rank or any(not piece.isdigit() for piece in pieces):
+        return None
+    return [int(piece) for piece in pieces]
+
+
+def _static_generic_iteration_count(
+    text: str, inst: LinalgInstance, body
+) -> int | None:
+    """Return the linalg iteration-domain cardinality when it is provable.
+
+    Indexing maps connect operand dimensions to generic iterator dimensions.
+    We intentionally accept only direct `dN` projections; affine windows,
+    broadcasts, or incomplete dynamic evidence return unknown and are not
+    profitability-rejected.
+    """
+    operands = (_extract_ssa_names(inst.ins_part) +
+                _extract_ssa_names(inst.outs_part))
+    operand_types = (_extract_ssa_types(inst.ins_part) +
+                     _extract_ssa_types(inst.outs_part))
+    if not (len(operands) == len(operand_types) == len(body.indexing_maps)):
+        return None
+
+    iterator_extents: dict[int, int] = {}
+    for operand, operand_type, map_text in zip(
+            operands, operand_types, body.indexing_maps):
+        extents = _static_shaped_extents(
+            text, operand, operand_type, inst.span[0])
+        map_match = re.fullmatch(
+            r"affine_map<\([^)]*\)\s*->\s*\(([^)]*)\)>", map_text.strip())
+        if extents is None or map_match is None:
+            return None
+        outputs = ([piece.strip() for piece in map_match.group(1).split(",")]
+                   if map_match.group(1).strip() else [])
+        if len(outputs) != len(extents):
+            return None
+        for output, extent in zip(outputs, extents):
+            dim_match = re.fullmatch(r"d(\d+)", output)
+            if dim_match is None:
+                # Scalar/broadcast maps provide no extent evidence but are
+                # harmless; non-trivial affine expressions are ambiguous.
+                if output:
+                    return None
+                continue
+            dim = int(dim_match.group(1))
+            previous = iterator_extents.get(dim)
+            if previous is not None and previous != extent:
+                return None
+            iterator_extents[dim] = extent
+
+    if set(iterator_extents) != set(range(len(body.iterator_types))):
+        return None
+    count = 1
+    for dim in range(len(body.iterator_types)):
+        count *= iterator_extents[dim]
+    return count
+
+
+def _is_standalone_blas_candidate(name: str) -> bool:
+    """Classify fixed-cost BLAS calls that need a minimum useful workload."""
+    lower = name.lower()
+    if "strided_batched" in lower or "broadcast3d" in lower:
+        return False
+    return lower.startswith("cublas") and any(
+        operation in lower for operation in ("dot", "gemv", "gemm"))
 
 
 def _is_scalar_alias_submap(text: str, operand: str) -> bool:
@@ -3239,6 +3354,73 @@ def _render_looped_gemv_as_gemm(structured, text: str) -> tuple[int, int, str] |
     return loop.span[0], loop.span[1], replacement
 
 
+def _render_looped_blas_as_strided_batched(
+    structured, text: str
+) -> tuple[int, int, str] | None:
+    """Collapse a leading-dimension slice loop into one batched cuBLAS call."""
+    specifications = {
+        "looped_gemm_as_batched_gemm": (
+            "cublasDgemm_strided_batched_subtract", (3, 3, 3)),
+        "looped_gemv_as_batched_gemv": (
+            "cublasDgemv_strided_batched_subtract", (3, 2, 2)),
+    }
+    spec = specifications.get(structured.extracted_kind)
+    if spec is None or len(structured.region.operations) != 1:
+        return None
+    symbol, ranks = spec
+    op = structured.region.operations[0]
+    if len(op.loops) != 1 or len(op.input_roots) != 2 or len(op.output_roots) != 1:
+        return None
+    loop = op.loops[0]
+    if not loop.bounds.startswith("0 to "):
+        return None
+    operands = [*op.input_roots, op.output_roots[0]]
+    types = _scan_simple_memref_types(text, loop.span[0])
+    operand_types = [types.get(value) for value in operands]
+    if (any(value is None for value in operand_types) or
+            tuple(_shaped_rank(value) for value in operand_types) != ranks or
+            any(_sniff_elem_type(value) != "f64" for value in operand_types)):
+        return None
+    function_start = text.rfind("func.func", 0, loop.span[0])
+    signature = text[function_start:loop.span[0]]
+    if any(not re.search(
+            rf"{re.escape(value)}\s*:\s*memref<[^>\n]+>\s*"
+            rf"\{{\s*llvm\.noalias\s*\}}", signature)
+           for value in operands):
+        return None
+    tensor_types = [_memref_to_tensor_type(value) for value in operand_types]
+    if any(value is None for value in tensor_types):
+        return None
+
+    line_start = text.rfind("\n", 0, loop.span[0]) + 1
+    indent = text[line_start:loop.span[0]]
+    suffix = str(op.index)
+    tensor_values = [
+        f"%structured_batched_{label}_{suffix}"
+        for label in ("a", "b", "c")
+    ]
+    result = f"%structured_batched_result_{suffix}"
+    result_memref = f"%structured_batched_result_memref_{suffix}"
+    lines = []
+    for index, (tensor_value, operand, operand_type) in enumerate(zip(
+            tensor_values, operands, operand_types)):
+        writable = " writable" if index == 2 else ""
+        lines.append(
+            f"{tensor_value} = bufferization.to_tensor {operand} restrict"
+            f"{writable} : {operand_type}")
+    lines.append(
+        f"{result} = kernel.launch @{symbol}({', '.join(tensor_values)}) : "
+        f"({', '.join(tensor_types)}) -> {tensor_types[2]}")
+    lines.append(
+        f"{result_memref} = bufferization.to_memref {result} : "
+        f"{operand_types[2]}")
+    lines.append(
+        f"memref.copy {result_memref}, {operands[2]} : "
+        f"{operand_types[2]} to {operand_types[2]}")
+    replacement = ("\n" + indent).join(lines)
+    return loop.span[0], loop.span[1], replacement
+
+
 def _render_source_faithful_sgemm(structured, text: str) -> tuple[int, int, str] | None:
     """Collapse Parboil's two loops + dot generic + alpha/beta epilogue."""
     if len(structured.region.operations) != 1:
@@ -3882,8 +4064,15 @@ def rewrite_mlir(
     consumed_structured_bodies: set[int] = set()
     if enable_structured_rewrite:
         for structured in structured_results:
-            rendered = _render_looped_gemv_as_gemm(structured, text)
-            launch_name = "cublasDgemm_simple[loop-lifted]"
+            rendered = _render_looped_blas_as_strided_batched(structured, text)
+            launch_name = (
+                "cublasDgemm_strided_batched_subtract[loop-lifted]"
+                if structured.extracted_kind == "looped_gemm_as_batched_gemm"
+                else "cublasDgemv_strided_batched_subtract[loop-lifted]"
+            )
+            if rendered is None:
+                rendered = _render_looped_gemv_as_gemm(structured, text)
+                launch_name = "cublasDgemm_simple[loop-lifted]"
             if rendered is None:
                 rendered = _render_source_faithful_sgemm(structured, text)
                 launch_name = "cublasSgemm_flat_colmajor_nt_alpha_beta[loop+epilogue]"
@@ -4355,6 +4544,24 @@ def rewrite_mlir(
                 continue
         m = match_composition(bodies, body_terms, comps, start=i,
                               body_forms=body_forms)
+        # Rank-2 GEMM subtraction and strided-batched GEMV subtraction both
+        # have two parallel iterators, one reduction iterator, and the scalar
+        # body `out - a*x`.  Scalar equality therefore produces both semantic
+        # candidates.  Resolve that ambiguity with operand ranks before the
+        # greedy choice reaches the ABI legality checks; otherwise the first
+        # batched-GEMV candidate can shadow a valid ordinary GEMM.
+        if (m is not None and
+                m[0].name == "cublasDgemv_strided_batched_subtract"):
+            ambiguous_inst = instances[i]
+            ambiguous_types = (
+                _extract_ssa_types(ambiguous_inst.ins_part) +
+                _extract_ssa_types(ambiguous_inst.outs_part))
+            if [_shaped_rank(t) for t in ambiguous_types] != [3, 2, 2]:
+                m = match_composition(
+                    bodies, body_terms,
+                    [entry for entry in comps
+                     if entry.name != "cublasDgemv_strided_batched_subtract"],
+                    start=i, body_forms=body_forms)
         if m is None:
             entry = match_elementwise_semantic(
                 bodies[i], body_terms[i], body_forms[i]
@@ -4510,6 +4717,19 @@ def rewrite_mlir(
                             reduction_dim_count=0)],
                         form="tensor", element_type="f32")
                     binds = {}
+
+        if _is_standalone_blas_candidate(entry.name):
+            work = _static_generic_iteration_count(
+                text, instances[i + n - 1], bodies[i + n - 1])
+            if (work is not None and
+                    work < _MIN_STANDALONE_BLAS_ITERATIONS):
+                report.append((
+                    "profitability_reject", list(range(i, i + n)),
+                    f"{entry.name}[iterations={work},minimum="
+                    f"{_MIN_STANDALONE_BLAS_ITERATIONS}]",
+                ))
+                i += n
+                continue
         # Build a single kernel.launch covering instances[i..i+n-1].
         # We emit the launch *in place of the last generic* and delete the
         # earlier generics individually — that way any ops sitting BETWEEN
@@ -7742,6 +7962,27 @@ def rewrite_mlir(
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
             if elem != "f32" or operand_ranks != [3, 3, 3]:
                 report.append(("rank_or_dtype_reject", i, entry.name))
+                i += 1
+                continue
+        if entry.name == "cublasDgemv_strided_batched_subtract":
+            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
+            ranks = [_tensor_rank(t) for t in operand_types[:3]]
+            maps = bodies[i].indexing_maps
+            def _batched_gemv_map_outputs(txt: str) -> list[str]:
+                mm = re.search(r"->\s*\(([^)]*)\)>", txt)
+                return ([s.strip() for s in mm.group(1).split(",")]
+                        if mm and mm.group(1).strip() else [])
+            map_dims = [_batched_gemv_map_outputs(m) for m in maps]
+            layout_ok = False
+            if len(map_dims) == 3:
+                a_dims, x_dims, y_dims = map_dims
+                layout_ok = (
+                    len(a_dims) == 3 and len(x_dims) == 2 and
+                    len(y_dims) == 2 and a_dims[0] == x_dims[0] == y_dims[0]
+                    and a_dims[1] == y_dims[1] and a_dims[2] == x_dims[1]
+                )
+            if elems != ["f64", "f64", "f64"] or ranks != [3, 2, 2] or not layout_ok:
+                report.append(("rank_dtype_or_layout_reject", i, entry.name))
                 i += 1
                 continue
         if entry.name in ("cublasDgemv", "cublasDgemv_subtract") and n == 1:

@@ -120,6 +120,16 @@ void polygeist_cublas_sgemm_strided_batched(
     int32_t batch, int32_t M, int32_t N, int32_t K,
     const float *A, const float *B, float *C);
 
+// Contiguous row-major FP64 batches: C[b] -= A[b] * B[b].
+void polygeist_cublas_dgemm_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const double *A, const double *B, double *C);
+
+// Contiguous row-major FP64 batches: Y[b] -= A[b] * X[b].
+void polygeist_cublas_dgemv_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t K,
+    const double *A, const double *X, double *Y);
+
 // Overwriting outer product C[M,N] = u[M] * v[N].
 void polygeist_cublas_dgemm_outer_product(
     int32_t M, int32_t N,

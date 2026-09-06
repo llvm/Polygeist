@@ -93,16 +93,19 @@ All project-authored computational CUDA implementations and their matcher
 routes have been removed. The current audit covers 103 real translation units;
 MRI-Q `computeQ.cc` is textually included by `main.c` and is not counted twice.
 All 103 units complete both frontend translation and the raising pipeline,
-producing 555 `linalg.generic` operations.
+producing 677 `linalg.generic` operations.
 
-The audit emits 30 executable external/platform launch sites: six NPB-BT and
+The audit emits 24 executable external/platform launch sites: six NPB-BT and
 one NPB-LU CUDA memset operations, four NPB-CG cuSPARSE CSR SpMV operations,
-three NPB-UA cuBLAS DAXPBY compositions, fourteen NPB-UA cuBLAS Ddot
-operations, one Parboil SGEMM cuBLAS operation, and one Parboil stencil cuDNN
-operation. The analysis-only inventory separately reports 55 Egglog-proved
-structured regions, 26 reduction-shaped regions, 17 stencil-shaped regions,
-15 histogram candidates, and 6 CSR SpMV candidates. Analysis-only candidates
-must not be reported as successful library matches.
+three NPB-UA cuBLAS DAXPBY compositions, one Parboil SGEMM cuBLAS operation,
+and one Parboil stencil cuDNN operation. The fourteen recognized NPB-UA Ddot
+sites are now profitability-gated because their statically proven length-5
+workloads are too small for individual library dispatch. Excluding the seven
+memory-initialization sites leaves 17 computational launches. The
+analysis-only inventory separately reports 69 Egglog-proved structured
+regions, 29 reduction-shaped regions, 26 stencil-shaped regions, 12 histogram
+candidates, and 6 CSR SpMV candidates. Analysis-only candidates must not be
+reported as successful library matches.
 
 The checked-in per-program snapshot is `program_summary_2026-09-05.csv`.
 

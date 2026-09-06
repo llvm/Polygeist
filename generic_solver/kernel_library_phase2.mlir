@@ -478,6 +478,48 @@ module {
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
   }
+  // Batched GEMM-SUBTRACT: C[b] -= A[b]*B[b]. The leading parallel
+  // dimension is the strided cuBLAS batch dimension.
+  kernel.defn @cublasDgemm_strided_batched_subtract(
+      %A: tensor<?x?x?xf64>, %B: tensor<?x?x?xf64>,
+      %C: tensor<?x?x?xf64>) -> tensor<?x?x?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+        affine_map<(d0, d1, d2, d3) -> (d0, d3, d2)>,
+        affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "parallel", "parallel", "reduction"]
+    } ins(%A, %B : tensor<?x?x?xf64>, tensor<?x?x?xf64>)
+      outs(%C : tensor<?x?x?xf64>) {
+    ^bb0(%a: f64, %b: f64, %out: f64):
+      %p = arith.mulf %a, %b : f64
+      %s = arith.subf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?x?x?xf64>
+    kernel.yield %result : tensor<?x?x?xf64>
+  }
+  // Batched GEMV-SUBTRACT: Y[b] -= A[b]*X[b]. This is implemented through
+  // strided-batched GEMM with a single output column.
+  kernel.defn @cublasDgemv_strided_batched_subtract(
+      %A: tensor<?x?x?xf64>, %X: tensor<?x?xf64>,
+      %Y: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel", "reduction"]
+    } ins(%A, %X : tensor<?x?x?xf64>, tensor<?x?xf64>)
+      outs(%Y : tensor<?x?xf64>) {
+    ^bb0(%a: f64, %x: f64, %out: f64):
+      %p = arith.mulf %a, %x : f64
+      %s = arith.subf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
   kernel.defn @cublasDgemm_zero(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                                 %C: tensor<?x?xf64>) -> tensor<?x?xf64> {
     kernel.yield %C : tensor<?x?xf64>

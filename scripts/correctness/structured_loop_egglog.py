@@ -556,6 +556,21 @@ def _gemm_body_equivalent(egraph: EGraph, op: StructuredOp) -> bool:
         return False
 
 
+def _blas_subtract_body_equivalent(egraph: EGraph, op: StructuredOp) -> bool:
+    """Prove `output - lhs*rhs` for a GEMM/GEMV-shaped generic."""
+    if len(op.inputs) != 2 or len(op.outputs) != 1:
+        return False
+    lhs = Term.Access(op.input_roots[0], op.accesses[0])
+    rhs = Term.Access(op.input_roots[1], op.accesses[1])
+    accumulator = Term.Access(op.output_roots[0], op.accesses[2])
+    canonical = accumulator - lhs * rhs
+    try:
+        egraph.check(_term_with_accesses(op) == canonical)
+        return True
+    except Exception:
+        return False
+
+
 def _loop_body(text: str, loop: LoopInfo) -> str:
     return text[loop.span[0]:loop.span[1]]
 
@@ -823,6 +838,24 @@ def _is_gemv_access_shape(op: StructuredOp) -> bool:
             parsed[2][1] == [parallel])
 
 
+def _has_standard_blas_operand_order(op: StructuredOp, operation: str) -> bool:
+    """Require the operand order implemented by the current row-major ABI."""
+    maps = [map_text.replace(" ", "") for map_text in op.body.indexing_maps]
+    if operation == "gemv":
+        return maps == [
+            "affine_map<(d0,d1)->(d0,d1)>",
+            "affine_map<(d0,d1)->(d1)>",
+            "affine_map<(d0,d1)->(d0)>",
+        ]
+    if operation == "gemm":
+        return maps == [
+            "affine_map<(d0,d1,d2)->(d0,d2)>",
+            "affine_map<(d0,d1,d2)->(d2,d1)>",
+            "affine_map<(d0,d1,d2)->(d0,d1)>",
+        ]
+    return False
+
+
 def _is_column_sliced_gemm(op: StructuredOp) -> bool:
     if len(op.loops) != 1 or len(op.accesses) != 3:
         return False
@@ -833,6 +866,22 @@ def _is_column_sliced_gemm(op: StructuredOp) -> bool:
             column_map in normalized[1] and column_map in normalized[2] and
             f"symbols={iv}" in normalized[1] and
             f"symbols={iv}" in normalized[2])
+
+
+def _is_leading_batch_sliced(op: StructuredOp, operand_ranks: tuple[int, ...]) -> bool:
+    """Prove that one parent loop selects the leading mode of every operand."""
+    if len(op.loops) != 1 or len(op.accesses) != len(operand_ranks):
+        return False
+    iv = op.loops[0].induction
+    for access, rank in zip(op.accesses, operand_ranks):
+        normalized = access.replace(" ", "")
+        logical_dims = ",".join(f"d{i}" for i in range(rank - 1))
+        physical_dims = ",".join(["s0", *[f"d{i}" for i in range(rank - 1)]])
+        expected = (
+            f"submap=affine_map<({logical_dims})[s0]->({physical_dims})>")
+        if expected not in normalized or f"symbols={iv}" not in normalized:
+            return False
+    return True
 
 
 def saturate_region(region: StructuredRegion,
@@ -924,6 +973,19 @@ def saturate_region(region: StructuredRegion,
         # epilogue.  Keep that boundary explicit instead of reporting a false
         # executable match.
         representations = [_term_repr(op.term) for op in ops]
+        if (len(ops) == 1 and len(ops[0].loops) == 1 and
+                ops[0].reduction_count == 1 and
+                _blas_subtract_body_equivalent(egraph, ops[0])):
+            if (_is_gemm_access_shape(ops[0]) and
+                    _has_standard_blas_operand_order(ops[0], "gemm") and
+                    _is_leading_batch_sliced(ops[0], (3, 3, 3))):
+                extracted_kind = "looped_gemm_as_batched_gemm"
+                lowering_blocker = None
+            elif (_is_gemv_access_shape(ops[0]) and
+                    _has_standard_blas_operand_order(ops[0], "gemv") and
+                    _is_leading_batch_sliced(ops[0], (3, 2, 2))):
+                extracted_kind = "looped_gemv_as_batched_gemv"
+                lowering_blocker = None
         if (len(ops) == 1 and ops[0].parallel_count == 2 and
                 ops[0].reduction_count == 1 and
                 _is_gemv_access_shape(ops[0]) and
@@ -932,14 +994,15 @@ def saturate_region(region: StructuredRegion,
                 ("Term.Out(0)" in representations[0] or
                  (len(ops[0].body.indexing_maps) == 3 and
                   "Term.In(2)" in representations[0]))):
-            extracted_kind = "looped_gemv_as_gemm_schedule"
-            if (_is_column_sliced_gemm(ops[0]) and
-                    _gemm_body_equivalent(egraph, ops[0])):
-                extracted_kind = "looped_gemv_as_gemm"
-            else:
-                lowering_blocker = (
-                    "needs affine composition of parent-loop slices into "
-                    "rank-2 GEMM operands before emitting cublas GEMM")
+            if extracted_kind != "looped_gemv_as_batched_gemv":
+                extracted_kind = "looped_gemv_as_gemm_schedule"
+                if (_is_column_sliced_gemm(ops[0]) and
+                        _gemm_body_equivalent(egraph, ops[0])):
+                    extracted_kind = "looped_gemv_as_gemm"
+                else:
+                    lowering_blocker = (
+                        "needs affine composition of parent-loop slices into "
+                        "rank-2 GEMM operands before emitting cublas GEMM")
         four_sum = "Term.In(3)" in representations[0]
         if (len(ops) == 3 and ops[0].parallel_count == 3 and
                 all(op.reduction_count == 0 for op in ops) and four_sum and

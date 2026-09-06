@@ -5937,12 +5937,16 @@ def _ginsbach_page() -> tuple[str, int]:
     )
     backend_routes = {
         ("snu-npb", "BT"): (
-            "cuBLAS subtract GEMV ×1 + GEMM ×1 "
-            "(numerical ABI smoke 3/3 on Orin #2)"
+            "cuBLAS strided-batched subtract GEMM + GEMV "
+            "(combined ABI passes 3/3; full-app transform pending)"
         ),
         ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
+        ("snu-npb", "FT"): "cuFFT: no executable match yet",
         ("snu-npb", "IS"): "CUB histogram ×6 corpus sites; ×2 in rank",
-        ("snu-npb", "UA"): "cuBLAS DAXPBY ×3 + Ddot ×14",
+        ("snu-npb", "UA"): (
+            "cuBLAS DAXPBY ×3; tiny Ddot ×14 recognized but "
+            "profitability-gated"
+        ),
         ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
         ("parboil", "stencil"): "cuDNN 3D convolution ×1",
     }
@@ -5959,7 +5963,7 @@ def _ginsbach_page() -> tuple[str, int]:
         ("Raise passed", totals["raise_ok"]),
         ("Linalg generics", totals["linalg_generics"]),
         ("Computational launches", computational_launches),
-        ("Silicon-validated programs", len(silicon_rows)),
+        ("Silicon-tested programs", len(silicon_rows)),
         ("Published idioms", totals["published_idioms"]),
     )
     metrics = ''.join(
@@ -5978,8 +5982,14 @@ def _ginsbach_page() -> tuple[str, int]:
         )
         silicon_row = silicon.get(key)
         if silicon_row:
+            silicon_status = silicon_row.get("status", "PASS")
+            validation_class = (
+                "pass" if silicon_status == "PASS"
+                else "partial" if silicon_status == "PARTIAL"
+                else "nope"
+            )
             validation = (
-                f'<span class="pass">{html.escape(silicon_row.get("status", "PASS"))}</span>'
+                f'<span class="{validation_class}">{html.escape(silicon_status)}</span>'
                 f'<br><small>{html.escape(silicon_row.get("validation_scope", ""))}</small>'
             )
             runtime = html.escape(silicon_row.get("runtime", "not measured"))
@@ -6041,15 +6051,21 @@ def _ginsbach_page() -> tuple[str, int]:
         '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
         '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S passed '
         'three post-reboot runs (0.13 s each; 501.82 median Mop/s). '
-        'Parboil SGEMM is a '
-        'source-faithful kernel run with a 16.620 ms median host-call time. '
-        'NPB UA DAXPBY/Ddot and the Parboil seven-point stencil have passed '
-        'timed external-library correctness smokes. NPB IS now passes full '
+        'The original Parboil SGEMM application exactly matches the CPU output '
+        'and is 3.90× faster in compute (1.99× including I/O). The original '
+        'Parboil stencil application is correct and, after caching cuDNN setup, '
+        'is currently 1.15× slower. NPB UA verifies with its three DAXPBY '
+        'replacements; a profitability guard now keeps its proven-tiny Ddot '
+        'operations in Linalg. The BT combined strided-batched GEMM+GEMV ABI '
+        'passes 3/3, and Egglog loop lifting lowers the prototype, but full BT '
+        'still needs helper-first raising and workspace privatization. NPB FT '
+        'passes its CPU baseline but does not yet match '
+        'cuFFT. NPB IS passes full '
         'Class-S verification in three post-reboot runs (122.61 median Mop/s) '
         'with the original driver and full_verify around '
         'a source-faithful rank core containing two CUB histogram sites. '
-        'Their exact sizes and '
-        'host/device timing scopes are shown in the table. See '
+        'Exact sizes, timing scopes, and incomplete outcomes are shown in the '
+        'table. See '
         '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the '
         'exact evidence and remaining gaps.</div>'
     )

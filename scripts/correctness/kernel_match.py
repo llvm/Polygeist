@@ -1752,6 +1752,11 @@ def _gemm_strided_batched_subtract() -> CompositionEntry:
     return _mlir_metadata("cublasDgemm_strided_batched_subtract")
 
 
+def _gemv_strided_batched_subtract() -> CompositionEntry:
+    """Y[b] -= A[b]*X[b]; the leading parallel dimension is the batch."""
+    return _mlir_metadata("cublasDgemv_strided_batched_subtract")
+
+
 def _sgemm_zero_gemm() -> CompositionEntry:
     """FP32 C=0; C+=A*B, folded to SGEMM with beta=0."""
     return CompositionEntry(
@@ -3775,6 +3780,7 @@ def composition_library() -> list[CompositionEntry]:
         # 1-step BLAS with α capture.
         _gemm_no_alpha(),
         _gemm_strided_batched_subtract(),
+        _gemv_strided_batched_subtract(),
         _gemm_subtract(),
         _gemm_alpha_only(),
         _gemv_accumulate(),
@@ -3939,6 +3945,7 @@ _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasDdot", "cublasDgeam_scale2D", "cublasDgemm",
     "cublasDgemm_alpha_only", "cublasDgemm_simple", "cublasDgemm_subtract",
     "cublasDgemm_strided_batched_subtract",
+    "cublasDgemv_strided_batched_subtract",
     "cublasDgemv", "cublasDgemv_subtract", "cublasDgemv_subtract_T",
     "cublasDgemv_alpha", "cublasDger_rank2", "cublasSdot",
     "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",

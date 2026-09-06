@@ -1557,8 +1557,30 @@ public:
       return failure();
     auto smt = src.getSource().getType().cast<MemRefType>();
     auto omt = op.getType().cast<MemRefType>();
-    if (smt.getShape().size() != omt.getShape().size())
-      return failure();
+    if (smt.getShape().size() != omt.getShape().size()) {
+      // C erases array rank at a call boundary.  Recover the common case where
+      // a contiguous multi-dimensional array was converted to a pointer and
+      // immediately viewed as a flat pointer argument.
+      if (omt.getRank() != 1 || smt.getRank() < 2 || !smt.hasStaticShape() ||
+          !smt.getLayout().isIdentity() ||
+          smt.getElementType() != omt.getElementType() ||
+          smt.getMemorySpace() != omt.getMemorySpace())
+        return failure();
+      int64_t elements = smt.getNumElements();
+      if (!ShapedType::isDynamic(omt.getDimSize(0)) &&
+          omt.getDimSize(0) != elements)
+        return failure();
+      SmallVector<ReassociationIndices> reassociation(1);
+      for (int64_t i = 0; i < smt.getRank(); ++i)
+        reassociation.front().push_back(i);
+      auto flatTy = MemRefType::get({elements}, smt.getElementType(),
+                                    MemRefLayoutAttrInterface{},
+                                    smt.getMemorySpace());
+      Value flat = rewriter.create<memref::CollapseShapeOp>(
+          op.getLoc(), flatTy, src.getSource(), reassociation);
+      rewriter.replaceOpWithNewOp<memref::CastOp>(op, omt, flat);
+      return success();
+    }
     for (unsigned i = 1; i < smt.getShape().size(); i++) {
       if (smt.getShape()[i] != omt.getShape()[i])
         return failure();

@@ -55,13 +55,15 @@ struct Options {
     int token = 7;
     int pos = SEQ_LEN / 2;
     std::string stage = "logits";
+    bool dump_all = false;
 };
 
 static void usage(const char * argv0) {
     std::fprintf(stderr,
                  "usage: %s [--warmup W] [--iters I] [--token T] [--pos P] "
                  "[--stage x|att_normed|q_even|k_even|scores|probs|att_out|"
-                 "resid_att|ffn_hidden|resid_ffn|final_normed|logits]\n",
+                 "resid_att|ffn_hidden|resid_ffn|final_normed|logits] "
+                 "[--dump-all]\n",
                  argv0);
 }
 
@@ -105,6 +107,9 @@ static Options parse_options(int argc, char ** argv) {
                 usage(argv[0]);
                 std::exit(2);
             }
+            continue;
+        } else if (arg == "--dump-all") {
+            opts.dump_all = true;
             continue;
         } else if (arg == "--help" || arg == "-h") {
             usage(argv[0]);
@@ -563,22 +568,27 @@ int main(int argc, char ** argv) {
     ggml_backend_tensor_get(bench.out, out.data(), 0, ggml_nbytes(bench.out));
 
     double checksum = 0.0;
+    double sumsq = 0.0;
+    double maxabs = 0.0;
     for (float v : out) {
         checksum += static_cast<double>(v);
+        sumsq += static_cast<double>(v) * static_cast<double>(v);
+        maxabs = std::max(maxabs, std::abs(static_cast<double>(v)));
     }
 
     std::printf("bench,stage,backend,model_dim,ffn_dim,vocab,seq_len,heads,token,pos,"
                 "warmup,iters,avg_ms,median_ms,trimmed_ms,min_ms,max_ms,"
-                "checksum,out0,out1,out2,out3,out4,out5,out6,out7\n");
+                "checksum,sumsq,maxabs,out0,out1,out2,out3,out4,out5,out6,out7\n");
     std::printf("ggml_extended,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.6f,%.6f,%.6f,"
-                "%.6f,%.6f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f\n",
+                "%.6f,%.6f,%.17g,%.17g,%.17g,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f\n",
                 bench.opts.stage.c_str(), ggml_backend_name(bench.backend),
                 MODEL_DIM, FFN_DIM, VOCAB, SEQ_LEN, NUM_HEADS,
                 bench.opts.token, bench.opts.pos, bench.opts.warmup,
                 bench.opts.iters, average(times),
                 median(times), trimmed_mean(times),
                 *std::min_element(times.begin(), times.end()),
-                *std::max_element(times.begin(), times.end()), checksum,
+                *std::max_element(times.begin(), times.end()), checksum, sumsq,
+                maxabs,
                 out.size() > 0 ? out[0] : 0.0f,
                 out.size() > 1 ? out[1] : 0.0f,
                 out.size() > 2 ? out[2] : 0.0f,
@@ -587,6 +597,13 @@ int main(int argc, char ** argv) {
                 out.size() > 5 ? out[5] : 0.0f,
                 out.size() > 6 ? out[6] : 0.0f,
                 out.size() > 7 ? out[7] : 0.0f);
+
+    if (bench.opts.dump_all) {
+        std::printf("output_index,value\n");
+        for (size_t i = 0; i < out.size(); ++i) {
+            std::printf("%zu,%.9g\n", i, static_cast<double>(out[i]));
+        }
+    }
 
     ggml_backend_sched_free(bench.sched);
     ggml_backend_free(bench.backend);

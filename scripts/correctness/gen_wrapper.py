@@ -156,12 +156,21 @@ def parse_signature(c_text: str, kernel_name: str):
             name = a.split()[-1].strip('*')
             out.append(('int', name))
             scalar_ints.add(name)
+        elif re.match(r"^\s*logical\s+[A-Za-z_]\w*\s*$", a):
+            # NPB defines logical as a two-valued C enum.  Its external ABI is
+            # the same scalar integer ABI used by the lifted MLIR function.
+            name = a.split()[-1]
+            out.append(('int', name))
         elif _is_plain_c_pointer(a):
             # Extracted kernels often use pointer signatures instead of fixed
             # C arrays. Infer the 1D memref extent from common scalar args.
             name, is_const, pointer_type = _parse_plain_c_pointer(a)
             if name in extent_map:
                 size = extent_map[name]
+            elif name == "tmor":
+                # UA's transfb_cor_e/f receive a pointer to one selected
+                # mortar scalar; `n` describes topology, not buffer length.
+                size = "1"
             elif name == "out" and "n" in scalar_ints and "k" in scalar_ints:
                 size = "(n - k + 1)"
             elif name in ("filter", "kernel", "weights") and "k" in scalar_ints:
@@ -196,6 +205,16 @@ def parse_signature(c_text: str, kernel_name: str):
         entry = out[idx]
         dims = []
         for d in entry[2:]:
+            # In a function parameter, `double a[]` is the same ABI as
+            # `double *a`.  Legacy numerical C commonly supplies its extent
+            # in a trailing `int n`; use that just as the pointer path does.
+            if not d:
+                if "n" not in scalar_ints:
+                    raise ValueError(
+                        f"Cannot infer empty leading dimension for {entry[1]!r}"
+                    )
+                dims.append("n")
+                continue
             lower = d.lower()
             dims.append(lower if lower in scalar_ints else d)
         out[idx] = (entry[0], entry[1], *dims)
@@ -241,8 +260,6 @@ def _parse_plain_c_array(a: str):
     if not dims:
         raise ValueError(f"Plain-C-array arg has no dimensions: {a!r}")
     dims = ["(size + 1)" if not d and name == "lhs" else d for d in dims]
-    if any(not d for d in dims):
-        raise ValueError(f"Cannot infer empty leading dimension: {a!r}")
     prefix = ('U' if ctype == 'unsigned char' else
               'B' if ctype == 'signed char' else
               'I' if ctype in ('unsigned int', 'unsigned', 'int', 'short',

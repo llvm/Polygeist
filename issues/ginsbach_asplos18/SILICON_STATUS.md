@@ -25,9 +25,10 @@ reports:
 - 103 frontend successes
 - 103 successful raising pipelines
 - 677 raised `linalg.generic` operations
-- 38 executable external/platform launch sites
+- 24 executable external/platform launch sites (17 computational; 7
+  memory-initialization sites excluded from the compute comparison)
 
-The thirty-eight launch sites are:
+The twenty-four launch sites are:
 
 - NPB BT: 6 `memset_zero_2D` launches lowered to CUDA runtime memset, plus
   rerolled `matvec_sub`/`matmul_sub` matches lowered to cuBLAS GEMV/GEMM with
@@ -36,7 +37,8 @@ The thirty-eight launch sites are:
 - NPB IS: 6 `cubHistogramEvenI32ShiftZero_memref` launches lowered to CUB
 - NPB LU: 1 `memset_zero_1D` launch lowered to CUDA runtime memset
 - NPB UA: 3 `cublasDaxpby` launches lowered to `cublasDscal` + `cublasDaxpy`
-- NPB UA: 14 scalar-alias dot-product launches lowered to `cublasDdot`
+- NPB UA: 14 scalar-alias dot products are recognized, but the profitability
+  guard leaves these statically tiny length-5 operations in Linalg
 - Parboil SGEMM: 1 launch lowered to cuBLAS SGEMM
 - Parboil stencil: 1 seven-point match lowered to a sparse 3x3x3 cuDNN
   convolution
@@ -121,13 +123,16 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   validated. The corpus-wide whole-file audit reports four static source
   sites; the source-faithful `conj_grad` application path contains the two
   executed static sites described above.
-- NPB UA: fourteen scalar-alias reductions now lower to cuBLAS Ddot (nine in
-  `convect.c`, five in `transfer.c`); full benchmark composition/correctness
-  validation is still pending.
+- NPB UA: fourteen scalar-alias reductions are recognized (nine in
+  `convect.c`, five in `transfer.c`), but their statically proven length-5
+  workloads are intentionally not dispatched as individual cuBLAS calls.
+  The three DAXPBY sites verify in the official application composition.
 - NPB MG residual/smoother: detected stencil structure; needs a composition of
   permitted external operations or remains unmatched.
-- Parboil stencil: its primary seven-point compute unit now has a cuDNN route;
-  complete benchmark build/run validation remains.
+- Parboil stencil: the original application passes on a deterministic
+  128x128x128 grid for five iterations. Cached cuDNN descriptors, algorithm,
+  workspace, and buffers reduce median compute time to `0.289735 s`, versus
+  `0.251026 s` for the CPU (`1.15x` slower); transfers remain.
 - NPB IS: six corpus sites lower to CUB. The full Class-S application now
   preserves the original driver and `full_verify`, replaces only `rank` with a
   source-faithful extracted core, and executes its two static histogram sites
@@ -170,6 +175,14 @@ The authoritative generated audit for this round is
   exist, but the line solves still need application-level batching and device
   residency before they form a complete GPU BT result.
   Log: `scripts/correctness/logs/npb_bt_class_s_baseline_20260905_130426.silicon.log`.
+
+- The unbatched BT GPU composition is not a passing application result: its
+  one-step run hit the watchdog after `63.372 s`. The combined external
+  strided-batched GEMM+GEMV ABI passes 3/3 on Orin #2, and the loop-aware
+  Egglog prototype lowers both operations without a residual parent loop.
+  Full BT still requires helper-first raising, per-line workspace
+  privatization, and an external batched block-solve route.
+  Log: `scripts/correctness/logs/cublas_batched_gemm_gemv_subtract_20260905_221620.silicon.log`.
 
 - The new subtract GEMV/GEMM matcher and ABI lowering route passed its
   numerical silicon smoke in all three runs on Orin #2. The executable was

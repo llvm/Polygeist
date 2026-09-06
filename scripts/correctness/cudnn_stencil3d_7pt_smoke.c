@@ -10,8 +10,14 @@ int main(void) {
     input[i] = 1.0f;
     output[i] = -9.0f;
   }
-  polygeist_cudnn_stencil3d_7pt_f32_flat(
-      input, output, 2.0f, 1.0f, NY, NX, NX - 2, NY - 2, NZ - 2);
+  // Invoke the same shape twice so the second call exercises the persistent
+  // cuDNN descriptor/algorithm/workspace/device-buffer cache.
+  for (int iteration = 0; iteration < 2; ++iteration) {
+    for (int i = 0; i < N; ++i)
+      output[i] = -9.0f;
+    polygeist_cudnn_stencil3d_7pt_f32_flat(
+        input, output, 2.0f, 1.0f, NY, NX, NX - 2, NY - 2, NZ - 2);
+  }
   for (int z = 0; z < NZ; ++z)
     for (int y = 0; y < NY; ++y)
       for (int x = 0; x < NX; ++x) {

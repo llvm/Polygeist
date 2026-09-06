@@ -424,6 +424,20 @@ polygeist-opt --lower-polygeist-submap \
     cat $WORK/abi.err >&2
     exit 1
   }
+# Some legacy scalar reductions use a non-injective rank-expanding memref
+# view solely to express an accumulator to Linalg.  It is safe to collapse
+# that view only after Linalg has made the reduction order explicit.  Retry
+# the cleanup in that form when the first pass leaves semantic views behind.
+if grep -q 'polygeist\.submap' $WORK/abi_canon.mlir; then
+  polygeist-opt --convert-linalg-to-loops --canonicalize \
+    --lower-polygeist-submap --canonicalize \
+    $WORK/abi_canon.mlir -o $WORK/abi_canon_loops.mlir 2>>$WORK/abi.err || {
+      echo "ERROR: residual polygeist submap cleanup failed; see $WORK/abi.err" >&2
+      cat $WORK/abi.err >&2
+      exit 1
+    }
+  mv $WORK/abi_canon_loops.mlir $WORK/abi_canon.mlir
+fi
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
   $WORK/abi_canon.mlir

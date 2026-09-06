@@ -155,6 +155,27 @@ static int            g_pipeline_depth = 0;
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
 
+typedef struct {
+  int32_t nx, ny, nz, out_x, out_y, out_z;
+  float center_scale, neighbor_scale;
+  cudnnTensorDescriptor_t in_desc;
+  cudnnTensorDescriptor_t out_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  cudnnConvolutionFwdAlgo_t algorithm;
+  float *device_input;
+  float *device_output;
+  float *device_filter;
+  void *workspace;
+  size_t workspace_size;
+  size_t input_bytes;
+  size_t output_bytes;
+  int initialized;
+} Stencil3D7ptCache;
+
+static Stencil3D7ptCache g_stencil3d_7pt_cache;
+static void destroy_stencil3d_7pt_cache(void);
+
 typedef enum {
   CUDA_GRAPH_WARMUP = 0,
   CUDA_GRAPH_CAPTURE = 1,
@@ -1078,6 +1099,7 @@ void polygeist_cublas_destroy(void) {
   if (!g_initialized) return;
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
   destroy_cuda_graph_cache();
+  destroy_stencil3d_7pt_cache();
   destroy_generated_module_cache();
 #if POLYGEIST_HAS_CUTENSORNET
   destroy_cutensornet_contraction_cache();
@@ -1678,6 +1700,74 @@ void polygeist_cublas_sgemm_strided_batched(
   unregister_host_safe(C);
 }
 
+void polygeist_cublas_dgemm_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const double *A, const double *B, double *C) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t strideA = (size_t)M * (size_t)K;
+  size_t strideB = (size_t)K * (size_t)N;
+  size_t strideC = (size_t)M * (size_t)N;
+  void *host_ptrs[3] = {(void *)A, (void *)B, C};
+  size_t byte_sizes[3] = {
+      (size_t)batch * strideA * sizeof(double),
+      (size_t)batch * strideB * sizeof(double),
+      (size_t)batch * strideC * sizeof(double)};
+  void *device_ptrs[3];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 3);
+  double *dA = (double *)device_ptrs[0];
+  double *dB = (double *)device_ptrs[1];
+  double *dC = (double *)device_ptrs[2];
+  const double minus_one = -1.0;
+  const double one = 1.0;
+  timing_gpu_begin();
+  // Row-major C_b -= A_b*B_b becomes column-major
+  // C_b^T -= B_b^T*A_b^T, so swap A and B.
+  CUBLAS_CHECK(cublasDgemmStridedBatched(
+      g_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &minus_one,
+      dB, N, (long long)strideB, dA, K, (long long)strideA,
+      &one, dC, N, (long long)strideC, batch));
+  timing_gpu_end("cublasDgemmStridedBatched_subtract",
+                 batch * M, N, K, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_dgemv_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t K,
+    const double *A, const double *X, double *Y) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t strideA = (size_t)M * (size_t)K;
+  size_t strideX = (size_t)K;
+  size_t strideY = (size_t)M;
+  void *host_ptrs[3] = {(void *)A, (void *)X, Y};
+  size_t byte_sizes[3] = {
+      (size_t)batch * strideA * sizeof(double),
+      (size_t)batch * strideX * sizeof(double),
+      (size_t)batch * strideY * sizeof(double)};
+  void *device_ptrs[3];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 3);
+  double *dA = (double *)device_ptrs[0];
+  double *dX = (double *)device_ptrs[1];
+  double *dY = (double *)device_ptrs[2];
+  const double minus_one = -1.0;
+  const double one = 1.0;
+  timing_gpu_begin();
+  // Each row-major MxK matrix is viewed as a column-major KxM matrix. Its
+  // transpose times the Kx1 vector produces the desired Mx1 result.
+  CUBLAS_CHECK(cublasDgemmStridedBatched(
+      g_handle, CUBLAS_OP_T, CUBLAS_OP_N, M, 1, K, &minus_one,
+      dA, K, (long long)strideA, dX, K, (long long)strideX,
+      &one, dY, M, (long long)strideY, batch));
+  timing_gpu_end("cublasDgemvStridedBatched_subtract",
+                 batch * M, 1, K, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)X);
+  unregister_host_safe(Y);
+}
+
 void polygeist_cublas_dgemm_outer_product(
     int32_t M, int32_t N,
     const double *u, const double *v, double *C) {
@@ -1743,8 +1833,12 @@ void polygeist_cublas_daxpby(int32_t N, double alpha, const double *x,
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   size_t bytes = (size_t)N * sizeof(double);
-  double *dx = (double *)register_host_safe((void *)x, bytes);
-  double *dy = (double *)register_host_safe(y, bytes);
+  void *host_ptrs[2] = {(void *)x, y};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  double *dx = (double *)device_ptrs[0];
+  double *dy = (double *)device_ptrs[1];
   timing_gpu_begin();
   CUBLAS_CHECK(cublasDscal(g_handle, N, &beta, dy, 1));
   CUBLAS_CHECK(cublasDaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
@@ -1758,8 +1852,12 @@ void polygeist_cublas_saxpby(int32_t N, float alpha, const float *x,
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   size_t bytes = (size_t)N * sizeof(float);
-  float *dx = (float *)register_host_safe((void *)x, bytes);
-  float *dy = (float *)register_host_safe(y, bytes);
+  void *host_ptrs[2] = {(void *)x, y};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  float *dx = (float *)device_ptrs[0];
+  float *dy = (float *)device_ptrs[1];
   timing_gpu_begin();
   CUBLAS_CHECK(cublasSscal(g_handle, N, &beta, dy, 1));
   CUBLAS_CHECK(cublasSaxpy(g_handle, N, &alpha, dx, 1, dy, 1));
@@ -3401,6 +3499,87 @@ void polygeist_cudnn_conv3d_ntap_f32(
  * The adapter only builds the sparse 3x3x3 filter and descriptors; cuDNN
  * performs all arithmetic. cudaMemcpy3D writes the compact valid-convolution
  * result into the interior of the caller's full grid, preserving boundaries. */
+static void destroy_stencil3d_7pt_cache(void) {
+  Stencil3D7ptCache *cache = &g_stencil3d_7pt_cache;
+  if (!cache->initialized)
+    return;
+  if (cache->workspace) DEVICE_FREE(cache->workspace);
+  if (cache->device_filter) DEVICE_FREE(cache->device_filter);
+  if (cache->device_output) DEVICE_FREE(cache->device_output);
+  if (cache->device_input) DEVICE_FREE(cache->device_input);
+  if (cache->conv_desc) cudnnDestroyConvolutionDescriptor(cache->conv_desc);
+  if (cache->filter_desc) cudnnDestroyFilterDescriptor(cache->filter_desc);
+  if (cache->out_desc) cudnnDestroyTensorDescriptor(cache->out_desc);
+  if (cache->in_desc) cudnnDestroyTensorDescriptor(cache->in_desc);
+  memset(cache, 0, sizeof(*cache));
+}
+
+static void prepare_stencil3d_7pt_cache(
+    int32_t nx, int32_t ny, int32_t nz,
+    int32_t out_x, int32_t out_y, int32_t out_z) {
+  Stencil3D7ptCache *cache = &g_stencil3d_7pt_cache;
+  if (cache->initialized && cache->nx == nx && cache->ny == ny &&
+      cache->nz == nz && cache->out_x == out_x &&
+      cache->out_y == out_y && cache->out_z == out_z)
+    return;
+
+  destroy_stencil3d_7pt_cache();
+  cache->nx = nx;
+  cache->ny = ny;
+  cache->nz = nz;
+  cache->out_x = out_x;
+  cache->out_y = out_y;
+  cache->out_z = out_z;
+  cache->center_scale = NAN;
+  cache->neighbor_scale = NAN;
+  cache->input_bytes = (size_t)nx * ny * nz * sizeof(float);
+  cache->output_bytes = (size_t)out_x * out_y * out_z * sizeof(float);
+
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&cache->in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&cache->out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&cache->filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&cache->conv_desc));
+  int in_dims[5] = {1, 1, nz, ny, nx};
+  int in_strides[5] = {nz * ny * nx, nz * ny * nx, ny * nx, nx, 1};
+  int out_dims[5] = {1, 1, out_z, out_y, out_x};
+  int out_strides[5] = {out_z * out_y * out_x, out_z * out_y * out_x,
+                        out_y * out_x, out_x, 1};
+  int filter_dims[5] = {1, 1, 3, 3, 3};
+  int pad[3] = {0, 0, 0}, stride[3] = {1, 1, 1};
+  int dilation[3] = {1, 1, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      cache->in_desc, CUDNN_DATA_FLOAT, 5, in_dims, in_strides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      cache->out_desc, CUDNN_DATA_FLOAT, 5, out_dims, out_strides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      cache->filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5,
+      filter_dims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      cache->conv_desc, 3, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
+      CUDNN_DATA_FLOAT));
+
+  DEVICE_MALLOC((void **)&cache->device_input, cache->input_bytes);
+  DEVICE_MALLOC((void **)&cache->device_output, cache->output_bytes);
+  DEVICE_MALLOC((void **)&cache->device_filter, 27 * sizeof(float));
+
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, cache->in_desc, cache->filter_desc, cache->conv_desc,
+      cache->out_desc, 1, &returned, &perf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN 7pt stencil: no forward algorithm available\n");
+    abort();
+  }
+  cache->algorithm = perf.algo;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, cache->in_desc, cache->filter_desc, cache->conv_desc,
+      cache->out_desc, cache->algorithm, &cache->workspace_size));
+  if (cache->workspace_size)
+    DEVICE_MALLOC(&cache->workspace, cache->workspace_size);
+  cache->initialized = 1;
+}
+
 void polygeist_cudnn_stencil3d_7pt_f32_flat(
     const float *A, float *B, float center_scale, float neighbor_scale,
     int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z) {
@@ -3413,71 +3592,34 @@ void polygeist_cudnn_stencil3d_7pt_f32_flat(
     abort();
   }
   int32_t nz = out_z + 2;
-  float filter[27] = {0};
-  filter[4] = filter[10] = filter[12] = neighbor_scale;
-  filter[14] = filter[16] = filter[22] = neighbor_scale;
-  filter[13] = -center_scale;
-
-  cudnnTensorDescriptor_t in_desc, out_desc;
-  cudnnFilterDescriptor_t filter_desc;
-  cudnnConvolutionDescriptor_t conv_desc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filter_desc));
-  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
-  int in_dims[5] = {1, 1, nz, ny, nx};
-  int in_strides[5] = {nz * ny * nx, nz * ny * nx, ny * nx, nx, 1};
-  int out_dims[5] = {1, 1, out_z, out_y, out_x};
-  int out_strides[5] = {out_z * out_y * out_x, out_z * out_y * out_x,
-                        out_y * out_x, out_x, 1};
-  int filter_dims[5] = {1, 1, 3, 3, 3};
-  int pad[3] = {0, 0, 0}, stride[3] = {1, 1, 1};
-  int dilation[3] = {1, 1, 1};
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      in_desc, CUDNN_DATA_FLOAT, 5, in_dims, in_strides));
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      out_desc, CUDNN_DATA_FLOAT, 5, out_dims, out_strides));
-  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
-      filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, filter_dims));
-  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
-      conv_desc, 3, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
-      CUDNN_DATA_FLOAT));
-
-  size_t input_bytes = (size_t)nx * ny * nz * sizeof(float);
-  size_t output_bytes = (size_t)out_x * out_y * out_z * sizeof(float);
-  float *d_input = NULL, *d_output = NULL, *d_filter = NULL;
-  DEVICE_MALLOC((void **)&d_input, input_bytes);
-  DEVICE_MALLOC((void **)&d_output, output_bytes);
-  DEVICE_MALLOC((void **)&d_filter, sizeof(filter));
-  CUDA_CHECK(cudaMemcpyAsync(d_input, A, input_bytes, cudaMemcpyHostToDevice,
+  prepare_stencil3d_7pt_cache(nx, ny, nz, out_x, out_y, out_z);
+  Stencil3D7ptCache *cache = &g_stencil3d_7pt_cache;
+  CUDA_CHECK(cudaMemcpyAsync(cache->device_input, A, cache->input_bytes,
+                             cudaMemcpyHostToDevice,
                              g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(d_filter, filter, sizeof(filter),
-                             cudaMemcpyHostToDevice, g_stream));
-
-  cudnnConvolutionFwdAlgoPerf_t perf;
-  int returned = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      g_cudnn, in_desc, filter_desc, conv_desc, out_desc, 1, &returned, &perf));
-  if (returned < 1) {
-    fprintf(stderr, "cuDNN 7pt stencil: no forward algorithm available\n");
-    abort();
+  if (cache->center_scale != center_scale ||
+      cache->neighbor_scale != neighbor_scale) {
+    float filter[27] = {0};
+    filter[4] = filter[10] = filter[12] = neighbor_scale;
+    filter[14] = filter[16] = filter[22] = neighbor_scale;
+    filter[13] = -center_scale;
+    CUDA_CHECK(cudaMemcpyAsync(cache->device_filter, filter, sizeof(filter),
+                               cudaMemcpyHostToDevice, g_stream));
+    cache->center_scale = center_scale;
+    cache->neighbor_scale = neighbor_scale;
   }
-  size_t workspace_size = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
-      g_cudnn, in_desc, filter_desc, conv_desc, out_desc, perf.algo,
-      &workspace_size));
-  void *workspace = NULL;
-  if (workspace_size) DEVICE_MALLOC(&workspace, workspace_size);
   float alpha = 1.0f, beta = 0.0f;
   timing_gpu_begin();
   CUDNN_CHECK(cudnnConvolutionForward(
-      g_cudnn, &alpha, in_desc, d_input, filter_desc, d_filter, conv_desc,
-      perf.algo, workspace, workspace_size, &beta, out_desc, d_output));
+      g_cudnn, &alpha, cache->in_desc, cache->device_input,
+      cache->filter_desc, cache->device_filter, cache->conv_desc,
+      cache->algorithm, cache->workspace, cache->workspace_size, &beta,
+      cache->out_desc, cache->device_output));
   timing_gpu_end("cudnnStencil3D7pt_f32_flat", out_z, out_y * out_x, 27,
                  host_start_ms);
 
   struct cudaMemcpy3DParms copy = {0};
-  copy.srcPtr.ptr = d_output;
+  copy.srcPtr.ptr = cache->device_output;
   copy.srcPtr.pitch = (size_t)out_x * sizeof(float);
   copy.srcPtr.xsize = out_x;
   copy.srcPtr.ysize = out_y;
@@ -3491,15 +3633,6 @@ void polygeist_cudnn_stencil3d_7pt_f32_flat(
   copy.kind = cudaMemcpyDeviceToHost;
   CUDA_CHECK(cudaMemcpy3DAsync(&copy, g_stream));
   sync_stream_if_outside_pipeline();
-
-  if (workspace) DEVICE_FREE(workspace);
-  DEVICE_FREE(d_filter);
-  DEVICE_FREE(d_output);
-  DEVICE_FREE(d_input);
-  cudnnDestroyConvolutionDescriptor(conv_desc);
-  cudnnDestroyFilterDescriptor(filter_desc);
-  cudnnDestroyTensorDescriptor(out_desc);
-  cudnnDestroyTensorDescriptor(in_desc);
 }
 
 static void polygeist_dft_z2z_1d_cpu(
@@ -7337,8 +7470,12 @@ void polygeist_cublas_dot_f32(
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dY = (float *)register_host_safe((void *)Y, bytes);
+  void *host_ptrs[2] = {(void *)X, (void *)Y};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  float *dX = (float *)device_ptrs[0];
+  float *dY = (float *)device_ptrs[1];
   void *device_out = NULL;
   int out_is_device = pointer_is_device_resident(Out, &device_out);
   float host_out = 0.0f;
@@ -7366,8 +7503,12 @@ void polygeist_cublas_dot_f64(
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes = (size_t)N * sizeof(double);
-  double *dX = (double *)register_host_safe((void *)X, bytes);
-  double *dY = (double *)register_host_safe((void *)Y, bytes);
+  void *host_ptrs[2] = {(void *)X, (void *)Y};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  double *dX = (double *)device_ptrs[0];
+  double *dY = (double *)device_ptrs[1];
   void *device_out = NULL;
   int out_is_device = pointer_is_device_resident(Out, &device_out);
   double host_out = 0.0;
@@ -8081,13 +8222,21 @@ void polygeist_cutensor_permute_f32(
   cutensorPlanPreference_t preference = NULL;
   cutensorPlan_t plan = NULL;
   float alpha = 1.0f;
+  uint32_t input_alignment = 1;
+  uint32_t output_alignment = 1;
+  while (input_alignment < 128 &&
+         ((uintptr_t)device_input % (2u * input_alignment)) == 0)
+    input_alignment *= 2;
+  while (output_alignment < 128 &&
+         ((uintptr_t)device_output % (2u * output_alignment)) == 0)
+    output_alignment *= 2;
   CUTENSOR_CHECK(cutensorCreate(&handle));
   CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
       handle, &input_desc, rank, input_extents, input_strides,
-      CUDA_R_32F, 128));
+      CUDA_R_32F, input_alignment));
   CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
       handle, &output_desc, rank, output_extents, output_strides,
-      CUDA_R_32F, 128));
+      CUDA_R_32F, output_alignment));
   CUTENSOR_CHECK(cutensorCreatePermutation(
       handle, &operation, input_desc, input_modes, CUTENSOR_OP_IDENTITY,
       output_desc, output_modes, CUTENSOR_COMPUTE_DESC_32F));

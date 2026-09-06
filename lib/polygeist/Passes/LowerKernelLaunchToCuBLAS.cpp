@@ -127,6 +127,10 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasDgemm") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_simple") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_subtract") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgemm_strided_batched_subtract")
+    return "polygeist_cublas_dgemm_strided_batched_subtract";
+  if (libSym == "cublasDgemv_strided_batched_subtract")
+    return "polygeist_cublas_dgemv_strided_batched_subtract";
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgemm_zero") return "polygeist_cublas_dgemm";
   if (libSym == "cublasSgemm_nn" || libSym == "cublasSgemm_nn_zero" ||
@@ -807,6 +811,16 @@ static Value tensorForOutputSliceSource(OpBuilder &b, Location loc, Value v) {
 // SSA uses. The `restrict` + `writable` attributes promise this is the
 // only alias of the memref, which is true for fresh launch results.
 static Value memrefToTensor(OpBuilder &b, Location loc, Value m, Type tensorType) {
+  auto mrType = dyn_cast<MemRefType>(m.getType());
+  auto rankedTensor = dyn_cast<RankedTensorType>(tensorType);
+  if (mrType && rankedTensor) {
+    auto expected = MemRefType::get(
+        rankedTensor.getShape(), rankedTensor.getElementType(),
+        mrType.getLayout(), mrType.getMemorySpace());
+    if (expected != mrType &&
+        memref::CastOp::areCastCompatible(mrType, expected))
+      m = b.create<memref::CastOp>(loc, expected, m);
+  }
   auto t = b.create<bufferization::ToTensorOp>(
       loc, tensorType, m, /*restrict=*/true, /*writable=*/true);
   return t.getResult();
@@ -1277,6 +1291,83 @@ static LogicalResult lowerSgemmStridedBatched(LaunchOp launch,
       memrefBasePtr(b, loc, Am), memrefBasePtr(b, loc, Bm),
       memrefBasePtr(b, loc, Cm)});
   Value out = memrefToTensor(b, loc, Cm, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDgemmStridedBatchedSubtract(LaunchOp launch,
+                                                       ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "batched DGEMM subtract: expected A, B, C and one result");
+  Value A = launch.getOperand(0), B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 3 || Bt.getRank() != 3 ||
+      Ct.getRank() != 3 || !At.getElementType().isF64() ||
+      !Bt.getElementType().isF64() || !Ct.getElementType().isF64())
+    return launch.emitError(
+        "batched DGEMM subtract: operands must be rank-3 f64 tensors");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value Am = tensorToMemref(b, loc, A);
+  Value Bm = tensorToMemref(b, loc, B);
+  Value Cm = tensorToMemref(b, loc, C);
+  Value batch = memrefDimAsI32(b, loc, Cm, 0);
+  Value M = memrefDimAsI32(b, loc, Cm, 1);
+  Value N = memrefDimAsI32(b, loc, Cm, 2);
+  Value K = memrefDimAsI32(b, loc, Am, 2);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types = {b.getI32Type(), b.getI32Type(), b.getI32Type(),
+                             b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_dgemm_strided_batched_subtract", types, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{batch, M, N, K, memrefBasePtr(b, loc, Am),
+                 memrefBasePtr(b, loc, Bm), memrefBasePtr(b, loc, Cm)});
+  Value out = memrefToTensor(b, loc, Cm, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDgemvStridedBatchedSubtract(LaunchOp launch,
+                                                       ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError(
+        "batched DGEMV subtract: expected A, X, Y and one result");
+  Value A = launch.getOperand(0), X = launch.getOperand(1);
+  Value Y = launch.getOperand(2);
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Xt = dyn_cast<RankedTensorType>(X.getType());
+  auto Yt = dyn_cast<RankedTensorType>(Y.getType());
+  if (!At || !Xt || !Yt || At.getRank() != 3 || Xt.getRank() != 2 ||
+      Yt.getRank() != 2 || !At.getElementType().isF64() ||
+      !Xt.getElementType().isF64() || !Yt.getElementType().isF64())
+    return launch.emitError(
+        "batched DGEMV subtract: expected rank-3/2/2 f64 tensors");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value Am = tensorToMemref(b, loc, A);
+  Value Xm = tensorToMemref(b, loc, X);
+  Value Ym = tensorToMemref(b, loc, Y);
+  Value batch = memrefDimAsI32(b, loc, Ym, 0);
+  Value M = memrefDimAsI32(b, loc, Ym, 1);
+  Value K = memrefDimAsI32(b, loc, Am, 2);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> types = {b.getI32Type(), b.getI32Type(), b.getI32Type(),
+                             ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_dgemv_strided_batched_subtract", types, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{batch, M, K, memrefBasePtr(b, loc, Am),
+                 memrefBasePtr(b, loc, Xm), memrefBasePtr(b, loc, Ym)});
+  Value out = memrefToTensor(b, loc, Ym, launch.getResult(0).getType());
   launch.getResult(0).replaceAllUsesWith(out);
   launch.erase();
   return success();
@@ -6763,6 +6854,10 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerSgemmTranspose(launch, module, libSym);
       } else if (libSym == "cublasSgemm_strided_batched_nn_zero") {
         r = lowerSgemmStridedBatched(launch, module);
+      } else if (libSym == "cublasDgemm_strided_batched_subtract") {
+        r = lowerDgemmStridedBatchedSubtract(launch, module);
+      } else if (libSym == "cublasDgemv_strided_batched_subtract") {
+        r = lowerDgemvStridedBatchedSubtract(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_simple") {
         r = lowerSgemmBroadcast3DSimple(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_memref") {

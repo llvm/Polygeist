@@ -225,6 +225,29 @@ void polygeist_cublas_sgemm_strided_batched(
         C + (size_t)b * M * N, N);
 }
 
+void polygeist_cublas_dgemm_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const double *A, const double *B, double *C) {
+  size_t strideA = (size_t)M * (size_t)K;
+  size_t strideB = (size_t)K * (size_t)N;
+  size_t strideC = (size_t)M * (size_t)N;
+  for (int32_t b = 0; b < batch; ++b)
+    polygeist_cublas_dgemm(
+        M, N, K, -1.0, A + (size_t)b * strideA, K,
+        B + (size_t)b * strideB, N, 1.0,
+        C + (size_t)b * strideC, N);
+}
+
+void polygeist_cublas_dgemv_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t K,
+    const double *A, const double *X, double *Y) {
+  size_t strideA = (size_t)M * (size_t)K;
+  for (int32_t b = 0; b < batch; ++b)
+    polygeist_cublas_dgemv(
+        M, K, -1.0, A + (size_t)b * strideA, K,
+        X + (size_t)b * K, 1.0, Y + (size_t)b * M);
+}
+
 void polygeist_cublas_dgemm_outer_product(
     int32_t M, int32_t N,
     const double *u, const double *v, double *C) {

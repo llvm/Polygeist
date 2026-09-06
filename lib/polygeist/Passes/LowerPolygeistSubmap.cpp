@@ -1018,6 +1018,74 @@ struct LowerFlatTensorSubmapToMemrefView
   }
 };
 
+// After linalg-to-loops, a reduction over a scalar accumulator can retain the
+// frontend's logical broadcast view:
+//
+//   submap scalar, size=N, map (d0) -> () : memref<f64> -> memref<?xf64>
+//
+// Every logical element aliases the same rank-0 slot.  Once the structured
+// reduction has become an explicitly ordered loop, loads and stores through
+// that view can be redirected to the scalar without changing semantics.
+struct LowerScalarBroadcastMemrefSubmap
+    : public OpRewritePattern<SubmapOp> {
+  using OpRewritePattern<SubmapOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubmapOp submap,
+                                PatternRewriter &rewriter) const final {
+    auto baseTy = dyn_cast<MemRefType>(submap.getBase().getType());
+    auto outTy = dyn_cast<MemRefType>(submap.getType());
+    AffineMap map = submap.getMap();
+    if (!baseTy || !outTy || baseTy.getRank() != 0 || outTy.getRank() == 0 ||
+        map.getNumResults() != 0 ||
+        map.getNumDims() != static_cast<unsigned>(outTy.getRank()))
+      return failure();
+
+    for (Operation *user : submap->getUsers())
+      if (!isa<memref::LoadOp, memref::StoreOp>(user))
+        return failure();
+
+    for (Operation *user : llvm::make_early_inc_range(submap->getUsers())) {
+      rewriter.setInsertionPoint(user);
+      if (auto load = dyn_cast<memref::LoadOp>(user)) {
+        Value replacement = rewriter.create<memref::LoadOp>(
+            load.getLoc(), submap.getBase(), ValueRange{});
+        rewriter.replaceOp(load, replacement);
+      } else {
+        auto store = cast<memref::StoreOp>(user);
+        rewriter.create<memref::StoreOp>(store.getLoc(), store.getValue(),
+                                         submap.getBase(), ValueRange{});
+        rewriter.eraseOp(store);
+      }
+    }
+    rewriter.eraseOp(submap);
+    return success();
+  }
+};
+
+// A rank-1 identity view with a runtime length is an ordinary prefix slice.
+// Its base often has a larger static capacity while the active application
+// extent changes at runtime (for example an adaptive mesh's mortar arrays).
+struct LowerDynamicIdentityMemrefSubmap
+    : public OpRewritePattern<SubmapOp> {
+  using OpRewritePattern<SubmapOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubmapOp submap,
+                                PatternRewriter &rewriter) const final {
+    auto baseTy = dyn_cast<MemRefType>(submap.getBase().getType());
+    auto outTy = dyn_cast<MemRefType>(submap.getType());
+    if (!baseTy || !outTy || baseTy.getRank() != 1 || outTy.getRank() != 1 ||
+        !submap.getMap().isIdentity() || submap.getSizes().size() != 1)
+      return failure();
+    SmallVector<OpFoldResult> sizes{submap.getSizes().front()};
+    SmallVector<OpFoldResult> strides{rewriter.getIndexAttr(1)};
+    auto view = rewriter.create<memref::ReinterpretCastOp>(
+        submap.getLoc(), outTy, submap.getBase(), rewriter.getIndexAttr(0),
+        sizes, strides);
+    rewriter.replaceOp(submap, view.getResult());
+    return success();
+  }
+};
+
 // Lower polygeist.submap on a memref result, when the affine map has symbols,
 // to an equivalent memref.subview. Each map result expression must be of one
 // of the supported shapes:
@@ -1953,6 +2021,8 @@ struct LowerPolygeistSubmapPass
                  ComposeTensorInputSubmapIntoLinalgGeneric,
                  LowerFlatTensorSubmapToMemrefView,
                  ComposeSubmapIntoLinalgGeneric,
+                 LowerScalarBroadcastMemrefSubmap,
+                 LowerDynamicIdentityMemrefSubmap,
                  LowerRowMajorFlatMemrefSubmap,
                  LowerSymbolBearingSubmapToSubview,
                  LowerSymbolBearingSubmapToExtractSlice,
@@ -1960,6 +2030,65 @@ struct LowerPolygeistSubmapPass
     if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                              std::move(patterns)))) {
       // Some submaps remain — caller may want to know but it's not fatal.
+    }
+
+    // C array parameters are represented as dynamic memrefs by cgeist even
+    // when every call passes the same statically-shaped object.  Recover that
+    // shape for unresolved C callees and request MLIR's bare-pointer calling
+    // convention.  Otherwise FuncToLLVM expands the memref into a descriptor
+    // and calls an ordinary C function with the wrong ABI.
+    auto module = dyn_cast<ModuleOp>(getOperation());
+    if (!module)
+      return;
+    for (func::FuncOp callee : module.getOps<func::FuncOp>()) {
+      if (!callee.isExternal())
+        continue;
+      SmallVector<func::CallOp> calls;
+      module.walk([&](func::CallOp call) {
+        if (call.getCallee() == callee.getSymName())
+          calls.push_back(call);
+      });
+      if (calls.empty())
+        continue;
+
+      SmallVector<Type> specializedTypes(callee.getArgumentTypes());
+      SmallVector<SmallVector<Value>> specializedOperands(calls.size());
+      bool hasMemref = false;
+      bool compatible = true;
+      for (auto [callIndex, call] : llvm::enumerate(calls)) {
+        specializedOperands[callIndex].assign(call.getOperands().begin(),
+                                               call.getOperands().end());
+      }
+      for (unsigned arg = 0; arg < specializedTypes.size(); ++arg) {
+        auto declared = dyn_cast<MemRefType>(specializedTypes[arg]);
+        if (!declared)
+          continue;
+        hasMemref = true;
+        MemRefType common;
+        for (auto [callIndex, call] : llvm::enumerate(calls)) {
+          Value operand = call.getOperand(arg);
+          if (auto cast = operand.getDefiningOp<memref::CastOp>())
+            operand = cast.getSource();
+          auto actual = dyn_cast<MemRefType>(operand.getType());
+          if (!actual || !actual.hasStaticShape() ||
+              (common && common != actual)) {
+            compatible = false;
+            break;
+          }
+          common = actual;
+          specializedOperands[callIndex][arg] = operand;
+        }
+        if (!compatible)
+          break;
+        specializedTypes[arg] = common;
+      }
+      if (!hasMemref || !compatible)
+        continue;
+      callee.setType(FunctionType::get(&getContext(), specializedTypes,
+                                       callee.getResultTypes()));
+      callee->setAttr("llvm.bareptr", UnitAttr::get(&getContext()));
+      for (auto [callIndex, call] : llvm::enumerate(calls))
+        call->setOperands(specializedOperands[callIndex]);
     }
   }
 };
