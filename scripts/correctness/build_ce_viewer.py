@@ -2470,29 +2470,28 @@ ATEN_PAGE_SIZE = 20
 # attach those executions to the current general matcher output.
 ATEN_RETIRED_EARLY_MATCH_KERNELS = {
     "aten_adaptive_avg_pool2d_backward_cpu", "aten_adaptive_avg_pool2d_cpu",
-    "aten_adaptive_avg_pool3d", "aten_adaptive_avg_pool3d_backward_cpu",
+    "aten_adaptive_avg_pool3d_backward_cpu",
     "aten_adaptive_avg_pool3d_cpu", "aten_adaptive_max_pool1d_cpu",
     "aten_adaptive_max_pool2d_backward_cpu", "aten_adaptive_max_pool2d_cpu",
     "aten_adaptive_max_pool3d_backward_cpu", "aten_adaptive_max_pool3d_cpu",
     "aten_adaptive_max_pool3d_legacy_backward_cpu",
-    "aten_adaptive_max_pool3d_legacy_cpu", "aten_addr_elementwise",
+    "aten_adaptive_max_pool3d_legacy_cpu",
     "aten_allany_dims_cpu", "aten_and_reduce_cpu", "aten_argmax_cpu",
-    "aten_argmin_cpu", "aten_avg_pool2d", "aten_avg_pool2d_backward_cpu",
-    "aten_avg_pool2d_cpu", "aten_avg_pool3d", "aten_avg_pool3d_backward_cpu",
+    "aten_argmin_cpu", "aten_avg_pool2d_backward_cpu",
+    "aten_avg_pool2d_cpu", "aten_avg_pool3d_backward_cpu",
     "aten_avg_pool3d_cpu", "aten_batch_norm_backward_cpu",
-    "aten_batch_norm_backward_template_cpu", "aten_bf16_dot_cpu",
-    "aten_bf16_gemv_trans_cpu", "aten_binary_cross_entropy",
+    "aten_batch_norm_backward_template_cpu",
+    "aten_count_nonzero_impl_cpu", "aten_cumprod_cpu", "aten_max_pool2d",
     "aten_conv_tbc_backward_cpu", "aten_conv_tbc_cpu",
     "aten_conv_transpose2d", "aten_conv_transpose3d_cpu",
     "aten_conv_transpose3d_grad_weight_cpu", "aten_depthwise_conv3x3_cpu",
     "aten_fp16_gemv_trans_cpu", "aten_joint_scaling_cpu",
     "aten_kron_impl_cpu", "aten_kron_out_cpu", "aten_linalg_powsum_cpu",
-    "aten_log_sigmoid_cpu", "aten_max_values_cpu", "aten_min_values_cpu",
-    "aten_nansum_cpu", "aten_nested_all_cpu", "aten_nested_batch_offsets_cpu",
+    "aten_nansum_cpu", "aten_nested_all_cpu",
     "aten_nested_sum_dim_cpu", "aten_or_reduce_cpu", "aten_powsum_cpu",
     "aten_sinc", "aten_slow_conv3d_backward_input_cpu",
     "aten_slow_conv3d_backward_weight_cpu", "aten_sort_cpu",
-    "aten_sparse_norm_cpu", "aten_sum_cpu_backend", "aten_topk_cpu",
+    "aten_sparse_norm_cpu", "aten_topk_cpu",
     "aten_transform_bias_rescale_qkv_cpu",
     "aten_upsample_lanczos2d_aa_backward_cpu",
     "aten_upsample_lanczos2d_aa_cpu", "aten_xor_sum_cpu",
@@ -3088,6 +3087,21 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             )
         else:
             resident_cell = '<td class="none">—</td>'
+        # This is a separate GPU measurement from the resident number.  The
+        # mapped ABI can include host/device transfers and runtime allocation,
+        # so expose it without presenting it as resident execution.
+        try:
+            mapped_value = float(perf.get("raised_us", ""))
+        except (ValueError, TypeError):
+            mapped_value = 0.0
+        if correctness == "PASS" and mapped_value > 0.0:
+            mapped_cell = (
+                f'<td title="correctness-gated mapped raised GPU execution; '
+                f'host-pointer ABI transfers and allocations may be included">'
+                f'{mapped_value:.1f}</td>'
+            )
+        else:
+            mapped_cell = '<td class="none">—</td>'
         rows.append(
             f'<tr data-op="{html.escape(kernel)}" '
             f'data-native="{1 if native_us else 0}">'
@@ -3102,6 +3116,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
             f"<td>{residency_cell}</td>"
             f'<td class="{correctness_class}">{correctness}</td>'
             f"<td><code>{html.escape(_res_shape.replace('_',' ')) if _res_shape else problem}</code></td>"
+            f"{mapped_cell}"
             f"{resident_cell}"
             f"{native_cell}"
             f"<td>{ratio}</td><td>{baseline}</td>"
@@ -3269,6 +3284,10 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         'text-transform:none;font-size:10px">allocs/copies</span></th>'
         '<th>correctness</th>'
         '<th>large problem</th>'
+        '<th>mapped raised '
+        '(<span style="text-transform:none">µs</span>)<br>'
+        '<span style="font-weight:normal;text-transform:none;font-size:10px">'
+        'host-pointer ABI</span></th>'
         '<th>resident '
         '(<span style="text-transform:none">µs</span>)</th>'
         '<th>ATen native '

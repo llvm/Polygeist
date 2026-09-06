@@ -658,6 +658,7 @@ int main(void) {{
   /* Device-resident timing: operands in cudaMalloc'd device DRAM, copy in/out
      ONCE outside the timed loop, so only the op is measured (matches torch). */
   double resident_us = -1.0;
+#ifndef BENCH_MAPPED_ONLY
   {' '.join(dev_alloc)}
   {' '.join(dev_h2d)}
   cudaDeviceSynchronize();
@@ -668,6 +669,7 @@ int main(void) {{
   {{ double best=1e30; for(int i=0;i<20;++i) {{ double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize(); double d=now_us()-t; if(d<best) best=d; }} resident_us = best; }}
   {' '.join(dev_d2h)}
   {' '.join(dev_free)}
+#endif
   printf("RESULT kernel={kernel} warm_us=%.6f resident_us=%.6f errors=%d max_error=%g shape={shape_str} coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,resident_us,errors,max_error);
   {' '.join(frees)}
   return errors ? 1 : 0;
