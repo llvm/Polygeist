@@ -65,6 +65,13 @@ void polygeist_cusparse_spmm_coo_f32_sized(
     int32_t value_count, const float *values,
     int32_t b_rows, int32_t b_cols, const float *b,
     int32_t c_rows, int32_t c_cols, float *c);
+void polygeist_cusparse_spmm_bsr_f32_sized(
+    int32_t block_rows, int32_t block_dim,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_block_count, int32_t value_block_rows,
+    int32_t value_block_cols, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
 void polygeist_cusparse_spmv_jds_f32_sized(
     int32_t rows, int32_t repetitions,
     int32_t row_count_capacity, const int32_t *row_counts,

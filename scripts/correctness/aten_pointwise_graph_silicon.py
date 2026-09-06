@@ -482,6 +482,12 @@ CASES = {
          iptr("col", "N", init="csr_col_k"), ptr("val", "N"),
          ptr("b", "K*C"), ptr("out", "R*C", True)],
         "full structured-loop CSR SpMM via cuSPARSE"),
+    "aten_sparse_addmv_bsr_cpu": spec(
+        {"R": 4_096, "C": 4_096, "BR": 4, "BC": 4, "N": 262_144},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col"), ptr("val", "N*BR*BC"),
+         ptr("x", "C*BC"), ptr("out", "R*BR", True)],
+        "full structured-loop square-BSR SpMV via cuSPARSE SpMM"),
     "aten_sparse_addmm_cpu": spec(
         {"R": 64, "C": 4_096, "N": 4_096},
         [iptr("row", "N", init="coo_row"),

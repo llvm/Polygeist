@@ -1475,6 +1475,90 @@ void polygeist_cusparse_spmm_coo_f32_sized(
   CUSPARSE_CHECK(cusparseDestroySpMat(matrix));
 }
 
+void polygeist_cusparse_spmm_bsr_f32_sized(
+    int32_t block_rows, int32_t block_dim,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_block_count, int32_t value_block_rows,
+    int32_t value_block_cols, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  if (block_rows <= 0 || block_dim <= 0)
+    return;
+  if (!row_offsets || !column_indices || !values || !x || !y ||
+      row_offset_count < block_rows + 1 || value_block_rows != block_dim ||
+      value_block_cols != block_dim || x_count <= 0 ||
+      x_count % block_dim != 0 || y_count < block_rows * block_dim) {
+    fprintf(stderr, "Polygeist cuSPARSE: invalid BSR SpMM operands\n");
+    abort();
+  }
+  ensure_cusparse();
+
+  int32_t block_nnz = 0;
+  void *resident = NULL;
+  if (pointer_is_device_resident((void *)row_offsets, &resident))
+    CUDA_CHECK(cudaMemcpy(&block_nnz, row_offsets + block_rows,
+                          sizeof(block_nnz), cudaMemcpyDeviceToHost));
+  else
+    block_nnz = row_offsets[block_rows];
+  if (block_nnz < 0 || block_nnz > column_index_count ||
+      block_nnz > value_block_count) {
+    fprintf(stderr,
+            "Polygeist cuSPARSE: BSR block nnz exceeds index/value capacity\n");
+    abort();
+  }
+
+  void *host_ptrs[] = {(void *)row_offsets, (void *)column_indices,
+                       (void *)values, (void *)x, y};
+  size_t byte_sizes[] = {
+      (size_t)row_offset_count * sizeof(int32_t),
+      (size_t)column_index_count * sizeof(int32_t),
+      (size_t)value_block_count * (size_t)block_dim * (size_t)block_dim *
+          sizeof(float),
+      (size_t)x_count * sizeof(float), (size_t)y_count * sizeof(float)};
+  void *device_ptrs[5] = {NULL, NULL, NULL, NULL, NULL};
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 5);
+
+  const int32_t block_columns = x_count / block_dim;
+  cusparseSpMatDescr_t matrix = NULL;
+  cusparseDnMatDescr_t dense_x = NULL, dense_y = NULL;
+  CUSPARSE_CHECK(cusparseCreateBsr(
+      &matrix, block_rows, block_columns, block_nnz, block_dim, block_dim,
+      device_ptrs[0], device_ptrs[1], device_ptrs[2], CUSPARSE_INDEX_32I,
+      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F,
+      CUSPARSE_ORDER_ROW));
+  CUSPARSE_CHECK(cusparseCreateDnMat(
+      &dense_x, x_count, 1, 1, device_ptrs[3], CUDA_R_32F,
+      CUSPARSE_ORDER_ROW));
+  CUSPARSE_CHECK(cusparseCreateDnMat(
+      &dense_y, block_rows * block_dim, 1, 1, device_ptrs[4], CUDA_R_32F,
+      CUSPARSE_ORDER_ROW));
+
+  const float alpha = 1.0f, beta = 0.0f;
+  size_t workspace_size = 0;
+  CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+      CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matrix, dense_x, &beta,
+      dense_y, CUDA_R_32F, CUSPARSE_SPMM_BSR_ALG1, &workspace_size));
+  void *workspace = NULL;
+  if (workspace_size)
+    DEVICE_MALLOC(&workspace, workspace_size);
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  CUSPARSE_CHECK(cusparseSpMM(
+      g_sparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+      CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matrix, dense_x, &beta,
+      dense_y, CUDA_R_32F, CUSPARSE_SPMM_BSR_ALG1, workspace));
+  timing_gpu_end("cusparseSpMM_BSR_f32", block_rows * block_dim, 1,
+                 block_nnz * block_dim * block_dim, host_start_ms);
+  sync_stream_if_outside_pipeline();
+
+  if (workspace)
+    DEVICE_FREE(workspace);
+  CUSPARSE_CHECK(cusparseDestroyDnMat(dense_x));
+  CUSPARSE_CHECK(cusparseDestroyDnMat(dense_y));
+  CUSPARSE_CHECK(cusparseDestroySpMat(matrix));
+}
+
 void polygeist_cusparse_spmv_jds_f32_sized(
     int32_t rows, int32_t repetitions,
     int32_t row_count_capacity, const int32_t *row_counts,
@@ -1634,6 +1718,21 @@ void polygeist_cusparse_spmm_coo_f32_sized(
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)b_rows; (void)b_cols; (void)b;
   (void)c_rows; (void)c_cols; (void)c;
+  cusparse_disabled();
+}
+
+void polygeist_cusparse_spmm_bsr_f32_sized(
+    int32_t block_rows, int32_t block_dim,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_block_count, int32_t value_block_rows,
+    int32_t value_block_cols, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  (void)block_rows; (void)block_dim;
+  (void)row_offset_count; (void)row_offsets;
+  (void)column_index_count; (void)column_indices;
+  (void)value_block_count; (void)value_block_rows; (void)value_block_cols;
+  (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
   cusparse_disabled();
 }
 

@@ -127,6 +127,21 @@ void polygeist_cusparse_spmm_coo_f32_sized(
   require_cusparse_runtime();
 }
 
+void polygeist_cusparse_spmm_bsr_f32_sized(
+    int32_t block_rows, int32_t block_dim,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_block_count, int32_t value_block_rows,
+    int32_t value_block_cols, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y) {
+  (void)block_rows; (void)block_dim;
+  (void)row_offset_count; (void)row_offsets;
+  (void)column_index_count; (void)column_indices;
+  (void)value_block_count; (void)value_block_rows; (void)value_block_cols;
+  (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  require_cusparse_runtime();
+}
+
 void polygeist_cusparse_spmv_jds_f32_sized(
     int32_t rows, int32_t repetitions,
     int32_t row_count_capacity, const int32_t *row_counts,
