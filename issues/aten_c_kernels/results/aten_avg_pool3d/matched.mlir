@@ -12,20 +12,31 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : ve
     %0 = bufferization.to_tensor %arg0 : memref<?x3x8x8x8xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?x3x4x4x4xf32>
     %extracted_slice = tensor.extract_slice %1[0, 0, 0, 0, 0] [%c2, %c3, %c4, %c4, %c4] [1, 1, 1, 1, 1] : tensor<?x3x4x4x4xf32> to tensor<?x?x?x?x?xf32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"], library_call = ""} outs(%extracted_slice : tensor<?x?x?x?x?xf32>) {
-    ^bb0(%out: f32):
-      linalg.yield %cst : f32
-    } -> tensor<?x?x?x?x?xf32>
-    %3 = polygeist.submap(%0, %c2, %c3, %c4, %c4, %c4, %c2, %c2, %c2) {map = #map1} : (tensor<?x3x8x8x8xf32>, index, index, index, index, index, index, index, index) -> tensor<?x?x?x?x?x?x?x?xf32>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map2, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"], library_call = ""} ins(%3 : tensor<?x?x?x?x?x?x?x?xf32>) outs(%2 : tensor<?x?x?x?x?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      %6 = arith.divf %in, %cst_0 : f32
-      %7 = arith.addf %out, %6 : f32
-      linalg.yield %7 : f32
-    } -> tensor<?x?x?x?x?xf32>
-    %inserted_slice = tensor.insert_slice %4 into %1[0, 0, 0, 0, 0] [%c2, %c3, %c4, %c4, %c4] [1, 1, 1, 1, 1] : tensor<?x?x?x?x?xf32> into tensor<?x3x4x4x4xf32>
-    %5 = bufferization.to_memref %inserted_slice : memref<?x3x4x4x4xf32>
-    memref.copy %5, %arg1 : memref<?x3x4x4x4xf32> to memref<?x3x4x4x4xf32>
+    %avgpool3d_4_input = memref.cast %arg0 : memref<?x3x8x8x8xf32> to memref<?x?x?x?x?xf32>
+
+    %avgpool3d_4_output = memref.cast %arg1 : memref<?x3x4x4x4xf32> to memref<?x?x?x?x?xf32>
+
+    %avgpool3d_4_op = arith.constant 4 : i32
+
+    %avgpool3d_4_rank = arith.constant 3 : i32
+
+    %avgpool3d_4_n = arith.constant 2 : i32
+
+    %avgpool3d_4_c = arith.constant 3 : i32
+
+    %avgpool3d_4_i0 = arith.constant 8 : i32
+
+    %avgpool3d_4_i1 = arith.constant 8 : i32
+
+    %avgpool3d_4_i2 = arith.constant 8 : i32
+
+    %avgpool3d_4_o0 = arith.constant 4 : i32
+
+    %avgpool3d_4_o1 = arith.constant 4 : i32
+
+    %avgpool3d_4_o2 = arith.constant 4 : i32
+
+    kernel.launch @cudnnAveragePool_f32_r5(%avgpool3d_4_op, %avgpool3d_4_rank, %avgpool3d_4_n, %avgpool3d_4_c, %avgpool3d_4_i0, %avgpool3d_4_i1, %avgpool3d_4_i2, %avgpool3d_4_o0, %avgpool3d_4_o1, %avgpool3d_4_o2, %avgpool3d_4_input, %avgpool3d_4_output) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, memref<?x?x?x?x?xf32>, memref<?x?x?x?x?xf32>) -> ()
     return
   }
 }

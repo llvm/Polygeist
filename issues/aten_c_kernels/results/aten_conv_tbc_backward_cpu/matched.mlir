@@ -11,16 +11,11 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %c16 = arith.constant 16 : index
     %cst = arith.constant 0.000000e+00 : f32
     %reinterpret_cast = memref.reinterpret_cast %arg2 to offset: [0], sizes: [4096], strides: [1] : memref<?x8x16xf32> to memref<4096xf32>
-    linalg.fill ins(%cst : f32) outs(%reinterpret_cast : memref<4096xf32>)
+
     %subview = memref.subview %arg0[0, 0, 0] [%c30, %c8, %c24] [1, 1, 1] : memref<?x8x24xf32> to memref<?x?x?xf32, strided<[192, 24, 1]>>
     %subview_0 = memref.subview %arg1[0, 0, 0] [%c3, %c16, %c24] [1, 1, 1] : memref<?x16x24xf32> to memref<?x?x?xf32, strided<[384, 24, 1]>>
     %0 = polygeist.submap(%arg2, %c30, %c8, %c3, %c16) {map = #map} : (memref<?x8x16xf32>, index, index, index, index) -> memref<30x8x3x16xf32>
-    linalg.generic {indexing_maps = [#map1, #map2, #map3], iterator_types = ["parallel", "parallel", "reduction", "parallel", "parallel"]} ins(%subview, %subview_0 : memref<?x?x?xf32, strided<[192, 24, 1]>>, memref<?x?x?xf32, strided<[384, 24, 1]>>) outs(%0 : memref<30x8x3x16xf32>) {
-    ^bb0(%in: f32, %in_1: f32, %out: f32):
-      %1 = arith.mulf %in, %in_1 : f32
-      %2 = arith.addf %out, %1 : f32
-      linalg.yield %2 : f32
-    }
+    kernel.launch @cudnnConvolutionTBCBackward_f32_memref(%arg0, %arg1, %arg2) : (memref<?x8x24xf32>, memref<?x16x24xf32>, memref<?x8x16xf32>) -> ()
     return
   }
 }

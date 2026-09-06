@@ -33,7 +33,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i8, dense<8> : ve
 
     %winconv0_pw = arith.constant 0 : i32
 
-    %4 = kernel.launch @cudnnConvolution2DWindow_f32(%v0_tc0, %extracted_slice, %winconv0_weight, %winconv0_kh, %winconv0_kw, %winconv0_sh, %winconv0_sw, %winconv0_dh, %winconv0_dw, %winconv0_ph, %winconv0_pw) : (tensor<?x?x?x?xf32>, tensor<?x?x?x?xf32>, f32, i32, i32, i32, i32, i32, i32, i32, i32) -> tensor<?x?x?x?xf32>
+    %4 = kernel.launch @cudnnAvgPoolWindow_f32(%v0_tc0, %extracted_slice, %winconv0_weight, %winconv0_kh, %winconv0_kw, %winconv0_sh, %winconv0_sw, %winconv0_dh, %winconv0_dw, %winconv0_ph, %winconv0_pw) : (tensor<?x?x?x?xf32>, tensor<?x?x?x?xf32>, f32, i32, i32, i32, i32, i32, i32, i32, i32) -> tensor<?x?x?x?xf32>
     %inserted_slice = tensor.insert_slice %4 into %1[0, 0, 0, 0] [%c2, %c4, %c8, %c8] [1, 1, 1, 1] : tensor<?x?x?x?xf32> into tensor<?x4x8x8xf32>
     %5 = bufferization.to_memref %inserted_slice : memref<?x4x8x8xf32>
     memref.copy %5, %arg1 : memref<?x4x8x8xf32> to memref<?x4x8x8xf32>

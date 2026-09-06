@@ -11,16 +11,11 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<271>, d
     %c8 = arith.constant 8 : index
     %cst = arith.constant 0.000000e+00 : f32
     %reinterpret_cast = memref.reinterpret_cast %arg2 to offset: [0], sizes: [162], strides: [1] : memref<?x3x3x3x3xf32> to memref<162xf32>
-    linalg.fill ins(%cst : f32) outs(%reinterpret_cast : memref<162xf32>)
+
     %subview = memref.subview %arg0[0, 0, 0, 0] [%c2, %c6, %c7, %c8] [1, 1, 1, 1] : memref<?x6x7x8xf32> to memref<?x?x?x?xf32, strided<[336, 56, 8, 1]>>
     %0 = polygeist.submap(%arg1, %c2, %c3, %c3, %c3, %c3, %c6, %c7, %c8) {map = #map} : (memref<?x8x9x10xf32>, index, index, index, index, index, index, index, index) -> memref<?x?x?x?x?x?x?x?xf32>
     %subview_0 = memref.subview %arg2[0, 0, 0, 0, 0] [%c2, %c3, %c3, %c3, %c3] [1, 1, 1, 1, 1] : memref<?x3x3x3x3xf32> to memref<?x?x?x?x?xf32, strided<[81, 27, 9, 3, 1]>>
-    linalg.generic {indexing_maps = [#map1, #map2, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]} ins(%subview, %0 : memref<?x?x?x?xf32, strided<[336, 56, 8, 1]>>, memref<?x?x?x?x?x?x?x?xf32>) outs(%subview_0 : memref<?x?x?x?x?xf32, strided<[81, 27, 9, 3, 1]>>) {
-    ^bb0(%in: f32, %in_1: f32, %out: f32):
-      %1 = arith.mulf %in, %in_1 : f32
-      %2 = arith.addf %out, %1 : f32
-      linalg.yield %2 : f32
-    }
+    kernel.launch @cudnnConvolutionBackwardFilter3D_f32_memref(%arg1, %arg0, %arg2) : (memref<?x8x9x10xf32>, memref<?x6x7x8xf32>, memref<?x3x3x3x3xf32>) -> ()
     return
   }
 }
