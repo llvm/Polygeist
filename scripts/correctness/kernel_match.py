@@ -1197,6 +1197,30 @@ def _generic_two_input_sum_contraction_tensor() -> CompositionEntry:
     )
 
 
+def _fixed_memref_convolution_contraction(
+    name: str, parallel_dims: int, reduction_dims: int
+) -> CompositionEntry:
+    """Scalar contraction recognized by a source-layout-aware cuDNN route.
+
+    The scalar expression and iterator counts are only the first gate.  The
+    rewrite layer separately proves the expanded submap geometry, traces the
+    physical memref operands, verifies zero initialization, and orders the
+    operands for the corresponding fixed runtime ABI.
+    """
+    return CompositionEntry(
+        name=name,
+        steps=[CompositionStep(
+            body=Term.Out(0) + Term.In(0) * Term.In(1),
+            num_ins=2,
+            num_outs=1,
+            parallel_dim_count=parallel_dims,
+            reduction_dim_count=reduction_dims,
+        )],
+        form="memref",
+        element_type="f32",
+    )
+
+
 def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
     """Fused matmul + bias + relu — transformer-FFN-shape op.
     4-step composition:
@@ -3501,6 +3525,12 @@ def composition_library() -> list[CompositionEntry]:
         # Parameterized arbitrary-rank unary tensor operations. These precede
         # generic formula entries so a complete fixed-function cuTENSOR call
         # wins over a lower-level pointwise interpretation.
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTranspose3D_f32_memref", 7, 1),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionBackwardFilter3D_f32_memref", 5, 3),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTBCBackward_f32_memref", 4, 1),
         *_cutensor_unary_entries(),
 
         # 1-step BLAS with α capture.

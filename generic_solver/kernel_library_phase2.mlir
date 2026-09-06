@@ -73,6 +73,12 @@ module {
   kernel.defn @cudnnConvolutionTranspose2D_f32_memref(
       %input: memref<?x?x?x?xf32>, %filter: memref<?x?x?x?xf32>,
       %output: memref<?x?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnConvolutionTranspose3D_f32_memref(
+      %input: memref<?x?x?x?xf32>, %filter: memref<?x?x?x?x?xf32>,
+      %output: memref<?x?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnConvolutionBackwardFilter3D_f32_memref(
+      %input: memref<?x?x?x?xf32>, %gradient: memref<?x?x?x?xf32>,
+      %filter: memref<?x?x?x?x?xf32>) { kernel.yield }
   kernel.defn @cudnnDepthwiseConvolution2D_f32_memref(
       %input: memref<?x?x?x?xf32>, %filter: memref<?x?x?xf32>,
       %bias: memref<?xf32>, %output: memref<?x?x?x?xf32>) { kernel.yield }
@@ -84,6 +90,9 @@ module {
       %output: memref<?xf32>) { kernel.yield }
   kernel.defn @cudnnConvolutionTBC_f32_memref(
       %input: memref<?x?x?xf32>, %filter: memref<?x?x?xf32>,
+      %output: memref<?x?x?xf32>) { kernel.yield }
+  kernel.defn @cudnnConvolutionTBCBackward_f32_memref(
+      %gradient: memref<?x?x?xf32>, %filter: memref<?x?x?xf32>,
       %output: memref<?x?x?xf32>) { kernel.yield }
   kernel.defn @cudnnTransformBiasRescaleQKV_f32_memref(
       %qkv: memref<?x?x?x?x?xf32>, %bias: memref<?x?x?xf32>, %scale: f32,

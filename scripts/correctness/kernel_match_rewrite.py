@@ -123,10 +123,13 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnDepthwiseConvolution2D_f32_memref",
     "cutensorKroneckerProduct2D_f32_memref",
     "cudnnBinaryCrossEntropyMean_f32_memref",
+    "cudnnConvolutionTranspose3D_f32_memref",
+    "cudnnConvolutionBackwardFilter3D_f32_memref",
     "cudnnConvolutionTBC_f32_memref",
     "cudnnTransformBiasRescaleQKV_f32_memref",
     "cudnnAddrElementwise_f32_memref",
     "cudnnConvolution2DWindow_f32",
+    "cudnnConvolutionTBCBackward_f32_memref",
     "cudnnAvgPoolWindow_f32",
     "cudnnAdaptivePool_f32_flat2",
     "cudnnAdaptivePool_f32_flat3_fwd",
@@ -1299,6 +1302,104 @@ def _parse_polygeist_submap_window(
 def _resolve_affine_map_text(text: str, map_ref: str) -> str | None:
     map_ref = map_ref.strip()
     if map_ref.startswith("affine_map<"):
+def _parse_memref_view(text: str, ssa: str, before: int) -> dict | None:
+    """Resolve a raised memref view to its physical base and logical sizes."""
+    prefix = text[:before]
+    subview = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*memref\.subview\s+"
+        rf"(%[\w_\-]+)\s*\[[^\]]*\]\s*\[([^\]]*)\]\s*"
+        rf"\[[^\]]*\]\s*:\s*(memref<.+?>)\s+to\s+memref<",
+        prefix,
+        re.MULTILINE,
+    )
+    if subview:
+        return {
+            "kind": "subview",
+            "base": subview.group(1),
+            "base_type": subview.group(3).strip(),
+            "sizes": [
+                p.strip() for p in subview.group(2).split(",") if p.strip()
+            ],
+            "map": None,
+        }
+    submap = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submap\s*"
+        rf"\(\s*(%[\w_\-]+)\s*,\s*([^)]+)\)\s*"
+        rf"\{{\s*map\s*=\s*([^}}]+)\}}\s*:\s*"
+        rf"\((memref<[^,)]+>)[^)]*\)\s*->\s*memref<",
+        prefix,
+        re.MULTILINE,
+    )
+    if submap:
+        map_text = _resolve_affine_map_text(prefix, submap.group(3).strip())
+        return {
+            "kind": "submap",
+            "base": submap.group(1),
+            "base_type": submap.group(4).strip(),
+            "sizes": [
+                p.strip() for p in submap.group(2).split(",") if p.strip()
+            ],
+            "map": map_text,
+        }
+    reinterpret = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*memref\.reinterpret_cast\s+"
+        rf"(%[\w_\-]+).*?:\s*(memref<.+?>)\s+to\s+memref<",
+        prefix,
+        re.MULTILINE,
+    )
+    if reinterpret:
+        return {
+            "kind": "reinterpret_cast",
+            "base": reinterpret.group(1),
+            "base_type": reinterpret.group(2).strip(),
+            "sizes": [],
+            "map": None,
+        }
+    return None
+
+
+def _zero_fill_span_for_base(
+    text: str, before: int, expected_base: str
+) -> tuple[int, int] | None:
+    """Prove that the last raised fill before a contraction zeros its output."""
+    prefix = text[:before]
+    fills = list(re.finditer(
+        r"^\s*linalg\.fill\s+ins\((%[\w_\-]+)\s*:\s*[^)]+\)\s*"
+        r"outs\((%[\w_\-]+)\s*:\s*[^)]+\)\s*$",
+        prefix,
+        re.MULTILINE,
+    ))
+    if not fills:
+        return None
+    fill = fills[-1]
+    if parse_constants(prefix).get(fill.group(1)) != 0.0:
+        return None
+    view = _parse_memref_view(text, fill.group(2), before)
+    if view is None or view["base"] != expected_base:
+        return None
+    # A write between initialization and the contraction would make beta=0
+    # replacement invalid. View construction and scalar constants are benign.
+    middle = text[fill.end():before]
+    if re.search(r"\b(?:affine|memref)\.store\b|\blinalg\.(?!fill\b)", middle):
+        return None
+    return fill.span()
+
+
+def _plain_f32_memrefs(types: list[str], ranks: list[int]) -> bool:
+    return (
+        len(types) == len(ranks)
+        and [_shaped_rank(t) for t in types] == ranks
+        and all(_sniff_elem_type(t) == "f32" for t in types)
+        # These fixed runtime shims construct contiguous descriptors from
+        # dimensions and therefore cannot accept arbitrary strided bases.
+        and all("," not in t for t in types)
+    )
+
+
+def _compact_affine_map(map_text: str | None) -> str:
+    return re.sub(r"\s+", "", map_text or "")
+
+
         return map_ref
     if not map_ref.startswith("#"):
         return None
@@ -4313,6 +4414,153 @@ def rewrite_mlir(
             init_inst = instances[i]
             reduce_inst = instances[i + 1]
             reduce_inputs = _extract_ssa_names(reduce_inst.ins_part)
+        redundant_zero_fill_span: tuple[int, int] | None = None
+
+        fixed_conv_symbols = {
+            "cudnnConvolutionTranspose3D_f32_memref",
+            "cudnnConvolutionBackwardFilter3D_f32_memref",
+            "cudnnConvolutionTBCBackward_f32_memref",
+        }
+        if entry.name in fixed_conv_symbols:
+            conv_inst = instances[i]
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            views = [
+                _parse_memref_view(text, value, conv_inst.span[0])
+                for value in conv_ins + conv_outs
+            ]
+            maps = [_compact_affine_map(m) for m in bodies[i].indexing_maps]
+            legal = (
+                len(conv_ins) == 2
+                and len(conv_outs) == 1
+                and all(view is not None for view in views)
+            )
+            physical_operands: list[str] = []
+            physical_types: list[str] = []
+
+            if legal and entry.name == "cudnnConvolutionTBCBackward_f32_memref":
+                grad, filt, output = views
+                expected_maps = [
+                    "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d4)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d2,d3,d4)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2,d3)>",
+                ]
+                expected_output_map = (
+                    "affine_map<(d0,d1,d2,d3)->(d2+d0,d1,d3)>"
+                )
+                legal = (
+                    [grad["kind"], filt["kind"], output["kind"]]
+                    == ["subview", "subview", "submap"]
+                    and maps == expected_maps
+                    and _compact_affine_map(output["map"]) == expected_output_map
+                    and len(grad["sizes"]) == 3
+                    and len(filt["sizes"]) == 3
+                    and output["sizes"] == [
+                        grad["sizes"][0], grad["sizes"][1],
+                        filt["sizes"][0], filt["sizes"][1]
+                    ]
+                    and grad["sizes"][2] == filt["sizes"][2]
+                )
+                if legal:
+                    physical_operands = [
+                        grad["base"], filt["base"], output["base"]
+                    ]
+                    physical_types = [
+                        grad["base_type"], filt["base_type"],
+                        output["base_type"]
+                    ]
+                    legal = _plain_f32_memrefs(physical_types, [3, 3, 3])
+
+            elif legal and entry.name == "cudnnConvolutionTranspose3D_f32_memref":
+                input_view, filter_view, output = views
+                expected_maps = [
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d7,d0,d1,d2)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d7,d3,d4,d5,d6)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d3,d0,d1,d2,d4,d5,d6)>",
+                ]
+                expected_output_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6)->"
+                    "(d0,d4+d1,d5+d2,d6+d3)>"
+                )
+                legal = (
+                    [input_view["kind"], filter_view["kind"], output["kind"]]
+                    == ["subview", "subview", "submap"]
+                    and maps == expected_maps
+                    and _compact_affine_map(output["map"]) == expected_output_map
+                    and len(input_view["sizes"]) == 4
+                    and len(filter_view["sizes"]) == 5
+                    and filter_view["sizes"][0] == input_view["sizes"][0]
+                    and output["sizes"] == [
+                        filter_view["sizes"][1],
+                        *input_view["sizes"][1:],
+                        *filter_view["sizes"][2:],
+                    ]
+                )
+                if legal:
+                    physical_operands = [
+                        input_view["base"], filter_view["base"], output["base"]
+                    ]
+                    physical_types = [
+                        input_view["base_type"], filter_view["base_type"],
+                        output["base_type"]
+                    ]
+                    legal = _plain_f32_memrefs(physical_types, [4, 5, 4])
+
+            elif legal:
+                # Both ATen weight-gradient forms use the same cuDNN
+                # backward-filter call. One input is an expanded sliding
+                # window; order that physical base first. This deliberately
+                # reverses the transposed-convolution fixture's source inputs.
+                first, second, output = views
+                window = first if first["kind"] == "submap" else second
+                small = second if first["kind"] == "submap" else first
+                expected_output_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d0,d1,d2,d3,d4)>"
+                )
+                expected_window_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d1,d5+d2,d6+d3,d7+d4)>"
+                )
+                legal = (
+                    {first["kind"], second["kind"]} == {"submap", "subview"}
+                    and output["kind"] == "subview"
+                    and maps[2] == expected_output_map
+                    and _compact_affine_map(window["map"]) == expected_window_map
+                    and len(window["sizes"]) == 8
+                    and len(small["sizes"]) == 4
+                    and len(output["sizes"]) == 5
+                    and small["sizes"][1:] == window["sizes"][5:]
+                    and output["sizes"] == [
+                        small["sizes"][0], window["sizes"][1],
+                        *window["sizes"][2:5]
+                    ]
+                )
+                if legal:
+                    physical_operands = [
+                        window["base"], small["base"], output["base"]
+                    ]
+                    physical_types = [
+                        window["base_type"], small["base_type"],
+                        output["base_type"]
+                    ]
+                    legal = _plain_f32_memrefs(physical_types, [4, 4, 5])
+
+            if legal:
+                redundant_zero_fill_span = _zero_fill_span_for_base(
+                    text, conv_inst.span[0], physical_operands[2]
+                )
+                legal = (
+                    len(set(physical_operands)) == 3
+                    and redundant_zero_fill_span is not None
+                )
+            if not legal:
+                report.append(("fixed_convolution_layout_reject", i, entry.name))
+                i += 1
+                continue
+            operands = physical_operands
+            operand_types = physical_types
+            binds = {}
             reduce_input_types = _extract_ssa_types(reduce_inst.ins_part)
             reduce_outputs = _extract_ssa_names(reduce_inst.outs_part)
             init_outputs = _extract_ssa_names(init_inst.outs_part)
@@ -5991,6 +6239,8 @@ def rewrite_mlir(
                 # after the final contraction (for example, an insert_slice
                 # destination). Rewire those uses through the function return.
                 # Limit the edit to this function because textual SSA names
+        if redundant_zero_fill_span is not None:
+            edits.append((*redundant_zero_fill_span, ""))
                 # may be reused by a later function in the module.
                 old_root, new_root = composition_root_rewire
                 tail_start = last_inst.span[1]
