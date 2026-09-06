@@ -5544,6 +5544,7 @@ void polygeist_cudnn_conv_transpose3d_f32(
   CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDesc,CUDNN_DATA_FLOAT,5,dxDims,dxStrides));
   CUDNN_CHECK(cudnnSetFilterNdDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
   CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(convDesc,CUDNN_FMA_MATH));
   cudnnConvolutionBwdDataAlgoPerf_t perf;int returned=0;
   CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,1,&returned,&perf));
   if(returned<1)abort();size_t workspaceBytes=0;
@@ -5579,6 +5580,7 @@ void polygeist_cudnn_conv_backward_filter3d_f32(
   CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,5,dyDims,dyStrides));
   CUDNN_CHECK(cudnnSetFilterNdDescriptor(dwDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
   CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(convDesc,CUDNN_FMA_MATH));
   cudnnConvolutionBwdFilterAlgoPerf_t perf;int returned=0;
   CUDNN_CHECK(cudnnGetConvolutionBackwardFilterAlgorithm_v7(g_cudnn,xDesc,dyDesc,convDesc,dwDesc,1,&returned,&perf));
   if(returned<1)abort();size_t workspaceBytes=0;
@@ -5847,6 +5849,7 @@ void polygeist_cudnn_conv_tbc_backward_f32(
   CUDNN_CHECK(cudnnSetTensorNdDescriptor(filterPackedDesc,CUDNN_DATA_FLOAT,4,filterDims,packedStrides));
   CUDNN_CHECK(cudnnSetFilter4dDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,O,I,1,K));
   CUDNN_CHECK(cudnnSetConvolution2dDescriptor(convDesc,0,0,1,1,1,1,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(convDesc,CUDNN_FMA_MATH));
   float one=1.0f,zero=0.0f;
   CUDNN_CHECK(cudnnTransformTensor(g_cudnn,&one,filterSourceDesc,dFilter,&zero,filterPackedDesc,packedFilter));
   CUDNN_CHECK(cudnnTransformTensor(g_cudnn,&one,dySourceDesc,dGrad,&zero,dyDesc,packedGrad));

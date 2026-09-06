@@ -241,6 +241,31 @@ CASES = {
         [ptr("x", "T*B*I"), ptr("w", "K*I*O"),
          ptr("out", "(T-K+1)*B*O", True)],
         "full TBC convolution through cuDNN transform plus convolution"),
+    "aten_conv_tbc_backward_cpu": spec(
+        {"T": 4094, "B": 16, "I": 32, "O": 64, "K": 3},
+        [ptr("g", "T*B*O"), ptr("w", "K*I*O"),
+         ptr("out", "(T+K-1)*B*I", True)],
+        "full TBC input-gradient convolution through cuDNN backward-data"),
+    "aten_conv_transpose3d_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*D*H*W"), ptr("w", "C*O*K*K*K"),
+         ptr("out", "O*(D+2)*(H+2)*(W+2)", True)],
+        "full 3d transposed convolution through cuDNN backward-data"),
+    "aten_slow_conv3d_backward_input_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("g", "O*D*H*W"), ptr("w", "O*C*K*K*K"),
+         ptr("out", "C*(D+2)*(H+2)*(W+2)", True)],
+        "full slow-conv3d input gradient through cuDNN backward-data"),
+    "aten_conv_transpose3d_grad_weight_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*D*H*W"), ptr("g", "O*(D+2)*(H+2)*(W+2)"),
+         ptr("out", "C*O*K*K*K", True)],
+        "full transposed-conv3d filter gradient through cuDNN backward-filter"),
+    "aten_slow_conv3d_backward_weight_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*(D+2)*(H+2)*(W+2)"), ptr("g", "O*D*H*W"),
+         ptr("out", "O*C*K*K*K", True)],
+        "full slow-conv3d filter gradient through cuDNN backward-filter"),
     "aten_transform_bias_rescale_qkv_cpu": spec(
         {"B": 8, "S": 512, "H": 16, "D": 64},
         [ptr("qkv", "B*S*3*H*D"), ptr("bias", "3*H*D"),

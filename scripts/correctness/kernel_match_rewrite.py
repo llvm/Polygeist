@@ -5386,7 +5386,140 @@ def rewrite_mlir(
             physical_operands: list[str] = []
             physical_types: list[str] = []
 
-            if legal and entry.name == "cudnnConvolutionTBCBackward_f32_memref":
+            expanded_fixed_conv = (
+                legal
+                and all(view["kind"] == "submap" for view in views)
+                and all(view["sizes"] == views[0]["sizes"] for view in views)
+                and len(views[0]["sizes"]) in (5, 8)
+            )
+            if expanded_fixed_conv:
+                logical_rank = len(views[0]["sizes"])
+                # The parser canonicalizes iterator order, so an identity
+                # generic may print as the same bijective dimension
+                # permutation on all operands.  Accept only a complete
+                # permutation—no projection, repetition, or arithmetic.
+                map_match = re.fullmatch(
+                    r"affine_map<\(([^)]*)\)->\(([^)]*)\)>", maps[0])
+                map_inputs = (map_match.group(1).split(",")
+                              if map_match else [])
+                map_outputs = (map_match.group(2).split(",")
+                               if map_match else [])
+                expected_dims = [f"d{j}" for j in range(logical_rank)]
+                expanded_fixed_conv = (
+                    len(set(maps)) == 1
+                    and map_inputs == expected_dims
+                    and sorted(map_outputs) == expected_dims
+                )
+            if expanded_fixed_conv:
+                logical_values = [_constant_index_value(text, size)
+                                  for size in views[0]["sizes"]]
+                physical_types = [view["base_type"] for view in views]
+                expanded_fixed_conv = all(
+                    value is not None and value > 0
+                    for value in logical_values)
+
+            if (expanded_fixed_conv and entry.name ==
+                    "cudnnConvolutionTBCBackward_f32_memref"):
+                grad, filt, output = views
+                expected_view_maps = [
+                    "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d3,d4,d2)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d3+d0,d1,d4)>",
+                ]
+                time, batch, out_channels, kernel, in_channels = logical_values
+                physical_operands = [grad["base"], filt["base"], output["base"]]
+                physical_types = [grad["base_type"], filt["base_type"],
+                                  output["base_type"]]
+                expanded_fixed_conv = (
+                    [_compact_affine_map(view["map"]) for view in views]
+                    == expected_view_maps
+                    and _plain_f32_memrefs(physical_types, [3, 3, 3])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32", [time, batch, out_channels])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32",
+                        [kernel, in_channels, out_channels])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32",
+                        [time + kernel - 1, batch, in_channels])
+                )
+            elif (expanded_fixed_conv and entry.name ==
+                  "cudnnConvolutionTranspose3D_f32_memref"):
+                input_view, filter_view, output = views
+                expected_view_maps = [
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d0,d2,d3,d4)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d0,d1,d5,d6,d7)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d1,d5+d2,d6+d3,d7+d4)>",
+                ]
+                (in_channels, out_channels, depth, height, width,
+                 kd, kh, kw) = logical_values
+                physical_operands = [input_view["base"], filter_view["base"],
+                                     output["base"]]
+                physical_types = [input_view["base_type"],
+                                  filter_view["base_type"], output["base_type"]]
+                expanded_fixed_conv = (
+                    [_compact_affine_map(view["map"]) for view in views]
+                    == expected_view_maps
+                    and _plain_f32_memrefs(physical_types, [4, 5, 4])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32",
+                        [in_channels, depth, height, width])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32",
+                        [in_channels, out_channels, kd, kh, kw])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32",
+                        [out_channels, depth + kd - 1,
+                         height + kh - 1, width + kw - 1])
+                )
+            elif (expanded_fixed_conv and entry.name ==
+                  "cudnnConvolutionBackwardFilter3D_f32_memref"):
+                first, second, output = views
+                small_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d0,d5,d6,d7)>"
+                )
+                window_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d1,d5+d2,d6+d3,d7+d4)>"
+                )
+                output_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d0,d1,d2,d3,d4)>"
+                )
+                first_map = _compact_affine_map(first["map"])
+                second_map = _compact_affine_map(second["map"])
+                out_channels, in_channels, kd, kh, kw, depth, height, width = (
+                    logical_values)
+                window = first if first_map == window_map else second
+                small = second if first_map == window_map else first
+                physical_operands = [window["base"], small["base"], output["base"]]
+                physical_types = [window["base_type"], small["base_type"],
+                                  output["base_type"]]
+                expanded_fixed_conv = (
+                    {first_map, second_map} == {small_map, window_map}
+                    and _compact_affine_map(output["map"]) == output_map
+                    and _plain_f32_memrefs(physical_types, [4, 4, 5])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32",
+                        [in_channels, depth + kd - 1,
+                         height + kh - 1, width + kw - 1])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32",
+                        [out_channels, depth, height, width])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32",
+                        [out_channels, in_channels, kd, kh, kw])
+                )
+            elif expanded_fixed_conv:
+                expanded_fixed_conv = False
+
+            if legal and all(view["kind"] == "submap" for view in views):
+                legal = expanded_fixed_conv
+
+            if (legal and not expanded_fixed_conv and
+                    entry.name == "cudnnConvolutionTBCBackward_f32_memref"):
                 grad, filt, output = views
                 expected_maps = [
                     "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d4)>",
@@ -5419,7 +5552,8 @@ def rewrite_mlir(
                     ]
                     legal = _plain_f32_memrefs(physical_types, [3, 3, 3])
 
-            elif legal and entry.name == "cudnnConvolutionTranspose3D_f32_memref":
+            elif (legal and not expanded_fixed_conv and
+                  entry.name == "cudnnConvolutionTranspose3D_f32_memref"):
                 input_view, filter_view, output = views
                 expected_maps = [
                     "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d7,d0,d1,d2)>",
@@ -5454,7 +5588,7 @@ def rewrite_mlir(
                     ]
                     legal = _plain_f32_memrefs(physical_types, [4, 5, 4])
 
-            elif legal:
+            elif legal and not expanded_fixed_conv:
                 # Both ATen weight-gradient forms use the same cuDNN
                 # backward-filter call. One input is an expanded sliding
                 # window; order that physical base first. This deliberately
@@ -5506,8 +5640,31 @@ def rewrite_mlir(
                 report.append(("fixed_convolution_layout_reject", i, entry.name))
                 i += 1
                 continue
-            operands = physical_operands
-            operand_types = physical_types
+            dynamic_types = {
+                "cudnnConvolutionTBCBackward_f32_memref":
+                    ["memref<?x?x?xf32>"] * 3,
+                "cudnnConvolutionTranspose3D_f32_memref": [
+                    "memref<?x?x?x?xf32>", "memref<?x?x?x?x?xf32>",
+                    "memref<?x?x?x?xf32>"],
+                "cudnnConvolutionBackwardFilter3D_f32_memref": [
+                    "memref<?x?x?x?xf32>", "memref<?x?x?x?xf32>",
+                    "memref<?x?x?x?x?xf32>"],
+            }[entry.name]
+            cast_names = [f"%fixed_conv_{i}_{j}" for j in range(3)]
+            launch_lines = [
+                f"{conv_inst.indent}{cast} = memref.cast {operand} : "
+                f"{operand_type} to {dynamic_type}"
+                for cast, operand, operand_type, dynamic_type in zip(
+                    cast_names, physical_operands, physical_types,
+                    dynamic_types)
+            ]
+            launch_lines.append(
+                f"{conv_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(cast_names)}) : "
+                f"({', '.join(dynamic_types)}) -> ()")
+            custom_launch_line = "\n".join(launch_lines)
+            operands = []
+            operand_types = []
             binds = {}
 
         # The scaled TBC fixture is fully expanded by joint multi-root
