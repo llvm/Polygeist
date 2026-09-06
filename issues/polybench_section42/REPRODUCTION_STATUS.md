@@ -12,7 +12,7 @@ Native-GPU availability update: 2026-09-05
 - PASS — Twelve of the thirteen comparable native-GPU configurations pass correctness and have one warmup plus five accepted samples: `2mm`, `3mm`, `atax`, `bicg`, `correlation`, `covariance`, `doitgen`, `fdtd-2d`, `gemm`, `gemver`, `gesummv`, and `mvt`.
 - FAIL — Normalized PolyBenchGPU `gramschmidt` runs but fails FP64 output correctness (428,561 of 2,640,000 values); it has no accepted timing.
 - UNAVAILABLE — PolyBenchGPU `adi`, `jacobi-1d`, `jacobi-2d`, `lu`, `syr2k`, and `syrk` are not equivalent canonical baselines. The remaining eleven kernels have no same-named external CUDA source in the audited repository.
-- PASS — Regenerated the consolidated page with all 30 manifest rows, twelve accepted native-GPU timing pairs, nine accepted raised-GPU timing pairs, and overlapping passed/failed/unavailable/modified-source filters. The strict audit checks 8,038 local links across 1,634 HTML pages with zero broken targets. URL: `file:///tmp/ir_viewer/polybench.html`.
+- PASS — Regenerated the consolidated page from the shared main worktree with all 30 manifest rows, twelve accepted native-GPU timing pairs, nine accepted raised-GPU timing pairs, and overlapping passed/failed/unavailable/modified-source filters. The strict audit checks 8,034 local links across 1,634 HTML pages with zero broken targets. URL: `file:///tmp/ir_viewer/polybench.html`.
 
 - FAIL — Current `f85ad6e4` baseline rerun reconfirmed `2mm`: the real cuBLAS wrapper executes, but all 960,000 output values are zero/wrong.
 - FAIL — Current `f85ad6e4` baseline rerun reconfirmed `atax`: all 2,100 output values differ from the native reference.
