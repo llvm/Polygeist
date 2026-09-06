@@ -269,7 +269,7 @@ aten_isin_default_cpu	pass	3	0	0	-
 aten_isneginf	pass	1	0	0	-
 aten_isposinf	pass	1	0	0	-
 aten_jagged_to_padded_cpu	pass	0	2	0	-
-aten_joint_scaling_cpu	pass	2	0	0	-
+aten_joint_scaling_cpu	pass	2	0	1	cublasJointMaxAbsProduct_f32_memref
 aten_kaiser_window	pass	1	0	0	-
 aten_kron_impl_cpu	pass	1	0	1	cutensorKroneckerProduct2D_f32_memref
 aten_kron_out_cpu	pass	1	0	1	cutensorKroneckerProduct2D_f32_memref

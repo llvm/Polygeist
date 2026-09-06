@@ -572,7 +572,7 @@ void polygeist_cublas_gemmex_i8_i32(
     int32_t *C);
 void polygeist_cublas_snrm2_f32(int32_t N, const float *input, float *output);
 void polygeist_cublas_joint_maxabs_product_f32(
-    int32_t N, const float *a, const float *b, float *output);
+    int32_t NA, int32_t NB, const float *a, const float *b, float *output);
 void polygeist_cudnn_feature_mask_scale_f32(
     int32_t N, int32_t C, int32_t H, int32_t W, float scale,
     const float *input, const float *mask, float *output);

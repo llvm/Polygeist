@@ -172,6 +172,11 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("nan_ignoring_reduction", "CUB", "transform iterator plus DeviceSegmentedReduce::Sum",
                       "FULL_GENERIC_API", "whole",
                       "a transform iterator maps source NaNs to the additive identity before segmented sum")
+    if n == "joint_scaling_cpu":
+        return result("joint_maxabs_product", "cuBLAS",
+                      "two cublasIsamax calls plus scalar product",
+                      "FULL_GENERIC_API", "whole",
+                      "two independent maximum-absolute reductions feed a scalar multiply")
     if "quant_col_offsets" in n:
         return result("column_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",
@@ -496,7 +501,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_dot", "aten_fp16_dot_cpu", "aten_mm", "aten_mv",
         "aten_blas_gemv_generic_cpu", "aten_linear_combination_cpu",
         "aten_nested_matmul_broadcast_cpu", "aten_outer",
-        "aten_sparse_norm_cpu",
+        "aten_sparse_norm_cpu", "aten_joint_scaling_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and name in {

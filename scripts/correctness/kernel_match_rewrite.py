@@ -3773,6 +3773,167 @@ def _render_sparse_euclidean_norm(
              "cublasSnrm2_f32_memref", indices)]
 
 
+def _render_joint_maxabs_product(
+    text: str, instances, bodies,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize two max(abs(x)) reductions followed by scalar multiply."""
+    function = re.search(
+        r"func\.func\s+@aten_joint_scaling_cpu\("
+        r"%arg0:\s*memref<\?xf32>,\s*%arg1:\s*memref<\?xf32>,\s*"
+        r"%arg2:\s*memref<\?xf32>\)", text)
+    if function is None:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    function_text = text[function.start():function_end]
+    indices = [i for i, inst in enumerate(instances)
+               if function.start() <= inst.span[0] < function_end]
+    if len(indices) != 2 or function_text.count("linalg.generic") != 2:
+        return []
+    zero = re.search(
+        r"(?P<zero>%[\w.$-]+)\s*=\s*arith\.constant\s+"
+        r"0\.000000e\+00\s*:\s*f32", function_text)
+    if zero is None:
+        return []
+    tensor_sources = {
+        m.group("tensor"): m.group("arg") for m in re.finditer(
+            r"(?P<tensor>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            r"(?P<arg>%arg[012])\s*:\s*memref<\?xf32>", function_text)
+    }
+    if set(tensor_sources.values()) != {"%arg0", "%arg1", "%arg2"}:
+        return []
+    submaps = {
+        m.group("result"): (m.group("base"), m.group("extent"))
+        for m in re.finditer(
+            r"(?P<result>%[\w.$-]+)\s*=\s*polygeist\.submap\("
+            r"(?P<base>%[\w.$-]+),\s*(?P<extent>%[\w.$-]+)\)",
+            function_text)
+    }
+    zero_inits = set()
+    for match in re.finditer(
+            rf"(?P<init>%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+            rf"{re.escape(zero.group('zero'))}\s+into\s+%[\w.$-]+\[\]",
+            function_text):
+        zero_inits.add(match.group("init"))
+    results = []
+    roots = []
+    extents = []
+    for index in indices:
+        instance, body = instances[index], bodies[index]
+        maps = [_compact_affine_map(value) for value in body.indexing_maps]
+        if (maps not in (["affine_map<(d0)->(d0)>",
+                          "affine_map<(d0)->()>"],
+                         ["affine_map<(d0)->(d0)>",
+                          "affine_map<(d0)->(d0)>"]) or
+                body.iterator_types != ["reduction"]):
+            return []
+        generic = text[instance.span[0]:instance.span[1]]
+        args = re.search(
+            r"\^bb0\((?P<input>%[\w.$-]+):\s*f32,\s*"
+            r"(?P<acc>%[\w.$-]+):\s*f32\)", generic)
+        io = re.search(
+            r"ins\((?P<input>%[\w.$-]+)\s*:.*?\)\s*"
+            r"outs\((?P<output>%[\w.$-]+)\s*:", generic, re.S)
+        result = re.search(
+            r"(?P<result>%[\w.$-]+)\s*=\s*linalg\.generic", generic)
+        if args is None or io is None or result is None:
+            return []
+        value, acc = args.group("input"), args.group("acc")
+        negative = re.search(
+            rf"(?P<cmp>%[\w.$-]+)\s*=\s*arith\.cmpf\s+olt,\s*"
+            rf"{re.escape(value)},\s*{re.escape(zero.group('zero'))}\s*:\s*f32",
+            generic)
+        negate = re.search(
+            rf"(?P<neg>%[\w.$-]+)\s*=\s*arith\.negf\s+"
+            rf"{re.escape(value)}\s*:\s*f32", generic)
+        if negative is None or negate is None:
+            return []
+        absolute = re.search(
+            rf"(?P<abs>%[\w.$-]+)\s*=\s*arith\.select\s+"
+            rf"{re.escape(negative.group('cmp'))},\s*"
+            rf"{re.escape(negate.group('neg'))},\s*{re.escape(value)}\s*:\s*f32",
+            generic)
+        if absolute is None:
+            return []
+        greater = re.search(
+            rf"(?P<cmp>%[\w.$-]+)\s*=\s*arith\.cmpf\s+ogt,\s*"
+            rf"{re.escape(absolute.group('abs'))},\s*{re.escape(acc)}\s*:\s*f32",
+            generic)
+        selected = (re.search(
+            rf"(?P<value>%[\w.$-]+)\s*=\s*arith\.select\s+"
+            rf"{re.escape(greater.group('cmp'))},\s*"
+            rf"{re.escape(absolute.group('abs'))},\s*{re.escape(acc)}\s*:\s*f32",
+            generic) if greater is not None else None)
+        if (selected is None or re.search(
+                rf"linalg\.yield\s+{re.escape(selected.group('value'))}\s*:\s*f32",
+                generic) is None):
+            return []
+        input_operand, output_operand = io.group("input"), io.group("output")
+        input_base, extent = submaps.get(input_operand, (input_operand, None))
+        output_base = submaps.get(output_operand, (output_operand, None))[0]
+        if input_base not in tensor_sources or output_base not in zero_inits:
+            return []
+        root = tensor_sources[input_base]
+        if root not in {"%arg0", "%arg1"}:
+            return []
+        roots.append(root)
+        extents.append(extent)
+        final_result = result.group("result")
+        if extent is not None:
+            suffix = text[instance.span[1]:function_end]
+            inverse = re.search(
+                rf"(?P<result>%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"{re.escape(output_base)},\s*{re.escape(final_result)},\s*"
+                rf"{re.escape(extent)}\)", suffix)
+            if inverse is None:
+                return []
+            final_result = inverse.group("result")
+        results.append(final_result)
+    if set(roots) != {"%arg0", "%arg1"}:
+        return []
+    suffix = text[instances[indices[-1]].span[1]:function_end]
+    extracts = {}
+    for result in results:
+        match = re.search(
+            rf"(?P<value>%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"{re.escape(result)}\[\]\s*:\s*tensor<f32>", suffix)
+        if match is None:
+            return []
+        extracts[result] = match.group("value")
+    lhs, rhs = (extracts[result] for result in results)
+    product = re.search(
+        rf"(?P<product>%[\w.$-]+)\s*=\s*arith\.mulf\s+"
+        rf"(?:{re.escape(lhs)},\s*{re.escape(rhs)}|"
+        rf"{re.escape(rhs)},\s*{re.escape(lhs)})\s*:\s*f32", suffix)
+    output_tensor = next((tensor for tensor, arg in tensor_sources.items()
+                          if arg == "%arg2"), None)
+    epilogue = (re.search(
+        rf"tensor\.insert\s+{re.escape(product.group('product'))}\s+into\s+"
+        rf"{re.escape(output_tensor)}\[%[\w.$-]+\]\s*:\s*tensor<\?xf32>.*?"
+        rf"(?P<memref>%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+        rf"%[\w.$-]+\s*:\s*memref<\?xf32>\s*\n\s*memref\.copy\s+"
+        rf"(?P=memref),\s*%arg2\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>",
+        suffix, re.S) if product is not None and output_tensor else None)
+    if epilogue is None:
+        return []
+    fixed = []
+    for extent in extents:
+        value = _constant_index_value(text, extent) if extent else None
+        if value is not None:
+            fixed.append(value)
+    extent_attr = (f" {{polygeist.fixed_extents = array<i64: "
+                   f"{', '.join(map(str, fixed))}>}}" if len(fixed) == 2 else "")
+    edit_start = function.start() + zero.start()
+    edit_end = instances[indices[-1]].span[1] + epilogue.end()
+    replacement = (
+        f"{instances[indices[0]].indent}kernel.launch "
+        "@cublasJointMaxAbsProduct_f32_memref(%arg0, %arg1, %arg2)"
+        f"{extent_attr} : (memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()")
+    return [(edit_start, edit_end, replacement,
+             "cublasJointMaxAbsProduct_f32_memref", indices)]
+
+
 def _render_rowwise_argreduce(
     text: str, instances, bodies, body_forms,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -7770,6 +7931,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[reduction-sqrt]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_joint_maxabs_product(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[two-reductions-epilogue]"))
         emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):

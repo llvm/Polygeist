@@ -2480,7 +2480,7 @@ ATEN_RETIRED_EARLY_MATCH_KERNELS = {
     "aten_avg_pool3d_cpu",
     "aten_batch_norm_backward_cpu",
     "aten_batch_norm_backward_template_cpu",
-    "aten_fp16_gemv_trans_cpu", "aten_joint_scaling_cpu",
+    "aten_fp16_gemv_trans_cpu",
     "aten_linalg_powsum_cpu", "aten_nested_all_cpu",
     "aten_nested_sum_dim_cpu", "aten_or_reduce_cpu", "aten_powsum_cpu",
     "aten_sinc", "aten_sort_cpu", "aten_topk_cpu",

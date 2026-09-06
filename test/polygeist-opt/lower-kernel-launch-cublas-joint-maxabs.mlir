@@ -11,5 +11,5 @@ module {
     return
   }
 }
-// CHECK: call @polygeist_cublas_joint_maxabs_product_f32
+// CHECK: call @polygeist_cublas_joint_maxabs_product_f32(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (i32, i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NOT: kernel.launch

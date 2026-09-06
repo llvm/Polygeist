@@ -5924,17 +5924,44 @@ void polygeist_cublas_snrm2_f32(
 }
 
 void polygeist_cublas_joint_maxabs_product_f32(
-    int32_t N, const float *a, const float *b, float *output) {
+    int32_t NA, int32_t NB, const float *a, const float *b, float *output) {
   polygeist_cublas_init();
-  size_t bytes = (size_t)N * sizeof(float);
-  float *deviceA = (float *)register_host_safe((void *)a, bytes);
-  float *deviceB = (float *)register_host_safe((void *)b, bytes);
+  float *deviceA = (float *)register_host_safe(
+      (void *)a, (size_t)NA * sizeof(float));
+  float *deviceB = (float *)register_host_safe(
+      (void *)b, (size_t)NB * sizeof(float));
   int ia = 0, ib = 0;
-  CUBLAS_CHECK(cublasIsamax(g_handle, N, deviceA, 1, &ia));
-  CUBLAS_CHECK(cublasIsamax(g_handle, N, deviceB, 1, &ib));
+  CUBLAS_CHECK(cublasIsamax(g_handle, NA, deviceA, 1, &ia));
+  CUBLAS_CHECK(cublasIsamax(g_handle, NB, deviceB, 1, &ib));
   sync_stream_if_outside_pipeline();
-  output[0] = (ia > 0 ? fabsf(a[ia - 1]) : 0.0f) *
-              (ib > 0 ? fabsf(b[ib - 1]) : 0.0f);
+  float av = 0.0f, bv = 0.0f;
+  void *residentA = NULL, *residentB = NULL, *residentOutput = NULL;
+  if (ia > 0) {
+    if (pointer_is_device_resident((void *)a, &residentA))
+      CUDA_CHECK(cudaMemcpyAsync(&av, (float *)residentA + ia - 1,
+                                 sizeof(float), cudaMemcpyDeviceToHost,
+                                 g_stream));
+    else
+      av = a[ia - 1];
+  }
+  if (ib > 0) {
+    if (pointer_is_device_resident((void *)b, &residentB))
+      CUDA_CHECK(cudaMemcpyAsync(&bv, (float *)residentB + ib - 1,
+                                 sizeof(float), cudaMemcpyDeviceToHost,
+                                 g_stream));
+    else
+      bv = b[ib - 1];
+  }
+  if (residentA || residentB)
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  float product = fabsf(av) * fabsf(bv);
+  if (pointer_is_device_resident(output, &residentOutput)) {
+    CUDA_CHECK(cudaMemcpyAsync(residentOutput, &product, sizeof(float),
+                               cudaMemcpyHostToDevice, g_stream));
+    sync_stream_if_outside_pipeline();
+  } else {
+    output[0] = product;
+  }
 }
 
 void polygeist_cudnn_feature_mask_scale_f32(

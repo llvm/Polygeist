@@ -1914,14 +1914,15 @@ static LogicalResult lowerCublasJointMaxAbsProductF32(LaunchOp launch,
   }
   OpBuilder b(launch);
   Location loc = launch.getLoc();
-  Value n = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
+  Value na = memrefDimAsI32(b, loc, launch.getOperand(0), 0);
+  Value nb = memrefDimAsI32(b, loc, launch.getOperand(1), 0);
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Value> args{n};
+  SmallVector<Value> args{na, nb};
   for (Value value : launch.getOperands())
     args.push_back(memrefDataPtr(b, loc, value));
   func::FuncOp shim = ensureShimDecl(
       module, "polygeist_cublas_joint_maxabs_product_f32",
-      TypeRange{b.getI32Type(), ptrTy, ptrTy, ptrTy}, b);
+      TypeRange{b.getI32Type(), b.getI32Type(), ptrTy, ptrTy, ptrTy}, b);
   b.create<func::CallOp>(loc, shim, args);
   launch.erase();
   return success();

@@ -1601,11 +1601,14 @@ void polygeist_cublas_snrm2_f32(
 }
 
 void polygeist_cublas_joint_maxabs_product_f32(
-    int32_t N, const float *a, const float *b, float *output) {
+    int32_t NA, int32_t NB, const float *a, const float *b, float *output) {
   float ma = 0.0f, mb = 0.0f;
-  for (int32_t i = 0; i < N; ++i) {
-    float av = fabsf(a[i]), bv = fabsf(b[i]);
+  for (int32_t i = 0; i < NA; ++i) {
+    float av = fabsf(a[i]);
     if (av > ma) ma = av;
+  }
+  for (int32_t i = 0; i < NB; ++i) {
+    float bv = fabsf(b[i]);
     if (bv > mb) mb = bv;
   }
   output[0] = ma * mb;
