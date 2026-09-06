@@ -1463,6 +1463,31 @@ def _cudnn_uniform_window_conv2d() -> CompositionEntry:
     )
 
 
+def _cudnn_fixed_average_pool3d() -> CompositionEntry:
+    """Valid 2x2x2, stride-2 NCDHW average pooling.
+
+    The scalar template is intentionally narrow.  The rewrite layer still
+    proves the rank-8 sliding-window map, physical rank-5 buffers, complete
+    output update, and fixed 2x2x2 geometry before selecting cuDNN.
+    """
+    return CompositionEntry(
+        name="cudnnAveragePool_f32_r5",
+        steps=[
+            CompositionStep(
+                body=Term.Lit(0.0), num_ins=0, num_outs=1,
+                parallel_dim_count=5, reduction_dim_count=0,
+            ),
+            CompositionStep(
+                body=Term.Out(0) + Term.In(0) / Term.Lit(8.0),
+                num_ins=1, num_outs=1,
+                parallel_dim_count=5, reduction_dim_count=3,
+            ),
+        ],
+        form="tensor",
+        element_type="f32",
+    )
+
+
 def _cudnn_conv2d_batched() -> CompositionEntry:
     """Batched multi-channel 2D convolution: out[b,oc,oh,ow] =
        Σ_{ic,kh,kw} in[b,ic,oh+kh,ow+kw] * filter[oc,ic,kh,kw].
@@ -3518,6 +3543,8 @@ def composition_library() -> list[CompositionEntry]:
         _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
         _cudnn_uniform_window_conv2d(),
                                   # 2-step: zero + regular NCHW window sum
+        _cudnn_fixed_average_pool3d(),
+                                  # 2-step: zero + NCDHW 2x2x2 average
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
         _sgemm_strided_batched_zero(),
         _sgemm_zero_gemm(),

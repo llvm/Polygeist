@@ -4562,6 +4562,162 @@ def rewrite_mlir(
             operand_types = physical_types
             binds = {}
 
+        if entry.name == "cudnnAveragePool_f32_r5":
+            init_inst = instances[i]
+            pool_inst = instances[i + 1]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            pool_ins = _extract_ssa_names(pool_inst.ins_part)
+            pool_outs = _extract_ssa_names(pool_inst.outs_part)
+            maps = [_compact_affine_map(m) for m in bodies[i + 1].indexing_maps]
+            expected_maps = [
+                "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                "(d0,d1,d2,d3,d4,d5,d6,d7)>",
+                "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                "(d0,d1,d2,d3,d4)>",
+            ]
+            legal = (
+                n == 2
+                and len(init_outs) == 1
+                and init_inst.result_ssa is not None
+                and len(pool_ins) == 1
+                and pool_outs == [init_inst.result_ssa]
+                and pool_inst.result_ssa is not None
+                and maps == expected_maps
+            )
+
+            prefix = text[:pool_inst.span[0]]
+            window_match = None
+            if legal:
+                window_match = re.search(
+                    rf"^\s*{re.escape(pool_ins[0])}\s*=\s*polygeist\.submap\s*"
+                    rf"\(\s*(%[\w_\-]+)\s*,\s*([^)]+)\)\s*"
+                    rf"\{{\s*map\s*=\s*([^}}]+)\}}\s*:",
+                    prefix, re.MULTILINE)
+                legal = window_match is not None
+
+            input_tensor = output_tensor = input_base = output_base = None
+            input_type = output_type = None
+            sizes: list[str] = []
+            if legal:
+                input_tensor = window_match.group(1)
+                sizes = [part.strip() for part in window_match.group(2).split(",")]
+                window_map = _compact_affine_map(_resolve_affine_map_text(
+                    prefix, window_match.group(3).strip()))
+                expected_window_map = (
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->"
+                    "(d0,d1,d5+d2*2,d6+d3*2,d7+d4*2)>"
+                )
+                legal = len(sizes) == 8 and window_map == expected_window_map
+
+            slice_match = None
+            if legal:
+                slice_match = re.search(
+                    rf"^\s*{re.escape(init_outs[0])}\s*=\s*"
+                    rf"tensor\.extract_slice\s+(%[\w_\-]+)"
+                    rf"\[0,\s*0,\s*0,\s*0,\s*0\]\s*"
+                    rf"\[([^]]+)\]\s*\[1,\s*1,\s*1,\s*1,\s*1\]",
+                    text[:init_inst.span[0]], re.MULTILINE)
+                legal = slice_match is not None
+            if legal:
+                output_tensor = slice_match.group(1)
+                output_sizes = [
+                    part.strip() for part in slice_match.group(2).split(",")
+                ]
+                legal = output_sizes == sizes[:5]
+
+            def _to_tensor_source(value: str | None):
+                if value is None:
+                    return None
+                match = re.search(
+                    rf"^\s*{re.escape(value)}\s*=\s*bufferization\.to_tensor\s+"
+                    rf"(%[\w_\-]+)(?:\s+[^:]*)?\s*:\s*(memref<[^\n]+>)$",
+                    text[:init_inst.span[0]], re.MULTILINE)
+                return (match.group(1), match.group(2).strip()) if match else None
+
+            input_source = _to_tensor_source(input_tensor) if legal else None
+            output_source = _to_tensor_source(output_tensor) if legal else None
+            legal = legal and input_source is not None and output_source is not None
+            if legal:
+                input_base, input_type = input_source
+                output_base, output_type = output_source
+                size_values = [_constant_index_value(text, value) for value in sizes]
+
+                def _shape_compatible(ty: str, expected: list[int]) -> bool:
+                    payload = _type_payload(ty, "memref")
+                    if payload is None:
+                        return False
+                    shaped = _top_level_first_type_piece(payload)
+                    suffix = "xf32"
+                    if not shaped.endswith(suffix):
+                        return False
+                    dims = shaped[:-len(suffix)].split("x")
+                    return len(dims) == len(expected) and all(
+                        dim == "?" or (dim.isdigit() and int(dim) == want)
+                        for dim, want in zip(dims, expected)
+                    )
+
+                legal = (
+                    size_values == [2, 3, 4, 4, 4, 2, 2, 2]
+                    and input_base != output_base
+                    and _plain_f32_memrefs(
+                        [input_type, output_type], [5, 5])
+                    and _shape_compatible(input_type, [2, 3, 8, 8, 8])
+                    and _shape_compatible(output_type, [2, 3, 4, 4, 4])
+                )
+
+            tail_match = None
+            if legal:
+                output_size_pattern = r",\s*".join(
+                    map(re.escape, sizes[:5]))
+                tail_match = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(pool_inst.result_ssa)}\s+into\s+"
+                    rf"{re.escape(output_tensor)}\[0,\s*0,\s*0,\s*0,\s*0\]"
+                    rf"\s*\[{output_size_pattern}\]"
+                    rf"\s*\[1,\s*1,\s*1,\s*1,\s*1\][^\n]*\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                    rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\2,\s*"
+                    rf"{re.escape(output_base)}\s*:[^\n]+",
+                    text[pool_inst.span[1]:])
+                legal = tail_match is not None
+
+            if not legal:
+                report.append(("fixed_average_pool3d_layout_reject", i,
+                               entry.name))
+                i += 1
+                continue
+
+            uid = pool_inst.result_ssa.lstrip("%").replace(".", "_")
+            input_cast = f"%avgpool3d_{uid}_input"
+            output_cast = f"%avgpool3d_{uid}_output"
+            dynamic_type = "memref<?x?x?x?x?xf32>"
+            constants = [4, 3, 2, 3, 8, 8, 8, 4, 4, 4]
+            labels = ("op", "rank", "n", "c", "i0", "i1", "i2",
+                      "o0", "o1", "o2")
+            constant_ssas = [f"%avgpool3d_{uid}_{label}" for label in labels]
+            lines = [
+                f"{pool_inst.indent}{input_cast} = memref.cast {input_base} : "
+                f"{input_type} to {dynamic_type}",
+                f"{pool_inst.indent}{output_cast} = memref.cast {output_base} : "
+                f"{output_type} to {dynamic_type}",
+            ]
+            lines.extend(
+                f"{pool_inst.indent}{name} = arith.constant {value} : i32"
+                for name, value in zip(constant_ssas, constants)
+            )
+            lines.append(
+                f"{pool_inst.indent}kernel.launch @cudnnAveragePool_f32_r5("
+                f"{', '.join(constant_ssas + [input_cast, output_cast])}) : "
+                f"({', '.join(['i32'] * 10 + [dynamic_type, dynamic_type])}) "
+                f"-> ()")
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                init_inst.span[0], pool_inst.span[1] + tail_match.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
         if entry.name.startswith("cubSegmented") and n == 2:
             # The first generic only writes the reduction identity.  The CUB
             # primitive receives that identity as part of its configured
@@ -6248,7 +6404,12 @@ def rewrite_mlir(
             # The original span starts mid-line at "\n    %X = linalg.generic..."
             # so we strip the leading newline from the captured block and
             # restore it ourselves once, before the BEGIN marker.
-            original_block = text[start:end]
+            original_end = (
+                custom_edit_span[1]
+                if replace_full_span and custom_edit_span is not None
+                else end
+            )
+            original_block = text[start:original_end]
             stripped = original_block[1:] if original_block.startswith("\n") else original_block
             commented = "\n".join(
                 f"{indent_spaces}// {ln}" if ln.strip() else f"{indent_spaces}//"
