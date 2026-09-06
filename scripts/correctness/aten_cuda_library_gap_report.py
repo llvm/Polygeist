@@ -296,6 +296,14 @@ def route(row: dict[str, str]) -> dict[str, str]:
 
     # CUB device algorithms are existing NVIDIA implementations,
     # but using them requires a C++ template backend and often multiple calls.
+    if fam == "indexed_extrema_scan":
+        return r("CUB", "DeviceSegmentedScan with custom value/index/NaN state",
+                 "EXACT_TEMPLATE_PRIMITIVE", "whole scan",
+                 "runtime max/min selector, inclusive convention, latest-index tie policy, signed zero, and ordered-comparison NaN behavior must match",
+                 "contiguous rows or explicit segment offsets; state carries best value/index, validity, and whether the segment starts with NaN",
+                 "structured scan recognizer + generated associative state/functor + CUB template backend",
+                 priority="HIGH",
+                 note="A plain pairwise ArgMax state is not associative under the fixture's first-element-NaN semantics")
     if fam == "scan":
         return r("CUB", "DeviceScan/DeviceSegmentedScan", "SUBSET_WITH_CONSTRAINTS", "whole for contiguous/segmented associative scans",
                  "axis, inclusive convention, dtype accumulation, logsumexp stability and cummax indices/ties",

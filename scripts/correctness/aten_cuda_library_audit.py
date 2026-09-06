@@ -410,6 +410,12 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "multi_stage",
                       "the derivative is a suffix sum of products with one input omitted; "
                       "correct handling of zero inputs requires multiple scans and case analysis")
+    if n == "cummax_cummin_cpu":
+        return result("indexed_extrema_scan", "CUB",
+                      "DeviceSegmentedScan with custom value/index/NaN state",
+                      "FULL_GENERIC_API", "whole",
+                      "an associative enriched state can preserve latest-index ties and "
+                      "distinguish a NaN in the first row element from later ignored NaNs")
     if hit(r"cumsum|cumprod|cummax|cummin|scan|prefix|batch_offsets", n):
         return result("scan", "CUB", "DeviceScan or DeviceSegmentedScan",
                       "FULL_GENERIC_API", "whole",
