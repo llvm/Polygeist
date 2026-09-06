@@ -793,6 +793,18 @@ struct ArgReduceF32 {
   int32_t op;
   __host__ __device__ IndexedValueF32 operator()(
       IndexedValueF32 a, IndexedValueF32 b) const {
+    if (a.index == INT32_MAX) return b;
+    if (b.index == INT32_MAX) return a;
+    bool a_nan = isnan(a.value);
+    bool b_nan = isnan(b.value);
+    if (a_nan || b_nan) {
+      // The source seeds from column zero and uses an ordered comparison:
+      // NaN at column zero remains the answer, while later NaNs never win.
+      int32_t a_rank = a_nan ? (a.index == 0 ? 2 : 0) : 1;
+      int32_t b_rank = b_nan ? (b.index == 0 ? 2 : 0) : 1;
+      if (a_rank != b_rank) return b_rank > a_rank ? b : a;
+      return b.index < a.index ? b : a;
+    }
     bool b_better = op == 0 ? b.value > a.value : b.value < a.value;
     bool tie = b.value == a.value;
     return (b_better || (tie && b.index < a.index)) ? b : a;
@@ -807,15 +819,26 @@ extern "C" int polygeist_cub_segmented_argreduce_f32_cuda(
   size_t pair_bytes = (size_t)rows * sizeof(IndexedValueF32);
   float *device_x = nullptr;
   IndexedValueF32 *device_pairs = nullptr;
+  int32_t *device_out = nullptr;
+  void *resident = nullptr;
+  bool owns_x = !cub_device_pointer(host_x, &resident);
+  if (!owns_x) device_x = static_cast<float *>(resident);
+  bool owns_out = !cub_device_pointer(host_out, &resident);
+  if (!owns_out) device_out = static_cast<int32_t *>(resident);
   void *temporary = nullptr;
   size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&device_x, input_bytes);
-  if (status != cudaSuccess) return (int)status;
+  cudaError_t status = cudaSuccess;
+  if (owns_x) {
+    status = cudaMalloc(&device_x, input_bytes);
+    if (status != cudaSuccess) return (int)status;
+  }
   status = cudaMalloc(&device_pairs, pair_bytes);
   if (status != cudaSuccess) goto cleanup;
-  status = cudaMemcpyAsync(device_x, host_x, input_bytes,
-                           cudaMemcpyHostToDevice, stream);
-  if (status != cudaSuccess) goto cleanup;
+  if (owns_x) {
+    status = cudaMemcpyAsync(device_x, host_x, input_bytes,
+                             cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) goto cleanup;
+  }
   {
     using Counting = cub::CountingInputIterator<int64_t>;
     using Values = cub::TransformInputIterator<
@@ -840,15 +863,20 @@ extern "C" int polygeist_cub_segmented_argreduce_f32_cuda(
         offsets, offsets + 1, ArgReduceF32{op}, identity, stream);
     if (status != cudaSuccess) goto cleanup;
   }
-  if (status == cudaSuccess)
-    status = cudaMemcpy2DAsync(host_out, sizeof(int32_t), device_pairs,
+  if (status == cudaSuccess) {
+    void *destination = owns_out ? static_cast<void *>(host_out)
+                                 : static_cast<void *>(device_out);
+    status = cudaMemcpy2DAsync(destination, sizeof(int32_t), device_pairs,
                                sizeof(IndexedValueF32), sizeof(int32_t), rows,
-                               cudaMemcpyDeviceToHost, stream);
+                               owns_out ? cudaMemcpyDeviceToHost
+                                        : cudaMemcpyDeviceToDevice,
+                               stream);
+  }
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
 cleanup:
   if (temporary) cudaFree(temporary);
   if (device_pairs) cudaFree(device_pairs);
-  if (device_x) cudaFree(device_x);
+  if (owns_x && device_x) cudaFree(device_x);
   return (int)status;
 }
 

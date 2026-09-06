@@ -335,11 +335,11 @@ CASES = {
         rtol=1e-2),
     "aten_argmax_cpu": spec(
         {"R": 131_072, "K": 64},
-        [ptr("x", "R*K"), iptr("out", "R", True)],
+        [ptr("x", "R*K", init="argreduce"), iptr("out", "R", True)],
         "full row-wise first-index argmax through CUB segmented reduction"),
     "aten_argmin_cpu": spec(
         {"R": 131_072, "K": 64},
-        [ptr("x", "R*K"), iptr("out", "R", True)],
+        [ptr("x", "R*K", init="argreduce"), iptr("out", "R", True)],
         "full row-wise first-index argmin through CUB segmented reduction"),
     "aten_bf16_gemv_trans_cpu": spec(
         {"M": 4096, "K": 8192},
@@ -740,6 +740,10 @@ def harness_text(kernel: str, cfg: dict) -> str:
             expr = "(float)((int)(i%13)-6)"
         elif init_kind == "mismatch":
             expr = "i == 12345 ? 99.0f : ((float)(i%101)-50.0f)/37.0f"
+        elif init_kind == "argreduce":
+            expr = ("(((i/K)%4==0 && i%K==0) || "
+                    "((i/K)%4==1 && (i%K==7 || i%K==19))) ? NAN : "
+                    "(float)((int)((i%K)%11)-5)")
         else:
             expr = "((float)(i%101)-50.0f)/37.0f"
         init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
@@ -836,6 +840,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
                                     "aten_diff_cpu",
                                     "aten_embedding_bag_counts_cpu",
                                     "aten_allany_dims_cpu",
+                                    "aten_argmax_cpu",
+                                    "aten_argmin_cpu",
                                     "aten_compressed_block_convert_cpu",
                                     "aten_upsample_bilinear2d"})
     if "via cuSPARSE" not in cfg["coverage"]:

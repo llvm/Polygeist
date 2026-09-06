@@ -3780,9 +3780,16 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     rewriter.setInsertionPointToStart(blk);
 
     // This index will replace the use of the affine index
-    auto idx = rewriter.create<linalg::IndexOp>(loop.getLoc(),
-                                                0);
-    rewriter.replaceAllUsesWith(loop.getInductionVar(), idx);
+    Value idx = rewriter.create<linalg::IndexOp>(loop.getLoc(), 0);
+    // linalg.index is relative to the generic's zero-based iteration domain,
+    // whereas the affine IV includes a constant nonzero lower bound.  The
+    // operand subviews already account for that lower bound, but scalar uses
+    // of the IV in the loop body (for example an argmax result index) must be
+    // shifted explicitly.
+    Value induction = idx;
+    if (loop.hasConstantLowerBound() && loop.getConstantLowerBound() != 0)
+      induction = rewriter.create<arith::AddIOp>(loop.getLoc(), idx, lbValue);
+    rewriter.replaceAllUsesWith(loop.getInductionVar(), induction);
 
     auto &body = genericOp.getRegion();
     body.takeBody(loop.getRegion());

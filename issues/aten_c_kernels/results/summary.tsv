@@ -30,8 +30,8 @@ aten_and_reduce_cpu	pass	2	0	1	cubSegmentedLogicalAnd_i32_memref
 aten_angle_complex_scalarized	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_angle_real	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_arange_cpu	pass	1	0	0	-
-aten_argmax_cpu	pass	4	0	0	-
-aten_argmin_cpu	pass	4	0	0	-
+aten_argmax_cpu	pass	4	0	1	cubSegmentedArgMax_f32_i32_memref
+aten_argmin_cpu	pass	4	0	1	cubSegmentedArgMin_f32_i32_memref
 aten_as_complex_cpu	pass	2	0	2	cudaCopy1D_f32_tensor
 aten_asin	pass	1	0	1	cutensorUnary_asin_f32
 aten_asinh	pass	1	0	1	cutensorUnary_asinh_f32

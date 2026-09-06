@@ -3533,6 +3533,189 @@ def _render_dynamic_allany_reduction(
              "cubSegmentedLogicalSelect_i32_memref", indices)]
 
 
+def _render_rowwise_argreduce(
+    text: str, instances, bodies, body_forms,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize ATen's seeded, first-index row-wise argmax/argmin."""
+    edits = []
+    functions = list(re.finditer(
+        r"func\.func\s+@aten_arg(?P<kind>max|min)_cpu\("
+        r"%arg0:\s*memref<\?x64xf32>,\s*%arg1:\s*memref<\?xi32>\)", text))
+    for function in functions:
+        next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+        function_end = (function.end() + next_function.start()
+                        if next_function is not None else len(text))
+        function_text = text[function.start():function_end]
+        indices = [i for i, inst in enumerate(instances)
+                   if function.start() <= inst.span[0] < function_end]
+        if len(indices) != 4:
+            continue
+        init_i, seed_i, reduce_i, copy_i = indices
+        init, seed, reduce, copy = (instances[i] for i in indices)
+        expected_predicate = "ogt" if function.group("kind") == "max" else "olt"
+        symbol = ("cubSegmentedArgMax_f32_i32_memref"
+                  if function.group("kind") == "max"
+                  else "cubSegmentedArgMin_f32_i32_memref")
+
+        maps = [[_compact_affine_map(value) for value in bodies[i].indexing_maps]
+                for i in indices]
+        iterators = [bodies[i].iterator_types for i in indices]
+        if (iterators != [["parallel"], ["parallel"],
+                          ["parallel", "reduction"], ["parallel"]] or
+                maps[0] != ["affine_map<(d0)->(d0)>"] or
+                maps[1] != ["affine_map<(d0)->(d0)>"] * 2 or
+                maps[3] != ["affine_map<(d0)->(d0)>"] * 2):
+            continue
+
+        init_body = text[init.span[0]:init.span[1]]
+        seed_body = text[seed.span[0]:seed.span[1]]
+        reduce_body = text[reduce.span[0]:reduce.span[1]]
+        copy_body = text[copy.span[0]:copy.span[1]]
+        init_args = re.search(r"\^bb0\((%[\w.$-]+):\s*i32\)", init_body)
+        seed_args = re.search(
+            r"\^bb0\((?P<input>%[\w.$-]+):\s*f32,\s*"
+            r"(?P<out>%[\w.$-]+):\s*f32\)", seed_body)
+        copy_args = re.search(
+            r"\^bb0\((?P<input>%[\w.$-]+):\s*i32,\s*"
+            r"(?P<out>%[\w.$-]+):\s*i32\)", copy_body)
+        c0 = re.search(r"(?P<zero>%[\w.$-]+)\s*=\s*arith\.constant\s+0\s*:\s*i32",
+                       function_text)
+        c1 = re.search(r"(?P<one>%[\w.$-]+)\s*=\s*arith\.constant\s+1\s*:\s*index",
+                       function_text)
+        simple_bodies = (
+            init_args is not None and c0 is not None and
+            re.search(rf"linalg\.yield\s+{re.escape(c0.group('zero'))}\s*:\s*i32",
+                      init_body) is not None and
+            seed_args is not None and
+            re.search(rf"linalg\.yield\s+{re.escape(seed_args.group('input'))}\s*:\s*f32",
+                      seed_body) is not None and
+            copy_args is not None and
+            re.search(rf"linalg\.yield\s+{re.escape(copy_args.group('input'))}\s*:\s*i32",
+                      copy_body) is not None)
+        reduction_semantics = (c1 is not None and re.search(
+            rf"\^bb0\((?P<input>%[\w.$-]+):\s*f32,\s*"
+            rf"(?P<old_index>%[\w.$-]+):\s*i32,\s*"
+            rf"(?P<old_value>%[\w.$-]+):\s*f32\):.*?"
+            rf"(?P<relative>%[\w.$-]+)\s*=\s*linalg\.index\s+1\s*:\s*index.*?"
+            rf"(?P<absolute>%[\w.$-]+)\s*=\s*arith\.addi\s+"
+            rf"(?P=relative),\s*{re.escape(c1.group('one'))}\s*:\s*index.*?"
+            rf"(?P<index>%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"(?P=absolute)\s*:\s*index\s+to\s+i32.*?"
+            rf"(?P<better>%[\w.$-]+)\s*=\s*arith\.cmpf\s+{expected_predicate},\s*"
+            rf"(?P=input),\s*(?P=old_value)\s*:\s*f32.*?"
+            rf"(?P<new_index>%[\w.$-]+)\s*=\s*arith\.select\s+"
+            rf"(?P=better),\s*(?P=index),\s*(?P=old_index)\s*:\s*i32.*?"
+            rf"(?P<new_value>%[\w.$-]+)\s*=\s*arith\.select\s+"
+            rf"(?P=better),\s*(?P=input),\s*(?P=old_value)\s*:\s*f32.*?"
+            rf"linalg\.yield\s+(?P=new_index),\s*(?P=new_value)\s*:\s*i32,\s*f32",
+            reduce_body, re.DOTALL) is not None)
+        if not simple_bodies or not reduction_semantics:
+            continue
+
+        init_outs = _extract_ssa_names(init.outs_part)
+        seed_ins, seed_outs = (_extract_ssa_names(seed.ins_part),
+                               _extract_ssa_names(seed.outs_part))
+        reduce_ins, reduce_outs = (_extract_ssa_names(reduce.ins_part),
+                                   _extract_ssa_names(reduce.outs_part))
+        copy_ins, copy_outs = (_extract_ssa_names(copy.ins_part),
+                               _extract_ssa_names(copy.outs_part))
+        if not (len(init_outs) == len(seed_ins) == len(seed_outs) ==
+                len(reduce_ins) == len(copy_ins) == len(copy_outs) == 1 and
+                len(reduce_outs) == 2):
+            continue
+
+        edit_start, edit_end = init.span[0], copy.span[1]
+        if body_forms[init_i] == "memref":
+            input_view = _parse_memref_view(text, seed_ins[0], seed.span[0])
+            seed_output_view = _parse_memref_view(
+                text, seed_outs[0], seed.span[0])
+            reduce_view = _parse_memref_view(text, reduce_ins[0], reduce.span[0])
+            index_view = _parse_memref_view(text, reduce_outs[0], reduce.span[0])
+            value_view = _parse_memref_view(text, reduce_outs[1], reduce.span[0])
+            direct_legal = (
+                body_forms[seed_i] == body_forms[reduce_i] == body_forms[copy_i] == "memref"
+                and maps[2] == ["affine_map<(d0,d1)->(d0,d1)>",
+                                "affine_map<(d0,d1)->(d0)>",
+                                "affine_map<(d0,d1)->(d0)>"]
+                and input_view is not None and input_view["base"] == "%arg0"
+                and input_view["base_type"] == "memref<?x64xf32>"
+                and input_view["sizes"][-1:] == ["1"]
+                and re.search(
+                    rf"{re.escape(seed_ins[0])}\s*=\s*memref\.subview\s+"
+                    r"%arg0\[0,\s*0\]", function_text) is not None
+                and seed_output_view is not None
+                and reduce_view is not None and reduce_view["base"] == "%arg0"
+                and reduce_view["base_type"] == "memref<?x64xf32>"
+                and reduce_view["sizes"][-1:] == ["%c63"]
+                and re.search(
+                    rf"{re.escape(reduce_ins[0])}\s*=\s*memref\.subview\s+"
+                    r"%arg0\[0,\s*1\]", function_text) is not None
+                and index_view is not None and index_view["base"] == init_outs[0]
+                and value_view is not None
+                and value_view["base"] == seed_output_view["base"]
+                and copy_ins[0] == init_outs[0]
+                and copy_outs[0] == "%arg1")
+            if not direct_legal:
+                continue
+        else:
+            x_tensor = re.search(
+                r"(?P<value>%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%arg0"
+                r"\s*:\s*memref<\?x64xf32>", function_text)
+            final_copy = re.search(
+                rf"(?P<writeback>%[\w.$-]+)\s*=\s*polygeist\.submapInverse\("
+                rf"[^\n]*{re.escape(copy.result_ssa or '%never')}[^\n]*\)"
+                rf"[^\n]*->\s*tensor<\?xi32>\s*\n\s*"
+                rf"(?P<memref>%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                rf"(?P=writeback)\s*:\s*memref<\?xi32>\s*\n\s*"
+                rf"memref\.copy\s+(?P=memref),\s*%arg1\s*:\s*"
+                rf"memref<\?xi32>\s+to\s+memref<\?xi32>",
+                text[copy.span[1]:function_end])
+            reduce_input_def = re.search(
+                rf"{re.escape(reduce_ins[0])}\s*=\s*polygeist\.submap\("
+                rf"(?P<base>%[\w.$-]+),[^)]*\)\s*\{{map\s*=\s*(?P<map>[^}}]+)\}}",
+                function_text)
+            seed_input_def = re.search(
+                rf"{re.escape(seed_ins[0])}\s*=\s*polygeist\.submap\("
+                rf"(?P<base>%[\w.$-]+),[^)]*\)\s*\{{map\s*=\s*(?P<map>[^}}]+)\}}",
+                function_text)
+            reduce_input_map = (_resolve_affine_map_text(
+                text[:function.end()] + function_text,
+                reduce_input_def.group("map").strip())
+                                if reduce_input_def is not None else None)
+            seed_input_map = (_resolve_affine_map_text(
+                text[:function.end()] + function_text,
+                seed_input_def.group("map").strip())
+                              if seed_input_def is not None else None)
+            tensor_legal = (
+                body_forms[init_i] == body_forms[seed_i] == body_forms[reduce_i] == body_forms[copy_i] == "tensor"
+                and maps[2] == ["affine_map<(d0,d1)->(d0,d1)>"] * 3
+                and x_tensor is not None and seed_input_def is not None
+                and seed_input_def.group("base") == x_tensor.group("value")
+                and _compact_affine_map(seed_input_map or "") ==
+                    "affine_map<(d0)->(d0,0)>"
+                and reduce_input_def is not None
+                and reduce_input_def.group("base") == x_tensor.group("value")
+                and _compact_affine_map(reduce_input_map or "") ==
+                    "affine_map<(d0,d1)->(d0,d1+1)>"
+                and function_text.count("polygeist.submapInverse") == 4
+                and final_copy is not None)
+            if not tensor_legal:
+                continue
+            first_view = re.search(
+                rf"(?m)^\s*{re.escape(init_outs[0])}\s*=\s*polygeist\.submap\b",
+                text[function.start():init.span[0]])
+            if first_view is None:
+                continue
+            edit_start = function.start() + first_view.start()
+            edit_end = copy.span[1] + final_copy.end()
+
+        replacement = (
+            f"{init.indent}kernel.launch @{symbol}(%arg0, %arg1) : "
+            "(memref<?x64xf32>, memref<?xi32>) -> ()")
+        edits.append((edit_start, edit_end, replacement, symbol, indices))
+    return edits
+
+
 def _render_fixed_average_pool_backward_regions(
     text: str, instances, bodies,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -7311,6 +7494,18 @@ def rewrite_mlir(
         edits.append((start, end, replacement))
         consumed_structured_bodies.update(consumed)
         report.append(("match", consumed, symbol + "[dynamic-allany]"))
+        emitted_launches += 1
+    for start, end, replacement, symbol, consumed in \
+            _render_rowwise_argreduce(text, instances, bodies, body_forms):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[seeded-argreduce]"))
         emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_bilinear_upsample2x(text, instances, bodies):
