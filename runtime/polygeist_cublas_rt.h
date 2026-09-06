@@ -338,8 +338,10 @@ void polygeist_cudnn_conv2d_uniform_window_f32(
     int32_t DH, int32_t DW, int32_t PH, int32_t PW,
     const float *input, float *output);
 
-// Exact ATen adaptive pooling through cuDNN Backend Resample. operation is
-// 0=average forward, 1=average backward, 2=max forward, 3=max backward.
+// Exact ATen pooling/resampling through cuDNN Backend Resample. operation is
+// 0=adaptive-average forward, 1=adaptive-average backward, 2=max forward,
+// 3=max backward, 4=fixed-average forward, 5=fixed-average backward, and
+// 6=the supported FP32 bilinear 2x forward subset.
 void polygeist_cudnn_adaptive_pool_f32(
     int32_t operation, int32_t rank, int32_t N, int32_t C,
     int32_t I0, int32_t I1, int32_t I2,

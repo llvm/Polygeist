@@ -716,6 +716,28 @@ void polygeist_cudnn_adaptive_pool_f32(
   int32_t *indices_out = operation == 2 ? (int32_t *)ptr2 : NULL;
   size_t input_spatial = (size_t)I0 * I1 * I2;
   size_t output_spatial = (size_t)O0 * O1 * O2;
+  if (operation == 6) {
+    if (rank != 2 || O0 != 2 * I0 || O1 != 2 * I1 || I2 != 1 || O2 != 1) {
+      fprintf(stderr, "bilinear 2x resample: invalid dimensions\n");
+      abort();
+    }
+    for (int32_t nc = 0; nc < N * C; ++nc)
+      for (int32_t o0 = 0; o0 < O0; ++o0)
+        for (int32_t o1 = 0; o1 < O1; ++o1) {
+          int32_t i0 = o0 / 2, i1 = o1 / 2;
+          int32_t j0 = i0 + 1 < I0 ? i0 + 1 : i0;
+          int32_t j1 = i1 + 1 < I1 ? i1 + 1 : i1;
+          float f0 = (float)(o0 % 2) * 0.5f;
+          float f1 = (float)(o1 % 2) * 0.5f;
+          size_t base = (size_t)nc * input_spatial;
+          values_out[(size_t)nc * output_spatial + (size_t)o0 * O1 + o1] =
+              (1.0f - f0) * ((1.0f - f1) * source[base + (size_t)i0 * I1 + i1] +
+                             f1 * source[base + (size_t)i0 * I1 + j1]) +
+              f0 * ((1.0f - f1) * source[base + (size_t)j0 * I1 + i1] +
+                    f1 * source[base + (size_t)j0 * I1 + j1]);
+        }
+    return;
+  }
   int fixed_average = operation == 4 || operation == 5;
   if (operation == 1 || operation == 3 || operation == 5)
     memset(values_out, 0,

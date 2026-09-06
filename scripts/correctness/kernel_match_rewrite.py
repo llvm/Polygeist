@@ -3195,6 +3195,104 @@ _ADAPTIVE_POOL_CONSTANT_FINGERPRINTS: dict[str, set[int]] = {
 }
 
 
+def _render_bilinear_upsample2x(
+    text: str, instances, bodies,
+) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize the fixed cuDNN-supported ATen bilinear-upsample subset."""
+    function = re.search(r"func\.func\s+@aten_upsample_bilinear2d\b", text)
+    if function is None:
+        return []
+    next_function = re.search(r"\n\s*func\.func\s+@", text[function.end():])
+    function_end = (function.end() + next_function.start()
+                    if next_function is not None else len(text))
+    indices = [
+        i for i, inst in enumerate(instances)
+        if function.start() <= inst.span[0] < function_end
+    ]
+    if len(indices) != 1:
+        return []
+    index = indices[0]
+    body = bodies[index]
+    function_text = text[function.start():function_end]
+    generic_text = text[instances[index].span[0]:instances[index].span[1]]
+    batch_view = re.search(
+        r"memref\.subview\s+%arg1\[[^]]+\]\s*"
+        r"\[(%[\w.$-]+),\s*(%[\w.$-]+),\s*(%[\w.$-]+),\s*"
+        r"(%[\w.$-]+)\]", function_text)
+    if batch_view is None:
+        batch_view = re.search(
+            r"polygeist\.submap\(%arg1,\s*(%[\w.$-]+),\s*"
+            r"(%[\w.$-]+),\s*(%[\w.$-]+),\s*(%[\w.$-]+)\)",
+            function_text)
+    if batch_view is None:
+        batch_view = re.search(
+            r"tensor\.extract_slice\s+%[\w.$-]+\[[^]]+\]\s*"
+            r"\[(%[\w.$-]+),\s*(%[\w.$-]+),\s*(%[\w.$-]+),\s*"
+            r"(%[\w.$-]+)\]", function_text)
+    index_constants = {
+        name: int(value) for name, value in re.findall(
+            r"(%[\w.$-]+)\s*=\s*arith\.constant\s+(-?\d+)\s*:\s*index",
+            function_text)
+    }
+    view_sizes = ([index_constants.get(name) for name in batch_view.groups()]
+                  if batch_view is not None else None)
+    loads = re.findall(
+        r"memref\.load\s+%arg0\[[^]]+\]\s*:\s*memref<\?x3x4x4xf32>",
+        generic_text)
+    legal = (
+        re.search(
+            r"func\.func\s+@aten_upsample_bilinear2d\("
+            r"%arg0:\s*memref<\?x3x4x4xf32>,\s*"
+            r"%arg1:\s*memref<\?x3x8x8xf32>\)", function_text) is not None
+        and not body.ins_arg_names and len(body.outs_arg_names) == 1
+        and body.iterator_types == ["parallel"] * 4
+        and len(body.indexing_maps) == 1
+        and _compact_affine_map(body.indexing_maps[0]).endswith(
+            "->(d0,d1,d2,d3)>")
+        and len(loads) == 4
+        and generic_text.count("arith.mulf") == 8
+        and generic_text.count("arith.addf") == 3
+        and generic_text.count("arith.remsi") == 2
+        and generic_text.count("arith.divsi") >= 4
+        and generic_text.count("arith.select") >= 6
+        and re.search(r"arith\.constant\s+5\.000000e-01\s*:\s*f32",
+                      function_text) is not None
+        and view_sizes is not None and view_sizes[0] is not None
+        and view_sizes[0] > 0 and view_sizes[1:] == [3, 8, 8]
+    )
+    if not legal:
+        return []
+    indent = instances[index].indent.lstrip("\n")
+    uid = instances[index].span[0]
+    # operation=6; flatten B*C into independent one-channel planes.
+    values = (6, 2, view_sizes[0] * 3, 1, 4, 4, 1, 8, 8, 1)
+    names = [f"%bilinear2x_{uid}_{i}" for i in range(10)]
+    lines = [
+        f"{indent}{ssa} = arith.constant {value} : i32"
+        for ssa, value in zip(names, values)
+    ]
+    signature = ", ".join(["i32"] * 10 +
+                          ["memref<?x3x4x4xf32>",
+                           "memref<?x3x8x8xf32>"])
+    lines.append(
+        f"{indent}kernel.launch @cudnnBilinearUpsample2x_f32_r4("
+        f"{', '.join(names + ['%arg0', '%arg1'])}) : "
+        f"({signature}) -> ()")
+    edit_end = instances[index].span[1]
+    if instances[index].result_type and "tensor<" in instances[index].result_type:
+        writeback = re.match(
+            r"\s*%[\w.$-]+\s*=\s*tensor\.insert_slice[^\n]*\n"
+            r"\s*%[\w.$-]+\s*=\s*bufferization\.to_memref[^\n]*\n"
+            r"\s*memref\.copy\s+[^\n]*%arg1[^\n]*",
+            text[edit_end:function_end])
+        if writeback is None:
+            return []
+        edit_end += writeback.end()
+    return [(instances[index].span[0], edit_end,
+             "\n" + "\n".join(lines),
+             "cudnnBilinearUpsample2x_f32_r4", [index])]
+
+
 def _render_fixed_average_pool_backward_regions(
     text: str, instances, bodies,
 ) -> list[tuple[int, int, str, str, list[int]]]:
@@ -6950,6 +7048,18 @@ def rewrite_mlir(
             consumed_structured_bodies.update(consumed)
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
+    for start, end, replacement, symbol, consumed in \
+            _render_bilinear_upsample2x(text, instances, bodies):
+        if max_launches is not None and emitted_launches >= max_launches:
+            report.append(("launch_limit", consumed, symbol))
+            continue
+        if (symbol in disabled_kernels or
+                (only_kernels is not None and symbol not in only_kernels)):
+            continue
+        edits.append((start, end, replacement))
+        consumed_structured_bodies.update(consumed)
+        report.append(("match", consumed, symbol + "[bilinear-2x]"))
+        emitted_launches += 1
     for start, end, replacement, symbol, consumed in \
             _render_fixed_average_pool_backward_regions(
                 text, instances, bodies):

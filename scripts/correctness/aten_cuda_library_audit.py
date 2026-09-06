@@ -283,14 +283,31 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "FULL_FIXED_API", "whole",
                       "cuDNN resample directly supports regular average/max pooling")
     if hit(r"upsample|grid_sampler|resize|resample", n):
-        if "lanczos" in n or "grid_sampler" in n:
+        if "grid_sampler" in n:
             availability = "PARTIAL_API" if "backward" in n else "FULL_GENERIC_API"
             return result("resampling", "NPP", "nppiResize/nppiRemap",
                           availability, "whole_or_forward_stage",
                           "NPP provides 2D resize/remap interpolation, but does not expose the matching backward operator")
-        return result("resampling", "cuDNN Resample", "ResampleFwd/ResampleBwd",
-                      "FULL_FIXED_API", "whole",
-                      "cuDNN resample supports nearest, bilinear, and cubic modes")
+        if n == "upsample_bilinear2d":
+            return result(
+                "resampling", "cuDNN Resample", "ResampleFwd",
+                "FULL_FIXED_API", "whole",
+                "fixture is exactly cuDNN's supported FP32 2x bilinear, half-pixel, edge-clamped subset")
+        if "bilinear2d" in n and "antialias" not in n and "_aa" not in n:
+            return result(
+                "resampling", "cuDNN Resample", "ResampleFwd/ResampleBwd",
+                "PARTIAL_API", "exact_2x_subset",
+                "cuDNN bilinear upsampling requires FP32, 2x spatial output, half-pixel coordinates, edge padding, and NHWC-compatible layout")
+        if ("nearest2d" in n or "bicubic2d" in n or "lanczos" in n) and \
+                "backward" not in n:
+            return result(
+                "resampling", "NPP", "nppiResize",
+                "PARTIAL_API", "compatible_2d_forward_subset",
+                "NPP may cover compatible 2D forward ROI/layout/interpolation cases; it does not provide ATen's general backward operation")
+        return result(
+            "resampling", "", "conventional Linalg/GPU lowering",
+            "NO_DIRECT_LIBRARY_API", "none",
+            "installed cuDNN does not support nearest upsampling or general 1D/3D interpolation; coordinate/backward semantics lack a defensible fixed call")
 
     # Sparse linear algebra and sparse format manipulation.
     if hit(r"sparse.*(mm|mv|bmm|spmm|addmv)|(^|_)spmm|sspaddmm|hspmm", n):
@@ -458,6 +475,8 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN Resample" and family == "pooling":
+        return "SELECTED_WRAPPERS_PRESENT"
+    if library == "cuDNN Resample" and name == "aten_upsample_bilinear2d":
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuFFT" and family == "fourier_transform":
         return "SELECTED_WRAPPERS_PRESENT"

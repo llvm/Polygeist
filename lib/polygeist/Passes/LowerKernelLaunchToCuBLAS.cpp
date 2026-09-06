@@ -319,7 +319,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_uniform_window_f32";
   if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
       libSym.starts_with("cudnnAveragePool_f32_") ||
-      libSym == "cudnnAvgPoolWindow_f32")
+      libSym == "cudnnAvgPoolWindow_f32" ||
+      libSym == "cudnnBilinearUpsample2x_f32_r4")
     return "polygeist_cudnn_adaptive_pool_f32";
   if (libSym == "cudnnBatchNormBackward_f32_full" ||
       libSym == "cudnnBatchNormBackward_f32_dx")
@@ -7404,6 +7405,7 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnAvgPoolWindow_f32") {
         r = lowerCudnnAvgPoolWindowF32(launch, module);
       } else if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
+                 libSym == "cudnnBilinearUpsample2x_f32_r4" ||
                  libSym.starts_with("cudnnAveragePool_f32_")) {
         r = lowerCudnnAdaptivePoolF32(launch, module);
       } else if (libSym == "cudnnBatchNormBackward_f32_full" ||

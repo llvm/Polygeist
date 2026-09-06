@@ -3676,6 +3676,7 @@ static int adaptive_resample_backend_f32(
   cudnnBackendDescriptor_t heur = NULL, config = NULL, plan = NULL;
   cudnnBackendDescriptor_t variant = NULL;
   void *d_x = NULL, *d_y = NULL, *d_idx = NULL, *workspace = NULL;
+  void *staging_x = NULL, *staging_y = NULL;
   void *d_x_ref = NULL, *d_y_ref = NULL;
   int ok = 0;
 
@@ -3707,6 +3708,19 @@ static int adaptive_resample_backend_f32(
   // exactly after execution.  Max backward is handled by the semantic
   // fallback because its input indices use ATen's public representation.
   bool is_max = operation == 2 || operation == 3;
+  bool is_bilinear_upsample = operation == 6;
+  void *direct_x = NULL, *direct_y = NULL;
+  bool direct_device = is_bilinear_upsample &&
+      pointer_is_device_resident((void *)ptr0, &direct_x) &&
+      pointer_is_device_resident(ptr1, &direct_y);
+  if (is_bilinear_upsample) {
+    // Present each contiguous NCHW channel plane as an independent
+    // one-channel NHWC image. cuDNN does not support NCHW upsampling, while
+    // this relabeling preserves the physical element order exactly.
+    if (rank != 2 || C != 1) goto cleanup;
+    in_strides[1] = 1;
+    out_strides[1] = 1;
+  }
   bool backward = operation == 1 || operation == 3 || operation == 5;
   bool use_cudnn_index = false;
   // Forward plans are shape-stable and reusable; backward/index are not.
@@ -3737,10 +3751,12 @@ static int adaptive_resample_backend_f32(
                                          &resample);
   if (status != CUDNN_STATUS_SUCCESS) goto cleanup;
   cudnnResampleMode_t mode = is_max ? CUDNN_RESAMPLE_MAXPOOL
-      : CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING;
+      : (is_bilinear_upsample ? CUDNN_RESAMPLE_BILINEAR
+                              : CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING);
   cudnnDataType_t comp = CUDNN_DATA_FLOAT;
   cudnnNanPropagation_t nan = CUDNN_NOT_PROPAGATE_NAN;
-  cudnnPaddingMode_t padding = is_max ? CUDNN_NEG_INF_PAD : CUDNN_ZERO_PAD;
+  cudnnPaddingMode_t padding = is_max ? CUDNN_NEG_INF_PAD
+      : (is_bilinear_upsample ? CUDNN_EDGE_VAL_PAD : CUDNN_ZERO_PAD);
   int64_t spatial64 = spatial;
   int32_t ins[3] = {I0, I1, I2};
   int32_t outs[3] = {O0, O1, O2};
@@ -3752,6 +3768,14 @@ static int adaptive_resample_backend_f32(
   // semantic fallback below rather than being approximated.
   bool fixed_average = operation == 4 || operation == 5;
   for (int d = 0; d < rank; ++d) {
+    if (is_bilinear_upsample) {
+      // cuDNN 9's supported bilinear-upsample surface is exactly 2x with
+      // half-pixel coordinates and edge clamping.
+      if (outs[d] != 2 * ins[d]) goto cleanup;
+      windows[d] = (cudnnFraction_t){2, 1};
+      strides[d] = (cudnnFraction_t){1, 2};
+      continue;
+    }
     if (fixed_average) {
       int32_t window = ins[d] / outs[d];
       if (window <= 0 || (ins[d] - window) / window + 1 != outs[d])
@@ -3774,7 +3798,14 @@ static int adaptive_resample_backend_f32(
     windows[d] = (cudnnFraction_t){window, 1};
     strides[d] = (cudnnFraction_t){stride, 1};
   }
-  cudnnFraction_t pads[3] = {{0, 1}, {0, 1}, {0, 1}};
+  cudnnFraction_t pre_pads[3] = {{0, 1}, {0, 1}, {0, 1}};
+  cudnnFraction_t post_pads[3] = {{0, 1}, {0, 1}, {0, 1}};
+  if (is_bilinear_upsample) {
+    for (int d = 0; d < rank; ++d) {
+      pre_pads[d] = (cudnnFraction_t){1, 2};
+      post_pads[d] = (cudnnFraction_t){1, 1};
+    }
+  }
   if (!set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_MODE,
                         CUDNN_TYPE_RESAMPLE_MODE, 1, &mode,
                         "adaptive.mode", &status) ||
@@ -3797,10 +3828,10 @@ static int adaptive_resample_backend_f32(
                         CUDNN_TYPE_FRACTION, spatial, windows,
                         "adaptive.windows", &status) ||
       !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_PRE_PADDINGS,
-                        CUDNN_TYPE_FRACTION, spatial, pads,
+                        CUDNN_TYPE_FRACTION, spatial, pre_pads,
                         "adaptive.prepad", &status) ||
       !set_backend_attr(resample, CUDNN_ATTR_RESAMPLE_POST_PADDINGS,
-                        CUDNN_TYPE_FRACTION, spatial, pads,
+                        CUDNN_TYPE_FRACTION, spatial, post_pads,
                         "adaptive.postpad", &status) ||
       !finalize_backend_desc(resample, "adaptive.resample", &status))
     goto cleanup;
@@ -3929,6 +3960,8 @@ static int adaptive_resample_backend_f32(
     goto cleanup;
   DEVICE_MALLOC(&d_x, input_bytes);
   DEVICE_MALLOC(&d_y, output_bytes);
+  staging_x = d_x;
+  staging_y = d_y;
   if (backward) {
     DEVICE_MALLOC(&d_x_ref, input_bytes);
     DEVICE_MALLOC(&d_y_ref, output_bytes);
@@ -3954,10 +3987,16 @@ static int adaptive_resample_backend_f32(
     from_cache = 1;
   }
   }  // end if(!from_cache): built plan + buffers (or reused a cached entry)
-  if (!backward) {
+  // A cached plan owns staging buffers, but a device-resident caller can bind
+  // its buffers directly in the per-call variant pack.
+  if (direct_device) {
+    d_x = direct_x;
+    d_y = direct_y;
+  }
+  if (!backward && !direct_device) {
     CUDA_CHECK(cudaMemcpyAsync(d_x, ptr0, input_bytes,
                                cudaMemcpyHostToDevice, g_stream));
-  } else {
+  } else if (backward) {
     CUDA_CHECK(cudaMemcpyAsync(d_y, ptr0, output_bytes,
                                cudaMemcpyHostToDevice, g_stream));
     CUDA_CHECK(cudaMemsetAsync(d_x, 0, input_bytes, g_stream));
@@ -3991,7 +4030,7 @@ static int adaptive_resample_backend_f32(
     goto cleanup;
   if (cudnnBackendExecute(g_cudnn, plan, variant) != CUDNN_STATUS_SUCCESS)
     goto cleanup;
-  if (!backward) {
+  if (!backward && !direct_device) {
     CUDA_CHECK(cudaMemcpyAsync(ptr1, d_y, output_bytes,
                                cudaMemcpyDeviceToHost, g_stream));
     if (use_cudnn_index)
@@ -4024,8 +4063,10 @@ cleanup:
   if (d_x_ref) DEVICE_FREE(d_x_ref);
   if (d_idx) DEVICE_FREE(d_idx);
   if (!from_cache) {
-    if (d_y) DEVICE_FREE(d_y);
-    if (d_x) DEVICE_FREE(d_x);
+    if (staging_y) DEVICE_FREE(staging_y);
+    else if (d_y && !direct_device) DEVICE_FREE(d_y);
+    if (staging_x) DEVICE_FREE(staging_x);
+    else if (d_x && !direct_device) DEVICE_FREE(d_x);
   }
   destroy_backend_desc(&variant);
   if (!from_cache) destroy_backend_desc(&plan);
@@ -4042,7 +4083,7 @@ void polygeist_cudnn_adaptive_pool_f32(
     int32_t I0, int32_t I1, int32_t I2,
     int32_t O0, int32_t O1, int32_t O2,
     const void *ptr0, void *ptr1, void *ptr2) {
-  if (operation < 0 || operation > 5 || rank < 1 || rank > 3 ||
+  if (operation < 0 || operation > 6 || rank < 1 || rank > 3 ||
       N <= 0 || C <= 0 || I0 <= 0 || I1 <= 0 || I2 <= 0 ||
       O0 <= 0 || O1 <= 0 || O2 <= 0) {
     fprintf(stderr, "cuDNN adaptive pool: invalid parameters\n");
@@ -4068,6 +4109,10 @@ void polygeist_cudnn_adaptive_pool_f32(
                                     I0, I1, I2, O0, O1, O2,
                                     ptr0, ptr1, ptr2))
     return;
+  if (operation == 6) {
+    fprintf(stderr, "cuDNN bilinear 2x resample: no supported execution plan\n");
+    abort();
+  }
   // Emit this diagnostic only once per process.  A benchmark invokes the
   // same semantic operation repeatedly; repeated stderr I/O would otherwise
   // become part of the measured fallback time.

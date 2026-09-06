@@ -400,6 +400,11 @@ CASES = {
         [ptr("grad_output", "B*C*O0*O1"),
          ptr("grad_input", "B*C*I0*I1", True)],
         "full fractional adaptive average backward"),
+    "aten_upsample_bilinear2d": spec(
+        {"B": 4096, "C": 3, "H": 4, "W": 4},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*(2*H)*(2*W)", True)],
+        "full cuDNN bilinear 2x resample"),
     "aten_adaptive_avg_pool3d": spec(
         {"B": 2, "C": 3, "D": 8, "H": 8, "W": 8},
         [ptr("input", "B*C*D*H*W"), ptr("output", "B*C*4*4*4", True)],
@@ -825,7 +830,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     supports_resident = ("via cuSPARSE" in cfg["coverage"] or
                          kernel in {"aten_quant_col_offsets_cpu",
                                     "aten_diff_cpu",
-                                    "aten_embedding_bag_counts_cpu"})
+                                    "aten_embedding_bag_counts_cpu",
+                                    "aten_upsample_bilinear2d"})
     if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"

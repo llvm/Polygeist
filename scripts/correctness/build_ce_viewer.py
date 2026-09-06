@@ -552,7 +552,7 @@ ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_sum": "partial: only output zero-initialization matched",
     "aten_tanh": "no standalone tanh definition",
     "aten_transpose_copy": "permuted indexing map lowered through generic cuTENSOR modes",
-    "aten_upsample_bilinear2d": "no bilinear-resampling definition",
+    "aten_upsample_bilinear2d": "fixed cuDNN FP32 2x half-pixel bilinear resample",
     "aten_upsample_nearest2d": "no nearest-neighbor resampling definition",
 }
 
@@ -2994,7 +2994,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str],
         # The ATen native column was measured in torch's default f32, so tag
         # every row and flag the rare raised!=native precision mismatches.
         _dt_text = (perf.get("baseline", "") + " " + perf.get("notes", "")).lower()
-        if re.search(r"_f16|half|bf16", _dt_text):
+        if re.search(r"_f16|half(?!-pixel)|bf16", _dt_text):
             raised_dtype = "f16"
         elif re.search(r"dgemm|dsymm|dgemv|dtrsm|_f64|double", _dt_text):
             raised_dtype = "f64"

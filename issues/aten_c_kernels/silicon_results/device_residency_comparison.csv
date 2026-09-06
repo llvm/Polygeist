@@ -78,3 +78,4 @@ aten_tan,PASS,N=8388608,1596.230408,1583.708799,—,—,—,1.007907,Jetson Orin
 aten_tanh,PASS,—,1492.140815,1485.321601,—,—,—,1.004591,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_unbind_copy_cpu,PASS,B=4096 N=4096,6792.947184,736.286398,702.041626,9.675989,1.048779,9.225958,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
 aten_zeros_cpu,PASS,N=16777216,2255.948773,392.128003,374.880005,6.017789,1.046009,5.753093,Jetson Orin sm87 MAXN CUDA 12.6,median process runs 2-4; 20 timed calls/process,correctness-gated
+aten_upsample_bilinear2d,PASS,B=4096 C=3 H=4 W=4,6388.454400,5472.800003,—,—,—,1.167310,Jetson Orin sm87 MAXN CUDA 12.6,median of 5 sequential process warm means and resident best-of-20 timings,cuDNN Backend ResampleFwd; errors=0 max_error=1.19209e-07

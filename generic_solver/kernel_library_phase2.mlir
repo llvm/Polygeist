@@ -327,13 +327,24 @@ module {
   }
 
   // Rank-parameterized ATen adaptive average/max pooling. Operation is
-  // 0=avg-fwd, 1=avg-bwd, 2=max-fwd, 3=max-bwd. Spatial dimensions unused by
-  // rank-1/rank-2 forms are one. ptr2 is unused for average pooling.
+  // 0=avg-fwd, 1=avg-bwd, 2=max-fwd, 3=max-bwd, 4/5=fixed avg fwd/bwd,
+  // 6=bilinear 2x fwd. Spatial dimensions unused by rank-1/rank-2 forms are
+  // one. ptr2 is unused for average pooling and bilinear resampling.
   kernel.defn @cudnnAdaptivePool_f32_flat2(
       %operation: i32, %rank: i32, %n: i32, %c: i32,
       %i0: i32, %i1: i32, %i2: i32,
       %o0: i32, %o1: i32, %o2: i32,
       %ptr0: memref<?xf32>, %ptr1: memref<?xf32>) {
+    kernel.yield
+  }
+  // cuDNN 9 bilinear resample, restricted to the supported 2x,
+  // half-pixel/edge-clamped FP32 case. N is flattened N*C and C is one so
+  // the runtime can present contiguous NCHW planes as NHWC images.
+  kernel.defn @cudnnBilinearUpsample2x_f32_r4(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %ptr0: memref<?x3x4x4xf32>, %ptr1: memref<?x3x8x8xf32>) {
     kernel.yield
   }
   kernel.defn @cudnnAdaptivePool_f32_flat3_fwd(
