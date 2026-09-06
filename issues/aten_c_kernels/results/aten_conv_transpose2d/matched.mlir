@@ -14,23 +14,13 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %1 = bufferization.to_tensor %arg1 : memref<?x3x3x3xf32>
     %2 = bufferization.to_tensor %arg2 : memref<?x3x8x8xf32>
     %extracted_slice = tensor.extract_slice %2[0, 0, 0, 0] [1, %c3, %c8, %c8] [1, 1, 1, 1] : tensor<?x3x8x8xf32> to tensor<?x?x?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel"], library_call = ""} outs(%extracted_slice : tensor<?x?x?xf32>) {
-    ^bb0(%out: f32):
-      linalg.yield %cst : f32
-    } -> tensor<?x?x?xf32>
-    %inserted_slice = tensor.insert_slice %3 into %2[0, 0, 0, 0] [1, %c3, %c8, %c8] [1, 1, 1, 1] : tensor<?x?x?xf32> into tensor<?x3x8x8xf32>
-    %extracted_slice_0 = tensor.extract_slice %0[0, 0, 0, 0] [1, %c2, %c6, %c6] [1, 1, 1, 1] : tensor<?x2x6x6xf32> to tensor<?x?x?xf32>
-    %extracted_slice_1 = tensor.extract_slice %1[0, 0, 0, 0] [%c2, %c3, %c3, %c3] [1, 1, 1, 1] : tensor<?x3x3x3xf32> to tensor<?x?x?x?xf32>
-    %4 = polygeist.submap(%inserted_slice, %c6, %c6, %c3, %c3, %c3) {map = #map1} : (tensor<?x3x8x8xf32>, index, index, index, index, index) -> tensor<6x6x3x3x3xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map2, #map3, #map4], iterator_types = ["reduction", "parallel", "parallel", "parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice_0, %extracted_slice_1 : tensor<?x?x?xf32>, tensor<?x?x?x?xf32>) outs(%4 : tensor<6x6x3x3x3xf32>) {
-    ^bb0(%in: f32, %in_2: f32, %out: f32):
-      %8 = arith.mulf %in, %in_2 : f32
-      %9 = arith.addf %out, %8 : f32
-      linalg.yield %9 : f32
-    } -> tensor<6x6x3x3x3xf32>
-    %6 = polygeist.submapInverse(%inserted_slice, %5, %c6, %c6, %c3, %c3, %c3) {map = #map1} : (tensor<?x3x8x8xf32>, tensor<6x6x3x3x3xf32>, index, index, index, index, index) -> tensor<?x3x8x8xf32>
-    %7 = bufferization.to_memref %6 : memref<?x3x8x8xf32>
-    memref.copy %7, %arg2 : memref<?x3x8x8xf32> to memref<?x3x8x8xf32>
+    %fixed_conv_5_0 = memref.cast %arg0 : memref<?x2x6x6xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_5_1 = memref.cast %arg1 : memref<?x3x3x3xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_5_2 = memref.cast %arg2 : memref<?x3x8x8xf32> to memref<?x?x?x?xf32>
+
+    kernel.launch @cudnnConvolutionTranspose2D_f32_memref(%fixed_conv_5_0, %fixed_conv_5_1, %fixed_conv_5_2) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
     return
   }
 }

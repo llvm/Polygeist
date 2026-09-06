@@ -57,6 +57,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemm",
     "cublasDgemm_simple",
     "cublasDgemm_subtract",
+    "cublasDgemm_strided_batched_subtract",
     "cublasDgemm_alpha_only",
     "cublasSgemm_broadcast3d_simple",
     "cublasSgemm_broadcast3d_memref",
@@ -128,6 +129,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnDepthwiseConvolution2D_f32_memref",
     "cutensorKroneckerProduct2D_f32_memref",
     "cudnnBinaryCrossEntropyMean_f32_memref",
+    "cudnnLogSigmoid_f32_memref",
     "cudnnConvolutionTBC_f32_memref",
     "cudnnConvolutionTBCBackward_f32_memref",
     "cudnnTransformBiasRescaleQKV_f32_memref",
@@ -1415,6 +1417,41 @@ def _to_tensor_memref_source(
     return (match.group(1), match.group(2).strip()) if match else None
 
 
+def _tensor_extract_slice_info(
+    text: str, value: str, before: int
+) -> dict | None:
+    match = re.search(
+        rf"^\s*{re.escape(value)}\s*=\s*tensor\.extract_slice\s+"
+        rf"(%[\w_\-]+)\[([^]]*)\]\s*\[([^]]*)\]\s*\[([^]]*)\]",
+        text[:before], re.MULTILINE)
+    if match is None:
+        return None
+    split = lambda group: [part.strip() for part in group.split(",")]
+    return {
+        "source": match.group(1),
+        "offsets": split(match.group(2)),
+        "sizes": split(match.group(3)),
+        "strides": split(match.group(4)),
+    }
+
+
+def _tensor_submap_info(text: str, value: str, before: int) -> dict | None:
+    prefix = text[:before]
+    match = re.search(
+        rf"^\s*{re.escape(value)}\s*=\s*polygeist\.submap\s*"
+        rf"\(\s*(%[\w_\-]+)\s*,\s*([^)]+)\)\s*"
+        rf"\{{\s*map\s*=\s*([^}}]+)\}}\s*:",
+        prefix, re.MULTILINE)
+    if match is None:
+        return None
+    return {
+        "source": match.group(1),
+        "sizes": [part.strip() for part in match.group(2).split(",")],
+        "map": _resolve_affine_map_text(prefix, match.group(3).strip()),
+        "map_ref": match.group(3).strip(),
+    }
+
+
 def _plain_shape_compatible(
     mlir_type: str, element_type: str, expected: list[int]
 ) -> bool:
@@ -1431,6 +1468,89 @@ def _plain_shape_compatible(
         dim == "?" or (dim.isdigit() and int(dim) == want)
         for dim, want in zip(dims, expected)
     )
+
+
+def _fixed_depthwise_padding_body_legal(
+    text: str, body, height: int, width: int
+) -> bool:
+    """Prove the exact same-padding predicate and guarded accumulation."""
+    lines = [line.strip() for line in body.body_lines]
+    index_ssas: dict[int, str] = {}
+    for line in lines:
+        match = re.fullmatch(
+            r"(%[\w_\-]+)\s*=\s*linalg\.index\s+([1-4])\s*:\s*index",
+            line)
+        if match:
+            index_ssas[int(match.group(2))] = match.group(1)
+    if set(index_ssas) != {1, 2, 3, 4}:
+        return False
+
+    applications = []
+    for line in lines:
+        match = re.fullmatch(
+            r"(%[\w_\-]+)\s*=\s*affine\.apply\s+(.+>)\(([^)]*)\)",
+            line)
+        if match:
+            applications.append((
+                match.group(1),
+                _compact_affine_map(_resolve_affine_map_text(
+                    text, match.group(2).strip())),
+                [part.strip() for part in match.group(3).split(",")],
+            ))
+    expected_maps = [
+        f"affine_map<(d0,d1,d2,d3)->(-d0-d1+{width})>",
+        "affine_map<(d0,d1,d2,d3)->(d0+d1-1)>",
+        "affine_map<(d0,d1,d2,d3)->(d2+d3-1)>",
+        f"affine_map<(d0,d1,d2,d3)->(-d2-d3+{height})>",
+    ]
+    expected_args = [
+        index_ssas[4], index_ssas[2], index_ssas[1], index_ssas[3]]
+    if len(applications) != 4 or any(
+            affine_map != expected_map or args != expected_args
+            for (_, affine_map, args), expected_map
+            in zip(applications, expected_maps)):
+        return False
+
+    comparisons: list[str] = []
+    for applied_ssa, _, _ in applications:
+        matches = [re.fullmatch(
+            rf"(%[\w_\-]+)\s*=\s*arith\.cmpi\s+sge,\s*"
+            rf"{re.escape(applied_ssa)},\s*(%[\w_\-]+)\s*:\s*index",
+            line) for line in lines]
+        matches = [match for match in matches if match]
+        if len(matches) != 1 or _constant_index_value(
+                text, matches[0].group(2)) != 0:
+            return False
+        comparisons.append(matches[0].group(1))
+
+    def binary_result(op: str, lhs: str, rhs: str, ty: str) -> str | None:
+        pattern = re.compile(
+            rf"(%[\w_\-]+)\s*=\s*{re.escape(op)}\s+"
+            rf"{re.escape(lhs)},\s*{re.escape(rhs)}\s*:\s*{re.escape(ty)}")
+        for line in lines:
+            match = pattern.fullmatch(line)
+            if match:
+                return match.group(1)
+        return None
+
+    predicate = binary_result(
+        "arith.andi", comparisons[0], comparisons[1], "i1")
+    predicate = (binary_result("arith.andi", predicate, comparisons[2], "i1")
+                 if predicate else None)
+    predicate = (binary_result("arith.andi", predicate, comparisons[3], "i1")
+                 if predicate else None)
+    product = binary_result(
+        "arith.mulf", body.ins_arg_names[0], body.ins_arg_names[1], "f32")
+    accumulated = (binary_result(
+        "arith.addf", body.outs_arg_names[0], product, "f32")
+        if product else None)
+    if not predicate or not accumulated:
+        return False
+    select = next((match.group(1) for line in lines if (match := re.fullmatch(
+        rf"(%[\w_\-]+)\s*=\s*arith\.select\s+{re.escape(predicate)},\s*"
+        rf"{re.escape(accumulated)},\s*{re.escape(body.outs_arg_names[0])}"
+        rf"\s*:\s*f32", line))), None)
+    return select is not None and body.yield_value == select
 
 
 def _resolve_affine_map_text(text: str, map_ref: str) -> str | None:
@@ -4595,6 +4715,381 @@ def rewrite_mlir(
             operand_types = physical_types
             binds = {}
 
+        tensor_fixed_conv_symbols = {
+            "cudnnConvolutionTranspose2D_f32_memref",
+            "cudnnConvolutionTBC_f32_memref",
+            "cudnnDepthwiseConvolution2D_f32_memref",
+        }
+        if entry.name in tensor_fixed_conv_symbols:
+            init_inst = instances[i]
+            conv_inst = instances[i + 1]
+            init_ins = _extract_ssa_names(init_inst.ins_part)
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            init_maps = [
+                _compact_affine_map(m) for m in bodies[i].indexing_maps]
+            conv_maps = [
+                _compact_affine_map(m) for m in bodies[i + 1].indexing_maps]
+            legal = (
+                n == 2
+                and len(init_outs) == 1
+                and init_inst.result_ssa is not None
+                and len(conv_ins) == 2
+                and len(conv_outs) == 1
+                and conv_inst.result_ssa is not None
+            )
+            physical_operands: list[str] = []
+            physical_types: list[str] = []
+            custom_tail = None
+
+            if legal and entry.name == "cudnnConvolutionTBC_f32_memref":
+                output_slice = _tensor_extract_slice_info(
+                    text, init_outs[0], init_inst.span[0])
+                input_window = _tensor_submap_info(
+                    text, conv_ins[0], conv_inst.span[0])
+                filter_slice = _tensor_extract_slice_info(
+                    text, conv_ins[1], conv_inst.span[0])
+                legal = all(item is not None for item in (
+                    output_slice, input_window, filter_slice))
+                if legal:
+                    output_sizes = output_slice["sizes"]
+                    window_sizes = input_window["sizes"]
+                    filter_sizes = filter_slice["sizes"]
+                    expected_maps = [
+                        "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2,d3,d4)>",
+                        "affine_map<(d0,d1,d2,d3,d4)->(d3,d4,d2)>",
+                        "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2)>",
+                    ]
+                    expected_window_map = (
+                        "affine_map<(d0,d1,d2,d3,d4)->(d3+d0,d1,d4)>"
+                    )
+                    legal = (
+                        conv_outs == [init_inst.result_ssa]
+                        and
+                        not init_ins
+                        and init_maps == [
+                            "affine_map<(d0,d1,d2)->(d0,d1,d2)>"]
+                        and conv_maps == expected_maps
+                        and output_slice["offsets"] == ["0"] * 3
+                        and output_slice["strides"] == ["1"] * 3
+                        and len(output_sizes) == 3
+                        and len(window_sizes) == 5
+                        and filter_slice["offsets"] == ["0"] * 3
+                        and filter_slice["strides"] == ["1"] * 3
+                        and len(filter_sizes) == 3
+                        and window_sizes == [
+                            *output_sizes, filter_sizes[0], filter_sizes[1]]
+                        and filter_sizes[2] == output_sizes[2]
+                        and _compact_affine_map(input_window["map"])
+                        == expected_window_map
+                    )
+                if legal:
+                    input_source = _to_tensor_memref_source(
+                        text, input_window["source"], conv_inst.span[0])
+                    filter_source = _to_tensor_memref_source(
+                        text, filter_slice["source"], conv_inst.span[0])
+                    output_source = _to_tensor_memref_source(
+                        text, output_slice["source"], conv_inst.span[0])
+                    legal = all(source is not None for source in (
+                        input_source, filter_source, output_source))
+                if legal:
+                    physical_operands = [
+                        input_source[0], filter_source[0], output_source[0]]
+                    physical_types = [
+                        input_source[1], filter_source[1], output_source[1]]
+                    values = [
+                        _constant_index_value(text, size)
+                        for size in output_sizes + filter_sizes]
+                    to, batch, out_channels, kernel, in_channels, filter_out = values
+                    legal = (
+                        all(value is not None and value > 0 for value in values)
+                        and len(set(physical_operands)) == 3
+                        and _plain_f32_memrefs(physical_types, [3, 3, 3])
+                        and _plain_shape_compatible(
+                            physical_types[0], "f32",
+                            [to + kernel - 1, batch, in_channels])
+                        and _plain_shape_compatible(
+                            physical_types[1], "f32",
+                            [kernel, in_channels, filter_out])
+                        and _plain_shape_compatible(
+                            physical_types[2], "f32",
+                            [to, batch, out_channels])
+                    )
+                if legal:
+                    sizes_pattern = r",\s*".join(map(re.escape, output_sizes))
+                    custom_tail = re.match(
+                        rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                        rf"{re.escape(conv_inst.result_ssa)}\s+into\s+"
+                        rf"{re.escape(output_slice['source'])}"
+                        rf"\[0,\s*0,\s*0\]\s*\[{sizes_pattern}\]\s*"
+                        rf"\[1,\s*1,\s*1\][^\n]*\n"
+                        rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                        rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\2\s*,\s*"
+                        rf"{re.escape(physical_operands[2])}\s*:\s*[^\n]+",
+                        text[conv_inst.span[1]:])
+                    legal = custom_tail is not None
+
+            elif legal and entry.name == "cudnnConvolutionTranspose2D_f32_memref":
+                output_slice = _tensor_extract_slice_info(
+                    text, init_outs[0], init_inst.span[0])
+                input_slice = _tensor_extract_slice_info(
+                    text, conv_ins[0], conv_inst.span[0])
+                filter_slice = _tensor_extract_slice_info(
+                    text, conv_ins[1], conv_inst.span[0])
+                output_view = _tensor_submap_info(
+                    text, conv_outs[0], conv_inst.span[0])
+                legal = all(item is not None for item in (
+                    output_slice, input_slice, filter_slice, output_view))
+                inserted_match = None
+                if legal:
+                    output_sizes = output_slice["sizes"]
+                    output_size_pattern = r",\s*".join(
+                        map(re.escape, output_sizes))
+                    inserted_match = re.search(
+                        rf"^\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                        rf"{re.escape(init_inst.result_ssa)}\s+into\s+"
+                        rf"{re.escape(output_slice['source'])}"
+                        rf"\[0,\s*0,\s*0,\s*0\]\s*"
+                        rf"\[{output_size_pattern}\]\s*"
+                        rf"\[1,\s*1,\s*1,\s*1\]",
+                        text[init_inst.span[1]:conv_inst.span[0]], re.MULTILINE)
+                    legal = inserted_match is not None
+                if legal:
+                    input_sizes = input_slice["sizes"]
+                    filter_sizes = filter_slice["sizes"]
+                    view_sizes = output_view["sizes"]
+                    expected_maps = [
+                        "affine_map<(d0,d1,d2,d3,d4,d5)->(d5,d0,d1)>",
+                        "affine_map<(d0,d1,d2,d3,d4,d5)->(d5,d2,d3,d4)>",
+                        "affine_map<(d0,d1,d2,d3,d4,d5)->(d0,d1,d2,d3,d4)>",
+                    ]
+                    expected_output_map = (
+                        "affine_map<(d0,d1,d2,d3,d4)->"
+                        "(0,d2,d3+d0,d4+d1)>"
+                    )
+                    legal = (
+                        not init_ins
+                        and init_maps == [
+                            "affine_map<(d0,d1,d2)->(d0,d1,d2)>"]
+                        and conv_maps == expected_maps
+                        and output_slice["offsets"] == ["0"] * 4
+                        and output_slice["strides"] == ["1"] * 4
+                        and input_slice["offsets"] == ["0"] * 4
+                        and input_slice["strides"] == ["1"] * 4
+                        and filter_slice["offsets"] == ["0"] * 4
+                        and filter_slice["strides"] == ["1"] * 4
+                        and len(output_sizes) == len(input_sizes) == 4
+                        and len(filter_sizes) == 4
+                        and len(view_sizes) == 5
+                        and output_view["source"] == inserted_match.group(1)
+                        and view_sizes == [
+                            input_sizes[2], input_sizes[3],
+                            filter_sizes[1], filter_sizes[2], filter_sizes[3]]
+                        and input_sizes[1] == filter_sizes[0]
+                        and _compact_affine_map(output_view["map"])
+                        == expected_output_map
+                    )
+                if legal:
+                    input_source = _to_tensor_memref_source(
+                        text, input_slice["source"], conv_inst.span[0])
+                    filter_source = _to_tensor_memref_source(
+                        text, filter_slice["source"], conv_inst.span[0])
+                    output_source = _to_tensor_memref_source(
+                        text, output_slice["source"], conv_inst.span[0])
+                    legal = all(source is not None for source in (
+                        input_source, filter_source, output_source))
+                if legal:
+                    physical_operands = [
+                        input_source[0], filter_source[0], output_source[0]]
+                    physical_types = [
+                        input_source[1], filter_source[1], output_source[1]]
+                    values = [
+                        _constant_index_value(text, size) if size != "1" else 1
+                        for size in input_sizes + filter_sizes + output_sizes]
+                    (n_batch, in_channels, ih, iw, filter_in, out_channels,
+                     kh, kw, out_batch, output_channels, oh, ow) = values
+                    legal = (
+                        all(value is not None and value > 0 for value in values)
+                        and n_batch == out_batch == 1
+                        and in_channels == filter_in
+                        and out_channels == output_channels
+                        and oh == ih + kh - 1
+                        and ow == iw + kw - 1
+                        and len(set(physical_operands)) == 3
+                        and _plain_f32_memrefs(physical_types, [4, 4, 4])
+                        and _plain_shape_compatible(
+                            physical_types[0], "f32",
+                            [n_batch, in_channels, ih, iw])
+                        and _plain_shape_compatible(
+                            physical_types[1], "f32",
+                            [filter_in, out_channels, kh, kw])
+                        and _plain_shape_compatible(
+                            physical_types[2], "f32",
+                            [out_batch, output_channels, oh, ow])
+                    )
+                if legal:
+                    view_pattern = r",\s*".join(map(re.escape, view_sizes))
+                    custom_tail = re.match(
+                        rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                        rf"\(\s*{re.escape(inserted_match.group(1))}\s*,\s*"
+                        rf"{re.escape(conv_inst.result_ssa)}\s*,\s*{view_pattern}\)"
+                        rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                        rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                        rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\3\s*,\s*"
+                        rf"{re.escape(physical_operands[2])}\s*:\s*[^\n]+",
+                        text[conv_inst.span[1]:])
+                    legal = custom_tail is not None
+                if legal:
+                    inverse_map = _compact_affine_map(_resolve_affine_map_text(
+                        text[:conv_inst.span[1] + custom_tail.end()],
+                        custom_tail.group(2).strip()))
+                    legal = inverse_map == expected_output_map
+
+            elif legal:
+                bias_slice = _tensor_extract_slice_info(
+                    text, init_ins[0], init_inst.span[0]) if len(init_ins) == 1 else None
+                output_slice = _tensor_extract_slice_info(
+                    text, init_outs[0], init_inst.span[0])
+                input_window = _tensor_submap_info(
+                    text, conv_ins[0], conv_inst.span[0])
+                filter_slice = _tensor_extract_slice_info(
+                    text, conv_ins[1], conv_inst.span[0])
+                legal = all(item is not None for item in (
+                    bias_slice, output_slice, input_window, filter_slice))
+                if legal:
+                    bias_sizes = bias_slice["sizes"]
+                    output_sizes = output_slice["sizes"]
+                    window_sizes = input_window["sizes"]
+                    filter_sizes = filter_slice["sizes"]
+                    expected_init_maps = [
+                        "affine_map<(d0,d1,d2)->(d0)>",
+                        "affine_map<(d0,d1,d2)->(d0,d1,d2)>",
+                    ]
+                    expected_conv_maps = [
+                        "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2,d3,d4)>",
+                        "affine_map<(d0,d1,d2,d3,d4)->(d0,d3,d4)>",
+                        "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2)>",
+                    ]
+                    expected_window_map = (
+                        "affine_map<(d0,d1,d2,d3,d4)->"
+                        "(0,d0,d3+d1-1,d4+d2-1)>"
+                    )
+                    legal = (
+                        conv_outs == [init_inst.result_ssa]
+                        and init_maps == expected_init_maps
+                        and conv_maps == expected_conv_maps
+                        and bias_slice["offsets"] == ["0"]
+                        and bias_slice["strides"] == ["1"]
+                        and output_slice["offsets"] == ["0"] * 4
+                        and output_slice["strides"] == ["1"] * 4
+                        and filter_slice["offsets"] == ["0"] * 3
+                        and filter_slice["strides"] == ["1"] * 3
+                        and len(bias_sizes) == 1
+                        and len(output_sizes) == 4
+                        and len(window_sizes) == 5
+                        and len(filter_sizes) == 3
+                        and output_sizes[0] == "1"
+                        and bias_sizes[0] == output_sizes[1]
+                        and window_sizes == [
+                            output_sizes[1], output_sizes[2], output_sizes[3],
+                            filter_sizes[1], filter_sizes[2]]
+                        and filter_sizes[0] == output_sizes[1]
+                        and _compact_affine_map(input_window["map"])
+                        == expected_window_map
+                    )
+                if legal:
+                    input_source = _to_tensor_memref_source(
+                        text, input_window["source"], conv_inst.span[0])
+                    filter_source = _to_tensor_memref_source(
+                        text, filter_slice["source"], conv_inst.span[0])
+                    bias_source = _to_tensor_memref_source(
+                        text, bias_slice["source"], conv_inst.span[0])
+                    output_source = _to_tensor_memref_source(
+                        text, output_slice["source"], conv_inst.span[0])
+                    legal = all(source is not None for source in (
+                        input_source, filter_source, bias_source, output_source))
+                if legal:
+                    physical_operands = [
+                        input_source[0], filter_source[0], bias_source[0],
+                        output_source[0]]
+                    physical_types = [
+                        input_source[1], filter_source[1], bias_source[1],
+                        output_source[1]]
+                    values = [_constant_index_value(text, size) if size != "1" else 1
+                              for size in output_sizes + filter_sizes]
+                    batch, channels, height, width, filter_channels, kh, kw = values
+                    legal = (
+                        all(value is not None and value > 0 for value in values)
+                        and batch == 1
+                        and channels == filter_channels
+                        and kh == kw == 3
+                        and len(set(physical_operands)) == 4
+                        and _plain_f32_memrefs(physical_types, [4, 3, 1, 4])
+                        and _plain_shape_compatible(
+                            physical_types[0], "f32",
+                            [batch, channels, height, width])
+                        and _plain_shape_compatible(
+                            physical_types[1], "f32", [channels, kh, kw])
+                        and _plain_shape_compatible(
+                            physical_types[2], "f32", [channels])
+                        and _plain_shape_compatible(
+                            physical_types[3], "f32",
+                            [batch, channels, height, width])
+                    )
+                if legal:
+                    legal = _fixed_depthwise_padding_body_legal(
+                        text, bodies[i + 1], height, width)
+                if legal:
+                    output_pattern = r",\s*".join(map(re.escape, output_sizes))
+                    custom_tail = re.match(
+                        rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                        rf"{re.escape(conv_inst.result_ssa)}\s+into\s+"
+                        rf"{re.escape(output_slice['source'])}"
+                        rf"\[0,\s*0,\s*0,\s*0\]\s*\[{output_pattern}\]\s*"
+                        rf"\[1,\s*1,\s*1,\s*1\][^\n]*\n"
+                        rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                        rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\2\s*,\s*"
+                        rf"{re.escape(physical_operands[3])}\s*:\s*[^\n]+",
+                        text[conv_inst.span[1]:])
+                    legal = custom_tail is not None
+
+            if not legal:
+                report.append(("fixed_tensor_convolution_layout_reject", i,
+                               entry.name))
+                i += 1
+                continue
+
+            uid = conv_inst.result_ssa.lstrip("%").replace(".", "_")
+            dynamic_types = [
+                "memref<?x?x?x?xf32>", "memref<?x?x?x?xf32>",
+                "memref<?x?x?x?xf32>"
+            ]
+            if entry.name == "cudnnDepthwiseConvolution2D_f32_memref":
+                dynamic_types = [
+                    "memref<?x?x?x?xf32>", "memref<?x?x?xf32>",
+                    "memref<?xf32>", "memref<?x?x?x?xf32>"]
+            cast_names = [
+                f"%fixed_conv_{uid}_{operand_index}"
+                for operand_index in range(len(physical_operands))]
+            lines = [
+                f"{conv_inst.indent}{cast_name} = memref.cast {operand} : "
+                f"{operand_type} to {dynamic_type}"
+                for cast_name, operand, operand_type, dynamic_type in zip(
+                    cast_names, physical_operands, physical_types, dynamic_types)
+            ]
+            lines.append(
+                f"{conv_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(cast_names)}) : "
+                f"({', '.join(dynamic_types)}) -> ()")
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (
+                init_inst.span[0], conv_inst.span[1] + custom_tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
         if entry.name == "cudnnAveragePool_f32_r5":
             init_inst = instances[i]
             pool_inst = instances[i + 1]
@@ -4898,6 +5393,369 @@ def rewrite_mlir(
             replace_full_span = True
             custom_edit_span = (
                 kron_inst.span[0], kron_inst.span[1] + tail_match.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cudnnAddrElementwise_f32_memref":
+            addr_inst = instances[i]
+            addr_ins = _extract_ssa_names(addr_inst.ins_part)
+            addr_outs = _extract_ssa_names(addr_inst.outs_part)
+            sources = [
+                _to_tensor_memref_source(text, value, addr_inst.span[0])
+                for value in addr_ins + addr_outs
+            ]
+            beta = binds.get("%beta")
+            alpha = binds.get("%alpha")
+            predicate = binds.get("%predicate")
+            legal = (
+                n == 1 and len(addr_ins) == 5 and len(addr_outs) == 1
+                and addr_ins[0] == addr_ins[3]
+                and addr_ins[1] == addr_ins[4]
+                and all(source is not None for source in sources)
+                and beta is not None and beta[0] == "Cap"
+                and alpha is not None and alpha[0] == "Cap"
+                and predicate is not None and predicate[0] == "Cap"
+            )
+            if legal:
+                physical_operands = [
+                    sources[2][0], sources[0][0], sources[1][0],
+                    beta[1], alpha[1], sources[5][0]]
+                physical_types = [
+                    sources[2][1], sources[0][1], sources[1][1],
+                    "f32", "f32", sources[5][1]]
+                zero_cmp = re.search(
+                    rf"^\s*{re.escape(predicate[1])}\s*=\s*arith\.cmpf\s+oeq,\s*"
+                    rf"{re.escape(beta[1])},\s*(%[\w_\-]+)\s*:\s*f32\s*$",
+                    text[:addr_inst.span[0]], re.MULTILINE)
+                legal = (
+                    zero_cmp is not None
+                    and parse_constants(text[:addr_inst.span[0]]).get(
+                        zero_cmp.group(1)) == 0.0
+                    and len(set(physical_operands[:3] + physical_operands[5:])) == 4
+                    and _plain_f32_memrefs(
+                        physical_types[:3] + physical_types[5:], [1, 1, 1, 1])
+                )
+            tail = None
+            if legal:
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(addr_inst.result_ssa)}\s*:\s*memref<\?xf32>\s*\n"
+                    rf"\s*memref\.copy\s+\1,\s*{re.escape(physical_operands[5])}\s*:[^\n]*",
+                    text[addr_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_addr_region_reject", i, entry.name))
+                i += n
+                continue
+            custom_launch_line = (
+                f"{addr_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(physical_operands)}) : "
+                f"({', '.join(physical_types)}) -> ()")
+            replace_full_span = True
+            custom_edit_span = (addr_inst.span[0], addr_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cudnnBinaryCrossEntropyMean_f32_memref":
+            bce_inst = instances[i]
+            bce_ins = _extract_ssa_names(bce_inst.ins_part)
+            bce_outs = _extract_ssa_names(bce_inst.outs_part)
+            view = (_parse_memref_view(text, bce_outs[0], bce_inst.span[0])
+                    if len(bce_outs) == 1 else None)
+            legal = (
+                n == 1 and len(bce_ins) == 4
+                and bce_ins[0] == bce_ins[2]
+                and bce_ins[1] == bce_ins[3]
+                and view is not None and view["kind"] == "reinterpret_cast"
+                and _plain_f32_memrefs(
+                    [_extract_ssa_types(bce_inst.ins_part)[0],
+                     _extract_ssa_types(bce_inst.ins_part)[1],
+                     view["base_type"]], [1, 1, 1])
+                and len({bce_ins[0], bce_ins[1], view["base"]}) == 3
+            )
+            prefix = text[:bce_inst.span[0]]
+            init = None
+            if legal:
+                init = list(re.finditer(
+                    rf"^\s*affine\.store\s+(%[\w_\-]+),\s*"
+                    rf"{re.escape(view['base'])}\[0\]\s*:\s*[^\n]+$",
+                    prefix, re.MULTILINE))
+                legal = bool(init) and parse_constants(prefix).get(
+                    init[-1].group(1)) == 0.0
+                if legal:
+                    legal = not re.search(
+                        r"\b(?:affine|memref)\.store\b|\blinalg\.",
+                        text[init[-1].end():bce_inst.span[0]])
+            tail = None
+            if legal:
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*affine\.load\s+"
+                    rf"{re.escape(view['base'])}\[0\]\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*arith\.divf\s+\1,\s*"
+                    rf"(%[\w_\-]+)\s*:\s*f32\s*\n"
+                    rf"\s*affine\.store\s+\2,\s*{re.escape(view['base'])}\[0\][^\n]*",
+                    text[bce_inst.span[1]:])
+                legal = tail is not None and parse_constants(text).get(
+                    tail.group(3)) == 256.0
+            if not legal:
+                report.append(("aten_bce_region_reject", i, entry.name))
+                i += n
+                continue
+            physical_operands = [bce_ins[1], bce_ins[0], view["base"]]
+            physical_types = [_extract_ssa_types(bce_inst.ins_part)[1],
+                              _extract_ssa_types(bce_inst.ins_part)[0],
+                              view["base_type"]]
+            custom_launch_line = (
+                f"{bce_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(physical_operands)}) : "
+                f"({', '.join(physical_types)}) -> ()")
+            replace_full_span = True
+            custom_edit_span = (init[-1].start(), bce_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cudnnLogSigmoid_f32_memref":
+            log_inst = instances[i]
+            log_ins = _extract_ssa_names(log_inst.ins_part)
+            log_outs = _extract_ssa_names(log_inst.outs_part)
+            sources = [
+                _to_tensor_memref_source(text, value, log_inst.span[0])
+                for value in log_ins + log_outs
+            ]
+            legal = (
+                n == 1 and len(log_ins) == len(log_outs) == 2
+                and log_ins[0] == log_ins[1]
+                and log_inst.result_count == 2
+                and all(source is not None for source in sources)
+            )
+            if legal:
+                physical_operands = [sources[0][0], sources[3][0], sources[2][0]]
+                physical_types = [sources[0][1], sources[3][1], sources[2][1]]
+                legal = (len(set(physical_operands)) == 3 and
+                         _plain_f32_memrefs(physical_types, [1, 1, 1]))
+            tail = None
+            if legal:
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(log_inst.result_ssa)}#1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\1,\s*{re.escape(physical_operands[1])}\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(log_inst.result_ssa)}#0\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_operands[2])}\s*:[^\n]*",
+                    text[log_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_log_sigmoid_region_reject", i, entry.name))
+                i += n
+                continue
+            custom_launch_line = (
+                f"{log_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(physical_operands)}) : "
+                f"({', '.join(physical_types)}) -> ()")
+            replace_full_span = True
+            custom_edit_span = (log_inst.span[0], log_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cubExclusiveSum1D_i32_memref":
+            scan_inst = instances[i]
+            scan_ins = _extract_ssa_names(scan_inst.ins_part)
+            scan_outs = _extract_ssa_names(scan_inst.outs_part)
+            slices = [
+                _tensor_extract_slice_info(text, value, scan_inst.span[0])
+                for value in scan_ins + scan_outs
+            ]
+            legal = n == 1 and len(scan_ins) == 2 and len(scan_outs) == 1 and all(
+                item is not None for item in slices)
+            inserted = None
+            if legal:
+                inserted = re.search(
+                    rf"^\s*({re.escape(slices[0]['source'])})\s*=\s*"
+                    rf"tensor\.insert\s+(%[\w_\-]+)\s+into\s+"
+                    rf"(%[\w_\-]+)\[(%[\w_\-]+)\]",
+                    text[:scan_inst.span[0]], re.MULTILINE)
+                count = _constant_index_value(text, slices[0]["sizes"][0])
+                zero_index = (_constant_index_value(text, inserted.group(4))
+                              if inserted else None)
+                zero_value = (parse_constants(text).get(inserted.group(2))
+                              if inserted else None)
+                legal = (
+                    inserted is not None and count == 64
+                    and zero_index == 0 and zero_value == 0
+                    and slices[0]["source"] == slices[2]["source"]
+                    and slices[0]["offsets"] == ["0"]
+                    and slices[1]["offsets"] == ["0"]
+                    and slices[2]["offsets"] == ["1"]
+                    and slices[0]["sizes"] == slices[1]["sizes"] == slices[2]["sizes"]
+                    and slices[0]["strides"] == slices[1]["strides"] == slices[2]["strides"] == ["1"]
+                )
+            if legal:
+                input_source = _to_tensor_memref_source(
+                    text, slices[1]["source"], scan_inst.span[0])
+                output_source = _to_tensor_memref_source(
+                    text, inserted.group(3), scan_inst.span[0])
+                legal = input_source is not None and output_source is not None
+            if legal:
+                physical_operands = [input_source[0], output_source[0]]
+                physical_types = [input_source[1], output_source[1]]
+                legal = (
+                    physical_operands[0] != physical_operands[1]
+                    and [_shaped_rank(t) for t in physical_types] == [1, 1]
+                    and [_sniff_elem_type(t) for t in physical_types] == ["i32", "i32"]
+                    and all("," not in t for t in physical_types)
+                )
+            tail = None
+            if legal:
+                size = re.escape(slices[0]["sizes"][0])
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(scan_inst.result_ssa)}\s+into\s+"
+                    rf"{re.escape(slices[0]['source'])}\[1\]\s*\[{size}\]\s*\[1\][^\n]*\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                    rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_operands[1])}\s*:[^\n]*",
+                    text[scan_inst.span[1]:])
+                legal = tail is not None
+            if not legal:
+                report.append(("aten_nested_offsets_region_reject", i, entry.name))
+                i += n
+                continue
+            custom_launch_line = (
+                f"{scan_inst.indent}kernel.launch @{entry.name}("
+                f"{', '.join(physical_operands)}) : "
+                f"({', '.join(physical_types)}) -> ()")
+            replace_full_span = True
+            custom_edit_span = (inserted.start(), scan_inst.span[1] + tail.end())
+            operands = []
+            operand_types = []
+            binds = {}
+
+        if entry.name == "cudnnTransformBiasRescaleQKV_f32_memref":
+            qkv_insts = instances[i:i + n]
+            legal = n == 3 and all(inst.result_ssa is not None for inst in qkv_insts)
+            qkv_slices = []
+            bias_slices = []
+            output_slices = []
+            if legal:
+                for inst in qkv_insts:
+                    names_in = _extract_ssa_names(inst.ins_part)
+                    names_out = _extract_ssa_names(inst.outs_part)
+                    if len(names_in) != 2 or len(names_out) != 1:
+                        legal = False
+                        break
+                    qkv_slices.append(_tensor_extract_slice_info(
+                        text, names_in[0], inst.span[0]))
+                    bias_slices.append(_tensor_extract_slice_info(
+                        text, names_in[1], inst.span[0]))
+                    output_slices.append(_tensor_extract_slice_info(
+                        text, names_out[0], inst.span[0]))
+                legal = legal and all(item is not None for item in
+                                      qkv_slices + bias_slices + output_slices)
+            if legal:
+                qkv_tensor = qkv_slices[0]["source"]
+                bias_tensor = bias_slices[0]["source"]
+                output_tensors = [item["source"] for item in output_slices]
+                expected_maps = [
+                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
+                    "affine_map<(d0,d1,d2,d3)->(d2,d3)>",
+                    "affine_map<(d0,d1,d2,d3)->(d0,d2,d1,d3)>",
+                ]
+                legal = (
+                    [item["source"] for item in qkv_slices] == [qkv_tensor] * 3
+                    and [item["source"] for item in bias_slices] == [bias_tensor] * 3
+                    and len(set(output_tensors)) == 3
+                    and [item["offsets"] for item in qkv_slices] == [
+                        ["0", "0", str(j), "0", "0"] for j in range(3)]
+                    and [item["offsets"] for item in bias_slices] == [
+                        [str(j), "0", "0"] for j in range(3)]
+                    and all(item["offsets"] == ["0"] * 4 for item in output_slices)
+                    and all(item["strides"] == ["1"] * 5 for item in qkv_slices)
+                    and all(item["strides"] == ["1"] * 3 for item in bias_slices)
+                    and all(item["strides"] == ["1"] * 4 for item in output_slices)
+                    and all([_compact_affine_map(m) for m in body.indexing_maps]
+                            == expected_maps for body in bodies[i:i + 3])
+                )
+            if legal:
+                qkv_values = [_constant_index_value(text, value) if value != "1" else 1
+                              for value in qkv_slices[0]["sizes"]]
+                bias_values = [_constant_index_value(text, value) if value != "1" else 1
+                               for value in bias_slices[0]["sizes"]]
+                output_values = [_constant_index_value(text, value) if value != "1" else 1
+                                 for value in output_slices[0]["sizes"]]
+                legal = (
+                    qkv_values == [2, 16, 1, 4, 8]
+                    and bias_values == [1, 4, 8]
+                    and output_values == [2, 4, 16, 8]
+                    and all(item["sizes"] == qkv_slices[0]["sizes"] for item in qkv_slices)
+                    and all(item["sizes"] == bias_slices[0]["sizes"] for item in bias_slices)
+                    and all(item["sizes"] == output_slices[0]["sizes"] for item in output_slices)
+                )
+            if legal:
+                sources = [_to_tensor_memref_source(text, value, qkv_insts[0].span[0])
+                           for value in [qkv_tensor, bias_tensor] + output_tensors]
+                scale = binds.get("%scale")
+                legal = (all(source is not None for source in sources)
+                         and scale is not None and scale[0] == "Cap"
+                         and scalar_types.get(scale[1]) == "f32")
+            if legal:
+                physical_operands = [sources[0][0], sources[1][0], scale[1]] + [
+                    source[0] for source in sources[2:]]
+                physical_types = [sources[0][1], sources[1][1], "f32"] + [
+                    source[1] for source in sources[2:]]
+                memref_operands = physical_operands[:2] + physical_operands[3:]
+                memref_types = physical_types[:2] + physical_types[3:]
+                legal = (len(set(memref_operands)) == 5 and
+                         _plain_f32_memrefs(memref_types, [5, 3, 4, 4, 4]))
+            tails = []
+            if legal:
+                for inst, output_slice, physical_output in zip(
+                        qkv_insts, output_slices, physical_operands[3:]):
+                    sizes = r",\s*".join(map(re.escape, output_slice["sizes"]))
+                    tail = re.match(
+                        rf"\s*(%[\w_\-]+)\s*=\s*tensor\.insert_slice\s+"
+                        rf"{re.escape(inst.result_ssa)}\s+into\s+"
+                        rf"{re.escape(output_slice['source'])}\[0,\s*0,\s*0,\s*0\]"
+                        rf"\s*\[{sizes}\]\s*\[1,\s*1,\s*1,\s*1\][^\n]*\n"
+                        rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1\s*:[^\n]+\n"
+                        rf"\s*memref\.copy\s+\2,\s*{re.escape(physical_output)}\s*:[^\n]*",
+                        text[inst.span[1]:])
+                    if tail is None:
+                        legal = False
+                        break
+                    tails.append(tail)
+            if not legal:
+                report.append(("aten_qkv_region_reject", list(range(i, i + n)), entry.name))
+                i += n
+                continue
+            uid = qkv_insts[0].result_ssa.lstrip("%").replace(".", "_")
+            dynamic_memref_types = [
+                "memref<?x?x?x?x?xf32>", "memref<?x?x?xf32>",
+                "memref<?x?x?x?xf32>", "memref<?x?x?x?xf32>",
+                "memref<?x?x?x?xf32>",
+            ]
+            cast_names = [f"%aten_qkv_{uid}_{j}" for j in range(5)]
+            cast_sources = physical_operands[:2] + physical_operands[3:]
+            cast_source_types = physical_types[:2] + physical_types[3:]
+            lines = [
+                f"{qkv_insts[0].indent}{cast} = memref.cast {source} : "
+                f"{source_type} to {dynamic_type}"
+                for cast, source, source_type, dynamic_type in zip(
+                    cast_names, cast_sources, cast_source_types,
+                    dynamic_memref_types)
+            ]
+            launch_operands = cast_names[:2] + [physical_operands[2]] + cast_names[2:]
+            launch_types = dynamic_memref_types[:2] + ["f32"] + dynamic_memref_types[2:]
+            lines.append(
+                f"{qkv_insts[0].indent}kernel.launch @{entry.name}("
+                f"{', '.join(launch_operands)}) : "
+                f"({', '.join(launch_types)}) -> ()")
+            custom_launch_line = "\n".join(lines)
+            replace_full_span = True
+            custom_edit_span = (qkv_insts[0].span[0],
+                                qkv_insts[-1].span[1] + tails[-1].end())
             operands = []
             operand_types = []
             binds = {}
@@ -5255,15 +6113,44 @@ def rewrite_mlir(
                 and len(operands) >= 3
                 and _is_scalar_alias_submap(text, operands[2])
             )
+            scalar_view = (
+                _parse_memref_view(text, operands[2], last.span[0])
+                if len(operands) >= 3 else None
+            )
+            scalar_inits = (list(re.finditer(
+                rf"^\s*affine\.store\s+(%[\w_\-]+),\s*"
+                rf"{re.escape(scalar_view['base'])}\[0\]\s*:\s*"
+                rf"{re.escape(scalar_view['base_type'])}\s*$",
+                text[:last.span[0]], re.MULTILINE))
+                if scalar_view is not None else [])
+            scalar_init = scalar_inits[-1] if scalar_inits else None
+            reinterpret_memref_form = (
+                [_shaped_rank(t) for t in operand_types[:3]] == [1, 1, 0]
+                and all(t.startswith("memref<") for t in operand_types[:3])
+                and scalar_view is not None
+                and scalar_view["kind"] == "reinterpret_cast"
+                and _shaped_rank(scalar_view["base_type"]) == 1
+                and _sniff_elem_type(scalar_view["base_type"]) == expected
+                and scalar_init is not None
+                and parse_constants(text[:last.span[0]]).get(
+                    scalar_init.group(1)) == 0.0
+                and not re.search(
+                    r"\b(?:affine|memref)\.store\b|\blinalg\.",
+                    text[scalar_init.end():last.span[0]])
+            )
             if (len(operand_types) != 3 or
                     elems != [expected, expected, expected] or
-                    not (tensor_form or memref_form)):
+                    not (tensor_form or memref_form or
+                         reinterpret_memref_form)):
                 report.append(("rank_or_dtype_reject", i, entry.name))
                 i += n
                 continue
-            if memref_form:
+            if memref_form or reinterpret_memref_form:
                 emit_name = ("cublasDdot_memref" if expected == "f64"
                              else "cublasSdot_memref")
+            if reinterpret_memref_form:
+                operands[2] = scalar_view["base"]
+                operand_types[2] = scalar_view["base_type"]
 
         if entry.name == "cublasDscal":
             ranks = [_tensor_rank(t) for t in operand_types[:1]]
@@ -6279,6 +7166,7 @@ def rewrite_mlir(
         # defining ops, compare the submap-base SSA name.
         if entry.name in ("cublasDgemm", "cublasDgemm_simple",
                           "cublasDgemm_subtract",
+                          "cublasDgemm_strided_batched_subtract",
                           "cublasDgemm_alpha_only"):
             # Multi-step GEMM compositions subsume their first producer
             # (typically output scaling or initialization). Any remaining
@@ -6355,7 +7243,10 @@ def rewrite_mlir(
                     emit_name = "cublasDsyrk_alias"
             elem = _sniff_elem_type(operand_types[0]) if operand_types else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
-            if (entry.name == "cublasDgemm" and elem == "f32" and
+            if (entry.name == "cublasDgemm_strided_batched_subtract" and
+                    elem == "f64" and operand_ranks == [3, 3, 3]):
+                emit_name = "cublasDgemm_strided_batched_subtract"
+            elif (entry.name == "cublasDgemm" and elem == "f32" and
                     operand_ranks == [3, 3, 2]):
                 # Parboil basic SGEMM: the three identity-indexed operands are
                 # rank-3 submaps whose affine maps encode A[m,k], B[n,k], and

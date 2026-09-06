@@ -6,18 +6,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %c0 = arith.constant 0 : index
     %0 = bufferization.to_tensor %arg0 : memref<?xi32>
     %1 = bufferization.to_tensor %arg1 : memref<?xi32>
-    %inserted = tensor.insert %c0_i32 into %1[%c0] : tensor<?xi32>
-    %extracted_slice = tensor.extract_slice %inserted[0] [%c64] [1] : tensor<?xi32> to tensor<?xi32>
-    %extracted_slice_0 = tensor.extract_slice %0[0] [%c64] [1] : tensor<?xi32> to tensor<?xi32>
-    %extracted_slice_1 = tensor.extract_slice %inserted[1] [%c64] [1] : tensor<?xi32> to tensor<?xi32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map, #map, #map], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice, %extracted_slice_0 : tensor<?xi32>, tensor<?xi32>) outs(%extracted_slice_1 : tensor<?xi32>) {
-    ^bb0(%in: i32, %in_2: i32, %out: i32):
-      %4 = arith.addi %in, %in_2 : i32
-      linalg.yield %4 : i32
-    } -> tensor<?xi32>
-    %inserted_slice = tensor.insert_slice %2 into %inserted[1] [%c64] [1] : tensor<?xi32> into tensor<?xi32>
-    %3 = bufferization.to_memref %inserted_slice : memref<?xi32>
-    memref.copy %3, %arg1 : memref<?xi32> to memref<?xi32>
+
+    kernel.launch @cubExclusiveSum1D_i32_memref(%arg0, %arg1) : (memref<?xi32>, memref<?xi32>) -> ()
     return
   }
 }

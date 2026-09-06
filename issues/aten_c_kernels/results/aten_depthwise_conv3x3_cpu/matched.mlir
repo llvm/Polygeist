@@ -20,37 +20,15 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %3 = bufferization.to_tensor %arg3 : memref<?x8x16x16xf32>
     %extracted_slice = tensor.extract_slice %2[0] [%c8] [1] : tensor<?xf32> to tensor<?xf32>
     %extracted_slice_0 = tensor.extract_slice %3[0, 0, 0, 0] [1, %c8, %c16, %c16] [1, 1, 1, 1] : tensor<?x8x16x16xf32> to tensor<?x?x?xf32>
-    %4 = linalg.generic {doc = "", indexing_maps = [#map, #map1], iterator_types = ["parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice : tensor<?xf32>) outs(%extracted_slice_0 : tensor<?x?x?xf32>) {
-    ^bb0(%in: f32, %out: f32):
-      linalg.yield %in : f32
-    } -> tensor<?x?x?xf32>
-    %5 = polygeist.submap(%0, %c8, %c16, %c16, %c3, %c3) {map = #map2} : (tensor<?x8x16x16xf32>, index, index, index, index, index) -> tensor<?x?x?x?x?xf32>
-    %extracted_slice_1 = tensor.extract_slice %1[0, 0, 0] [%c8, %c3, %c3] [1, 1, 1] : tensor<?x3x3xf32> to tensor<?x?x?xf32>
-    %6 = linalg.generic {doc = "", indexing_maps = [#map3, #map4, #map5], iterator_types = ["parallel", "parallel", "parallel", "reduction", "reduction"], library_call = ""} ins(%5, %extracted_slice_1 : tensor<?x?x?x?x?xf32>, tensor<?x?x?xf32>) outs(%4 : tensor<?x?x?xf32>) {
-    ^bb0(%in: f32, %in_2: f32, %out: f32):
-      %8 = linalg.index 1 : index
-      %9 = linalg.index 2 : index
-      %10 = linalg.index 3 : index
-      %11 = linalg.index 4 : index
-      %12 = affine.apply #map6(%11, %9, %8, %10)
-      %13 = arith.cmpi sge, %12, %c0 : index
-      %14 = affine.apply #map7(%11, %9, %8, %10)
-      %15 = arith.cmpi sge, %14, %c0 : index
-      %16 = arith.andi %13, %15 : i1
-      %17 = affine.apply #map8(%11, %9, %8, %10)
-      %18 = arith.cmpi sge, %17, %c0 : index
-      %19 = arith.andi %16, %18 : i1
-      %20 = affine.apply #map9(%11, %9, %8, %10)
-      %21 = arith.cmpi sge, %20, %c0 : index
-      %22 = arith.andi %19, %21 : i1
-      %23 = arith.mulf %in, %in_2 : f32
-      %24 = arith.addf %out, %23 : f32
-      %25 = arith.select %22, %24, %out : f32
-      linalg.yield %25 : f32
-    } -> tensor<?x?x?xf32>
-    %inserted_slice = tensor.insert_slice %6 into %3[0, 0, 0, 0] [1, %c8, %c16, %c16] [1, 1, 1, 1] : tensor<?x?x?xf32> into tensor<?x8x16x16xf32>
-    %7 = bufferization.to_memref %inserted_slice : memref<?x8x16x16xf32>
-    memref.copy %7, %arg3 : memref<?x8x16x16xf32> to memref<?x8x16x16xf32>
+    %fixed_conv_6_0 = memref.cast %arg0 : memref<?x8x16x16xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_6_1 = memref.cast %arg1 : memref<?x3x3xf32> to memref<?x?x?xf32>
+
+    %fixed_conv_6_2 = memref.cast %arg2 : memref<?xf32> to memref<?xf32>
+
+    %fixed_conv_6_3 = memref.cast %arg3 : memref<?x8x16x16xf32> to memref<?x?x?x?xf32>
+
+    kernel.launch @cudnnDepthwiseConvolution2D_f32_memref(%fixed_conv_6_0, %fixed_conv_6_1, %fixed_conv_6_2, %fixed_conv_6_3) : (memref<?x?x?x?xf32>, memref<?x?x?xf32>, memref<?xf32>, memref<?x?x?x?xf32>) -> ()
     return
   }
 }

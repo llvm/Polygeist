@@ -5,12 +5,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i32, dense<32> : 
     %cst = arith.constant 0.000000e+00 : f32
     affine.store %cst, %arg2[0] : memref<?xf32>
     %reinterpret_cast = memref.reinterpret_cast %arg2 to offset: [0], sizes: [], strides: [] : memref<?xf32> to memref<f32>
-    linalg.generic {indexing_maps = [#map, #map, #map1], iterator_types = ["reduction"]} ins(%arg0, %arg1 : memref<?xf32>, memref<?xf32>) outs(%reinterpret_cast : memref<f32>) {
-    ^bb0(%in: f32, %in_0: f32, %out: f32):
-      %0 = arith.mulf %in, %in_0 : f32
-      %1 = arith.addf %out, %0 : f32
-      linalg.yield %1 : f32
-    }
+    kernel.launch @cublasSdot_memref(%arg0, %arg1, %arg2) : (memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
 }

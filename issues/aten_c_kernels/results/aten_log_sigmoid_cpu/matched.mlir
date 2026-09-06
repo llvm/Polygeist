@@ -5,23 +5,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i1, dense<8> : ve
     %0 = bufferization.to_tensor %arg0 : memref<?xf32>
     %1 = bufferization.to_tensor %arg1 : memref<?xf32>
     %2 = bufferization.to_tensor %arg2 : memref<?xf32>
-    %3:2 = linalg.generic {doc = "", indexing_maps = [#map, #map, #map, #map], iterator_types = ["parallel"], library_call = ""} ins(%0, %0 : tensor<?xf32>, tensor<?xf32>) outs(%2, %1 : tensor<?xf32>, tensor<?xf32>) {
-    ^bb0(%in: f32, %in_0: f32, %out: f32, %out_1: f32):
-      %6 = arith.cmpf olt, %in, %cst : f32
-      %7 = arith.negf %in : f32
-      %8 = arith.select %6, %7, %in : f32
-      %9 = arith.negf %8 : f32
-      %10 = math.exp %9 : f32
-      %11 = arith.cmpf olt, %in_0, %cst : f32
-      %12 = arith.select %11, %in_0, %cst : f32
-      %13 = math.log1p %10 : f32
-      %14 = arith.subf %12, %13 : f32
-      linalg.yield %10, %14 : f32, f32
-    } -> (tensor<?xf32>, tensor<?xf32>)
-    %4 = bufferization.to_memref %3#1 : memref<?xf32>
-    memref.copy %4, %arg1 : memref<?xf32> to memref<?xf32>
-    %5 = bufferization.to_memref %3#0 : memref<?xf32>
-    memref.copy %5, %arg2 : memref<?xf32> to memref<?xf32>
+    kernel.launch @cudnnLogSigmoid_f32_memref(%arg0, %arg1, %arg2) : (memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()
     return
   }
   func.func private @log1pf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}

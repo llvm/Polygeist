@@ -1198,7 +1198,8 @@ def _generic_two_input_sum_contraction_tensor() -> CompositionEntry:
 
 
 def _fixed_memref_convolution_contraction(
-    name: str, parallel_dims: int, reduction_dims: int
+    name: str, parallel_dims: int, reduction_dims: int,
+    *, form: str = "memref", include_init: bool = False
 ) -> CompositionEntry:
     """Scalar contraction recognized by a source-layout-aware cuDNN route.
 
@@ -1207,16 +1208,39 @@ def _fixed_memref_convolution_contraction(
     physical memref operands, verifies zero initialization, and orders the
     operands for the corresponding fixed runtime ABI.
     """
+    contraction = CompositionStep(
+        body=Term.Out(0) + Term.In(0) * Term.In(1),
+        num_ins=2,
+        num_outs=1,
+        parallel_dim_count=parallel_dims,
+        reduction_dim_count=reduction_dims,
+    )
+    steps = [contraction]
+    if include_init:
+        steps.insert(0, CompositionStep(
+            body=Term.Lit(0.0), num_ins=0, num_outs=1,
+            reduction_dim_count=0))
     return CompositionEntry(
         name=name,
-        steps=[CompositionStep(
-            body=Term.Out(0) + Term.In(0) * Term.In(1),
-            num_ins=2,
-            num_outs=1,
-            parallel_dim_count=parallel_dims,
-            reduction_dim_count=reduction_dims,
-        )],
-        form="memref",
+        steps=steps,
+        form=form,
+        element_type="f32",
+    )
+
+
+def _fixed_depthwise_convolution2d() -> CompositionEntry:
+    return CompositionEntry(
+        name="cudnnDepthwiseConvolution2D_f32_memref",
+        steps=[
+            CompositionStep(
+                body=Term.In(0), num_ins=1, num_outs=1,
+                parallel_dim_count=3, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.Out(0), num_ins=2, num_outs=1,
+                parallel_dim_count=3, reduction_dim_count=2,
+                special="depthwise_conv2d_guarded"),
+        ],
+        form="tensor",
         element_type="f32",
     )
 
@@ -1240,6 +1264,79 @@ def _cutensor_kronecker_product2d() -> CompositionEntry:
         form="tensor",
         element_type="f32",
     )
+
+
+def _aten_addr_elementwise() -> CompositionEntry:
+    predicate = Term.Cap("%predicate")
+    beta, alpha = Term.Cap("%beta"), Term.Cap("%alpha")
+    return CompositionEntry(
+        name="cudnnAddrElementwise_f32_memref",
+        steps=[CompositionStep(
+            body=Term.Select(
+                predicate,
+                alpha * Term.In(0) * Term.In(1),
+                beta * Term.In(2) + alpha * Term.In(3) * Term.In(4)),
+            num_ins=5, num_outs=1,
+            parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor", element_type="f32")
+
+
+def _aten_binary_cross_entropy_mean() -> CompositionEntry:
+    one = Term.Lit(1.0)
+    loss = (
+        Term.In(0) * Term.Unary("log", Term.In(1))
+        + (one - Term.In(2)) * Term.Unary("log", one - Term.In(3)))
+    return CompositionEntry(
+        name="cudnnBinaryCrossEntropyMean_f32_memref",
+        steps=[CompositionStep(
+            body=Term.Out(0) - loss, num_ins=4, num_outs=1,
+            parallel_dim_count=0, reduction_dim_count=1)],
+        form="memref", element_type="f32")
+
+
+def _aten_log_sigmoid() -> CompositionEntry:
+    zero = Term.Lit(0.0)
+    x = Term.In(0)
+    abs_x = Term.Select(Term.Cmp("olt", x, zero), zero - x, x)
+    buffer = Term.Exp(zero - abs_x)
+    output = (
+        Term.Select(Term.Cmp("olt", Term.In(1), zero), Term.In(1), zero)
+        - Term.Unary("log1p", buffer))
+    return CompositionEntry(
+        name="cudnnLogSigmoid_f32_memref",
+        steps=[CompositionStep(
+            body=buffer, body_per_yield=[buffer, output],
+            num_ins=2, num_outs=2,
+            parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor", element_type="f32")
+
+
+def _aten_nested_batch_offsets() -> CompositionEntry:
+    return CompositionEntry(
+        name="cubExclusiveSum1D_i32_memref",
+        steps=[CompositionStep(
+            body=Term.In(0) + Term.In(1), num_ins=2, num_outs=1,
+            parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor", element_type="i32")
+
+
+def _aten_qkv_transform() -> CompositionEntry:
+    scale = Term.Cap("%scale")
+    return CompositionEntry(
+        name="cudnnTransformBiasRescaleQKV_f32_memref",
+        steps=[
+            CompositionStep(
+                body=(Term.In(0) + Term.In(1)) * scale,
+                num_ins=2, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.In(0) + Term.In(1), num_ins=2, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0),
+            CompositionStep(
+                body=Term.In(0) + Term.In(1), num_ins=2, num_outs=1,
+                parallel_dim_count=4, reduction_dim_count=0),
+        ],
+        form="tensor", element_type="f32")
 
 
 def _cublaslt_gemm_bias_relu_fused() -> CompositionEntry:
@@ -1587,6 +1684,11 @@ def _gemm_no_alpha() -> CompositionEntry:
 def _gemm_subtract() -> CompositionEntry:
     """C -= A*B; scalar semantics come from the MLIR library definition."""
     return _mlir_metadata("cublasDgemm_subtract")
+
+
+def _gemm_strided_batched_subtract() -> CompositionEntry:
+    """C[b] -= A[b]*B[b]; the leading parallel dimension is the batch."""
+    return _mlir_metadata("cublasDgemm_strided_batched_subtract")
 
 
 def _sgemm_zero_gemm() -> CompositionEntry:
@@ -3560,6 +3662,7 @@ def composition_library() -> list[CompositionEntry]:
         _darknet_im2col_gemm_fused(),       # 3-step: zero + guarded im2col + sgemm
         _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv
         _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
+        _aten_qkv_transform(),
         _gemm_composition(),
         _cudnn_conv2d_batched(),  # 2-step: init zero + 7-iter contraction (4 par + 3 red)
         _cudnn_uniform_window_conv2d(),
@@ -3569,6 +3672,13 @@ def composition_library() -> list[CompositionEntry]:
         _cudnn_maxpool_batched(), # 2-step: init -inf + 6-iter max-reduce (4 par + 2 red)
         _sgemm_strided_batched_zero(),
         _sgemm_zero_gemm(),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTranspose2D_f32_memref", 5, 1,
+            form="tensor", include_init=True),
+        _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTBC_f32_memref", 3, 2,
+            form="tensor", include_init=True),
+        _fixed_depthwise_convolution2d(),
         _generic_two_input_sum_contraction_tensor(),
                                                # 2-step: rank-generic FP64
                                                # Einstein contraction; map
@@ -3580,6 +3690,10 @@ def composition_library() -> list[CompositionEntry]:
         _fixed_memref_convolution_contraction(
             "cudnnConvolutionTBCBackward_f32_memref", 4, 1),
         _cutensor_kronecker_product2d(),
+        _aten_addr_elementwise(),
+        _aten_binary_cross_entropy_mean(),
+        _aten_log_sigmoid(),
+        _aten_nested_batch_offsets(),
         _cudnn_batchnorm_inference(),  # 1-step: 5-in fused normalize+scale+bias (4 par)
         _cudnn_add_tensor_batched(),  # 1-step: Out + In(0) elementwise (4 par)
 
@@ -3594,6 +3708,7 @@ def composition_library() -> list[CompositionEntry]:
 
         # 1-step BLAS with α capture.
         _gemm_no_alpha(),
+        _gemm_strided_batched_subtract(),
         _gemm_subtract(),
         _gemm_alpha_only(),
         _gemv_accumulate(),
@@ -3757,6 +3872,7 @@ _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasDaxpby", "cublasDaxpy_unit",
     "cublasDdot", "cublasDgeam_scale2D", "cublasDgemm",
     "cublasDgemm_alpha_only", "cublasDgemm_simple", "cublasDgemm_subtract",
+    "cublasDgemm_strided_batched_subtract",
     "cublasDgemv", "cublasDgemv_subtract", "cublasDgemv_subtract_T",
     "cublasDgemv_alpha", "cublasDger_rank2", "cublasSdot",
     "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
@@ -4746,6 +4862,30 @@ def _is_dft1d_z2z_body(g: GenericBody) -> bool:
     return body.count("math.cos") == 1 and body.count("math.sin") == 1
 
 
+def _is_depthwise_conv2d_guarded_body(g: GenericBody) -> bool:
+    """Recognize the scalar shell of a zero-padded depthwise accumulation.
+
+    Physical geometry and the exact four boundary inequalities are proved by
+    the rewrite layer before a cuDNN launch is emitted.
+    """
+    if len(g.ins_arg_names) != 2 or len(g.outs_arg_names) != 1:
+        return False
+    if g.iterator_types.count("parallel") != 3:
+        return False
+    if g.iterator_types.count("reduction") != 2:
+        return False
+    body = "\n".join(g.body_lines)
+    return (
+        body.count("linalg.index") == 4
+        and body.count("affine.apply") == 4
+        and body.count("arith.cmpi sge") == 4
+        and body.count("arith.andi") == 3
+        and body.count("arith.mulf") == 1
+        and body.count("arith.addf") == 1
+        and body.count("arith.select") == 1
+    )
+
+
 def _check_scalar_relation(entry: CompositionEntry,
                            body_objs: list[GenericBody],
                            start: int,
@@ -4864,6 +5004,11 @@ def match_composition(
                         break
                 elif step.special == "dft1d_z2z":
                     if not _is_dft1d_z2z_body(g):
+                        ok = False
+                        break
+                    b = {}
+                elif step.special == "depthwise_conv2d_guarded":
+                    if not _is_depthwise_conv2d_guarded_body(g):
                         ok = False
                         break
                     b = {}

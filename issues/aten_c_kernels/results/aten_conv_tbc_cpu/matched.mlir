@@ -15,21 +15,13 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i16, dense<16> : 
     %1 = bufferization.to_tensor %arg1 : memref<?x16x24xf32>
     %2 = bufferization.to_tensor %arg2 : memref<?x8x24xf32>
     %extracted_slice = tensor.extract_slice %2[0, 0, 0] [%c30, %c8, %c24] [1, 1, 1] : tensor<?x8x24xf32> to tensor<?x?x?xf32>
-    %3 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel", "parallel", "parallel"], library_call = ""} outs(%extracted_slice : tensor<?x?x?xf32>) {
-    ^bb0(%out: f32):
-      linalg.yield %cst : f32
-    } -> tensor<?x?x?xf32>
-    %4 = polygeist.submap(%0, %c30, %c8, %c24, %c3, %c16) {map = #map1} : (tensor<?x8x16xf32>, index, index, index, index, index) -> tensor<?x?x?x?x?xf32>
-    %extracted_slice_0 = tensor.extract_slice %1[0, 0, 0] [%c3, %c16, %c24] [1, 1, 1] : tensor<?x16x24xf32> to tensor<?x?x?xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map2, #map3, #map4], iterator_types = ["parallel", "parallel", "parallel", "reduction", "reduction"], library_call = ""} ins(%4, %extracted_slice_0 : tensor<?x?x?x?x?xf32>, tensor<?x?x?xf32>) outs(%3 : tensor<?x?x?xf32>) {
-    ^bb0(%in: f32, %in_1: f32, %out: f32):
-      %7 = arith.mulf %in, %in_1 : f32
-      %8 = arith.addf %out, %7 : f32
-      linalg.yield %8 : f32
-    } -> tensor<?x?x?xf32>
-    %inserted_slice = tensor.insert_slice %5 into %2[0, 0, 0] [%c30, %c8, %c24] [1, 1, 1] : tensor<?x?x?xf32> into tensor<?x8x24xf32>
-    %6 = bufferization.to_memref %inserted_slice : memref<?x8x24xf32>
-    memref.copy %6, %arg2 : memref<?x8x24xf32> to memref<?x8x24xf32>
+    %fixed_conv_5_0 = memref.cast %arg0 : memref<?x8x16xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_5_1 = memref.cast %arg1 : memref<?x16x24xf32> to memref<?x?x?x?xf32>
+
+    %fixed_conv_5_2 = memref.cast %arg2 : memref<?x8x24xf32> to memref<?x?x?x?xf32>
+
+    kernel.launch @cudnnConvolutionTBC_f32_memref(%fixed_conv_5_0, %fixed_conv_5_1, %fixed_conv_5_2) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
     return
   }
 }

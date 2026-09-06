@@ -20,7 +20,7 @@ aten_add_clamp	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_addcdiv	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_addcmul	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_addmm	pass	2	0	1	cublasDgemm
-aten_addr_elementwise	pass	1	0	0	-
+aten_addr_elementwise	pass	1	0	1	cudnnAddrElementwise_f32_memref
 aten_airy_ai	pass	1	0	0	-
 aten_allany_dims_cpu	pass	2	0	0	-
 aten_aminmax_allreduce_cpu	pass	1	0	1	cudnnReduceMinMax_f32
@@ -57,10 +57,10 @@ aten_bessel_j0	pass	1	0	0	-
 aten_bessel_j1	pass	1	0	0	-
 aten_bessel_y0	pass	1	0	0	-
 aten_bessel_y1	pass	1	0	0	-
-aten_bf16_dot_cpu	pass	1	0	0	-
+aten_bf16_dot_cpu	pass	1	0	1	cublasSdot_memref
 aten_bf16_gemv_trans_cpu	pass	2	0	0	-
 aten_bilinear_cpu	pass	2	0	1	memset_zero_2D_f32
-aten_binary_cross_entropy	pass	1	0	0	-
+aten_binary_cross_entropy	pass	1	0	1	cudnnBinaryCrossEntropyMean_f32_memref
 aten_binary_search_strided_rightmost_cpu	pass	0	2	0	-
 aten_bincount_cpu	pass	1	1	1	memset_zero_1D_f32
 aten_binomial_transform_cpu	pass	0	2	0	-
@@ -108,8 +108,8 @@ aten_conv2d_columns_cpu	pass	1	0	1	cutensorPermute_f32_r5_tensor
 aten_conv3d	pass	2	0	1	cudnnConvolution3D_f32_bias
 aten_conv3d_columns_cpu	pass	1	0	0	-
 aten_conv_tbc_backward_cpu	pass	1	0	1	cudnnConvolutionTBCBackward_f32_memref
-aten_conv_tbc_cpu	pass	2	0	0	-
-aten_conv_transpose2d	pass	2	0	0	-
+aten_conv_tbc_cpu	pass	2	0	1	cudnnConvolutionTBC_f32_memref
+aten_conv_transpose2d	pass	2	0	1	cudnnConvolutionTranspose2D_f32_memref
 aten_conv_transpose3d_backward_cpu	pass	2	0	1	cudnnConvolution3D_f32
 aten_conv_transpose3d_cpu	pass	1	0	1	cudnnConvolutionTranspose3D_f32_memref
 aten_conv_transpose3d_grad_weight_cpu	pass	1	0	1	cudnnConvolutionBackwardFilter3D_f32_memref
@@ -134,7 +134,7 @@ aten_cumprod_backward_cpu	pass	2	2	1	memset_zero_1D_f32
 aten_cumprod_cpu	pass	2	0	1	cubSegmentedInclusiveProduct2D_f32_tensor
 aten_cumsum	pass	1	0	1	cubInclusiveSum1D_f32_tensor
 aten_dense_sparse_add_cpu	pass	1	1	1	cudaCopy2D_f32_tensor
-aten_depthwise_conv3x3_cpu	pass	2	0	0	-
+aten_depthwise_conv3x3_cpu	pass	2	0	1	cudnnDepthwiseConvolution2D_f32_memref
 aten_diff_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_digamma	pass	1	0	0	-
 aten_dilated_convolution_cpu	pass	2	0	1	cudnnConvolution2D_f32_dilated
@@ -299,7 +299,7 @@ aten_log2	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_log_ndtr	pass	1	0	0	-
 aten_log_normal_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_log_sigmoid_backward_cpu	pass	1	0	1	cudnnPointwiseGraph_f32
-aten_log_sigmoid_cpu	pass	1	0	0	-
+aten_log_sigmoid_cpu	pass	1	0	1	cudnnLogSigmoid_f32_memref
 aten_logaddexp	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_logaddexp2	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_logcumsumexp_cpu	pass	1	1	0	-
@@ -361,7 +361,7 @@ aten_ndtri	pass	1	0	0	-
 aten_ne	pass	1	0	0	-
 aten_neg	pass	1	0	1	cutensorUnary_neg_f32
 aten_nested_all_cpu	pass	2	0	1	cubSegmentedPrefixLogicalAnd_i32
-aten_nested_batch_offsets_cpu	pass	1	0	0	-
+aten_nested_batch_offsets_cpu	pass	1	0	1	cubExclusiveSum1D_i32_memref
 aten_nested_bmm_cpu	pass	2	0	1	cublasSgemm_strided_batched_nn_zero
 aten_nested_clone_cpu	pass	1	0	1	cudaCopy2D_f32_tensor
 aten_nested_from_padded_cpu	pass	1	0	0	-
@@ -532,7 +532,7 @@ aten_tanh_backward	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_threshold_backward	pass	1	0	1	cudnnPointwiseGraph_f32
 aten_topk_cpu	pass	4	3	1	cudaCopy2D_f32_tensor
 aten_trace_cpu	pass	1	0	1	cudnnReduceTrace_f32
-aten_transform_bias_rescale_qkv_cpu	pass	3	0	0	-
+aten_transform_bias_rescale_qkv_cpu	pass	3	0	1	cudnnTransformBiasRescaleQKV_f32_memref
 aten_transpose_copy	pass	1	0	1	cutensorPermute_f32_r2_tensor
 aten_trigamma	pass	1	0	0	-
 aten_tril_indices_cpu	pass	0	2	0	-

@@ -15,37 +15,17 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr, dense<
     %extracted_slice = tensor.extract_slice %0[0, 0, 0, 0, 0] [%c2, %c16, 1, %c4, %c8] [1, 1, 1, 1, 1] : tensor<?x16x3x4x8xf32> to tensor<?x?x?x?xf32>
     %extracted_slice_0 = tensor.extract_slice %1[0, 0, 0] [1, %c4, %c8] [1, 1, 1] : tensor<?x4x8xf32> to tensor<?x?xf32>
     %extracted_slice_1 = tensor.extract_slice %2[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x4x16x8xf32> to tensor<?x?x?x?xf32>
-    %5 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice, %extracted_slice_0 : tensor<?x?x?x?xf32>, tensor<?x?xf32>) outs(%extracted_slice_1 : tensor<?x?x?x?xf32>) {
-    ^bb0(%in: f32, %in_10: f32, %out: f32):
-      %11 = arith.addf %in, %in_10 : f32
-      %12 = arith.mulf %11, %arg2 : f32
-      linalg.yield %12 : f32
-    } -> tensor<?x?x?x?xf32>
-    %inserted_slice = tensor.insert_slice %5 into %2[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x?x?x?xf32> into tensor<?x4x16x8xf32>
-    %6 = bufferization.to_memref %inserted_slice : memref<?x4x16x8xf32>
-    memref.copy %6, %arg3 : memref<?x4x16x8xf32> to memref<?x4x16x8xf32>
-    %extracted_slice_2 = tensor.extract_slice %0[0, 0, 1, 0, 0] [%c2, %c16, 1, %c4, %c8] [1, 1, 1, 1, 1] : tensor<?x16x3x4x8xf32> to tensor<?x?x?x?xf32>
-    %extracted_slice_3 = tensor.extract_slice %1[1, 0, 0] [1, %c4, %c8] [1, 1, 1] : tensor<?x4x8xf32> to tensor<?x?xf32>
-    %extracted_slice_4 = tensor.extract_slice %3[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x4x16x8xf32> to tensor<?x?x?x?xf32>
-    %7 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice_2, %extracted_slice_3 : tensor<?x?x?x?xf32>, tensor<?x?xf32>) outs(%extracted_slice_4 : tensor<?x?x?x?xf32>) {
-    ^bb0(%in: f32, %in_10: f32, %out: f32):
-      %11 = arith.addf %in, %in_10 : f32
-      linalg.yield %11 : f32
-    } -> tensor<?x?x?x?xf32>
-    %inserted_slice_5 = tensor.insert_slice %7 into %3[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x?x?x?xf32> into tensor<?x4x16x8xf32>
-    %8 = bufferization.to_memref %inserted_slice_5 : memref<?x4x16x8xf32>
-    memref.copy %8, %arg4 : memref<?x4x16x8xf32> to memref<?x4x16x8xf32>
-    %extracted_slice_6 = tensor.extract_slice %0[0, 0, 2, 0, 0] [%c2, %c16, 1, %c4, %c8] [1, 1, 1, 1, 1] : tensor<?x16x3x4x8xf32> to tensor<?x?x?x?xf32>
-    %extracted_slice_7 = tensor.extract_slice %1[2, 0, 0] [1, %c4, %c8] [1, 1, 1] : tensor<?x4x8xf32> to tensor<?x?xf32>
-    %extracted_slice_8 = tensor.extract_slice %4[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x4x16x8xf32> to tensor<?x?x?x?xf32>
-    %9 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "parallel", "parallel"], library_call = ""} ins(%extracted_slice_6, %extracted_slice_7 : tensor<?x?x?x?xf32>, tensor<?x?xf32>) outs(%extracted_slice_8 : tensor<?x?x?x?xf32>) {
-    ^bb0(%in: f32, %in_10: f32, %out: f32):
-      %11 = arith.addf %in, %in_10 : f32
-      linalg.yield %11 : f32
-    } -> tensor<?x?x?x?xf32>
-    %inserted_slice_9 = tensor.insert_slice %9 into %4[0, 0, 0, 0] [%c2, %c4, %c16, %c8] [1, 1, 1, 1] : tensor<?x?x?x?xf32> into tensor<?x4x16x8xf32>
-    %10 = bufferization.to_memref %inserted_slice_9 : memref<?x4x16x8xf32>
-    memref.copy %10, %arg5 : memref<?x4x16x8xf32> to memref<?x4x16x8xf32>
+    %aten_qkv_5_0 = memref.cast %arg0 : memref<?x16x3x4x8xf32> to memref<?x?x?x?x?xf32>
+
+    %aten_qkv_5_1 = memref.cast %arg1 : memref<?x4x8xf32> to memref<?x?x?xf32>
+
+    %aten_qkv_5_2 = memref.cast %arg3 : memref<?x4x16x8xf32> to memref<?x?x?x?xf32>
+
+    %aten_qkv_5_3 = memref.cast %arg4 : memref<?x4x16x8xf32> to memref<?x?x?x?xf32>
+
+    %aten_qkv_5_4 = memref.cast %arg5 : memref<?x4x16x8xf32> to memref<?x?x?x?xf32>
+
+    kernel.launch @cudnnTransformBiasRescaleQKV_f32_memref(%aten_qkv_5_0, %aten_qkv_5_1, %arg2, %aten_qkv_5_2, %aten_qkv_5_3, %aten_qkv_5_4) : (memref<?x?x?x?x?xf32>, memref<?x?x?xf32>, f32, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
     return
   }
 }

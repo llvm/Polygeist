@@ -4,60 +4,60 @@ This report audits every ATen fixture that does **not** currently end in a compl
 
 ## Scope and headline
 
-- Unresolved fixtures audited: **371** (the other 227/598 already have a complete genuine library/runtime rewrite).
+- Unresolved fixtures audited: **362** (the other 236/598 already have a complete genuine library/runtime rewrite).
 - Complete generated/custom GPU fallbacks still requiring a true library route: **0**.
-- No current match: **271**.
+- No current match: **262**.
 - Partial stage match with residual IR: **100**.
 - Residual loops still block whole-operation recognition: **179**.
 - A related library primitive is not automatically a legal or profitable replacement. The compiler must prove the constraints recorded for that row.
 
 ## Corrected availability classification
 
-- **SUBSET_WITH_CONSTRAINTS**: 144
-- **BUILDING_BLOCKS_ONLY**: 130
+- **SUBSET_WITH_CONSTRAINTS**: 143
+- **BUILDING_BLOCKS_ONLY**: 128
 - **NO_PUBLIC_LIBRARY_EQUIVALENT**: 39
-- **EXACT_GRAPH_IF_SUPPORTED**: 38
-- **EXACT_FIXED_CALL**: 14
+- **EXACT_GRAPH_IF_SUPPORTED**: 36
+- **EXACT_FIXED_CALL**: 10
 - **EXACT_CONFIGURED_PRIMITIVE**: 6
 
 By closest library:
 
-- **cuDNN**: 112
-- **CUB**: 100
+- **cuDNN**: 105
+- **CUB**: 99
 - **NPP**: 41
 - **none**: 39
 - **cuSPARSE**: 35
 - **cuRAND**: 19
 - **cuTENSOR**: 14
-- **cuBLAS**: 5
+- **cuBLAS**: 4
 - **CUDA Runtime**: 3
 - **cuSOLVER**: 3
 
 Priority:
 
-- **LOW**: 133
-- **MEDIUM**: 109
-- **HIGH**: 72
+- **LOW**: 131
+- **MEDIUM**: 108
+- **HIGH**: 70
 - **NONE**: 38
-- **HIGHEST**: 19
+- **HIGHEST**: 15
 
 By concrete compiler gap:
 
 - **RAISING_THEN_LIBRARY_LOWERING**: 179
-- **LEGALITY_SPECIALIZATION_AND_BACKEND**: 51
-- **MULTI_CALL_COMPOSITION_NOT_MATCHER_ONLY**: 49
+- **LEGALITY_SPECIALIZATION_AND_BACKEND**: 50
+- **MULTI_CALL_COMPOSITION_NOT_MATCHER_ONLY**: 47
 - **NO_LINK_ONLY_LIBRARY_ROUTE**: 35
-- **SEMANTIC_MATCHER_AND_LIBRARY_BACKEND**: 32
+- **SEMANTIC_MATCHER_AND_LIBRARY_BACKEND**: 26
 - **GRAPH_PARTITION_RESIDUAL_THEN_LIBRARY_LOWERING**: 25
 
 Current local backend status:
 
-- **LIBRARY_BACKEND_ABSENT**: 201
-- **GENERAL_CUDNN_GRAPH_BACKEND_ABSENT**: 63
-- **RELATED_CUDNN_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 49
+- **LIBRARY_BACKEND_ABSENT**: 200
+- **GENERAL_CUDNN_GRAPH_BACKEND_ABSENT**: 59
+- **RELATED_CUDNN_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 46
 - **NO_PUBLIC_LIBRARY_BACKEND_POSSIBLE**: 39
 - **GENERAL_CUTENSOR_BACKEND_ABSENT_CUTENSORNET_IS_NOT_EQUIVALENT**: 14
-- **RELATED_CUBLAS_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 5
+- **RELATED_CUBLAS_WRAPPERS_PRESENT_NEED_GENERALIZATION**: 4
 
 ## Important corrections to the previous audit
 
@@ -92,15 +92,11 @@ Current local backend status:
 - **`aten_batch_norm_backward_template_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (EXACT_GRAPH_IF_SUPPORTED, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_batch_norm_collect_stats_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (SUBSET_WITH_CONSTRAINTS, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_batch_norm_stats_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (SUBSET_WITH_CONSTRAINTS, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
-- **`aten_bf16_dot_cpu`** → cuBLAS `GEMM/StridedBatchedGEMM/GemmBatched` (EXACT_FIXED_CALL, whole). Work: generalize GEMM matcher and device-resident cuBLAS ABI.
 - **`aten_bf16_gemv_trans_cpu`** → cuBLAS `GEMM/StridedBatchedGEMM/GemmBatched` (EXACT_FIXED_CALL, whole). Work: generalize GEMM matcher and device-resident cuBLAS ABI.
 - **`aten_bilinear_cpu`** → cuTENSOR `cutensorCreateContraction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then iterator-count-independent contraction recognition + generic descriptor lowering.
-- **`aten_conv_tbc_cpu`** → cuDNN `Convolution forward/backward-data/backward-filter` (EXACT_FIXED_CALL, whole). Work: convolution descriptor extraction + missing forward/backward wrappers.
-- **`aten_conv_transpose2d`** → cuDNN `Convolution forward/backward-data/backward-filter` (EXACT_FIXED_CALL, whole). Work: convolution descriptor extraction + missing forward/backward wrappers.
 - **`aten_cummax_cummin_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
 - **`aten_cumprod_backward_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: finish raising residual loops; then scan matcher + CUB template backend + axis specialization.
 - **`aten_cumprod_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
-- **`aten_depthwise_conv3x3_cpu`** → cuDNN `Convolution forward/backward-data/backward-filter` (EXACT_FIXED_CALL, whole). Work: convolution descriptor extraction + missing forward/backward wrappers.
 - **`aten_dyn_quant_matmul_4bit_cpu`** → cuBLAS `cublasLtMatmul` (SUBSET_WITH_CONSTRAINTS, matmul stage). Work: finish raising residual loops; then quantized pattern + pack/layout proof + cuBLASLt backend.
 - **`aten_eq`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_flash_attention_backward_cpu`** → cuDNN `SDPA forward/backward graph` (SUBSET_WITH_CONSTRAINTS, whole for supported SDPA). Work: finish raising residual loops; then recognize complete attention graph + cuDNN frontend plan backend.
@@ -119,7 +115,6 @@ Current local backend status:
 - **`aten_layer_norm_backward_cpu`** → cuDNN `Batch/Layer/Group normalization graph` (EXACT_GRAPH_IF_SUPPORTED, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_layer_norm_cpu_backend`** → cuDNN `Batch/Layer/Group normalization graph` (EXACT_GRAPH_IF_SUPPORTED, whole for supported normalization; otherwise normalization stages). Work: finish raising residual loops; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_le`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
-- **`aten_log_sigmoid_cpu`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_logcumsumexp_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: finish raising residual loops; then scan matcher + CUB template backend + axis specialization.
 - **`aten_logical_and`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_logical_not_f32`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
@@ -134,7 +129,6 @@ Current local backend status:
 - **`aten_min_values_cpu`** → cuTENSOR `cutensorCreateReduction` (EXACT_CONFIGURED_PRIMITIVE, whole). Work: preserve current partial match and partition residual graph; then generic reduction matcher + cuTENSOR descriptor lowering.
 - **`aten_nan_to_num`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_ne`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
-- **`aten_nested_batch_offsets_cpu`** → CUB `DeviceScan/DeviceSegmentedScan` (SUBSET_WITH_CONSTRAINTS, whole for contiguous/segmented associative scans). Work: scan matcher + CUB template backend + axis specialization.
 - **`aten_remainder`** → cuDNN `Pointwise operation graph` (EXACT_GRAPH_IF_SUPPORTED, whole if every node is supported). Work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - **`aten_rms_norm`** → cuDNN `Batch/Layer/Group normalization graph` (EXACT_GRAPH_IF_SUPPORTED, whole for supported normalization; otherwise normalization stages). Work: preserve current partial match and partition residual graph; then normalization semantic matcher + cuDNN graph-plan backend.
 - **`aten_sampled_addmm_sparse_csr_cpu`** → cuSPARSE `SpMV/SpMM/SpGEMM/SDDMM` (SUBSET_WITH_CONSTRAINTS, whole for standardized sparse algebra). Work: finish raising residual loops; then sparse descriptor extraction + cuSPARSE generic-API backend.
@@ -233,12 +227,6 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_nextafter` — none / `no public whole-tensor NVIDIA library operation`; **NO_PUBLIC_LIBRARY_EQUIVALENT**; coverage: none; work: retain raised code or permit a generated/custom GPU kernel.
 - `aten_weight_to_int4pack_cpu` — none / `no public whole-tensor NVIDIA library operation`; **NO_PUBLIC_LIBRARY_EQUIVALENT**; coverage: none; work: finish raising residual loops; then retain raised code or permit a generated/custom GPU kernel.
 
-### convolution (3)
-
-- `aten_conv_tbc_cpu` — cuDNN / `Convolution forward/backward-data/backward-filter`; **EXACT_FIXED_CALL**; coverage: whole; work: convolution descriptor extraction + missing forward/backward wrappers.
-- `aten_conv_transpose2d` — cuDNN / `Convolution forward/backward-data/backward-filter`; **EXACT_FIXED_CALL**; coverage: whole; work: convolution descriptor extraction + missing forward/backward wrappers.
-- `aten_depthwise_conv3x3_cpu` — cuDNN / `Convolution forward/backward-data/backward-filter`; **EXACT_FIXED_CALL**; coverage: whole; work: convolution descriptor extraction + missing forward/backward wrappers.
-
 ### ctc_loss (2)
 
 - `aten_ctc_loss_backward_cpu` — cuDNN / `CTC loss`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole; work: finish raising residual loops; then CTC matcher + API wrapper.
@@ -250,9 +238,8 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_copysign` — CUDA Runtime / `cudaMemcpy*/Memset or CUB building blocks`; **BUILDING_BLOCKS_ONLY**; coverage: regular contiguous stages; work: shape specialization and multi-call composition.
 - `aten_nested_select_cpu` — CUDA Runtime / `cudaMemcpy*/Memset or CUB building blocks`; **BUILDING_BLOCKS_ONLY**; coverage: regular contiguous stages; work: shape specialization and multi-call composition.
 
-### dense_linear_algebra (4)
+### dense_linear_algebra (3)
 
-- `aten_bf16_dot_cpu` — cuBLAS / `GEMM/StridedBatchedGEMM/GemmBatched`; **EXACT_FIXED_CALL**; coverage: whole; work: generalize GEMM matcher and device-resident cuBLAS ABI.
 - `aten_bf16_gemv_trans_cpu` — cuBLAS / `GEMM/StridedBatchedGEMM/GemmBatched`; **EXACT_FIXED_CALL**; coverage: whole; work: generalize GEMM matcher and device-resident cuBLAS ABI.
 - `aten_int4pack_mm_cpu` — cuBLAS / `cublasLtMatmul`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole when supported; work: finish raising residual loops; then quantized-matmul recognizer + cuBLASLt descriptor/runtime backend.
 - `aten_int8pack_mm_cpu` — cuBLAS / `cublasLtMatmul`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole when supported; work: preserve current partial match and partition residual graph; then quantized-matmul recognizer + cuBLASLt descriptor/runtime backend.
@@ -334,9 +321,8 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_lshift_i32` — NPP / `signal logical/shift primitives`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole only for flat supported integer signals; work: layout/type specialization + NPP wrapper; retain nonmatching cases.
 - `aten_rshift_i32` — NPP / `signal logical/shift primitives`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole only for flat supported integer signals; work: layout/type specialization + NPP wrapper; retain nonmatching cases.
 
-### loss (10)
+### loss (9)
 
-- `aten_binary_cross_entropy` — cuDNN / `pointwise/reduction/matmul operation graph`; **BUILDING_BLOCKS_ONLY**; coverage: arithmetic stages; work: extract and partition expression/stage graph; validate plan or keep raised code.
 - `aten_l1_loss` — cuDNN / `pointwise/reduction/matmul operation graph`; **BUILDING_BLOCKS_ONLY**; coverage: arithmetic stages; work: extract and partition expression/stage graph; validate plan or keep raised code.
 - `aten_multi_margin_loss_backward_cpu` — cuDNN / `pointwise/reduction/matmul operation graph`; **BUILDING_BLOCKS_ONLY**; coverage: arithmetic stages; work: finish raising residual loops; then extract and partition expression/stage graph; validate plan or keep raised code.
 - `aten_multi_margin_loss_cpu` — cuDNN / `pointwise/reduction/matmul operation graph`; **BUILDING_BLOCKS_ONLY**; coverage: arithmetic stages; work: finish raising residual loops; then extract and partition expression/stage graph; validate plan or keep raised code.
@@ -432,13 +418,12 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_unfold_backward_cpu` — CUB / `DeviceSelect or sort/reduce-by-key primitives`; **BUILDING_BLOCKS_ONLY**; coverage: supported indexing stages; work: preserve current partial match and partition residual graph; then indexed-op semantic matcher + collision proof or reduce-by-key composition.
 - `aten_unfolded2d_acc_cpu` — CUB / `DeviceSelect or sort/reduce-by-key primitives`; **BUILDING_BLOCKS_ONLY**; coverage: supported indexing stages; work: indexed-op semantic matcher + collision proof or reduce-by-key composition.
 
-### pointwise (14)
+### pointwise (13)
 
 - `aten_eq` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_ge` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_gt` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_le` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
-- `aten_log_sigmoid_cpu` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_logical_and` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_logical_not_f32` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_logical_or` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
@@ -454,9 +439,8 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_heaviside` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 - `aten_nan_to_num` — cuDNN / `Pointwise operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if every node is supported; work: provenance-preserving expression DAG extraction + cuDNN graph backend.
 
-### pointwise_reduction_formula (16)
+### pointwise_reduction_formula (15)
 
-- `aten_addr_elementwise` — cuDNN / `pointwise operations + reduction operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if graph accepted; work: extract expression DAG + graph legality/cost check + cuDNN plan lowering.
 - `aten_entr` — cuDNN / `pointwise operations + reduction operation graph`; **EXACT_GRAPH_IF_SUPPORTED**; coverage: whole if graph accepted; work: extract expression DAG + graph legality/cost check + cuDNN plan lowering.
 - `aten_fractional_max_pool2d_backward_cpu` — cuDNN / `MAXPOOL Resample`; **BUILDING_BLOCKS_ONLY**; coverage: window reduction only; work: finish raising residual loops; then multi-stage composition; not a matcher-only gap.
 - `aten_fractional_max_pool2d_cpu` — cuDNN / `MAXPOOL Resample`; **BUILDING_BLOCKS_ONLY**; coverage: window reduction only; work: finish raising residual loops; then multi-stage composition; not a matcher-only gap.
@@ -483,10 +467,6 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 - `aten_max_pool2d` — cuDNN / `Resample forward/backward (MAXPOOL/AVGPOOL)`; **EXACT_FIXED_CALL**; coverage: whole; work: preserve current partial match and partition residual graph; then pool descriptor matcher + generic forward/backward lowering.
 - `aten_max_pool3d_backward_cpu` — cuDNN / `Resample forward/backward (MAXPOOL/AVGPOOL)`; **EXACT_FIXED_CALL**; coverage: whole; work: finish raising residual loops; then pool descriptor matcher + generic forward/backward lowering.
 - `aten_max_pool3d_cpu` — cuDNN / `Resample forward/backward (MAXPOOL/AVGPOOL)`; **EXACT_FIXED_CALL**; coverage: whole; work: finish raising residual loops; then pool descriptor matcher + generic forward/backward lowering.
-
-### qkv_transform (1)
-
-- `aten_transform_bias_rescale_qkv_cpu` — cuDNN / `pointwise/reduction/matmul operation graph`; **BUILDING_BLOCKS_ONLY**; coverage: arithmetic stages; work: extract and partition expression/stage graph; validate plan or keep raised code.
 
 ### quantized_matrix_multiply (1)
 
@@ -576,13 +556,12 @@ Each entry lists the closest reviewed implementation, the strength of the relati
 
 - `aten_amp_update_scale_cpu` — none / `no defensible public-library mapping identified`; **NO_PUBLIC_LIBRARY_EQUIVALENT**; coverage: none; work: retain raised code; revisit only with new library evidence.
 
-### scan (5)
+### scan (4)
 
 - `aten_cummax_cummin_cpu` — CUB / `DeviceScan/DeviceSegmentedScan`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for contiguous/segmented associative scans; work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
 - `aten_cumprod_backward_cpu` — CUB / `DeviceScan/DeviceSegmentedScan`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for contiguous/segmented associative scans; work: finish raising residual loops; then scan matcher + CUB template backend + axis specialization.
 - `aten_cumprod_cpu` — CUB / `DeviceScan/DeviceSegmentedScan`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for contiguous/segmented associative scans; work: preserve current partial match and partition residual graph; then scan matcher + CUB template backend + axis specialization.
 - `aten_logcumsumexp_cpu` — CUB / `DeviceScan/DeviceSegmentedScan`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for contiguous/segmented associative scans; work: finish raising residual loops; then scan matcher + CUB template backend + axis specialization.
-- `aten_nested_batch_offsets_cpu` — CUB / `DeviceScan/DeviceSegmentedScan`; **SUBSET_WITH_CONSTRAINTS**; coverage: whole for contiguous/segmented associative scans; work: scan matcher + CUB template backend + axis specialization.
 
 ### search (3)
 
