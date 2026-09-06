@@ -429,6 +429,18 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
                       "PARTIAL_API", "multi_stage",
                       "global frequency-by-key requires sorting/counting unique runs and "
                       "mapping counts back to the original order; it is not a segmented reduction")
+    if n in {"embedding_bag_backward_sum_cpu", "embedding_bag_backward_max_cpu"}:
+        return result("indexed_scatter_reduce", "CUB",
+                      "DeviceRadixSort plus DeviceReduceByKey plus scatter",
+                      "PARTIAL_API", "multi_stage",
+                      "embedding IDs select destination rows and duplicate IDs require a "
+                      "collision-aware scatter-add; bag boundaries do not define the reduction groups")
+    if n == "embedding_bag_per_sample_backward_cpu":
+        return result("indexed_gather_dot", "CUB",
+                      "DeviceSegmentedReduce with transform input iterator",
+                      "PARTIAL_API", "composed_whole",
+                      "each output is a dot product between one bag-gradient row and an "
+                      "embedding row selected by a runtime index")
     if hit(r"segment_reduce|segmented|embedding_bag", n):
         return result("segmented_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",

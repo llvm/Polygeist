@@ -319,6 +319,13 @@ def route(row: dict[str, str]) -> dict[str, str]:
                  "contiguous keys; no dense bounded-key assumption is available",
                  "multi-call algorithm recognizer and CUB composition backend; no single fixed-library replacement",
                  priority="LOW")
+    if fam == "indexed_gather_dot":
+        return r("CUB", "DeviceSegmentedReduce + transform input iterator",
+                 "BUILDING_BLOCKS_ONLY", "whole through a configured iterator/reduction composition",
+                 "runtime embedding IDs must be in bounds; bag-to-sample association, accumulation order, and FP behavior must agree",
+                 "contiguous embedding and gradient rows; segment width equals embedding dimension",
+                 "recognize the affine gather plus inner dot reduction and lower a generated transform iterator",
+                 priority="MEDIUM")
     if fam in {"arbitrary_gather", "cyclic_shift", "variable_bit_shift",
                "scalar_copysign", "scalar_fill"}:
         detail = {
