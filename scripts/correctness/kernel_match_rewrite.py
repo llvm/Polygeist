@@ -4262,10 +4262,10 @@ def rewrite_mlir(
         # two inputs symmetrically — the entries we ship in
         # kernel_library_phase2.mlir all do.
         def _tensor_rank(t: str) -> int:
-            # `tensor<?x?xf64>` → 2 ; `tensor<?xf64>` → 1 ; etc.
-            inside = t[t.find("<") + 1 : t.rfind(">")]
-            shape = inside.rsplit("x", 1)[0]
-            return shape.count("x") + 1 if shape else 0
+            # Keep scalar tensors rank-0.  The former string heuristic treated
+            # `tensor<f32>` as rank-1 because it mistook the element type for
+            # a shape component, rejecting otherwise legal BLAS dot results.
+            return _shaped_rank(t)
         if len(all_tensor_ins) >= 2:
             paired = sorted(
                 zip(all_tensor_in_types, all_tensor_ins),
@@ -4637,7 +4637,10 @@ def rewrite_mlir(
             ranks = [_tensor_rank(t) for t in operand_types[:3]]
             elems = [_sniff_elem_type(t) for t in operand_types[:3]]
             expected = "f64" if entry.name.startswith("cublasD") else "f32"
-            tensor_form = ranks == [1, 1, 0]
+            tensor_form = (
+                ranks == [1, 1, 0]
+                and all(t.startswith("tensor<") for t in operand_types[:3])
+            )
             memref_form = (
                 [_shaped_rank(t) for t in operand_types[:3]] == [1, 1, 1]
                 and all(t.startswith("memref<") for t in operand_types[:3])

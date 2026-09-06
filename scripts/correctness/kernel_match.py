@@ -264,6 +264,12 @@ class GenericBody:
     # and summed — the rewriter materialises a new arith.constant with
     # the summed value for the launch operand.
     inline_weights_per_in: list[list[str] | None] = None  # type: ignore[assignment]
+    # Scalar types of the linalg block arguments, aligned with the complete
+    # block-argument list (inputs followed by outputs).  This is more reliable
+    # type evidence than `body_lines`: a constant-only initializer commonly
+    # has an empty body after the parser removes `linalg.yield`, even though
+    # its output block argument still establishes the element type.
+    block_arg_types: list[str] = None  # type: ignore[assignment]
 
     @property
     def yield_value(self) -> str:
@@ -458,12 +464,15 @@ def parse_generics(mlir_text: str,
         yield_name = yield_names[0] if yield_names else ""
 
         block_args = []
+        block_arg_types = []
         for piece in args_str.split(","):
             piece = piece.strip()
             if not piece:
                 continue
-            name = piece.split(":")[0].strip()
+            name, _, arg_type = piece.partition(":")
+            name = name.strip()
             block_args.append(name)
+            block_arg_types.append(arg_type.strip())
         if infer_outputs_from_yield:
             # Canonical library bodies may name output block arguments `%z`,
             # `%ov`, etc. Their trailing block arguments correspond exactly
@@ -593,6 +602,7 @@ def parse_generics(mlir_text: str,
             result_names=result_names,
             scalar_defs=scalar_defs,
             inline_weights_per_in=inline_weights,
+            block_arg_types=block_arg_types,
         ))
     return results
 
@@ -4714,6 +4724,11 @@ def match_composition(
                     r"(?:\([^)]*\)\s*->\s*)?([A-Za-z0-9]+)",
                     "\n".join(g.body_lines),
                 ))
+                # Include the region signature.  Initializer bodies such as
+                # `outs(%slice : tensor<...xf32>) { linalg.yield %zero }`
+                # contain no typed arithmetic operation, but `%out: f32`
+                # remains authoritative type evidence.
+                scalar_types.update(g.block_arg_types or [])
                 if entry.element_type not in scalar_types:
                     ok = False
                     break
