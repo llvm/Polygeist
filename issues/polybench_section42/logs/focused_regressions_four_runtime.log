@@ -4,3 +4,10 @@ PASS: polygeist :: scripts/compare-polybench-dumps.c (2 of 2)
 
 Testing Time: 0.23s
   Passed: 2
+
+Native-GPU availability viewer update:
+-- Testing: 1 tests, 1 workers --
+PASS: polygeist :: scripts/polybench-viewer-four-runtimes.c (1 of 1)
+
+Testing Time: 0.18s
+  Passed: 1

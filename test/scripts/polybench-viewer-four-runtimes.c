@@ -10,7 +10,12 @@
 // CHECK: external CPU library
 // CHECK: PolyBenchGPU CUDA
 // CHECK: external CUDA library
+// CHECK: data-filter="passed modified"
+// CHECK: data-filter="failed unavailable modified"
+// CHECK: r.dataset.filter.split(" ").includes(v)
 
 // The public PolyBench results view has one row per manifest kernel and four
 // primary runtime columns. Obsolete split result pages are removed by the
 // results-only build mode so stale hardcoded GPU measurements cannot survive.
+// Filter tags can overlap: a normalized external source can independently be
+// marked passed or failed as well as modified-source.

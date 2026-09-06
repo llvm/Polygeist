@@ -17,7 +17,8 @@ if [[ "$actual_pbgpu_commit" != "$expected_pbgpu_commit" ]]; then
   exit 1
 fi
 
-default_kernels=(gemm 2mm 3mm gesummv gemver)
+default_kernels=(gemm 2mm 3mm atax bicg correlation covariance doitgen
+  fdtd-2d gemver gesummv gramschmidt mvt)
 kernels=("${default_kernels[@]}")
 if [[ $# -gt 0 ]]; then kernels=("$@"); fi
 summary="$result_root/logs/polybenchgpu_native_summary.csv"
@@ -60,7 +61,7 @@ for kernel in "${kernels[@]}"; do
   fi
   if [[ $build_rc -eq 0 ]]; then
     echo "COMMAND: $nvcc -O3 -std=c++17 -arch=sm_87 -ccbin $cxx -c $adapter" >> "$build_log"
-    "$nvcc" -O3 -std=c++17 -arch=sm_87 -ccbin "$cxx" -c "$adapter" \
+    "$nvcc" -O3 -std=c++17 -arch=sm_87 -ccbin "$cxx" -I"$pbgpu_root" -c "$adapter" \
       -o "$work/adapter.o" >> "$build_log" 2>&1 || build_rc=$?
   fi
   if [[ $build_rc -eq 0 ]]; then
@@ -129,6 +130,13 @@ for kernel in "${kernels[@]}"; do
         rc=$?
         e2e_s=$(awk '/^[0-9]+([.][0-9]+)?$/ {value=$1} END {print value}' "$stdout")
         device_ms=$(sed -n 's/.*POLYBENCH_NATIVE_GPU_TIMING device_ms=\([0-9.]*\).*/\1/p' "$stderr" | tail -1)
+        if [[ -z "$device_ms" ]]; then
+          device_s=$(awk '/^[0-9]+([.][0-9]+)?$/ {print; exit}' "$stdout")
+          if [[ -z "$device_s" ]]; then
+            device_s=$(sed -n 's/^GPU Runtime: \([0-9.]*\)s$/\1/p' "$stdout" | head -1)
+          fi
+          [[ -n "$device_s" ]] && device_ms=$(awk -v t="$device_s" 'BEGIN {printf "%.9f", 1000*t}')
+        fi
         printf '%s,%s,%s,%s,%s\n' "$kernel" "$sample" "$rc" \
           "${e2e_s:-unavailable}" "${device_ms:-unavailable}" \
           >> "$log_dir/polybenchgpu_timing_raw.log"

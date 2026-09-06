@@ -2,5 +2,13 @@ kernel,status,build_rc,run_rc,compare_rc,samples,source_commit,modified_source
 gemm,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
 2mm,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
 3mm,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
-gesummv,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+atax,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+bicg,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+correlation,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+covariance,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+doitgen,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+fdtd-2d,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
 gemver,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+gesummv,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+gramschmidt,fail,0,0,1,0,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true
+mvt,pass,0,0,0,5,5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c,true

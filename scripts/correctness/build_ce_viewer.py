@@ -3383,16 +3383,19 @@ def write_polybench_results_page() -> None:
         overall = row.get("overall_status", "unavailable").lower()
         stages = [row.get(field, "") for field in (
             "raise_status", "matcher_status", "residual_cpu_status",
-            "cpu_library_status", "raised_gpu_status")]
-        if row.get("modified_source", "false").lower() == "true":
-            bucket = "modified"
-        elif any(value in ("fail", "partial", "blocked") for value in stages):
-            bucket = "failed"
-        elif (row.get("cpu_library_status", "").lower() == "pass" or
-              row.get("raised_gpu_status", "").lower() == "pass"):
-            bucket = "passed"
+            "cpu_library_status", "raised_gpu_status", "polybenchgpu_status")]
+        has_runtime_result = any(row.get(field, "").lower() == "pass" for field in (
+            "cpu_library_status", "raised_gpu_status", "polybenchgpu_status"))
+        buckets = []
+        if any(value in ("fail", "partial", "blocked") for value in stages):
+            buckets.append("failed")
+        if has_runtime_result:
+            buckets.append("passed")
         else:
-            bucket = "unavailable"
+            buckets.append("unavailable")
+        if row.get("modified_source", "false").lower() == "true":
+            buckets.append("modified")
+        bucket = " ".join(buckets)
         if overall != "pass":
             incomplete.append(
                 f'<li><b>{html.escape(kernel)}</b>: '
@@ -3459,7 +3462,11 @@ def write_polybench_results_page() -> None:
         'raised/matched path through real CUDA libraries. CPU times are pinned '
         'single-core medians with one OpenBLAS thread. GPU cells report CUDA-event '
         'device time and PolyBench kernel-call end-to-end time separately. A timing is '
-        'shown only after that exact configuration passes correctness.</div>'
+        'shown only after that exact configuration passes correctness. Native GPU '
+        'rows marked modified source retain the external PolyBenchGPU computational '
+        'kernels while normalizing FP64 data, LARGE dimensions, canonical inputs, ABI, '
+        'and timing. Same-named upstream programs with different algorithms remain '
+        'unavailable.</div>'
         '<div class="s42-filters">Show: <button onclick="s42Filter(\'all\')">all</button> '
         '<button onclick="s42Filter(\'passed\')">passed</button> '
         '<button onclick="s42Filter(\'failed\')">failed</button> '
@@ -3474,7 +3481,7 @@ def write_polybench_results_page() -> None:
         'Incomplete or blocked experiments</h2></div><div class="intro"><ul>' +
         ("".join(incomplete) or '<li>None.</li>') + '</ul></div>'
         '<script>function s42Filter(v){document.querySelectorAll("table.s42 tbody tr")'
-        '.forEach(r=>r.style.display=(v==="all"||r.dataset.filter===v)?"":"none");}</script>')
+        '.forEach(r=>r.style.display=(v==="all"||r.dataset.filter.split(" ").includes(v))?"":"none");}</script>')
     css = (
         '.s42-filters{padding:12px 20px}.s42-filters button{margin-right:6px}'
         '.table-wrap{overflow:auto;padding:0 20px}.s42{border-collapse:collapse;font-size:12px}'

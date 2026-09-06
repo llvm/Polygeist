@@ -1,10 +1,18 @@
 # PolyBench Section 4.2 Reproduction Status
 
-Last updated: 2026-09-05T18:18:00-07:00
+Last updated: 2026-09-05T23:50:38-07:00
 
 Reorganization update: 2026-09-05
 
 Raised-GPU repair update: 2026-09-05
+
+Native-GPU availability update: 2026-09-05
+
+- PASS — Audited all 19 same-named CUDA sources in PolyBenchGPU commit `5584aaa7`. Thirteen are algorithmically comparable after protocol normalization and were cross-compiled on the x86 host; six are explicitly unavailable because their algorithms or live-out semantics differ from canonical PolyBench/C.
+- PASS — Twelve of the thirteen comparable native-GPU configurations pass correctness and have one warmup plus five accepted samples: `2mm`, `3mm`, `atax`, `bicg`, `correlation`, `covariance`, `doitgen`, `fdtd-2d`, `gemm`, `gemver`, `gesummv`, and `mvt`.
+- FAIL — Normalized PolyBenchGPU `gramschmidt` runs but fails FP64 output correctness (428,561 of 2,640,000 values); it has no accepted timing.
+- UNAVAILABLE — PolyBenchGPU `adi`, `jacobi-1d`, `jacobi-2d`, `lu`, `syr2k`, and `syrk` are not equivalent canonical baselines. The remaining eleven kernels have no same-named external CUDA source in the audited repository.
+- PASS — Regenerated the consolidated page with all 30 manifest rows, twelve accepted native-GPU timing pairs, nine accepted raised-GPU timing pairs, and overlapping passed/failed/unavailable/modified-source filters. The strict audit checks 8,038 local links across 1,634 HTML pages with zero broken targets. URL: `file:///tmp/ir_viewer/polybench.html`.
 
 - FAIL — Current `f85ad6e4` baseline rerun reconfirmed `2mm`: the real cuBLAS wrapper executes, but all 960,000 output values are zero/wrong.
 - FAIL — Current `f85ad6e4` baseline rerun reconfirmed `atax`: all 2,100 output values differ from the native reference.
@@ -123,9 +131,9 @@ Raised-GPU repair update: 2026-09-05
 
 - `manifest.csv`: final 30-row explicit per-stage ledger; zero pending cells.
 - `performance_cpu.csv`: 65 accepted correctness-gated median timings with scope, library, command, and raw-log paths, including eight raised OpenBLAS/CBLAS rows.
-- `performance_gpu.csv`: 14 accepted correctness-gated records: five canonical PolyBenchGPU and nine raised cuBLAS configurations, each with separate device-only and end-to-end timing.
+- `performance_gpu.csv`: 21 accepted correctness-gated records: twelve normalized PolyBenchGPU and nine raised CUDA-library configurations, each with separate device-only and end-to-end timing.
 - `logs/`: retained commands, versions, builds, raw samples, rejected attempts, comparisons, symbol audits, failure reasons, viewer build, and viewer link check.
 
 ## Incomplete experiments
 
-The run is closed with explicit outcomes rather than fabricated substitutes. The ten former raised-GPU failures are resolved as nine correctness-approved, timed cuBLAS paths and one explicit unavailable result (`gramschmidt`, whose dynamically masked triangular update has no valid full external-library match). Remaining incomplete experiments are: canonical PolyBenchGPU adapters for the other 25 kernels where an equivalent external CUDA source/integration is available; KernelFaRer on a compatible LLVM toolchain; residual timing for host-killed `lu`; five submap-lowering failures; and the `correlation` numeric failure. The viewer repeats the failure reason for every affected kernel.
+The run is closed with explicit outcomes rather than fabricated substitutes. Native GPU was attempted for every algorithmically comparable CUDA source in the audited PolyBenchGPU revision: twelve pass and one (`gramschmidt`) fails correctness. Seventeen rows are unavailable because the external repository either has no corresponding CUDA source (eleven) or its same-named source computes a materially different algorithm/result (six). Remaining incomplete experiments are KernelFaRer on a compatible LLVM toolchain, residual timing for host-killed `lu`, five submap-lowering failures, and the `correlation` residual numeric failure. The viewer repeats the failure reason for every affected kernel.
