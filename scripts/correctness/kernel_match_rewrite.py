@@ -1612,11 +1612,11 @@ def _fixed_depthwise_padding_body_legal(
     index_ssas: dict[int, str] = {}
     for line in lines:
         match = re.fullmatch(
-            r"(%[\w_\-]+)\s*=\s*linalg\.index\s+([1-4])\s*:\s*index",
+            r"(%[\w_\-]+)\s*=\s*linalg\.index\s+([1-5])\s*:\s*index",
             line)
         if match:
             index_ssas[int(match.group(2))] = match.group(1)
-    if set(index_ssas) != {1, 2, 3, 4}:
+    if set(index_ssas) not in ({1, 2, 3, 4}, {2, 3, 4, 5}):
         return False
 
     applications = []
@@ -1631,18 +1631,34 @@ def _fixed_depthwise_padding_body_legal(
                     text, match.group(2).strip())),
                 [part.strip() for part in match.group(3).split(",")],
             ))
-    expected_maps = [
-        f"affine_map<(d0,d1,d2,d3)->(-d0-d1+{width})>",
-        "affine_map<(d0,d1,d2,d3)->(d0+d1-1)>",
-        "affine_map<(d0,d1,d2,d3)->(d2+d3-1)>",
-        f"affine_map<(d0,d1,d2,d3)->(-d2-d3+{height})>",
-    ]
-    expected_args = [
-        index_ssas[4], index_ssas[2], index_ssas[1], index_ssas[3]]
+    expanded_batch = set(index_ssas) == {2, 3, 4, 5}
+    if not expanded_batch:
+        expected_maps = [
+            f"affine_map<(d0,d1,d2,d3)->(-d0-d1+{width})>",
+            "affine_map<(d0,d1,d2,d3)->(d0+d1-1)>",
+            "affine_map<(d0,d1,d2,d3)->(d2+d3-1)>",
+            f"affine_map<(d0,d1,d2,d3)->(-d2-d3+{height})>",
+        ]
+        args = [index_ssas[4], index_ssas[2],
+                index_ssas[1], index_ssas[3]]
+        expected_arg_sets = [args] * 4
+    else:
+        expected_maps = [
+            "affine_map<(d0,d1)->(d0+d1-1)>",
+            f"affine_map<(d0,d1)->(-d0-d1+{width})>",
+            f"affine_map<(d0,d1)->(-d0-d1+{height})>",
+            "affine_map<(d0,d1)->(d0+d1-1)>",
+        ]
+        expected_arg_sets = [
+            [index_ssas[2], index_ssas[4]],
+            [index_ssas[2], index_ssas[4]],
+            [index_ssas[5], index_ssas[3]],
+            [index_ssas[5], index_ssas[3]],
+        ]
     if len(applications) != 4 or any(
             affine_map != expected_map or args != expected_args
-            for (_, affine_map, args), expected_map
-            in zip(applications, expected_maps)):
+            for (_, affine_map, args), expected_map, expected_args
+            in zip(applications, expected_maps, expected_arg_sets)):
         return False
 
     comparisons: list[str] = []
@@ -1656,6 +1672,8 @@ def _fixed_depthwise_padding_body_legal(
                 text, matches[0].group(2)) != 0:
             return False
         comparisons.append(matches[0].group(1))
+    if expanded_batch:
+        comparisons = [comparisons[j] for j in (2, 3, 0, 1)]
 
     def binary_result(op: str, lhs: str, rhs: str, ty: str) -> str | None:
         pattern = re.compile(
@@ -4812,8 +4830,15 @@ def rewrite_mlir(
                 emitted_launches += 1
                 i += 1
                 continue
-        permutation = _cutensor_permutation_modes(
-            bodies[i], body_terms[i], body_forms[i])
+        pending_composition = match_composition(
+            bodies, body_terms, comps, start=i, body_forms=body_forms)
+        permutation = (
+            None
+            if (pending_composition is not None and
+                len(pending_composition[0].steps) > 1)
+            else _cutensor_permutation_modes(
+                bodies[i], body_terms[i], body_forms[i])
+        )
         if permutation is not None:
             inst = instances[i]
             ins = _extract_ssa_names(inst.ins_part)
@@ -5485,12 +5510,391 @@ def rewrite_mlir(
             operand_types = physical_types
             binds = {}
 
+        # The scaled TBC fixture is fully expanded by joint multi-root
+        # debufferization: input, filter, and destination are rank-5 submaps
+        # and the contraction itself consequently has identity maps.  Recover
+        # the physical rank-3 buffers and prove the maps carried by those
+        # submaps before selecting the same cuDNN TBC implementation.
+        if (entry.name == "cudnnConvolutionTBC_f32_memref" and n == 2 and
+                custom_launch_line is None):
+            init_inst, conv_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            init_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i].indexing_maps]
+            conv_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i + 1].indexing_maps]
+            views = (
+                [_tensor_submap_info(text, value, conv_inst.span[0])
+                 for value in init_outs + conv_ins + conv_outs]
+                if len(init_outs) == 1 and len(conv_ins) == 2 and
+                len(conv_outs) == 1 else []
+            )
+            expanded_tbc = (
+                len(views) == 4 and all(view is not None for view in views)
+                and init_maps == [
+                    "affine_map<(d0,d1,d2)->(d0,d1,d2)>"]
+                and conv_maps == [
+                    "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2,d3,d4)>"] * 3
+            )
+            init_view = input_view = filter_view = output_view = None
+            if expanded_tbc:
+                init_view, input_view, filter_view, output_view = views
+                init_writeback = _find_tensor_submap_inverse(
+                    text, init_inst.span[1], init_inst.result_ssa)
+                expected_view_maps = [
+                    "affine_map<(d0,d1,d2)->(d0,d1,d2)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d3+d0,d1,d4)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d3,d4,d2)>",
+                    "affine_map<(d0,d1,d2,d3,d4)->(d0,d1,d2)>",
+                ]
+                expanded_tbc = (
+                    [_compact_affine_map(view["map"]) for view in views]
+                    == expected_view_maps
+                    and len(init_view["sizes"]) == 3
+                    and len(input_view["sizes"]) == 5
+                    and input_view["sizes"] == filter_view["sizes"]
+                    and input_view["sizes"] == output_view["sizes"]
+                    and output_view["sizes"][:3] == init_view["sizes"]
+                    and init_writeback is not None
+                    and init_writeback[0] == output_view["source"]
+                    and init_writeback[2][1] <= conv_inst.span[0]
+                )
+            sources = []
+            values = []
+            if expanded_tbc:
+                sources = [
+                    _to_tensor_memref_source(
+                        text, view["source"], conv_inst.span[0])
+                    for view in (input_view, filter_view, init_view)
+                ]
+                values = [_constant_index_value(text, size)
+                          for size in input_view["sizes"]]
+                expanded_tbc = (
+                    all(source is not None for source in sources)
+                    and all(value is not None and value > 0 for value in values)
+                )
+            if expanded_tbc:
+                to, batch, out_channels, kernel, in_channels = values
+                physical_operands = [source[0] for source in sources]
+                physical_types = [source[1] for source in sources]
+                expanded_tbc = (
+                    len(set(physical_operands)) == 3
+                    and _plain_f32_memrefs(physical_types, [3, 3, 3])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32",
+                        [to + kernel - 1, batch, in_channels])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32",
+                        [kernel, in_channels, out_channels])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32", [to, batch, out_channels])
+                )
+            tail = None
+            if expanded_tbc:
+                size_pattern = r",\s*".join(
+                    map(re.escape, input_view["sizes"]))
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                    rf"\(\s*{re.escape(output_view['source'])}\s*,\s*"
+                    rf"{re.escape(conv_inst.result_ssa)}\s*,\s*{size_pattern}\)"
+                    rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                    rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\3\s*,\s*"
+                    rf"{re.escape(physical_operands[2])}\s*:\s*[^\n]+",
+                    text[conv_inst.span[1]:])
+                expanded_tbc = tail is not None
+            if expanded_tbc:
+                inverse_map = _compact_affine_map(_resolve_affine_map_text(
+                    text[:conv_inst.span[1] + tail.end()],
+                    tail.group(2).strip()))
+                expanded_tbc = inverse_map == expected_view_maps[3]
+            if expanded_tbc:
+                uid = conv_inst.result_ssa.lstrip("%").replace(".", "_")
+                dynamic_type = "memref<?x?x?xf32>"
+                cast_names = [f"%fixed_conv_{uid}_{j}" for j in range(3)]
+                lines = [
+                    f"{conv_inst.indent}{cast} = memref.cast {operand} : "
+                    f"{operand_type} to {dynamic_type}"
+                    for cast, operand, operand_type in zip(
+                        cast_names, physical_operands, physical_types)
+                ]
+                lines.append(
+                    f"{conv_inst.indent}kernel.launch @{entry.name}("
+                    f"{', '.join(cast_names)}) : "
+                    f"({', '.join([dynamic_type] * 3)}) -> ()")
+                custom_launch_line = "\n".join(lines)
+                replace_full_span = True
+                custom_edit_span = (
+                    init_inst.span[0], conv_inst.span[1] + tail.end())
+                operands = []
+                operand_types = []
+                binds = {}
+
+        if (entry.name == "cudnnConvolutionTranspose2D_f32_memref" and
+                n == 2 and custom_launch_line is None):
+            init_inst, conv_inst = instances[i:i + 2]
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            init_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i].indexing_maps]
+            conv_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i + 1].indexing_maps]
+            views = (
+                [_tensor_submap_info(text, value, conv_inst.span[0])
+                 for value in init_outs + conv_ins + conv_outs]
+                if len(init_outs) == 1 and len(conv_ins) == 2 and
+                len(conv_outs) == 1 else []
+            )
+            expanded_transpose2d = (
+                len(views) == 4 and all(view is not None for view in views)
+                and init_maps == [
+                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>"]
+                and conv_maps == [
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6)->"
+                    "(d0,d6,d1,d2,d3,d4,d5)>"] * 3
+            )
+            init_view = input_view = filter_view = output_view = None
+            if expanded_transpose2d:
+                init_view, input_view, filter_view, output_view = views
+                init_writeback = _find_tensor_submap_inverse(
+                    text, init_inst.span[1], init_inst.result_ssa)
+                expected_view_maps = [
+                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6)->(d0,d1,d2,d3)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6)->(d1,d4,d5,d6)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5,d6)->"
+                    "(d0,d4,d5+d2,d6+d3)>",
+                ]
+                expanded_transpose2d = (
+                    [_compact_affine_map(view["map"]) for view in views]
+                    == expected_view_maps
+                    and len(init_view["sizes"]) == 4
+                    and len(input_view["sizes"]) == 7
+                    and input_view["sizes"] == filter_view["sizes"]
+                    and input_view["sizes"] == output_view["sizes"]
+                    and init_writeback is not None
+                    and init_writeback[0] == output_view["source"]
+                    and init_writeback[2][1] <= conv_inst.span[0]
+                )
+            sources = []
+            values = []
+            if expanded_transpose2d:
+                sources = [
+                    _to_tensor_memref_source(
+                        text, view["source"], conv_inst.span[0])
+                    for view in (input_view, filter_view, init_view)
+                ]
+                values = [_constant_index_value(text, size)
+                          for size in input_view["sizes"]]
+                expanded_transpose2d = (
+                    all(source is not None for source in sources)
+                    and all(value is not None and value > 0 for value in values)
+                )
+            if expanded_transpose2d:
+                batch, in_channels, ih, iw, out_channels, kh, kw = values
+                output_values = [_constant_index_value(text, size)
+                                 for size in init_view["sizes"]]
+                physical_operands = [source[0] for source in sources]
+                physical_types = [source[1] for source in sources]
+                expanded_transpose2d = (
+                    output_values == [batch, out_channels,
+                                      ih + kh - 1, iw + kw - 1]
+                    and len(set(physical_operands)) == 3
+                    and _plain_f32_memrefs(physical_types, [4, 4, 4])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32", [batch, in_channels, ih, iw])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32",
+                        [in_channels, out_channels, kh, kw])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32", output_values)
+                )
+            tail = None
+            if expanded_transpose2d:
+                size_pattern = r",\s*".join(
+                    map(re.escape, input_view["sizes"]))
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                    rf"\(\s*{re.escape(output_view['source'])}\s*,\s*"
+                    rf"{re.escape(conv_inst.result_ssa)}\s*,\s*{size_pattern}\)"
+                    rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                    rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\3\s*,\s*"
+                    rf"{re.escape(physical_operands[2])}\s*:\s*[^\n]+",
+                    text[conv_inst.span[1]:])
+                expanded_transpose2d = tail is not None
+            if expanded_transpose2d:
+                inverse_map = _compact_affine_map(_resolve_affine_map_text(
+                    text[:conv_inst.span[1] + tail.end()],
+                    tail.group(2).strip()))
+                expanded_transpose2d = inverse_map == expected_view_maps[3]
+            if expanded_transpose2d:
+                uid = conv_inst.result_ssa.lstrip("%").replace(".", "_")
+                dynamic_type = "memref<?x?x?x?xf32>"
+                cast_names = [f"%fixed_conv_{uid}_{j}" for j in range(3)]
+                lines = [
+                    f"{conv_inst.indent}{cast} = memref.cast {operand} : "
+                    f"{operand_type} to {dynamic_type}"
+                    for cast, operand, operand_type in zip(
+                        cast_names, physical_operands, physical_types)
+                ]
+                lines.append(
+                    f"{conv_inst.indent}kernel.launch @{entry.name}("
+                    f"{', '.join(cast_names)}) : "
+                    f"({', '.join([dynamic_type] * 3)}) -> ()")
+                custom_launch_line = "\n".join(lines)
+                replace_full_span = True
+                custom_edit_span = (
+                    init_inst.span[0], conv_inst.span[1] + tail.end())
+                operands = []
+                operand_types = []
+                binds = {}
+
+        if (entry.name == "cudnnDepthwiseConvolution2D_f32_memref" and
+                n == 2 and custom_launch_line is None):
+            init_inst, conv_inst = instances[i:i + 2]
+            init_ins = _extract_ssa_names(init_inst.ins_part)
+            init_outs = _extract_ssa_names(init_inst.outs_part)
+            conv_ins = _extract_ssa_names(conv_inst.ins_part)
+            conv_outs = _extract_ssa_names(conv_inst.outs_part)
+            init_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i].indexing_maps]
+            conv_maps = [_compact_affine_map(mapping)
+                         for mapping in bodies[i + 1].indexing_maps]
+            values_to_parse = init_ins + init_outs + conv_ins + conv_outs
+            views = (
+                [_tensor_submap_info(text, value, conv_inst.span[0])
+                 for value in values_to_parse]
+                if (len(init_ins) == len(init_outs) == len(conv_outs) == 1
+                    and len(conv_ins) == 2) else []
+            )
+            expanded_depthwise = (
+                len(views) == 5 and all(view is not None for view in views)
+                and init_maps == [
+                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>"] * 2
+                and conv_maps == [
+                    "affine_map<(d0,d1,d2,d3,d4,d5)->"
+                    "(d0,d1,d2,d3,d4,d5)>"] * 3
+            )
+            bias_view = init_output_view = input_view = None
+            filter_view = conv_output_view = None
+            if expanded_depthwise:
+                (bias_view, init_output_view, input_view,
+                 filter_view, conv_output_view) = views
+                init_writeback = _find_tensor_submap_inverse(
+                    text, init_inst.span[1], init_inst.result_ssa)
+                expected_view_maps = [
+                    "affine_map<(d0,d1,d2,d3)->(d1)>",
+                    "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5)->"
+                    "(d0,d1,d4+d2-1,d5+d3-1)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5)->(d1,d4,d5)>",
+                    "affine_map<(d0,d1,d2,d3,d4,d5)->(d0,d1,d2,d3)>",
+                ]
+                expanded_depthwise = (
+                    [_compact_affine_map(view["map"]) for view in views]
+                    == expected_view_maps
+                    and len(init_output_view["sizes"]) == 4
+                    and bias_view["sizes"] == init_output_view["sizes"]
+                    and len(input_view["sizes"]) == 6
+                    and input_view["sizes"] == filter_view["sizes"]
+                    and input_view["sizes"] == conv_output_view["sizes"]
+                    and input_view["sizes"][:4] == init_output_view["sizes"]
+                    and init_writeback is not None
+                    and init_writeback[0] == conv_output_view["source"]
+                    and init_writeback[2][1] <= conv_inst.span[0]
+                )
+            sources = []
+            logical_values = []
+            if expanded_depthwise:
+                sources = [
+                    _to_tensor_memref_source(
+                        text, view["source"], conv_inst.span[0])
+                    for view in (input_view, filter_view, bias_view,
+                                 init_output_view)
+                ]
+                logical_values = [_constant_index_value(text, size)
+                                  for size in input_view["sizes"]]
+                expanded_depthwise = (
+                    all(source is not None for source in sources)
+                    and all(value is not None and value > 0
+                            for value in logical_values)
+                )
+            if expanded_depthwise:
+                batch, channels, height, width, kh, kw = logical_values
+                physical_operands = [source[0] for source in sources]
+                physical_types = [source[1] for source in sources]
+                expanded_depthwise = (
+                    kh == kw == 3
+                    and len(set(physical_operands)) == 4
+                    and _plain_f32_memrefs(physical_types, [4, 3, 1, 4])
+                    and _plain_shape_compatible(
+                        physical_types[0], "f32",
+                        [batch, channels, height, width])
+                    and _plain_shape_compatible(
+                        physical_types[1], "f32", [channels, kh, kw])
+                    and _plain_shape_compatible(
+                        physical_types[2], "f32", [channels])
+                    and _plain_shape_compatible(
+                        physical_types[3], "f32",
+                        [batch, channels, height, width])
+                    and _fixed_depthwise_padding_body_legal(
+                        text, bodies[i + 1], height, width)
+                )
+            tail = None
+            if expanded_depthwise:
+                size_pattern = r",\s*".join(
+                    map(re.escape, input_view["sizes"]))
+                tail = re.match(
+                    rf"\s*(%[\w_\-]+)\s*=\s*polygeist\.submapInverse\s*"
+                    rf"\(\s*{re.escape(conv_output_view['source'])}\s*,\s*"
+                    rf"{re.escape(conv_inst.result_ssa)}\s*,\s*{size_pattern}\)"
+                    rf"\s*\{{\s*map\s*=\s*([^}}]+)\}}\s*:[^\n]+\n"
+                    rf"\s*(%[\w_\-]+)\s*=\s*bufferization\.to_memref\s+\1"
+                    rf"\s*:\s*[^\n]+\n\s*memref\.copy\s+\3\s*,\s*"
+                    rf"{re.escape(physical_operands[3])}\s*:\s*[^\n]+",
+                    text[conv_inst.span[1]:])
+                expanded_depthwise = tail is not None
+            if expanded_depthwise:
+                inverse_map = _compact_affine_map(_resolve_affine_map_text(
+                    text[:conv_inst.span[1] + tail.end()],
+                    tail.group(2).strip()))
+                expanded_depthwise = inverse_map == expected_view_maps[4]
+            if expanded_depthwise:
+                uid = conv_inst.result_ssa.lstrip("%").replace(".", "_")
+                dynamic_types = [
+                    "memref<?x?x?x?xf32>", "memref<?x?x?xf32>",
+                    "memref<?xf32>", "memref<?x?x?x?xf32>"]
+                cast_names = [f"%fixed_conv_{uid}_{j}" for j in range(4)]
+                lines = [
+                    f"{conv_inst.indent}{cast} = memref.cast {operand} : "
+                    f"{operand_type} to {dynamic_type}"
+                    for cast, operand, operand_type, dynamic_type in zip(
+                        cast_names, physical_operands, physical_types,
+                        dynamic_types)
+                ]
+                lines.append(
+                    f"{conv_inst.indent}kernel.launch @{entry.name}("
+                    f"{', '.join(cast_names)}) : "
+                    f"({', '.join(dynamic_types)}) -> ()")
+                custom_launch_line = "\n".join(lines)
+                replace_full_span = True
+                custom_edit_span = (
+                    init_inst.span[0], conv_inst.span[1] + tail.end())
+                operands = []
+                operand_types = []
+                binds = {}
+
         tensor_fixed_conv_symbols = {
             "cudnnConvolutionTranspose2D_f32_memref",
             "cudnnConvolutionTBC_f32_memref",
             "cudnnDepthwiseConvolution2D_f32_memref",
         }
-        if entry.name in tensor_fixed_conv_symbols:
+        if (entry.name in tensor_fixed_conv_symbols and
+                custom_launch_line is None):
             init_inst = instances[i]
             conv_inst = instances[i + 1]
             init_ins = _extract_ssa_names(init_inst.ins_part)
@@ -6026,16 +6430,37 @@ def rewrite_mlir(
                 "affine_map<(d0,d1,d2,d3)->(d2,d3)>",
                 "affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>",
             ]
-            legal = (
+            canonical_layout = (
                 n == 1
                 and len(kron_ins) == 2
                 and len(kron_outs) == 1
                 and kron_inst.result_ssa is not None
                 and maps == expected_maps
             )
+            # Joint multi-root debufferization can expand all three operands
+            # to the common rank-4 iteration space.  In that spelling the
+            # generic maps are identities and the meaningful Kronecker maps
+            # live on the three polygeist.submap producers instead.
+            expanded_views = (
+                [_tensor_submap_info(text, value, kron_inst.span[0])
+                 for value in kron_ins + kron_outs]
+                if (n == 1 and len(kron_ins) == 2 and len(kron_outs) == 1
+                    and kron_inst.result_ssa is not None
+                    and maps == [expected_maps[2]] * 3)
+                else []
+            )
+            expanded_layout = (
+                len(expanded_views) == 3
+                and all(view is not None for view in expanded_views)
+                and [_compact_affine_map(view["map"])
+                     for view in expanded_views[:2]] == expected_maps[:2]
+                and expanded_views[0]["sizes"] == expanded_views[1]["sizes"]
+                and expanded_views[0]["sizes"] == expanded_views[2]["sizes"]
+            )
+            legal = canonical_layout or expanded_layout
 
             slices: list[tuple[str, list[str]]] = []
-            if legal:
+            if legal and not expanded_layout:
                 prefix = text[:kron_inst.span[0]]
                 for value in kron_ins:
                     slice_match = re.search(
@@ -6058,7 +6483,13 @@ def rewrite_mlir(
 
             output_tensor = output_map_ref = None
             logical_sizes: list[str] = []
-            if legal:
+            prefix = text[:kron_inst.span[0]]
+            if legal and expanded_layout:
+                output_tensor = expanded_views[2]["source"]
+                logical_sizes = expanded_views[2]["sizes"]
+                output_map_ref = expanded_views[2]["map"]
+                legal = len(logical_sizes) == 4
+            elif legal:
                 output_match = re.search(
                     rf"^\s*{re.escape(kron_outs[0])}\s*=\s*"
                     rf"polygeist\.submap\s*\(\s*(%[\w_\-]+)\s*,\s*"
@@ -6067,7 +6498,7 @@ def rewrite_mlir(
                     re.MULTILINE,
                 )
                 legal = output_match is not None
-            if legal:
+            if legal and not expanded_layout:
                 output_tensor = output_match.group(1)
                 logical_sizes = [
                     part.strip() for part in output_match.group(2).split(",")
@@ -6078,7 +6509,18 @@ def rewrite_mlir(
             input_sources = []
             output_source = None
             size_values: list[int | None] = []
-            if legal:
+            if legal and expanded_layout:
+                input_sources = [
+                    _to_tensor_memref_source(
+                        text, view["source"], kron_inst.span[0])
+                    for view in expanded_views[:2]
+                ]
+                output_source = _to_tensor_memref_source(
+                    text, expanded_views[2]["source"], kron_inst.span[0])
+                legal = all(source is not None for source in input_sources) and (
+                    output_source is not None
+                )
+            elif legal:
                 input_sources = [
                     _to_tensor_memref_source(text, tensor, kron_inst.span[0])
                     for tensor, _ in slices
@@ -6105,10 +6547,16 @@ def rewrite_mlir(
                 physical_types = [
                     input_sources[0][1], input_sources[1][1], output_source[1]
                 ]
+                input_sizes_match = (
+                    expanded_views[0]["sizes"] == logical_sizes
+                    and expanded_views[1]["sizes"] == logical_sizes
+                    if expanded_layout else
+                    slices[0][1] == logical_sizes[:2]
+                    and slices[1][1] == logical_sizes[2:]
+                )
                 legal = (
                     all(value is not None and value > 0 for value in size_values)
-                    and slices[0][1] == logical_sizes[:2]
-                    and slices[1][1] == logical_sizes[2:]
+                    and input_sizes_match
                     and resolved_output_map == expected_output_map
                     and len(set(physical_operands)) == 3
                     and _plain_f32_memrefs(physical_types, [2, 2, 2])

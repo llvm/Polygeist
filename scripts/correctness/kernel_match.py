@@ -1262,16 +1262,18 @@ def _fixed_memref_convolution_contraction(
     )
 
 
-def _fixed_depthwise_convolution2d() -> CompositionEntry:
+def _fixed_depthwise_convolution2d(
+    parallel_dims: int = 3,
+) -> CompositionEntry:
     return CompositionEntry(
         name="cudnnDepthwiseConvolution2D_f32_memref",
         steps=[
             CompositionStep(
                 body=Term.In(0), num_ins=1, num_outs=1,
-                parallel_dim_count=3, reduction_dim_count=0),
+                parallel_dim_count=parallel_dims, reduction_dim_count=0),
             CompositionStep(
                 body=Term.Out(0), num_ins=2, num_outs=1,
-                parallel_dim_count=3, reduction_dim_count=2,
+                parallel_dim_count=parallel_dims, reduction_dim_count=2,
                 special="depthwise_conv2d_guarded"),
         ],
         form="tensor",
@@ -3854,9 +3856,13 @@ def composition_library() -> list[CompositionEntry]:
             "cudnnConvolutionTranspose2D_f32_memref", 5, 1,
             form="tensor", include_init=True),
         _fixed_memref_convolution_contraction(
+            "cudnnConvolutionTranspose2D_f32_memref", 6, 1,
+            form="tensor", include_init=True),
+        _fixed_memref_convolution_contraction(
             "cudnnConvolutionTBC_f32_memref", 3, 2,
             form="tensor", include_init=True),
         _fixed_depthwise_convolution2d(),
+        _fixed_depthwise_convolution2d(4),
         _aten_three_input_einsum(),
         _aten_gemv_transpose_zero_memref(),
         _aten_segmented_sum(),
@@ -5057,7 +5063,7 @@ def _is_depthwise_conv2d_guarded_body(g: GenericBody) -> bool:
     """
     if len(g.ins_arg_names) != 2 or len(g.outs_arg_names) != 1:
         return False
-    if g.iterator_types.count("parallel") != 3:
+    if g.iterator_types.count("parallel") not in (3, 4):
         return False
     if g.iterator_types.count("reduction") != 2:
         return False
