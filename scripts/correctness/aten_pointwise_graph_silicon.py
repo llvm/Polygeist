@@ -206,6 +206,11 @@ CASES = {
         {"N": 16_777_216},
         [ptr("x", "N"), ptr("out", "N-1", True)],
         "full forward adjacent difference via CUB"),
+    "aten_embedding_bag_counts_cpu": spec(
+        {"N": 16_777_216, "E": 65_536},
+        [iptr("index", "N", init="index65536"),
+         iptr("out", "E", True)],
+        "full bounded embedding-index histogram via CUB"),
     "aten_sparse_norm_cpu": spec(
         {"N": 16_777_216},
         [ptr("value", "N"), ptr("out", "1", True)],
@@ -819,7 +824,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
     supports_resident = ("via cuSPARSE" in cfg["coverage"] or
                          kernel in {"aten_quant_col_offsets_cpu",
-                                    "aten_diff_cpu"})
+                                    "aten_diff_cpu",
+                                    "aten_embedding_bag_counts_cpu"})
     if "via cuSPARSE" not in cfg["coverage"]:
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"

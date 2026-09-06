@@ -5474,13 +5474,29 @@ static LogicalResult lowerCubHistogramEvenI32ShiftZero(LaunchOp launch,
       !histogramType.getElementType().isInteger(32))
     return launch.emitError("CUB integer histogram requires i32 [N] buffers");
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  Value count;
+  Value bins;
+  if (auto fixed = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.fixed_extents")) {
+    if ((fixed.size() != 1 && fixed.size() != 2) || fixed[0] <= 0 ||
+        fixed[0] > INT32_MAX ||
+        (fixed.size() == 2 && (fixed[1] <= 0 || fixed[1] > INT32_MAX)))
+      return launch.emitError("fixed histogram extents must fit positive i32");
+    count = b.create<arith::ConstantIntOp>(loc, fixed[0], 32);
+    bins = fixed.size() == 2
+               ? b.create<arith::ConstantIntOp>(loc, fixed[1], 32)
+               : memrefDimAsI32(b, loc, histogram, 0);
+  } else {
+    count = memrefDimAsI32(b, loc, samples, 0);
+    bins = memrefDimAsI32(b, loc, histogram, 0);
+  }
   auto shim = ensureShimDecl(
       module, "polygeist_cub_histogram_even_i32_shift_zero",
       {b.getI32Type(), b.getI32Type(), ptr, ptr, b.getI32Type()}, b);
   b.create<func::CallOp>(
       loc, shim,
-      ValueRange{memrefDimAsI32(b, loc, samples, 0),
-                 memrefDimAsI32(b, loc, histogram, 0),
+      ValueRange{count,
+                 bins,
                  memrefDataPtr(b, loc, samples),
                  memrefDataPtr(b, loc, histogram), launch.getOperand(2)});
   launch.erase();

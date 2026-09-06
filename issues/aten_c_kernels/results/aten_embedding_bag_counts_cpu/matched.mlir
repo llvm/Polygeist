@@ -4,21 +4,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
     %c0_i32 = arith.constant 0 : i32
     %c1_i32 = arith.constant 1 : i32
     %0 = bufferization.to_tensor %arg1 : memref<?xi32>
-    %1 = bufferization.to_tensor %arg0 : memref<?xi32>
-    %2 = linalg.generic {doc = "", indexing_maps = [#map], iterator_types = ["parallel"], library_call = ""} outs(%0 : tensor<?xi32>) {
-    ^bb0(%out: i32):
-      linalg.yield %c0_i32 : i32
-    } -> tensor<?xi32>
-    %3 = affine.for %arg2 = 0 to 512 iter_args(%arg3 = %2) -> (tensor<?xi32>) {
-      %extracted = tensor.extract %1[%arg2] : tensor<?xi32>
-      %5 = arith.index_cast %extracted : i32 to index
-      %extracted_0 = tensor.extract %arg3[%5] : tensor<?xi32>
-      %6 = arith.addi %extracted_0, %c1_i32 : i32
-      %inserted = tensor.insert %6 into %arg3[%5] : tensor<?xi32>
-      affine.yield %inserted : tensor<?xi32>
-    }
-    %4 = bufferization.to_memref %3 : memref<?xi32>
-    memref.copy %4, %arg1 : memref<?xi32> to memref<?xi32>
+    %histogram_shift_1670 = arith.constant 0 : i32
+    kernel.launch @cubHistogramEvenI32ShiftZero_memref(%arg0, %arg1, %histogram_shift_1670) {polygeist.fixed_extents = array<i64: 512>} : (memref<?xi32>, memref<?xi32>, i32) -> ()
     return
   }
 }

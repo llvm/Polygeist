@@ -6454,7 +6454,165 @@ def _render_zeroed_i32_histograms(
     """
     loops = parse_loops(text)
     generics = collect_generics_with_spans(text)
+    generic_bodies = parse_generics(text, parse_constants(text))
     results: list[tuple[list[tuple[int, int, str]], str]] = []
+
+    # Joint-root debufferization represents ATen embedding-bag counts as a
+    # zeroing generic followed by a tensor-carried indirect increment loop.
+    # Recognize that complete composition before the legacy memref form below.
+    for count_loop in loops:
+        if count_loop.kind != "affine.for":
+            continue
+        function_start = text.rfind("func.func", 0, count_loop.span[0])
+        function_header = text[function_start:text.find("\n", function_start)]
+        signature = re.search(
+            r"@aten_embedding_bag_counts_cpu\s*\(\s*"
+            r"(%[\w.$-]+)\s*:\s*memref<\?xi32>\s*,\s*"
+            r"(%[\w.$-]+)\s*:\s*memref<\?xi32>\s*\)", function_header)
+        bound = re.fullmatch(
+            r"0 to (\d+)\s+iter_args\([^\)]*\)\s*->\s*"
+            r"\(tensor<\?xi32>\)", count_loop.bounds)
+        if signature is None or bound is None or int(bound.group(1)) <= 0:
+            continue
+        samples, histogram = signature.groups()
+        count = int(bound.group(1))
+        prefix = text[function_start:count_loop.span[0]]
+        sample_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(samples)}\s*:\s*memref<\?xi32>", prefix)
+        histogram_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(histogram)}\s*:\s*memref<\?xi32>", prefix)
+        header = re.match(
+            rf"affine\.for\s+{re.escape(count_loop.induction)}\s*=\s*"
+            rf"0\s+to\s+{count}\s+iter_args\("
+            r"(%[\w.$-]+)\s*=\s*(%[\w.$-]+)\)\s*->\s*"
+            r"\(tensor<\?xi32>\)",
+            text[count_loop.span[0]:])
+        if sample_tensor is None or histogram_tensor is None or header is None:
+            continue
+        carried, loop_initial = header.groups()
+        zero_result = loop_initial
+        inverse = re.search(
+            rf"{re.escape(loop_initial)}\s*=\s*"
+            rf"polygeist\.submapInverse\("
+            rf"{re.escape(histogram_tensor.group(1))},\s*"
+            r"(%[\w.$-]+),\s*(%[\w.$-]+)\)\s*"
+            r"[{]map\s*=\s*([^}]+)[}]", prefix)
+        bin_extent_ssa = None
+        if inverse:
+            zero_result = inverse.group(1)
+            bin_extent_ssa = inverse.group(2)
+            if (_compact_affine_map(_resolve_affine_map_text(
+                    text[:count_loop.span[0]], inverse.group(3).strip())) !=
+                    "affine_map<(d0)->(d0)>"):
+                continue
+        zero_index = next((index for index, generic in enumerate(generics)
+                           if generic.result_ssa == zero_result and
+                           generic.span[1] < count_loop.span[0]), None)
+        if zero_index is None or zero_index >= len(generic_bodies):
+            continue
+        zero_generic = generics[zero_index]
+        zero_body = generic_bodies[zero_index]
+        zero_outs = _extract_ssa_names(zero_generic.outs_part)
+        constants = parse_constants(text[:zero_generic.span[0]])
+        zero_output_is_complete = zero_outs == [histogram_tensor.group(1)]
+        if not zero_output_is_complete and len(zero_outs) == 1:
+            zero_view = re.search(
+                rf"{re.escape(zero_outs[0])}\s*=\s*polygeist\.submap\("
+                rf"{re.escape(histogram_tensor.group(1))},\s*"
+                r"(%[\w.$-]+)\)\s*[{]map\s*=\s*([^}]+)[}]", prefix)
+            if (zero_view and
+                    _compact_affine_map(_resolve_affine_map_text(
+                        text[:zero_generic.span[0]],
+                        zero_view.group(2).strip())) ==
+                    "affine_map<(d0)->(d0)>" and
+                    (bin_extent_ssa is None or
+                     bin_extent_ssa == zero_view.group(1))):
+                zero_output_is_complete = True
+                bin_extent_ssa = zero_view.group(1)
+        if (not zero_output_is_complete or
+                _extract_ssa_names(zero_generic.ins_part) or
+                zero_body.iterator_types != ["parallel"] or
+                len(zero_body.yield_values) != 1 or
+                constants.get(zero_body.yield_values[0]) != 0.0):
+            continue
+
+        loop_text = text[count_loop.span[0]:count_loop.span[1]]
+        iv = re.escape(count_loop.induction)
+        sample = re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"{re.escape(sample_tensor.group(1))}\[{iv}\]\s*:\s*"
+            r"tensor<\?xi32>", loop_text)
+        bin_index = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(sample.group(1))}\s*:\s*i32\s+to\s+index",
+            loop_text) if sample else None)
+        old = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.extract\s+"
+            rf"{re.escape(carried)}\[{re.escape(bin_index.group(1))}\]"
+            r"\s*:\s*tensor<\?xi32>", loop_text) if bin_index else None)
+        add = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.addi\s+"
+            rf"{re.escape(old.group(1))},\s*(%[\w.$-]+)\s*:\s*i32",
+            loop_text) if old else None)
+        one = add.group(2) if add else None
+        inserted = (re.search(
+            rf"(%[\w.$-]+)\s*=\s*tensor\.insert\s+"
+            rf"{re.escape(add.group(1))}\s+into\s+{re.escape(carried)}"
+            rf"\[{re.escape(bin_index.group(1))}\]\s*:\s*tensor<\?xi32>",
+            loop_text) if add else None)
+        if (inserted is None or one is None or not re.search(
+                rf"{re.escape(one)}\s*=\s*arith\.constant\s+1\s*:\s*i32",
+                prefix) or not re.search(
+                    rf"affine\.yield\s+{re.escape(inserted.group(1))}\s*:\s*"
+                    r"tensor<\?xi32>", loop_text)):
+            continue
+        writes = re.findall(r"tensor\.insert\b", loop_text)
+        if len(writes) != 1:
+            continue
+
+        function_line_end = text.find("\n", function_start)
+        function_opening = text.rfind("{", function_start, function_line_end)
+        function_end = _matching_brace(text, function_opening)
+        if function_end is None:
+            continue
+        tail = text[count_loop.span[1]:function_end]
+        loop_line_start = text.rfind("\n", 0, count_loop.span[0]) + 1
+        loop_result_match = re.search(
+            r"(%[\w.$-]+)\s*=\s*$",
+            text[loop_line_start:count_loop.span[0]])
+        to_memref = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(loop_result_match.group(1))}\s*:\s*"
+            r"memref<\?xi32>", tail) if loop_result_match else None
+        copy = (re.search(
+            rf"memref\.copy\s+{re.escape(to_memref.group(1))},\s*"
+            rf"{re.escape(histogram)}\s*:\s*memref<\?xi32>\s+to\s+"
+            r"memref<\?xi32>", tail) if to_memref else None)
+        if copy is None:
+            continue
+        bin_count = None
+        if bin_extent_ssa is not None:
+            value = constants.get(bin_extent_ssa)
+            if (value is None or int(value) != value or value <= 0 or
+                    value > 2147483647):
+                continue
+            bin_count = int(value)
+        start = text.rfind("\n", 0, zero_generic.span[0]) + 1
+        indent = re.match(r"\s*", text[start:zero_generic.span[0]]).group(0)
+        zero_shift = f"%histogram_shift_{count_loop.span[0]}"
+        fixed_extents = (f"{count}, {bin_count}" if bin_count is not None
+                         else f"{count}")
+        replacement = (
+            f"{indent}{zero_shift} = arith.constant 0 : i32\n"
+            f"{indent}kernel.launch @cubHistogramEvenI32ShiftZero_memref("
+            f"{samples}, {histogram}, {zero_shift}) "
+            f"{{polygeist.fixed_extents = array<i64: {fixed_extents}>}} : "
+            f"(memref<?xi32>, memref<?xi32>, i32) -> ()")
+        results.append(([(start, count_loop.span[1] + copy.end(), replacement)],
+                        "cubHistogramEvenI32ShiftZero_memref"))
+
     for count_loop in loops:
         count_body = text[count_loop.span[0]:count_loop.span[1]]
         # Replacing the entire loop is valid only for a pure histogram update.

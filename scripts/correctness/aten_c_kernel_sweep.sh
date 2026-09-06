@@ -74,6 +74,7 @@ for src in "${sources[@]}"; do
   fi
 
   if ! timeout 10 "$MATCH_PYTHON" "$MATCHER" "$dir/debuf.mlir" \
+      --enable-structured-rewrite \
       >"$dir/matched.mlir" 2>"$dir/match.err"; then
     printf '%s\tmatch_failed\t0\t0\t0\t-\n' "$fn" | tee -a "$OUT/summary.tsv"
     continue

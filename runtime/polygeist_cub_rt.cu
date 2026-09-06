@@ -16,6 +16,8 @@ struct ArithmeticRightShiftI32 {
   }
 };
 
+static bool cub_device_pointer(const void *pointer, void **device_pointer);
+
 extern "C" int polygeist_cub_histogram_even_i32_shift_zero_cuda(
     int32_t count, int32_t num_bins, const int32_t *host_samples,
     int32_t *host_histogram, int32_t right_shift, cudaStream_t stream) {
@@ -25,15 +27,28 @@ extern "C" int polygeist_cub_histogram_even_i32_shift_zero_cuda(
   int32_t *samples = nullptr;
   int32_t *histogram = nullptr;
   void *temporary = nullptr;
+  void *resident = nullptr;
   size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&samples, (size_t)count * sizeof(int32_t));
-  if (status != cudaSuccess) return static_cast<int>(status);
-  status = cudaMalloc(&histogram, (size_t)num_bins * sizeof(int32_t));
-  if (status != cudaSuccess) goto cleanup;
-  status = cudaMemcpyAsync(samples, host_samples,
-                           (size_t)count * sizeof(int32_t),
-                           cudaMemcpyHostToDevice, stream);
-  if (status != cudaSuccess) goto cleanup;
+  bool owns_samples = !cub_device_pointer(host_samples, &resident);
+  bool owns_histogram = false;
+  cudaError_t status = cudaSuccess;
+  if (owns_samples) {
+    status = cudaMalloc(&samples, (size_t)count * sizeof(int32_t));
+    if (status != cudaSuccess) return static_cast<int>(status);
+    status = cudaMemcpyAsync(samples, host_samples,
+                             (size_t)count * sizeof(int32_t),
+                             cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) goto cleanup;
+  } else {
+    samples = static_cast<int32_t *>(resident);
+  }
+  owns_histogram = !cub_device_pointer(host_histogram, &resident);
+  if (owns_histogram) {
+    status = cudaMalloc(&histogram, (size_t)num_bins * sizeof(int32_t));
+    if (status != cudaSuccess) goto cleanup;
+  } else {
+    histogram = static_cast<int32_t *>(resident);
+  }
   {
     cub::TransformInputIterator<int32_t, ArithmeticRightShiftI32,
                                 const int32_t *> bins(
@@ -53,15 +68,15 @@ extern "C" int polygeist_cub_histogram_even_i32_shift_zero_cuda(
         temporary, temporary_bytes, bins, histogram,
         num_bins + 1, 0, num_bins, count, stream);
   }
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && owns_histogram)
     status = cudaMemcpyAsync(host_histogram, histogram,
                              (size_t)num_bins * sizeof(int32_t),
                              cudaMemcpyDeviceToHost, stream);
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
 cleanup:
   cudaFree(temporary);
-  cudaFree(histogram);
-  cudaFree(samples);
+  if (owns_histogram) cudaFree(histogram);
+  if (owns_samples) cudaFree(samples);
   return static_cast<int>(status);
 }
 

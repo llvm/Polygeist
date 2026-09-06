@@ -360,6 +360,10 @@ def classify(name: str, source: str, token: str) -> dict[str, str]:
         return result("indexed_data_movement", "CUB", "DeviceSelect/sort building blocks",
                       "PARTIAL_API", "selection_or_sort_stage",
                       "CUB does not expose a complete arbitrary gather/scatter tensor call")
+    if n == "embedding_bag_counts_cpu":
+        return result("histogram_count", "CUB", "DeviceHistogram",
+                      "FULL_GENERIC_API", "whole",
+                      "bounded embedding IDs form a dense integer histogram")
     if hit(r"segment_reduce|segmented|embedding_bag", n):
         return result("segmented_reduction", "CUB", "DeviceSegmentedReduce",
                       "FULL_GENERIC_API", "whole",
@@ -477,6 +481,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
     if library == "CUB" and name in {
         "aten_and_reduce_cpu", "aten_count_nonzero_impl_cpu",
         "aten_quant_col_offsets_cpu", "aten_diff_cpu",
+        "aten_embedding_bag_counts_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and "graph" in audit["candidate_api"].lower():
