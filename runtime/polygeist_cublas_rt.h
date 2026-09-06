@@ -369,6 +369,16 @@ void polygeist_cudnn_conv3d_ntap_f32(
     int32_t K,
     const float *W, const float *A, float *B);
 
+void polygeist_cudnn_stencil3d_symmetric_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t strideD, int32_t strideH, int32_t strideW,
+    int32_t inOffD, int32_t inOffH, int32_t inOffW,
+    int32_t outOffD, int32_t outOffH, int32_t outOffW,
+    double center, double face, double edge, double corner,
+    double alpha, double beta,
+    const double *input, const double *addend, double *output);
+
 void polygeist_cudnn_stencil3d_7pt_f32_flat(
     const float *A, float *B, float center_scale, float neighbor_scale,
     int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z);

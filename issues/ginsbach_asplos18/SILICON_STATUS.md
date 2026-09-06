@@ -25,10 +25,10 @@ reports:
 - 103 frontend successes
 - 103 successful raising pipelines
 - 677 raised `linalg.generic` operations
-- 25 executable external/platform launch sites (18 computational; 7
+- 28 executable external/platform launch sites (21 computational; 7
   memory-initialization sites excluded from the compute comparison)
 
-The twenty-four launch sites are:
+The twenty-eight launch sites are:
 
 - NPB BT: 6 `memset_zero_2D` launches lowered to CUDA runtime memset, plus
   rerolled `matvec_sub`/`matmul_sub` matches lowered to cuBLAS GEMV/GEMM with
@@ -36,6 +36,9 @@ The twenty-four launch sites are:
 - NPB CG: 4 `cusparseSpMV_CSR_f64_memref` launches lowered to cuSPARSE
 - NPB IS: 6 `cubHistogramEvenI32ShiftZero_memref` launches lowered to CUB
 - NPB LU: 1 `memset_zero_1D` launch lowered to CUDA runtime memset
+- NPB MG: 3 factorized symmetric 3D stencil regions (`resid`, `rprj3`, and
+  `psinv`) lowered to cuDNN convolution with operation-specific coefficients,
+  strides, offsets, and alpha/beta epilogues
 - NPB UA: 3 `cublasDaxpby` launches lowered to `cublasDscal` + `cublasDaxpy`
 - NPB UA: 14 scalar-alias dot products are recognized, but the profitability
   guard leaves these statically tiny length-5 operations in Linalg
@@ -118,6 +121,25 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   `scripts/correctness/logs/ginsbach_cublas_daxpby_timed_20260905_120653.silicon.log`
   and
   `scripts/correctness/logs/ginsbach_cublas_ddot_timed_20260905_120701.silicon.log`.
+- NPB MG's three factorized stencil forms pass an exact external-cuDNN ABI
+  smoke, and each source function was separately substituted into the complete
+  original Class S application. More importantly, one binary containing all
+  three raised replacements passes NASA verification in 3/3 Orin runs. Its
+  median benchmark time is `0.25 s` and median process time is `0.646 s`.
+  The same-source CPU baseline also verifies 3/3 and has a median process time
+  of `0.008 s`; its benchmark time is below NPB's two-decimal resolution. Thus
+  this transfer-heavy Class-S GPU composition is about `80.8x` slower end to
+  end; correctness and coverage are the result, not a speedup.
+  Logs:
+  `scripts/correctness/logs/cudnn_mg_stencil_external_20260905_234257.silicon.log`,
+  `scripts/correctness/logs/npb_mg_class_s_resid_cudnn_20260905_235255.silicon.log`,
+  `scripts/correctness/logs/npb_mg_class_s_psinv_cudnn_20260905_235327.silicon.log`,
+  and
+  `scripts/correctness/logs/npb_mg_class_s_rprj3_cudnn_20260905_235336.silicon.log`.
+  Combined and CPU-baseline logs:
+  `scripts/correctness/logs/npb_mg_class_s_all_cudnn_20260905_235659.silicon.log`
+  and
+  `scripts/correctness/logs/npb_mg_class_s_cpu_current_20260905_235715.silicon.log`.
 
 ## Unmatched external-library opportunities
 
@@ -129,8 +151,11 @@ matcher emission, ABI lowering, and custom-lowering tests were deleted.
   `convect.c`, five in `transfer.c`), but their statically proven length-5
   workloads are intentionally not dispatched as individual cuBLAS calls.
   The three DAXPBY sites verify in the official application composition.
-- NPB MG residual/smoother: detected stencil structure; needs a composition of
-  permitted external operations or remains unmatched.
+- NPB MG residual/smoother/restriction: fixed. Egglog proves the three-stage
+  raised regions as factorized linear stencils, and the renderer emits an
+  ordinary cuDNN 3D convolution ABI. All three replacements compose and verify
+  in one application. The next MG task is device-resident multigrid storage
+  and call fusion to remove the dominant per-stage transfers.
 - Parboil stencil: the original application passes on a deterministic
   128x128x128 grid for five iterations. Cached cuDNN descriptors, algorithm,
   workspace, and buffers reduce median compute time to `0.289735 s`, versus
@@ -233,9 +258,9 @@ The authoritative generated audit for this round is
   raising pipeline. There are no remaining corpus-wide frontend/raising
   failures in this audit.
 - External-library gaps after raising: non-dot reductions and saturating or
-  general indirect histograms, MG's
-  factorized 3D residual stages, FT's residual FFT loop nests, JDS SpMV, LBM's
-  residual loop bodies, and full-application composition/validation.
+  general indirect histograms, FT's residual FFT loop nests, LBM's residual
+  loop bodies, and remaining full-application composition/validation. MG's
+  three factorized 3D stages and Parboil JDS SpMV now have external routes.
 
 ## Dense solver validation
 

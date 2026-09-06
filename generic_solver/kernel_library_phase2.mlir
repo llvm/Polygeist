@@ -2174,6 +2174,25 @@ module {
     kernel.yield %C : tensor<?x?x?xf32>
   }
 
+  // Symmetric 27-point FP64 stencil over flattened 3-D storage.  The four
+  // coefficients describe center, six faces, twelve edges, and eight corners.
+  // cuDNN performs alpha*conv(input, weights) + beta*addend; the adapter may
+  // copy a distinct addend into output before the library call.  Explicit
+  // strides and offsets cover both same-grid MG updates and stride-2 grid
+  // restriction without a project-authored computational kernel.
+  kernel.defn @cudnnStencil3DSymmetric_f64_memref(
+      %input: memref<?x?xf64>, %addend: memref<?x?xf64>,
+      %output: memref<?x?xf64>,
+      %center: f64, %face: f64, %edge: f64, %corner: f64,
+      %alpha: f64, %beta: f64,
+      %inD: i32, %inH: i32, %inW: i32,
+      %outD: i32, %outH: i32, %outW: i32,
+      %strideD: i32, %strideH: i32, %strideW: i32,
+      %inOffD: i32, %inOffH: i32, %inOffW: i32,
+      %outOffD: i32, %outOffH: i32, %outOffW: i32) {
+    kernel.yield
+  }
+
   // Flattened dense-grid form of the standard 3D seven-point axial stencil.
   // The adapter materializes the sparse 3x3x3 filter and dispatches cuDNN;
   // it does not implement the stencil arithmetic itself.

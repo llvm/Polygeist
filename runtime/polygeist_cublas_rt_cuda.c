@@ -4292,6 +4292,136 @@ void polygeist_cudnn_conv3d_ntap_f32(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
+void polygeist_cudnn_stencil3d_symmetric_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t strideD, int32_t strideH, int32_t strideW,
+    int32_t inOffD, int32_t inOffH, int32_t inOffW,
+    int32_t outOffD, int32_t outOffH, int32_t outOffW,
+    double center, double face, double edge, double corner,
+    double alpha, double beta,
+    const double *input, const double *addend, double *output) {
+  const int32_t convD = outD - 2 * outOffD;
+  const int32_t convH = outH - 2 * outOffH;
+  const int32_t convW = outW - 2 * outOffW;
+  const int32_t usedD = (convD - 1) * strideD + 3;
+  const int32_t usedH = (convH - 1) * strideH + 3;
+  const int32_t usedW = (convW - 1) * strideW + 3;
+  if (inD <= 0 || inH <= 0 || inW <= 0 || convD <= 0 || convH <= 0 ||
+      convW <= 0 || strideD <= 0 || strideH <= 0 || strideW <= 0 ||
+      inOffD < 0 || inOffH < 0 || inOffW < 0 || outOffD < 0 ||
+      outOffH < 0 || outOffW < 0 || inOffD + usedD > inD ||
+      inOffH + usedH > inH || inOffW + usedW > inW) {
+    fprintf(stderr, "cuDNN symmetric stencil3d: invalid dimensions\n");
+    abort();
+  }
+
+  double weights[27];
+  for (int dz = 0; dz < 3; ++dz)
+    for (int dy = 0; dy < 3; ++dy)
+      for (int dx = 0; dx < 3; ++dx) {
+        const int distance = (dz != 1) + (dy != 1) + (dx != 1);
+        weights[(dz * 3 + dy) * 3 + dx] =
+            distance == 0 ? center : distance == 1 ? face
+                                : distance == 2   ? edge
+                                                  : corner;
+      }
+
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  size_t input_bytes =
+      (size_t)inD * (size_t)inH * (size_t)inW * sizeof(double);
+  size_t output_bytes =
+      (size_t)outD * (size_t)outH * (size_t)outW * sizeof(double);
+  void *hosts[3] = {(void *)input, (void *)addend, output};
+  size_t sizes[3] = {input_bytes, output_bytes, output_bytes};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dInput = (double *)devices[0];
+  double *dAddend = (double *)devices[1];
+  double *dOutput = (double *)devices[2];
+  if (addend != output)
+    CUDA_CHECK(cudaMemcpyAsync(dOutput, dAddend, output_bytes,
+                               cudaMemcpyDeviceToDevice, g_stream));
+
+  double *dWeights = NULL;
+  DEVICE_MALLOC((void **)&dWeights, sizeof(weights));
+  CUDA_CHECK(cudaMemcpyAsync(dWeights, weights, sizeof(weights),
+                             cudaMemcpyHostToDevice, g_stream));
+
+  cudnnTensorDescriptor_t inputDesc, outputDesc;
+  cudnnFilterDescriptor_t filterDesc;
+  cudnnConvolutionDescriptor_t convDesc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+
+  int inputDims[5] = {1, 1, usedD, usedH, usedW};
+  int inputStrides[5] = {inD * inH * inW, inD * inH * inW,
+                         inH * inW, inW, 1};
+  int outputDims[5] = {1, 1, convD, convH, convW};
+  int outputStrides[5] = {outD * outH * outW, outD * outH * outW,
+                          outH * outW, outW, 1};
+  int filterDims[5] = {1, 1, 3, 3, 3};
+  int pad[3] = {0, 0, 0};
+  int stride[3] = {strideD, strideH, strideW};
+  int dilation[3] = {1, 1, 1};
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      inputDesc, CUDNN_DATA_DOUBLE, 5, inputDims, inputStrides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      outputDesc, CUDNN_DATA_DOUBLE, 5, outputDims, outputStrides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      filterDesc, CUDNN_DATA_DOUBLE, CUDNN_TENSOR_NCHW, 5, filterDims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      convDesc, 3, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
+      CUDNN_DATA_DOUBLE));
+
+  cudnnConvolutionFwdAlgoPerf_t perf;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
+      &perf));
+  if (returned < 1) {
+    fprintf(stderr, "cuDNN symmetric stencil3d: no algorithm available\n");
+    abort();
+  }
+  size_t workspaceSize = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, perf.algo,
+      &workspaceSize));
+  void *workspace = NULL;
+  if (workspaceSize)
+    DEVICE_MALLOC(&workspace, workspaceSize);
+
+  size_t inputOffset =
+      ((size_t)inOffD * (size_t)inH + (size_t)inOffH) * (size_t)inW +
+      (size_t)inOffW;
+  size_t outputOffset =
+      ((size_t)outOffD * (size_t)outH + (size_t)outOffH) * (size_t)outW +
+      (size_t)outOffW;
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, inputDesc, dInput + inputOffset, filterDesc, dWeights,
+      convDesc, perf.algo, workspace, workspaceSize, &beta, outputDesc,
+      dOutput + outputOffset));
+  timing_gpu_end("cudnnStencil3DSymmetric_f64", convD, convH, convW,
+                 host_start_ms);
+
+  if (workspace)
+    DEVICE_FREE(workspace);
+  DEVICE_FREE(dWeights);
+  cudnnDestroyTensorDescriptor(inputDesc);
+  cudnnDestroyTensorDescriptor(outputDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);
+  cudnnDestroyConvolutionDescriptor(convDesc);
+  unregister_host_safe((void *)input);
+  unregister_host_safe((void *)addend);
+  unregister_host_safe(output);
+}
+
 /* External-library implementation of a flattened 3D seven-point stencil.
  * The adapter only builds the sparse 3x3x3 filter and descriptors; cuDNN
  * performs all arithmetic. cudaMemcpy3D writes the compact valid-convolution

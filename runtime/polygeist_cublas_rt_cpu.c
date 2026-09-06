@@ -860,6 +860,28 @@ void polygeist_cudnn_conv3d_ntap_f32(
   }
 }
 
+void polygeist_cudnn_stencil3d_symmetric_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t strideD, int32_t strideH, int32_t strideW,
+    int32_t inOffD, int32_t inOffH, int32_t inOffW,
+    int32_t outOffD, int32_t outOffH, int32_t outOffW,
+    double center, double face, double edge, double corner,
+    double alpha, double beta,
+    const double *input, const double *addend, double *output) {
+  (void)inD; (void)inH; (void)inW;
+  (void)outD; (void)outH; (void)outW;
+  (void)strideD; (void)strideH; (void)strideW;
+  (void)inOffD; (void)inOffH; (void)inOffW;
+  (void)outOffD; (void)outOffH; (void)outOffW;
+  (void)center; (void)face; (void)edge; (void)corner;
+  (void)alpha; (void)beta;
+  (void)input; (void)addend; (void)output;
+  fprintf(stderr,
+          "cudnnStencil3DSymmetric_f64 requires the CUDA/cuDNN runtime\n");
+  abort();
+}
+
 void polygeist_cufft_z2z_1d(
     int32_t N, int32_t inverse, const double *A, double *B) {
   if (N <= 0) return;

@@ -214,6 +214,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv3d_ntap_f64";
   if (libSym == "cudnnConvolution3D_ntap_f32_tensor")
     return "polygeist_cudnn_conv3d_ntap_f32";
+  if (libSym == "cudnnStencil3DSymmetric_f64_memref")
+    return "polygeist_cudnn_stencil3d_symmetric_f64";
   if (libSym == "cudnnStencil3D7pt_f32_flat_tensor")
     return "polygeist_cudnn_stencil3d_7pt_f32_flat";
   if (libSym == "cudnnConvolution3D_f32" ||
@@ -1619,6 +1621,60 @@ static LogicalResult lowerCudnnConv3DNtapTensor(LaunchOp launch,
       memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
   Value updatedBase = tensorForSliceSource(b, loc, C);
   rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerCudnnStencil3DSymmetricF64(LaunchOp launch,
+                                                      ModuleOp module) {
+  if (launch.getNumOperands() != 24 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "cudnnStencil3DSymmetric_f64_memref: expected three memrefs, six "
+        "f64 scalars, fifteen i32 dimensions and no result");
+  for (unsigned i = 0; i < 3; ++i) {
+    auto type = dyn_cast<MemRefType>(launch.getOperand(i).getType());
+    if (!type || !type.getElementType().isF64())
+      return launch.emitError(
+          "cudnnStencil3DSymmetric_f64_memref: operands 0..2 must be f64 "
+          "memrefs");
+  }
+  for (unsigned i = 3; i < 9; ++i)
+    if (!launch.getOperand(i).getType().isF64())
+      return launch.emitError(
+          "cudnnStencil3DSymmetric_f64_memref: operands 3..8 must be f64");
+  for (unsigned i = 9; i < 24; ++i)
+    if (!launch.getOperand(i).getType().isInteger(32))
+      return launch.emitError(
+          "cudnnStencil3DSymmetric_f64_memref: dimensions must be i32");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Value> args;
+  SmallVector<Type> types;
+  for (unsigned i = 9; i < 24; ++i) {
+    args.push_back(launch.getOperand(i));
+    types.push_back(b.getI32Type());
+  }
+  for (unsigned i = 3; i < 9; ++i) {
+    args.push_back(launch.getOperand(i));
+    types.push_back(b.getF64Type());
+  }
+  for (unsigned i = 0; i < 3; ++i) {
+    Value memref = launch.getOperand(i);
+    // MG recovers its dynamic 3-D view from an erased C pointer.  That source
+    // pointer already denotes logical element zero; keeping it avoids
+    // inventing unavailable dynamic memref metadata at the C ABI boundary.
+    if (auto fromPointer =
+            memref.getDefiningOp<polygeist::Pointer2MemrefOp>())
+      args.push_back(fromPointer.getSource());
+    else
+      args.push_back(memrefDataPtr(b, loc, memref));
+    types.push_back(ptrTy);
+  }
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_stencil3d_symmetric_f64", types, b);
+  b.create<func::CallOp>(loc, shim, args);
   launch.erase();
   return success();
 }
@@ -7341,6 +7397,8 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution3D_ntap_tensor" ||
                  libSym == "cudnnConvolution3D_ntap_f32_tensor") {
         r = lowerCudnnConv3DNtapTensor(launch, module, shim);
+      } else if (libSym == "cudnnStencil3DSymmetric_f64_memref") {
+        r = lowerCudnnStencil3DSymmetricF64(launch, module);
       } else if (libSym == "cudnnStencil3D7pt_f32_flat_tensor") {
         r = lowerCudnnStencil3D7ptFlat(launch, module, shim);
       } else if (libSym == "cudnnConvolution3D_f32" ||

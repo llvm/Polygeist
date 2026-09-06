@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
@@ -71,12 +72,15 @@ struct SelectFuncPass
     // reference. Previously this pass erased declarations such as `@logf`
     // while leaving calls in the selected function, producing invalid IR.
     llvm::SmallPtrSet<Operation *, 16> keep;
+    llvm::SmallPtrSet<Operation *, 16> roots;
     SmallVector<Operation *> worklist;
     for (Operation &op : module.getBody()->getOperations()) {
       auto symbolOp = dyn_cast<SymbolOpInterface>(&op);
       if (symbolOp && llvm::is_contained(funcNames, symbolOp.getName()) &&
-          keep.insert(&op).second)
+          keep.insert(&op).second) {
+        roots.insert(&op);
         worklist.push_back(&op);
+      }
     }
     while (!worklist.empty()) {
       Operation *op = worklist.pop_back_val();
@@ -111,6 +115,22 @@ struct SelectFuncPass
       op->erase();
     }
 
+    // A separately compiled harness can provide the transitive C helpers used
+    // by the selected function.  In that mode retain their declarations (and
+    // therefore the calls' exact ABI) without compiling unrelated bodies.
+    // This is especially important when one of those bodies contains IR that
+    // is outside the lowering scope of the selected function.
+    if (externalizeDependencies) {
+      for (Operation *op : keep) {
+        if (roots.contains(op))
+          continue;
+        if (auto func = dyn_cast<func::FuncOp>(op); func && !func.isDeclaration()) {
+          func.eraseBody();
+          func.setPrivate();
+        }
+      }
+    }
+
     // If pipeline is specified, run it on the filtered module
     if (!pipeline.empty()) {
       LLVM_DEBUG(llvm::dbgs() << "Running pipeline on filtered functions\n");
@@ -137,6 +157,11 @@ struct SelectFuncPass
   ListOption<std::string> funcNames{
       *this, "func-name",
       llvm::cl::desc("Function names to keep (if empty, keep all)")};
+
+  Option<bool> externalizeDependencies{
+      *this, "externalize-dependencies",
+      llvm::cl::desc("Keep transitive function dependencies as declarations"),
+      llvm::cl::init(false)};
 };
 
 } // namespace

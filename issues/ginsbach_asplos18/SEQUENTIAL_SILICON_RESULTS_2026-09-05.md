@@ -177,6 +177,12 @@ Evidence:
 
 ## Consolidated outcome
 
+- NPB MG now has three external cuDNN matches. The exact ABI smoke passes all
+  three semantics, and one original Class S application binary containing all
+  three raised replacements passes NASA verification in 3/3 runs. Median
+  benchmark time is `0.25 s`; median process time is `0.646 s`, versus `0.008
+  s` for the same-source CPU baseline (`80.8x` slower end to end). Per-stage
+  transfers dominate this deliberately small class.
 - Full application correctness and useful speedup: Parboil SGEMM (`3.90x`
   compute, `1.99x` including I/O on the deterministic 512 input).
 - Full application correctness but slower: Parboil stencil (`1.15x` slower

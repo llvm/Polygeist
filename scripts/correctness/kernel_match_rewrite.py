@@ -123,6 +123,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnConvolution2D_ntap_f32_tensor",
     "cudnnConvolution3D_ntap_tensor",
     "cudnnConvolution3D_ntap_f32_tensor",
+    "cudnnStencil3DSymmetric_f64_memref",
     "cudnnStencil3D7pt_f32_flat_tensor",
     "cudnnConvolution3D_f32",
     "cudnnConvolution3D_f32_bias",
@@ -4509,6 +4510,182 @@ def _render_looped_blas_as_strided_batched(
     return loop.span[0], loop.span[1], replacement
 
 
+def _render_symmetric_stencil3d(structured, text: str):
+    """Lower an Egglog-proved MG stencil composition to general cuDNN.
+
+    The proof establishes that two temporary four-neighbor sums and their
+    consumer are one linear 3-D stencil.  This renderer recovers the symmetric
+    27-point coefficients and grid geometry.  It deliberately accepts only
+    the three exact semantic forms present in NPB MG: residual, smoother, and
+    stride-2 restriction.
+    """
+    if (structured.extracted_kind != "factorized_linear_stencil3d" or
+            structured.fused is None or
+            len(structured.region.operations) != 3):
+        return None
+    first, second, final = structured.region.operations
+    if (len(first.loops) != 2 or first.loops != second.loops or
+            first.loops != final.loops or
+            first.input_roots != (first.input_roots[0],) * 4 or
+            second.input_roots != (second.input_roots[0],) * 4 or
+            first.input_roots[0] != second.input_roots[0]):
+        return None
+
+    outer = first.loops[0]
+    function_start = text.rfind("func.func", 0, outer.span[0])
+    if function_start < 0:
+        return None
+    name_match = re.match(
+        r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(",
+        text[function_start:])
+    if not name_match:
+        return None
+    args_start = function_start + name_match.end() - 1
+    depth = 0
+    args_end = None
+    for position in range(args_start, outer.span[0]):
+        if text[position] == "(":
+            depth += 1
+        elif text[position] == ")":
+            depth -= 1
+            if depth == 0:
+                args_end = position
+                break
+    if args_end is None:
+        return None
+    function_name = name_match.group(1)
+    arguments = re.findall(
+        r"(%[\w.$-]+)\s*:\s*(memref<[^>]+>|i32)",
+        text[args_start + 1:args_end])
+    names = [name for name, _ in arguments]
+    types = _scan_simple_memref_types(text, outer.span[0])
+    function_prefix = text[function_start:outer.span[0]]
+
+    def memref_type(value: str) -> str | None:
+        known = types.get(value)
+        if known is not None:
+            return known
+        converted = re.search(
+            rf"(?m)^\s*{re.escape(value)}\s*=\s*[^\n]*->\s*"
+            r"(memref<[^>]+>)\s*$", function_prefix)
+        return converted.group(1) if converted else None
+
+    input_root = first.input_roots[0]
+    output_root = final.output_roots[0]
+    if (memref_type(input_root) != "memref<?x?xf64>" or
+            memref_type(output_root) != "memref<?x?xf64>"):
+        return None
+
+    term = _term_repr(final.term)
+    coeff_root = None
+    in_dims: list[str]
+    out_dims: list[str]
+    addend_root: str
+    coefficient_indices: tuple[int | None, int | None, int | None, int | None]
+    alpha_value: float
+    beta_value: float
+    stride_value: int
+    dynamic_input_offsets = False
+    if (function_name == "resid" and len(names) == 8 and
+            "Term.In(0) -" in term and "Term.In(9)" in term and
+            len(final.input_roots) == 10):
+        # r = v - A*u, with NPB's a[1] (six face neighbors) equal to zero.
+        in_dims = [names[5], names[4], names[3]]
+        out_dims = list(in_dims)
+        addend_root = final.input_roots[0]
+        coeff_root = names[6]
+        coefficient_indices = (0, None, 2, 3)
+        alpha_value, beta_value, stride_value = -1.0, 1.0, 1
+    elif (function_name == "psinv" and len(names) == 7 and
+          "Term.Out(0) +" in term and "Term.In(9)" in term and
+          len(final.input_roots) == 10):
+        # u += C*r, with NPB's c[3] (eight corners) equal to zero.
+        in_dims = [names[4], names[3], names[2]]
+        out_dims = list(in_dims)
+        addend_root = output_root
+        coeff_root = names[5]
+        coefficient_indices = (0, 1, 2, None)
+        alpha_value, beta_value, stride_value = 1.0, 1.0, 1
+    elif (function_name == "rprj3" and len(names) == 9 and
+          all(value in term for value in
+              ("Term.Lit(0.5)", "Term.Lit(0.25)",
+               "Term.Lit(0.125)", "Term.Lit(0.0625)"))):
+        # Full-weighting restriction is a symmetric 3x3x3 convolution with
+        # stride two.  The d1/d2/d3 offsets are two only for a size-three axis.
+        in_dims = [names[3], names[2], names[1]]
+        out_dims = [names[7], names[6], names[5]]
+        addend_root = output_root
+        coefficient_indices = (None, None, None, None)
+        alpha_value, beta_value, stride_value = 1.0, 0.0, 2
+        dynamic_input_offsets = True
+    else:
+        return None
+    if (memref_type(addend_root) != "memref<?x?xf64>" or
+            any(not re.fullmatch(r"%[\w.$-]+", dim)
+                for dim in in_dims + out_dims)):
+        return None
+    if coeff_root is not None and types.get(coeff_root) != "memref<?xf64>":
+        return None
+
+    line_start = text.rfind("\n", 0, outer.span[0]) + 1
+    indent = text[line_start:outer.span[0]]
+    prefix = f"%mg_stencil_{final.index}"
+    lines: list[str] = []
+    zero = f"{prefix}_zero"
+    one = f"{prefix}_one"
+    stride = f"{prefix}_stride"
+    alpha = f"{prefix}_alpha"
+    beta = f"{prefix}_beta"
+    lines.extend([
+        f"{zero} = arith.constant 0 : i32",
+        f"{one} = arith.constant 1 : i32",
+        f"{stride} = arith.constant {stride_value} : i32",
+        f"{alpha} = arith.constant {alpha_value:.1f} : f64",
+        f"{beta} = arith.constant {beta_value:.1f} : f64",
+    ])
+
+    weight_values: list[str] = []
+    literals = (0.5, 0.25, 0.125, 0.0625)
+    for label, index, literal in zip(
+            ("center", "face", "edge", "corner"),
+            coefficient_indices, literals):
+        value = f"{prefix}_{label}"
+        if coeff_root is not None and index is not None:
+            index_value = f"{prefix}_{label}_index"
+            lines.append(f"{index_value} = arith.constant {index} : index")
+            lines.append(
+                f"{value} = memref.load {coeff_root}[{index_value}] : "
+                "memref<?xf64>")
+        else:
+            scalar = literal if coeff_root is None else 0.0
+            lines.append(f"{value} = arith.constant {scalar} : f64")
+        weight_values.append(value)
+
+    if dynamic_input_offsets:
+        input_offsets = []
+        for axis, dim in zip(("d", "h", "w"), in_dims):
+            three = f"{prefix}_{axis}_three"
+            is_three = f"{prefix}_{axis}_is_three"
+            offset = f"{prefix}_{axis}_offset"
+            lines.append(f"{three} = arith.constant 3 : i32")
+            lines.append(f"{is_three} = arith.cmpi eq, {dim}, {three} : i32")
+            lines.append(
+                f"{offset} = arith.select {is_three}, {stride}, {one} : i32")
+            input_offsets.append(offset)
+    else:
+        input_offsets = [zero, zero, zero]
+    output_offsets = [one, one, one]
+    operands = [input_root, addend_root, output_root, *weight_values,
+                alpha, beta, *in_dims, *out_dims,
+                stride, stride, stride, *input_offsets, *output_offsets]
+    operand_types = ["memref<?x?xf64>"] * 3 + ["f64"] * 6 + ["i32"] * 15
+    lines.append(
+        "kernel.launch @cudnnStencil3DSymmetric_f64_memref("
+        + ", ".join(operands) + ") : (" + ", ".join(operand_types) + ") -> ()")
+    return (outer.span[0], outer.span[1], ("\n" + indent).join(lines),
+            function_name)
+
+
 def _render_source_faithful_sgemm(structured, text: str) -> tuple[int, int, str] | None:
     """Collapse Parboil's two loops + dot generic + alpha/beta epilogue."""
     if len(structured.region.operations) != 1:
@@ -7853,12 +8030,17 @@ def rewrite_mlir(
     consumed_structured_bodies: set[int] = set()
     if enable_structured_rewrite:
         for structured in structured_results:
-            rendered = _render_looped_blas_as_strided_batched(structured, text)
+            stencil = _render_symmetric_stencil3d(structured, text)
+            rendered = stencil[:3] if stencil is not None else None
             launch_name = (
-                "cublasDgemm_strided_batched_subtract[loop-lifted]"
-                if structured.extracted_kind == "looped_gemm_as_batched_gemm"
-                else "cublasDgemv_strided_batched_subtract[loop-lifted]"
-            )
+                "cudnnStencil3DSymmetric_f64_memref"
+                f"[egglog-fused:{stencil[3]}]"
+                if stencil is not None else
+                ("cublasDgemm_strided_batched_subtract[loop-lifted]"
+                 if structured.extracted_kind == "looped_gemm_as_batched_gemm"
+                 else "cublasDgemv_strided_batched_subtract[loop-lifted]"))
+            if rendered is None:
+                rendered = _render_looped_blas_as_strided_batched(structured, text)
             if rendered is None:
                 rendered = _render_looped_gemv_as_gemm(structured, text)
                 launch_name = "cublasDgemm_simple[loop-lifted]"

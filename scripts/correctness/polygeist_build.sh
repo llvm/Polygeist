@@ -219,6 +219,13 @@ cgeist "$INPUT" --function="$FUNCTION" \
     echo "ERROR: cgeist failed; see $WORK/cgeist.err" >&2; cat $WORK/cgeist.err >&2; exit 1; }
 
 # ─── Step 2: raise affine → linalg + debufferize ────────────────────────
+SELECT_FUNC_ARGS=(--select-func=func-name="$FUNCTION")
+if [ "$HARNESS_INPUT" = "$INPUT" ]; then
+  # The normally compiled source harness supplies helper definitions.  Keep
+  # their exact declarations in lifted IR, but do not drag unrelated helper
+  # bodies through the selected kernel's lowering pipeline.
+  SELECT_FUNC_ARGS=(--select-func="func-name=$FUNCTION externalize-dependencies=true")
+fi
 if [ "$DEBUFFERIZE" -eq 1 ]; then
   echo "  [2/9] polygeist-opt: raise + debufferize (preserve submaps)"
   # Joint multi-root reconstruction preserves coupled results from one
@@ -230,7 +237,7 @@ if [ "$DEBUFFERIZE" -eq 1 ]; then
     DEBUFFERIZE_PASS=(--linalg-debufferize=use-multi-root=true)
     echo "         using joint multi-root debufferization"
   fi
-  polygeist-opt --select-func=func-name="$FUNCTION" \
+  polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline \
     "${DEBUFFERIZE_PASS[@]}" \
@@ -238,7 +245,7 @@ if [ "$DEBUFFERIZE" -eq 1 ]; then
       echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
 else
   echo "  [2/9] polygeist-opt: raise + lower-submap (memref linalg)"
-  polygeist-opt --select-func=func-name="$FUNCTION" \
+  polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline \
     --lower-polygeist-submap \
@@ -418,7 +425,7 @@ echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
 # sequential inlined stages can canonicalize to one tensor.empty SSA value;
 # one-shot bufferization may then select the same physical buffer for results
 # that are simultaneously live.  View lowering does not require CSE.
-ABI_CLEANUP_PASSES=(--lower-polygeist-submap)
+ABI_CLEANUP_PASSES=(--lower-polygeist-submap --canonicalize-polygeist)
 if grep -q 'cublasDgemv_T_zero' "$SEMANTIC_INPUT"; then
   ABI_CLEANUP_PASSES=(--remove-iter-args "${ABI_CLEANUP_PASSES[@]}")
 fi
@@ -445,23 +452,44 @@ fi
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
   $WORK/abi_canon.mlir
-$MLIR_OPT --convert-math-to-llvm \
-  --empty-tensor-to-alloc-tensor \
-  --lower-affine \
-  --one-shot-bufferize=bufferize-function-boundaries \
-  --convert-linalg-to-loops --convert-scf-to-cf \
-  --expand-strided-metadata \
-  --lower-affine \
-  --convert-arith-to-llvm --convert-index-to-llvm --finalize-memref-to-llvm \
-  --convert-func-to-llvm --reconcile-unrealized-casts \
-  $WORK/abi_canon.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
-    echo "ERROR: mlir-opt lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+C_STYLE_ABI=0
+if grep -qE 'polygeist\.(memref2pointer|pointer2memref)' $WORK/abi_canon.mlir; then
+  C_STYLE_ABI=1
+  # C sources with erased pointer views need Polygeist's native C-pointer ABI.
+  # Upstream MLIR performs dialect-independent preparation while preserving
+  # those registered-on-the-next-step operations; Polygeist then lowers the
+  # views, calls, and function boundary together.
+  $MLIR_OPT --allow-unregistered-dialect --convert-math-to-llvm \
+    --empty-tensor-to-alloc-tensor --lower-affine \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --convert-linalg-to-loops --convert-scf-to-cf \
+    --expand-strided-metadata --lower-affine \
+    $WORK/abi_canon.mlir -o $WORK/pre_llvm.mlir 2>$WORK/mlir.err || {
+      echo "ERROR: MLIR preparation failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+  polygeist-opt --convert-polygeist-to-llvm \
+    $WORK/pre_llvm.mlir -o $WORK/llvm.mlir 2>>$WORK/mlir.err || {
+      echo "ERROR: Polygeist C-ABI lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+else
+  $MLIR_OPT --convert-math-to-llvm \
+    --empty-tensor-to-alloc-tensor \
+    --lower-affine \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --convert-linalg-to-loops --convert-scf-to-cf \
+    --expand-strided-metadata \
+    --lower-affine \
+    --convert-arith-to-llvm --convert-index-to-llvm --finalize-memref-to-llvm \
+    --convert-func-to-llvm --reconcile-unrealized-casts \
+    $WORK/abi_canon.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
+      echo "ERROR: mlir-opt lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+fi
 $MLIR_TRANSLATE --mlir-to-llvmir $WORK/llvm.mlir -o $WORK/kernel.ll
 
 # Rename the lifted symbol to <name>_impl so the harness's own C definition
 # of the same function name doesn't collide. The auto-generated wrapper
 # provides the public <name> entry that calls _impl with packed memrefs.
-sed -i "s/@${FUNCTION}\b/@${FUNCTION}_impl/g" $WORK/kernel.ll
+if [ "$C_STYLE_ABI" -eq 0 ]; then
+  sed -i "s/@${FUNCTION}\b/@${FUNCTION}_impl/g" $WORK/kernel.ll
+fi
 
 # Retarget the LLVM IR if we're cross-compiling. clang's --target flag will
 # also do most of this, but stripping the embedded x86 datalayout avoids
@@ -472,12 +500,14 @@ if [ "$TARGET" = "jetson" ]; then
 fi
 
 # ─── Step 7: generate the ABI wrapper for the kernel ────────────────────
-echo "  [7/9] gen_wrapper.py: ABI bridge for $FUNCTION"
+echo "  [7/9] prepare ABI bridge for $FUNCTION"
 WRAPPER_ARGS=()
 if [ "${POLYGEIST_CUDA_TIMING_WRAPPER:-0}" != "0" ]; then
   WRAPPER_ARGS+=(--cuda-timing)
 fi
-$PYTHON $SCRIPTS/gen_wrapper.py "${WRAPPER_ARGS[@]}" "$INPUT" "$FUNCTION" > $WORK/wrapper.c
+if [ "$C_STYLE_ABI" -eq 0 ]; then
+  $PYTHON $SCRIPTS/gen_wrapper.py "${WRAPPER_ARGS[@]}" "$INPUT" "$FUNCTION" > $WORK/wrapper.c
+fi
 
 # ─── Step 8: per-target compile + harness prep ──────────────────────────
 echo "  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=$TARGET)"
@@ -578,8 +608,33 @@ fi
 # Kernel (lifted) — use Polygeist clang for both host and cross.
 $CLANG $CLANG_TARGET_ARGS -O3 -c $WORK/kernel.ll -o $WORK/kernel.o
 
-# Wrapper (ABI bridge generated by gen_wrapper.py).
-$CC -O2 "${GCC_PASSTHROUGH[@]}" -c $WORK/wrapper.c -o $WORK/wrapper.o
+# Cgeist represents referenced source globals as definitions in the selected
+# module.  When the original source is also the harness, its object owns the
+# canonical storage.  Let those strong C definitions win while keeping the
+# lifted function itself strong.
+if [ "$C_STYLE_ABI" -ne 0 ] && [ "$HARNESS_INPUT" = "$INPUT" ]; then
+  KERNEL_NM=nm
+  KERNEL_OBJCOPY=objcopy
+  if [ "$TARGET" = "jetson" ]; then
+    KERNEL_NM=aarch64-linux-gnu-nm
+    KERNEL_OBJCOPY=aarch64-linux-gnu-objcopy
+  fi
+  mapfile -t LIFTED_DATA_SYMBOLS < <(
+    $KERNEL_NM --defined-only $WORK/kernel.o |
+      awk '$2 ~ /^[BCDGRSV]$/ { print $3 }'
+  )
+  for lifted_data_symbol in "${LIFTED_DATA_SYMBOLS[@]}"; do
+    $KERNEL_OBJCOPY --weaken-symbol="$lifted_data_symbol" $WORK/kernel.o
+  done
+fi
+
+# Wrapper (ABI bridge generated by gen_wrapper.py). Native C-pointer lowering
+# already has the source ABI and therefore needs no bridge object.
+if [ "$C_STYLE_ABI" -eq 0 ]; then
+  $CC -O2 "${GCC_PASSTHROUGH[@]}" -c $WORK/wrapper.c -o $WORK/wrapper.o
+else
+  $CC -x c -c /dev/null -o $WORK/wrapper.o
+fi
 
 # Harness compiled normally. If it is the original source and defines the
 # selected kernel, weaken that symbol so the lifted+matched wrapper wins.
@@ -674,7 +729,7 @@ if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
   mkdir -p "$POLYGEIST_EXPORT_OBJECT_DIR"
   MATCHED_EXPORT="$WORK/matched.mlir"
   [ -f "$MATCHED_EXPORT" ] || MATCHED_EXPORT="$SEMANTIC_MLIR"
-  cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/rt.o" \
+  cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/harness.o" "$WORK/rt.o" \
      "$WORK/mlir_runner_utils.o" "$MATCHED_EXPORT" "$WORK/abi.mlir" \
      "$POLYGEIST_EXPORT_OBJECT_DIR/"
   echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
