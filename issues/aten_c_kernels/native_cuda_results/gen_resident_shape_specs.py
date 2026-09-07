@@ -86,9 +86,17 @@ def main():
         shape = "_".join(f"{k}={v}" for k, v in cfg["dims"].items())
         kinds = {arg[1] for arg in cfg["args"]}
         dtype = "f64" if "dptr" in kinds else "f32"
+        explicit_shape = kernel in drv.CASES
         specs.append({"kernel": kernel, "op": base, "cat": cat,
                       "dims": dims, "n": n, "shape": shape,
-                      "dtype": dtype})
+                      "dtype": dtype,
+                      "shape_selection": (
+                          "EXPLICIT_STRUCTURED_SHAPE" if explicit_shape else
+                          "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304"),
+                      "shape_selection_note": (
+                          cfg.get("coverage", "structured operator shape")
+                          if explicit_shape else
+                          "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2")})
     out = Path(__file__).with_name("resident_shape_specs.json")
     out.write_text(json.dumps(specs, indent=0))
     print(f"wrote {out} with {len(specs)} native specs at resident shapes")

@@ -91,6 +91,27 @@ STAGE_EQUIVALENTS = {
     "aten_conv2d_columns_cpu",
 }
 
+# These links identify the implementation reached by CUDA dispatch.  Keep this
+# list deliberately conservative: an empty source means that CUDA execution was
+# measured, but we have not pinned one implementation file because dispatch may
+# select among several CUDA/cuDNN implementations.
+CUDA_SOURCE_BY_CATEGORY = {
+    "adaptavg2d": ("aten/src/ATen/native/cuda/AdaptiveAveragePooling.cu",
+                   "Tensor adaptive_avg_pool2d_cuda("),
+    "adaptavg2d_backward": (
+        "aten/src/ATen/native/cuda/AdaptiveAveragePooling.cu",
+        "Tensor adaptive_avg_pool2d_backward_cuda("),
+    "adaptavg3d": ("aten/src/ATen/native/cuda/AdaptiveAveragePooling3d.cu",
+                   "Tensor adaptive_avg_pool3d_cuda("),
+    "adaptavg3d_backward": (
+        "aten/src/ATen/native/cuda/AdaptiveAveragePooling3d.cu",
+        "Tensor adaptive_avg_pool3d_backward_cuda("),
+    "avgpool2d": ("aten/src/ATen/native/cuda/AveragePool2d.cu",
+                  "avg_pool2d_out_cuda"),
+    "avgpool3d": ("aten/src/ATen/native/cuda/AveragePool3d.cu",
+                  "avg_pool3d_out_cuda"),
+}
+
 
 def load_provenance():
     result = {}
@@ -120,6 +141,8 @@ def main():
         source, token = provenance.get(kernel, ("", ""))
         api = API_BY_CATEGORY.get(spec["cat"], "torch.{op}").format(
             op=spec["op"])
+        cuda_source, cuda_token = CUDA_SOURCE_BY_CATEGORY.get(
+            spec["cat"], ("", ""))
         if kernel in DENSE_MATH_PROXIES:
             comparability = "INTERNAL_STAGE_OR_DENSE_MATH_PROXY"
             legal_ratio = "no"
@@ -140,16 +163,24 @@ def main():
         rows.append({
             "kernel": kernel, "upstream_source": source,
             "upstream_token": token, "benchmark_api": api,
+            "native_cuda_source": cuda_source,
+            "native_cuda_token": cuda_token,
+            "native_cuda_provenance": (
+                "PINNED_IMPLEMENTATION_SOURCE" if cuda_source
+                else "MEASURED_CUDA_DISPATCH_SOURCE_NOT_PINNED"),
             "comparability": comparability, "legal_ratio": legal_ratio,
             "semantic_note": note, "shape": spec["shape"],
             "dtype": spec["dtype"],
+            "shape_selection": spec.get("shape_selection", ""),
+            "shape_selection_note": spec.get("shape_selection_note", ""),
             "gpu_status": gpu.get(kernel, {}).get("status", "MISSING"),
             "cpu_status": cpu.get(kernel, {}).get("status", "MISSING"),
             "timing_scope": "best_of_20_synchronized_wall; warmup=5",
         })
     output = HERE / "torch_aten_baseline_provenance.csv"
     with output.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]),
+                                lineterminator="\n")
         writer.writeheader(); writer.writerows(rows)
     print(f"wrote {output}: {len(rows)} rows")
 
