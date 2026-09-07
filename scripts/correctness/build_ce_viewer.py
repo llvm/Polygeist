@@ -3256,11 +3256,13 @@ def write_polybench_results_page() -> None:
                                          ("polybenchgpu_timing_raw.log", "native GPU time"))]
         log_links.extend((
             retained_first(log_directory,
-                           ("raised_gpu_region_correctness.log",
+                           ("raised_gpu_scope_coalesced_correctness.log",
+                            "raised_gpu_region_correctness.log",
                             "raised_gpu_correctness.log"),
                            "raised GPU"),
             retained_first(log_directory,
-                           ("raised_gpu_region_timing_raw.csv",
+                           ("raised_gpu_scope_coalesced_timing_raw.csv",
+                            "raised_gpu_region_timing_raw.csv",
                             "raised_gpu_timing_raw.log"),
                            "raised GPU time"),
         ))
@@ -3269,6 +3271,9 @@ def write_polybench_results_page() -> None:
                                         ("raised_debufferized.mlir", "raised"),
                                         ("matched.mlir", "matched"),
                                         ("residual_llvm.mlir", "LLVM"))]
+        ir_links.append(retained(
+            SECTION42_RESULTS_DIR / row["ir_dir"] /
+            "raised_gpu/gpu_scope_coalesced.mlir", "coalesced GPU"))
         pipeline_fields = (
             ("raise", row.get("raise_status", "")),
             ("match", row.get("matcher_status", "")),

@@ -11,6 +11,7 @@
 
 #include "KernelLaunchLoweringUtils.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -21,6 +22,8 @@
 #include "polygeist/Kernel/KernelDialect.h"
 #include "polygeist/Kernel/KernelOps.h"
 #include "polygeist/Passes/Passes.h"
+
+#include <limits>
 
 using namespace mlir;
 using namespace mlir::polygeist;
@@ -343,6 +346,147 @@ static bool alreadyWrapped(func::FuncOp func, StringRef beginSymbol,
   return sawBegin || sawEnd;
 }
 
+// Return true only for operations that can execute while device work remains
+// outstanding. In particular, memory reads/writes and unknown calls are not
+// metadata operations: they could consume a preceding device result.
+static bool isControlFlowCoalescingSafe(Operation *op, StringRef beginSymbol,
+                                        StringRef endSymbol,
+                                        StringRef graphBeginSymbol,
+                                        StringRef graphEndSymbol) {
+  if (auto call = dyn_cast<func::CallOp>(op)) {
+    StringRef callee = call.getCallee();
+    return isRuntimePipelineCall(call, beginSymbol, endSymbol) ||
+           callee == graphBeginSymbol || callee == graphEndSymbol ||
+           isCudaDispatchCall(call);
+  }
+  if (isGeneratedCudaLaunch(op))
+    return true;
+
+  StringRef name = op->getName().getStringRef();
+  if (name.startswith("arith.") || name.startswith("shape.") ||
+      name == "affine.apply")
+    return true;
+  if (name == "tensor.empty" || name == "tensor.cast" ||
+      name == "tensor.dim" || name == "tensor.extract_slice" ||
+      name == "tensor.collapse_shape" || name == "tensor.expand_shape" ||
+      name == "tensor.insert_slice")
+    return true;
+  if (name == "bufferization.to_tensor" ||
+      name == "bufferization.to_memref")
+    return true;
+  if (name == "memref.cast" || name == "memref.subview" ||
+      name == "memref.reinterpret_cast" || name == "memref.dim" ||
+      name == "memref.extract_strided_metadata" ||
+      name == "memref.extract_aligned_pointer_as_index")
+    return true;
+  if (name == "llvm.inttoptr" || name == "llvm.ptrtoint" ||
+      name == "builtin.unrealized_conversion_cast" ||
+      name == "polygeist.submap")
+    return true;
+  if (name == "affine.yield" || name == "scf.yield")
+    return true;
+
+  // Loops and conditionals themselves are safe only when every operation in
+  // every region is safe. This deliberately excludes memory-effecting ops
+  // that happen to be nested below otherwise innocuous control flow.
+  if (name == "affine.for" || name == "scf.for" || name == "scf.if") {
+    for (Region &region : op->getRegions())
+      for (Block &block : region)
+        for (Operation &nested : block)
+          if (!isControlFlowCoalescingSafe(
+                  &nested, beginSymbol, endSymbol, graphBeginSymbol,
+                  graphEndSymbol))
+            return false;
+    return true;
+  }
+  return false;
+}
+
+static Operation *getEntryBlockAncestor(Operation *op, func::FuncOp func) {
+  while (op->getParentOp() && op->getParentOp() != func.getOperation())
+    op = op->getParentOp();
+  return op->getParentOp() == func.getOperation() ? op : nullptr;
+}
+
+// Existing ABI lowering may have placed a pipeline scope inside a loop around
+// each individual dispatch. When the complete entry-block span from the first
+// to the last dispatch contains only device operations and metadata/control
+// flow, lift those scopes outside the span. This converts O(iterations)
+// synchronizations into one without relying on benchmark names or shapes.
+static bool coalescePipelineScopes(func::FuncOp func, StringRef beginSymbol,
+                                   StringRef endSymbol,
+                                   StringRef graphBeginSymbol,
+                                   StringRef graphEndSymbol) {
+  if (func.isDeclaration() || func.empty())
+    return false;
+
+  SmallVector<func::CallOp> scopeCalls;
+  SmallVector<Operation *> relevantOps;
+  unsigned begins = 0;
+  unsigned ends = 0;
+  func.walk([&](Operation *op) {
+    if (auto call = dyn_cast<func::CallOp>(op)) {
+      if (isRuntimePipelineCall(call, beginSymbol, endSymbol)) {
+        scopeCalls.push_back(call);
+        begins += call.getCallee() == beginSymbol;
+        ends += call.getCallee() == endSymbol;
+        return;
+      }
+    }
+    if (isCudaDispatchOperation(op))
+      relevantOps.push_back(op);
+  });
+  if (begins == 0 || begins != ends || relevantOps.empty())
+    return false;
+
+  Block &entry = func.getBody().front();
+  DenseMap<Operation *, unsigned> positions;
+  unsigned position = 0;
+  for (Operation &op : entry)
+    positions[&op] = position++;
+
+  Operation *first = nullptr;
+  Operation *last = nullptr;
+  unsigned firstPosition = std::numeric_limits<unsigned>::max();
+  unsigned lastPosition = 0;
+  for (Operation *op : relevantOps) {
+    Operation *ancestor = getEntryBlockAncestor(op, func);
+    if (!ancestor || ancestor->getBlock() != &entry)
+      return false;
+    unsigned current = positions.lookup(ancestor);
+    if (!first || current < firstPosition) {
+      first = ancestor;
+      firstPosition = current;
+    }
+    if (!last || current > lastPosition) {
+      last = ancestor;
+      lastPosition = current;
+    }
+  }
+
+  for (Operation *op = first;; op = op->getNextNode()) {
+    if (!isControlFlowCoalescingSafe(op, beginSymbol, endSymbol,
+                                     graphBeginSymbol, graphEndSymbol))
+      return false;
+    if (op == last)
+      break;
+  }
+
+  Location beginLoc = first->getLoc();
+  Location endLoc = last->getLoc();
+  for (func::CallOp call : scopeCalls)
+    call.erase();
+  OpBuilder beginBuilder(first);
+  beginBuilder.create<func::CallOp>(beginLoc, beginSymbol, TypeRange{},
+                                    ValueRange{});
+  OpBuilder endBuilder(last);
+  endBuilder.setInsertionPointAfter(last);
+  endBuilder.create<func::CallOp>(endLoc, endSymbol, TypeRange{}, ValueRange{});
+  func->setAttr("polygeist.pipeline_scope_coalesced",
+                UnitAttr::get(func.getContext()));
+  return true;
+}
+
 struct WrapKernelLaunchPipelinePass
     : public mlir::polygeist::WrapKernelLaunchPipelineBase<
           WrapKernelLaunchPipelinePass> {
@@ -382,11 +526,10 @@ struct WrapKernelLaunchPipelinePass
       }
     }
 
-    if (!needsDeclarations)
-      return;
-
-    ensureShimDecl(module, beginSymbol, TypeRange{}, moduleBuilder);
-    ensureShimDecl(module, endSymbol, TypeRange{}, moduleBuilder);
+    if (needsDeclarations) {
+      ensureShimDecl(module, beginSymbol, TypeRange{}, moduleBuilder);
+      ensureShimDecl(module, endSymbol, TypeRange{}, moduleBuilder);
+    }
 
     for (func::FuncOp func : funcs) {
       if (func.isDeclaration())
@@ -435,6 +578,12 @@ struct WrapKernelLaunchPipelinePass
                                           TypeRange{}, ValueRange{});
         }
       }
+    }
+
+    if (coalesceControlFlow) {
+      for (func::FuncOp func : funcs)
+        coalescePipelineScopes(func, beginSymbol, endSymbol, graphBeginSymbol,
+                               graphEndSymbol);
     }
   }
 };

@@ -246,7 +246,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     GRAPH_INPUT=$WORK/gpu_region_timed.mlir
   fi
   $POLYGEIST_OPT \
-    '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true capture-host-mapped-libraries=true maximal-device-sequence=true' \
+    '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true capture-host-mapped-libraries=true maximal-device-sequence=true coalesce-control-flow=true' \
     $GRAPH_INPUT -o $WORK/gpu_graphed.mlir
   # Current mlir-opt rejects combining a nested --pass-pipeline with
   # individual top-level pass flags. Attach the NVPTX target in its own
