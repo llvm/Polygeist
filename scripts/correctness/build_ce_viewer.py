@@ -827,7 +827,7 @@ LLAMA_FORWARD_NOTES: dict[str, tuple[str, str]] = {
     "down_projection":        ("highly parallel",  "FFN down projection GEMV"),
     "final_rmsnorm":          ("highly parallel",  "final RMSNorm before logits"),
     "lm_head_projection":     ("highly parallel",  "lm_head GEMV to logits"),
-    "extended_forward":       ("partial parallel", "one-token, one-layer Llama-style forward fixture combining the raised pieces"),
+    "extended_forward":       ("mixed GPU", "one-token, one-layer Llama-style forward fixture; 27 library calls and conventionally lowered residual structured IR execute inside one CUDA Graph"),
 }
 
 WHISPER_OPS_NOTES: dict[str, tuple[str, str]] = {
@@ -1399,10 +1399,14 @@ LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
          "notes": "LM head GEMV to logits"},
     ],
     "extended_forward": [
-        {"size": "7B-size FP32 one layer", "raised": "external-library hybrid median 473.546 ms",
-         "reference": "Orin native C 341.617 ms<br>Polygeist + NVPL 348.448 ms<br>Polygeist scalar 744.332 ms<br>ggml CUDA 15.954 ms",
-         "winner": "ggml 29.7x vs raised",
-         "notes": "Three processes, 2 warmup + 10 measured each; 13 external launches plus 32 residual Linalg bodies; full 32,000-logit PASS"},
+        {"size": "7B-size FP32 one layer, position 1024", "raised": "mixed GPU + one CUDA Graph median 50.893 ms",
+         "reference": "ggml CUDA 15.954 ms<br>previous raised GPU 103.608 ms",
+         "winner": "2.04x faster than previous raised; ggml 3.19x faster",
+         "notes": "Single process, 2 warmup + 10 measured; 27 external-library calls plus 34 compiler-generated GPU launches in one graph; checksum, sumsq, maxabs, and 8 printed samples match ggml exactly"},
+        {"size": "7B-size FP32 one layer, historical hybrid", "raised": "external-library/CPU hybrid median 473.546 ms",
+         "reference": "Orin native C 341.617 ms<br>Polygeist + NVPL 348.448 ms<br>Polygeist scalar 744.332 ms",
+         "winner": "current full-GPU path 9.30x faster",
+         "notes": "Three processes, 2 warmup + 10 measured each; 13 external launches plus 32 residual Linalg bodies on CPU; full 32,000-logit PASS"},
         {"size": "toy one layer warm", "raised": "host 0.719 ms<br>device 0.447 ms",
          "reference": "ggml CUDA host 0.098 ms", "winner": "ggml 7.3x",
          "notes": "MODEL_DIM=64, FFN_DIM=128, VOCAB=256, SEQ_LEN=32; useful for IR/debugging"},
@@ -1522,7 +1526,7 @@ LLAMA_FORWARD_BLOCKERS: dict[str, tuple[str, str]] = {
     "down_projection":        ("none", ""),
     "final_rmsnorm":          ("none", ""),
     "lm_head_projection":     ("none", ""),
-    "extended_forward":       ("matcher-gap", "Current audited fixture emits 13 external-library launches but leaves 32 Linalg bodies on CPU. Full-logit correctness passes; split RoPE and branchless masking are still source accommodations."),
+    "extended_forward":       ("none", "The full mixed path emits 27 external-library calls and 34 compiler-generated GPU launches in one CUDA Graph; no residual Linalg body executes on CPU. Split RoPE and branchless masking remain source accommodations."),
 }
 
 WHISPER_OPS_BLOCKERS: dict[str, tuple[str, str]] = {
@@ -4909,7 +4913,7 @@ def _llama_forward_runtime_summary() -> str:
         '</div>'
         '<table style="margin-top:4px"><thead><tr>'
         '<th>implementation</th>'
-        '<th>median of process medians</th>'
+        '<th>median runtime</th>'
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody>'
@@ -4945,18 +4949,36 @@ def _llama_forward_runtime_summary() -> str:
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody><tr>'
+        '<td><b>Polygeist mixed library + generated GPU, one CUDA Graph</b></td>'
+        '<td>50.893 ms</td>'
+        '<td>checksum, sumsq, maxabs, and 8 printed samples match ggml CUDA exactly</td>'
+        '<td>27 external-library calls + 34 compiler-generated GPU launches in one graph; '
+        '45 bufferization copies reduced to 16; one process, 2 warmup + 10 measured iterations</td>'
+        '</tr><tr>'
+        '<td><b>Polygeist prior mixed-GPU baseline</b></td>'
+        '<td>103.608 ms</td>'
+        '<td>same output summary as the current mixed-GPU path</td>'
+        '<td>same Orin fixture before whole-forward residency and direct writeback; '
+        'the current path is 2.04&times; faster</td>'
+        '</tr><tr>'
         '<td><b>Polygeist external-library hybrid</b></td>'
         '<td>473.546 ms</td>'
         '<td>PASS: max abs 8.201e-4; atol=1e-3, rtol=1e-4</td>'
         '<td>13 CUDA/cuBLAS/cuTENSOR/cuDNN launches; 32 residual Linalg '
-        'bodies execute on CPU. Project-authored mask/add/SwiGLU helpers are excluded.</td>'
+        'bodies execute on CPU. Historical external-library-only baseline; '
+        'the current full-GPU path is 9.30&times; faster.</td>'
         '</tr><tr>'
         '<td><b>ggml CUDA expert implementation</b></td>'
         '<td>15.954 ms</td>'
         '<td>PASS: max abs 4.5185e-3; atol=1e-2, rtol=1e-4</td>'
-        '<td>ggml revision f24588a; identical FP32 fixture math</td>'
+        '<td>ggml revision f24588a; position 1024 with identical FP32 fixture '
+        'math; 3.19&times; faster than the current raised path</td>'
         '</tr>'
         '</tbody></table>'
+        '<div class="intro"><b>Current result:</b> whole-forward GPU residency, '
+        'direct writeback, and a single CUDA Graph reduce the raised median from '
+        '103.608 ms to 50.893 ms. Conventional GPU lowering handles unmatched '
+        'structured IR, so no residual Linalg body returns to the CPU.</div>'
         '<div class="intro"><b>Historical result:</b> the earlier 13.480 ms '
         'Polygeist result (1.40&times; behind ggml at 9.638 ms) was a preliminary '
         'GPU-runtime configuration. It included project-authored runtime '
@@ -4964,14 +4986,16 @@ def _llama_forward_runtime_summary() -> str:
         'composing CUDA-library operations. The paper-valid external-library-only '
         'result disables those recipes and executes 32 unmatched Linalg bodies '
         'on the CPU, so the two Polygeist timings are not directly comparable. '
-        'The earlier run used position 16 and the audited run position 1024, but '
+        'The 13.480 ms run used position 16; all current table entries use position 1024. '
+        'In either case, '
         'both fixtures retain full SEQ_LEN=2048 loop/tensor extents; position '
         'changes the causal mask, not the nominal amount of fixture work.</div>'
         '<div class="intro"><b>Scope:</b> one token at position 1024, one '
         '7B-size layer (4096/11008/32000/2048, 32 heads). This is an extracted '
         'FP32 fixture—not full 32-layer inference or quantized GGUF execution. '
         'It uses split even/odd RoPE and branchless masking because the exact '
-        'interleaved and branchy forms remain raising gaps. Authoritative data: '
+        'interleaved and branchy forms remain raising gaps. The current run records '
+        'summary outputs rather than a full 32,000-logit dump. Authoritative data: '
         '<code>issues/llama_section42/performance.csv</code>.</div>'
     )
 
@@ -6557,13 +6581,13 @@ def main():
             k, mlir_dir=LLAMA_FORWARD_MLIR_DIR, kset="llama_forward",
             file_prefix="llamafwd_",
         )
-        # The paper's extended-forward row deliberately excludes four
-        # project-authored computational helpers (mask, two adds, and
-        # SwiGLU).  Keep its displayed denominator aligned with the audited
-        # external-library-only run instead of the broader exploratory match.
+        # The current whole-forward path uses library calls for recognized
+        # regions and conventional GPU lowering for the remaining structured
+        # IR.  Keep the summary aligned with the audited silicon execution;
+        # the 34 generated GPU launches are described separately in its notes.
         if k == "extended_forward":
-            llama_forward_stats[k]["launches"] = 13
-            llama_forward_stats[k]["residual"] = 32
+            llama_forward_stats[k]["launches"] = 27
+            llama_forward_stats[k]["residual"] = 0
 
     # Whisper/ggml-style extracted operation fixtures.
     whisper_ops_kernels_from_files = discover_kernels(WHISPER_OPS_MLIR_DIR)
