@@ -44,6 +44,7 @@ static bool isCudaShimCall(func::CallOp call) {
     return false;
   return callee.startswith("polygeist_cublas_") ||
          callee.startswith("polygeist_cudnn_") ||
+         callee.startswith("polygeist_cutensor_") ||
          callee.startswith("polygeist_cutensornet_") ||
          callee.startswith("polygeist_cuda_") ||
          callee.startswith("polygeist_rmsnorm_") ||
@@ -91,7 +92,7 @@ static bool isCudaGraphMetadataOperation(Operation *op) {
       name == "memref.dim" || name == "memref.get_global" ||
       name == "memref.extract_strided_metadata" ||
       name == "memref.extract_aligned_pointer_as_index" ||
-      name == "memref.store")
+      name == "memref.store" || name == "gpu.host_register")
     return true;
   if (name == "llvm.inttoptr" || name == "llvm.ptrtoint" ||
       name == "builtin.unrealized_conversion_cast")
@@ -106,27 +107,47 @@ static bool isCudaDispatchOperation(Operation *op) {
 }
 
 static bool isCudaGraphSafeCall(func::CallOp call,
-                                bool captureHostMappedCutensornet);
+                                bool captureHostMappedCutensornet,
+                                bool captureHostMappedLibraries);
 
 static bool isCudaGraphSafeOperation(Operation *op,
-                                     bool captureHostMappedCutensornet) {
+                                     bool captureHostMappedCutensornet,
+                                     bool captureHostMappedLibraries) {
   if (auto call = dyn_cast<func::CallOp>(op))
-    return isCudaGraphSafeCall(call, captureHostMappedCutensornet);
+    return isCudaGraphSafeCall(call, captureHostMappedCutensornet,
+                               captureHostMappedLibraries);
   return isGeneratedCudaLaunch(op);
 }
 
 static bool isCudaGraphSafeCall(func::CallOp call,
-                                bool captureHostMappedCutensornet) {
+                                bool captureHostMappedCutensornet,
+                                bool captureHostMappedLibraries) {
   if (call.getNumResults() != 0)
     return false;
   if (hasCudaGraphSafeAttr(call))
     return true;
   if (!isCudaShimCall(call))
     return false;
-  return captureHostMappedCutensornet &&
-         (call.getCallee() == "polygeist_cutensornet_contraction2_f64" ||
-          call.getCallee() == "polygeist_cutensornet_network_f32" ||
-          call.getCallee() == "polygeist_cutensornet_network_f64");
+  StringRef callee = call.getCallee();
+  if (captureHostMappedCutensornet &&
+      (callee == "polygeist_cutensornet_contraction2_f64" ||
+       callee == "polygeist_cutensornet_network_f32" ||
+       callee == "polygeist_cutensornet_network_f64"))
+    return true;
+  if (!captureHostMappedLibraries)
+    return false;
+  // Deliberately exact: each entry has been audited to enqueue only work on
+  // the shared stream after its first (warmup) invocation has populated
+  // descriptors, plans, mappings, and internal buffers.
+  return callee == "polygeist_cublas_sgemm" ||
+         callee == "polygeist_cublas_sgemv" ||
+         callee == "polygeist_cublas_sgemv_T" ||
+         callee == "polygeist_cublas_memset_zero_1d_f32" ||
+         callee == "polygeist_cublas_memset_zero_2d_f32" ||
+         callee == "polygeist_cudnn_pointwise_graph_f32" ||
+         callee == "polygeist_cudnn_softmax_forward_out_f32" ||
+         callee == "polygeist_cutensor_permute_f32" ||
+         callee == "polygeist_rmsnorm_f32";
 }
 
 static bool alreadyGraphWrapped(func::FuncOp func) {
@@ -157,6 +178,7 @@ static func::FuncOp ensureGraphBeginDecl(ModuleOp module, StringRef symbol,
 static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
                               func::FuncOp graphEnd, int64_t &nextGraphId,
                               bool captureHostMappedCutensornet,
+                              bool captureHostMappedLibraries,
                               bool maximalDeviceSequence) {
   if (alreadyGraphWrapped(func))
     return;
@@ -174,7 +196,8 @@ static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
       Operation *first = nullptr;
       Operation *last = nullptr;
       for (Operation &op : *block) {
-        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet)) {
+        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet,
+                                     captureHostMappedLibraries)) {
           first = first ? first : &op;
           last = &op;
         }
@@ -183,7 +206,8 @@ static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
       if (first && last)
         for (Operation *op = first; op != last; op = op->getNextNode())
           if (op != first &&
-              !isCudaGraphSafeOperation(op, captureHostMappedCutensornet) &&
+              !isCudaGraphSafeOperation(op, captureHostMappedCutensornet,
+                                        captureHostMappedLibraries) &&
               !isCudaGraphMetadataOperation(op))
             invalid = true;
       if (first && last && !invalid) {
@@ -202,7 +226,8 @@ static void wrapCudaGraphRuns(func::FuncOp func, func::FuncOp graphBegin,
     } else {
       SmallVector<Operation *> current;
       for (Operation &op : *block) {
-        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet)) {
+        if (isCudaGraphSafeOperation(&op, captureHostMappedCutensornet,
+                                     captureHostMappedLibraries)) {
           current.push_back(&op);
           continue;
         }
@@ -340,6 +365,7 @@ struct WrapKernelLaunchPipelinePass
         if (!func.isDeclaration())
           wrapCudaGraphRuns(func, graphBegin, graphEnd, nextGraphId,
                             captureHostMappedCutensornet,
+                            captureHostMappedLibraries,
                             maximalDeviceSequence);
     }
 

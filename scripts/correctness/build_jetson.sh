@@ -160,6 +160,21 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     --one-shot-bufferize=bufferize-function-boundaries \
     --canonicalize --promote-buffers-to-stack \
     $WORK/abi.mlir -o $WORK/bufferized.mlir
+  # Collapse tensor-value snapshot chains while the heap allocations are
+  # still explicit. Planning them into globals first would hide the closed
+  # copy chain and make full KV-cache/activation round trips permanent.
+  $POLYGEIST_OPT \
+    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    $WORK/bufferized.mlir -o $WORK/bufferized_prepared.mlir
+  mv $WORK/bufferized_prepared.mlir $WORK/bufferized.mlir
+  if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+    VECTOR_BOUND=${POLYGEIST_PERSISTENT_VECTOR_BOUND:-0}
+    LEADING_BOUND=${POLYGEIST_PERSISTENT_LEADING_DIM_BOUND:-0}
+    $POLYGEIST_OPT \
+      "--plan-persistent-gpu-workspace=function=${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION} dynamic-vector-bound=${VECTOR_BOUND} dynamic-leading-dim-bound=${LEADING_BOUND}" \
+      $WORK/bufferized.mlir -o $WORK/bufferized_persistent.mlir
+    mv $WORK/bufferized_persistent.mlir $WORK/bufferized.mlir
+  fi
   $POLYGEIST_OPT \
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/bufferized.mlir -o $WORK/gpu_prepared.mlir
@@ -173,7 +188,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
   $POLYGEIST_OPT \
-    '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true maximal-device-sequence=true' \
+    '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true capture-host-mapped-libraries=true maximal-device-sequence=true' \
     $WORK/gpu_registered.mlir -o $WORK/gpu_graphed.mlir
   # Current mlir-opt rejects combining a nested --pass-pipeline with
   # individual top-level pass flags. Attach the NVPTX target in its own
@@ -181,9 +196,13 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   $MLIR_OPT \
     --pass-pipeline="builtin.module(gpu.module(affine-expand-index-ops,lower-affine,convert-scf-to-cf,convert-gpu-to-nvvm,convert-arith-to-llvm,convert-index-to-llvm),convert-cf-to-llvm,gpu.module(canonicalize,cse),nvvm-attach-target{chip=${GPU_ARCH} O=3})" \
     $WORK/gpu_graphed.mlir -o $WORK/gpu_targeted.mlir
+  # Expand host-side memref metadata before gpu-to-llvm converts function
+  # signatures.  Otherwise pointer-extraction chains can acquire temporary
+  # i64-to-index unrealized casts that no later conversion can legalize.
   $MLIR_OPT \
-    --gpu-to-llvm --gpu-module-to-binary=format=isa \
     --expand-strided-metadata --lower-affine --convert-scf-to-cf \
+    --gpu-to-llvm --gpu-module-to-binary=format=isa \
+    --convert-math-to-llvm \
     --convert-arith-to-llvm --convert-index-to-llvm \
     --finalize-memref-to-llvm --convert-func-to-llvm \
     --reconcile-unrealized-casts \

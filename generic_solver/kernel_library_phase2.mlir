@@ -794,6 +794,16 @@ module {
   //   out[i] = weight[i] * x[i] * rsqrt(ss / N + 1e-5)
   // ABI lowering maps this to a runtime shim. The shim owns the optimized
   // implementation choice (cuDNN frontend/custom CUDA/CPU fallback).
+  kernel.defn @rmsnorm_f32(
+      %x: memref<?xf32>, %weight: memref<?xf32>, %out: memref<?xf32>) {
+    kernel.yield
+  }
+
+  kernel.defn @rmsnorm_f32_tensor(
+      %x: tensor<?xf32>, %weight: tensor<?xf32>,
+      %out: tensor<?xf32>) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
 
   // Cyclic 1-D reindexing.  The matcher proves
   // out[i] = input[(i + rotate_offset) mod N]; ABI lowering maps it to two

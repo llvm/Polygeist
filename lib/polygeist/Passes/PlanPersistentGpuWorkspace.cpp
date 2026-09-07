@@ -25,6 +25,7 @@ struct ScratchRoot {
 struct MemrefScratchRoot {
   memref::AllocOp op;
   MemRefType type;
+  MemRefType storageType;
 };
 
 struct PlanPersistentGpuWorkspacePass
@@ -67,11 +68,27 @@ struct PlanPersistentGpuWorkspacePass
       } else {
         if (auto alloc = dyn_cast<memref::AllocOp>(op)) {
           auto type = alloc.getType();
-          if (!type.hasStaticShape() || !alloc.getDynamicSizes().empty() ||
-              !alloc.getSymbolOperands().empty()) {
+          if (!alloc.getSymbolOperands().empty())
+            return;
+          if (type.hasStaticShape() && alloc.getDynamicSizes().empty()) {
+            memrefRoots.push_back({alloc, type, type});
             return;
           }
-          memrefRoots.push_back({alloc, type});
+          int64_t bound = type.getRank() == 1 ? dynamicVectorBound
+                                               : dynamicLeadingDimBound;
+          if (bound <= 0 || type.getRank() == 0 || !type.isDynamicDim(0) ||
+              alloc.getDynamicSizes().size() != 1)
+            return;
+          SmallVector<int64_t> storageShape(type.getShape());
+          storageShape[0] = bound;
+          for (int64_t dim = 1; dim < type.getRank(); ++dim)
+            if (type.isDynamicDim(dim))
+              return;
+          memrefRoots.push_back({
+              alloc, type,
+              MemRefType::get(storageShape, type.getElementType(),
+                              type.getLayout(),
+                              type.getMemorySpace())});
         }
         return;
       }
@@ -121,18 +138,46 @@ struct PlanPersistentGpuWorkspacePass
       globalBuilder.setInsertionPointToStart(module.getBody());
       auto global = globalBuilder.create<memref::GlobalOp>(
           root.op.getLoc(), globalBuilder.getStringAttr(name),
-          globalBuilder.getStringAttr("private"), TypeAttr::get(root.type),
+          globalBuilder.getStringAttr("private"),
+          TypeAttr::get(root.storageType),
           Attribute{}, UnitAttr{}, globalBuilder.getI64IntegerAttr(4096));
       symbolTable.insert(global);
 
       OpBuilder builder(root.op);
       auto getGlobal = builder.create<memref::GetGlobalOp>(
-          root.op.getLoc(), root.type, global.getName());
+          root.op.getLoc(), root.storageType, global.getName());
+      Value replacement = getGlobal.getResult();
+      if (root.type != root.storageType) {
+        SmallVector<OpFoldResult> offsets, sizes, strides;
+        unsigned dynamicOrdinal = 0;
+        for (int64_t dim = 0; dim < root.type.getRank(); ++dim) {
+          offsets.push_back(builder.getIndexAttr(0));
+          strides.push_back(builder.getIndexAttr(1));
+          if (root.type.isDynamicDim(dim))
+            sizes.push_back(root.op.getDynamicSizes()[dynamicOrdinal++]);
+          else
+            sizes.push_back(builder.getIndexAttr(root.type.getDimSize(dim)));
+        }
+        auto viewType = cast<MemRefType>(
+            memref::SubViewOp::inferRankReducedResultType(
+                root.type.getShape(), root.storageType, offsets, sizes,
+                strides));
+        replacement = builder.create<memref::SubViewOp>(
+            root.op.getLoc(), viewType, replacement, offsets, sizes, strides);
+        if (viewType != root.type) {
+          if (!memref::CastOp::areCastCompatible(viewType, root.type)) {
+            root.op.emitError("bounded persistent workspace has incompatible view type");
+            return signalPassFailure();
+          }
+          replacement = builder.create<memref::CastOp>(
+              root.op.getLoc(), root.type, replacement);
+        }
+      }
       SmallVector<memref::DeallocOp> deallocs;
       for (Operation *user : root.op.getResult().getUsers())
         if (auto dealloc = dyn_cast<memref::DeallocOp>(user))
           deallocs.push_back(dealloc);
-      root.op.getResult().replaceAllUsesWith(getGlobal.getResult());
+      root.op.getResult().replaceAllUsesWith(replacement);
       for (memref::DeallocOp dealloc : deallocs)
         dealloc.erase();
       root.op.erase();

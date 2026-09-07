@@ -3334,6 +3334,22 @@ def _whisper_exp_shift_sum_tensor() -> CompositionEntry:
     return _mlir_metadata("whisperExpShiftSum_f32_tensor")
 
 
+def _rmsnorm_family() -> list[CompositionEntry]:
+    """Weighted RMSNorm: sum-of-squares followed by normalized scaling."""
+    reduction = CompositionStep(
+        body=Term.Out(0) + (Term.In(0) * Term.In(0)),
+        num_ins=1, num_outs=1,
+        reduction_dim_count=1, parallel_dim_count=0,
+    )
+    scale = CompositionStep(
+        body=Term.In(0) * (T_cap("%scale") * Term.In(1)),
+        num_ins=2, num_outs=1,
+        reduction_dim_count=0, parallel_dim_count=1,
+    )
+    return [CompositionEntry(
+        name="rmsnorm_f32", steps=[reduction, scale], form="any")]
+
+
 def _llama_add_f32_tensor() -> CompositionEntry:
     """out = in0 + in1 — residual add in standalone Llama fixtures."""
     return _mlir_metadata("cudaAdd_f32_tensor")
@@ -3939,6 +3955,7 @@ def composition_library() -> list[CompositionEntry]:
         _softmax_3step_tensor(),
         _softmax_3step_out_tensor_mul_inv(),
         _softmax_3step_out_tensor(),
+        *_rmsnorm_family(),
         _whisper_exp_shift_sum_tensor(),
                                 #         Distinctive enough that ordering doesn't
                                 #         matter against the rest, but list it

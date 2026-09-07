@@ -226,6 +226,30 @@ static void destroy_cutensornet_contraction_cache(void);
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+#define POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP 16
+typedef struct {
+  int valid;
+  int32_t rank;
+  uint32_t input_alignment;
+  uint32_t output_alignment;
+  int64_t input_extents[64];
+  int64_t input_strides[64];
+  int32_t input_modes[64];
+  int64_t output_extents[64];
+  int64_t output_strides[64];
+  int32_t output_modes[64];
+  cutensorHandle_t handle;
+  cutensorTensorDescriptor_t input_desc;
+  cutensorTensorDescriptor_t output_desc;
+  cutensorOperationDescriptor_t operation;
+  cutensorPlanPreference_t preference;
+  cutensorPlan_t plan;
+} PolygeistCutensorPermuteCacheEntry;
+
+static PolygeistCutensorPermuteCacheEntry
+    g_cutensor_permute_cache[POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP];
+static void destroy_cutensor_permute_cache(void);
 #endif
 
 #define CUDA_CHECK(call) do {                                                \
@@ -1101,6 +1125,9 @@ void polygeist_cublas_destroy(void) {
   destroy_cuda_graph_cache();
   destroy_stencil3d_7pt_cache();
   destroy_generated_module_cache();
+#if POLYGEIST_HAS_CUTENSOR
+  destroy_cutensor_permute_cache();
+#endif
 #if POLYGEIST_HAS_CUTENSORNET
   destroy_cutensornet_contraction_cache();
 #endif
@@ -2527,8 +2554,10 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
 void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   void *device_ptr = NULL;
-  if (pointer_is_device_resident(v, &device_ptr)) {
+  if (pointer_is_device_resident(v, &device_ptr) || in_pipeline_scope()) {
     polygeist_cublas_init();
+    if (!device_ptr)
+      device_ptr = register_host_safe(v, (size_t)N * sizeof(double));
     timing_gpu_begin();
     CUDA_CHECK(cudaMemsetAsync(device_ptr, 0, (size_t)N * sizeof(double),
                                g_stream));
@@ -2542,8 +2571,10 @@ void polygeist_cublas_memset_zero_1d(int32_t N, double *v) {
 void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   void *device_ptr = NULL;
-  if (pointer_is_device_resident(v, &device_ptr)) {
+  if (pointer_is_device_resident(v, &device_ptr) || in_pipeline_scope()) {
     polygeist_cublas_init();
+    if (!device_ptr)
+      device_ptr = register_host_safe(v, (size_t)N * sizeof(float));
     timing_gpu_begin();
     CUDA_CHECK(cudaMemsetAsync(device_ptr, 0, (size_t)N * sizeof(float),
                                g_stream));
@@ -2668,9 +2699,9 @@ void polygeist_cublas_dgemv(
   uintptr_t y_begin = (uintptr_t)y;
   uintptr_t y_end = y_begin + bytes_y;
   if (x_begin < y_end && y_begin < x_end) {
-    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
-    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
-                          cudaMemcpyDeviceToDevice));
+    DEVICE_MALLOC((void **)&dx_snapshot, bytes_x);
+    CUDA_CHECK(cudaMemcpyAsync(dx_snapshot, dx, bytes_x,
+                               cudaMemcpyDeviceToDevice, g_stream));
     dx = dx_snapshot;
   }
 
@@ -2687,7 +2718,7 @@ void polygeist_cublas_dgemv(
   timing_gpu_end("cublasDgemv", M, N, 0, host_start_ms);
 
   if (dx_snapshot)
-    CUDA_CHECK(cudaFree(dx_snapshot));
+    DEVICE_FREE(dx_snapshot);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -2724,9 +2755,9 @@ void polygeist_cublas_sgemv(
   uintptr_t y_begin = (uintptr_t)y;
   uintptr_t y_end = y_begin + bytes_y;
   if (x_begin < y_end && y_begin < x_end) {
-    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
-    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
-                          cudaMemcpyDeviceToDevice));
+    DEVICE_MALLOC((void **)&dx_snapshot, bytes_x);
+    CUDA_CHECK(cudaMemcpyAsync(dx_snapshot, dx, bytes_x,
+                               cudaMemcpyDeviceToDevice, g_stream));
     dx = dx_snapshot;
   }
 
@@ -2742,7 +2773,7 @@ void polygeist_cublas_sgemv(
   timing_gpu_end("cublasSgemv", M, N, 0, host_start_ms);
 
   if (dx_snapshot)
-    CUDA_CHECK(cudaFree(dx_snapshot));
+    DEVICE_FREE(dx_snapshot);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -2785,9 +2816,9 @@ void polygeist_cublas_dgemv_T(
   uintptr_t y_begin = (uintptr_t)y;
   uintptr_t y_end = y_begin + bytes_y;
   if (x_begin < y_end && y_begin < x_end) {
-    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
-    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
-                          cudaMemcpyDeviceToDevice));
+    DEVICE_MALLOC((void **)&dx_snapshot, bytes_x);
+    CUDA_CHECK(cudaMemcpyAsync(dx_snapshot, dx, bytes_x,
+                               cudaMemcpyDeviceToDevice, g_stream));
     dx = dx_snapshot;
   }
 
@@ -2803,7 +2834,7 @@ void polygeist_cublas_dgemv_T(
   timing_gpu_end("cublasDgemv_T", M, N, 0, host_start_ms);
 
   if (dx_snapshot)
-    CUDA_CHECK(cudaFree(dx_snapshot));
+    DEVICE_FREE(dx_snapshot);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -2838,9 +2869,9 @@ void polygeist_cublas_sgemv_T(
   uintptr_t y_begin = (uintptr_t)y;
   uintptr_t y_end = y_begin + bytes_y;
   if (x_begin < y_end && y_begin < x_end) {
-    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
-    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
-                          cudaMemcpyDeviceToDevice));
+    DEVICE_MALLOC((void **)&dx_snapshot, bytes_x);
+    CUDA_CHECK(cudaMemcpyAsync(dx_snapshot, dx, bytes_x,
+                               cudaMemcpyDeviceToDevice, g_stream));
     dx = dx_snapshot;
   }
 
@@ -2856,7 +2887,7 @@ void polygeist_cublas_sgemv_T(
   timing_gpu_end("cublasSgemv_T", M, N, 0, host_start_ms);
 
   if (dx_snapshot)
-    CUDA_CHECK(cudaFree(dx_snapshot));
+    DEVICE_FREE(dx_snapshot);
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -7122,8 +7153,14 @@ void polygeist_cudnn_conv_bias_relu_add_fused(
 
 void polygeist_cublas_memset_zero_2d_f32(int32_t M, int32_t N, float *A, int32_t lda) {
   void *device_ptr = NULL;
-  if (pointer_is_device_resident(A, &device_ptr)) {
+  if (pointer_is_device_resident(A, &device_ptr) || in_pipeline_scope()) {
     polygeist_cublas_init();
+    if (!device_ptr) {
+      size_t span = M > 0
+          ? ((size_t)(M - 1) * (size_t)lda + (size_t)N) * sizeof(float)
+          : 0;
+      device_ptr = register_host_safe(A, span);
+    }
     double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
     timing_gpu_begin();
     CUDA_CHECK(cudaMemset2DAsync(device_ptr, (size_t)lda * sizeof(float), 0,
@@ -7900,6 +7937,224 @@ void polygeist_cudnn_pointwise_affine_relu_f32(
   timing_gpu_end("cudnnPointwiseAffineRelu_f32", 1, N, 0, host_start_ms);
 }
 
+#define RMSNORM_F32_CACHE_CAP 8
+struct rmsnorm_f32_plan {
+  int in_use, unsupported;
+  int32_t n;
+  size_t bytes;
+  float epsilon;
+  float *x, *weight, *bias, *out;
+  void *workspace;
+  cudnnBackendDescriptor_t x_desc, weight_desc, bias_desc, epsilon_desc;
+  cudnnBackendDescriptor_t out_desc, norm_op, op_graph;
+  cudnnBackendDescriptor_t heur, engine_cfg, plan, variant_pack;
+};
+
+static struct rmsnorm_f32_plan g_rmsnorm_f32_cache[RMSNORM_F32_CACHE_CAP];
+
+static struct rmsnorm_f32_plan *find_rmsnorm_f32_plan(int32_t n) {
+  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i)
+    if (g_rmsnorm_f32_cache[i].in_use && g_rmsnorm_f32_cache[i].n == n)
+      return &g_rmsnorm_f32_cache[i];
+  return NULL;
+}
+
+static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t n) {
+  for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i) {
+    struct rmsnorm_f32_plan *p = &g_rmsnorm_f32_cache[i];
+    if (!p->in_use) {
+      memset(p, 0, sizeof(*p));
+      p->in_use = 1;
+      p->n = n;
+      return p;
+    }
+  }
+  fprintf(stderr, "polygeist runtime: RMSNorm plan cache full\n");
+  abort();
+}
+
+static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
+  cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+  p->bytes = (size_t)p->n * sizeof(float);
+  p->epsilon = 1.0e-5f;
+  DEVICE_MALLOC((void **)&p->x, p->bytes);
+  DEVICE_MALLOC((void **)&p->weight, p->bytes);
+  DEVICE_MALLOC((void **)&p->bias, p->bytes);
+  DEVICE_MALLOC((void **)&p->out, p->bytes);
+  CUDA_CHECK(cudaMemsetAsync(p->bias, 0, p->bytes, g_stream));
+
+  int64_t dims[4] = {1, p->n, 1, 1};
+  int64_t strides[4] = {p->n, 1, 1, 1};
+  int64_t scalar_dims[4] = {1, 1, 1, 1};
+  int64_t scalar_strides[4] = {1, 1, 1, 1};
+  int64_t uid_x = 'x', uid_weight = 's', uid_bias = 'b';
+  int64_t uid_epsilon = 'e', uid_out = 'y';
+  if (!make_f32_backend_tensor(&p->x_desc, uid_x, dims, strides, 4, false,
+                               "rmsnorm.x", &status) ||
+      !make_f32_backend_tensor(&p->weight_desc, uid_weight, dims, strides, 4,
+                               false, "rmsnorm.weight", &status) ||
+      !make_f32_backend_tensor(&p->bias_desc, uid_bias, dims, strides, 4,
+                               false, "rmsnorm.bias", &status) ||
+      !make_f32_backend_tensor(&p->epsilon_desc, uid_epsilon, scalar_dims,
+                               scalar_strides, 4, true, "rmsnorm.epsilon",
+                               &status) ||
+      !make_f32_backend_tensor(&p->out_desc, uid_out, dims, strides, 4, false,
+                               "rmsnorm.out", &status))
+    return 0;
+
+  status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &p->norm_op);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  cudnnBackendNormMode_t mode = CUDNN_RMS_NORM;
+  cudnnBackendNormFwdPhase_t phase = CUDNN_NORM_FWD_INFERENCE;
+  if (!set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
+                        CUDNN_TYPE_NORM_MODE, 1, &mode, "rmsnorm.mode",
+                        &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
+                        CUDNN_TYPE_NORM_FWD_PHASE, 1, &phase,
+                        "rmsnorm.phase", &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->x_desc,
+                        "rmsnorm.xdesc", &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->weight_desc,
+                        "rmsnorm.weight_desc", &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->bias_desc,
+                        "rmsnorm.bias_desc", &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->epsilon_desc,
+                        "rmsnorm.epsilon_desc", &status) ||
+      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->out_desc,
+                        "rmsnorm.out_desc", &status) ||
+      !finalize_backend_desc(p->norm_op, "rmsnorm.op.finalize", &status))
+    return 0;
+
+  status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR, &p->op_graph);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  if (!set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+                        CUDNN_TYPE_HANDLE, 1, &g_cudnn,
+                        "rmsnorm.graph.handle", &status) ||
+      !set_backend_attr(p->op_graph, CUDNN_ATTR_OPERATIONGRAPH_OPS,
+                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->norm_op,
+                        "rmsnorm.graph.ops", &status) ||
+      !finalize_backend_desc(p->op_graph, "rmsnorm.graph.finalize", &status))
+    return 0;
+
+  const cudnnBackendHeurMode_t modes[] = {
+      CUDNN_HEUR_MODE_INSTANT, CUDNN_HEUR_MODE_A, CUDNN_HEUR_MODE_FALLBACK};
+  for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i) {
+    cudnnBackendDescriptor_t heur = NULL, config = NULL, plan = NULL;
+    status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR,
+                                          &heur);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendSetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->op_graph);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendSetAttribute(heur, CUDNN_ATTR_ENGINEHEUR_MODE,
+                                      CUDNN_TYPE_HEUR_MODE, 1, &modes[i]);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendFinalize(heur);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINECFG_DESCRIPTOR,
+                                          &config);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    int64_t returned = 0;
+    status = cudnnBackendGetAttribute(
+        heur, CUDNN_ATTR_ENGINEHEUR_RESULTS, CUDNN_TYPE_BACKEND_DESCRIPTOR,
+        1, &returned, &config);
+    if (status != CUDNN_STATUS_SUCCESS || returned == 0)
+      goto rms_heur_cleanup;
+    status = cudnnBackendCreateDescriptor(
+        CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &plan);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendSetAttribute(
+        plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE, CUDNN_TYPE_HANDLE, 1,
+        &g_cudnn);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendSetAttribute(
+        plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &config);
+    if (status != CUDNN_STATUS_SUCCESS) goto rms_heur_cleanup;
+    status = cudnnBackendFinalize(plan);
+    if (status == CUDNN_STATUS_SUCCESS) {
+      p->heur = heur;
+      p->engine_cfg = config;
+      p->plan = plan;
+      break;
+    }
+rms_heur_cleanup:
+    destroy_backend_desc(&plan);
+    destroy_backend_desc(&config);
+    destroy_backend_desc(&heur);
+  }
+  if (!p->plan) return 0;
+
+  int64_t count = 0, workspace_size = 0;
+  status = cudnnBackendGetAttribute(
+      p->plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
+      &count, &workspace_size);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  if (workspace_size > 0)
+    DEVICE_MALLOC(&p->workspace, (size_t)workspace_size);
+  status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
+  if (status != CUDNN_STATUS_SUCCESS) return 0;
+  int64_t uids[5] = {uid_x, uid_weight, uid_bias, uid_epsilon, uid_out};
+  void *ptrs[5] = {p->x, p->weight, p->bias, &p->epsilon, p->out};
+  return set_backend_attr(
+             p->variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+             CUDNN_TYPE_VOID_PTR, 5, ptrs, "rmsnorm.variant.ptrs", &status) &&
+         set_backend_attr(
+             p->variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+             CUDNN_TYPE_INT64, 5, uids, "rmsnorm.variant.uids", &status) &&
+         set_backend_attr(
+             p->variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+             CUDNN_TYPE_VOID_PTR, 1, &p->workspace,
+             "rmsnorm.variant.workspace", &status) &&
+         finalize_backend_desc(p->variant_pack, "rmsnorm.variant.finalize",
+                               &status);
+}
+
+void polygeist_rmsnorm_f32(
+    int32_t n, const float *x, const float *weight, float *out) {
+  if (n <= 0) return;
+  polygeist_cublas_init();
+  ensure_cudnn();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  struct rmsnorm_f32_plan *p = find_rmsnorm_f32_plan(n);
+  if (!p) {
+    p = alloc_rmsnorm_f32_plan(n);
+    if (!build_rmsnorm_f32_plan(p)) p->unsupported = 1;
+  }
+  if (p->unsupported) {
+    if (g_active_cuda_graph) {
+      fprintf(stderr, "polygeist runtime: RMSNorm is not CUDA-Graph safe "
+                      "without a cuDNN execution plan\n");
+      abort();
+    }
+    sync_stream_if_outside_pipeline();
+    float ss = 0.0f;
+    for (int32_t i = 0; i < n; ++i) ss += x[i] * x[i];
+    float scale = 1.0f / sqrtf(ss / (float)n + 1.0e-5f);
+    for (int32_t i = 0; i < n; ++i) out[i] = weight[i] * x[i] * scale;
+    timing_host_only("hostRmsNorm_f32", n, 1, 0, host_start_ms);
+    return;
+  }
+  CUDA_CHECK(cudaMemcpyAsync(p->x, x, p->bytes, cudaMemcpyHostToDevice,
+                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(p->weight, weight, p->bytes,
+                             cudaMemcpyHostToDevice, g_stream));
+  timing_gpu_begin();
+  CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+  CUDA_CHECK(cudaMemcpyAsync(out, p->out, p->bytes, cudaMemcpyDeviceToHost,
+                             g_stream));
+  timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
+}
+
 #define POINTWISE_GRAPH_CACHE_CAP 8
 struct pointwise_graph_plan {
   int in_use;
@@ -8409,12 +8664,19 @@ void polygeist_cudnn_pointwise_graph_f32(
   const int32_t strides[4] = {stride0, stride1, stride2, stride3};
   const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
   const int graph_diagnostics = diagnostics && diagnostics[0] != '0';
+  const int graph_is_capturing =
+      g_active_cuda_graph &&
+      g_active_cuda_graph->state == CUDA_GRAPH_CAPTURE;
   if (graph_diagnostics) {
-    cudaError_t prior = cudaStreamSynchronize(g_stream);
+    // Synchronization and pointer-attribute queries are prohibited while a
+    // stream is being captured. Diagnostics must never change graph validity.
+    cudaError_t prior = graph_is_capturing ? cudaSuccess
+                                           : cudaStreamSynchronize(g_stream);
     fprintf(stderr,
             "polygeist runtime: pointwise graph entry N=%d nodes=%d "
-            "prior=%s out=%p out_stride=%d\n",
-            N, num_nodes, cudaGetErrorString(prior), (void *)Out, out_stride);
+            "prior=%s out=%p out_stride=%d%s\n",
+            N, num_nodes, cudaGetErrorString(prior), (void *)Out, out_stride,
+            graph_is_capturing ? " (capture: CUDA queries skipped)" : "");
   }
   struct pointwise_graph_plan *p =
       find_pointwise_graph_plan(N, words, num_nodes);
@@ -8457,7 +8719,7 @@ void polygeist_cudnn_pointwise_graph_f32(
   timing_gpu_begin();
   for (int i = 0; i < 4; ++i)
     if (p->used_inputs[i]) {
-      if (graph_diagnostics) {
+      if (graph_diagnostics && !graph_is_capturing) {
         struct cudaPointerAttributes src_attr, dst_attr;
         cudaError_t src_status =
             cudaPointerGetAttributes(&src_attr, device_ptrs[i]);
@@ -9278,6 +9540,98 @@ void polygeist_cub_segmented_inclusive_product2d_f32(int32_t r,int32_t c,const f
 #undef INIT_DISPATCH_BEGIN
 #undef INIT_DISPATCH_END
 
+#if POLYGEIST_HAS_CUTENSOR
+static int cutensor_permute_cache_matches(
+    const PolygeistCutensorPermuteCacheEntry *entry, int32_t rank,
+    const int64_t *input_extents, const int64_t *input_strides,
+    const int32_t *input_modes, const int64_t *output_extents,
+    const int64_t *output_strides, const int32_t *output_modes,
+    uint32_t input_alignment, uint32_t output_alignment) {
+  size_t i64_bytes = (size_t)rank * sizeof(int64_t);
+  size_t i32_bytes = (size_t)rank * sizeof(int32_t);
+  return entry->valid && entry->rank == rank &&
+         entry->input_alignment == input_alignment &&
+         entry->output_alignment == output_alignment &&
+         memcmp(entry->input_extents, input_extents, i64_bytes) == 0 &&
+         memcmp(entry->input_strides, input_strides, i64_bytes) == 0 &&
+         memcmp(entry->input_modes, input_modes, i32_bytes) == 0 &&
+         memcmp(entry->output_extents, output_extents, i64_bytes) == 0 &&
+         memcmp(entry->output_strides, output_strides, i64_bytes) == 0 &&
+         memcmp(entry->output_modes, output_modes, i32_bytes) == 0;
+}
+
+static PolygeistCutensorPermuteCacheEntry *get_cutensor_permute_cache_entry(
+    int32_t rank, const int64_t *input_extents, const int64_t *input_strides,
+    const int32_t *input_modes, const int64_t *output_extents,
+    const int64_t *output_strides, const int32_t *output_modes,
+    uint32_t input_alignment, uint32_t output_alignment) {
+  for (int i = 0; i < POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP; ++i) {
+    PolygeistCutensorPermuteCacheEntry *entry = &g_cutensor_permute_cache[i];
+    if (cutensor_permute_cache_matches(
+            entry, rank, input_extents, input_strides, input_modes,
+            output_extents, output_strides, output_modes, input_alignment,
+            output_alignment))
+      return entry;
+  }
+
+  PolygeistCutensorPermuteCacheEntry *entry = NULL;
+  for (int i = 0; i < POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP; ++i)
+    if (!g_cutensor_permute_cache[i].valid) {
+      entry = &g_cutensor_permute_cache[i];
+      break;
+    }
+  if (!entry) {
+    fprintf(stderr, "polygeist runtime: cuTENSOR permutation cache full\n");
+    abort();
+  }
+
+  entry->rank = rank;
+  entry->input_alignment = input_alignment;
+  entry->output_alignment = output_alignment;
+  size_t i64_bytes = (size_t)rank * sizeof(int64_t);
+  size_t i32_bytes = (size_t)rank * sizeof(int32_t);
+  memcpy(entry->input_extents, input_extents, i64_bytes);
+  memcpy(entry->input_strides, input_strides, i64_bytes);
+  memcpy(entry->input_modes, input_modes, i32_bytes);
+  memcpy(entry->output_extents, output_extents, i64_bytes);
+  memcpy(entry->output_strides, output_strides, i64_bytes);
+  memcpy(entry->output_modes, output_modes, i32_bytes);
+  CUTENSOR_CHECK(cutensorCreate(&entry->handle));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      entry->handle, &entry->input_desc, rank, entry->input_extents,
+      entry->input_strides, CUDA_R_32F, input_alignment));
+  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
+      entry->handle, &entry->output_desc, rank, entry->output_extents,
+      entry->output_strides, CUDA_R_32F, output_alignment));
+  CUTENSOR_CHECK(cutensorCreatePermutation(
+      entry->handle, &entry->operation, entry->input_desc, entry->input_modes,
+      CUTENSOR_OP_IDENTITY, entry->output_desc, entry->output_modes,
+      CUTENSOR_COMPUTE_DESC_32F));
+  CUTENSOR_CHECK(cutensorCreatePlanPreference(
+      entry->handle, &entry->preference, CUTENSOR_ALGO_DEFAULT,
+      CUTENSOR_JIT_MODE_NONE));
+  CUTENSOR_CHECK(cutensorCreatePlan(entry->handle, &entry->plan,
+                                   entry->operation, entry->preference, 0));
+  entry->valid = 1;
+  return entry;
+}
+
+static void destroy_cutensor_permute_cache(void) {
+  for (int i = 0; i < POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP; ++i) {
+    PolygeistCutensorPermuteCacheEntry *entry = &g_cutensor_permute_cache[i];
+    if (!entry->valid)
+      continue;
+    cutensorDestroyPlan(entry->plan);
+    cutensorDestroyPlanPreference(entry->preference);
+    cutensorDestroyOperationDescriptor(entry->operation);
+    cutensorDestroyTensorDescriptor(entry->input_desc);
+    cutensorDestroyTensorDescriptor(entry->output_desc);
+    cutensorDestroy(entry->handle);
+  }
+  memset(g_cutensor_permute_cache, 0, sizeof(g_cutensor_permute_cache));
+}
+#endif
+
 void polygeist_cutensor_permute_f32(
     int32_t rank, const int64_t *input_extents, const int64_t *input_strides,
     const int32_t *input_modes, const int64_t *output_extents,
@@ -9304,11 +9658,6 @@ void polygeist_cutensor_permute_f32(
       (void *)input, (size_t)input_span*sizeof(float));
   float *device_output = (float *)register_host_safe(
       output, (size_t)output_span*sizeof(float));
-  cutensorHandle_t handle = NULL;
-  cutensorTensorDescriptor_t input_desc = NULL, output_desc = NULL;
-  cutensorOperationDescriptor_t operation = NULL;
-  cutensorPlanPreference_t preference = NULL;
-  cutensorPlan_t plan = NULL;
   float alpha = 1.0f;
   uint32_t input_alignment = 1;
   uint32_t output_alignment = 1;
@@ -9318,29 +9667,15 @@ void polygeist_cutensor_permute_f32(
   while (output_alignment < 128 &&
          ((uintptr_t)device_output % (2u * output_alignment)) == 0)
     output_alignment *= 2;
-  CUTENSOR_CHECK(cutensorCreate(&handle));
-  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &input_desc, rank, input_extents, input_strides,
-      CUDA_R_32F, input_alignment));
-  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &output_desc, rank, output_extents, output_strides,
-      CUDA_R_32F, output_alignment));
-  CUTENSOR_CHECK(cutensorCreatePermutation(
-      handle, &operation, input_desc, input_modes, CUTENSOR_OP_IDENTITY,
-      output_desc, output_modes, CUTENSOR_COMPUTE_DESC_32F));
-  CUTENSOR_CHECK(cutensorCreatePlanPreference(
-      handle, &preference, CUTENSOR_ALGO_DEFAULT, CUTENSOR_JIT_MODE_NONE));
-  CUTENSOR_CHECK(cutensorCreatePlan(handle, &plan, operation, preference, 0));
+  PolygeistCutensorPermuteCacheEntry *entry =
+      get_cutensor_permute_cache_entry(
+          rank, input_extents, input_strides, input_modes, output_extents,
+          output_strides, output_modes, input_alignment, output_alignment);
   timing_gpu_begin();
   CUTENSOR_CHECK(cutensorPermute(
-      handle, plan, &alpha, device_input, device_output, g_stream));
+      entry->handle, entry->plan, &alpha, device_input, device_output,
+      g_stream));
   timing_gpu_end("cutensorPermute_f32", elements, rank, 0, host_start_ms);
-  CUTENSOR_CHECK(cutensorDestroyPlan(plan));
-  CUTENSOR_CHECK(cutensorDestroyPlanPreference(preference));
-  CUTENSOR_CHECK(cutensorDestroyOperationDescriptor(operation));
-  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(input_desc));
-  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(output_desc));
-  CUTENSOR_CHECK(cutensorDestroy(handle));
 #else
   (void)rank;(void)input_extents;(void)input_strides;(void)input_modes;
   (void)output_extents;(void)output_strides;(void)output_modes;

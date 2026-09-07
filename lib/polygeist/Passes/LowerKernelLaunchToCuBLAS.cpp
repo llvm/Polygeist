@@ -105,6 +105,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_pointwise_affine_relu_f32";
   if (libSym == "cudnnPointwiseGraph_f32")
     return "polygeist_cudnn_pointwise_graph_f32";
+  if (libSym == "rmsnorm_f32" || libSym == "rmsnorm_f32_tensor")
+    return "polygeist_rmsnorm_f32";
   if (libSym == "cubInclusiveSum1D_f32_tensor")
     return "polygeist_cub_inclusive_sum1d_f32";
   if (libSym == "cubSegmentedInclusiveProduct2D_f32_tensor")
@@ -5325,6 +5327,50 @@ static LogicalResult lowerCudnnConvBiasReluAdd(LaunchOp launch,
 
 // Runtime computes:
 //   out[i] = weight[i] * x[i] * rsqrt(sum_j x[j]^2 / N + 1e-5)
+static LogicalResult lowerRmsnormF32(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 3)
+    return launch.emitError("rmsnorm: expected 3 operands (x, weight, out)");
+  if (launch.getNumResults() > 1)
+    return launch.emitError("rmsnorm: expected zero or one result");
+
+  Value x = resolveSubmapBase(launch.getOperand(0));
+  Value weight = resolveSubmapBase(launch.getOperand(1));
+  Value out = resolveSubmapBase(launch.getOperand(2));
+  ShapedType xTy = getRankedShapedType(x);
+  ShapedType wTy = getRankedShapedType(weight);
+  ShapedType oTy = getRankedShapedType(out);
+  if (!xTy || !wTy || !oTy || xTy.getRank() != 1 || wTy.getRank() != 1 ||
+      oTy.getRank() != 1)
+    return launch.emitError("rmsnorm: x/weight/out must be ranked 1D");
+  if (!xTy.getElementType().isF32() ||
+      wTy.getElementType() != xTy.getElementType() ||
+      oTy.getElementType() != xTy.getElementType())
+    return launch.emitError("rmsnorm: only f32 x/weight/out supported");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value xMr = valueToMemref(b, loc, x);
+  Value wMr = valueToMemref(b, loc, weight);
+  Value oMr = valueToOutputMemrefPreservingSlice(b, loc, out);
+  Value n = memrefDimAsI32(b, loc, xMr, 0);
+  Value xPtr = memrefBasePtr(b, loc, xMr);
+  Value wPtr = memrefBasePtr(b, loc, wMr);
+  Value oPtr = memrefBasePtr(b, loc, oMr);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), ptrTy, ptrTy, ptrTy};
+  func::FuncOp shim =
+      ensureShimDecl(module, "polygeist_rmsnorm_f32", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{n, xPtr, wPtr, oPtr});
+
+  if (launch.getNumResults() == 1) {
+    Value updated = memrefToTensor(b, loc, oMr, launch.getResult(0).getType());
+    rewireTensorSliceLaunchResult(
+        launch, updated, tensorForOutputSliceSource(b, loc, out));
+  }
+  launch.erase();
+  return success();
+}
+
 // @cudnnPointwiseAffineRelu_f32(%x, %bias, %out, %alpha), FP32 1D.
 // Runtime executes the two-node cuDNN graph:
 //   tmp = alpha * x + bias; out = relu(tmp)
@@ -7613,6 +7659,9 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudnnPointwiseAffineReluF32(launch, module);
       } else if (libSym == "cudnnPointwiseGraph_f32") {
         r = lowerCudnnPointwiseGraphF32(launch, module);
+      } else if (libSym == "rmsnorm_f32" ||
+                 libSym == "rmsnorm_f32_tensor") {
+        r = lowerRmsnormF32(launch, module);
       } else if (libSym == "cubInclusiveSum1D_f32_tensor") {
         r = lowerCubInclusiveSum1DF32(launch, module);
       } else if (libSym == "cubSegmentedInclusiveProduct2D_f32_tensor") {

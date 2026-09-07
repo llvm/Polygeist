@@ -2,6 +2,8 @@
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=injective_writeback' %s | FileCheck %s --check-prefix=WRITEBACK
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=bufferized_injective_writeback' %s | FileCheck %s --check-prefix=BUFFERIZED-WRITEBACK
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=redundant_roundtrip' %s | FileCheck %s --check-prefix=ROUNDTRIP
+// RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=snapshot_chain' %s | FileCheck %s --check-prefix=SNAPSHOT
+// RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=plain_injective_copy' %s | FileCheck %s --check-prefix=PLAIN-COPY
 
 module attributes {gpu.container_module} {
   memref.global "private" @workspace : memref<16xf64> {alignment = 4096 : i64}
@@ -65,6 +67,36 @@ module attributes {gpu.container_module} {
     memref.copy %snapshot, %base : memref<?xf64> to memref<?xf64>
     return
   }
+
+  func.func @snapshot_chain(%base: memref<?xf32>, %update: memref<4xf32>) {
+    %c0 = arith.constant 0 : index
+    %size = memref.dim %base, %c0 : memref<?xf32>
+    %a = memref.alloc(%size) : memref<?xf32>
+    memref.copy %base, %a : memref<?xf32> to memref<?xf32>
+    %slice = memref.subview %a[0] [4] [1]
+        : memref<?xf32> to memref<4xf32, strided<[1]>>
+    memref.copy %update, %slice
+        : memref<4xf32> to memref<4xf32, strided<[1]>>
+    %b = memref.alloc(%size) : memref<?xf32>
+    memref.copy %a, %b : memref<?xf32> to memref<?xf32>
+    memref.copy %b, %base : memref<?xf32> to memref<?xf32>
+    return
+  }
+
+  func.func @plain_injective_copy(%src: memref<4x8xf32>,
+                                   %dst: memref<4x8xf32>) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c4 = arith.constant 4 : index
+    %c8 = arith.constant 8 : index
+    scf.for %i = %c0 to %c4 step %c1 {
+      scf.for %j = %c0 to %c8 step %c1 {
+        %value = memref.load %src[%i, %j] : memref<4x8xf32>
+        memref.store %value, %dst[%i, %j] : memref<4x8xf32>
+      }
+    }
+    return
+  }
 }
 
 // PREPARE-LABEL: func.func @copy_and_launch
@@ -94,3 +126,17 @@ module attributes {gpu.container_module} {
 // ROUNDTRIP-NOT: memref.copy
 // ROUNDTRIP-NOT: linalg.copy
 // ROUNDTRIP: return
+
+// SNAPSHOT-LABEL: func.func @snapshot_chain
+// SNAPSHOT-NOT: memref.alloc
+// SNAPSHOT: %[[SLICE:.*]] = memref.subview %[[BASE:.*]][0] [4] [1]
+// SNAPSHOT-SAME: memref<?xf32> to memref<4xf32, strided<[1]>>
+// SNAPSHOT: linalg.copy ins(%{{.*}} : memref<4xf32>) outs(%[[SLICE]] : memref<4xf32, strided<[1]>>)
+// SNAPSHOT-NOT: linalg.copy
+// SNAPSHOT: return
+
+// PLAIN-COPY-LABEL: func.func @plain_injective_copy
+// PLAIN-COPY-NOT: scf.for
+// PLAIN-COPY: scf.parallel (%[[I:[^,]+]], %[[J:[^)]+]])
+// PLAIN-COPY: %[[VALUE:.*]] = memref.load %{{.*}}[%[[I]], %[[J]]]
+// PLAIN-COPY: memref.store %[[VALUE]], %{{.*}}[%[[I]], %[[J]]]

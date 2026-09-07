@@ -307,6 +307,10 @@ def WrapKernelLaunchPipeline
            "bool", /*default=*/"false",
            "Treat the host-mapped generic cuTensorNet contraction shim as "
            "graph-safe under the stable-pointer CUDA Graph contract.">,
+    Option<"captureHostMappedLibraries", "capture-host-mapped-libraries",
+           "bool", /*default=*/"false",
+           "Capture the audited result-free cuBLAS/cuDNN/cuTENSOR shims used "
+           "by a persistent host-mapped device pipeline.">,
     Option<"maximalDeviceSequence", "maximal-device-sequence", "bool",
            /*default=*/"false",
            "Capture one maximal device sequence, including capture-invariant "
@@ -324,8 +328,10 @@ def PlanPersistentGpuWorkspace
     buffers. This is
     an explicitly selected, single-instance workspace policy for repeated GPU
     execution: addresses remain stable across CUDA Graph warmup, capture, and
-    replay. Dynamic scratch and copied alloc_tensor operations are left
-    unchanged; recursive functions and missing explicit selections are
+    replay. An opt-in bound can also back leading-dynamic memref allocations
+    with a static global while preserving their runtime logical size through
+    a subview. Other dynamic scratch and copied alloc_tensor operations are
+    left unchanged; recursive functions and missing explicit selections are
     rejected.
 
     The global policy is intentionally opt-in because simultaneous invocations
@@ -344,6 +350,12 @@ def PlanPersistentGpuWorkspace
   let options = [
     Option<"functionName", "function", "std::string", /*default=*/"\"\"",
            "Exact function name whose static scratch may be made persistent.">,
+    Option<"dynamicVectorBound", "dynamic-vector-bound", "int64_t",
+           /*default=*/"0",
+           "Storage bound for rank-1 allocations with one dynamic dimension.">,
+    Option<"dynamicLeadingDimBound", "dynamic-leading-dim-bound", "int64_t",
+           /*default=*/"0",
+           "Storage bound for a sole leading dynamic dimension on rank>1 allocations.">,
   ];
 }
 
