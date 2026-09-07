@@ -5171,6 +5171,115 @@ PVA_KERNELS: list[dict] = [
 ]
 
 
+def _multi_backend_story() -> str:
+    """Show the shared C-to-library flow and its CPU/GPU/PVA branches."""
+    return (
+        '<style>'
+        '.pva-story{margin:16px 20px 22px;max-width:1160px;padding:20px;'
+        'border:1px solid #b7d7bf;border-radius:12px;background:#f7fcf8;'
+        'box-shadow:0 2px 8px rgba(31,90,48,.08)}'
+        '.pva-story h3{margin:0 0 7px;color:#245c35;font-size:18px}'
+        '.pva-story-copy{max-width:980px;color:#3e5144;font-size:13px;'
+        'line-height:1.55}'
+        '.pva-flow{display:flex;align-items:stretch;gap:8px;margin:20px 0 8px;'
+        'overflow-x:auto;padding:3px 1px 8px}'
+        '.pva-node{box-sizing:border-box;min-width:175px;flex:1;padding:13px 12px;'
+        'border:1px solid #9fc9aa;border-radius:9px;background:white;'
+        'text-align:center;color:#294b32}'
+        '.pva-node.source{background:#fff7df;border-color:#dfbd62;color:#654d12}'
+        '.pva-node.egg{background:#f2ecff;border-color:#ad93dc;color:#4c3973}'
+        '.pva-icon{display:block;font-size:27px;line-height:1;margin-bottom:8px}'
+        '.pva-node b{display:block;font-size:13px;margin-bottom:5px}'
+        '.pva-node code{font-size:11px;background:rgba(255,255,255,.72);'
+        'padding:2px 4px;border-radius:3px;white-space:normal;overflow-wrap:anywhere}'
+        '.pva-caption{display:block;margin-top:6px;font-size:11px;line-height:1.35;'
+        'color:#5c6b60}'
+        '.pva-arrow{display:flex;align-items:center;justify-content:center;'
+        'min-width:25px;color:#438254;font-size:25px;font-weight:700}'
+        '.backend-fan{position:relative;display:grid;grid-template-columns:repeat(3,1fr);'
+        'gap:14px;margin:0 0 14px;padding-top:34px}'
+        '.backend-fan:before{content:"";position:absolute;top:10px;left:16.5%;'
+        'right:16.5%;height:2px;background:#7eaa88}'
+        '.backend-card{position:relative;padding:15px 13px;border-radius:10px;'
+        'background:white;border:1px solid #b8c8bc;text-align:center;min-height:128px}'
+        '.backend-card:before{content:"";position:absolute;top:-24px;left:50%;'
+        'height:24px;border-left:2px solid #7eaa88}'
+        '.backend-card.cpu{border-top:5px solid #778899}'
+        '.backend-card.gpu{border-top:5px solid #62a4d8}'
+        '.backend-card.pva{border-top:5px solid #67a874}'
+        '.backend-card b{display:block;font-size:15px;margin-bottom:6px}'
+        '.backend-card code{font-size:11px;white-space:normal}'
+        '.backend-card span{display:block;color:#59645c;font-size:11px;'
+        'line-height:1.4;margin-top:7px}'
+        '.pva-proof{margin-top:14px;padding:12px 14px;border-radius:8px;'
+        'background:#edf4ee;color:#405345;font-size:12px;line-height:1.5}'
+        '.pva-example{margin-top:13px;padding:12px 14px;border-radius:8px;'
+        'background:#fff;border-left:4px solid #8f73c5;color:#4c4655;'
+        'font-size:12px;line-height:1.5}'
+        '@media(max-width:760px){.pva-flow{flex-direction:column}'
+        '.pva-arrow{transform:rotate(90deg);min-height:24px}'
+        '.backend-fan{grid-template-columns:1fr;padding-top:0}'
+        '.backend-fan:before,.backend-card:before{display:none}}'
+        '</style>'
+        '<div class="pva-story">'
+        '<h3>One simple C program, multiple accelerator backends</h3>'
+        '<div class="pva-story-copy">'
+        'The programmer writes ordinary loop-based C&mdash;without CUDA calls, PVA '
+        'DMA setup, or architecture-specific vector intrinsics. Polygeist raises '
+        'that implementation into a common MLIR representation. Egglog then helps '
+        'prove that differently written arithmetic expresses the same operation as '
+        'an available library specification. Once the intent is recognized, only '
+        'the final lowering changes for the selected machine.'
+        '</div>'
+        '<div class="pva-flow" role="img" aria-label="Simple C is raised through '
+        'MLIR and Egglog matching into a backend-neutral library operation">'
+        '<div class="pva-node source"><span class="pva-icon">&#123;&#125;</span>'
+        '<b>Portable C loops</b><code>for (...) output += input * weight</code>'
+        '<span class="pva-caption">One readable algorithmic source</span></div>'
+        '<div class="pva-arrow" aria-hidden="true">&rarr;</div>'
+        '<div class="pva-node"><span class="pva-icon">&#128736;</span>'
+        '<b>Raise to MLIR</b><code>C &rarr; SCF/Affine &rarr; linalg.generic</code>'
+        '<span class="pva-caption">Loops, data access, and scalar math become explicit</span></div>'
+        '<div class="pva-arrow" aria-hidden="true">&rarr;</div>'
+        '<div class="pva-node egg"><span class="pva-icon">&#8801;</span>'
+        '<b>Egglog equivalence</b><code>different expression &equiv; library spec</code>'
+        '<span class="pva-caption">Reassociate, commute, and normalize without losing meaning</span></div>'
+        '<div class="pva-arrow" aria-hidden="true">&rarr;</div>'
+        '<div class="pva-node"><span class="pva-icon">&#128279;</span>'
+        '<b>Recognized operation</b><code>kernel.launch @library_operation</code>'
+        '<span class="pva-caption">A common semantic handoff, independent of the final ABI</span></div>'
+        '</div>'
+        '<div style="text-align:center;color:#4e7658;font-size:24px;line-height:1">'
+        '&#8595;</div>'
+        '<div class="backend-fan">'
+        '<div class="backend-card cpu"><b>&#128187; CPU</b>'
+        '<code>host library / MLIR CPU lowering</code>'
+        '<span>Native x86 execution and reference path</span></div>'
+        '<div class="backend-card gpu"><b>&#9889; NVIDIA GPU</b>'
+        '<code>cuBLAS &middot; cuDNN &middot; cuSPARSE &middot; cuTensorNet</code>'
+        '<span>CUDA runtime shims call existing optimized vendor libraries</span></div>'
+        '<div class="backend-card pva"><b>&#128065; NVIDIA PVA</b>'
+        '<code>PVA Solutions: pva*Create / pva*Submit</code>'
+        '<span>The backend shim hides allocator, tensor, submit, synchronization, '
+        'and DMA-facing setup from the original C program</span></div>'
+        '</div>'
+        '<div class="pva-example"><b>Concrete example: 3&times;3 convolution.</b> '
+        'The C source contains nested loops and nine multiply-add terms. Raising '
+        'exposes the convolution access pattern; equivalence reasoning tolerates '
+        'different arithmetic spelling; matching names the operation. An FP '
+        'variant can lower to cuDNN on the GPU, while supported integer variants '
+        'can lower to PVA Solutions <code>OpConv2d</code>. The algorithm remains '
+        'recognizable C; the backend-specific ABI lives below the match.</div>'
+        '<div class="pva-proof"><b>The important boundary.</b> Egglog proves '
+        'equivalence&mdash;it does not invent an implementation. A branch is usable '
+        'only when that backend already provides a compatible external library '
+        'operation and our lowering supports its types, layouts, and ABI. This is '
+        'how one shared compiler flow improves portability without replacing '
+        'vendor libraries with handwritten kernels.</div>'
+        '</div>'
+    )
+
+
 def _pva_section() -> str:
     """Polygeist → PVA Solutions kernels. Each row is a kernel we successfully
     lowered through --lower-kernel-launch-to-pva and ran on the Jetson Orin
@@ -5265,6 +5374,7 @@ def _pva_section() -> str:
         '  and the matching CPU stubs in '
         '  <code>runtime/polygeist_cublas_rt_cpu.c</code>.'
         '</div>'
+        + _multi_backend_story()
         + table
         + '<div style="margin-top:14px; padding:10px 14px; '
           'background:#e4f3e4; border-left:4px solid #7faf8a;">'
@@ -6295,20 +6405,29 @@ def main():
     polybench_only = "--polybench-only" in sys.argv[1:]
     polybench_results_only = "--polybench-results-only" in sys.argv[1:]
     ginsbach_only = "--ginsbach-only" in sys.argv[1:]
+    pva_only = "--pva-only" in sys.argv[1:]
     unknown_args = [
         arg for arg in sys.argv[1:]
         if arg not in (
             "--mfem-only", "--aten-only", "--polybench-only",
             "--polybench-results-only",
             "--ginsbach-only",
+            "--pva-only",
         )
     ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
     if sum((mfem_only, aten_only, polybench_only,
-            polybench_results_only, ginsbach_only)) > 1:
+            polybench_results_only, ginsbach_only, pva_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if pva_only:
+        pages = build_site_pages(
+            {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("pva.html").write_text(pages["pva.html"])
+        print(f"Done. Open {OUTPUT_DIR}/pva.html.")
+        return
     if polybench_results_only:
         write_polybench_results_page()
         for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
