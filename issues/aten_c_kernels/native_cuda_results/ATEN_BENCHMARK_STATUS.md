@@ -30,4 +30,7 @@ All 116 native GPU and x86 CPU baselines use the exact recorded shape/dtype, fiv
 
 aten_adaptive_avg_pool2d_backward_cpu, aten_adaptive_avg_pool3d_backward_cpu, aten_adaptive_max_pool2d_backward_cpu, aten_binary_cross_entropy, aten_bmm, aten_cat_sparse_cpu, aten_conv3d, aten_count_nonzero_cpu, aten_count_nonzero_impl_cpu, aten_cumprod_backward_cpu, aten_cumsum, aten_dense_sparse_add_cpu, aten_div_floor, aten_dot, aten_fractional_max_pool2d_cpu, aten_fractional_max_pool3d_cpu, aten_host_softmax_backward_cpu, aten_host_softmax_cpu, aten_im2col, aten_layer_norm, aten_layer_norm_backward_cpu, aten_layer_norm_cpu_backend, aten_mean, aten_mm, aten_mse_loss, aten_mv, aten_nested_softmax_backward_cpu, aten_norm_cpu, aten_rms_norm, aten_softmax, aten_sort_cpu, aten_sparse_coo_softmax_backward_cpu, aten_sparse_csr_reduce_all_cpu, aten_sparse_sum_cpu, aten_split_copy_cpu, aten_topk_cpu, aten_vector_norm_out_cpu, aten_weight_norm_backward_cpu
 
-The CSV is the authoritative per-kernel artifact. Legacy resident values are shown for completeness but are not used for paper ratios until rerun through the strict device-output gate.
+The CSV is the authoritative per-kernel artifact. Legacy resident values are
+withheld from the HTML and are not used for paper ratios until rerun through
+the strict device-output gate. Historical mapped-host measurements are ABI
+diagnostics only; they do not feed the ATen results or slowness pages.

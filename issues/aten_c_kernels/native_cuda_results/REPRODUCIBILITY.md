@@ -2,6 +2,9 @@
 
 ## Measurement contract
 
+- The primary paper comparison is raised device-resident execution versus
+  PyTorch CUDA device-resident execution. Historical mapped-host timings are
+  ABI diagnostics only and must not feed headline ratios or the slowness page.
 - Shapes and dtypes come only from `resident_shape_specs.json` (109 FP32 and
   7 FP64 cases).
 - GPU timings use five warmups and the best of 20 synchronized wall-clock
@@ -14,6 +17,26 @@
 - Ratios require exact operation comparability, equal shape/dtype, and the
   strict device-output correctness gate. Proxy and extracted-stage baselines
   remain visible but have no ratio.
+- A `_cpu` fixture suffix identifies the ATen source implementation or dispatch
+  stub used for extraction. It does not select the benchmark device and does
+  not imply that the corresponding PyTorch operation lacks CUDA dispatch.
+
+## Benchmark-shape selection
+
+For scalar and regularly scalable fixtures, the generator uniformly scales
+the extracted compile-time dimensions until the largest input or output array
+contains approximately 4,194,304 elements. For structured operators, explicit
+shapes preserve the extracted layout, batch and reduction dimensions, sparse
+storage interpretation, output materialization, and the preconditions of the
+candidate vendor API while remaining within device memory. Consequently these
+are called *benchmark shapes*, not uniformly large or representative production
+shapes. The explicit structured cases are the `CASES` entries in
+`scripts/correctness/aten_pointwise_graph_silicon.py`; the generated resolved
+set is `resident_shape_specs.json`.
+
+Raised, PyTorch CUDA, and PyTorch CPU measurements consume that same resolved
+shape and dtype. CPU numbers use a separate 24-thread x86-64 host, so they are
+reported as cross-system context rather than same-hardware CPU/GPU speedups.
 
 ## Pinned environment
 

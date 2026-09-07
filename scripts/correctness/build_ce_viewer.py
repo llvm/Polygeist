@@ -74,14 +74,6 @@ ATEN_C_MLIR_DIR = env_path(
     "POLYGEIST_ATEN_C_MLIR_DIR",
     ATEN_C_ROOT / "results",
 )
-ATEN_SILICON_RESULTS = env_path(
-    "POLYGEIST_ATEN_SILICON_RESULTS",
-    ATEN_C_ROOT / "silicon_results/large_problem_comparison.csv",
-)
-ATEN_DEVICE_RESIDENCY_RESULTS = env_path(
-    "POLYGEIST_ATEN_DEVICE_RESIDENCY_RESULTS",
-    ATEN_C_ROOT / "silicon_results/device_residency_comparison.csv",
-)
 ATEN_CUDA_LIBRARY_AUDIT = env_path(
     "POLYGEIST_ATEN_CUDA_LIBRARY_AUDIT",
     ATEN_C_ROOT / "cuda_library_audit.csv",
@@ -498,11 +490,11 @@ ATEN_C_MATCH_ASSESSMENT: dict[str, str] = {
     "aten_adaptive_avg_pool2d": (
         "generic regular-window match lowered to depthwise cuDNN convolution"
     ),
-    "aten_adaptive_avg_pool2d_cpu": "semantic adaptive-pool match; regular shape executes cuDNN Resample",
-    "aten_adaptive_avg_pool2d_backward_cpu": "semantic adaptive-pool match; regular shape executes cuDNN Resample backward",
+    "aten_adaptive_avg_pool2d_cpu": "regular-window cuDNN candidate; retired whole-function recognizer is not counted as a current match",
+    "aten_adaptive_avg_pool2d_backward_cpu": "regular-window cuDNN candidate; current matcher consumes only output initialization and leaves residual loops",
     "aten_adaptive_avg_pool3d": "semantic regular 3D adaptive-pool match lowered to cuDNN Resample",
-    "aten_adaptive_avg_pool3d_cpu": "semantic adaptive-pool match; variable-window shape uses exact fallback",
-    "aten_adaptive_avg_pool3d_backward_cpu": "semantic adaptive-pool match; variable-window shape uses exact fallback",
+    "aten_adaptive_avg_pool3d_cpu": "variable-window semantics have no exact fixed cuDNN route; retired fallback is not counted",
+    "aten_adaptive_avg_pool3d_backward_cpu": "variable-window backward has no complete current library rewrite",
     "aten_adaptive_max_pool1d_cpu": "semantic adaptive-max match; variable-window shape uses exact ATen-index fallback",
     "aten_adaptive_max_pool2d_cpu": "hybrid cuDNN max values plus exact ATen absolute-index materialization",
     "aten_adaptive_max_pool2d_backward_cpu": "semantic saved-index scatter; exact ATen-index fallback",
@@ -2049,6 +2041,9 @@ _NATIVE_CPU_CSV = (
 _NATIVE_PROVENANCE_CSV = (
     ATEN_C_ROOT / "native_cuda_results" / "torch_aten_baseline_provenance.csv"
 )
+_ATEN_BENCHMARK_STATUS_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "aten_benchmark_status.csv"
+)
 
 
 def _load_native_resident():
@@ -2077,6 +2072,7 @@ def _load_kernel_csv(path):
 
 _NATIVE_CPU = _load_kernel_csv(_NATIVE_CPU_CSV)
 _NATIVE_PROVENANCE = _load_kernel_csv(_NATIVE_PROVENANCE_CSV)
+_ATEN_BENCHMARK_STATUS = _load_kernel_csv(_ATEN_BENCHMARK_STATUS_CSV)
 _NATIVE_SUF = [
     "_backward_cpu", "_backward", "_forward_cpu", "_forward", "_out_cpu", "_out",
     "_scalarized", "_transform_cpu", "_transform", "_template_cpu", "_cpu",
@@ -2493,52 +2489,13 @@ def build_aten_c_source_pages(aten_stats: dict[str, dict]) -> None:
 
 ATEN_PAGE_SIZE = 20
 
-# These measurements were collected from whole-function Python recognizers
-# removed on 2026-08-13. Keep the raw CSV as historical evidence, but do not
-# attach those executions to the current general matcher output.
-ATEN_RETIRED_EARLY_MATCH_KERNELS = {
-    "aten_adaptive_avg_pool2d_backward_cpu", "aten_adaptive_avg_pool2d_cpu",
-    "aten_adaptive_avg_pool3d_backward_cpu",
-    "aten_adaptive_avg_pool3d_cpu", "aten_adaptive_max_pool1d_cpu",
-    "aten_adaptive_max_pool2d_backward_cpu", "aten_adaptive_max_pool2d_cpu",
-    "aten_adaptive_max_pool3d_backward_cpu", "aten_adaptive_max_pool3d_cpu",
-    "aten_adaptive_max_pool3d_legacy_backward_cpu",
-    "aten_adaptive_max_pool3d_legacy_cpu",
-    "aten_avg_pool2d_cpu",
-    "aten_avg_pool3d_cpu",
-    "aten_batch_norm_backward_cpu",
-    "aten_batch_norm_backward_template_cpu",
-    "aten_fp16_gemv_trans_cpu",
-    "aten_linalg_powsum_cpu", "aten_nested_all_cpu",
-    "aten_nested_sum_dim_cpu", "aten_or_reduce_cpu", "aten_powsum_cpu",
-    "aten_sinc", "aten_sort_cpu", "aten_topk_cpu",
-    "aten_upsample_lanczos2d_aa_backward_cpu",
-    "aten_upsample_lanczos2d_aa_cpu", "aten_xor_sum_cpu",
-}
-
-
-def _aten_performance_by_kernel() -> dict[str, dict[str, str]]:
-    """Return only measurements that describe the current matcher output.
-
-    Keep this filtering shared by sorting and rendering.  Otherwise a removed
-    Thrust route can rank as PASS while its row is rendered as unmeasured.
-    """
-    performance = {}
-    for row in _read_csv(ATEN_SILICON_RESULTS):
-        if row.get("kernel", "") in ATEN_RETIRED_EARLY_MATCH_KERNELS:
-            continue
-        if "thrust" in " ".join(str(value) for value in row.values()).lower():
-            continue
-        performance[row.get("kernel", "")] = row
-    return performance
-
 
 def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[str, str, str]:
     """Classify measured ATen gaps by the dominant steady-state cause.
 
-    These labels deliberately describe the current deployment ABI, not the
-    semantic matcher.  cudaHostRegister is cached by the runtime, so repeated
-    registration is not listed as a warm-run cause.
+    These labels describe correctness-gated device-resident execution.  They
+    must not attribute a gap to mapped-host transfers, which are outside the
+    current publication timing contract.
     """
     if kernel in ("aten_gelu", "aten_gelu_cpu_tanh"):
         return (
@@ -2595,8 +2552,8 @@ def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[
         )
     if "Memcpy" in baseline or kernel in ("aten_as_complex_cpu",):
         detail = (
-            "This path copies through mapped host allocations rather than "
-            "between CUDA-resident allocations."
+            "This path is device-resident, but the copy geometry is less "
+            "efficient than the contiguous native operation."
         )
         if kernel == "aten_as_complex_cpu":
             detail += (
@@ -2611,10 +2568,10 @@ def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[
         )
     if kernel in ("aten_nested_matmul_broadcast_cpu", "aten_flatten_nd_linear_cpu"):
         return (
-            "small batched GEMM + mapped operands",
-            "The 256x256 batched products do not amortize the mapped-host "
-            "operand and wrapper costs as well as a large dense GEMM.",
-            "Use persistent device operands and cache the batched execution plan.",
+            "small batched GEMM",
+            "The batched products do not amortize launch, wrapper, and plan "
+            "costs as well as a large dense GEMM.",
+            "Cache the batched execution plan and fuse adjacent resident work.",
         )
     if kernel == "aten_outer":
         return (
@@ -2626,59 +2583,61 @@ def _aten_slowness_diagnosis(kernel: str, baseline: str, ratio: float) -> tuple[
         )
     if "Convolution" in baseline or "Conv3D" in baseline:
         return (
-            "per-call cuDNN setup + mapped operands",
+            "per-call cuDNN setup",
             "The raised wrapper recreates cuDNN descriptors and workspace per "
-            "call and uses mapped host operands. Compute-heavy convolutions "
-            "amortize this better; smaller or 2D cases expose it.",
-            "Cache descriptors, algorithm choice, and workspace, and retain "
-            "tensors on the device.",
+            "call. Compute-heavy convolutions amortize this better; smaller "
+            "cases expose it.",
+            "Cache descriptors, algorithm choice, and workspace.",
         )
     if kernel in ("aten_mm", "aten_addmm"):
         return (
             "dense library-call wrapper overhead",
-            "Dense GEMM provides useful reuse, but mapped inputs/output and "
-            "pipeline synchronization still make the raised end-to-end call "
-            "slower than an already-resident cuBLAS operation.",
-            "Adopt the device-pointer ABI and synchronize only at graph boundaries.",
+            "Dense GEMM provides useful reuse, but wrapper and call-boundary "
+            "synchronization can remain visible relative to native cuBLAS.",
+            "Synchronize only at graph boundaries.",
         )
     if kernel in ("aten_dot", "aten_blas_dot_naive_cpu", "aten_bf16_dot_cpu", "aten_fp16_dot_cpu"):
         return (
             "mostly amortized reduction",
             "The long reduction and scalar result amortize most wrapper cost; "
-            "only a small mapped-memory gap remains.",
-            "Device residency should remove most of the remaining difference.",
+            "only a small launch or synchronization gap remains.",
+            "Fuse the consumer of the scalar result where legal.",
         )
     if kernel == "aten_softmax":
         return (
             "reduction setup / synchronization",
-            "cuDNN does substantial reduction work, so the gap is modest, but "
-            "the raised end-to-end call still includes mapped operands, descriptor "
-            "setup, and synchronization.",
-            "Cache descriptors and keep the tensor resident in a larger GPU graph.",
+            "The raised call remains device-resident, but descriptor setup and "
+            "call-boundary synchronization can exceed the native fused path.",
+            "Cache descriptors and synchronize at a larger graph boundary.",
         )
     return (
         "bandwidth-bound elementwise/reduction",
-        "The useful arithmetic per byte is low. Mapped host operands, output "
-        "materialization, wrapper setup, and a call-boundary synchronization "
-        "dominate the resident fused CUDA/cuDNN operation.",
-        "Keep tensors and intermediates resident, fuse adjacent stages, and "
-        "synchronize only at the graph boundary.",
+        "The useful arithmetic per byte is low. Library decomposition, output "
+        "materialization, wrapper setup, and call-boundary synchronization can "
+        "dominate a native fused CUDA operation even with resident buffers.",
+        "Fuse adjacent stages and synchronize only at the graph boundary.",
     )
 
 
 def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
+    """Render only the current, same-shape resident ATen campaign.
+
+    Historical mapped-host and cuda-event experiments intentionally do not
+    feed this page.  Keeping this page and numerical.html on the same four CSV
+    inputs prevents cross-shape or cross-timing-scope comparisons.
+    """
     measurements = []
-    for perf in _read_csv(ATEN_DEVICE_RESIDENCY_RESULTS):
-        if perf.get("correctness") != "PASS":
+    for kernel, status in _ATEN_BENCHMARK_STATUS.items():
+        if status.get("raised_status") != "VERIFIED_RESIDENT":
             continue
         try:
-            ratio = float(perf.get("device_over_resident", ""))
-            mapped = float(perf.get("mapped_raised_us", ""))
-            device = float(perf.get("device_resident_us", ""))
-            resident = float(perf.get("resident_cuda_us", ""))
+            ratio = float(status.get("ratio_raised_over_native", ""))
+            raised = float(status.get("raised_resident_us", ""))
+            native = float(status.get("native_gpu_us", ""))
+            cpu = float(status.get("native_cpu_us", ""))
         except ValueError:
             continue
-        measurements.append((ratio, mapped, device, resident, perf))
+        measurements.append((ratio, raised, native, cpu, kernel, status))
     measurements.sort(reverse=True, key=lambda item: item[0])
 
     category_counts: dict[str, int] = {}
@@ -2689,19 +2648,19 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         "low-K library decomposition": "cause-intensity",
         "internal RMSNorm staging": "cause-memory",
         "copy residency / geometry": "cause-copy",
-        "small batched GEMM + mapped operands": "cause-intensity",
+        "small batched GEMM": "cause-intensity",
         "low-intensity GEMM shape": "cause-intensity",
-        "per-call cuDNN setup + mapped operands": "cause-setup",
+        "per-call cuDNN setup": "cause-setup",
         "dense library-call wrapper overhead": "cause-setup",
         "mostly amortized reduction": "cause-amortized",
         "reduction setup / synchronization": "cause-setup",
         "bandwidth-bound elementwise/reduction": "cause-bandwidth",
     }
     rows = []
-    for ratio, mapped, device, resident, perf in measurements:
-        kernel = perf.get("kernel", "")
+    for ratio, raised, native, cpu, kernel, status in measurements:
+        symbols = ", ".join(aten_stats.get(kernel, {}).get("matched_symbols", []))
         category, reason, remedy = _aten_slowness_diagnosis(
-            kernel, perf.get("baseline", ""), ratio
+            kernel, symbols, ratio
         )
         category_counts[category] = category_counts.get(category, 0) + 1
         kernel_page = aten_stats.get(kernel, {}).get("page_filename", "")
@@ -2713,10 +2672,9 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         category_style = category_styles.get(category, "cause-setup")
         rows.append(
             f'<tr><td>{kernel_html}</td>'
-            f'<td><code>{html.escape(perf.get("problem", "—"))}</code></td>'
-            f'<td>{mapped:,.3f}</td><td>{device:,.3f}</td><td>{resident:,.3f}</td>'
+            f'<td><code>{html.escape(status.get("shape", "—").replace("_", " "))}</code></td>'
+            f'<td>{raised:,.3f}</td><td>{native:,.3f}</td><td>{cpu:,.3f}</td>'
             f'<td class="{severity}"><b>{ratio:,.2f}&times;</b></td>'
-            f'<td>{mapped / device:,.2f}&times;</td>'
             f'<td><span class="cause-tag {category_style}">{html.escape(category)}</span>'
             f'<br>{html.escape(reason)}</td>'
             f'<td>{html.escape(remedy)}</td></tr>'
@@ -2726,98 +2684,67 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         f'<li><b>{html.escape(category)}</b>: {count} measured kernel(s)</li>'
         for category, count in sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))
     )
-    gemvs = [
-        item for item in measurements
-        if "gemv" in item[4].get("kernel", "").lower()
-        or item[4].get("kernel", "") == "aten_mv"
-    ]
-    gemv_ratio_min = min((item[0] for item in gemvs), default=0.0)
-    gemv_ratio_max = max((item[0] for item in gemvs), default=0.0)
-    gemv_residency = next(
-        (row for row in _read_csv(ATEN_DEVICE_RESIDENCY_RESULTS)
-         if row.get("kernel") == "aten_blas_gemv_generic_cpu"), {})
-    try:
-        mapped_gemv = float(gemv_residency.get("mapped_raised_us", ""))
-        device_gemv = float(gemv_residency.get("device_resident_us", ""))
-        resident_gemv = float(gemv_residency.get("resident_cuda_us", ""))
-        mapped_ratio = float(gemv_residency.get("mapped_over_resident", ""))
-        device_ratio = float(gemv_residency.get("device_over_resident", ""))
-        gemv_experiment = (
-            '<table><thead><tr><th>same raised GEMV path</th><th>warm µs</th>'
-            '<th>vs resident</th></tr></thead><tbody>'
-            f'<tr><td>mapped-host operands</td><td>{mapped_gemv:,.3f}</td>'
-            f'<td>{mapped_ratio:.3f}&times;</td></tr>'
-            f'<tr><td>cudaMalloc/device-resident operands</td><td>{device_gemv:,.3f}</td>'
-            f'<td>{device_ratio:.3f}&times;</td></tr>'
-            f'<tr><td>native resident cuBLAS</td><td>{resident_gemv:,.3f}</td>'
-            '<td>1.000&times;</td></tr></tbody></table>'
-        )
-    except (TypeError, ValueError):
-        gemv_experiment = ''
+    ratios = sorted(item[0] for item in measurements)
+    median_ratio = (ratios[len(ratios) // 2] if len(ratios) % 2 else
+                    (ratios[len(ratios) // 2 - 1] + ratios[len(ratios) // 2]) / 2)
+    within_125 = sum(ratio <= 1.25 for ratio in ratios)
+    within_2 = sum(ratio <= 2.0 for ratio in ratios)
     return (
-        '<div class="section-header"><h2 class="section-title">Why are some raised kernels slow?</h2></div>'
+        '<div class="section-header"><h2 class="section-title">Why are some resident raised kernels slow?</h2></div>'
         '<div class="intro">'
-        '<b>Result: all 40 executable FULL-match ATen kernels pass with true '
-        '<code>cudaMalloc</code> operands.</b> This table separates the old mapped-host '
-        'ABI from the corrected device-resident lowering and the native resident CUDA '
-        'baseline. The median device/native ratio is 1.07&times;; 32/40 are within '
-        '1.25&times; and 36/40 are within 2&times;. The four remaining gaps are algorithmic '
-        'or internal-library staging (two GELUs, a four-term linear combination, and '
-        'RMSNorm), not hidden tensor copies. Red ratios are at least 20&times;, yellow are '
+        f'<b>{len(measurements)} same-shape comparisons from the current '
+        '116-case campaign.</b> Every row uses a correctness-gated raised call '
+        'with <code>cudaMalloc</code> operands and a real PyTorch CUDA operation '
+        'at the identical shape and dtype. Allocation and transfers are excluded. '
+        f'The median raised/native ratio is {median_ratio:.2f}&times;; '
+        f'{within_125}/{len(measurements)} are within 1.25&times; and '
+        f'{within_2}/{len(measurements)} are within 2&times;. Historical mapped-host '
+        'measurements are intentionally excluded because they use a different ABI, '
+        'timing scope, and in some cases a different shape. CPU values are 24-thread '
+        'PyTorch measurements from a separate x86-64 host and are context, not a '
+        'same-system CPU/GPU speedup. Red ratios are at least 20&times;, yellow are '
         '2–20&times;, and green are below 2&times;.'
         f'<ul>{category_items}</ul></div>'
-        '<div class="section-header" id="gemv-deep-dive"><h2 class="section-title">'
-        'GEMV: the old 173× gap is fixed across the family</h2></div>'
-        '<div class="intro">'
-        f'The rerun GEMV family spans only '
-        f'<b>{gemv_ratio_min:.2f}&times;–{gemv_ratio_max:.2f}&times;</b> versus resident '
-        'cuBLAS with true device buffers. '
-        'For the main f32 case, <code>A</code> is 4096&times;8192 = 33,554,432 floats, '
-        'or 128 MiB. Each output uses one matrix row, but the matrix has essentially '
-        'no reuse across the call: GEMV performs about two floating-point operations '
-        'for every four matrix bytes. It is therefore a memory-bandwidth test wearing '
-        'a linear-algebra name.<br><br>'
-        'Inspection of the old generated LLVM showed the real dominant cost: before '
-        '<code>cublasSgemv</code>, one-shot bufferization allocated and copied the full '
-        '128 MiB matrix, then copied vectors/output around the call. A cudaMalloc-pointer '
-        'experiment initially crashed because those copies executed on the CPU.<br><br>'
-        '<b>Fix:</b> all library lowerings now trace tensor slices back to their original '
-        'memrefs, derive direct pointers, and treat destinations as in-place results. The '
-        'AArch64 objects have no allocation or CPU copy around the calls. All corrected runs '
-        'pass the CPU reference; '
-        'uploads happen before timing and the result download happens afterward.'
-        '</div>'
-        + gemv_experiment +
-        '<div class="section-header" id="polybench-gemv-comparison"><h2 class="section-title">'
-        'Why PolyBench GESUMMV shows a raised win</h2></div>'
-        '<div class="intro">'
-        '<b>The native baselines are not equivalent.</b> The warmed PolyBench result '
-        'compares two optimized cuBLAS GEMV calls from the raised path against the '
-        'handwritten PolyBenchGPU <code>gesummv_kernel</code>. That CUDA kernel assigns '
-        'one thread to each output row and executes the complete inner <code>j</code> '
-        'dot-product loop serially inside that thread. At N=512 it launches only 512 '
-        'threads and does not use a parallel reduction, so cuBLAS can beat it even while '
-        'using the mapped-host ABI.<br><br>'
-        'The ATen resident baseline is already optimized cuBLAS using '
-        '<code>cudaMalloc</code> operands. It therefore removes the algorithm-quality '
-        'advantage and exposes the raised ABI penalty directly. The sizes also cross a '
-        'different memory regime: one PolyBench N=512 f64 matrix is only 2 MiB (4 MiB '
-        'for A+B, repeatedly reused), whereas the ATen 4096x8192 f32 matrix is 128 MiB '
-        'and must stream from DRAM. Finally, the PolyBench raised number sums device-event '
-        'time inside runtime shims; the ATen raised number is wall time for the complete '
-        'raised call. Thus the PolyBench win means <i>cuBLAS beats that naive CUDA '
-        'implementation</i>; it does not show that mapped-host GEMV beats resident cuBLAS.'
-        '</div>'
-        '<table><thead><tr><th>kernel</th><th>large problem</th>'
-        '<th>mapped raised (µs)</th><th>device raised (µs)</th>'
-        '<th>native CUDA (µs)</th><th>device/native</th><th>mapped/device</th>'
+        '<table><thead><tr><th>kernel</th><th>benchmark shape</th>'
+        '<th>raised resident (µs)</th><th>PyTorch CUDA resident (µs)</th>'
+        '<th>PyTorch CPU x86 (µs)</th><th>raised/native</th>'
         '<th>dominant reason</th><th>next correction</th></tr></thead><tbody>'
         + "\n".join(rows) + '</tbody></table>'
     )
 
 
+def _aten_native_cuda_cell(provenance: dict[str, str]) -> str:
+    """Describe measured CUDA dispatch without confusing it with extraction.
+
+    A source link is emitted only for the deliberately pinned implementation
+    families in the provenance CSV.  Other rows name the measured torch API
+    and explicitly say that a single implementation source was not pinned.
+    """
+    api = provenance.get("benchmark_api", "")
+    source = provenance.get("native_cuda_source", "")
+    token = provenance.get("native_cuda_token", "")
+    api_html = f"<code>{html.escape(api)}</code>" if api else "—"
+    if not source:
+        return (f'{api_html}<br><span style="color:#666;font-size:10px" '
+                'title="CUDA dispatch was executed and measured; no single '
+                'implementation file is pinned because dispatch may select '
+                'among CUDA or cuDNN implementations">measured CUDA dispatch; '
+                'source not pinned</span>')
+    line = None
+    local_source = ATEN_UPSTREAM_ROOT / source
+    if token and local_source.exists():
+        for line_no, text in enumerate(local_source.read_text().splitlines(), 1):
+            if token in text:
+                line = line_no
+                break
+    url = (f"https://github.com/pytorch/pytorch/blob/{ATEN_UPSTREAM_COMMIT}/"
+           f"{source}" + (f"#L{line}" if line else ""))
+    pointer = f"third_party/pytorch/{source}" + (f":{line}" if line else "")
+    return (f'{api_html}<br><a class="viewer" href="{html.escape(url)}" '
+            f'target="_blank"><code>{html.escape(pointer)}</code></a>')
+
+
 def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
-    performance = _aten_performance_by_kernel()
     cuda_audit = {
         row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
     }
@@ -2914,74 +2841,38 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         assessment = ATEN_C_MATCH_ASSESSMENT.get(kernel, "")
         if "thrust" in assessment.lower():
             assessment = ""
-        perf = performance.get(kernel, {})
-        correctness = html.escape(perf.get("correctness", "—"))
-        problem = html.escape(perf.get("problem", "—"))
-        baseline = html.escape(perf.get("baseline", "—"))
-        # Resident (raised) + native are BOTH measured at the resident shape
-        # (single source of truth), so the ratio is same-shape by construction.
-        # We gate on the shape strings being equal so a mismatch can never
-        # print a bogus ratio again.
-        _rs = _RESIDENT_SILICON.get(kernel)
+        benchmark = _ATEN_BENCHMARK_STATUS.get(kernel, {})
         _nr = _NATIVE_RESIDENT.get(kernel)
         _nc = _NATIVE_CPU.get(kernel)
         _np = _NATIVE_PROVENANCE.get(kernel, {})
-        _res_shape = (_rs or {}).get("shape", "")
+        _res_shape = benchmark.get("shape", "")
         _nat_shape = (_nr or {}).get("shape", "")
-        _resident_verified = ((_rs or {}).get("correctness_scope", "") ==
-                              "device_pointer_output_vs_C_reference")
-        # order-independent compare (dim key order can differ across processes)
-        _shapes_match = bool(_res_shape) and (
-            sorted(_res_shape.split("_")) == sorted(_nat_shape.split("_")))
-        # native_us used for the column + ratio is the shape-matched one.
-        native_us = _nr.get("native_us") if _nr else None
-        cpu_us = _nc.get("time_us") if _nc else None
+        _status = benchmark.get("raised_status", "NOT_IN_CURRENT_CAMPAIGN")
+        _status_detail = benchmark.get(
+            "status_detail", "not selected for the current 116-case campaign")
+        _resident_verified = _status == "VERIFIED_RESIDENT"
+        native_us = benchmark.get("native_gpu_us") or None
+        cpu_us = benchmark.get("native_cpu_us") or None
         _legal_ratio = _np.get("legal_ratio", "yes") != "no"
-        try:
-            _res = float(_rs["resident_us"]) if _rs and _rs.get("resident_us") else 0.0
-            _nv = float(native_us) if native_us else 0.0
-            ratio = (html.escape(f"{_res / _nv:.3f}×")
-                     if (_res and _nv and _shapes_match and _legal_ratio and
-                         _resident_verified)
-                     else "—")
-        except (ValueError, TypeError, ZeroDivisionError):
-            ratio = "—"
-        # Dtype the raised path actually ran (from the mapped library symbol).
-        # The ATen native column was measured in torch's default f32, so tag
-        # every row and flag the rare raised!=native precision mismatches.
-        _dt_text = (perf.get("baseline", "") + " " + perf.get("notes", "")).lower()
-        if re.search(r"_f16|half(?!-pixel)|bf16", _dt_text):
-            raised_dtype = "f16"
-        elif re.search(r"dgemm|dsymm|dgemv|dtrsm|_f64|double", _dt_text):
-            raised_dtype = "f64"
-        elif re.search(r"_i8\b", _dt_text):
-            raised_dtype = "i8"
-        elif re.search(r"_i16\b", _dt_text):
-            raised_dtype = "i16"
-        elif re.search(r"_i32\b", _dt_text):
-            raised_dtype = "i32"
-        elif re.search(r"sgemm|sdot|saxpby|sscal|ssymm|sgemv|_f32|float|"
-                       r"cudnn|cutensor|memcpy|copy", _dt_text):
-            raised_dtype = "f32"
+        ratio_value = benchmark.get("ratio_raised_over_native", "")
+        ratio = (html.escape(f"{float(ratio_value):.3f}×")
+                 if ratio_value and _resident_verified and _legal_ratio else "—")
+        dtype = benchmark.get("dtype", "")
+        dtype_tag = (f'<span title="current campaign dtype {html.escape(dtype)}" '
+                     f'style="color:#888;font-size:11px">'
+                     f'[{html.escape(dtype)}]</span>' if dtype else "")
+        if _resident_verified:
+            result_class, result_label = "pass", "VERIFIED"
+        elif _status == "LEGACY_RESIDENT":
+            result_class, result_label = "partial", "WITHHELD: LEGACY"
+        elif benchmark:
+            result_class = "partial"
+            result_label = _status.replace("_", " ")
         else:
-            raised_dtype = ""
-        native_dtype = _np.get("dtype", "") if native_us else ""
-        if raised_dtype and native_dtype and raised_dtype != native_dtype:
-            dtype_tag = (
-                f'<span title="raised runs {raised_dtype}; ATen native measured '
-                f'{native_dtype} — precision mismatch" '
-                f'style="color:#b00020;font-size:11px;font-weight:600">'
-                f'[{raised_dtype} vs native {native_dtype}]</span>'
-            )
-        elif raised_dtype:
-            _both = raised_dtype if not native_dtype else raised_dtype
-            dtype_tag = (
-                f'<span title="raised{" and native" if native_dtype else ""} '
-                f'{_both}" style="color:#888;font-size:11px">[{_both}]</span>'
-            )
-        else:
-            dtype_tag = ""
-        correctness_class = "pass" if correctness == "PASS" else "none"
+            result_class, result_label = "none", "NOT IN CAMPAIGN"
+        result_cell = (f'<td class="{result_class}" title="'
+                       f'{html.escape(_status_detail)}">'
+                       f'{html.escape(result_label)}</td>')
         if native_us:
             _native_color = ("#137333" if _legal_ratio else "#8a6d00")
             _native_scope = html.escape(_np.get("comparability", ""))
@@ -3001,36 +2892,22 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             )
         else:
             cpu_cell = '<td class="none">—</td>'
-        # Device-resident timing: operands in cudaMalloc'd DRAM, copies
-        # excluded (the same way torch measures its own kernels).
-        if _rs and _rs.get("resident_us"):
-            _resident_color = "#137333" if _resident_verified else "#8a6d00"
-            _resident_check = ("device-pointer output checked against C reference"
-                               if _resident_verified else
-                               "legacy timing: host path checked, device-pointer output not rechecked")
+        # Only strict, current-campaign resident timings are headline results.
+        if _resident_verified and benchmark.get("raised_resident_us"):
             resident_cell = (
-                f'<td style="color:{_resident_color};font-weight:600" '
+                f'<td style="color:#137333;font-weight:600" '
                 f'title="raised kernel, operands device-resident (cudaMalloc, '
-                f'copies excluded); {_resident_check}">'
-                f'{float(_rs["resident_us"]):.1f}</td>'
+                f'copies excluded); device-pointer output checked against C reference">'
+                f'{float(benchmark["raised_resident_us"]):.1f}</td>'
             )
+        elif _status == "LEGACY_RESIDENT":
+            resident_cell = (
+                '<td class="partial" title="legacy timing withheld until the '
+                'device-pointer output is rechecked">withheld</td>')
         else:
-            resident_cell = '<td class="none">—</td>'
-        # This is a separate GPU measurement from the resident number.  The
-        # mapped ABI can include host/device transfers and runtime allocation,
-        # so expose it without presenting it as resident execution.
-        try:
-            mapped_value = float(perf.get("raised_us", ""))
-        except (ValueError, TypeError):
-            mapped_value = 0.0
-        if correctness == "PASS" and mapped_value > 0.0:
-            mapped_cell = (
-                f'<td title="correctness-gated mapped raised GPU execution; '
-                f'host-pointer ABI transfers and allocations may be included">'
-                f'{mapped_value:.1f}</td>'
-            )
-        else:
-            mapped_cell = '<td class="none">—</td>'
+            resident_cell = (f'<td class="none" title="'
+                             f'{html.escape(_status_detail)}">—</td>')
+        cuda_impl_cell = _aten_native_cuda_cell(_np) if native_us else "—"
         rows.append(
             f'<tr data-op="{html.escape(kernel)}" '
             f'data-native="{1 if native_us else 0}">'
@@ -3041,13 +2918,16 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             f"<td>{launches}</td>"
             f"<td>{matches_cell}</td>"
             f"<td>{residency_cell}</td>"
-            f'<td class="{correctness_class}">{correctness}</td>'
-            f"<td><code>{html.escape(_res_shape.replace('_',' ')) if _res_shape else problem}</code></td>"
-            f"{mapped_cell}"
+            f"{result_cell}"
+            f'<td title="{html.escape(_np.get("shape_selection", ""))}: '
+            f'{html.escape(_np.get("shape_selection_note", ""))}"><code>'
+            f'{html.escape(_res_shape.replace("_", " ")) if _res_shape else "—"}'
+            f'</code></td>'
             f"{resident_cell}"
+            f"<td>{cuda_impl_cell}</td>"
             f"{native_cell}"
             f"{cpu_cell}"
-            f"<td>{ratio}</td><td>{baseline}</td>"
+            f"<td>{ratio}</td>"
             f"<td>{assessment}</td></tr>"
         )
     total_linalg = sum(s.get("linalg_ops", 0) for s in aten_stats.values())
@@ -3103,7 +2983,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         f'const ATEN_PAGE_SIZE={ATEN_PAGE_SIZE};'
         'let atenRows=[];let atenPage=1;'
         'let atenSortColumn=0;let atenSortDirection=1;'
-        'const atenNumericColumns=new Set([3,4,6,11,12,13,14,15]);'
+        'const atenNumericColumns=new Set([3,4,6,11,13,14,15]);'
         'function atenMissing(v){return !v||v==="—"||v==="-"||v==="N/A";}'
         'function atenValue(row,column){'
         'var v=row.cells[column].textContent.trim();'
@@ -3171,19 +3051,17 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         '<span id="aten-page-links"></span></span></div>' + table_script
     )
     headers = [
-        "kernel", "original ATen CPU implementation", "standalone C form",
+        "kernel", "extracted source implementation", "standalone C form",
         "Linalg ops", "residual loops", "raising status", "launches",
         "library matches",
         ('residency leaks<br><span style="font-weight:normal;'
          'text-transform:none;font-size:10px">allocs/copies</span>'),
-        "correctness", "large problem",
-        ('mapped raised (<span style="text-transform:none">µs</span>)<br>'
-         '<span style="font-weight:normal;text-transform:none;font-size:10px">'
-         'host-pointer ABI</span>'),
-        'resident (<span style="text-transform:none">µs</span>)',
-        'ATen CUDA (<span style="text-transform:none">µs</span>)',
-        'ATen CPU x86 (<span style="text-transform:none">µs</span>)',
-        "resident / native", "resident baseline", "assessment",
+        "resident result status", "benchmark shape",
+        'raised resident (<span style="text-transform:none">µs</span>)',
+        "native PyTorch CUDA dispatch",
+        'PyTorch CUDA resident (<span style="text-transform:none">µs</span>)',
+        'PyTorch CPU x86-64, 24 threads (<span style="text-transform:none">µs</span>)',
+        "raised / PyTorch CUDA", "assessment",
     ]
     header_html = "".join(
         f'<th onclick="sortAten({index})" tabindex="0" role="button" '
@@ -3215,19 +3093,35 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'and CUDA-runtime definitions are counted as matches. These are '
         'standalone C extractions of ATen mathematics, not the unmodified '
         'PyTorch C++ translation units (whose direct 224-file sweep produced '
-        '0 Linalg operations). Large-problem silicon results use a Jetson '
-        'Orin in MAXN mode. Raised time is the host-pointer ABI; the resident '
-        'baseline keeps operands on the GPU and excludes transfers and '
-        'allocations. Raised-resident and PyTorch CUDA use the same '
+        '0 Linalg operations). A <code>_cpu</code> suffix records the source '
+        'implementation or dispatch stub from which a fixture was extracted; '
+        'it does not specify the benchmark backend and does not imply that '
+        'PyTorch lacks CUDA dispatch for the operation. Benchmark silicon '
+        'results use a Jetson Orin in MAXN mode. The headline raised result '
+        'uses device-resident operands and excludes transfers and allocations; '
+        'historical mapped-host timings are not used in this table or in the '
+        'slowness page. Raised-resident and PyTorch CUDA use the same '
         'best-of-20 synchronized wall-clock boundary after five warmups. '
         'PyTorch CPU uses the same shapes and dtypes on the separate x86 host '
         '(24 threads), so it is labeled as a cross-system baseline rather than '
         'a same-hardware speedup. Green resident results passed a device-pointer '
-        'comparison with the C reference; amber resident results are retained '
-        'legacy measurements and are excluded from ratios pending that recheck. '
+        'comparison with the C reference; legacy resident measurements are '
+        'withheld pending that recheck. Every missing resident cell names its '
+        'current blocker or says that the fixture was not selected for the '
+        '116-case campaign. '
         'Green ATen numbers are legally comparable; amber numbers are real '
         'PyTorch measurements of an internal stage or dense-math proxy and do '
-        'not receive a resident/native ratio.'
+        'not receive a raised/native ratio.<br><br>'
+        '<b>Benchmark-shape policy:</b> automatically scalable scalar kernels '
+        'are uniformly enlarged until their largest tensor is approximately '
+        '4,194,304 elements. Structured operators use explicit shapes that '
+        'preserve layout, batching, reduction axes, sparse storage, and the '
+        'semantic conditions required by the selected vendor API while fitting '
+        'device memory. These are benchmark shapes, not a claim that every row '
+        'is a representative production workload. The exact shape and dtype '
+        'are shared by raised, PyTorch CUDA, and PyTorch CPU measurements; '
+        'explicit structured exceptions are recorded in '
+        '<code>resident_shape_specs.json</code>.'
         ' <a href="performance.html"><b>Why are some kernels slow?</b></a> '
         'groups the measured gaps by cause and starts with a GEMV deep dive.'
         '</div>'
@@ -6379,9 +6273,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + card("numerical.html", "ATen numerical kernels", len(aten_stats),
                "Extracted ATen C algorithms and Jetson comparisons.")
         + card("performance.html", "Why are some kernels slow?",
-               sum(row.get("correctness") == "PASS"
-                   for row in _read_csv(ATEN_SILICON_RESULTS)),
-               "Root-cause groups, highlighted slowdown ratios, and a GEMV deep dive.")
+               sum(bool(row.get("ratio_raised_over_native"))
+                   for row in _ATEN_BENCHMARK_STATUS.values()),
+               "Current same-shape, correctness-gated resident comparisons and root-cause groups.")
         + card("modified-kernels.html", "Modified kernels", modified_count,
                "Extracted or normalized sources, why direct compilation was not used, "
                "and whether the cause is frontend, raising, or framework structure.")

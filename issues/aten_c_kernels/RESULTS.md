@@ -331,3 +331,31 @@ Authoritative data and reproduction artifacts:
 - `benchmarks/aten_full_match_resident_baseline.c`
 - `scripts/correctness/aten_full_match_silicon.py`
 - `scripts/correctness/collect_aten_device_residency.py`
+
+## 2026-09-07 resident publication contract
+
+This campaign supersedes the August timing sets for headline ATen performance.
+The publication set contains 116 shape-resolved operations with real PyTorch
+CUDA and 24-thread x86 PyTorch CPU measurements. Seventy-eight have a raised
+resident value, 77 pass the strict device-pointer-output check, and 71 satisfy
+all shape, dtype, semantic-comparability, and correctness requirements for a
+raised/PyTorch-CUDA ratio.
+
+Only the correctness-gated device-resident raised values are headline results.
+Mapped-host values remain historical ABI diagnostics and are not consumed by
+either the ATen results table or the slowness analysis. A `_cpu` fixture suffix
+records extraction provenance rather than the execution backend. PyTorch CUDA
+dispatch was independently executed for every publication specification.
+
+Automatically scalable fixtures target approximately 4,194,304 elements in
+their largest tensor. Structured fixtures instead use explicit benchmark
+shapes that preserve layout, batching, reduction axes, sparse representation,
+output semantics, and library preconditions. CPU, native CUDA, and raised runs
+share the resolved shape and dtype. Because CPU runs use a separate x86-64
+host and GPU runs use Jetson Orin, CPU values are cross-system context and are
+not described as same-hardware speedups.
+
+Authoritative inputs are under `native_cuda_results`: `resident_shape_specs.json`,
+`resident_silicon.csv`, `torch_aten_resident_sync_wall.csv`,
+`torch_aten_cpu_sync_wall.csv`, `torch_aten_baseline_provenance.csv`, and the
+joined `aten_benchmark_status.csv`.
