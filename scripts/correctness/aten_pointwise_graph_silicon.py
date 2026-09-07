@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import csv
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,20 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 ATEN = ROOT / "issues/aten_c_kernels"
 BUILDER = ROOT / "scripts/correctness/polygeist_build.sh"
+RESIDENT_RESULTS = ATEN / "native_cuda_results" / "resident_silicon.csv"
+
+
+def _known_resident_kernels() -> set[str]:
+    """Kernels whose device-pointer path already passed on Orin silicon."""
+    if not RESIDENT_RESULTS.exists():
+        return set()
+    import csv
+    with RESIDENT_RESULTS.open(newline="") as stream:
+        return {row["kernel"] for row in csv.DictReader(stream)
+                if row.get("resident_us") and row.get("errors") == "0"}
+
+
+KNOWN_RESIDENT_KERNELS = _known_resident_kernels()
 
 
 def ptr(name: str, size: str, output: bool = False, init: str = "normal") -> tuple:
@@ -42,6 +57,10 @@ def scalar(name: str, value: float) -> tuple:
     return (name, "scalar", repr(value), False, "")
 
 
+def dscalar(name: str, value: float) -> tuple:
+    return (name, "dscalar", repr(value), False, "")
+
+
 def iscalar(name: str, value: int) -> tuple:
     return (name, "iscalar", str(value), False, "")
 
@@ -53,6 +72,51 @@ def spec(dims: dict[str, int], args: list[tuple], coverage: str = "full graph",
 
 N = 4_194_304
 CASES = {
+    "aten_addmm": spec(
+        {"M": 512, "N": 512, "K": 512},
+        [dptr("A", "M*K"), dptr("B", "K*N"),
+         dptr("C", "M*N", True), dscalar("beta", 0.5),
+         dscalar("alpha", 0.75)], "full FP64 GEMM with alpha and beta"),
+    "aten_conv2d": spec(
+        {"B": 4, "IC": 16, "OC": 32, "H": 128, "W": 128,
+         "KH": 3, "KW": 3},
+        [ptr("input", "B*IC*H*W"), ptr("filter", "OC*IC*KH*KW"),
+         ptr("output", "B*OC*(H-KH+1)*(W-KW+1)", True)],
+        "full valid NCHW 2d convolution through cuDNN"),
+    "aten_dot": spec(
+        {"N": 4_194_304},
+        [dptr("x", "N"), dptr("y", "N"), dptr("out", "1", True)],
+        "full FP64 dot product through cuBLAS"),
+    "aten_im2col": spec(
+        {"B": 4, "C": 8, "H": 128, "W": 128, "KH": 3, "KW": 3},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*KH*KW*(H-KH+1)*(W-KW+1)", True)],
+        "full im2col tensor transformation"),
+    "aten_max_pool2d": spec(
+        {"B": 16, "C": 32, "H": 128, "W": 128, "K": 2, "S": 2},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*((H-K)/S+1)*((W-K)/S+1)", True)],
+        "full 2x2 stride-2 max pooling through cuDNN"),
+    "aten_mean": spec(
+        {"N": 4_194_304},
+        [dptr("x", "N"), dptr("out", "1", True)],
+        "full FP64 mean reduction"),
+    "aten_mm": spec(
+        {"M": 512, "N": 512, "K": 512},
+        [dptr("A", "M*K"), dptr("B", "K*N"),
+         dptr("C", "M*N", True)], "full FP64 matrix multiplication"),
+    "aten_mv": spec(
+        {"M": 4096, "K": 1024},
+        [dptr("A", "M*K"), dptr("x", "K"), dptr("y", "M", True)],
+        "full FP64 GEMV accumulation"),
+    "aten_outer": spec(
+        {"M": 2048, "N": 2048},
+        [dptr("x", "M"), dptr("y", "N"),
+         dptr("out", "M*N", True)], "full FP64 outer product"),
+    "aten_split_copy_cpu": spec(
+        {"N": 4_194_304, "S": 4},
+        [ptr("x", "N"), ptr("out", "N", True)],
+        "full contiguous split-copy reshape"),
     "aten_sum": spec(
         {"M": 65_536, "N": 64},
         [dptr("x", "M*N"), dptr("out", "M", True)],
@@ -569,6 +633,16 @@ _UNIT = ("acos", "asin", "atanh")
 
 def _auto_init(kernel: str, name: str) -> str:
     base = kernel[5:] if kernel.startswith("aten_") else kernel
+    if name in {"inv_std", "invstd"}:
+        return "positive"
+    if base in {"cauchy_cpu", "exponential_cpu", "geometric_cpu"} and name == "uniform":
+        return "unit"
+    if base == "gamma_transform_cpu" and name == "alpha":
+        return "alpha_domain"
+    if base in {"standard_gamma_grad_cpu", "dirichlet_grad_cpu"}:
+        return "positive"
+    if "acosh" in base:
+        return "acosh_domain"
     if any(t in base for t in _POSITIVE):
         return "positive"
     if any(t in base for t in _UNIT):
@@ -672,8 +746,9 @@ def harness_text(kernel: str, cfg: dict) -> str:
     # region so timing reflects the op on device DRAM (torch's methodology).
     call_dev, dev_alloc, dev_h2d, dev_d2h, dev_free = [], [], [], [], []
     for name, kind, value, output, init_kind in cfg["args"]:
-        if kind in ("scalar", "iscalar"):
+        if kind in ("scalar", "dscalar", "iscalar"):
             decls.append((f"float {name} = {value}f;" if kind == "scalar"
+                          else f"double {name} = {value};" if kind == "dscalar"
                           else f"int {name} = {value};"))
             call_ref.append(name); call_got.append(name); call_dev.append(name)
             continue
@@ -734,6 +809,10 @@ def harness_text(kernel: str, cfg: dict) -> str:
             expr = "-0.8f + 1.6f*(float)(i%97)/96.0f"
         elif init_kind == "positive":
             expr = "0.25f + (float)(i%101)/101.0f"
+        elif init_kind == "acosh_domain":
+            expr = "1.25f + (float)(i%101)/101.0f"
+        elif init_kind == "alpha_domain":
+            expr = "0.75f + (float)(i%101)/101.0f"
         elif init_kind == "unit":
             expr = "0.05f + 0.9f*(float)(i%101)/101.0f"
         elif init_kind == "small":
@@ -761,6 +840,7 @@ def harness_text(kernel: str, cfg: dict) -> str:
         frees.extend([f"free({name}_ref);", f"free({name}_got);"])
     types = [
         "float" if a[1] == "scalar" else
+        "double" if a[1] == "dscalar" else
         "int" if a[1] == "iscalar" else
         "int *" if a[1] == "iptr" else
         "signed char *" if a[1] == "bptr" else
@@ -786,14 +866,21 @@ extern int cudaMemcpy(void*, const void*, unsigned long, int);
 extern int cudaFree(void*);
 extern int cudaDeviceSynchronize(void);
 static double now_us(void) {{ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return 1e6*t.tv_sec+1e-3*t.tv_nsec; }}
-#define CHECK_ARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ float r=name##_ref[i], g=name##_got[i]; float e=fabsf(r-g); if(!isfinite(g)||e>{cfg.get('rtol', 2e-3):.9g}f*(1.0f+fabsf(r))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%g got=%g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
+#define CHECK_ARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ float r=name##_ref[i], g=name##_got[i]; float e=fabsf(r-g); if(!((isnan(r)&&isnan(g)) || (isinf(r)&&r==g)) && (!isfinite(g)||e>{cfg.get('rtol', 2e-3):.9g}f*(1.0f+fabsf(r)))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%g got=%g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
 #define CHECK_IARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=name##_ref[i], g=name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
 #define CHECK_BARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=(int)name##_ref[i], g=(int)name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
-#define CHECK_DARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ double r=name##_ref[i], g=name##_got[i]; double e=fabs(r-g); if(!isfinite(g)||e>{cfg.get('rtol', 2e-3):.17g}*(1.0+fabs(r))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%.17g got=%.17g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
+#define CHECK_DARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ double r=name##_ref[i], g=name##_got[i]; double e=fabs(r-g); if(!((isnan(r)&&isnan(g)) || (isinf(r)&&r==g)) && (!isfinite(g)||e>{cfg.get('rtol', 2e-3):.17g}*(1.0+fabs(r)))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%.17g got=%.17g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
 int main(void) {{
   {' '.join(decls)}
   {' '.join(allocations)}
   {' '.join(init)}
+#ifndef BENCH_MAPPED_ONLY
+  /* Preserve the original inputs on device before host correctness/timing can
+     mutate any in-place operands. */
+  {' '.join(dev_alloc)}
+  {' '.join(dev_h2d)}
+  cudaDeviceSynchronize();
+#endif
   {kernel}_reference({ref_args});
   /* Correctness on a SINGLE run, BEFORE the timing loops mutate the buffers.
      In-place ops (e.g. out+=src) would otherwise accumulate over ~36 calls. */
@@ -805,18 +892,23 @@ int main(void) {{
      ONCE outside the timed loop, so only the op is measured (matches torch). */
   double resident_us = -1.0;
 #ifndef BENCH_MAPPED_ONLY
-  {' '.join(dev_alloc)}
-  {' '.join(dev_h2d)}
+  /* Correctness-gate the device-pointer path itself from the original input
+     state.  Host-pointer correctness above does not prove that residual CPU
+     code or a malformed ABI can legally consume cudaMalloc pointers. */
+  {kernel}({dev_args});
   cudaDeviceSynchronize();
-  for(int i=0;i<3;++i) {kernel}({dev_args});
-  cudaDeviceSynchronize();
-  /* best-of-20, wall-clock + full device sync (needed: shims run async on a
-     private stream). best-of matches torch's cudaEvent best-of statistic. */
-  {{ double best=1e30; for(int i=0;i<20;++i) {{ double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize(); double d=now_us()-t; if(d<best) best=d; }} resident_us = best; }}
   {' '.join(dev_d2h)}
+  {' '.join(comparisons)}
+  /* The correctness invocation above is also the first warmup. */
+  for(int i=0;i<4;++i) {kernel}({dev_args});
+  cudaDeviceSynchronize();
+  /* Device-resident synchronized wall time.  Native PyTorch uses the same
+     boundary in the paper comparison; allocations and transfers stay out. */
+  {{ double best=1e30; for(int i=0;i<20;++i) {{ double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize(); double d=now_us()-t; if(d<best) best=d; }} resident_us = best; }}
   {' '.join(dev_free)}
 #endif
   printf("RESULT kernel={kernel} warm_us=%.6f resident_us=%.6f errors=%d max_error=%g shape={shape_str} coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,resident_us,errors,max_error);
+  fflush(stdout);
   {' '.join(frees)}
   return errors ? 1 : 0;
 }}
@@ -838,33 +930,64 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     run(["aarch64-linux-gnu-gcc", "-O3", f"-D{kernel}={kernel}_reference", "-c", str(source), "-o", str(reference)], work / "reference.build.log")
     exe = work / kernel
     env = os.environ.copy()
+    artifacts = work / "artifacts"
     env.update({"PYTHON": "/usr/bin/python3",
-                "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference)})
+                "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference),
+                "POLYGEIST_EXPORT_OBJECT_DIR": str(artifacts)})
     # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
-    supports_resident = ("via cuSPARSE" in cfg["coverage"] or
+    supports_resident = (os.environ.get("POLYGEIST_FORCE_RESIDENT", "0") not in
+                         {"", "0", "false", "FALSE"} or
+                         kernel in KNOWN_RESIDENT_KERNELS or
+                         "via cuSPARSE" in cfg["coverage"] or
                          kernel in {"aten_quant_col_offsets_cpu",
                                     "aten_diff_cpu",
                                     "aten_embedding_bag_counts_cpu",
                                     "aten_allany_dims_cpu",
                                     "aten_nansum_cpu",
+                                    "aten_sum",
                                     "aten_argmax_cpu",
                                     "aten_argmin_cpu",
                                     "aten_sparse_norm_cpu",
                                     "aten_joint_scaling_cpu",
                                     "aten_compressed_block_convert_cpu",
                                     "aten_upsample_bilinear2d"})
-    if "via cuSPARSE" not in cfg["coverage"]:
+    if ("via cuSPARSE" not in cfg["coverage"] and
+            "sparse" not in kernel and "sspaddmm" not in kernel):
         env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
+    elif "sparse" in kernel or "sspaddmm" in kernel:
+        env["POLYGEIST_MINIMAL_CUSPARSE_RUNTIME"] = "1"
     _ct = "/home/arjaiswal/cutensor_sbsa"
-    if os.path.isdir(_ct):  # enable cutensorUnary etc. when the SDK is staged
+    if (os.path.isdir(_ct) and "sparse" not in kernel and
+            "sspaddmm" not in kernel):  # enable cutensorUnary when needed
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct
     build_command = [str(BUILDER), "--target=jetson", f"--function={kernel}",
                      f"--harness={harness}", "-o", str(exe), str(source)]
     if not supports_resident:
         build_command.append("-DBENCH_MAPPED_ONLY")
     run(build_command, work / "raised.build.log", env)
-    return {"kernel": kernel, "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()), "coverage": cfg["coverage"], "executable": str(exe)}
+    matched_text = (artifacts / "matched.mlir").read_text()
+    abi_text = (artifacts / "abi_canon.mlir").read_text()
+    residual_patterns = {
+        "linalg": r"\blinalg\.",
+        "scf_loop": r"\bscf\.(?:for|while)\b",
+        "affine_loop": r"\baffine\.(?:for|parallel)\b",
+        "affine_access": r"\baffine\.(?:load|store)\b",
+        "memref_copy": r"\bmemref\.copy\b",
+        "memref_access": r"\bmemref\.(?:load|store)\b",
+    }
+    residual = [name for name, pattern in residual_patterns.items()
+                if re.search(pattern, abi_text)]
+    library_calls = sorted(set(re.findall(
+        r"call\s+@(polygeist_(?!(?:cublas_pipeline_(?:begin|end)))[\w]+)",
+        abi_text)))
+    resident_safe = bool(library_calls) and not residual
+    return {"kernel": kernel,
+            "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()),
+            "coverage": cfg["coverage"], "executable": str(exe),
+            "launches": len(re.findall(r"kernel\.launch\s+@", matched_text)),
+            "library_calls": library_calls, "residual_device_unsafe": residual,
+            "resident_safe": resident_safe}
 
 
 def _matched_kernels() -> list[str]:
@@ -883,19 +1006,43 @@ def _cfg_for(kernel: str) -> dict | None:
     return CASES.get(kernel) or auto_spec(kernel)
 
 
+def _complete_library_missing() -> list[str]:
+    """Complete genuine-library matches without a passing resident result."""
+    audit = ATEN / "cuda_library_audit.csv"
+    if not audit.exists():
+        return []
+    with audit.open(newline="") as stream:
+        return sorted(
+            row["kernel"] for row in csv.DictReader(stream)
+            if row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+            and row.get("counts_as_library_reuse") == "yes"
+            and row.get("kernel") not in KNOWN_RESIDENT_KERNELS
+            and _cfg_for(row.get("kernel", "")) is not None)
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--output", type=Path, default=Path("/tmp/aten_pointwise_graph_large"))
     p.add_argument("--jobs", type=int, default=4)
-    p.add_argument("--kernel", action="append", choices=sorted(CASES))
+    p.add_argument("--kernel", action="append",
+                   help="kernel to build (repeatable; accepts explicit or auto specs)")
     p.add_argument("--all-matched", action="store_true",
                    help="build every matched kernel: CASES specs, else auto_spec")
+    p.add_argument("--complete-library-missing", action="store_true",
+                   help="build complete library matches lacking resident results")
     args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
-    if args.all_matched:
+    if args.complete_library_missing:
+        selected = _complete_library_missing()
+        print(f"[complete-library-missing] {len(selected)} kernels have a usable spec",
+              flush=True)
+    elif args.all_matched:
         selected = [k for k in _matched_kernels() if _cfg_for(k)]
         print(f"[all-matched] {len(selected)} kernels have a usable spec", flush=True)
     else:
         selected = args.kernel or sorted(CASES)
+    unknown = [k for k in selected if _cfg_for(k) is None]
+    if unknown:
+        p.error("no benchmark specification for: " + ", ".join(unknown))
     rows=[]; failures=[]
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         jobs={pool.submit(build_one,k,_cfg_for(k),args.output):k for k in selected}

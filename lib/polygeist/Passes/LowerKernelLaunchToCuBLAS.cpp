@@ -6695,8 +6695,17 @@ static LogicalResult lowerCutensorUnaryF32(LaunchOp launch, ModuleOp module,
 
   Value updated =
       memrefToTensor(b, loc, outputMr, launch.getResult(0).getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForSliceSource(b, loc, output));
+  Value strippedOutput = stripTensorCasts(output);
+  if (strippedOutput.getDefiningOp<polygeist::SubmapOp>()) {
+    Value base = resolveSubmapBase(strippedOutput);
+    Value baseMr = valueToMemrefPreservingSlice(b, loc, base);
+    Value updatedBase = memrefToTensor(b, loc, baseMr, base.getType());
+    if (failed(rewireSubmapLaunchResult(launch, updated, updatedBase)))
+      return failure();
+  } else {
+    rewireTensorSliceLaunchResult(
+        launch, updated, tensorForSliceSource(b, loc, output));
+  }
   launch.erase();
   return success();
 }

@@ -5,7 +5,7 @@
 # file (main, init, print, etc.) is compiled normally.
 #
 # Usage:
-#   polygeist_build.sh [--target=host|jetson] [--function=NAME] [-o OUT]
+#   polygeist_build.sh [--target=host|jetson-cpu|jetson] [--function=NAME] [-o OUT]
 #                      [--harness=HARNESS.c] [--no-debuf]
 #                      [--semantic-mlir=COMPOSED.mlir]
 #                      <kernel.c> [gcc-passthrough-flags...]
@@ -22,6 +22,9 @@
 #                       Deployment (scp / ssh / execute) is out of scope
 #                       for this driver — that's a separate, environment-
 #                       specific concern.
+#   --target=jetson-cpu Cross-compile to aarch64 using the CPU runtime shim.
+#                       This contains no CUDA dependency and can route raised
+#                       BLAS operations to an AArch64 CBLAS implementation.
 #   --function=auto     Auto-detect the kernel function via #pragma scop
 #                       (PolyBench convention) or a leading 'kernel_' prefix.
 #                       Override with --function=NAME for non-conventional
@@ -37,7 +40,7 @@
 #
 # Optional environment:
 #   POLYGEIST_CPU_BLAS=1
-#                       Host target only. Compile the CPU runtime shim with
+#                       Host or jetson-cpu target. Compile the CPU runtime with
 #                       CBLAS calls for BLAS-like symbols and link OpenBLAS by
 #                       default. Override with POLYGEIST_CPU_BLAS_CFLAGS and
 #                       POLYGEIST_CPU_BLAS_LIBS for MKL/BLIS/ArmPL/NVPL.
@@ -72,6 +75,11 @@
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
 #                       correctness from matcher/ABI/runtime correctness.
+#   POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE=1
+#                       Compatibility path for flat, complete library calls.
+#                       Lower views before debufferization; this removes the
+#                       tensor writeback shell but can hide view structure
+#                       needed by newer composition matching.
 #   POLYGEIST_BUFFERIZE_BEFORE_ABI=auto|0|1
 #                       Bufferize destination-style kernel.launch operations
 #                       before CUDA ABI lowering. `auto` (the default) enables
@@ -161,9 +169,11 @@ done
 [ -z "$SEMANTIC_MLIR" ] || [ -f "$SEMANTIC_MLIR" ] || {
   echo "ERROR: semantic MLIR file $SEMANTIC_MLIR not found" >&2; exit 1;
 }
-case "$TARGET" in host|jetson) ;; *)
-  echo "ERROR: --target must be 'host' or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
+case "$TARGET" in host|jetson-cpu|jetson) ;; *)
+  echo "ERROR: --target must be 'host', 'jetson-cpu', or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
 esac
+CROSS_AARCH64=0
+if [ "$TARGET" != "host" ]; then CROSS_AARCH64=1; fi
 [ -z "$OUT" ] && OUT="$(basename "$INPUT" .c)"
 
 # ─── Auto-detect the kernel function name ───────────────────────────────
@@ -227,7 +237,13 @@ if [ "$HARNESS_INPUT" = "$INPUT" ]; then
   SELECT_FUNC_ARGS=(--select-func="func-name=$FUNCTION externalize-dependencies=true")
 fi
 if [ "$DEBUFFERIZE" -eq 1 ]; then
-  echo "  [2/9] polygeist-opt: raise + debufferize (preserve submaps)"
+  SUBMAP_PASS=()
+  if [ "${POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE:-0}" != "0" ]; then
+    SUBMAP_PASS=(--lower-polygeist-submap)
+    echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
+  else
+    echo "  [2/9] polygeist-opt: raise + debufferize (preserve submaps)"
+  fi
   # Joint multi-root reconstruction preserves coupled results from one
   # multi-output generic.  The older recursive mode can silently retain only
   # one root (as exposed by the MFEM H(curl)/H(div) applications), so keep it
@@ -240,6 +256,7 @@ if [ "$DEBUFFERIZE" -eq 1 ]; then
   polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
     --remove-iter-args --affine-parallelize \
     --raise-affine-to-linalg-pipeline \
+    "${SUBMAP_PASS[@]}" \
     "${DEBUFFERIZE_PASS[@]}" \
     $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err || {
       echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
@@ -494,7 +511,7 @@ fi
 # Retarget the LLVM IR if we're cross-compiling. clang's --target flag will
 # also do most of this, but stripping the embedded x86 datalayout avoids
 # warnings and lets clang re-derive an aarch64 layout from --target.
-if [ "$TARGET" = "jetson" ]; then
+if [ "$CROSS_AARCH64" -ne 0 ]; then
   sed -i 's|target triple = "x86_64.*"|target triple = "aarch64-linux-gnu"|' $WORK/kernel.ll
   sed -i '/^target datalayout/d' $WORK/kernel.ll
 fi
@@ -525,6 +542,20 @@ if [ "$TARGET" = "host" ]; then
     RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
     echo "         + optimized CPU CBLAS runtime enabled"
   fi
+elif [ "$TARGET" = "jetson-cpu" ]; then
+  CC=$AARCH64_CC
+  CLANG_TARGET_ARGS="--target=aarch64-linux-gnu --gcc-toolchain=/usr"
+  RT_SRC=$RT/polygeist_cublas_rt_cpu.c
+  RT_LIBS="-lm -lpthread"
+  if [ "${POLYGEIST_CPU_BLAS:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_CPU_USE_CBLAS")
+    if [ -n "${POLYGEIST_CPU_BLAS_CFLAGS:-}" ]; then
+      read -r -a _CPU_BLAS_CFLAGS <<< "$POLYGEIST_CPU_BLAS_CFLAGS"
+      RT_CFLAGS+=("${_CPU_BLAS_CFLAGS[@]}")
+    fi
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+    echo "         + optimized AArch64 CPU CBLAS runtime enabled"
+  fi
 else
   # aarch64-linux-gnu-gcc is already configured for aarch64 — no --target arg.
   # Clang (used for kernel.ll → kernel.o only) does need --target=aarch64-linux-gnu.
@@ -551,6 +582,15 @@ else
              -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
              -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu:/home/nvidia/polygeist_cuda_libs"
     echo "         + minimal cuDNN/cuBLAS/CUDA runtime linkage"
+  fi
+  if [ "${POLYGEIST_MINIMAL_CUSPARSE_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUFFT"
+               "-DPOLYGEIST_DISABLE_CUSOLVER")
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB \
+             -lcudnn -lcusparse -lcusolver -lcublasLt -lcublas -lcudart \
+             -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + minimal cuSPARSE/cuBLAS/CUDA runtime linkage"
   fi
   if [ -n "${POLYGEIST_CUTENSORNET_ROOT:-}" ]; then
     CUTENSORNET_ROOT=$POLYGEIST_CUTENSORNET_ROOT
@@ -615,7 +655,7 @@ $CLANG $CLANG_TARGET_ARGS -O3 -c $WORK/kernel.ll -o $WORK/kernel.o
 if [ "$C_STYLE_ABI" -ne 0 ] && [ "$HARNESS_INPUT" = "$INPUT" ]; then
   KERNEL_NM=nm
   KERNEL_OBJCOPY=objcopy
-  if [ "$TARGET" = "jetson" ]; then
+  if [ "$CROSS_AARCH64" -ne 0 ]; then
     KERNEL_NM=aarch64-linux-gnu-nm
     KERNEL_OBJCOPY=aarch64-linux-gnu-objcopy
   fi
@@ -652,12 +692,13 @@ if [ -n "${POLYGEIST_HARNESS_CFLAGS:-}" ]; then
   read -r -a HARNESS_USER_CFLAGS <<< "$POLYGEIST_HARNESS_CFLAGS"
 fi
 $CC "${GCC_PASSTHROUGH[@]}" -O3 -fno-inline -fno-inline-functions \
+  -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra \
   -fsemantic-interposition \
   "${HARNESS_EXTRA_CFLAGS[@]}" \
   "${HARNESS_USER_CFLAGS[@]}" \
   -c "$HARNESS_INPUT" -o $WORK/harness_full.o
 NM_TOOL=nm
-if [ "$TARGET" = "jetson" ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
+if [ "$CROSS_AARCH64" -ne 0 ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
   NM_TOOL=aarch64-linux-gnu-nm
 fi
 if $NM_TOOL $WORK/harness_full.o | awk '{print $3}' | grep -qx "$FUNCTION"; then
@@ -672,7 +713,7 @@ else
 fi
 
 # Runtime shim. For jetson target we also need cuda + cudnn headers.
-if [ "$TARGET" = "host" ]; then
+if [ "$TARGET" != "jetson" ]; then
   $CC -O2 -ffunction-sections -fdata-sections "${RT_CFLAGS[@]}" \
     -c $RT_SRC -o $WORK/rt.o
   $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
@@ -731,6 +772,7 @@ if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
   [ -f "$MATCHED_EXPORT" ] || MATCHED_EXPORT="$SEMANTIC_MLIR"
   cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/harness.o" "$WORK/rt.o" \
      "$WORK/mlir_runner_utils.o" "$MATCHED_EXPORT" "$WORK/abi.mlir" \
+     "$WORK/abi_canon.mlir" \
      "$POLYGEIST_EXPORT_OBJECT_DIR/"
   echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
 fi

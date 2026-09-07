@@ -7,7 +7,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_acos",
@@ -17,7 +18,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_acosh",
@@ -27,7 +29,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_adaptive_avg_pool2d",
@@ -42,12 +45,13 @@
 "OW": 128
 },
 "n": 137438953472,
-"shape": "B=4_C=32_H=256_W=256_OH=128_OW=128"
+"shape": "B=4_C=32_H=256_W=256_OH=128_OW=128",
+"dtype": "f32"
 },
 {
 "kernel": "aten_adaptive_avg_pool2d_backward_cpu",
 "op": "adaptive_avg_pool2d",
-"cat": "adaptavg2d",
+"cat": "adaptavg2d_backward",
 "dims": {
 "B": 1,
 "C": 2,
@@ -57,12 +61,28 @@
 "O1": 3
 },
 "n": 756,
-"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3"
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3",
+"dtype": "f32"
+},
+{
+"kernel": "aten_adaptive_avg_pool3d",
+"op": "adaptive_avg_pool3d",
+"cat": "adaptavg3d",
+"dims": {
+"B": 2,
+"C": 3,
+"D": 8,
+"H": 8,
+"W": 8
+},
+"n": 3072,
+"shape": "B=2_C=3_D=8_H=8_W=8",
+"dtype": "f32"
 },
 {
 "kernel": "aten_adaptive_avg_pool3d_backward_cpu",
 "op": "adaptive_avg_pool3d",
-"cat": "adaptavg3d",
+"cat": "adaptavg3d_backward",
 "dims": {
 "B": 1,
 "C": 2,
@@ -74,12 +94,13 @@
 "O2": 3
 },
 "n": 18144,
-"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3_I2=8_O2=3"
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3_I2=8_O2=3",
+"dtype": "f32"
 },
 {
 "kernel": "aten_adaptive_max_pool2d_backward_cpu",
 "op": "adaptive_max_pool2d",
-"cat": "adaptmax2d",
+"cat": "adaptmax2d_backward",
 "dims": {
 "B": 1,
 "C": 2,
@@ -89,30 +110,70 @@
 "O1": 3
 },
 "n": 756,
-"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3"
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3",
+"dtype": "f32"
 },
 {
 "kernel": "aten_add",
 "op": "add",
 "cat": "binary",
 "dims": {
-"W": 91,
-"H": 91,
 "B": 11,
-"C": 45
+"C": 46,
+"H": 92,
+"W": 92
 },
-"n": 4099095,
-"shape": "W=91_H=91_B=11_C=45"
+"n": 4282784,
+"shape": "B=11_C=46_H=92_W=92",
+"dtype": "f32"
 },
 {
 "kernel": "aten_add_clamp",
 "op": "add",
-"cat": "binary",
+"cat": "add_clamp",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_addmm",
+"op": "addmm",
+"cat": "addmm",
+"dims": {
+"M": 512,
+"N": 512,
+"K": 512
+},
+"n": 134217728,
+"shape": "M=512_N=512_K=512",
+"dtype": "f64"
+},
+{
+"kernel": "aten_argmax_cpu",
+"op": "argmax",
+"cat": "reduce_arg",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32"
+},
+{
+"kernel": "aten_argmin_cpu",
+"op": "argmin",
+"cat": "reduce_arg",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32"
 },
 {
 "kernel": "aten_asin",
@@ -122,7 +183,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_asinh",
@@ -132,7 +194,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_atan",
@@ -142,7 +205,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_atanh",
@@ -152,7 +216,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_avg_pool2d",
@@ -165,12 +230,13 @@
 "W": 16
 },
 "n": 2048,
-"shape": "B=2_C=4_H=16_W=16"
+"shape": "B=2_C=4_H=16_W=16",
+"dtype": "f32"
 },
 {
 "kernel": "aten_avg_pool2d_backward_cpu",
 "op": "avg_pool2d",
-"cat": "avgpool2d",
+"cat": "avgpool2d_backward",
 "dims": {
 "B": 1,
 "C": 2,
@@ -178,12 +244,28 @@
 "I1": 7
 },
 "n": 84,
-"shape": "B=1_C=2_I0=6_I1=7"
+"shape": "B=1_C=2_I0=6_I1=7",
+"dtype": "f32"
+},
+{
+"kernel": "aten_avg_pool3d",
+"op": "avg_pool3d",
+"cat": "avgpool3d",
+"dims": {
+"B": 2,
+"C": 3,
+"D": 8,
+"H": 8,
+"W": 8
+},
+"n": 3072,
+"shape": "B=2_C=3_D=8_H=8_W=8",
+"dtype": "f32"
 },
 {
 "kernel": "aten_avg_pool3d_backward_cpu",
 "op": "avg_pool3d",
-"cat": "avgpool3d",
+"cat": "avgpool3d_backward",
 "dims": {
 "B": 1,
 "C": 2,
@@ -192,20 +274,22 @@
 "I2": 8
 },
 "n": 672,
-"shape": "B=1_C=2_I0=6_I1=7_I2=8"
+"shape": "B=1_C=2_I0=6_I1=7_I2=8",
+"dtype": "f32"
 },
 {
 "kernel": "aten_batch_norm",
 "op": "batch_norm",
 "cat": "batchnorm",
 "dims": {
-"W": 91,
-"H": 91,
 "B": 11,
-"C": 45
+"C": 46,
+"H": 92,
+"W": 92
 },
-"n": 4099095,
-"shape": "W=91_H=91_B=11_C=45"
+"n": 4282784,
+"shape": "B=11_C=46_H=92_W=92",
+"dtype": "f32"
 },
 {
 "kernel": "aten_batch_norm_transform_cpu",
@@ -218,7 +302,19 @@
 "W": 64
 },
 "n": 8388608,
-"shape": "N=32_C=64_H=64_W=64"
+"shape": "N=32_C=64_H=64_W=64",
+"dtype": "f32"
+},
+{
+"kernel": "aten_binary_cross_entropy",
+"op": "binary_cross_entropy",
+"cat": "loss_bce",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32"
 },
 {
 "kernel": "aten_bmm",
@@ -226,35 +322,38 @@
 "cat": "bmm",
 "dims": {
 "BATCH": 70,
-"N": 211,
 "K": 282,
-"M": 141
+"M": 141,
+"N": 211
 },
 "n": 587284740,
-"shape": "BATCH=70_N=211_K=282_M=141"
+"shape": "BATCH=70_K=282_M=141_N=211",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cat_serial_cpu",
 "op": "cat",
-"cat": "cat",
+"cat": "cat_serial",
 "dims": {
 "K": 3096,
-"R": 774,
-"M": 581
+"M": 581,
+"R": 774
 },
 "n": 1392252624,
-"shape": "K=3096_R=774_M=581"
+"shape": "K=3096_M=581_R=774",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cat_sparse_cpu",
 "op": "cat",
-"cat": "cat",
+"cat": "cat_sparse_values",
 "dims": {
-"N": 16384,
-"B": 256
+"B": 256,
+"N": 16383
 },
-"n": 4194304,
-"shape": "N=16384_B=256"
+"n": 4194048,
+"shape": "B=256_N=16383",
+"dtype": "f32"
 },
 {
 "kernel": "aten_ceil",
@@ -264,36 +363,72 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_conv2d",
+"op": "conv2d",
+"cat": "conv2d",
+"dims": {
+"B": 4,
+"IC": 16,
+"OC": 32,
+"H": 128,
+"W": 128,
+"KH": 3,
+"KW": 3
+},
+"n": 301989888,
+"shape": "B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3",
+"dtype": "f32"
 },
 {
 "kernel": "aten_conv2d_columns_cpu",
 "op": "conv2d",
-"cat": "conv2d",
+"cat": "unfold2d",
 "dims": {
-"W": 61,
-"H": 61,
+"C": 11,
+"H": 59,
 "K": 11,
-"C": 11
+"W": 59
 },
-"n": 450241,
-"shape": "W=61_H=61_K=11_C=11"
+"n": 421201,
+"shape": "C=11_H=59_K=11_W=59",
+"dtype": "f32"
 },
 {
 "kernel": "aten_conv3d",
 "op": "conv3d",
 "cat": "conv3d",
 "dims": {
-"W": 38,
-"H": 38,
-"OC": 19,
-"K": 19,
-"D": 38,
 "B": 6,
-"IC": 13
+"D": 37,
+"H": 37,
+"IC": 12,
+"K": 19,
+"OC": 19,
+"W": 37
 },
-"n": 1545085776,
-"shape": "W=38_H=38_OC=19_K=19_D=38_B=6_IC=13"
+"n": 1316572776,
+"shape": "B=6_D=37_H=37_IC=12_K=19_OC=19_W=37",
+"dtype": "f32"
+},
+{
+"kernel": "aten_conv_transpose2d",
+"op": "conv_transpose2d",
+"cat": "convT2d",
+"dims": {
+"B": 2,
+"IC": 16,
+"OC": 32,
+"H": 128,
+"W": 128,
+"K": 3
+},
+"n": 50331648,
+"shape": "B=2_IC=16_OC=32_H=128_W=128_K=3",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cos",
@@ -303,7 +438,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cosh",
@@ -313,7 +449,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_count_nonzero_cpu",
@@ -323,7 +460,8 @@
 "N": 8388608
 },
 "n": 8388608,
-"shape": "N=8388608"
+"shape": "N=8388608",
+"dtype": "f32"
 },
 {
 "kernel": "aten_count_nonzero_impl_cpu",
@@ -334,28 +472,31 @@
 "C": 64
 },
 "n": 8388608,
-"shape": "R=131072_C=64"
+"shape": "R=131072_C=64",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cumprod_backward_cpu",
 "op": "cumprod",
-"cat": "cum",
+"cat": "cumprod_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cumprod_cpu",
 "op": "cumprod",
 "cat": "cum",
 "dims": {
-"K": 2896,
+"K": 2897,
 "R": 1448
 },
-"n": 4193408,
-"shape": "K=2896_R=1448"
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32"
 },
 {
 "kernel": "aten_cumsum",
@@ -365,19 +506,21 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_dense_sparse_add_cpu",
 "op": "add",
-"cat": "binary",
+"cat": "dense_sparse_add",
 "dims": {
-"N": 16384,
-"R": 2048,
-"C": 2048
+"C": 2047,
+"N": 16380,
+"R": 2047
 },
-"n": 68719476736,
-"shape": "N=16384_R=2048_C=2048"
+"n": 68635623420,
+"shape": "C=2047_N=16380_R=2047",
+"dtype": "f32"
 },
 {
 "kernel": "aten_div",
@@ -387,17 +530,30 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_div_floor",
 "op": "floor",
-"cat": "unary",
+"cat": "div_floor",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_dot",
+"op": "dot",
+"cat": "dot",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f64"
 },
 {
 "kernel": "aten_elu",
@@ -407,17 +563,19 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_elu_backward",
 "op": "elu",
-"cat": "unary",
+"cat": "elu_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_erf",
@@ -427,7 +585,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_erfc",
@@ -437,7 +596,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_exp",
@@ -447,7 +607,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_exp2",
@@ -457,7 +618,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_floor",
@@ -467,7 +629,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_frac",
@@ -477,39 +640,42 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_fractional_max_pool2d_cpu",
 "op": "max_pool2d",
-"cat": "maxpool2d",
+"cat": "fractional_maxpool2d",
 "dims": {
-"OH": 38,
 "B": 19,
-"IW": 94,
+"C": 28,
 "IH": 84,
-"OW": 47,
-"C": 28
+"IW": 93,
+"OH": 37,
+"OW": 47
 },
-"n": 7502400192,
-"shape": "OH=38_B=19_IW=94_IH=84_OW=47_C=28"
+"n": 7227256176,
+"shape": "B=19_C=28_IH=84_IW=93_OH=37_OW=47",
+"dtype": "f32"
 },
 {
 "kernel": "aten_fractional_max_pool3d_cpu",
 "op": "max_pool3d",
-"cat": "maxpool3d",
+"cat": "fractional_maxpool3d",
 "dims": {
-"OH": 20,
-"ID": 39,
-"OD": 15,
 "B": 5,
-"IW": 49,
+"C": 10,
+"ID": 39,
 "IH": 44,
-"OW": 25,
-"C": 10
+"IW": 49,
+"OD": 15,
+"OH": 19,
+"OW": 24
 },
-"n": 31531500000,
-"shape": "OH=20_ID=39_OD=15_B=5_IW=49_IH=44_OW=25_C=10"
+"n": 28756728000,
+"shape": "B=5_C=10_ID=39_IH=44_IW=49_OD=15_OH=19_OW=24",
+"dtype": "f32"
 },
 {
 "kernel": "aten_gelu",
@@ -519,7 +685,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_gelu_cpu_exact",
@@ -529,7 +696,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_hardswish",
@@ -539,39 +707,43 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_hardswish_backward",
 "op": "hardswish",
-"cat": "unary",
+"cat": "hardswish_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_host_softmax_backward_cpu",
 "op": "softmax",
-"cat": "softmax",
+"cat": "softmax_backward",
 "dims": {
 "R": 65536,
 "K": 64
 },
 "n": 4194304,
-"shape": "R=65536_K=64"
+"shape": "R=65536_K=64",
+"dtype": "f32"
 },
 {
 "kernel": "aten_host_softmax_cpu",
 "op": "softmax",
 "cat": "softmax",
 "dims": {
-"K": 2896,
+"K": 2897,
 "R": 1448
 },
-"n": 4193408,
-"shape": "K=2896_R=1448"
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32"
 },
 {
 "kernel": "aten_hypot",
@@ -581,7 +753,24 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_im2col",
+"op": null,
+"cat": "unfold2d",
+"dims": {
+"B": 4,
+"C": 8,
+"H": 128,
+"W": 128,
+"KH": 3,
+"KW": 3
+},
+"n": 4718592,
+"shape": "B=4_C=8_H=128_W=128_KH=3_KW=3",
+"dtype": "f32"
 },
 {
 "kernel": "aten_layer_norm",
@@ -591,29 +780,32 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_layer_norm_backward_cpu",
 "op": "layer_norm",
-"cat": "layernorm",
+"cat": "layernorm_backward",
 "dims": {
-"D": 4096,
-"B": 1024
+"B": 1024,
+"D": 4095
 },
-"n": 4194304,
-"shape": "D=4096_B=1024"
+"n": 4193280,
+"shape": "B=1024_D=4095",
+"dtype": "f32"
 },
 {
 "kernel": "aten_layer_norm_cpu_backend",
 "op": "norm",
-"cat": "norm",
+"cat": "layernorm_native",
 "dims": {
-"D": 4096,
-"B": 1024
+"B": 1024,
+"D": 4095
 },
-"n": 4194304,
-"shape": "D=4096_B=1024"
+"n": 4193280,
+"shape": "B=1024_D=4095",
+"dtype": "f32"
 },
 {
 "kernel": "aten_leaky_relu",
@@ -623,7 +815,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_log",
@@ -633,7 +826,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_logaddexp",
@@ -643,7 +837,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_logaddexp2",
@@ -653,7 +848,35 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_max_pool2d",
+"op": "max_pool2d",
+"cat": "maxpool2d",
+"dims": {
+"B": 16,
+"C": 32,
+"H": 128,
+"W": 128,
+"K": 2,
+"S": 2
+},
+"n": 33554432,
+"shape": "B=16_C=32_H=128_W=128_K=2_S=2",
+"dtype": "f32"
+},
+{
+"kernel": "aten_mean",
+"op": "mean",
+"cat": "mean",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f64"
 },
 {
 "kernel": "aten_mish",
@@ -663,17 +886,32 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_mish_backward",
 "op": "mish",
-"cat": "unary",
+"cat": "mish_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_mm",
+"op": "mm",
+"cat": "mm",
+"dims": {
+"M": 512,
+"N": 512,
+"K": 512
+},
+"n": 134217728,
+"shape": "M=512_N=512_K=512",
+"dtype": "f64"
 },
 {
 "kernel": "aten_mse_loss",
@@ -683,7 +921,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_mul",
@@ -693,7 +932,20 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_mv",
+"op": "mv",
+"cat": "gemv",
+"dims": {
+"M": 4096,
+"K": 1024
+},
+"n": 4194304,
+"shape": "M=4096_K=1024",
+"dtype": "f64"
 },
 {
 "kernel": "aten_neg",
@@ -703,40 +955,56 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_nested_softmax_backward_cpu",
 "op": "softmax",
-"cat": "softmax",
+"cat": "softmax_backward",
 "dims": {
 "B": 65536,
 "N": 64
 },
 "n": 4194304,
-"shape": "B=65536_N=64"
+"shape": "B=65536_N=64",
+"dtype": "f32"
 },
 {
 "kernel": "aten_nested_sum_backward_cpu",
 "op": "sum",
-"cat": "reduce",
+"cat": "sum_backward",
 "dims": {
-"N": 5793,
-"B": 724
+"B": 724,
+"N": 5793
 },
 "n": 4194132,
-"shape": "N=5793_B=724"
+"shape": "B=724_N=5793",
+"dtype": "f32"
 },
 {
 "kernel": "aten_norm_cpu",
 "op": "norm",
 "cat": "norm",
 "dims": {
-"K": 2896,
+"K": 2897,
 "R": 1448
 },
-"n": 4193408,
-"shape": "K=2896_R=1448"
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32"
+},
+{
+"kernel": "aten_outer",
+"op": null,
+"cat": "outer",
+"dims": {
+"M": 2048,
+"N": 2048
+},
+"n": 4194304,
+"shape": "M=2048_N=2048",
+"dtype": "f64"
 },
 {
 "kernel": "aten_pow",
@@ -746,17 +1014,19 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_pow_tensor_scalar",
 "op": "pow",
-"cat": "binary",
+"cat": "pow_scalar",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_reciprocal",
@@ -766,7 +1036,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_relu",
@@ -776,7 +1047,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_rms_norm",
@@ -786,7 +1058,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_rsqrt",
@@ -796,7 +1069,23 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_sampled_addmm_sparse_csr_cpu",
+"op": "addmm",
+"cat": "sparse_sampled_addmm",
+"dims": {
+"R": 4096,
+"K": 512,
+"C": 4096,
+"NNZ": 262144,
+"N": 262144
+},
+"n": 590295810358705651712,
+"shape": "R=4096_K=512_C=4096_NNZ=262144_N=262144",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sigmoid",
@@ -806,17 +1095,19 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sigmoid_backward",
 "op": "sigmoid",
-"cat": "unary",
+"cat": "sigmoid_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_silu",
@@ -826,17 +1117,19 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_silu_backward",
 "op": "silu",
-"cat": "unary",
+"cat": "silu_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_silu_cpu",
@@ -846,7 +1139,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sin",
@@ -856,7 +1150,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sinh",
@@ -866,7 +1161,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_softmax",
@@ -876,7 +1172,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_softplus",
@@ -886,7 +1183,8 @@
 "N": 8388608
 },
 "n": 8388608,
-"shape": "N=8388608"
+"shape": "N=8388608",
+"dtype": "f32"
 },
 {
 "kernel": "aten_softplus_backward",
@@ -896,61 +1194,81 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sort_cpu",
 "op": "sort",
 "cat": "sort",
 "dims": {
-"K": 4096,
+"K": 4095,
 "R": 1024
 },
-"n": 4194304,
-"shape": "K=4096_R=1024"
+"n": 4193280,
+"shape": "K=4095_R=1024",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_add_values_cpu",
 "op": "add",
-"cat": "binary",
+"cat": "add_alpha",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_addmm_cpu",
 "op": "addmm",
-"cat": "addmm",
+"cat": "sparse_coo_mm",
 "dims": {
-"N": 18919,
-"R": 2365,
-"C": 1774
+"R": 64,
+"C": 4096,
+"N": 4096
 },
-"n": 79374853690,
-"shape": "N=18919_R=2365_C=1774"
+"n": 1073741824,
+"shape": "R=64_C=4096_N=4096",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_coo_softmax_backward_cpu",
 "op": "softmax",
-"cat": "softmax",
+"cat": "sparse_softmax_backward",
 "dims": {
 "R": 524288,
 "K": 8
 },
 "n": 4194304,
-"shape": "R=524288_K=8"
+"shape": "R=524288_K=8",
+"dtype": "f32"
+},
+{
+"kernel": "aten_sparse_csr_addmm_cpu",
+"op": "addmm",
+"cat": "sparse_csr_mm",
+"dims": {
+"R": 65536,
+"K": 65536,
+"C": 64,
+"N": 4194304
+},
+"n": 1152921504606846976,
+"shape": "R=65536_K=65536_C=64_N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_csr_reduce_all_cpu",
-"op": "all",
+"op": "sum",
 "cat": "reduce",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_mul_cpu",
@@ -960,7 +1278,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sparse_sum_cpu",
@@ -970,7 +1289,20 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_split_copy_cpu",
+"op": null,
+"cat": "split_copy",
+"dims": {
+"N": 4194304,
+"S": 4
+},
+"n": 16777216,
+"shape": "N=4194304_S=4",
+"dtype": "f32"
 },
 {
 "kernel": "aten_sqrt",
@@ -980,7 +1312,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_square",
@@ -990,7 +1323,20 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
+},
+{
+"kernel": "aten_sum",
+"op": "sum",
+"cat": "reduce",
+"dims": {
+"M": 65536,
+"N": 64
+},
+"n": 4194304,
+"shape": "M=65536_N=64",
+"dtype": "f64"
 },
 {
 "kernel": "aten_tan",
@@ -1000,7 +1346,8 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_tanh",
@@ -1010,50 +1357,55 @@
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_tanh_backward",
 "op": "tanh",
-"cat": "unary",
+"cat": "tanh_backward",
 "dims": {
 "N": 4194304
 },
 "n": 4194304,
-"shape": "N=4194304"
+"shape": "N=4194304",
+"dtype": "f32"
 },
 {
 "kernel": "aten_topk_cpu",
 "op": "topk",
 "cat": "topk",
 "dims": {
-"K": 4096,
-"TOP": 512,
-"R": 1024
+"K": 4095,
+"R": 1024,
+"TOP": 512
 },
-"n": 2147483648,
-"shape": "K=4096_TOP=512_R=1024"
+"n": 2146959360,
+"shape": "K=4095_R=1024_TOP=512",
+"dtype": "f32"
 },
 {
 "kernel": "aten_vector_norm_out_cpu",
 "op": "norm",
 "cat": "norm",
 "dims": {
-"R": 1448,
-"C": 2896
+"C": 2897,
+"R": 1448
 },
-"n": 4193408,
-"shape": "R=1448_C=2896"
+"n": 4194856,
+"shape": "C=2897_R=1448",
+"dtype": "f32"
 },
 {
 "kernel": "aten_weight_norm_backward_cpu",
 "op": "norm",
-"cat": "norm",
+"cat": "weight_norm_backward",
 "dims": {
-"S": 4096,
-"C": 1024
+"C": 1024,
+"S": 4095
 },
-"n": 4194304,
-"shape": "S=4096_C=1024"
+"n": 4193280,
+"shape": "C=1024_S=4095",
+"dtype": "f32"
 }
 ]

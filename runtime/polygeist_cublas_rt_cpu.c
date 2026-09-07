@@ -29,6 +29,24 @@ int32_t polygeist_cuda_graph_begin(int64_t graph_id) {
 }
 void polygeist_cuda_graph_end(int64_t graph_id) { (void)graph_id; }
 void *polygeist_cuda_graph_stream(void) { return NULL; }
+void *mgpuStreamCreate(void) { return NULL; }
+void mgpuStreamSynchronize(void *stream) { (void)stream; }
+void mgpuStreamDestroy(void *stream) { (void)stream; }
+void *mgpuMemAlloc(uint64_t size_bytes, void *stream, uint8_t host_shared) {
+  (void)stream;
+  (void)host_shared;
+  return size_bytes ? malloc((size_t)size_bytes) : NULL;
+}
+void mgpuMemFree(void *pointer, void *stream) {
+  (void)stream;
+  free(pointer);
+}
+void mgpuMemcpy(void *destination, void *source, size_t size_bytes,
+                void *stream) {
+  (void)stream;
+  if (size_bytes)
+    memcpy(destination, source, size_bytes);
+}
 
 void polygeist_cub_histogram_even_i32_shift_zero(
     int32_t count, int32_t num_bins, const int32_t *samples,
