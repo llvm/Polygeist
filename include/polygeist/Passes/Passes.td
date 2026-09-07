@@ -467,6 +467,28 @@ def InstrumentGpuRegionTiming
   ];
 }
 
+def PropagateKernelLibraryConstants
+    : Pass<"propagate-kernel-library-constants", "::mlir::ModuleOp"> {
+  let summary = "Propagate uniform tensor constants between library matches";
+  let description = [{
+    Infers typed uniform tensor values from the semantics of matched
+    `kernel.defn` bodies rather than from benchmark or library symbol names.
+    Facts propagate through tensor casts, extracts, inserts, Polygeist submaps,
+    and agreeing `scf.if` results. Consumers receive a target-independent
+    `polygeist.uniform_operand_constants` dictionary for CPU or GPU library
+    ABI lowering.
+  }];
+  let constructor =
+      "mlir::polygeist::createPropagateKernelLibraryConstantsPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "linalg::LinalgDialect",
+    "scf::SCFDialect",
+    "tensor::TensorDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+}
+
 def LowerKernelLaunchToCuBLAS
     : Pass<"lower-kernel-launch-to-cublas", "::mlir::ModuleOp"> {
   let summary = "Lower kernel.launch ops to runtime-shim func.calls (cuBLAS ABI)";
@@ -489,12 +511,13 @@ def LowerKernelLaunchToCuBLAS
     default output). The pass synthesises `bufferization.to_memref` /
     `bufferization.to_tensor` ops around the call.
 
-    Before ABI conversion, the pass also propagates uniform-zero destination
-    state between matched candidates through safe tensor views. Ordinary
-    GEMV/GEMM matches then lower with beta=0 without requiring a distinct
-    constant-specific library symbol. Whole-value zero fills are removed only
-    when the overwriting launch is their exclusive user; slice-scoped fills
-    remain unless complete overwrite coverage is already explicit.
+    Before ABI conversion, the pass consumes target-independent typed uniform
+    constant facts produced by `--propagate-kernel-library-constants` (and
+    computes them itself for direct-pass compatibility). Ordinary GEMV/GEMM
+    matches then lower with beta=0 without requiring a distinct
+    constant-specific library symbol. Whole-value zero fills and provably-full
+    extract/insert destination shells are removed; partial or unproved dynamic
+    slices remain.
   }];
   let constructor = "mlir::polygeist::createLowerKernelLaunchToCuBLASPass()";
   let dependentDialects = [

@@ -1,0 +1,10 @@
+status=PASS
+kernel=3mm
+dataset=LARGE
+datatype=double
+compared_values=880000
+mismatches=0
+source_sha256=5525bcbb6669580d7973c347920ee6962055bedb8d64527502041aa61787ec83
+library=OpenBLAS_0.3.20_CBLAS
+symbol_audit=U_cblas_dgemm
+provenance=logs/3mm/cpu_library_constant_propagation.log
