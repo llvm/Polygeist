@@ -5,6 +5,7 @@
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true' %s | FileCheck %s --check-prefix=HOST-GRAPH
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true maximal-device-sequence=true' %s | FileCheck %s --check-prefix=MAX-GRAPH
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-libraries=true maximal-device-sequence=true' %s | FileCheck %s --check-prefix=LIBRARY-GRAPH
+// RUN: polygeist-opt '--wrap-kernel-launch-pipeline=coalesce-control-flow=true' %s | FileCheck %s --check-prefix=COALESCE
 
 module attributes {gpu.container_module} {
   gpu.module @generated_kernels {
@@ -95,6 +96,30 @@ module attributes {gpu.container_module} {
     func.call @polygeist_cutensor_permute_f32(%arg0) : (i32) -> ()
     return
   }
+
+  func.func @nested_existing_scopes(%arg0: index, %arg1: i32) {
+    affine.for %i = 0 to %arg0 {
+      func.call @polygeist_cublas_pipeline_begin() : () -> ()
+      func.call @polygeist_cublas_dgemm(%arg1) : (i32) -> ()
+      func.call @polygeist_cublas_pipeline_end() : () -> ()
+    }
+    return
+  }
+
+  func.func @unsafe_existing_scopes(%arg0: i32, %buffer: memref<1xi32>) {
+    func.call @polygeist_cublas_pipeline_begin() : () -> ()
+    func.call @polygeist_cublas_dgemm(%arg0) : (i32) -> ()
+    func.call @polygeist_cublas_pipeline_end() : () -> ()
+    %c0 = arith.constant 0 : index
+    memref.store %arg0, %buffer[%c0] : memref<1xi32>
+    func.call @polygeist_cublas_pipeline_begin() : () -> ()
+    func.call @polygeist_cublas_dgemm(%arg0) : (i32) -> ()
+    func.call @polygeist_cublas_pipeline_end() : () -> ()
+    return
+  }
+
+  func.func private @polygeist_cublas_pipeline_begin()
+  func.func private @polygeist_cublas_pipeline_end()
 }
 
 // CHECK-LABEL: func.func @matched_dispatch
@@ -202,6 +227,25 @@ module attributes {gpu.container_module} {
 // LIBRARY-GRAPH: polygeist.cuda_graph_scope
 // LIBRARY-GRAPH-NOT: polygeist.cuda_graph_scope
 // LIBRARY-GRAPH: return
+
+// COALESCE-LABEL: func.func @nested_existing_scopes
+// COALESCE-SAME: polygeist.pipeline_scope_coalesced
+// COALESCE-NEXT: call @polygeist_cublas_pipeline_begin
+// COALESCE-NEXT: affine.for
+// COALESCE: call @polygeist_cublas_dgemm
+// COALESCE-NOT: call @polygeist_cublas_pipeline_end
+// COALESCE: }
+// COALESCE-NEXT: call @polygeist_cublas_pipeline_end
+// COALESCE-NEXT: return
+
+// COALESCE-LABEL: func.func @unsafe_existing_scopes
+// COALESCE-NOT: polygeist.pipeline_scope_coalesced
+// COALESCE: call @polygeist_cublas_pipeline_begin
+// COALESCE: call @polygeist_cublas_pipeline_end
+// COALESCE: memref.store
+// COALESCE: call @polygeist_cublas_pipeline_begin
+// COALESCE: call @polygeist_cublas_pipeline_end
+// COALESCE-NEXT: return
 
 // HOST-GRAPH-LABEL: func.func @mixed_dispatch
 // HOST-GRAPH: call @polygeist_cuda_graph_begin

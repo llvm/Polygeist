@@ -314,7 +314,12 @@ def WrapKernelLaunchPipeline
     Option<"maximalDeviceSequence", "maximal-device-sequence", "bool",
            /*default=*/"false",
            "Capture one maximal device sequence, including capture-invariant "
-           "host metadata construction between device operations.">
+           "host metadata construction between device operations.">,
+    Option<"coalesceControlFlow", "coalesce-control-flow", "bool",
+           /*default=*/"false",
+           "Replace nested per-dispatch pipeline scopes with one scope around "
+           "a control-flow span proven to contain only device dispatches and "
+           "host-side metadata construction.">
   ];
 }
 
