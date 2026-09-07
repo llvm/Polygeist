@@ -1,0 +1,12 @@
+pipeline,problem,correctness,max_abs,native_cpu_us,raised_gpu_us,cuda_graph,scope,measurement
+abs_l1_mass_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,6.9388939039072284e-18,777.4784,544.8576,on,compiler-visible repeated session,"median of 5 independent processes; paper headline"
+abs_l1_diffusion_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,6.9388939039072284e-18,3235.4768,24978.6288,on,host repeated calls,"single-process diagnostic"
+abs_l1_curlcurl_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,8.3266726846886741e-17,34499.8224,200655.2272,on,host repeated calls,"single-process diagnostic"
+dfem_minimal_surface_2d,"f64; NE=1024; D1D=4; Q1D=5",PASS,6.9388939039072284e-18,609.8448,8992.5520,on,host repeated calls,"single-process diagnostic after element-batch fixture fix"
+ex35p_h1_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,2.0816681711721685e-17,4176.2528,30228.5632,on,host repeated calls,"single-process diagnostic"
+ex35p_hcurl_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,8.3266726846886741e-17,34594.4832,200714.7600,on,host repeated calls,"single-process diagnostic"
+ex35p_hdiv_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,8.3266726846886741e-17,23554.6992,131618.1552,on,host repeated calls,"single-process diagnostic"
+ex9p_mass_convection_2d,"f64; NE=1024; D1D=4; Q1D=5",PASS,1.3877787807814457e-17,375.0032,4747.2256,on,host repeated calls; bounded persistent scratch,"single-process diagnostic"
+grad_div_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,8.3266726846886741e-17,23483.3232,131709.3856,on,host repeated calls,"single-process diagnostic"
+mtop_iso_elasticity_dfem_2d,"f64; NE=1024; D1D=4; Q1D=5",PASS,5.5511151231257827e-17,928.9152,11674.3520,on,host repeated calls,"single-process diagnostic"
+navier_tgv_pa_operators_3d,"f64; NE=1024; D1D=4; Q1D=5",PASS,8.3266726846886741e-17,490317.3120,641646.2096,on,host repeated calls,"single-process diagnostic after full-program cache fix"

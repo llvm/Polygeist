@@ -103,6 +103,8 @@ fi
 # Override these via env vars if the cross-toolkit lives elsewhere.
 CUDA_CROSS_VER=${CUDA_CROSS_VER:-12.6}
 CUDA=${CUDA:-/usr/local/cuda-${CUDA_CROSS_VER}/targets/sbsa-linux}
+CUDA_ROOT=$(dirname "$(dirname "$CUDA")")
+CUDA_LIBDEVICE=${POLYGEIST_CUDA_LIBDEVICE:-$CUDA_ROOT/nvvm/libdevice/libdevice.10.bc}
 AARCH64_CC=${AARCH64_CC:-aarch64-linux-gnu-gcc}
 AARCH64_READELF=${AARCH64_READELF:-aarch64-linux-gnu-readelf}
 MLIR_OPT=$REPO_ROOT/llvm-project/build/bin/mlir-opt
@@ -124,6 +126,12 @@ if [ ! -d "$CUDA/include" ] || [ ! -d "$CUDA/lib" ]; then
   echo "       Install cuda-cudart-cross-sbsa-* + libcublas-cross-sbsa-* +" >&2
   echo "       cuda-nvcc-cross-sbsa-* (for crt/ headers)." >&2
   echo "       See runtime/CROSS_COMPILE.md." >&2
+  exit 1
+fi
+if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ] && \
+   [ ! -s "$CUDA_LIBDEVICE" ]; then
+  echo "ERROR: CUDA libdevice bitcode not found at $CUDA_LIBDEVICE" >&2
+  echo "       Set POLYGEIST_CUDA_LIBDEVICE to libdevice.10.bc." >&2
   exit 1
 fi
 if [ ! -s "$INPUT" ]; then
@@ -252,7 +260,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   # individual top-level pass flags. Attach the NVPTX target in its own
   # invocation, then serialize modules and lower the host side.
   $MLIR_OPT \
-    --pass-pipeline="builtin.module(gpu.module(affine-expand-index-ops,lower-affine,convert-scf-to-cf,convert-gpu-to-nvvm,convert-arith-to-llvm,convert-index-to-llvm),convert-cf-to-llvm,gpu.module(canonicalize,cse),nvvm-attach-target{chip=${GPU_ARCH} O=3})" \
+    --pass-pipeline="builtin.module(gpu.module(affine-expand-index-ops,lower-affine,convert-scf-to-cf,convert-gpu-to-nvvm,convert-arith-to-llvm,convert-index-to-llvm),convert-cf-to-llvm,gpu.module(canonicalize,cse),nvvm-attach-target{chip=${GPU_ARCH} O=3 l=${CUDA_LIBDEVICE}})" \
     $WORK/gpu_graphed.mlir -o $WORK/gpu_targeted.mlir
   # Expand host-side memref metadata before gpu-to-llvm converts function
   # signatures.  Otherwise pointer-extraction chains can acquire temporary

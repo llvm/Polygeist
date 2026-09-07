@@ -4,12 +4,16 @@
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=redundant_roundtrip' %s | FileCheck %s --check-prefix=ROUNDTRIP
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=snapshot_chain' %s | FileCheck %s --check-prefix=SNAPSHOT
 // RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=plain_injective_copy' %s | FileCheck %s --check-prefix=PLAIN-COPY
+// RUN: polygeist-opt '--prepare-gpu-residual-pipeline=function=dynamic_local_launch' %s | FileCheck %s --check-prefix=LOCAL-REGISTER
 
 module attributes {gpu.container_module} {
   memref.global "private" @workspace : memref<16xf64> {alignment = 4096 : i64}
 
   gpu.module @kernels {
     gpu.func @kernel(%arg0: memref<16xf64>) kernel {
+      gpu.return
+    }
+    gpu.func @dynamic_kernel(%arg0: memref<?xf64, strided<[1]>>) kernel {
       gpu.return
     }
   }
@@ -97,6 +101,19 @@ module attributes {gpu.container_module} {
     }
     return
   }
+
+  func.func @dynamic_local_launch(%size: index) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %scratch = memref.alloc(%size) : memref<?xf64>
+    %view = memref.subview %scratch[0] [%size] [1]
+        : memref<?xf64> to memref<?xf64, strided<[1]>>
+    gpu.launch_func @kernels::@dynamic_kernel
+        blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1)
+        args(%view : memref<?xf64, strided<[1]>>)
+    memref.dealloc %scratch : memref<?xf64>
+    return
+  }
 }
 
 // PREPARE-LABEL: func.func @copy_and_launch
@@ -140,3 +157,11 @@ module attributes {gpu.container_module} {
 // PLAIN-COPY: scf.parallel (%[[I:[^,]+]], %[[J:[^)]+]])
 // PLAIN-COPY: %[[VALUE:.*]] = memref.load %{{.*}}[%[[I]], %[[J]]]
 // PLAIN-COPY: memref.store %[[VALUE]], %{{.*}}[%[[I]], %[[J]]]
+
+// LOCAL-REGISTER-LABEL: func.func @dynamic_local_launch
+// LOCAL-REGISTER: %[[ALLOC:.*]] = memref.alloc
+// LOCAL-REGISTER-NEXT: %[[CAST:.*]] = memref.cast %[[ALLOC]]
+// LOCAL-REGISTER-NEXT: gpu.host_register %[[CAST]]
+// LOCAL-REGISTER: gpu.launch_func @kernels::@dynamic_kernel
+// LOCAL-REGISTER: gpu.host_unregister %[[CAST]]
+// LOCAL-REGISTER-NEXT: memref.dealloc %[[ALLOC]]

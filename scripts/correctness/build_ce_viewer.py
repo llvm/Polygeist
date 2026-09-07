@@ -22,6 +22,7 @@ Output:
 import csv
 import html
 import json
+import math
 import os
 import re
 import subprocess
@@ -77,6 +78,10 @@ ATEN_C_MLIR_DIR = env_path(
 ATEN_CUDA_LIBRARY_AUDIT = env_path(
     "POLYGEIST_ATEN_CUDA_LIBRARY_AUDIT",
     ATEN_C_ROOT / "cuda_library_audit.csv",
+)
+ATEN_NATIVE_CUDA_AUDIT = env_path(
+    "POLYGEIST_ATEN_NATIVE_CUDA_AUDIT",
+    ATEN_C_ROOT / "native_cuda_audit.csv",
 )
 ATEN_UPSTREAM_ROOT = env_path(
     "POLYGEIST_ATEN_UPSTREAM_ROOT",
@@ -2703,23 +2708,29 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
     )
 
 
-def _aten_native_cuda_cell(provenance: dict[str, str]) -> str:
-    """Describe measured CUDA dispatch without confusing it with extraction.
+def _aten_native_cuda_cell(provenance: dict[str, str], measured: bool) -> str:
+    """Describe a CUDA benchmark recipe without confusing it with a timing.
 
     A source link is emitted only for the deliberately pinned implementation
-    families in the provenance CSV.  Other rows name the measured torch API
-    and explicitly say that a single implementation source was not pinned.
+    families in the provenance CSV. Other rows name the torch API and state
+    separately whether that recipe has actually been measured.
     """
     api = provenance.get("benchmark_api", "")
     source = provenance.get("native_cuda_source", "")
     token = provenance.get("native_cuda_token", "")
     api_html = f"<code>{html.escape(api)}</code>" if api else "—"
     if not source:
+        if measured:
+            detail = ("measured CUDA dispatch; source not pinned", "CUDA "
+                      "dispatch was executed and measured; no single "
+                      "implementation file is pinned because dispatch may "
+                      "select among CUDA or cuDNN implementations")
+        else:
+            detail = ("benchmark recipe ready; CUDA measurement pending",
+                      "an explicit PyTorch operation recipe exists, but it "
+                      "has not yet been measured or semantically adjudicated")
         return (f'{api_html}<br><span style="color:#666;font-size:10px" '
-                'title="CUDA dispatch was executed and measured; no single '
-                'implementation file is pinned because dispatch may select '
-                'among CUDA or cuDNN implementations">measured CUDA dispatch; '
-                'source not pinned</span>')
+                f'title="{html.escape(detail[1])}">{detail[0]}</span>')
     line = None
     local_source = ATEN_UPSTREAM_ROOT / source
     if token and local_source.exists():
@@ -2734,10 +2745,484 @@ def _aten_native_cuda_cell(provenance: dict[str, str]) -> str:
             f'target="_blank"><code>{html.escape(pointer)}</code></a>')
 
 
+def _aten_paper_analysis_page() -> str:
+    """Render the Section 4.2 ATen ledger without overstating evidence.
+
+    Coverage is computed from the exhaustive 598-row audits.  Execution and
+    performance counts come from the resident ledgers and are deliberately
+    kept separate from static whole-kernel matches.
+    """
+    native_rows = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_NATIVE_CUDA_AUDIT)
+        if row.get("kernel")
+    }
+    library_rows = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
+        if row.get("kernel")
+    }
+    kernels = sorted(set(native_rows) & set(library_rows))
+
+    def has_native(kernel: str) -> bool:
+        return native_rows[kernel].get("has_native_cuda") == "yes"
+
+    def has_complete_library_match(kernel: str) -> bool:
+        row = library_rows[kernel]
+        return (
+            row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+            and row.get("counts_as_library_reuse") == "yes"
+        )
+
+    def has_strict_resident_evidence(kernel: str) -> bool:
+        row = _RESIDENT_SILICON.get(kernel, {})
+        return (
+            bool(row.get("resident_us"))
+            and row.get("correctness_scope")
+            == "device_pointer_output_vs_C_reference"
+        )
+
+    def current_verified(kernel: str) -> bool:
+        return (
+            _ATEN_BENCHMARK_STATUS.get(kernel, {}).get("raised_status")
+            == "VERIFIED_RESIDENT"
+        )
+
+    def has_legal_ratio(kernel: str) -> bool:
+        row = _ATEN_BENCHMARK_STATUS.get(kernel, {})
+        return current_verified(kernel) and bool(row.get("ratio_raised_over_native"))
+
+    total = len(kernels)
+    native = sum(has_native(k) for k in kernels)
+    raised = sum(has_complete_library_match(k) for k in kernels)
+    both = sum(has_native(k) and has_complete_library_match(k) for k in kernels)
+    native_only = sum(has_native(k) and not has_complete_library_match(k)
+                      for k in kernels)
+    raised_only = sum(not has_native(k) and has_complete_library_match(k)
+                      for k in kernels)
+    neither = total - both - native_only - raised_only
+    strict_resident = sum(
+        has_complete_library_match(k) and has_strict_resident_evidence(k)
+        for k in kernels
+    )
+    current_campaign = len(_ATEN_BENCHMARK_STATUS)
+    current_strict = sum(current_verified(k) for k in kernels)
+    legal_ratios = sum(has_legal_ratio(k) for k in kernels)
+    resolved_specs_path = (
+        ATEN_C_ROOT / "native_cuda_results" / "resident_shape_specs.json"
+    )
+    try:
+        resolved_specs = json.loads(resolved_specs_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        resolved_specs = []
+    resolved_spec_kernels = {
+        row.get("kernel") for row in resolved_specs if row.get("kernel")
+    }
+    resolved_both = sum(k in resolved_spec_kernels for k in kernels
+                        if has_native(k) and has_complete_library_match(k))
+    measured_both = sum(k in _ATEN_BENCHMARK_STATUS for k in kernels
+                        if has_native(k) and has_complete_library_match(k))
+    verified_both = sum(current_verified(k) for k in kernels
+                        if has_native(k) and has_complete_library_match(k))
+    legal_both = sum(has_legal_ratio(k) for k in kernels
+                     if has_native(k) and has_complete_library_match(k))
+
+    measurements = []
+    for kernel in kernels:
+        status = _ATEN_BENCHMARK_STATUS.get(kernel, {})
+        if not has_legal_ratio(kernel):
+            continue
+        try:
+            measurements.append({
+                "kernel": kernel,
+                "family": (library_rows[kernel].get("semantic_family")
+                           or "unclassified"),
+                "shape": status.get("shape", ""),
+                "dtype": status.get("dtype", ""),
+                "native": float(status["native_gpu_us"]),
+                "raised": float(status["raised_resident_us"]),
+                "ratio": float(status["ratio_raised_over_native"]),
+            })
+        except (KeyError, ValueError):
+            continue
+    measurements.sort(key=lambda row: (row["ratio"], row["kernel"]))
+
+    def family_color(family: str) -> str:
+        # Stable across Python hash seeds and viewer rebuilds.
+        hue = sum((index + 1) * ord(char)
+                  for index, char in enumerate(family)) % 360
+        return f"hsl({hue} 62% 43%)"
+
+    def log_y(value: float, low: float, high: float,
+              top: float, plot_height: float) -> float:
+        position = ((math.log10(value) - math.log10(low)) /
+                    (math.log10(high) - math.log10(low)))
+        return top + plot_height * (1.0 - position)
+
+    chart_width, chart_height = 1120, 440
+    chart_left, chart_top, chart_right, chart_bottom = 72, 20, 20, 64
+    plot_width = chart_width - chart_left - chart_right
+    plot_height = chart_height - chart_top - chart_bottom
+    x_step = plot_width / max(1, len(measurements) - 1)
+
+    ratio_low, ratio_high = 0.05, 100.0
+    ratio_ticks = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100]
+    ratio_svg_parts = [
+        f'<svg class="paper-chart" viewBox="0 0 {chart_width} {chart_height}" '
+        'role="img" aria-label="Raised divided by native CUDA runtime, sorted by ratio">'
+    ]
+    for tick in ratio_ticks:
+        y = log_y(tick, ratio_low, ratio_high, chart_top, plot_height)
+        emphasis = ' paper-reference' if tick == 1 else ''
+        ratio_svg_parts.append(
+            f'<line class="paper-grid{emphasis}" x1="{chart_left}" y1="{y:.2f}" '
+            f'x2="{chart_width - chart_right}" y2="{y:.2f}"/>'
+            f'<text class="paper-axis" x="{chart_left - 9}" y="{y + 4:.2f}" '
+            f'text-anchor="end">{tick:g}×</text>'
+        )
+    one_y = log_y(1.0, ratio_low, ratio_high, chart_top, plot_height)
+    for index, row in enumerate(measurements):
+        x = chart_left + index * x_step
+        y = log_y(row["ratio"], ratio_low, ratio_high, chart_top, plot_height)
+        title = html.escape(
+            f'{row["kernel"]} | {row["family"]} | {row["shape"]} | '
+            f'{row["dtype"]} | raised {row["raised"]:.3f} us | '
+            f'native {row["native"]:.3f} us | {row["ratio"]:.3f}x'
+        )
+        color = family_color(row["family"])
+        ratio_svg_parts.append(
+            f'<line class="paper-stem" x1="{x:.2f}" y1="{one_y:.2f}" '
+            f'x2="{x:.2f}" y2="{y:.2f}"/>'
+            f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4.2" fill="{color}">'
+            f'<title>{title}</title></circle>'
+        )
+    for index in range(0, len(measurements), 10):
+        x = chart_left + index * x_step
+        ratio_svg_parts.append(
+            f'<text class="paper-axis" x="{x:.2f}" y="{chart_height - 39}" '
+            f'text-anchor="middle">{index + 1}</text>'
+        )
+    ratio_svg_parts.append(
+        f'<text class="paper-axis-label" x="{chart_width / 2:.1f}" '
+        f'y="{chart_height - 10}" text-anchor="middle">'
+        'kernels sorted from lowest to highest raised/native ratio</text></svg>'
+    )
+    ratio_svg = "".join(ratio_svg_parts)
+
+    absolute_values = [
+        value for row in measurements for value in (row["native"], row["raised"])
+    ]
+    absolute_low = 10 ** math.floor(math.log10(min(absolute_values)))
+    absolute_high = 10 ** math.ceil(math.log10(max(absolute_values)))
+    absolute_ticks = []
+    power = math.floor(math.log10(absolute_low))
+    while 10 ** power <= absolute_high:
+        absolute_ticks.append(float(10 ** power))
+        power += 1
+    absolute_svg_parts = [
+        f'<svg class="paper-chart" viewBox="0 0 {chart_width} {chart_height}" '
+        'role="img" aria-label="Paired raised and native CUDA resident runtimes">'
+    ]
+    for tick in absolute_ticks:
+        y = log_y(tick, absolute_low, absolute_high, chart_top, plot_height)
+        absolute_svg_parts.append(
+            f'<line class="paper-grid" x1="{chart_left}" y1="{y:.2f}" '
+            f'x2="{chart_width - chart_right}" y2="{y:.2f}"/>'
+            f'<text class="paper-axis" x="{chart_left - 9}" y="{y + 4:.2f}" '
+            f'text-anchor="end">{tick:g}</text>'
+        )
+    for index, row in enumerate(measurements):
+        x = chart_left + index * x_step
+        native_y = log_y(row["native"], absolute_low, absolute_high,
+                         chart_top, plot_height)
+        raised_y = log_y(row["raised"], absolute_low, absolute_high,
+                         chart_top, plot_height)
+        title = html.escape(
+            f'{row["kernel"]} | {row["shape"]} | {row["dtype"]} | '
+            f'native {row["native"]:.3f} us | raised {row["raised"]:.3f} us'
+        )
+        absolute_svg_parts.append(
+            f'<g><title>{title}</title>'
+            f'<line class="paper-pair" x1="{x:.2f}" y1="{native_y:.2f}" '
+            f'x2="{x:.2f}" y2="{raised_y:.2f}"/>'
+            f'<circle cx="{x:.2f}" cy="{native_y:.2f}" r="3.6" fill="#0969da"/>'
+            f'<circle cx="{x:.2f}" cy="{raised_y:.2f}" r="3.6" fill="#1a7f37"/>'
+            '</g>'
+        )
+    for index in range(0, len(measurements), 10):
+        x = chart_left + index * x_step
+        absolute_svg_parts.append(
+            f'<text class="paper-axis" x="{x:.2f}" y="{chart_height - 39}" '
+            f'text-anchor="middle">{index + 1}</text>'
+        )
+    absolute_svg_parts.append(
+        f'<text class="paper-axis-label" x="{chart_width / 2:.1f}" '
+        f'y="{chart_height - 10}" text-anchor="middle">'
+        'same kernel order as the ratio plot; synchronized wall time (µs)</text></svg>'
+    )
+    absolute_svg = "".join(absolute_svg_parts)
+
+    plotted_rows = []
+    for rank, row in enumerate(measurements, 1):
+        plotted_rows.append(
+            '<tr>'
+            f'<td>{rank}</td><td><code>{html.escape(row["kernel"])}</code></td>'
+            f'<td>{html.escape(row["family"].replace("_", " "))}</td>'
+            f'<td><code>{html.escape(row["shape"].replace("_", " "))}</code></td>'
+            f'<td>{html.escape(row["dtype"])}</td>'
+            f'<td>{row["native"]:,.3f}</td><td>{row["raised"]:,.3f}</td>'
+            f'<td><b>{row["ratio"]:,.3f}×</b></td></tr>'
+        )
+
+    exclusion_counts: dict[str, int] = {}
+    for row in _ATEN_BENCHMARK_STATUS.values():
+        if row.get("ratio_raised_over_native"):
+            continue
+        status = row.get("raised_status", "UNCLASSIFIED")
+        if status == "VERIFIED_RESIDENT":
+            status = "VERIFIED_BUT_NOT_LEGALLY_COMPARABLE"
+        exclusion_counts[status] = exclusion_counts.get(status, 0) + 1
+    exclusion_rows = "".join(
+        f'<tr><td><code>{html.escape(status.replace("_", " ").lower())}</code></td>'
+        f'<td>{count}</td></tr>'
+        for status, count in sorted(
+            exclusion_counts.items(), key=lambda item: (-item[1], item[0])
+        )
+    )
+
+    family_counts: dict[str, list[str]] = {}
+    for kernel in kernels:
+        family = library_rows[kernel].get("semantic_family") or "unclassified"
+        family_counts.setdefault(family, []).append(kernel)
+    family_rows = []
+    for family, members in sorted(
+        family_counts.items(), key=lambda item: (-len(item[1]), item[0])
+    ):
+        family_rows.append(
+            '<tr>'
+            f'<td><code>{html.escape(family.replace("_", " "))}</code></td>'
+            f'<td>{len(members)}</td>'
+            f'<td>{sum(has_native(k) for k in members)}</td>'
+            f'<td>{sum(has_complete_library_match(k) for k in members)}</td>'
+            f'<td>{sum(has_strict_resident_evidence(k) and has_complete_library_match(k) for k in members)}</td>'
+            f'<td>{sum(current_verified(k) for k in members)}</td>'
+            f'<td>{sum(has_legal_ratio(k) for k in members)}</td>'
+            '</tr>'
+        )
+
+    issue_rows = [
+        (
+            "1", "High", "Native CUDA classification provenance",
+            f"The {native}/{total} native-support count comes from "
+            "native_cuda_audit.csv, but that audit has no reproducible generator "
+            "or per-row dispatcher/registration evidence.",
+            "Rebuild it from a pinned PyTorch revision and retain source, "
+            "registration, or runtime-probe evidence for every row.",
+        ),
+        (
+            "2", "High", "Static mappings versus executed mappings",
+            f"There are {raised} complete static library mappings, but only "
+            f"{strict_resident} have strict device-output resident evidence; "
+            f"{raised - strict_resident} remain static-only.",
+            "Do not call all static matches executed runtime calls. Extend "
+            "resident validation or keep both counts visible.",
+        ),
+        (
+            "3", "High", "Definition of found",
+            "Section 4.2 can otherwise conflate a matcher result, successful ABI "
+            "lowering, resident execution, and numerical verification.",
+            "Lock the four-stage vocabulary used by the validation ladder above.",
+        ),
+        (
+            "4", "Medium", "Performance-cohort selection",
+            f"The resolved ledger now has {len(resolved_specs)} recipes and covers "
+            f"all {both} provisional native+raised kernels, but timing artifacts "
+            f"still cover only the earlier {current_campaign}-case campaign.",
+            f"Run and adjudicate the {resolved_both - measured_both} newly represented "
+            f"native+raised recipes; continue plotting only accepted legal pairs.",
+        ),
+        (
+            "5", "Medium", "Structured problem-size rationale",
+            "Automatic cases follow the approximately 4.2M-element policy, but "
+            "55 structured cases use explicit shapes whose representativeness is "
+            "not uniformly justified.",
+            "Record a family-level rationale for each explicit shape and flag "
+            "small semantic smoke cases separately from performance cases.",
+        ),
+        (
+            "6", "Medium", "CPU/GPU platform interpretation",
+            "CPU measurements are from the local x86-64 host with 24 threads; "
+            "GPU measurements are from Jetson AGX Orin.",
+            "Present CPU as cross-system context, never as a controlled "
+            "same-machine CPU-to-GPU speedup.",
+        ),
+        (
+            "7", "Medium", "Statistical reporting",
+            "The current headline uses the best of 20 synchronized measurements "
+            "after five warmups, generally as a point estimate.",
+            "If the paper needs error bars, collect independent repetitions and "
+            "predeclare median/dispersion reporting.",
+        ),
+    ]
+    issues_html = "".join(
+        '<tr>'
+        f'<td>{number}</td><td><span class="paper-severity paper-{severity.lower()}">{severity}</span></td>'
+        f'<td><b>{html.escape(title)}</b></td><td>{html.escape(evidence)}</td>'
+        f'<td>{html.escape(action)}</td></tr>'
+        for number, severity, title, evidence, action in issue_rows
+    )
+
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Paper analysis: ATen (Section 4.2 draft)</h2></div>'
+        '<div class="intro"><b>Current conclusion:</b> the repository contains '
+        'enough evidence for a preliminary coverage figure and a restricted '
+        'performance figure, but not for an unqualified final ATen claim. Counts '
+        'on this page are regenerated from the current ledgers. A “complete static '
+        'library mapping” means a whole-kernel rewrite to an external library or '
+        'CUDA runtime primitive; it does not by itself prove that the result built, '
+        'ran, or passed numerical validation.</div>'
+        '<div class="audit-metrics">'
+        f'<div class="audit-metric"><b>{total}</b><span>standalone ATen C fixtures</span></div>'
+        f'<div class="audit-metric paper-provisional"><b>{native}</b><span>provisional native CUDA support</span></div>'
+        f'<div class="audit-metric"><b>{raised}</b><span>complete static library mappings</span></div>'
+        f'<div class="audit-metric"><b>{strict_resident}</b><span>static mappings with strict resident evidence</span></div>'
+        f'<div class="audit-metric"><b>{current_strict}</b><span>verified in current 116-case campaign</span></div>'
+        f'<div class="audit-metric"><b>{legal_ratios}</b><span>legal native/raised performance pairs</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Four-way coverage requested by Section 4.2</h3></div>'
+        '<div class="paper-matrix">'
+        f'<div><b>{both}</b><span>native and raised</span></div>'
+        f'<div><b>{native_only}</b><span>native only</span></div>'
+        f'<div><b>{raised_only}</b><span>raised only</span></div>'
+        f'<div><b>{neither}</b><span>neither</span></div>'
+        '</div>'
+        '<div class="paper-coverage" role="img" aria-label="Four-way ATen coverage">'
+        f'<span class="coverage-both" style="width:{100 * both / total:.3f}%" '
+        f'title="native and raised: {both}">{both}</span>'
+        f'<span class="coverage-native" style="width:{100 * native_only / total:.3f}%" '
+        f'title="native only: {native_only}">{native_only}</span>'
+        f'<span class="coverage-raised" style="width:{100 * raised_only / total:.3f}%" '
+        f'title="raised only: {raised_only}">{raised_only}</span>'
+        f'<span class="coverage-neither" style="width:{100 * neither / total:.3f}%" '
+        f'title="neither: {neither}">{neither}</span></div>'
+        '<div class="paper-legend"><span class="coverage-both"></span> native and raised '
+        '<span class="coverage-native"></span> native only '
+        '<span class="coverage-raised"></span> raised only '
+        '<span class="coverage-neither"></span> neither</div>'
+        '<div class="intro"><b>Provisional:</b> the raised side uses complete '
+        'whole-kernel library mappings, while the native side currently depends '
+        'on the unaudited native-support ledger. These numbers are appropriate '
+        'for internal planning but need issue 1 resolved before publication.</div>'
+        '<div class="section-header"><h3 class="section-title">Native + raised benchmark readiness</h3></div>'
+        '<div class="paper-flow">'
+        f'<div><b>{both}</b><span>static native + raised intersection</span></div><i>→</i>'
+        f'<div><b>{resolved_both}</b><span>now represented by benchmark recipes</span></div><i>→</i>'
+        f'<div><b>{measured_both}</b><span>present in existing timing campaign</span></div><i>→</i>'
+        f'<div><b>{legal_both}</b><span>accepted plotted ratios from this group</span></div>'
+        '</div>'
+        f'<div class="intro">Previously, {resolved_both - measured_both} kernels '
+        'fell through a circular prior-timing lookup or a missing measurement '
+        'adapter. They now have explicit resolved recipes. They remain unmeasured, '
+        'and the newly added recipes are conservatively ineligible for paper ratios '
+        'until their whole-operation semantics are adjudicated. Of the existing '
+        f'{measured_both} measured cases in this group, {verified_both} have strict '
+        f'resident execution and {legal_both} currently have accepted ratios.</div>'
+        '<div class="section-header"><h3 class="section-title">Evidence ladder</h3></div>'
+        '<div class="paper-flow">'
+        f'<div><b>{raised}</b><span>complete static match</span></div><i>→</i>'
+        f'<div><b>{strict_resident}</b><span>strict resident evidence (all campaigns)</span></div><i>→</i>'
+        f'<div><b>{current_strict}</b><span>current campaign verified</span></div><i>→</i>'
+        f'<div><b>{legal_ratios}</b><span>legal performance pair</span></div>'
+        '</div>'
+        '<div class="paper-funnel">'
+        f'<div style="width:100%"><b>{raised}</b> complete static mappings</div>'
+        f'<div style="width:{100 * strict_resident / raised:.3f}%"><b>{strict_resident}</b> strict resident evidence</div>'
+        f'<div style="width:{100 * current_strict / raised:.3f}%"><b>{current_strict}</b> current verified</div>'
+        f'<div style="width:{100 * legal_ratios / raised:.3f}%"><b>{legal_ratios}</b> legal performance pairs</div>'
+        '</div>'
+        '<div class="intro">The second count requires device-resident operands, '
+        'a device-pointer output comparison against the C reference, and a recorded '
+        'resident time. The final count additionally requires an exact or otherwise '
+        'legally comparable PyTorch CUDA operation at the same shape and dtype. '
+        '<a href="performance.html">Inspect those performance comparisons →</a></div>'
+        '<div class="section-header"><h3 class="section-title">Raised versus native CUDA runtime</h3></div>'
+        f'<div class="intro"><b>{legal_ratios} legally comparable pairs.</b> '
+        'Both paths use resident operands, identical shapes and dtypes, five '
+        'warmups, and best-of-20 synchronized wall-clock timing. The logarithmic '
+        'axis prevents the slowest decompositions from hiding near-native results. '
+        'Points are colored deterministically by semantic family; hover over a '
+        'point for its kernel, family, shape, timings, and ratio.</div>'
+        '<div class="paper-chart-wrap"><h4>Raised / PyTorch CUDA ratio</h4>'
+        + ratio_svg + '</div>'
+        '<div class="paper-chart-wrap"><h4>Paired absolute resident runtimes</h4>'
+        '<div class="paper-legend"><span class="legend-native"></span> PyTorch CUDA '
+        '<span class="legend-raised"></span> raised resident</div>'
+        + absolute_svg + '</div>'
+        '<details class="intro"><summary><b>Plotted data and exclusions</b></summary>'
+        '<p>Every plotted point appears below in ascending ratio order. The '
+        'exclusion table accounts for the other current-campaign cases.</p>'
+        '<div class="paper-data-grid"><table class="audit-table paper-plot-data">'
+        '<thead><tr><th>rank</th><th>kernel</th><th>family</th><th>shape</th>'
+        '<th>dtype</th><th>native CUDA µs</th><th>raised µs</th><th>ratio</th>'
+        '</tr></thead><tbody>' + "\n".join(plotted_rows) + '</tbody></table>'
+        '<table class="audit-table paper-exclusions"><thead><tr>'
+        '<th>reason not plotted</th><th>cases</th></tr></thead><tbody>'
+        + exclusion_rows + '</tbody></table></div></details>'
+        '<div class="section-header"><h3 class="section-title">Coverage by semantic kernel family</h3></div>'
+        '<div class="intro">Family labels come from '
+        '<code>cuda_library_audit.csv</code>. “Strict resident” covers all retained '
+        'strict evidence; “current verified” and “legal pair” refer only to the '
+        f'current {current_campaign}-case campaign. Every numeric column is a '
+        'count of standalone ATen C kernel specializations.</div>'
+        '<table class="audit-table paper-family"><thead><tr>'
+        '<th>semantic family</th><th>fixtures (kernels)</th>'
+        '<th>native CUDA (kernels, provisional)</th>'
+        '<th>complete static mapping (kernels)</th>'
+        '<th>strict resident (kernels)</th>'
+        '<th>current verified (kernels)</th>'
+        '<th>legal pair (kernels)</th></tr></thead><tbody>'
+        + "\n".join(family_rows) + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">Current measurement contract</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>Raised GPU</b><span>Jetson AGX Orin; device-resident operands; '
+        'allocations and transfers excluded; device-pointer output checked.</span></div>'
+        '<div><b>Native GPU</b><span>PyTorch CUDA at the same shape and dtype; '
+        'best of 20 synchronized wall-clock measurements after five warmups.</span></div>'
+        '<div><b>Native CPU</b><span>PyTorch 2.6 on the separate x86-64 host, 24 '
+        'threads; context only, not a same-hardware GPU speedup.</span></div>'
+        '<div><b>Shapes</b><span>Automatically scalable cases target about '
+        '4,194,304 elements; structured cases use explicit semantic shapes.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Seven issues before the ATen result is paper-ready</h3></div>'
+        '<table class="audit-table paper-issues"><thead><tr><th>#</th><th>severity</th>'
+        '<th>issue</th><th>current evidence</th><th>required resolution</th>'
+        '</tr></thead><tbody>' + issues_html + '</tbody></table>'
+        '<div class="intro"><b>Safe claim today:</b> “Across 598 standalone ATen '
+        'C specializations, the compiler identifies 271 complete mappings to '
+        'external library/runtime definitions. Of those, 101 currently have strict '
+        'resident silicon evidence; 71 cases have a legally comparable native '
+        'PyTorch CUDA timing in the current performance cohort.” The native-support '
+        'four-way split remains provisional pending an auditable classification.</div>'
+    )
+
+
 def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
     cuda_audit = {
         row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
     }
+    native_audit = {
+        row.get("kernel", ""): row for row in _read_csv(ATEN_NATIVE_CUDA_AUDIT)
+    }
+    resident_specs_path = (
+        ATEN_C_ROOT / "native_cuda_results" / "resident_shape_specs.json"
+    )
+    try:
+        resident_specs = {
+            row["kernel"]: row
+            for row in json.loads(resident_specs_path.read_text())
+            if row.get("kernel")
+        }
+    except (OSError, json.JSONDecodeError):
+        resident_specs = {}
     rows = []
     for kernel in kernels:
         stats = aten_stats.get(kernel, {})
@@ -2832,14 +3317,21 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         if "thrust" in assessment.lower():
             assessment = ""
         benchmark = _ATEN_BENCHMARK_STATUS.get(kernel, {})
+        _spec = resident_specs.get(kernel, {})
+        _native_supported = (
+            native_audit.get(kernel, {}).get("has_native_cuda") == "yes"
+        )
         _nr = _NATIVE_RESIDENT.get(kernel)
         _nc = _NATIVE_CPU.get(kernel)
         _np = _NATIVE_PROVENANCE.get(kernel, {})
-        _res_shape = benchmark.get("shape", "")
+        _res_shape = benchmark.get("shape", "") or _spec.get("shape", "")
         _nat_shape = (_nr or {}).get("shape", "")
-        _status = benchmark.get("raised_status", "NOT_IN_CURRENT_CAMPAIGN")
-        _status_detail = benchmark.get(
-            "status_detail", "not selected for the current 116-case campaign")
+        _status = benchmark.get("raised_status", "RECIPE_READY" if _spec else
+                                "NO_BENCHMARK_RECIPE")
+        _status_detail = benchmark.get("status_detail", (
+            "benchmark recipe exists; resident raised/native measurements pending"
+            if _spec else "no resident benchmark recipe"
+        ))
         _resident_verified = _status == "VERIFIED_RESIDENT"
         native_us = benchmark.get("native_gpu_us") or None
         cpu_us = benchmark.get("native_cpu_us") or None
@@ -2847,7 +3339,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         ratio_value = benchmark.get("ratio_raised_over_native", "")
         ratio = (html.escape(f"{float(ratio_value):.3f}×")
                  if ratio_value and _resident_verified and _legal_ratio else "—")
-        dtype = benchmark.get("dtype", "")
+        dtype = benchmark.get("dtype", "") or _spec.get("dtype", "")
         dtype_tag = (f'<span title="current campaign dtype {html.escape(dtype)}" '
                      f'style="color:#888;font-size:11px">'
                      f'[{html.escape(dtype)}]</span>' if dtype else "")
@@ -2858,8 +3350,10 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         elif benchmark:
             result_class = "partial"
             result_label = _status.replace("_", " ")
+        elif _spec:
+            result_class, result_label = "partial", "RECIPE READY; NOT RUN"
         else:
-            result_class, result_label = "none", "NOT IN CAMPAIGN"
+            result_class, result_label = "none", "NO RECIPE"
         result_cell = (f'<td class="{result_class}" title="'
                        f'{html.escape(_status_detail)}">'
                        f'{html.escape(result_label)}</td>')
@@ -2897,10 +3391,20 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         else:
             resident_cell = (f'<td class="none" title="'
                              f'{html.escape(_status_detail)}">—</td>')
-        cuda_impl_cell = _aten_native_cuda_cell(_np) if native_us else "—"
+        if _np.get("benchmark_api"):
+            cuda_impl_cell = _aten_native_cuda_cell(_np, bool(native_us))
+        elif _native_supported:
+            cuda_impl_cell = (
+                '<span style="color:#666;font-size:10px" title="classified '
+                'from the provisional native CUDA audit; no benchmark recipe '
+                'has been defined">native CUDA support (provisional); recipe '
+                'not yet defined</span>'
+            )
+        else:
+            cuda_impl_cell = "—"
         rows.append(
             f'<tr data-op="{html.escape(kernel)}" '
-            f'data-native="{1 if native_us else 0}">'
+            f'data-native="{1 if _native_supported else 0}">'
             f"<td>{name} {dtype_tag}</td>"
             f"<td>{upstream}</td><td>{extracted_c}</td>"
             f"<td>{linalg_ops}</td><td>{loops}</td>"
@@ -2944,10 +3448,19 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         row.get("current_match_scope") == "PARTIAL_STAGE_ONLY"
         for row in cuda_audit.values()
     )
-    native_total = 0
-    for k in ATEN_C_ORDER:
-        if _NATIVE_RESIDENT.get(k, {}).get("native_us"):
-            native_total += 1
+    native_total = sum(
+        native_audit.get(k, {}).get("has_native_cuda") == "yes"
+        for k in ATEN_C_ORDER
+    )
+    native_raised = {
+        k for k in ATEN_C_ORDER
+        if native_audit.get(k, {}).get("has_native_cuda") == "yes"
+        and cuda_audit.get(k, {}).get("current_match_scope")
+        == "COMPLETE_REWRITE_CANDIDATE"
+        and cuda_audit.get(k, {}).get("counts_as_library_reuse") == "yes"
+    }
+    resolved_native_raised = len(native_raised & set(resident_specs))
+    measured_cases = len(_ATEN_BENCHMARK_STATUS)
     # The ATen table is small enough to keep all rows in the document.  The
     # browser sorts and filters that complete set, then renders one page.  This
     # avoids the misleading behavior of sorting only the current 20-row slice.
@@ -2961,12 +3474,15 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'onkeydown="atenSearchKey(event)">'
         '<label style="margin-left:12px;font-size:13px">'
         '<input id="aten-native-only" type="checkbox" onchange="atenSearch()"> '
-        'only ops with a <span style="color:#137333">native number</span></label>'
+        'only ops with <span style="color:#137333">native CUDA support</span>'
+        '</label>'
         '<span id="aten-search-count" style="margin-left:10px;color:#666"></span>'
         f'<div style="margin-top:4px;color:#666;font-size:12px">'
-        f'<span style="color:#137333">&#9679;</span> = has a real ATen native '
-        f'runtime ({native_total} of {len(ATEN_C_ORDER)} ops). Search and native '
-        f'filtering apply to the complete table.</div></div>'
+        f'<span style="color:#137333">&#9679;</span> = classified as having '
+        f'native CUDA support ({native_total} of {len(ATEN_C_ORDER)} ops, '
+        f'provisional audit), independent of whether a timing has been '
+        f'collected. Search and native filtering apply to the complete table.'
+        f'</div></div>'
     )
     table_script = (
         '<script>'
@@ -3096,9 +3612,12 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         '(24 threads), so it is labeled as a cross-system baseline rather than '
         'a same-hardware speedup. Green resident results passed a device-pointer '
         'comparison with the C reference; legacy resident measurements are '
-        'withheld pending that recheck. Every missing resident cell names its '
-        'current blocker or says that the fixture was not selected for the '
-        '116-case campaign. '
+        'withheld pending that recheck. The benchmark ledger now represents '
+        f'all {resolved_native_raised}/{len(native_raised)} kernels with both '
+        'provisional native CUDA support and a complete raised library mapping. '
+        f'Timings still cover the earlier {measured_cases}-case campaign; newly '
+        'admitted rows say <code>RECIPE READY; NOT RUN</code> and remain '
+        'ineligible for ratios until measured and semantically adjudicated. '
         'Green ATen numbers are legally comparable; amber numbers are real '
         'PyTorch measurements of an internal stage or dense-math proxy and do '
         'not receive a raised/native ratio.<br><br>'
@@ -4353,6 +4872,68 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         '<th>comparison scope</th><th>test parameters</th></tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
+    )
+
+
+def _mfem_section42_summary() -> str:
+    rows = _read_csv(MFEM_SILICON_RESULTS_DIR / "section42_summary.csv")
+    rendered = []
+    for row in rows:
+        status_class = "pass" if row.get("correctness") == "PASS" else "fail"
+        rendered.append(
+            '<tr>'
+            f'<td><b>{html.escape(row["benchmark"])}</b><br>'
+            f'<small>{html.escape(row["problem"])}</small></td>'
+            f'<td>{float(row["native_cpu_us"]) / 1000.0:.3f} ms</td>'
+            f'<td><b>{float(row["raised_gpu_us"]) / 1000.0:.3f} ms</b></td>'
+            f'<td>{float(row["native_gpu_us"]) / 1000.0:.3f} ms</td>'
+            f'<td>{html.escape(row["raised_over_native_gpu"])}x</td>'
+            f'<td class="{status_class}">{html.escape(row["correctness"])}</td>'
+            f'<td><small>{html.escape(row["measurement"])}</small></td>'
+            '</tr>'
+        )
+    audit_rows = _read_csv(
+        MFEM_SILICON_RESULTS_DIR / "section42_pipeline_audit.csv"
+    )
+    audit_rendered = []
+    for row in audit_rows:
+        status_class = "pass" if row.get("correctness") == "PASS" else "fail"
+        audit_rendered.append(
+            '<tr>'
+            f'<td><code>{html.escape(row["pipeline"])}</code></td>'
+            f'<td class="{status_class}">{html.escape(row["correctness"])}</td>'
+            f'<td>{html.escape(row["max_abs"])}</td>'
+            f'<td>{float(row["native_cpu_us"]) / 1000.0:.3f} ms</td>'
+            f'<td>{float(row["raised_gpu_us"]) / 1000.0:.3f} ms</td>'
+            f'<td>{html.escape(row["scope"])}</td>'
+            f'<td><small>{html.escape(row["measurement"])}</small></td>'
+            '</tr>'
+        )
+    pass_count = sum(row.get("correctness") == "PASS" for row in audit_rows)
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Section 4.2 concise MFEM result</h2></div>'
+        '<div class="intro">The headline includes only a complete, '
+        'correctness-gated operator pipeline. Native CPU and raised GPU were '
+        'remeasured on the same locked-MAXN Orin. Native MFEM GPU is the exact '
+        'resident operator measured in a separate normalized MAXN session. '
+        'The detailed tables below retain the full kernel and pipeline audit; '
+        'diagnostic or inexact component baselines are not promoted here.</div>'
+        '<table><thead><tr><th>pipeline</th><th>native CPU</th>'
+        '<th>raised GPU</th><th>native MFEM GPU</th>'
+        '<th>raised/native GPU</th><th>correctness</th><th>protocol</th>'
+        '</tr></thead><tbody>' + ''.join(rendered) + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">'
+        f'Complete pipeline correctness audit: {pass_count}/{len(audit_rows)} pass'
+        '</h3></div><div class="intro">Every extracted MFEM operator/application '
+        'path is tested at the performance batch size. Only the mass row above '
+        'uses the final compiler-visible repeated-session protocol. The remaining '
+        'times diagnose launch and composition overhead and are deliberately not '
+        'paper headline numbers.</div>'
+        '<table><thead><tr><th>pipeline</th><th>correctness</th><th>max abs</th>'
+        '<th>native CPU</th><th>raised GPU</th><th>execution scope</th>'
+        '<th>evidence level</th></tr></thead><tbody>'
+        + ''.join(audit_rendered) + '</tbody></table>'
     )
 
 
@@ -6243,6 +6824,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="ai.html">AI kernels</a> &middot; '
             '<a href="vision.html">Vision + fusion</a> &middot; '
             '<a href="pva.html">PVA backend</a>'
+            '</div>'
+            '<div style="margin-top:6px; font-size:13px;">'
+            '<a href="aten-paper.html">ATen paper analysis</a>'
             '</div></div>'
         )
 
@@ -6272,6 +6856,59 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'background:#fafbfc; } .audit-metric b { display:block; color:#1a7f37; '
         'font-size:22px; } .audit-metric span { color:#555; font-size:12px; } '
         '.audit-table { font-size:12px; } .audit-table td { white-space:nowrap; } '
+        '.paper-matrix { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); '
+        'gap:12px; padding:16px 20px; max-width:900px; } '
+        '.paper-matrix div,.paper-flow div,.paper-notes div { border:1px solid #d8dee8; '
+        'border-radius:7px; padding:13px; background:#fafbfc; } '
+        '.paper-matrix b,.paper-flow b { display:block; color:#1a7f37; font-size:24px; } '
+        '.paper-matrix span,.paper-flow span,.paper-notes span { display:block; '
+        'color:#555; font-size:12px; line-height:1.4; } '
+        '.paper-flow { display:flex; align-items:center; gap:10px; padding:16px 20px; '
+        'max-width:1050px; } .paper-flow div { flex:1; } '
+        '.paper-flow i { color:#65758b; font-size:20px; font-style:normal; } '
+        '.paper-notes { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); '
+        'gap:10px; padding:16px 20px; max-width:1100px; } '
+        '.paper-notes b { display:block; margin-bottom:5px; } '
+        '.paper-family td,.paper-issues td { white-space:normal; vertical-align:top; } '
+        '.paper-family td:not(:first-child) { text-align:right; } '
+        '.paper-issues td:nth-child(4),.paper-issues td:nth-child(5) { min-width:280px; } '
+        '.paper-severity { display:inline-block; border-radius:10px; padding:2px 8px; '
+        'font-size:11px; font-weight:bold; } .paper-high { background:#ffd9d9; color:#8b1a1a; } '
+        '.paper-medium { background:#fff3bd; color:#705900; } '
+        '.paper-provisional { border-color:#d6b656; background:#fffbea; } '
+        '.paper-coverage { display:flex; height:42px; margin:0 20px 8px; '
+        'max-width:900px; overflow:hidden; border-radius:7px; border:1px solid #c8d2e2; } '
+        '.paper-coverage span { display:flex; align-items:center; justify-content:center; '
+        'min-width:28px; color:white; font-weight:bold; font-size:12px; } '
+        '.coverage-both { background:#1a7f37; } .coverage-native { background:#0969da; } '
+        '.coverage-raised { background:#8250df; } .coverage-neither { background:#6e7781; } '
+        '.paper-legend { padding:2px 20px 12px; color:#555; font-size:12px; } '
+        '.paper-legend span { display:inline-block; width:12px; height:12px; '
+        'margin:0 4px 0 14px; vertical-align:-2px; border-radius:2px; } '
+        '.paper-legend span:first-child { margin-left:0; } '
+        '.legend-native { background:#0969da; } .legend-raised { background:#1a7f37; } '
+        '.paper-funnel { max-width:900px; padding:0 20px 16px; } '
+        '.paper-funnel div { box-sizing:border-box; min-width:230px; margin:5px auto; '
+        'padding:8px 12px; text-align:center; background:#dcecff; color:#174f86; '
+        'border:1px solid #a9c8ea; border-radius:5px; font-size:12px; } '
+        '.paper-funnel b { font-size:17px; margin-right:5px; } '
+        '.paper-chart-wrap { margin:14px 20px; max-width:1120px; border:1px solid #d8dee8; '
+        'border-radius:8px; background:white; overflow-x:auto; } '
+        '.paper-chart-wrap h4 { margin:12px 16px 2px; color:#1f2d3d; } '
+        '.paper-chart { display:block; min-width:760px; width:100%; height:auto; } '
+        '.paper-grid { stroke:#d8dee8; stroke-width:1; } '
+        '.paper-grid.paper-reference { stroke:#24292f; stroke-width:1.7; } '
+        '.paper-stem,.paper-pair { stroke:#8c959f; stroke-width:1; opacity:.65; } '
+        '.paper-axis { fill:#57606a; font:11px sans-serif; } '
+        '.paper-axis-label { fill:#24292f; font:12px sans-serif; font-weight:600; } '
+        '.paper-chart circle { stroke:white; stroke-width:1; cursor:help; } '
+        '.paper-data-grid { display:grid; grid-template-columns:minmax(700px,1fr) '
+        'minmax(260px,auto); gap:18px; align-items:start; } '
+        '.paper-plot-data td,.paper-exclusions td { white-space:normal; } '
+        '.paper-plot-data td:nth-child(n+6) { text-align:right; } '
+        '@media(max-width:900px) { .paper-data-grid { display:block; } '
+        '.paper-exclusions { margin-top:18px; } .paper-flow { display:block; } '
+        '.paper-flow i { display:none; } .paper-flow div { margin:6px 0; } } '
         '#aten-table th { cursor:pointer; user-select:none; vertical-align:bottom; } '
         '#aten-table th:hover { background:#eef3fb; color:#1f2d3d; } '
         '#aten-table th:focus { outline:2px solid #0366d6; outline-offset:-2px; } '
@@ -6325,6 +6962,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "Shared ABI, backend branch point, and implementation coverage.")
         + card("numerical.html", "ATen numerical kernels", len(aten_stats),
                "Extracted ATen C algorithms and Jetson comparisons.")
+        + card("aten-paper.html", "ATen paper analysis", len(ATEN_C_ORDER),
+               "Section 4.2 coverage matrix, evidence ladder, family breakdown, and open issues.")
         + card("performance.html", "Why are some kernels slow?",
                sum(bool(row.get("ratio_raised_over_native"))
                    for row in _ATEN_BENCHMARK_STATUS.values()),
@@ -6352,6 +6991,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     )
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
+    aten_paper = nav() + _aten_paper_analysis_page()
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -6361,6 +7001,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         )
     }
     mfem = (nav()
+            + _mfem_section42_summary()
             + _mfem_application_extraction_section(
                 mfem_application_extraction_stats
             )
@@ -6381,6 +7022,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "performance.html": render_html(
             "Polygeist: kernel slowness analysis", performance, extra_css
+        ),
+        "aten-paper.html": render_html(
+            "Polygeist: ATen paper analysis", aten_paper, extra_css
         ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
@@ -6497,7 +7141,8 @@ def main():
             {}, aten_stats, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
         for filename, page_html in pages.items():
-            if filename.startswith("numerical") or filename == "performance.html":
+            if (filename.startswith("numerical") or filename == "performance.html"
+                    or filename == "aten-paper.html"):
                 OUTPUT_DIR.joinpath(filename).write_text(page_html)
         print(f"Done. Open {OUTPUT_DIR}/numerical.html.")
         return
