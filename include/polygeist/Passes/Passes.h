@@ -42,6 +42,7 @@ std::unique_ptr<Pass> createPlanPersistentGpuWorkspacePass();
 std::unique_ptr<Pass> createPrepareGpuResidualPipelinePass();
 std::unique_ptr<Pass> createPlanGpuDataResidencyPass();
 std::unique_ptr<Pass> createInstrumentGpuRegionTimingPass();
+std::unique_ptr<Pass> createPropagateKernelLibraryConstantsPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToCuBLASPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToPVAPass();
 std::unique_ptr<Pass> createRemoveIterArgsPass();

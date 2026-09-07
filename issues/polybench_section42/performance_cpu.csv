@@ -1,6 +1,7 @@
 kernel,configuration,dataset,datatype,correctness_status,samples,warmups,statistic,time_ms,speedup_vs_native,library,measurement_scope,command,log
 2mm,native_clang18_noinline,LARGE,double,pass,5,1,median,2780.394000,1.000000,none,PolyBench kernel call; pinned CPU 21; one process/thread,issues/polybench_section42/run_native_timing_final.sh,logs/2mm/native_timing_final_raw.log
 3mm,native_clang18_noinline,LARGE,double,pass,5,1,median,5526.133000,1.000000,none,PolyBench kernel call; pinned CPU 21; one process/thread,issues/polybench_section42/run_native_timing_final.sh,logs/3mm/native_timing_final_raw.log
+3mm,openblas_cblas_1t,LARGE,double,pass,5,1,median,127.482000,43.348339,OpenBLAS 0.3.20 / CBLAS,PolyBench kernel call; pinned CPU 21; one OpenBLAS thread,see logs/3mm/cpu_library_constant_propagation.log,logs/3mm/cpu_library_timing_raw.log
 adi,native_clang18_noinline,LARGE,double,pass,5,1,median,17867.858000,1.000000,none,PolyBench kernel call; pinned CPU 21; one process/thread,issues/polybench_section42/run_native_timing_final.sh,logs/adi/native_timing_final_raw.log
 atax,native_clang18_noinline,LARGE,double,pass,5,1,median,9.470000,1.000000,none,PolyBench kernel call; pinned CPU 21; one process/thread,issues/polybench_section42/run_native_timing_final.sh,logs/atax/native_timing_final_raw.log
 bicg,native_clang18_noinline,LARGE,double,pass,5,1,median,13.043000,1.000000,none,PolyBench kernel call; pinned CPU 21; one process/thread,issues/polybench_section42/run_native_timing_final.sh,logs/bicg/native_timing_final_raw.log

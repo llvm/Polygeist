@@ -32,6 +32,7 @@
 
 #include "PassDetails.h"
 
+#include "KernelLibraryConstantPropagation.h"
 #include "KernelLaunchLoweringUtils.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -41,6 +42,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
@@ -52,7 +54,6 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 
 #include <optional>
@@ -71,73 +72,6 @@ namespace {
 /// into beta=0.
 static constexpr StringLiteral kBlasBetaZeroAttr =
     "polygeist.blas_beta_zero";
-
-static bool isZeroFillLaunch(LaunchOp launch) {
-  auto symbol = launch->getAttrOfType<SymbolRefAttr>("kernel");
-  if (!symbol || launch.getNumOperands() != 1 ||
-      launch.getNumResults() != 1)
-    return false;
-  StringRef name = symbol.getLeafReference().getValue();
-  return name == "memset_zero_1D" || name == "memset_zero_1D_f32" ||
-         name == "memset_zero_2D" || name == "memset_zero_2D_f32";
-}
-
-/// Collect the matched zero-fill launches proving that every element of
-/// `value` is zero.  Extracting a slice of a uniform value preserves the fact;
-/// inserting a slice preserves it only when both source and destination are
-/// themselves uniformly zero.  Unknown aliases, block arguments, and general
-/// computation conservatively stop the proof.
-static bool collectUniformZeroInitializers(
-    Value value, SmallVectorImpl<LaunchOp> &initializers,
-    llvm::SmallPtrSetImpl<Operation *> &visiting) {
-  Operation *def = value.getDefiningOp();
-  if (!def || !visiting.insert(def).second)
-    return false;
-
-  auto leave = [&]() { visiting.erase(def); };
-  if (auto launch = dyn_cast<LaunchOp>(def)) {
-    bool zero = isZeroFillLaunch(launch);
-    if (zero)
-      initializers.push_back(launch);
-    leave();
-    return zero;
-  }
-  if (auto cast = dyn_cast<tensor::CastOp>(def)) {
-    bool zero = collectUniformZeroInitializers(cast.getSource(), initializers,
-                                                visiting);
-    leave();
-    return zero;
-  }
-  if (auto slice = dyn_cast<tensor::ExtractSliceOp>(def)) {
-    bool zero = collectUniformZeroInitializers(slice.getSource(), initializers,
-                                                visiting);
-    leave();
-    return zero;
-  }
-  if (auto insert = dyn_cast<tensor::InsertSliceOp>(def)) {
-    bool sourceZero = collectUniformZeroInitializers(
-        insert.getSource(), initializers, visiting);
-    bool destZero = sourceZero && collectUniformZeroInitializers(
-                                      insert.getDest(), initializers, visiting);
-    leave();
-    return sourceZero && destZero;
-  }
-  if (auto submap = dyn_cast<polygeist::SubmapOp>(def)) {
-    bool zero = collectUniformZeroInitializers(submap.getBase(), initializers,
-                                                visiting);
-    leave();
-    return zero;
-  }
-  if (auto inverse = dyn_cast<polygeist::SubmapInverseOp>(def)) {
-    bool zero = collectUniformZeroInitializers(inverse.getOperand(1),
-                                                initializers, visiting);
-    leave();
-    return zero;
-  }
-
-  leave();
-  return false;
-}
 
 static bool isKnownFiniteFloat(Value value) {
   Attribute attr;
@@ -187,6 +121,86 @@ static std::optional<unsigned> blasAccumulatorOperand(LaunchOp launch) {
   return std::nullopt;
 }
 
+template <typename SliceOp>
+static bool isFullIdentitySlice(SliceOp slice, Value shapedValue) {
+  auto shapedType = dyn_cast<ShapedType>(shapedValue.getType());
+  if (!shapedType ||
+      shapedType.getRank() != static_cast<int64_t>(slice.getMixedSizes().size()))
+    return false;
+  for (OpFoldResult offset : slice.getMixedOffsets())
+    if (getConstantIntValue(offset) != 0)
+      return false;
+  for (OpFoldResult stride : slice.getMixedStrides())
+    if (getConstantIntValue(stride) != 1)
+      return false;
+  for (auto [dim, size] : llvm::enumerate(slice.getMixedSizes())) {
+    if (!shapedType.isDynamicDim(dim)) {
+      if (getConstantIntValue(size) != shapedType.getDimSize(dim))
+        return false;
+      continue;
+    }
+    Value dynamicSize = dyn_cast<Value>(size);
+    auto dimOp = dynamicSize ? dynamicSize.getDefiningOp<tensor::DimOp>()
+                             : tensor::DimOp();
+    if (!dimOp || dimOp.getSource() != shapedValue ||
+        dimOp.getConstantIndex() != dim)
+      return false;
+  }
+  return true;
+}
+
+/// Remove a uniform initializer when the BLAS destination is a provably-full
+/// identity slice and the result is inserted back over that same complete
+/// destination. This handles destination-style view shells without assuming
+/// that arbitrary dynamic slices cover their backing tensor.
+static LaunchOp eraseCoveredInitializer(LaunchOp launch,
+                                         unsigned accumulator) {
+  auto extract =
+      launch.getOperand(accumulator).getDefiningOp<tensor::ExtractSliceOp>();
+  if (!extract || !isFullIdentitySlice(extract, extract.getSource()))
+    return {};
+  auto initializer = extract.getSource().getDefiningOp<LaunchOp>();
+  if (!initializer || initializer.getNumOperands() != 1 ||
+      initializer.getNumResults() != 1 || launch.getNumResults() != 1 ||
+      !launch.getResult(0).hasOneUse())
+    return {};
+
+  auto insert =
+      dyn_cast<tensor::InsertSliceOp>(*launch.getResult(0).getUsers().begin());
+  if (!insert || insert.getDest() != initializer.getResult(0) ||
+      !isFullIdentitySlice(insert, insert.getDest()))
+    return {};
+  for (OpOperand &use : initializer.getResult(0).getUses())
+    if (use.getOwner() != extract.getOperation() &&
+        use.getOwner() != insert.getOperation())
+      return {};
+
+  initializer.getResult(0).replaceAllUsesWith(initializer.getOperand(0));
+  return initializer;
+}
+
+/// Turn proven scalar facts into ordinary arith.constant operands before ABI
+/// construction. This covers alpha, beta, dimensions, strides, and flags
+/// uniformly; shaped facts remain annotations for operation-specific algebra.
+static void materializeUniformScalarOperands(ModuleOp module) {
+  module.walk([&](LaunchOp launch) {
+    for (unsigned operand = 0; operand < launch.getNumOperands(); ++operand) {
+      Value current = launch.getOperand(operand);
+      if (isa<ShapedType>(current.getType()) ||
+          current.getDefiningOp<arith::ConstantOp>())
+        continue;
+      std::optional<TypedAttr> constant =
+          getUniformOperandConstant(launch, operand);
+      if (!constant || constant->getType() != current.getType())
+        continue;
+      OpBuilder builder(launch);
+      launch->setOperand(
+          operand,
+          builder.create<arith::ConstantOp>(launch.getLoc(), *constant));
+    }
+  });
+}
+
 /// Propagate uniform-zero tensor state across matched candidates and record
 /// it as a normalized beta=0 fact on the consuming BLAS launch.  This replaces
 /// the need to enumerate a separate `_zero` matcher symbol for every ordinary
@@ -194,6 +208,8 @@ static std::optional<unsigned> blasAccumulatorOperand(LaunchOp launch) {
 /// Slice-scoped fill erasure requires a stronger coverage proof and is left to
 /// canonical destination forwarding.
 static void propagateUniformZeroIntoBlas(ModuleOp module) {
+  propagateKernelLibraryConstants(module);
+  materializeUniformScalarOperands(module);
   SmallVector<LaunchOp> launches;
   SmallVector<LaunchOp> deadInitializers;
   module.walk([&](LaunchOp launch) { launches.push_back(launch); });
@@ -201,10 +217,14 @@ static void propagateUniformZeroIntoBlas(ModuleOp module) {
     std::optional<unsigned> accumulator = blasAccumulatorOperand(launch);
     if (!accumulator)
       continue;
-    SmallVector<LaunchOp> initializers;
-    llvm::SmallPtrSet<Operation *, 8> visiting;
-    if (!collectUniformZeroInitializers(launch.getOperand(*accumulator),
-                                        initializers, visiting))
+    std::optional<TypedAttr> constant =
+        getUniformOperandConstant(launch, *accumulator);
+    bool isZero = constant &&
+                  ((isa<FloatAttr>(*constant) &&
+                    cast<FloatAttr>(*constant).getValue().isZero()) ||
+                   (isa<IntegerAttr>(*constant) &&
+                    cast<IntegerAttr>(*constant).getValue().isZero()));
+    if (!isZero)
       continue;
     launch->setAttr(kBlasBetaZeroAttr,
                     UnitAttr::get(module.getContext()));
@@ -214,11 +234,16 @@ static void propagateUniformZeroIntoBlas(ModuleOp module) {
     // its prior contents.  Slice-derived facts still select beta=0, but retain
     // their fill until separate coverage analysis proves that no elements
     // outside the overwritten slice are observable.
-    if (initializers.size() == 1 &&
-        launch.getOperand(*accumulator) == initializers.front().getResult(0) &&
-        initializers.front().getResult(0).hasOneUse()) {
-      launch->setOperand(*accumulator, initializers.front().getOperand(0));
-      deadInitializers.push_back(initializers.front());
+    if (auto initializer =
+            launch.getOperand(*accumulator).getDefiningOp<LaunchOp>();
+        initializer && initializer.getNumOperands() == 1 &&
+        initializer.getNumResults() == 1 &&
+        initializer.getResult(0).hasOneUse()) {
+      launch->setOperand(*accumulator, initializer.getOperand(0));
+      deadInitializers.push_back(initializer);
+    } else if (LaunchOp initializer =
+                   eraseCoveredInitializer(launch, *accumulator)) {
+      deadInitializers.push_back(initializer);
     }
   }
   for (LaunchOp initializer : deadInitializers)
