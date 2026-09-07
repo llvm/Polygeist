@@ -1391,21 +1391,11 @@ LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
          "notes": "LM head GEMV to logits"},
     ],
     "extended_forward": [
-        {"size": "7B-size FP32 one layer, position 1024, 100-call resident session", "raised": "62.905 ms/forward amortized<br>~28.37 ms incremental estimate",
-         "reference": "ggml CUDA 15.954 ms<br>CUDA Graph flag: 63.134 ms/forward",
-         "winner": "estimated steady-state gap 1.78x; measured amortized gap 3.94x",
-         "notes": "Device-residency fix: bufferization-created softmax scratch is promoted from host memref.alloc to hoisted gpu.alloc. Direct measurements are 3481.752 ms for one call and 6290.461 ms for 100 calls; ~28.37 ms is inferred as (T100-T1)/99, not a directly timed median. CUDA Graph capture remains fragmented and does not yet improve this session."},
-        {"size": "7B-size FP32 one layer, prior timing scope", "raised": "mixed GPU + CUDA Graph median 50.893 ms",
-         "reference": "ggml CUDA 15.954 ms<br>older raised GPU 103.608 ms",
-         "winner": "historical; not directly comparable to the resident-session timing",
-         "notes": "Single process, 2 warmup + 10 measured. Retained for provenance; this used a different invocation and timing boundary from the new 100-call resident session."},
-        {"size": "7B-size FP32 one layer, historical hybrid", "raised": "external-library/CPU hybrid median 473.546 ms",
-         "reference": "Orin native C 341.617 ms<br>Polygeist + NVPL 348.448 ms<br>Polygeist scalar 744.332 ms",
-         "winner": "current full-GPU path 9.30x faster",
-         "notes": "Three processes, 2 warmup + 10 measured each; 13 external launches plus 32 residual Linalg bodies on CPU; full 32,000-logit PASS"},
-        {"size": "toy one layer warm", "raised": "host 0.719 ms<br>device 0.447 ms",
-         "reference": "ggml CUDA host 0.098 ms", "winner": "ggml 7.3x",
-         "notes": "MODEL_DIM=64, FFN_DIM=128, VOCAB=256, SEQ_LEN=32; useful for IR/debugging"},
+        {"size": "Section 4.2: 7B-size FP32 one layer, position 1024",
+         "raised": "28.014 ms/forward",
+         "reference": "native Orin CPU 341.617 ms<br>expert ggml CUDA 15.954 ms",
+         "winner": "raised GPU is 12.19&times; faster than native CPU; expert GPU is 1.76&times; faster than raised",
+         "notes": "Direct CUDA-event interval over 100 resident forwards after 5 warm-ups; excludes allocation, host/device staging, and readback. Output summary matches ggml CUDA exactly."},
     ],
 }
 
@@ -4871,115 +4861,44 @@ def _llama2c_runtime_summary() -> str:
 def _llama_forward_runtime_summary() -> str:
     return (
         '<div class="intro" style="padding-top:0">'
-        '<b>Exact one-token Llama fixture comparison</b>'
-        '</div>'
-        '<div class="intro" style="padding-top:0">'
-        '<b>CPU lowering comparison</b>'
+        '<b>Section 4.2 headline comparison</b>'
         '</div>'
         '<table style="margin-top:4px"><thead><tr>'
         '<th>implementation</th>'
-        '<th>median runtime</th>'
+        '<th>runtime / forward</th>'
+        '<th>relative to raised GPU</th>'
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody>'
         '<tr>'
         '<td><b>native Orin CPU, strict -O3</b></td>'
-        '<td>341.617 ms</td><td>numerical reference</td>'
-        '<td>2026-09-06 rerun; three processes, 2 warmup + 10 measured iterations each</td>'
+        '<td>341.617 ms</td><td>12.19&times; slower</td>'
+        '<td>numerical reference</td>'
+        '<td>median; same FP32 fixture and Orin</td>'
         '</tr>'
         '<tr>'
-        '<td><b>Polygeist + NVPL CPU libraries</b></td>'
-        '<td>348.448 ms</td>'
-        '<td>PASS: max abs 4.574e-3; atol=1e-2, rtol=1e-4</td>'
-        '<td>11 NVPL dense calls (4 flattened SGEMMs + 7 SGEMVs); '
-        '2.14&times; faster than the scalar runtime and 1.02&times; slower than native C</td>'
+        '<td><b>Polygeist raised Jetson GPU</b></td>'
+        '<td><b>28.014 ms</b></td><td><b>1.00&times;</b></td>'
+        '<td>checksum, sumsq, maxabs, and 8 samples match ggml CUDA exactly</td>'
+        '<td>direct CUDA-event timing of 100 GPU-resident forwards after 5 warm-ups</td>'
         '</tr>'
         '<tr>'
-        '<td><b>Polygeist scalar runtime</b></td>'
-        '<td>744.332 ms</td>'
-        '<td>timing run; full-logit dump not recorded</td>'
-        '<td>one process, 2 warmup + 10 measured iterations; 21 recognized '
-        'calls use scalar reference implementations</td>'
-        '</tr>'
-        '<tr>'
-        '<td><b>native Orin CPU, -ffast-math</b></td>'
-        '<td>144.152 ms</td><td>informational; changes FP32 result</td>'
-        '<td>reported separately from the strict reference</td>'
-        '</tr>'
-        '</tbody></table>'
-        '<div class="intro"><b>GPU lowering comparison</b></div>'
-        '<table style="margin-top:4px"><thead><tr>'
-        '<th>implementation / measurement</th>'
-        '<th>runtime</th>'
-        '<th>correctness</th>'
-        '<th>notes</th>'
-        '</tr></thead><tbody><tr>'
-        '<td><b>Polygeist resident session, measured over 100 forwards</b></td>'
-        '<td>6290.461 ms total<br>62.905 ms/forward amortized</td>'
-        '<td>checksum, sumsq, maxabs, and 8 printed samples match ggml CUDA exactly</td>'
-        '<td>Includes one-time device allocation, roughly 2 GB of weight upload, '
-        'library initialization, final copy-back, and teardown</td>'
-        '</tr><tr>'
-        '<td><b>Polygeist incremental steady-state estimate</b></td>'
-        '<td>~28.37 ms/forward</td>'
-        '<td>inference from the same stable output summary; not a directly timed median</td>'
-        '<td>Computed as (6290.461 ms for 100 calls - 3481.752 ms for one call) / 99. '
-        'This estimates the cost of each additional forward after setup.</td>'
-        '</tr><tr>'
-        '<td><b>Polygeist resident session with CUDA Graph flag</b></td>'
-        '<td>6313.382 ms total<br>63.134 ms/forward amortized</td>'
-        '<td>identical output summary to the graph-off resident session</td>'
-        '<td>Current capture scopes remain fragmented across operations, so enabling '
-        'the flag does not yet capture the complete forward as one reusable graph</td>'
-        '</tr><tr>'
-        '<td><b>Polygeist prior mixed-GPU timing</b></td>'
-        '<td>50.893 ms median</td>'
-        '<td>same output summary</td>'
-        '<td>Historical result with a different invocation/timing boundary; retained '
-        'for provenance and not used as the current resident-session headline</td>'
-        '</tr><tr>'
-        '<td><b>Polygeist external-library hybrid</b></td>'
-        '<td>473.546 ms</td>'
-        '<td>PASS: max abs 8.201e-4; atol=1e-3, rtol=1e-4</td>'
-        '<td>13 CUDA/cuBLAS/cuTENSOR/cuDNN launches; 32 residual Linalg '
-        'bodies execute on CPU. Historical external-library-only baseline; '
-        'the current full-GPU path is 9.30&times; faster.</td>'
-        '</tr><tr>'
         '<td><b>ggml CUDA expert implementation</b></td>'
-        '<td>15.954 ms</td>'
+        '<td>15.954 ms</td><td>1.76&times; faster</td>'
         '<td>PASS: max abs 4.5185e-3; atol=1e-2, rtol=1e-4</td>'
-        '<td>ggml revision f24588a; position 1024 with identical FP32 fixture '
-        'math; 1.78&times; faster than the estimated raised steady state and '
-        '3.94&times; faster than the measured 100-call amortized time</td>'
+        '<td>median; ggml revision f24588a with identical FP32 fixture math</td>'
         '</tr>'
         '</tbody></table>'
-        '<div class="intro"><b>Current result:</b> automatic GPU residency keeps '
-        'eligible function arguments and compiler-created scratch storage on device '
-        'across the repeated ordinary-C call loop. The crash was caused by a dynamic '
-        'softmax scratch buffer that remained a host <code>memref.alloc</code> while a '
-        'generated CUDA kernel dereferenced it. The generic residency pass now promotes '
-        'GPU-only local scratch to <code>gpu.alloc</code> and hoists loop-invariant '
-        'scratch to the enclosing lifetime. The measured 100-call amortized time is '
-        '62.905 ms/forward; subtracting the one-call setup measurement gives an explicitly '
-        'labeled ~28.37 ms incremental estimate. Unmatched structured IR is conventionally '
-        'lowered to GPU code, so no residual Linalg body returns to the CPU.</div>'
-        '<div class="intro"><b>Historical result:</b> the earlier 13.480 ms '
-        'Polygeist result (1.40&times; behind ggml at 9.638 ms) was a preliminary '
-        'GPU-runtime configuration. It included project-authored runtime '
-        'recipes for masking, residual adds, and SwiGLU, implemented by '
-        'composing CUDA-library operations. The paper-valid external-library-only '
-        'result disables those recipes and executes 32 unmatched Linalg bodies '
-        'on the CPU, so the two Polygeist timings are not directly comparable. '
-        'The 13.480 ms run used position 16; all current table entries use position 1024. '
-        'In either case, '
-        'both fixtures retain full SEQ_LEN=2048 loop/tensor extents; position '
-        'changes the causal mask, not the nominal amount of fixture work.</div>'
+        '<div class="intro"><b>Timing boundary:</b> the raised result is one '
+        'CUDA-event interval containing 100 forwards after 5 untimed warm-ups. '
+        'Model allocation, host/device staging, final readback, and teardown are '
+        'outside the interval. Automatic residency keeps function arguments and '
+        'compiler-created scratch storage on the GPU between forwards.</div>'
         '<div class="intro"><b>Scope:</b> one token at position 1024, one '
         '7B-size layer (4096/11008/32000/2048, 32 heads). This is an extracted '
         'FP32 fixture—not full 32-layer inference or quantized GGUF execution. '
         'It uses split even/odd RoPE and branchless masking because the exact '
-        'interleaved and branchy forms remain raising gaps. The current run records '
-        'summary outputs rather than a full 32,000-logit dump. Authoritative data: '
+        'interleaved and branchy forms remain raising gaps. Authoritative data: '
         '<code>issues/llama_section42/performance.csv</code>.</div>'
     )
 
