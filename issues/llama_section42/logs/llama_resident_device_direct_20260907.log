@@ -1,0 +1,20 @@
+experiment=llama_session_direct_device_timed_once
+device=pva-compiler-orin-1.nvidia.com
+warmup_forwards=5
+timed_forwards=100
+cuda_graph=off
+timing_boundary=CUDA events; excludes allocation, host/device staging, final readback, and teardown
+POLYGEIST_SESSION_DEVICE_TIMING total_ms=2801.389404297
+amortized_device_ms=28.013894043
+checksum=-95.864949256181717
+sumsq=36153117.636128418
+maxabs=78.4661865234375
+SAMPLE,0,-66.4035721
+SAMPLE,1,12.9881096
+SAMPLE,2,34.7797089
+SAMPLE,3,55.2380676
+SAMPLE,4,16.73349
+SAMPLE,5,-31.0506439
+SAMPLE,6,-6.11993408
+SAMPLE,7,-35.23983
+correctness=summary and samples match ggml CUDA exactly
