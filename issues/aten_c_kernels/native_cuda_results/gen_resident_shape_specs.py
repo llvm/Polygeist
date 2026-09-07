@@ -3,7 +3,7 @@
 harness uses (driver cfg["dims"]) — the single source of truth so native and
 raised-resident are measured at identical shape + dtype (f32). Output:
 resident_shape_specs.json for bench_shaped.py. Run with /usr/bin/python3.10."""
-import importlib.util, json
+import csv, importlib.util, json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -20,7 +20,23 @@ gs = _load("gs", "issues/aten_c_kernels/native_cuda_results/gen_shape_specs.py")
 drv = _load("drv", "scripts/correctness/aten_pointwise_graph_silicon.py")
 
 
+def _complete_native_library_kernels():
+    native_path = ROOT / "issues/aten_c_kernels/native_cuda_audit.csv"
+    library_path = ROOT / "issues/aten_c_kernels/cuda_library_audit.csv"
+    native = {
+        row["kernel"] for row in csv.DictReader(native_path.open())
+        if row.get("has_native_cuda") == "yes"
+    }
+    return {
+        row["kernel"] for row in csv.DictReader(library_path.open())
+        if row.get("kernel") in native
+        and row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+        and row.get("counts_as_library_reuse") == "yes"
+    }
+
+
 def main():
+    complete_native_library = _complete_native_library_kernels()
     category_overrides = {
         "aten_adaptive_avg_pool2d_backward_cpu": "adaptavg2d_backward",
         "aten_adaptive_avg_pool3d_backward_cpu": "adaptavg3d_backward",
@@ -76,7 +92,12 @@ def main():
         elif kernel == "aten_sparse_csr_addmm_cpu":
             cat = "sparse_csr_mm"
         if cat is None:
-            continue  # no torch op to compare against
+            if kernel not in complete_native_library:
+                continue
+            # Keep every complete native+raised kernel in the resolved ledger.
+            # bench_shaped handles these explicit fixture recipes instead of
+            # silently dropping them because the legacy CAT table is incomplete.
+            cat = "native_fixture"
         dims = {k: int(v) for k, v in cfg["dims"].items()}
         # total element count = product of dims (matches resident data size for
         # pointwise; structured cats use the dims directly in bench_shaped).
@@ -96,10 +117,23 @@ def main():
                       "shape_selection_note": (
                           cfg.get("coverage", "structured operator shape")
                           if explicit_shape else
-                          "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2")})
+                          "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2"),
+                      "comparison_scope": (
+                          "WHOLE_OR_EXPLICITLY_ADJUDICATED" if cat != "native_fixture"
+                          else "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER")})
+    resolved = {spec["kernel"] for spec in specs}
+    missing_complete = sorted(complete_native_library - resolved)
+    if missing_complete:
+        raise RuntimeError(
+            "complete native+raised kernels lack resident benchmark specs: "
+            + ", ".join(missing_complete)
+        )
     out = Path(__file__).with_name("resident_shape_specs.json")
     out.write_text(json.dumps(specs, indent=0))
-    print(f"wrote {out} with {len(specs)} native specs at resident shapes")
+    print(
+        f"wrote {out} with {len(specs)} native specs at resident shapes; "
+        f"covered all {len(complete_native_library)} complete native+raised kernels"
+    )
 
 
 if __name__ == "__main__":

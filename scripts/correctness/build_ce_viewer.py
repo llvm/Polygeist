@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
+from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -127,7 +128,7 @@ MFEM_UPSTREAM_COMMIT = "951cf8886b9c0c33fb36a2f0ede268c8d6a0d8b5"
 # performance result until the complete application agrees with its -O3 CPU
 # reference.  `process_wall_s` includes CUDA/cuTensorNet initialization and
 # is diagnostic only.  The harness reports timing only after correctness;
-# all ten harness-supported executable paths now pass this gate.
+# all eleven harness-supported executable paths now pass this gate.
 MFEM_APPLICATION_JETSON_RUNS: dict[str, dict[str, str]] = {
     "mfem_app_mtop_iso_elasticity_dfem_2d": {
         "outcome": "CORRECTNESS PASS",
@@ -2688,7 +2689,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         '<div class="section-header"><h2 class="section-title">Why are some resident raised kernels slow?</h2></div>'
         '<div class="intro">'
         f'<b>{len(measurements)} same-shape comparisons from the current '
-        '116-case campaign.</b> Every row uses a correctness-gated raised call '
+        'correctness-gated campaign.</b> Every row uses a correctness-gated raised call '
         'with <code>cudaMalloc</code> operands and a real PyTorch CUDA operation '
         'at the identical shape and dtype. Allocation and transfers are excluded. '
         f'The median raised/native ratio is {median_ratio:.2f}&times;; '
@@ -2818,12 +2819,27 @@ def _aten_paper_analysis_page() -> str:
     }
     resolved_both = sum(k in resolved_spec_kernels for k in kernels
                         if has_native(k) and has_complete_library_match(k))
-    measured_both = sum(k in _ATEN_BENCHMARK_STATUS for k in kernels
-                        if has_native(k) and has_complete_library_match(k))
+    native_timed_both = sum(
+        bool(_ATEN_BENCHMARK_STATUS.get(k, {}).get("native_gpu_us"))
+        for k in kernels if has_native(k) and has_complete_library_match(k)
+    )
+    raised_timed_both = sum(
+        bool(_ATEN_BENCHMARK_STATUS.get(k, {}).get("raised_resident_us"))
+        for k in kernels if has_native(k) and has_complete_library_match(k)
+    )
     verified_both = sum(current_verified(k) for k in kernels
                         if has_native(k) and has_complete_library_match(k))
     legal_both = sum(has_legal_ratio(k) for k in kernels
                      if has_native(k) and has_complete_library_match(k))
+    newly_admitted = {
+        k for k in kernels
+        if _NATIVE_PROVENANCE.get(k, {}).get("comparability")
+        == "NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION"
+    }
+    newly_admitted_status = Counter(
+        _ATEN_BENCHMARK_STATUS.get(k, {}).get("raised_status", "MISSING")
+        for k in newly_admitted
+    )
 
     measurements = []
     for kernel in kernels:
@@ -3034,10 +3050,11 @@ def _aten_paper_analysis_page() -> str:
         (
             "4", "Medium", "Performance-cohort selection",
             f"The resolved ledger now has {len(resolved_specs)} recipes and covers "
-            f"all {both} provisional native+raised kernels, but timing artifacts "
-            f"still cover only the earlier {current_campaign}-case campaign.",
-            f"Run and adjudicate the {resolved_both - measured_both} newly represented "
-            f"native+raised recipes; continue plotting only accepted legal pairs.",
+            f"all {both} provisional native+raised kernels. Native CUDA timings "
+            f"exist for all {native_timed_both}; raised timings exist for "
+            f"{raised_timed_both}, of which {verified_both} pass the strict gate.",
+            "Fix or rerun the residual/build/legacy raised cases and adjudicate "
+            "whole-operation equivalence; continue plotting only accepted legal pairs.",
         ),
         (
             "5", "Medium", "Structured problem-size rationale",
@@ -3085,7 +3102,7 @@ def _aten_paper_analysis_page() -> str:
         f'<div class="audit-metric paper-provisional"><b>{native}</b><span>provisional native CUDA support</span></div>'
         f'<div class="audit-metric"><b>{raised}</b><span>complete static library mappings</span></div>'
         f'<div class="audit-metric"><b>{strict_resident}</b><span>static mappings with strict resident evidence</span></div>'
-        f'<div class="audit-metric"><b>{current_strict}</b><span>verified in current 116-case campaign</span></div>'
+        f'<div class="audit-metric"><b>{current_strict}</b><span>verified in the current campaign</span></div>'
         f'<div class="audit-metric"><b>{legal_ratios}</b><span>legal native/raised performance pairs</span></div>'
         '</div>'
         '<div class="section-header"><h3 class="section-title">Four-way coverage requested by Section 4.2</h3></div>'
@@ -3115,17 +3132,23 @@ def _aten_paper_analysis_page() -> str:
         '<div class="section-header"><h3 class="section-title">Native + raised benchmark readiness</h3></div>'
         '<div class="paper-flow">'
         f'<div><b>{both}</b><span>static native + raised intersection</span></div><i>→</i>'
-        f'<div><b>{resolved_both}</b><span>now represented by benchmark recipes</span></div><i>→</i>'
-        f'<div><b>{measured_both}</b><span>present in existing timing campaign</span></div><i>→</i>'
+        f'<div><b>{native_timed_both}</b><span>native PyTorch CUDA timings</span></div><i>→</i>'
+        f'<div><b>{raised_timed_both}</b><span>raised resident timings, including legacy</span></div><i>→</i>'
+        f'<div><b>{verified_both}</b><span>strict raised verification</span></div><i>→</i>'
         f'<div><b>{legal_both}</b><span>accepted plotted ratios from this group</span></div>'
         '</div>'
-        f'<div class="intro">Previously, {resolved_both - measured_both} kernels '
-        'fell through a circular prior-timing lookup or a missing measurement '
-        'adapter. They now have explicit resolved recipes. They remain unmeasured, '
-        'and the newly added recipes are conservatively ineligible for paper ratios '
-        'until their whole-operation semantics are adjudicated. Of the existing '
-        f'{measured_both} measured cases in this group, {verified_both} have strict '
-        f'resident execution and {legal_both} currently have accepted ratios.</div>'
+        f'<div class="intro">The missing native CUDA sweep is complete: all '
+        f'{len(newly_admitted)} newly admitted recipes now have Orin timings. On '
+        'the raised side of those same recipes, '
+        f'{newly_admitted_status.get("VERIFIED_RESIDENT", 0)} are strictly verified, '
+        f'{newly_admitted_status.get("LEGACY_RESIDENT", 0)} retain legacy timings '
+        'that need a device-output recheck, '
+        f'{newly_admitted_status.get("RESIDUAL_IR_BLOCKED", 0)} are blocked by '
+        'device-unsafe residual IR, and '
+        f'{newly_admitted_status.get("BUILD_OR_LOWERING_BLOCKED", 0)} are blocked '
+        'during build/lowering. The new recipes remain conservatively ineligible '
+        'for paper ratios until whole-operation semantics are adjudicated; therefore '
+        'the legal-pair plot does not grow merely because native timing succeeded.</div>'
         '<div class="section-header"><h3 class="section-title">Evidence ladder</h3></div>'
         '<div class="paper-flow">'
         f'<div><b>{raised}</b><span>complete static match</span></div><i>→</i>'
@@ -4793,8 +4816,13 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
                 f'<span class="{silicon_class}">{html.escape(correctness)}</span>'
             )
             raised_us = comparison.get("raised_runtime_us", "")
+            cpu_us = comparison.get("native_cpu_runtime_us", "")
             native_us = comparison.get("mfem_native_runtime_us", "")
             ratio = comparison.get("raised_over_native", "")
+            max_abs = comparison.get("max_abs", "")
+            cpu_runtime = (
+                f'{float(cpu_us) / 1000.0:.6f} ms' if cpu_us else "—"
+            )
             raised_runtime = (
                 f'{float(raised_us) / 1000.0:.6f} ms' if raised_us else "—"
             )
@@ -4817,13 +4845,19 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
                 f'raised iterations={html.escape(comparison.get("raised_iterations", "—"))}; '
                 f'native iterations={html.escape(comparison.get("native_iterations", "") or "n/a")}'
             )
+            measurement = html.escape(
+                comparison.get("measurement_statistic", "") or "—"
+            )
         else:
             silicon_outcome = '<span class="partial">NOT RUN</span>'
+            max_abs = "—"
+            cpu_runtime = "—"
             raised_runtime = "—"
             native_runtime = "—"
             ratio_text = "—"
             comparison_scope = "—"
             silicon_params = "—"
+            measurement = "—"
         rows.append(
             f'<tr><td>{name}</td><td>{extracted_c}</td>'
             f'<td>{html.escape(row["application"])}</td>'
@@ -4834,9 +4868,11 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<td>{row["matcher_launches_int"]}→{row["launches_int"]}<br>'
             f'<small>{row["network_launches_int"]} network(s)</small></td>'
             f'<td>{matched_implementations}</td>'
-            f'<td>{silicon_outcome}</td><td>{raised_runtime}</td>'
+            f'<td>{silicon_outcome}<br><small>max abs {html.escape(max_abs or "—")}</small></td>'
+            f'<td>{cpu_runtime}</td><td>{raised_runtime}</td>'
             f'<td>{native_runtime}</td><td>{ratio_text}</td>'
-            f'<td>{comparison_scope}</td><td>{silicon_params}</td></tr>'
+            f'<td>{comparison_scope}</td><td><small>{measurement}</small></td>'
+            f'<td>{silicon_params}</td></tr>'
         )
     total_linalg = sum(row["linalg_ops_int"] for row in stats)
     total_matches = sum(row["matches_int"] for row in stats)
@@ -4852,9 +4888,11 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         f'{total_matches} semantic library matches. These are numerical hot paths, '
         'not translations of MPI, mesh, or solver-control code. All rows were rebuilt '
         'at <b>NE=1024, D1D=4, Q1D=5</b> and run on the Jetson Orin in MAXN mode. '
-        'Ten paths pass correctness; the minimal-surface path fails at this larger '
-        'size and is intentionally not timed. Raised values are medians of five '
-        'process-level means, with five timed application calls per process. '
+        'All 11 paths pass correctness at this size. Native CPU values are strict '
+        '<code>-O3</code> C references executed on the same Jetson AGX Orin '
+        'aarch64 CPU; they are not x86 measurements. The mass path uses the final '
+        'five-process compiler-visible repeated-session protocol. Other current '
+        'CPU and raised values are explicitly labeled single-process diagnostics. '
         '<b>EXACT_OPERATOR</b> is a directly paired native MFEM '
         'CUDA operator. <b>COMPONENT_SUM</b> sums separately measured resident MFEM '
         'CUDA PA kernels and is a conservative component baseline, not a fused '
@@ -4868,72 +4906,190 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         '<th>residual loops</th><th>matches</th>'
         '<th>launches before→after composition</th>'
         '<th>matched implementation</th><th>correctness</th>'
-        '<th>raised warm</th><th>MFEM native CUDA</th><th>raised/native</th>'
-        '<th>comparison scope</th><th>test parameters</th></tr></thead><tbody>'
+        '<th>native Orin CPU</th><th>raised warm</th>'
+        '<th>MFEM native CUDA</th><th>raised/native</th>'
+        '<th>comparison scope</th><th>measurement evidence</th>'
+        '<th>test parameters</th></tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
     )
 
 
-def _mfem_section42_summary() -> str:
-    rows = _read_csv(MFEM_SILICON_RESULTS_DIR / "section42_summary.csv")
-    rendered = []
-    for row in rows:
-        status_class = "pass" if row.get("correctness") == "PASS" else "fail"
-        rendered.append(
-            '<tr>'
-            f'<td><b>{html.escape(row["benchmark"])}</b><br>'
-            f'<small>{html.escape(row["problem"])}</small></td>'
-            f'<td>{float(row["native_cpu_us"]) / 1000.0:.3f} ms</td>'
-            f'<td><b>{float(row["raised_gpu_us"]) / 1000.0:.3f} ms</b></td>'
-            f'<td>{float(row["native_gpu_us"]) / 1000.0:.3f} ms</td>'
-            f'<td>{html.escape(row["raised_over_native_gpu"])}x</td>'
-            f'<td class="{status_class}">{html.escape(row["correctness"])}</td>'
-            f'<td><small>{html.escape(row["measurement"])}</small></td>'
-            '</tr>'
-        )
-    audit_rows = _read_csv(
-        MFEM_SILICON_RESULTS_DIR / "section42_pipeline_audit.csv"
+def _mfem_paper_analysis_page(stats: list[dict]) -> str:
+    """Render a paper-facing MFEM evidence ledger parallel to ATen's."""
+    total = len(stats)
+    loop_free = sum(row["residual_loops_int"] == 0 for row in stats)
+    matched = sum(row["matches_int"] > 0 for row in stats)
+    correct = sum(
+        (row.get("comparison") or {}).get("correctness") == "PASS"
+        for row in stats
     )
-    audit_rendered = []
-    for row in audit_rows:
-        status_class = "pass" if row.get("correctness") == "PASS" else "fail"
-        audit_rendered.append(
+    exact_native = sum(
+        (row.get("comparison") or {}).get("comparison_quality")
+        == "EXACT_OPERATOR"
+        for row in stats
+    )
+    paper_ready = sum(
+        "median_of_5_process_means_20260907" in
+        (row.get("comparison") or {}).get("measurement_statistic", "")
+        for row in stats
+    )
+
+    quality_counts: dict[str, int] = {}
+    rows = []
+    for row in stats:
+        comparison = row.get("comparison") or {}
+        quality = comparison.get("comparison_quality", "UNAVAILABLE")
+        quality_counts[quality] = quality_counts.get(quality, 0) + 1
+        correctness = comparison.get("correctness", "NOT RUN")
+        correctness_class = "pass" if correctness == "PASS" else "fail"
+
+        def runtime_cell(field: str) -> str:
+            value = comparison.get(field, "")
+            return f'{float(value) / 1000.0:.6f} ms' if value else "—"
+
+        evidence = comparison.get("measurement_statistic", "")
+        evidence_label = (
+            "paper-ready repeated session"
+            if "median_of_5_process_means_20260907" in evidence
+            else "single-process diagnostic"
+        )
+        rows.append(
             '<tr>'
-            f'<td><code>{html.escape(row["pipeline"])}</code></td>'
-            f'<td class="{status_class}">{html.escape(row["correctness"])}</td>'
-            f'<td>{html.escape(row["max_abs"])}</td>'
-            f'<td>{float(row["native_cpu_us"]) / 1000.0:.3f} ms</td>'
-            f'<td>{float(row["raised_gpu_us"]) / 1000.0:.3f} ms</td>'
-            f'<td>{html.escape(row["scope"])}</td>'
-            f'<td><small>{html.escape(row["measurement"])}</small></td>'
+            f'<td><a class="kernel" href="{html.escape(row["page_filename"])}">'
+            f'{html.escape(row["function"])}</a></td>'
+            f'<td>{row["linalg_ops_int"]}</td>'
+            f'<td>{row["residual_loops_int"]}</td>'
+            f'<td>{row["matches_int"]}</td>'
+            f'<td class="{correctness_class}">{html.escape(correctness)}<br>'
+            f'<small>max abs {html.escape(comparison.get("max_abs", "") or "—")}</small></td>'
+            f'<td>{runtime_cell("native_cpu_runtime_us")}</td>'
+            f'<td>{runtime_cell("raised_runtime_us")}</td>'
+            f'<td>{runtime_cell("mfem_native_runtime_us")}</td>'
+            f'<td><code>{html.escape(quality.lower().replace("_", " "))}</code></td>'
+            f'<td>{html.escape(evidence_label)}</td>'
             '</tr>'
         )
-    pass_count = sum(row.get("correctness") == "PASS" for row in audit_rows)
+
+    quality_descriptions = {
+        "EXACT_OPERATOR": "directly paired native MFEM CUDA operator",
+        "COMPONENT_SUM": "sum of separate native resident operators",
+        "SAFE_PAIRWISE_FALLBACK": "conservative separately timed components",
+        "PARTIAL_COMPONENT_SUM": "native components omit part of the raised path",
+        "UNAVAILABLE": "no equivalent native MFEM CUDA timing",
+    }
+    quality_rows = "".join(
+        '<tr>'
+        f'<td><code>{html.escape(quality.lower().replace("_", " "))}</code></td>'
+        f'<td>{count}</td><td>{html.escape(quality_descriptions.get(quality, "comparison classification"))}</td></tr>'
+        for quality, count in sorted(
+            quality_counts.items(), key=lambda item: (-item[1], item[0])
+        )
+    )
+
+    issues = [
+        (
+            "1", "High", "Repeatable whole-pipeline timing",
+            f"Only {paper_ready}/{total} paths use the compiler-visible, "
+            "multi-process repeated-session protocol.",
+            "Convert the other paths from host repetition to compiler-owned "
+            "sessions and collect independent medians.",
+        ),
+        (
+            "2", "High", "Comparable native GPU baselines",
+            f"Only {exact_native}/{total} rows have a direct native MFEM CUDA "
+            "operator comparison; component sums are not whole-pipeline baselines.",
+            "Build exact resident MFEM application/operator baselines or report "
+            "the rows only as correctness and coverage evidence.",
+        ),
+        (
+            "3", "High", "Pipeline composition and fusion",
+            "Most raised paths still launch multiple library/generated stages and "
+            "materialize intermediates that native MFEM keeps within fused kernels.",
+            "Recover connected networks where legal and fuse remaining generated "
+            "stages before making a competitive performance claim.",
+        ),
+        (
+            "4", "Medium", "Matcher-versus-fallback attribution",
+            "Zero residual source loops does not mean every operation became an "
+            "external library call; residual Linalg may become generated GPU code.",
+            "Report library calls, composed networks, and generated kernels "
+            "separately for every application path.",
+        ),
+        (
+            "5", "Medium", "Measurement scope",
+            "The CPU reference and raised diagnostic runs are same-Orin, but most "
+            "native GPU figures come from separate normalized sessions.",
+            "Use locked clocks and a single documented protocol, retaining raw "
+            "independent repetitions and dispersion.",
+        ),
+    ]
+    issue_rows = "".join(
+        '<tr>'
+        f'<td>{number}</td><td><span class="paper-severity paper-{severity.lower()}">'
+        f'{severity}</span></td><td><b>{html.escape(title)}</b></td>'
+        f'<td>{html.escape(evidence)}</td><td>{html.escape(action)}</td></tr>'
+        for number, severity, title, evidence, action in issues
+    )
+
     return (
         '<div class="section-header"><h2 class="section-title">'
-        'Section 4.2 concise MFEM result</h2></div>'
-        '<div class="intro">The headline includes only a complete, '
-        'correctness-gated operator pipeline. Native CPU and raised GPU were '
-        'remeasured on the same locked-MAXN Orin. Native MFEM GPU is the exact '
-        'resident operator measured in a separate normalized MAXN session. '
-        'The detailed tables below retain the full kernel and pipeline audit; '
-        'diagnostic or inexact component baselines are not promoted here.</div>'
-        '<table><thead><tr><th>pipeline</th><th>native CPU</th>'
-        '<th>raised GPU</th><th>native MFEM GPU</th>'
-        '<th>raised/native GPU</th><th>correctness</th><th>protocol</th>'
-        '</tr></thead><tbody>' + ''.join(rendered) + '</tbody></table>'
-        '<div class="section-header"><h3 class="section-title">'
-        f'Complete pipeline correctness audit: {pass_count}/{len(audit_rows)} pass'
-        '</h3></div><div class="intro">Every extracted MFEM operator/application '
-        'path is tested at the performance batch size. Only the mass row above '
-        'uses the final compiler-visible repeated-session protocol. The remaining '
-        'times diagnose launch and composition overhead and are deliberately not '
-        'paper headline numbers.</div>'
-        '<table><thead><tr><th>pipeline</th><th>correctness</th><th>max abs</th>'
-        '<th>native CPU</th><th>raised GPU</th><th>execution scope</th>'
-        '<th>evidence level</th></tr></thead><tbody>'
-        + ''.join(audit_rendered) + '</tbody></table>'
+        'Paper analysis: MFEM (Section 4.2 draft)</h2></div>'
+        '<div class="intro"><b>Current conclusion:</b> MFEM now provides strong '
+        'whole-path correctness and structural-raising evidence, but only one '
+        'application path currently has the final performance protocol. This page '
+        'keeps static raising, numerical execution, native-baseline quality, and '
+        'paper-ready performance as separate claims.</div>'
+        '<div class="audit-metrics">'
+        f'<div class="audit-metric"><b>{total}</b><span>application/operator paths</span></div>'
+        f'<div class="audit-metric"><b>{loop_free}</b><span>loop-free after raising</span></div>'
+        f'<div class="audit-metric"><b>{matched}</b><span>paths with semantic matches</span></div>'
+        f'<div class="audit-metric"><b>{correct}</b><span>correct at NE=1024</span></div>'
+        f'<div class="audit-metric paper-provisional"><b>{exact_native}</b><span>exact native GPU baselines</span></div>'
+        f'<div class="audit-metric paper-provisional"><b>{paper_ready}</b><span>final performance protocol</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Evidence ladder</h3></div>'
+        '<div class="paper-flow">'
+        f'<div><b>{total}</b><span>extracted C paths</span></div><i>→</i>'
+        f'<div><b>{loop_free}</b><span>structured loop-free IR</span></div><i>→</i>'
+        f'<div><b>{correct}</b><span>correct raised executions</span></div><i>→</i>'
+        f'<div><b>{exact_native}</b><span>exact native pairs</span></div><i>→</i>'
+        f'<div><b>{paper_ready}</b><span>paper-ready timing pair</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Application evidence ledger</h3></div>'
+        '<div class="intro">All CPU numbers below are strict <code>-O3</code> C '
+        'executions on the Jetson AGX Orin aarch64 CPU in MAXN mode. They are '
+        'same-system CPU context, unlike the ATen x86 CPU column. Diagnostic '
+        'timings remain visible but are not promoted to paper speedups.</div>'
+        '<table class="audit-table paper-family"><thead><tr>'
+        '<th>path</th><th>Linalg ops</th><th>residual loops</th><th>matches</th>'
+        '<th>correctness</th><th>native Orin CPU</th><th>raised GPU</th>'
+        '<th>native MFEM GPU</th><th>native comparison</th><th>evidence</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">Native comparison quality</h3></div>'
+        '<table class="audit-table paper-family"><thead><tr><th>class</th>'
+        '<th>paths</th><th>meaning</th></tr></thead><tbody>'
+        + quality_rows + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">Current measurement contract</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>Native CPU</b><span>Strict -O3 C on the same Jetson AGX Orin '
+        'aarch64 CPU, MAXN with locked clocks.</span></div>'
+        '<div><b>Raised GPU</b><span>Jetson AGX Orin SM87, CUDA 12.6, f64, '
+        'NE=1024, D1D=4, Q1D=5, CUDA Graph enabled.</span></div>'
+        '<div><b>Native GPU</b><span>Resident MFEM CUDA; exact operators and '
+        'component-derived comparisons are explicitly distinguished.</span></div>'
+        '<div><b>Publication cohort</b><span>Only independently repeated, '
+        'correctness-gated, semantically equivalent pairs are headline results.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Five issues before the MFEM result is paper-ready</h3></div>'
+        '<table class="audit-table paper-issues"><thead><tr><th>#</th><th>severity</th>'
+        '<th>issue</th><th>current evidence</th><th>required resolution</th>'
+        '</tr></thead><tbody>' + issue_rows + '</tbody></table>'
+        '<div class="intro"><b>Safe claim today:</b> “For 11 extracted MFEM '
+        'application/operator paths at NE=1024, the compiler produces loop-free '
+        'structured IR with semantic library matches and all 11 raised executions '
+        'pass numerical validation. One path currently has a final repeated-session '
+        'performance comparison; the remaining timings are diagnostic.”</div>'
     )
 
 
@@ -6826,7 +6982,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="pva.html">PVA backend</a>'
             '</div>'
             '<div style="margin-top:6px; font-size:13px;">'
-            '<a href="aten-paper.html">ATen paper analysis</a>'
+            '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
+            '<a href="mfem-paper.html">MFEM paper analysis</a>'
             '</div></div>'
         )
 
@@ -6975,6 +7132,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
                len(mfem_stats) + len(mfem_application_stats)
                + len(mfem_application_extraction_stats),
                "Original/normalized FEM kernels and larger application hot paths.")
+        + card("mfem-paper.html", "MFEM paper analysis",
+               len(mfem_application_extraction_stats),
+               "Section 4.2 evidence ladder, application ledger, baseline quality, and open issues.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
                "103/103 units raised; 23 compute launches and 4 silicon-validated program rows.")
         + card("ai.html", "AI kernels",
@@ -6992,6 +7152,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
     aten_paper = nav() + _aten_paper_analysis_page()
+    mfem_paper = nav() + _mfem_paper_analysis_page(
+        mfem_application_extraction_stats
+    )
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -7001,7 +7164,6 @@ def build_site_pages(polybench_stats: dict[str, dict],
         )
     }
     mfem = (nav()
-            + _mfem_section42_summary()
             + _mfem_application_extraction_section(
                 mfem_application_extraction_stats
             )
@@ -7025,6 +7187,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "aten-paper.html": render_html(
             "Polygeist: ATen paper analysis", aten_paper, extra_css
+        ),
+        "mfem-paper.html": render_html(
+            "Polygeist: MFEM paper analysis", mfem_paper, extra_css
         ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
@@ -7101,13 +7266,19 @@ def main():
             mfem_application_extraction_stats, {}, {}, {}, {}, {}, {}, {},
         )
         OUTPUT_DIR.joinpath("mfem.html").write_text(pages["mfem.html"])
+        OUTPUT_DIR.joinpath("mfem-paper.html").write_text(
+            pages["mfem-paper.html"]
+        )
         print(
             f"  [MFEM] rendered {len(mfem_stats)} kernels and "
             f"{len(mfem_application_stats)} application ports and "
             f"{len(mfem_application_extraction_stats)} larger application paths",
             flush=True,
         )
-        print(f"Done. Open {OUTPUT_DIR}/mfem.html.")
+        print(
+            f"Done. Open {OUTPUT_DIR}/mfem.html or "
+            f"{OUTPUT_DIR}/mfem-paper.html."
+        )
         return
     if aten_only:
         for stale in OUTPUT_DIR.glob("aten_*.html"):

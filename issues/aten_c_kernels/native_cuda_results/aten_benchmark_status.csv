@@ -9,84 +9,187 @@ aten_adaptive_avg_pool3d_backward_cpu,B=1_C=2_I0=6_O0=3_I1=7_O1=3_I2=8_O2=3,f32,
 aten_adaptive_max_pool2d_backward_cpu,B=1_C=2_I0=6_O0=3_I1=7_O1=3,f32,95.808,3595.551,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_add,B=11_C=46_H=92_W=92,f32,318.560,5611.090,307.616211,0.965646,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_add_clamp,N=4194304,f32,578.272,13958.553,857.696289,,EXACT_MATERIALIZED_COMPOSITION,VERIFIED_RESIDENT,device output matches C reference
+aten_addcdiv,N=4194304,f32,403.744,,1138.720000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_addcmul,N=4194304,f32,402.944,,1144.448000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_addmm,M=512_N=512_K=512,f64,134.272,11605.493,8199.967773,61.069827,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_addr_elementwise,N=8388608,f32,575.456,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_aminmax_allreduce_cpu,N=4194304,f32,172.192,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten126_rebuild_round2/aten_aminmax_allreduce_cpu/raised.build.log
+aten_aminmax_cpu,N=4194304,f32,171.488,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_angle_complex_scalarized,N=4194304,f32,681.312,,899.520000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_angle_real,N=4194304,f32,413.536,,825.920000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_argmax_cpu,R=131072_K=64,f32,776.160,8050.920,3650.368164,4.703113,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_argmin_cpu,R=131072_K=64,f32,777.536,8091.778,3647.808105,4.691497,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_as_complex_cpu,N=2097151,f32,237.408,,8841.600000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_asin,N=4194304,f32,225.984,4607.727,1223.167969,5.412631,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_asinh,N=4194304,f32,226.048,21563.255,1266.751953,5.603907,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_atan,N=4194304,f32,224.960,4663.987,1248.160156,5.548365,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_atan2,N=4194304,f32,316.064,,900.384000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_atanh,N=4194304,f32,226.080,6933.121,1248.640137,5.523001,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_avg_pool2d,B=2_C=4_H=16_W=16,f32,53.120,4904.052,52.448242,0.987354,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_avg_pool2d_backward_cpu,B=1_C=2_I0=6_I1=7,f32,92.640,4915.893,153.375977,1.655613,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_avg_pool3d,B=2_C=3_D=8_H=8_W=8,f32,56.768,5113.252,51.520020,0.907554,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_avg_pool3d_backward_cpu,B=1_C=2_I0=6_I1=7_I2=8,f32,120.512,4934.118,212.224121,1.761021,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_batch_norm,B=11_C=46_H=92_W=92,f32,306.688,5402.808,262.591797,,EXACT_EXTRACTED_STAGE,VERIFIED_RESIDENT,device output matches C reference
+aten_batch_norm_cpu_entry,N=4194304,f32,288.352,,633.120000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_batch_norm_transform_cpu,N=32_C=64_H=64_W=64,f32,487.104,6246.279,449.503906,,EXACT_EXTRACTED_STAGE,VERIFIED_RESIDENT,device output matches C reference
-aten_binary_cross_entropy,N=8388608,f32,800.128,38022.395,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, affine_access"
-aten_bmm,BATCH=70_K=282_M=141_N=211,f32,782.208,7231.000,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_copy
+aten_bilinear_cpu,B=65_I=131_J=163_O=196,f32,22333.344,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_binary_cross_entropy,N=8388608,f32,800.128,38022.395,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_blas_scale_cpu,N=4194304,f32,234.432,,232.127930,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_blas_sum_cpu,N=4194304,f32,164.800,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_block_diag_cpu,B=23_N=90,f32,337.152,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: memref_copy, memref_access"
+aten_bmm,BATCH=70_K=282_M=141_N=211,f32,782.208,7231.000,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_cat_serial_cpu,K=3096_M=581_R=774,f32,301.728,12924.363,230.335938,0.763389,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_cat_sparse_cpu,B=256_N=16383,f32,385.568,4308.111,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_cauchy_cpu,N=4194304,f32,152.000,,2995.936035,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_ceil,N=4194304,f32,224.352,4208.288,1240.416016,5.528883,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_clamp,N=4194304,f32,232.864,,633.024000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_clamp_cpu,N=4194304,f32,233.824,,1136.416000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_clamp_max_scalar_cpu,N=4194304,f32,231.360,,635.872000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_clamp_min_scalar_cpu,N=4194304,f32,231.872,,617.472000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_clamp_scalar_cpu,N=4194304,f32,234.112,,629.568000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_complex_scalarized,N=4194304,f32,413.088,,406.496000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_conj_complex_scalarized,N=4194304,f32,419.936,,1574.208000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_conv1d,B=32_IC=64_OC=128_W=4096_K=3,f32,3227.168,,4695.424000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_conv2d,B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3,f32,393.504,28706.576,551.072266,1.400424,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_conv2d_columns_cpu,C=11_H=59_K=11_W=59,f32,239.232,4984.220,1297.856000,,EXACT_EXTRACTED_STAGE,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
-aten_conv3d,B=6_D=37_H=37_IC=12_K=19_OC=19_W=37,f32,150127.648,232706.901,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_conv3d,B=6_D=37_H=37_IC=12_K=19_OC=19_W=37,f32,150127.648,232706.901,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_conv_tbc_backward_cpu,T=4094_B=16_I=32_O=64_K=3,f32,863.456,,9329.472168,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_conv_tbc_cpu,T=4096_B=16_I=32_O=64_K=3,f32,862.528,,1350.592285,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_conv_transpose2d,B=2_IC=16_OC=32_H=128_W=128_K=3,f32,484.064,36288.967,501.023926,1.035037,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_conv_transpose3d_backward_cpu,C=15_D=45_H=53_K=23_O=23_W=60,f32,3915542.496,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten126_rebuild_round2/aten_conv_transpose3d_backward_cpu/raised.build.log
+aten_conv_transpose3d_cpu,C=8_O=16_D=32_H=32_W=32_K=3,f32,1529.344,,1690.560059,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_conv_transpose3d_grad_weight_cpu,C=8_O=16_D=32_H=32_W=32_K=3,f32,1528.768,,3112.479980,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_copy_cpu,N=4194304,f32,231.296,,206.144000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_copy_tensor_array_cpu,B=512_N=8192,f32,230.816,,207.552000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_cos,N=4194304,f32,227.744,4452.099,1256.416016,5.516791,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_cosh,N=4194304,f32,226.848,6203.446,1209.728027,5.332769,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_count_nonzero_cpu,N=8388608,f32,1166.080,4456.769,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, affine_access"
-aten_count_nonzero_impl_cpu,R=131072_C=64,f32,1208.416,34961.587,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: linalg
+aten_count_nonzero_cpu,N=8388608,f32,1166.080,4456.769,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_count_nonzero_impl_cpu,R=131072_C=64,f32,1208.416,34961.587,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_cross,N=1398101,f32,319.840,,47958.400000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_cross_cpu_backend,V=1398101,f32,319.488,,47947.808000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_cumprod_backward_cpu,N=4194304,f32,1569.344,46829.049,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_cumprod_cpu,K=2897_R=1448,f32,328.800,5773.080,4850.496094,14.752117,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_cumsum,N=4194304,f32,284.352,6510.301,,,EXACT_ATEN_OPERATION,SEMANTIC_OR_RUNTIME_FAILURE,errors=96807
+aten_cumsum,N=4194304,f32,284.352,6510.301,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_dense_sparse_add_cpu,C=2047_N=16380_R=2047,f32,311.040,10703.133,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_depthwise_conv3x3_cpu,B=2_C=64_H=256_W=256,f32,1297.824,,1603.680176,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_dilated_convolution_cpu,C=16_O=32_H=128_W=128_K=3_D=2,f32,217.632,,413.536000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_dirichlet_grad_cpu,N=4194304,f32,1428.160,,1156.832031,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_div,N=4194304,f32,312.416,7190.022,854.240234,2.734304,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_div_floor,N=4194304,f32,375.744,7808.766,,,EXACT_ATEN_OPERATION,SEMANTIC_OR_RUNTIME_FAILURE,errors=664444
-aten_dot,N=4194304,f64,491.104,5895.959,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: affine_access
+aten_div_floor,N=4194304,f32,375.744,7808.766,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_div_trunc,N=4194304,f32,228.096,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_copy
+aten_dot,N=4194304,f64,491.104,5895.959,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_elu,N=4194304,f32,228.960,7356.931,618.848145,2.702866,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_elu_backward,N=4194304,f32,386.528,5944.244,857.343750,2.218064,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_embedding_bag_counts_cpu,N=16777216_E=65536,f32,3898.624,,4233.151855,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_equal_cpu,N=8388608,f32,603.872,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
 aten_erf,N=4194304,f32,226.848,6088.830,623.231934,2.747355,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_erfc,N=4194304,f32,224.000,4865.479,623.904297,2.785287,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_exp,N=4194304,f32,225.312,4187.038,1217.823730,5.405055,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_exp2,N=4194304,f32,224.384,4398.694,621.312012,2.768968,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_expm1,N=4194304,f32,226.784,,632.608000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_exponential_cpu,N=4194304,f32,146.336,,3172.031738,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_floor,N=4194304,f32,226.208,4066.645,1236.704102,5.467110,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_fmax,N=4194304,f32,315.264,,881.728000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_fmin,N=4194304,f32,315.776,,887.904000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_fmod,N=4194304,f32,314.336,,949.280000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_frac,N=4194304,f32,224.864,5454.957,636.447754,2.830367,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_fractional_max_pool2d_cpu,B=19_C=28_IH=84_IW=93_OH=37_OW=47,f32,309.920,9662.899,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_fractional_max_pool3d_cpu,B=5_C=10_ID=39_IH=44_IW=49_OD=15_OH=19_OW=24,f32,313.696,10860.283,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_gamma_transform_cpu,N=4194304,f32,1431.904,,3251.135742,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_gelu,N=4194304,f32,224.960,5906.001,618.432129,2.749076,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_gelu_backward_cpu_exact,N=4194304,f32,323.424,,1139.872000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_gelu_backward_cpu_tanh,N=4194304,f32,324.000,,7126.400000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_gelu_cpu_exact,N=4194304,f32,224.896,5895.197,621.664062,2.764229,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_gelu_cpu_tanh,N=4194304,f32,227.712,,632.256000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_geometric_cpu,N=4194304,f32,174.400,,3169.823730,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_glu,N=4194304,f32,198.080,,1074.144000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_glu_backward,N=4194304,f32,299.104,,1439.808000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_glu_jvp,N=4194304,f32,1378.144,,1838.272000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_gradient_cpu,N=4194304,f32,809.216,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_hardshrink,N=4194304,f32,225.728,,636.480000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_hardsigmoid,N=4194304,f32,228.672,,650.272000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_hardsigmoid_backward,N=4194304,f32,321.568,,891.296000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_hardswish,N=4194304,f32,226.208,5894.400,620.512207,2.743105,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_hardswish_backward,N=4194304,f32,381.728,4332.220,854.111816,2.237488,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_hardtanh,N=4194304,f32,237.120,,635.520000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_hardtanh_backward,N=4194304,f32,325.760,,890.304000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_host_softmax_backward_cpu,R=65536_K=64,f32,691.008,5568.189,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_host_softmax_cpu,K=2897_R=1448,f32,226.944,6027.910,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_hspmm_cpu,R=64_C=4096_N=4096,f32,110.208,,106.495605,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_huber_backward,N=4194304,f32,335.968,,883.552000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_huber_elementwise,N=4194304,f32,336.480,,892.800000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_hypot,N=4194304,f32,311.616,5128.906,860.000000,2.759807,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_im2col,B=4_C=8_H=128_W=128_KH=3_KW=3,f32,138.272,5341.832,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_access
+aten_im2col,B=4_C=8_H=128_W=128_KH=3_KW=3,f32,138.272,5341.832,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_int_mm_out_cpu,M=512_N=512_K=1024,f32,116.704,,115.200000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_layer_norm,N=4194304,f32,13965.888,8167.097,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_layer_norm_backward_cpu,B=1024_D=4095,f32,852.128,21093.548,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_layer_norm_cpu_backend,B=1024_D=4095,f32,554.304,6210.575,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_leaky_relu,N=4194304,f32,229.248,6938.040,617.023926,2.691513,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_lerp,N=4194304,f32,316.704,,1179.328000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_lerp_scalar,N=4194304,f32,316.448,,902.368000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_lerp_scalar_cpu,N=4194304,f32,317.312,,891.904000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_lerp_tensor_cpu,N=4194304,f32,399.872,,1150.528000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_linear_combination_cpu,N=1048575,f32,343.968,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten126_rebuild_round2/aten_linear_combination_cpu/raised.build.log
 aten_log,N=4194304,f32,224.640,5944.493,1253.663574,5.580767,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_log10,N=4194304,f32,226.784,,642.560000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_log1p,N=4194304,f32,227.552,,635.136000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_log2,N=4194304,f32,226.528,,643.168000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_log_normal_cpu,N=4194304,f32,181.088,,639.712000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_log_sigmoid_backward_cpu,N=4194304,f32,323.296,,1458.112000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_log_sigmoid_cpu,N=8388608,f32,406.272,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
 aten_logaddexp,N=4194304,f32,312.736,7236.544,858.208008,2.744193,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_logaddexp2,N=4194304,f32,314.464,5648.025,860.640137,2.736848,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_logit,N=4194304,f32,228.864,,642.816000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_logit_backward,N=4194304,f32,323.712,,1084.608000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_masked_scale,N=4194304,f32,472.480,,640.384000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_max_all_cpu,N=4194304,f32,165.504,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
 aten_max_pool2d,B=16_C=32_H=128_W=128_K=2_S=2,f32,462.528,12230.389,248.287598,0.536806,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_mean,N=4194304,f64,320.416,5444.289,,,EXACT_ATEN_OPERATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten_resident_complete_missing_flat_20260906/aten_mean/raised.build.log
+aten_max_reduce_cpu,N=4194304,f32,165.472,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_max_values_cpu,K=2897_R=1448,f32,168.896,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_maximum,N=4194304,f32,313.856,,894.176000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_mean,N=4194304,f64,320.416,5444.289,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_min_all_cpu,N=4194304,f32,164.256,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_min_reduce_cpu,N=4194304,f32,164.480,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_min_values_cpu,K=2897_R=1448,f32,168.608,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_minimum,N=4194304,f32,314.624,,879.456000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_mish,N=4194304,f32,228.416,8000.163,1266.047852,5.542728,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_mish_backward,N=4194304,f32,392.352,9938.090,1110.208008,2.829622,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_mm,M=512_N=512_K=512,f64,103.904,7406.908,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_copy
-aten_mse_loss,N=4194304,f32,443.520,11816.892,,,EXACT_ATEN_OPERATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten_resident_complete_missing_flat_20260906/aten_mse_loss/raised.build.log
+aten_mm,M=512_N=512_K=512,f64,103.904,7406.908,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_mse_backward,N=4194304,f32,511.552,,888.800000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_mse_elementwise,N=4194304,f32,332.992,,892.640000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_mse_loss,N=4194304,f32,443.520,11816.892,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_mul,N=4194304,f32,310.784,6258.193,854.559570,2.749690,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_mv,M=4096_K=1024,f64,318.304,5653.970,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: linalg
+aten_mv,M=4096_K=1024,f64,318.304,5653.970,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_nansum_cpu,R=131072_K=64,f32,444.672,,1835.007812,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_narrow_copy_dense_cpu,C=2897_L=724_R=1448,f32,118.240,,81.504000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_neg,N=4194304,f32,226.400,3971.184,1227.392090,5.421343,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_nested_clone_cpu,B=724_N=5793,f32,236.832,,213.216000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_nested_matmul_broadcast_cpu,B=89_K=266_M=178_N=222,f32,25655.360,,1021.664000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_nested_softmax_backward_cpu,B=65536_N=64,f32,689.792,5875.113,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_nested_squeeze_cpu,B=724_N=5793,f32,236.352,,206.848000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_nested_sum_backward_cpu,B=724_N=5793,f32,274.944,4993.569,644.063965,,EXACT_MATERIALIZED_COMPOSITION,VERIFIED_RESIDENT,device output matches C reference
 aten_norm_cpu,K=2897_R=1448,f32,170.080,883.697,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_normal_cpu,N=4194304,f32,180.576,,636.672000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_or_reduce_cpu,K=2897_R=1448,f32,97.536,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_copy
 aten_outer,M=2048_N=2048,f64,335.808,8699.734,988.671875,2.944158,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_pixel_shuffle,B=9_C=14_H=19_R=9_W=19,f32,269.152,,1375.712000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_pixel_shuffle_cpu_backend,B=4_C=13_H=34_RATIO=9_W=34,f32,341.216,,1397.472000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_pixel_unshuffle_cpu_backend,B=4_C=13_H=34_RATIO=9_W=34,f32,356.928,,1356.160000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_polar_scalarized,N=4194304,f32,412.000,,1783.360000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_pow,N=4194304,f32,314.304,6518.304,890.592285,2.833538,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_pow_tensor_scalar,N=4194304,f32,294.144,7647.379,671.744141,2.283725,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_prod,N=4194304,f32,163.008,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
 aten_reciprocal,N=4194304,f32,225.216,5895.907,1217.791992,5.407218,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_relu,N=4194304,f32,227.552,4445.807,1218.687988,5.355646,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_renorm_scale_factor,N=4194304,f32,961.184,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten126_rebuild_round2/aten_renorm_scale_factor/raised.build.log
+aten_repeat_compute_cpu,N=8192_R=512,f32,162.592,,337.440430,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_repeat_tensor_shape_cpu,N=8192_R=512,f32,163.040,,336.992188,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_rms_norm,N=4194304,f32,902.592,29160.125,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_round,N=4194304,f32,227.712,,634.016000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_round_decimals,N=4194304,f32,227.200,,644.800000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_rsqrt,N=4194304,f32,226.976,3898.247,626.016113,2.758072,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sampled_addmm_sparse_csr_cpu,R=4096_K=512_C=4096_NNZ=262144_N=262144,f32,2017.856,29696.599,8078.144043,4.003330,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_shrink_backward,N=4194304,f32,592.160,,888.288000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_sigmoid,N=4194304,f32,226.784,6108.898,1229.279785,5.420487,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sigmoid_backward,N=4194304,f32,387.264,6241.714,1055.711914,2.726078,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_silu,N=4194304,f32,227.232,6807.943,1240.992188,5.461344,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
@@ -94,24 +197,47 @@ aten_silu_backward,N=4194304,f32,389.824,4741.921,1050.271973,2.694221,EXACT_ATE
 aten_silu_cpu,N=4194304,f32,225.568,5246.057,1635.936035,7.252518,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sin,N=4194304,f32,223.840,6094.591,1284.895996,5.740243,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sinh,N=4194304,f32,229.216,5476.263,1267.007812,5.527571,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_softmax,N=4194304,f32,228.992,5137.115,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, affine_access"
+aten_smooth_l1_backward,N=4194304,f32,515.072,,886.784000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_smooth_l1_elementwise,N=4194304,f32,334.400,,884.672000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_softmax,N=4194304,f32,228.992,5137.115,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_softplus,N=8388608,f32,406.560,8658.136,1200.832031,2.953640,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_softplus_backward,N=4194304,f32,228.864,5533.914,853.536133,3.729447,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_softshrink,N=4194304,f32,227.584,,648.864000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_sort_cpu,K=4095_R=1024,f32,390.464,18377.537,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_sparse_add_values_cpu,N=4194304,f32,381.280,5698.780,850.687988,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,VERIFIED_RESIDENT,device output matches C reference
 aten_sparse_addmm_cpu,R=64_C=4096_N=4096,f32,1448.672,12466.407,102.624023,0.070840,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_sparse_addmv_bsr_cpu,R=4096_C=4096_BR=4_BC=4_N=262144,f32,109.376,,627.871582,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_sparse_addmv_csr_cpu,R=65536_C=65536_N=4194304,f32,386.784,,340.640137,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sparse_coo_softmax_backward_cpu,R=524288_K=8,f32,16934.624,588069.227,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_sparse_csr_addmm_cpu,R=65536_K=65536_C=64_N=4194304,f32,7353.344,39282.299,6808.768066,0.925942,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
-aten_sparse_csr_reduce_all_cpu,N=4194304,f32,205.120,5249.737,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten_resident_complete_missing_flat_20260906/aten_sparse_csr_reduce_all_cpu/raised.build.log
+aten_sparse_csr_reduce_all_cpu,N=4194304,f32,205.120,5249.737,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_sparse_intersection_apply_cpu,N=4194304,f32,314.528,,884.128000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_sparse_intersection_launch_cpu,N=4194304,f32,313.248,,892.032000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_sparse_mul_cpu,N=4194304,f32,317.376,6511.227,855.616211,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,VERIFIED_RESIDENT,device output matches C reference
-aten_sparse_sum_cpu,N=4194304,f32,163.040,5299.032,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,BUILD_OR_LOWERING_BLOCKED,command failed (1); see /tmp/aten_resident_complete_missing_flat_20260906/aten_sparse_sum_cpu/raised.build.log
-aten_split_copy_cpu,N=4194304_S=4,f32,305.696,24050.545,,,EXACT_ATEN_OPERATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: linalg
+aten_sparse_norm_cpu,N=2097152,f32,117.376,,108.959961,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_sparse_sum_cpu,N=4194304,f32,163.040,5299.032,,,INTERNAL_STAGE_OR_DENSE_MATH_PROXY,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_split_copy_cpu,N=4194304_S=4,f32,305.696,24050.545,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_sqrt,N=4194304,f32,230.816,7353.466,1212.383789,5.252599,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_square,N=4194304,f32,236.064,5325.346,617.696289,2.616648,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_sspaddmm_cpu,C=1774_K=2365_N=18917_R=2365,f32,110.752,,260.959961,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
+aten_stack_serial_cpu,K=405_R=203_T=51,f32,82.912,,1376.768000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_standard_gamma_grad_cpu,N=4194304,f32,1431.520,,887.520020,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,VERIFIED_RESIDENT,device output matches C reference
 aten_sum,M=65536_N=64,f64,780.672,11501.703,3079.871582,3.945154,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_sum_cpu_backend,K=4095_R=1024,f32,175.552,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
 aten_tan,N=4194304,f32,230.016,6094.848,1653.664062,7.189344,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_tanh,N=4194304,f32,228.928,6116.298,1215.359863,5.308917,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
 aten_tanh_backward,N=4194304,f32,379.392,5745.097,850.079590,2.240637,EXACT_ATEN_OPERATION,VERIFIED_RESIDENT,device output matches C reference
+aten_threshold_backward,N=4194304,f32,323.648,,883.200000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_topk_cpu,K=4095_R=1024_TOP=512,f32,239.424,5734.798,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_trace_cpu,N=2047,f32,63.232,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_transpose_copy,M=2365_N=1774,f32,460.896,,1451.456000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_trilinear_cpu,B=65_I=131_J=163_K=196,f32,14304.480,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,"residual device-unsafe IR: linalg, memref_copy"
+aten_trunc,N=4194304,f32,226.560,,634.880000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_unbind_copy_cpu,B=512_N=8192,f32,13281.376,,207.776000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_unfolded2d_copy_cpu,C=11_H=46_KH=17_KW=17_OH=34_OW=34_W=46,f32,192.320,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_access
+aten_uniform_cpu,N=4194304,f32,145.440,,635.680000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
+aten_upsample_bilinear2d,B=4096_C=3_H=4_W=4,f32,4155.136,,5472.800003,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck
 aten_vector_norm_out_cpu,C=2897_R=1448,f32,169.088,800.304,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
 aten_weight_norm_backward_cpu,C=1024_S=4095,f32,487.968,6075.176,,,EXACT_ATEN_OPERATION,NO_COMPLETE_CURRENT_LIBRARY_REWRITE,no fresh device-safe whole rewrite
+aten_xor_sum_cpu,K=2897_R=1448,f32,97.184,,,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,RESIDUAL_IR_BLOCKED,residual device-unsafe IR: memref_copy
+aten_zeros_cpu,N=4194304,f32,153.728,,117.920000,,NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION,LEGACY_RESIDENT,resident timing exists; device output needs strict recheck

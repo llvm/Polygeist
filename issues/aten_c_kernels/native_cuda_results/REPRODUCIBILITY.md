@@ -5,8 +5,11 @@
 - The primary paper comparison is raised device-resident execution versus
   PyTorch CUDA device-resident execution. Historical mapped-host timings are
   ABI diagnostics only and must not feed headline ratios or the slowness page.
-- Shapes and dtypes come only from `resident_shape_specs.json` (109 FP32 and
-  7 FP64 cases).
+- Shapes and dtypes come only from `resident_shape_specs.json` (235 FP32 and
+  7 FP64 cases). The 242-case resolved ledger contains every one of the 216
+  kernels currently classified as both native-CUDA-supported and completely
+  mapped to a genuine library/runtime definition, plus 26 retained diagnostic
+  or partial-match cases from the earlier campaign.
 - GPU timings use five warmups and the best of 20 synchronized wall-clock
   measurements. Inputs and outputs remain in `cudaMalloc` storage during the
   timed region; allocation and transfers are excluded.
@@ -37,6 +40,12 @@ set is `resident_shape_specs.json`.
 Raised, PyTorch CUDA, and PyTorch CPU measurements consume that same resolved
 shape and dtype. CPU numbers use a separate 24-thread x86-64 host, so they are
 reported as cross-system context rather than same-hardware CPU/GPU speedups.
+
+The generator resolves the native operation from the exhaustive native audit;
+it does not require the operation to appear in an older timing CSV. Recipes
+newly added through the explicit native-fixture adapter are conservatively
+marked as requiring semantic adjudication, so collecting a timing does not by
+itself make that timing eligible for a paper ratio.
 
 ## Pinned environment
 

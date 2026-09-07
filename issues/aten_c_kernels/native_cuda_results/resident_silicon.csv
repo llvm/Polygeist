@@ -46,11 +46,11 @@ aten_conj_complex_scalarized,1574.208,3648.413,2.318,N=4194304,0,Jetson_AGX_Orin
 aten_conv1d,4695.424,7427.430,1.582,B=32_IC=64_OC=128_W=4096_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_conv2d,551.072266,554.278320,1.005818,B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_conv2d_columns_cpu,1297.856,1405.213,1.083,C=11_H=61_K=11_W=61,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
-aten_conv_tbc_backward_cpu,10168.160156,13714.028760,1.348723,T=4094_B=16_I=32_O=64_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
-aten_conv_tbc_cpu,1484.895996,1700.713672,1.145342,T=4096_B=16_I=32_O=64_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
+aten_conv_tbc_backward_cpu,9329.472168,12789.993555,1.370924,T=4094_B=16_I=32_O=64_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
+aten_conv_tbc_cpu,1350.592285,1415.993652,1.048424,T=4096_B=16_I=32_O=64_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_conv_transpose2d,501.023926,512.576025,1.023057,B=2_IC=16_OC=32_H=128_W=128_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_conv_transpose3d_cpu,1777.184082,31947.023926,17.976204,C=8_O=16_D=32_H=32_W=32_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
-aten_conv_transpose3d_grad_weight_cpu,3145.023926,3289.683154,1.045996,C=8_O=16_D=32_H=32_W=32_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
+aten_conv_transpose3d_cpu,1690.560059,31599.865625,18.691951,C=8_O=16_D=32_H=32_W=32_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
+aten_conv_transpose3d_grad_weight_cpu,3112.479980,3643.302344,1.170546,C=8_O=16_D=32_H=32_W=32_K=3,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_convert_coo_to_csr_cpu,963.743999,993.958400,1.031351,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
 aten_convert_csr_to_coo_cpu,856.863998,1282.480000,1.496714,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
 aten_copy_cpu,206.144,1741.664,8.449,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
@@ -60,7 +60,7 @@ aten_cosh,1209.728027,1267.756836,1.047968,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA
 aten_cross,47958.400,92580.345,1.930,N=1398101,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_cross_cpu_backend,47947.808,92465.955,1.928,V=1398101,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_cumprod_cpu,4850.496094,9658.358398,1.991210,K=2897_R=1448,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_depthwise_conv3x3_cpu,1697.088379,2405.904004,1.417666,B=2_C=64_H=256_W=256,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
+aten_depthwise_conv3x3_cpu,1603.680176,2206.441602,1.375861,B=2_C=64_H=256_W=256,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_diff_cpu,6678.464001,27680.828801,4.144786,N=16777216,0,Jetson_AGX_Orin_sm87_CUDA12.6_CUB,2026-09-06,,,,
 aten_dilated_convolution_cpu,413.536,439.472,1.063,C=16_O=32_H=128_W=128_K=3_D=2,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_dirichlet_grad_cpu,1156.832031,2297.999951,1.986459,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
@@ -68,7 +68,7 @@ aten_div,854.240234,1736.460889,2.032755,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12
 aten_dropout_feature_noise_cpu,452.608,458.602,1.013,B=32_C=64_H=64_W=64,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_elu,618.848145,1219.312012,1.970293,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_elu_backward,857.343750,1737.577539,2.026699,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_embedding_bag_counts_cpu,7761.439999,21047.926400,2.711858,N=16777216_E=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6_CUB,2026-09-06,,,,
+aten_embedding_bag_counts_cpu,4233.151855,16936.956787,4.001027,N=16777216_E=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_erf,623.231934,1217.638428,1.953748,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_erfc,623.904297,1216.556836,1.949909,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_exp,1217.823730,1466.838379,1.204475,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
@@ -98,7 +98,7 @@ aten_hardswish,620.512207,1212.563232,1.954133,N=4194304,0,Jetson_AGX_Orin_sm87_
 aten_hardswish_backward,854.111816,1737.206396,2.033933,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_hardtanh,635.520,4683.222,7.369,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_hardtanh_backward,890.304,6683.958,7.507,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
-aten_hspmm_cpu,353.312000,2057.155200,5.822489,R=64_C=4096_N=4096,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
+aten_hspmm_cpu,106.495605,936.729541,8.795946,R=64_C=4096_N=4096,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_huber_backward,883.552,6666.742,7.545,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_huber_elementwise,892.800,6644.016,7.442,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_hypot,860.000000,1745.689502,2.029872,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
@@ -130,7 +130,7 @@ aten_mish_backward,1110.208008,2277.583984,2.051493,N=4194304,0,Jetson_AGX_Orin_
 aten_mse_backward,888.800,6721.702,7.563,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_mse_elementwise,892.640,6602.653,7.397,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_mul,854.559570,1737.472119,2.033178,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_nansum_cpu,6562.591999,15751.030400,2.400123,R=131072_K=64,0,Jetson_AGX_Orin_sm87_CUDA12.6_CUB,2026-09-06,,,,
+aten_nansum_cpu,1835.007812,9169.971191,4.997238,R=131072_K=64,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_narrow_copy_dense_cpu,81.504,645.789,7.923,R=1448_C=2896_L=724,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_neg,1227.392090,1276.355176,1.039892,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_nested_all_cpu,1836.288086,4404.553662,2.398618,B=724_N=5793,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
@@ -173,8 +173,8 @@ aten_softplus_backward,853.536133,1735.702295,2.033543,N=4194304,0,Jetson_AGX_Or
 aten_softshrink,648.864,4703.542,7.249,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_sparse_add_values_cpu,850.687988,1734.966406,2.039486,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_sparse_addmm_cpu,102.624023,932.300830,9.084626,R=64_C=4096_N=4096,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_sparse_addmv_bsr_cpu,2260.832001,2748.441600,1.215677,R=4096_C=4096_BR=4_BC=4_N=262144,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
-aten_sparse_addmv_csr_cpu,991.200001,6599.436799,6.658027,R=65536_C=65536_N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
+aten_sparse_addmv_bsr_cpu,627.871582,610.844873,0.972882,R=4096_C=4096_BR=4_BC=4_N=262144,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
+aten_sparse_addmv_csr_cpu,340.640137,1758.134473,5.161266,R=65536_C=65536_N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_sparse_coo_to_csr_cpu,574.591999,956.457600,1.664586,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
 aten_sparse_csr_addmm_cpu,6808.768066,19869.577588,2.918234,R=65536_K=65536_C=64_N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_sparse_intersection_apply_cpu,884.128,6708.531,7.588,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
@@ -182,10 +182,10 @@ aten_sparse_intersection_launch_cpu,892.032,6675.158,7.483,N=4194304,0,Jetson_AG
 aten_sparse_matmul_cpu,154.144043,246.192139,1.597156,C=2047_N=16380_R=2047,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
 aten_sparse_matmul_csr_to_coo_cpu,846.688000,1290.659201,1.524362,N=4194304_R=65536,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-06,,,,
 aten_sparse_mul_cpu,855.616211,1740.374414,2.034060,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_sparse_norm_cpu,362.688000,363.411200,1.001994,N=2097152,0,Jetson_AGX_Orin_sm87_CUDA12.6_cuBLAS,2026-09-06,,,,
+aten_sparse_norm_cpu,108.959961,112.716797,1.034479,N=2097152,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_sqrt,1212.383789,1285.737549,1.060504,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
 aten_square,617.696289,1211.235254,1.960891,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference
-aten_sspaddmm_cpu,263.680176,15522.355127,58.868116,C=1774_K=2365_N=18917_R=2365,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
+aten_sspaddmm_cpu,260.959961,15833.091211,60.672492,C=1774_K=2365_N=18917_R=2365,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,1,5,device_pointer_output_vs_C_reference
 aten_stack_serial_cpu,1376.768,1613.130,1.172,K=406_R=203_T=51,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-30,,,,
 aten_standard_gamma_grad_cpu,887.520020,1747.683301,1.969176,N=4194304,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,,device_pointer_output_vs_C_reference
 aten_sum,3079.871582,9788.287988,3.178148,M=65536_N=64,0,Jetson_AGX_Orin_sm87_CUDA12.6,2026-09-07,best_of_20_synchronized_wall_us,3,5,device_pointer_output_vs_C_reference

@@ -1,2 +1,0 @@
-benchmark,problem,native_cpu_us,raised_gpu_us,native_gpu_us,correctness,raised_over_native_gpu,measurement
-abs_l1_mass_3d,"f64; NE=1024; D1D=4; Q1D=5",777.4784,544.8576,134.9440,PASS,4.038,"median of 5 independent processes; 20 warm applications/process; MAXN locked clocks; CUDA Graph enabled"
