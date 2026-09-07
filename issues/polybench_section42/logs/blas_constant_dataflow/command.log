@@ -1,0 +1,20 @@
+timestamp=2026-09-07T13:33:56-07:00
+base_commit=70340a75936fd5bdc1384bbd6aefce1ff8ce4984
+device=nvidia@192.168.57.1 via pva-general
+gpu=Jetson Orin sm_87
+cuda=12.6.85 (/home/nvidia/cuda-12.6 on device; /usr/local/cuda-12.6 host cross toolkit)
+compiler_build=ninja -C build polygeist-opt -j2
+focused_tests=llvm-project/build/bin/llvm-lit -sv build/test --filter='(lower-kernel-launch-blas-constant-dataflow|lower-kernel-launch-cublas-dgemv-zero|lower-kernel-launch-cublas-f32|lower-kernel-launch-cublas-subtract|kernel-match-gemv-overwrite-scratch|kernel-match-zero-init-matmul)'
+related_tests=llvm-project/build/bin/llvm-lit -sv build/test --filter='polygeist-opt/(lower-kernel-launch|kernel-launch-bufferize)' --filter-out='lower-llm-kernel-launches'
+full_suite=llvm-project/build/bin/llvm-lit -sv build/test
+abi_input=/tmp/polybench-resident/<kernel>/export/matched.mlir plus canonical kernel.defn blocks from generic_solver/kernel_library_phase2.mlir
+abi_lower=build/bin/polygeist-opt --lower-kernel-launch-to-cublas /tmp/polybench-beta-zero/<kernel>/with_defns.mlir -o /tmp/polybench-beta-zero/<kernel>/abi.mlir
+common_environment=POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_MINIMAL_RUNTIME=0
+build_template=POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_<kernel> POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_<kernel> POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_<kernel> POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-beta-zero-rerun/<kernel>/work scripts/correctness/build_jetson.sh /tmp/polybench-beta-zero/<kernel>/abi.mlir /tmp/polybench-beta-zero-rerun/<kernel>/<kernel>-beta-zero /tmp/polybench-resident/<kernel>/export/wrapper.o /tmp/polybench-resident/<kernel>/export/harness.o /tmp/polybench-resident/<kernel>/polybench.o
+correctness_run=ssh pva-general "ssh nvidia@192.168.57.1 'LD_LIBRARY_PATH=/home/nvidia/cuda-12.6/targets/sbsa-linux/lib /tmp/<kernel>-beta-zero'"
+correctness_compare=scripts/correctness/compare_polybench_dumps.py issues/polybench_section42/ir/<kernel>/native_reference.out candidate.out --rtol 5e-4 --atol 1.1e-2
+sampling=one correctness run; six timing processes with first discarded and median of remaining five; controlled comparison alternates five old/control and five beta-zero processes
+timing_run=LD_LIBRARY_PATH=/home/nvidia/cuda-12.6/targets/sbsa-linux/lib /tmp/<kernel>-beta-zero 2>&1 >/dev/null | grep ^POLYGEIST_GPU_REGION_TIMING
+ab_run=for i in 1 2 3 4 5; do for variant in control beta-zero; do run /tmp/<kernel>-$variant and retain POLYGEIST_GPU_REGION_TIMING; done; done
+accepted_interpretation=correctness passes; beta-zero ABI confirmed; only controlled alternating old/new medians are attributed to the compiler change
+ledger_policy=do not replace accepted absolute performance rows because both unchanged mvt and old control binaries exhibited the same large session-to-session device/cache-state shift
