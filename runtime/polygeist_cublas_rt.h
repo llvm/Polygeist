@@ -134,6 +134,21 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc);
 
+// FP64 symmetric rank-k updates of the lower triangle, row-major:
+//   SYRK:  C = alpha * A * A^T + beta * C
+//   SYR2K: C = alpha * (A * B^T + B * A^T) + beta * C
+// The upper triangle is deliberately left untouched, matching BLAS UPLO=L.
+void polygeist_cublas_dsyrk_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    double beta, double *C, int32_t ldc);
+
+void polygeist_cublas_dsyr2k_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta, double *C, int32_t ldc);
+
 void polygeist_cublas_sgemm(
     int32_t M, int32_t N, int32_t K,
     float alpha,
@@ -883,6 +898,23 @@ void polygeist_cutensor_permute_f32(
 // a sequence of kernel calls.
 void  polygeist_cublas_time_begin(void);
 double polygeist_cublas_time_end_ms(void);  // returns ms since last begin
+
+// Aggregate timing for a compiler-selected GPU region. Category changes only
+// enqueue CUDA events; end() performs the region's sole synchronization.
+enum polygeist_gpu_timing_category {
+  POLYGEIST_GPU_TIMING_HOST = 0,
+  POLYGEIST_GPU_TIMING_COMPUTE = 1,
+  POLYGEIST_GPU_TIMING_ALLOC = 2,
+  POLYGEIST_GPU_TIMING_FREE = 3,
+  POLYGEIST_GPU_TIMING_H2D = 4,
+  POLYGEIST_GPU_TIMING_D2H = 5,
+  POLYGEIST_GPU_TIMING_D2D = 6,
+  POLYGEIST_GPU_TIMING_H2H = 7,
+};
+void polygeist_gpu_region_timing_begin(int64_t region_id);
+void polygeist_gpu_region_timing_enter(int32_t category);
+void polygeist_gpu_region_timing_leave(void);
+void polygeist_gpu_region_timing_end(void);
 
 #ifdef __cplusplus
 }

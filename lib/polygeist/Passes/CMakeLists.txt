@@ -23,6 +23,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   PlanPersistentGpuWorkspace.cpp
   PrepareGpuResidualPipeline.cpp
   PlanGpuDataResidency.cpp
+  InstrumentGpuRegionTiming.cpp
   LowerKernelLaunchToCuBLAS.cpp
   LowerKernelLaunchToPVA.cpp
   KernelLaunchLoweringUtils.cpp

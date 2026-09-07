@@ -1,0 +1,7 @@
+kernel=doitgen
+function=kernel_doitgen
+input=/tmp/polybench-resident/doitgen/abi-clean.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/doitgen/doitgen-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_doitgen POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_doitgen POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_doitgen POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/doitgen/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/doitgen/abi-clean.mlir /tmp/polybench-gpu-region-sweep-20260907/doitgen/doitgen-region-timed /tmp/polybench-resident/doitgen/export/wrapper.o /tmp/polybench-resident/doitgen/export/harness.o /tmp/polybench-resident/doitgen/polybench.o
+8b0064dd7901fe397ba1455a32f01a8854f44d299259152eeea59e048b2a5433  /tmp/polybench-gpu-region-sweep-20260907/doitgen/doitgen-region-timed

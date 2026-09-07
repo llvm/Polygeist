@@ -3210,6 +3210,13 @@ def write_polybench_results_page() -> None:
         return (f'<a href="polybench_section42_artifacts/'
                 f'{html.escape(str(rel))}">{label}</a>')
 
+    def retained_first(directory: Path, names: tuple[str, ...], label: str) -> str:
+        for name in names:
+            link = retained(directory / name, label)
+            if link:
+                return link
+        return ""
+
     rendered_rows = []
     incomplete = []
     for row in rows:
@@ -3244,20 +3251,29 @@ def write_polybench_results_page() -> None:
         try:
             if native_cpu and raised_cpu:
                 cpu_speedup = f"{float(native_cpu) / float(raised_cpu):.2f}&times;"
-            if native_gpu_e2e and raised_gpu_e2e:
-                gpu_speedup = f"{float(native_gpu_e2e) / float(raised_gpu_e2e):.2f}&times; E2E"
-            elif native_gpu_device and raised_gpu_device:
+            if native_gpu_device and raised_gpu_device:
                 gpu_speedup = f"{float(native_gpu_device) / float(raised_gpu_device):.2f}&times; device"
+            elif native_gpu_e2e and raised_gpu_e2e:
+                gpu_speedup = f"{float(native_gpu_e2e) / float(raised_gpu_e2e):.2f}&times; E2E"
         except (ValueError, ZeroDivisionError):
             pass
-        log_links = [retained(SECTION42_RESULTS_DIR / row["log_dir"] / name, label)
+        log_directory = SECTION42_RESULTS_DIR / row["log_dir"]
+        log_links = [retained(log_directory / name, label)
                      for name, label in (("large_residual.log", "residual"),
                                          ("cpu_library_correctness.log", "CPU-lib"),
                                          ("cpu_library_timing_raw.log", "CPU time"),
                                          ("polybenchgpu_correctness.log", "native GPU"),
-                                         ("polybenchgpu_timing_raw.log", "native GPU time"),
-                                         ("raised_gpu_correctness.log", "raised GPU"),
-                                         ("raised_gpu_timing_raw.log", "raised GPU time"))]
+                                         ("polybenchgpu_timing_raw.log", "native GPU time"))]
+        log_links.extend((
+            retained_first(log_directory,
+                           ("raised_gpu_region_correctness.log",
+                            "raised_gpu_correctness.log"),
+                           "raised GPU"),
+            retained_first(log_directory,
+                           ("raised_gpu_region_timing_raw.csv",
+                            "raised_gpu_timing_raw.log"),
+                           "raised GPU time"),
+        ))
         ir_links = [retained(SECTION42_RESULTS_DIR / row["ir_dir"] / name, label)
                     for name, label in (("orig.mlir", "affine"),
                                         ("raised_debufferized.mlir", "raised"),
@@ -3294,8 +3310,11 @@ def write_polybench_results_page() -> None:
         'the raised/matched path through a real optimized CPU library; <b>native GPU</b> '
         'is equivalent handwritten PolyBenchGPU CUDA; and <b>raised GPU</b> is the '
         'raised/matched path through real CUDA libraries. CPU times are pinned '
-        'single-core medians with one OpenBLAS thread. GPU cells report CUDA-event '
-        'device time and PolyBench kernel-call end-to-end time separately. A timing is '
+        'single-core medians with one OpenBLAS thread. Native-GPU device time covers '
+        'the external kernel sequence; raised-GPU device time is compute-only and '
+        'excludes compiler-visible allocation and copies. GPU cells report device and '
+        'end-to-end time separately. GPU speedups use device/device time whenever both '
+        'equivalent configurations provide it; E2E is retained only as a diagnostic. A timing is '
         'shown only after that exact configuration passes correctness. Native GPU '
         'rows marked modified source retain the external PolyBenchGPU computational '
         'kernels while normalizing FP64 data, LARGE dimensions, canonical inputs, ABI, '

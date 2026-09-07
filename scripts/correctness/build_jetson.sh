@@ -43,6 +43,15 @@
 # call is then inlined and a local-only residency pass hoists GPU scratch into
 # the outer lifetime. This preserves the helper's argument eligibility while
 # avoiding a very large lowered memref ABI call inside the loop.
+#
+# Aggregate GPU timing is independently opt-in:
+#   POLYGEIST_GPU_REGION_TIMING=1
+#   POLYGEIST_GPU_REGION_TIMING_FUNCTION=<function>  # optional with residency
+# It reports one POLYGEIST_GPU_REGION_TIMING record containing pure compute,
+# compiler-visible allocation/free and transfer categories, and end-to-end
+# wall time. CUDA events are enqueued at category boundaries and synchronized
+# once at region exit. Runtime activity hidden inside an external library is
+# necessarily charged to the surrounding compute category.
 
 set -euo pipefail
 _CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -225,6 +234,16 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
         $GRAPH_INPUT -o $WORK/gpu_local_resident.mlir
       GRAPH_INPUT=$WORK/gpu_local_resident.mlir
     fi
+  fi
+  if [ "${POLYGEIST_GPU_REGION_TIMING:-0}" != "0" ]; then
+    TIMING_ARGS=""
+    if [ -n "${POLYGEIST_GPU_REGION_TIMING_FUNCTION:-}" ]; then
+      TIMING_ARGS="function=${POLYGEIST_GPU_REGION_TIMING_FUNCTION}"
+    fi
+    $POLYGEIST_OPT \
+      "--instrument-gpu-region-timing=${TIMING_ARGS}" \
+      $GRAPH_INPUT -o $WORK/gpu_region_timed.mlir
+    GRAPH_INPUT=$WORK/gpu_region_timed.mlir
   fi
   $POLYGEIST_OPT \
     '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true capture-host-mapped-libraries=true maximal-device-sequence=true' \

@@ -1,0 +1,7 @@
+kernel=mvt
+function=kernel_mvt
+input=/tmp/polybench-resident/mvt/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/mvt/mvt-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_mvt POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_mvt POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_mvt POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/mvt/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/mvt/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/mvt/mvt-region-timed /tmp/polybench-resident/mvt/export/wrapper.o /tmp/polybench-resident/mvt/export/harness.o /tmp/polybench-resident/mvt/polybench.o
+7dc4e9deb122be7d39a25b6f168f2ea7a21730b8a5153be34f8ac6a411b5da8e  /tmp/polybench-gpu-region-sweep-20260907/mvt/mvt-region-timed

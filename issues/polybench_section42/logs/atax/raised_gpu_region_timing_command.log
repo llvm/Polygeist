@@ -1,0 +1,7 @@
+kernel=atax
+function=kernel_atax
+input=/tmp/polybench-resident/atax/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/atax/atax-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_atax POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_atax POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_atax POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/atax/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/atax/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/atax/atax-region-timed /tmp/polybench-resident/atax/export/wrapper.o /tmp/polybench-resident/atax/export/harness.o /tmp/polybench-resident/atax/polybench.o
+c8312180fac075eecc252a26356ba30379fbbfd53fc70340ab583e26592a20a3  /tmp/polybench-gpu-region-sweep-20260907/atax/atax-region-timed

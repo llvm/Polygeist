@@ -1,0 +1,7 @@
+kernel=bicg
+function=kernel_bicg
+input=/tmp/polybench-resident/bicg/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/bicg/bicg-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_bicg POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_bicg POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_bicg POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/bicg/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/bicg/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/bicg/bicg-region-timed /tmp/polybench-resident/bicg/export/wrapper.o /tmp/polybench-resident/bicg/export/harness.o /tmp/polybench-resident/bicg/polybench.o
+a4e9eceacfd54d14cda5532ca5e89ac1c5dfc7504828ea7d5c67b2ab8d6a10a3  /tmp/polybench-gpu-region-sweep-20260907/bicg/bicg-region-timed
