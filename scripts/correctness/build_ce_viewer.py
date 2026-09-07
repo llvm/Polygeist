@@ -827,7 +827,7 @@ LLAMA_FORWARD_NOTES: dict[str, tuple[str, str]] = {
     "down_projection":        ("highly parallel",  "FFN down projection GEMV"),
     "final_rmsnorm":          ("highly parallel",  "final RMSNorm before logits"),
     "lm_head_projection":     ("highly parallel",  "lm_head GEMV to logits"),
-    "extended_forward":       ("mixed GPU", "one-token, one-layer Llama-style forward fixture; 27 library calls and conventionally lowered residual structured IR execute inside one CUDA Graph"),
+    "extended_forward":       ("mixed GPU", "one-token, one-layer Llama-style forward fixture; library calls and conventionally lowered residual structured IR execute with automatic device residency; whole-forward CUDA Graph capture remains future work"),
 }
 
 WHISPER_OPS_NOTES: dict[str, tuple[str, str]] = {
@@ -1399,10 +1399,14 @@ LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
          "notes": "LM head GEMV to logits"},
     ],
     "extended_forward": [
-        {"size": "7B-size FP32 one layer, position 1024", "raised": "mixed GPU + one CUDA Graph median 50.893 ms",
-         "reference": "ggml CUDA 15.954 ms<br>previous raised GPU 103.608 ms",
-         "winner": "2.04x faster than previous raised; ggml 3.19x faster",
-         "notes": "Single process, 2 warmup + 10 measured; 27 external-library calls plus 34 compiler-generated GPU launches in one graph; checksum, sumsq, maxabs, and 8 printed samples match ggml exactly"},
+        {"size": "7B-size FP32 one layer, position 1024, 100-call resident session", "raised": "62.905 ms/forward amortized<br>~28.37 ms incremental estimate",
+         "reference": "ggml CUDA 15.954 ms<br>CUDA Graph flag: 63.134 ms/forward",
+         "winner": "estimated steady-state gap 1.78x; measured amortized gap 3.94x",
+         "notes": "Device-residency fix: bufferization-created softmax scratch is promoted from host memref.alloc to hoisted gpu.alloc. Direct measurements are 3481.752 ms for one call and 6290.461 ms for 100 calls; ~28.37 ms is inferred as (T100-T1)/99, not a directly timed median. CUDA Graph capture remains fragmented and does not yet improve this session."},
+        {"size": "7B-size FP32 one layer, prior timing scope", "raised": "mixed GPU + CUDA Graph median 50.893 ms",
+         "reference": "ggml CUDA 15.954 ms<br>older raised GPU 103.608 ms",
+         "winner": "historical; not directly comparable to the resident-session timing",
+         "notes": "Single process, 2 warmup + 10 measured. Retained for provenance; this used a different invocation and timing boundary from the new 100-call resident session."},
         {"size": "7B-size FP32 one layer, historical hybrid", "raised": "external-library/CPU hybrid median 473.546 ms",
          "reference": "Orin native C 341.617 ms<br>Polygeist + NVPL 348.448 ms<br>Polygeist scalar 744.332 ms",
          "winner": "current full-GPU path 9.30x faster",
@@ -4992,22 +4996,34 @@ def _llama_forward_runtime_summary() -> str:
         '</tbody></table>'
         '<div class="intro"><b>GPU lowering comparison</b></div>'
         '<table style="margin-top:4px"><thead><tr>'
-        '<th>implementation</th>'
-        '<th>median of process medians</th>'
+        '<th>implementation / measurement</th>'
+        '<th>runtime</th>'
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody><tr>'
-        '<td><b>Polygeist mixed library + generated GPU, one CUDA Graph</b></td>'
-        '<td>50.893 ms</td>'
+        '<td><b>Polygeist resident session, measured over 100 forwards</b></td>'
+        '<td>6290.461 ms total<br>62.905 ms/forward amortized</td>'
         '<td>checksum, sumsq, maxabs, and 8 printed samples match ggml CUDA exactly</td>'
-        '<td>27 external-library calls + 34 compiler-generated GPU launches in one graph; '
-        '45 bufferization copies reduced to 16; one process, 2 warmup + 10 measured iterations</td>'
+        '<td>Includes one-time device allocation, roughly 2 GB of weight upload, '
+        'library initialization, final copy-back, and teardown</td>'
         '</tr><tr>'
-        '<td><b>Polygeist prior mixed-GPU baseline</b></td>'
-        '<td>103.608 ms</td>'
-        '<td>same output summary as the current mixed-GPU path</td>'
-        '<td>same Orin fixture before whole-forward residency and direct writeback; '
-        'the current path is 2.04&times; faster</td>'
+        '<td><b>Polygeist incremental steady-state estimate</b></td>'
+        '<td>~28.37 ms/forward</td>'
+        '<td>inference from the same stable output summary; not a directly timed median</td>'
+        '<td>Computed as (6290.461 ms for 100 calls - 3481.752 ms for one call) / 99. '
+        'This estimates the cost of each additional forward after setup.</td>'
+        '</tr><tr>'
+        '<td><b>Polygeist resident session with CUDA Graph flag</b></td>'
+        '<td>6313.382 ms total<br>63.134 ms/forward amortized</td>'
+        '<td>identical output summary to the graph-off resident session</td>'
+        '<td>Current capture scopes remain fragmented across operations, so enabling '
+        'the flag does not yet capture the complete forward as one reusable graph</td>'
+        '</tr><tr>'
+        '<td><b>Polygeist prior mixed-GPU timing</b></td>'
+        '<td>50.893 ms median</td>'
+        '<td>same output summary</td>'
+        '<td>Historical result with a different invocation/timing boundary; retained '
+        'for provenance and not used as the current resident-session headline</td>'
         '</tr><tr>'
         '<td><b>Polygeist external-library hybrid</b></td>'
         '<td>473.546 ms</td>'
@@ -5020,13 +5036,20 @@ def _llama_forward_runtime_summary() -> str:
         '<td>15.954 ms</td>'
         '<td>PASS: max abs 4.5185e-3; atol=1e-2, rtol=1e-4</td>'
         '<td>ggml revision f24588a; position 1024 with identical FP32 fixture '
-        'math; 3.19&times; faster than the current raised path</td>'
+        'math; 1.78&times; faster than the estimated raised steady state and '
+        '3.94&times; faster than the measured 100-call amortized time</td>'
         '</tr>'
         '</tbody></table>'
-        '<div class="intro"><b>Current result:</b> whole-forward GPU residency, '
-        'direct writeback, and a single CUDA Graph reduce the raised median from '
-        '103.608 ms to 50.893 ms. Conventional GPU lowering handles unmatched '
-        'structured IR, so no residual Linalg body returns to the CPU.</div>'
+        '<div class="intro"><b>Current result:</b> automatic GPU residency keeps '
+        'eligible function arguments and compiler-created scratch storage on device '
+        'across the repeated ordinary-C call loop. The crash was caused by a dynamic '
+        'softmax scratch buffer that remained a host <code>memref.alloc</code> while a '
+        'generated CUDA kernel dereferenced it. The generic residency pass now promotes '
+        'GPU-only local scratch to <code>gpu.alloc</code> and hoists loop-invariant '
+        'scratch to the enclosing lifetime. The measured 100-call amortized time is '
+        '62.905 ms/forward; subtracting the one-call setup measurement gives an explicitly '
+        'labeled ~28.37 ms incremental estimate. Unmatched structured IR is conventionally '
+        'lowered to GPU code, so no residual Linalg body returns to the CPU.</div>'
         '<div class="intro"><b>Historical result:</b> the earlier 13.480 ms '
         'Polygeist result (1.40&times; behind ggml at 9.638 ms) was a preliminary '
         'GPU-runtime configuration. It included project-authored runtime '
