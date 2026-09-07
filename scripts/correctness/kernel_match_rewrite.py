@@ -68,6 +68,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemv_strided_batched_subtract",
     "cublasDgemm_alpha_only",
     "cublasSgemm_broadcast3d_simple",
+    "cublasSgemv_broadcast2d_zero",
     "cublasSgemm_broadcast3d_memref",
     "cublasDgeam_scale2D",
     "memset_zero_2D",
@@ -1389,6 +1390,15 @@ def _infer_tensor_type(text: str, ssa: str) -> str | None:
         return m.group(1).strip()
 
     m = re.search(
+        rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submapInverse\(.*?\)\s*"
+        rf"\{{[^}}]*\}}\s*:\s*\([^)]*\)\s*->\s*(tensor<[^\n]+>)\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if m:
+        return m.group(1).strip()
+
+    m = re.search(
         rf"^\s*{re.escape(ssa)}\s*=\s*bufferization\.to_tensor\s+%[\w_\-]+\s*:\s*(memref<[^\n]+>)\s*$",
         text,
         re.MULTILINE,
@@ -1592,6 +1602,34 @@ def _tensor_submap_info(text: str, value: str, before: int) -> dict | None:
         "map": _resolve_affine_map_text(text, match.group(3).strip()),
         "map_ref": match.group(3).strip(),
     }
+
+
+def _cudnn_pointwise_views_legal(
+    text: str, values: list[str], before: int
+) -> bool:
+    """Accept only submaps whose rank-1 physical traversal is unchanged.
+
+    The generic cuDNN pointwise ABI carries one element stride per tensor.
+    An identity rank-1 submap therefore needs no affine remapping: its base
+    pointer, base stride, and explicit view extent describe it exactly.  More
+    general submaps (offset rows, broadcasts, permutations, and strided affine
+    maps) need additional lowering support and remain deliberately rejected.
+    """
+    identity = "affine_map<(d0)->(d0)>"
+    for value in values:
+        info = _tensor_submap_info(text, value, before)
+        if info is None:
+            continue
+        source_type = _infer_tensor_type(text[:before], info["source"])
+        if (
+            len(info["sizes"]) != 1
+            or _compact_affine_map(info["map"]) != identity
+            or source_type is None
+            or _shaped_rank(source_type) != 1
+            or _sniff_elem_type(source_type) != "f32"
+        ):
+            return False
+    return True
 
 
 def _plain_shape_compatible(
@@ -8746,9 +8784,9 @@ def rewrite_mlir(
                 out_types = _extract_ssa_types(inst.outs_part)
                 maps = bodies[i].indexing_maps
                 input_names = _extract_ssa_names(inst.ins_part)
-                source_is_submap = any(re.search(
-                    rf"^\s*{re.escape(source)}\s*=\s*polygeist\.submap\b",
-                    text[:inst.span[0]], re.MULTILINE) for source in input_names)
+                output_names = _extract_ssa_names(inst.outs_part)
+                pointwise_views_legal = _cudnn_pointwise_views_legal(
+                    text, input_names + output_names, inst.span[0])
                 graph_legal = (
                     graph is not None
                     and graph.get("device_legal", False)
@@ -8762,7 +8800,7 @@ def rewrite_mlir(
                     and len(maps) == len(in_types) + 1
                     and all(m == maps[-1] for m in maps[:-1])
                     and bodies[i].iterator_types == ["parallel"]
-                    and not source_is_submap
+                    and pointwise_views_legal
                     and all(key[0] == "Lit" or
                             scalar_types.get(key[1]) == "f32"
                             for key in (graph["scalars"] if graph else []))
@@ -8781,7 +8819,7 @@ def rewrite_mlir(
                     and len(maps) == len(in_types) + 1
                     and all(m == maps[-1] for m in maps[:-1])
                     and bodies[i].iterator_types == ["parallel"]
-                    and not source_is_submap
+                    and pointwise_views_legal
                     and all(key[0] == "Lit" or
                             scalar_types.get(key[1]) == "f32"
                             for spec in (partition or ())
@@ -8818,10 +8856,9 @@ def rewrite_mlir(
                 out_types = _extract_ssa_types(inst.outs_part)
                 maps = bodies[i].indexing_maps
                 input_names = _extract_ssa_names(inst.ins_part)
-                source_is_submap = any(re.search(
-                    rf"^\s*{re.escape(source)}\s*=\s*polygeist\.submap\b",
-                    text[:inst.span[0]], re.MULTILINE)
-                    for source in input_names)
+                output_names = _extract_ssa_names(inst.outs_part)
+                pointwise_views_legal = _cudnn_pointwise_views_legal(
+                    text, input_names + output_names, inst.span[0])
                 graph_legal = (
                     graph is not None
                     and graph.get("device_legal", False)
@@ -8836,7 +8873,7 @@ def rewrite_mlir(
                     and all(indexing_map == maps[-1]
                             for indexing_map in maps[:-1])
                     and bodies[i].iterator_types == ["parallel"]
-                    and not source_is_submap
+                    and pointwise_views_legal
                     and all(key[0] == "Lit" or
                             scalar_types.get(key[1]) == "f32"
                             for key in (graph["scalars"] if graph else []))
@@ -8856,7 +8893,7 @@ def rewrite_mlir(
                     and all(indexing_map == maps[-1]
                             for indexing_map in maps[:-1])
                     and bodies[i].iterator_types == ["parallel"]
-                    and not source_is_submap
+                    and pointwise_views_legal
                     and all(key[0] == "Lit" or
                             scalar_types.get(key[1]) == "f32"
                             for spec in (partition or ())
@@ -12031,7 +12068,11 @@ def rewrite_mlir(
             if any(_computed_submap_base(value)
                    for value in contraction_ins[:2]):
                 report.append(("computed_submap_base_reject", i, entry.name))
-                i += n
+                # Reject this multi-op composition, not the contraction body
+                # itself.  The following iteration may still select a
+                # layout-aware one-body lowering which snapshots the physical
+                # submap bases safely (for example an FP32 GEMV).
+                i += 1
                 continue
             init_results = (
                 [instances[i].result_ssa]
@@ -13233,7 +13274,42 @@ def rewrite_mlir(
             elems = [_sniff_elem_type(t) for t in operand_types[:3]]
             elem = elems[0] if elems else None
             operand_ranks = [_tensor_rank(t) for t in operand_types[:3]]
-            if (elem not in ("f64", "f32") or
+
+            def _has_zero_broadcast_seed(output: str) -> bool:
+                prefix = text[:instances[i].span[0]]
+                view_defs = list(re.finditer(
+                    rf"^\s*{re.escape(output)}\s*=\s*polygeist\.submap"
+                    rf"\(\s*(%[\w_]+)\s*[,)]", prefix, re.MULTILINE))
+                if not view_defs:
+                    return False
+                base = view_defs[-1].group(1)
+                inverse_defs = list(re.finditer(
+                    rf"^\s*{re.escape(base)}\s*=\s*polygeist\.submapInverse"
+                    rf"\(\s*%[\w_]+\s*,\s*(%[\w_]+)\s*[,)]",
+                    prefix, re.MULTILINE))
+                seed = inverse_defs[-1].group(1) if inverse_defs else base
+                producer = next((index for index in range(i - 1, -1, -1)
+                                 if instances[index].result_ssa == seed), None)
+                if producer is None:
+                    return False
+                body = bodies[producer]
+                return (not _extract_ssa_names(instances[producer].ins_part)
+                        and len(body.yield_values) == 1
+                        and body.constants.get(body.yield_values[0]) == 0.0)
+
+            broadcast_f32 = (
+                entry.name == "cublasDgemv" and
+                elems == ["f32", "f32", "f32"] and
+                operand_ranks == [2, 2, 2] and
+                len(operands) >= 3 and _has_zero_broadcast_seed(operands[2])
+            )
+            if broadcast_f32:
+                # C lifting represents A[m,k] * x[k] -> y[m] using rank-2
+                # broadcast submaps for all three operands.  Preserve those
+                # semantic views here; ABI lowering verifies and unwraps their
+                # physical rank-[2,1,1] bases before calling SGEMV.
+                emit_name = "cublasSgemv_broadcast2d_zero"
+            elif (elem not in ("f64", "f32") or
                     len(elems) != 3 or any(e != elem for e in elems) or
                     operand_ranks != [2, 1, 1]):
                 report.append(("rank_or_dtype_reject", i, entry.name))
@@ -13249,7 +13325,9 @@ def rewrite_mlir(
                 y_dims = _map_outputs(mb.indexing_maps[2])
                 if A_dims and y_dims and A_dims[0] != y_dims[0]:
                     transposed = True
-            if elem == "f32":
+            if broadcast_f32:
+                pass
+            elif elem == "f32":
                 if entry.name == "cublasDgemv_subtract":
                     report.append(("rank_or_dtype_reject", i, entry.name))
                     i += 1

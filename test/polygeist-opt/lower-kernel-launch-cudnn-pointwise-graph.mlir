@@ -27,6 +27,49 @@ module {
 
 // -----
 
+#map = affine_map<(d0) -> (d0)>
+
+module {
+  kernel.defn @cudnnPointwiseGraph_f32(
+      %in0: tensor<?xf32>, %in1: tensor<?xf32>,
+      %in2: tensor<?xf32>, %in3: tensor<?xf32>,
+      %out: tensor<?xf32>,
+      %s0: f32, %s1: f32, %s2: f32, %s3: f32,
+      %s4: f32, %s5: f32, %s6: f32, %s7: f32) -> tensor<?xf32> {
+    kernel.yield %out : tensor<?xf32>
+  }
+
+  func.func @generic_graph_identity_submap(
+      %x: tensor<?xf32>, %y: tensor<?xf32>, %out: tensor<?xf32>,
+      %n: index, %s: f32) -> tensor<?xf32> {
+    %xv = polygeist.submap(%x, %n) {map = #map}
+        : (tensor<?xf32>, index) -> tensor<?xf32>
+    %yv = polygeist.submap(%y, %n) {map = #map}
+        : (tensor<?xf32>, index) -> tensor<?xf32>
+    %ov = polygeist.submap(%out, %n) {map = #map}
+        : (tensor<?xf32>, index) -> tensor<?xf32>
+    %r = kernel.launch @cudnnPointwiseGraph_f32(
+        %xv, %yv, %xv, %xv, %ov, %s, %s, %s, %s, %s, %s, %s, %s)
+        {pointwise_graph = array<i64: 16777472, 0, 0, 0, 0, 0, 0, 0,
+                                      0, 0, 0, 0>,
+         pointwise_num_nodes = 1 : i64}
+        : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>,
+           tensor<?xf32>, f32, f32, f32, f32,
+           f32, f32, f32, f32) -> tensor<?xf32>
+    %updated = polygeist.submapInverse(%out, %r, %n) {map = #map}
+        : (tensor<?xf32>, tensor<?xf32>, index) -> tensor<?xf32>
+    return %updated : tensor<?xf32>
+  }
+}
+
+// CHECK-LABEL: func.func @generic_graph_identity_submap
+// CHECK: %[[N:.*]] = arith.index_cast %arg3 : index to i32
+// CHECK: call @polygeist_cudnn_pointwise_graph_f32(%[[N]],
+// CHECK-NOT: polygeist.submapInverse
+// CHECK-NOT: kernel.launch
+
+// -----
+
 module {
   kernel.defn @cudnnPointwiseGraph_f32(
       %in0: tensor<?xf32>, %in1: tensor<?xf32>,

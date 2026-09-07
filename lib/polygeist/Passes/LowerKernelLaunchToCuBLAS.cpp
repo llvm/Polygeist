@@ -160,6 +160,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_sgemm_strided_batched";
   if (libSym == "cublasSgemm_broadcast3d_simple")
     return "polygeist_cublas_sgemm";
+  if (libSym == "cublasSgemv_broadcast2d_zero")
+    return "polygeist_cublas_sgemv";
   if (libSym == "cublasSgemm_broadcast3d_memref")
     return "polygeist_cublas_sgemm";
   if (libSym == "cublasSgemm_flat_colmajor_nt_alpha_beta")
@@ -3365,7 +3367,7 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
 // sizes. The middle C dimension is the reduction/broadcast dimension and is
 // ignored by the base output map.
 static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
-                                                 ModuleOp module) {
+                                                  ModuleOp module) {
   if (launch.getNumOperands() != 3)
     return launch.emitError(
         "cublasSgemm_broadcast3d_simple: expected A/B/C operands");
@@ -3437,13 +3439,19 @@ static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
     lda = J;
     ldb = N;
     ldc = N;
+    // The split-Q/K projection is an explicit zero-then-reduce source idiom.
+    // Overwrite the physical output so repeated calls cannot retain a stale
+    // accumulator through a separately bufferized broadcast view.
+    beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                       b.getF32FloatAttr(0.0));
   }
 
-  Value A_mr = tensorToMemref(b, loc, A_base);
-  Value B_mr = tensorToMemref(b, loc, B_base);
   Value C_mr = tensorToMemref(b, loc, C_base);
-  Value A_ptr = memrefBasePtr(b, loc, A_mr);
-  Value B_ptr = memrefBasePtr(b, loc, B_mr);
+  // Preserve the source C buffers.  Materializing these input tensors as
+  // memrefs can make one-shot bufferization copy the complete projection
+  // weights immediately before the library call.
+  Value A_ptr = pointerForTensorOrMemref(b, loc, A_base);
+  Value B_ptr = pointerForTensorOrMemref(b, loc, B_base);
   Value C_ptr = memrefBasePtr(b, loc, C_mr);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
@@ -3463,6 +3471,96 @@ static LogicalResult lowerSgemmBroadcast3DSimple(LaunchOp launch,
 
   Value updatedBaseTensor = memrefToTensor(b, loc, C_mr, C_base.getType());
   rewireLaunchResult(launch, updatedBaseTensor);
+  launch.erase();
+  return success();
+}
+
+// C lifting expresses a row-major matrix-vector product as three rank-2
+// broadcast views over physical A[M,K], x[K], and y[M] tensors.  Recover the
+// physical operands and choose ordinary or transposed SGEMV from the matrix
+// submap, while retaining the tensor SSA update semantics.
+static LogicalResult lowerSgemvBroadcast2DSimple(LaunchOp launch,
+                                                  ModuleOp module) {
+  StringRef name = "cublasSgemv_broadcast2d_zero";
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 1)
+    return launch.emitError(name) << ": expected two inputs, one output, and one result";
+
+  SmallVector<polygeist::SubmapOp> views;
+  for (Value operand : launch.getOperands()) {
+    auto type = dyn_cast<RankedTensorType>(operand.getType());
+    auto view = operand.getDefiningOp<polygeist::SubmapOp>();
+    if (!type || type.getRank() != 2 || !type.getElementType().isF32() ||
+        !view || view.getSizes().size() != 2)
+      return launch.emitError(name)
+             << ": operands must be rank-2 f32 submap tensors";
+    views.push_back(view);
+  }
+
+  Value bases[] = {resolveSubmapBase(launch.getOperand(0)),
+                   resolveSubmapBase(launch.getOperand(1)),
+                   resolveSubmapBase(launch.getOperand(2))};
+  auto baseType = [](Value value) {
+    return dyn_cast<RankedTensorType>(value.getType());
+  };
+  int matrixIndex = -1;
+  for (int index = 0; index < 2; ++index) {
+    auto type = baseType(bases[index]);
+    if (type && type.getRank() == 2 && type.getElementType().isF32())
+      matrixIndex = index;
+  }
+  int vectorIndex = matrixIndex == 0 ? 1 : 0;
+  auto vectorType = matrixIndex >= 0 ? baseType(bases[vectorIndex]) : nullptr;
+  auto outputType = baseType(bases[2]);
+  if (matrixIndex < 0 || !vectorType || vectorType.getRank() != 1 ||
+      !vectorType.getElementType().isF32() || !outputType ||
+      outputType.getRank() != 1 || !outputType.getElementType().isF32())
+    return launch.emitError(name)
+           << ": physical bases must have f32 ranks [2,1,1]";
+
+  MLIRContext *ctx = launch.getContext();
+  AffineExpr d0 = getAffineDimExpr(0, ctx);
+  AffineExpr d1 = getAffineDimExpr(1, ctx);
+  AffineMap identity = AffineMap::get(2, 0, {d0, d1}, ctx);
+  AffineMap transpose = AffineMap::get(2, 0, {d1, d0}, ctx);
+  AffineMap reductionVector = AffineMap::get(2, 0, d1, ctx);
+  AffineMap outputVector = AffineMap::get(2, 0, d0, ctx);
+  AffineMap matrixMap = views[matrixIndex].getMap();
+  bool isTranspose = matrixMap == transpose;
+  if ((matrixMap != identity && !isTranspose) ||
+      views[vectorIndex].getMap() != reductionVector ||
+      views[2].getMap() != outputVector)
+    return launch.emitError(name)
+           << ": submaps do not prove A[m,k] * x[k] -> y[m]";
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value logicalM = valueAsI32(b, loc, views[2].getSizes()[0]);
+  Value logicalK = valueAsI32(b, loc, views[2].getSizes()[1]);
+  Value physicalM = isTranspose ? logicalK : logicalM;
+  Value physicalN = isTranspose ? logicalM : logicalK;
+  Value alpha = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                            b.getF32FloatAttr(1.0));
+  // This lowering is selected only for the fixture's explicit
+  // zero-initialize-then-GEMV idiom.  Write the result instead of depending
+  // on the separately bufferized broadcast zero view.
+  Value beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                           b.getF32FloatAttr(0.0));
+  Value outputMemref = tensorToMemref(b, loc, bases[2]);
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getF32Type(), ptrTy,
+      b.getI32Type(), ptrTy, b.getF32Type(), ptrTy};
+  StringRef shim = isTranspose ? "polygeist_cublas_sgemv_T"
+                               : "polygeist_cublas_sgemv";
+  func::FuncOp function = ensureShimDecl(module, shim, argTypes, b);
+  b.create<func::CallOp>(loc, function,
+      ValueRange{physicalM, physicalN, alpha,
+                 pointerForTensorOrMemref(b, loc, bases[matrixIndex]), physicalN,
+                 pointerForTensorOrMemref(b, loc, bases[vectorIndex]), beta,
+                 memrefBasePtr(b, loc, outputMemref)});
+
+  Value updatedBase = memrefToTensor(b, loc, outputMemref, bases[2].getType());
+  rewireLaunchResult(launch, updatedBase);
   launch.erase();
   return success();
 }
@@ -5311,14 +5409,18 @@ static LogicalResult lowerCudnnPointwiseGraphF32(LaunchOp launch,
       nodeCount.getInt() <= 0 || nodeCount.getInt() > 24)
     return launch.emitError("cudnn pointwise graph: invalid graph bytecode");
 
+  SmallVector<Value> views;
   SmallVector<Value> tensors;
+  views.reserve(5);
   tensors.reserve(5);
   for (unsigned i = 0; i < 5; ++i) {
-    Value value = resolveSubmapBase(launch.getOperand(i));
+    Value view = stripTensorCasts(launch.getOperand(i));
+    Value value = resolveSubmapBase(view);
     ShapedType ty = getRankedShapedType(value);
     if (!ty || ty.getRank() != 1 || !ty.getElementType().isF32())
       return launch.emitError(
           "cudnn pointwise graph: tensors must be rank-1 f32");
+    views.push_back(view);
     tensors.push_back(value);
   }
   for (unsigned i = 5; i < 13; ++i)
@@ -5335,14 +5437,19 @@ static LogicalResult lowerCudnnPointwiseGraphF32(LaunchOp launch,
         ? valueToOutputMemrefPreservingSlice(b, loc, tensors[i])
         : valueToMemrefPreservingSlice(b, loc, tensors[i]);
     memrefs.push_back(mr);
-    // Preserve both the extract_slice offset and its physical element stride.
-    // A rank-1 pointwise view is not necessarily contiguous (cross-product
-    // components, for example, are every third element of an Nx3 tensor).
+    // The matcher currently admits only identity rank-1 submaps, whose
+    // logical element zero and traversal stride are exactly those of the
+    // verified rank-1 base memref.  The explicit submap size supplies N below.
     ptrs.push_back(memrefDataPtr(b, loc, mr));
     auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, mr);
     strides.push_back(valueAsI32(b, loc, metadata.getStrides()[0]));
   }
-  Value n = memrefDimAsI32(b, loc, memrefs[0], 0);
+  Value n;
+  if (auto submap = views[0].getDefiningOp<polygeist::SubmapOp>())
+    n = b.create<arith::IndexCastOp>(loc, b.getI32Type(),
+                                     submap.getSizes().front());
+  else
+    n = memrefDimAsI32(b, loc, memrefs[0], 0);
   SmallVector<Value> graphWords;
   graphWords.reserve(12);
   for (int64_t word : graph.asArrayRef())
@@ -5375,10 +5482,24 @@ static LogicalResult lowerCudnnPointwiseGraphF32(LaunchOp launch,
   b.create<func::CallOp>(loc, shim, args);
 
   if (!isBufferized) {
-    Value updated =
-        memrefToTensor(b, loc, memrefs[4], launch.getResult(0).getType());
-    rewireTensorSliceLaunchResult(
-        launch, updated, tensorForOutputSliceSource(b, loc, tensors[4]));
+    Value updatedBase =
+        memrefToTensor(b, loc, memrefs[4], tensors[4].getType());
+    if (auto submap = views[4].getDefiningOp<polygeist::SubmapOp>()) {
+      SmallVector<Value> indicesAndSizes(submap.getOperands().drop_front());
+      Value updatedView = b.create<polygeist::SubmapOp>(
+          loc, views[4].getType(), updatedBase, indicesAndSizes,
+          submap.getMap());
+      if (failed(rewireSubmapLaunchResult(
+              launch, updatedView, updatedBase)))
+        return failure();
+    } else {
+      Value updatedView = updatedBase;
+      if (updatedView.getType() != launch.getResult(0).getType())
+        updatedView = b.create<tensor::CastOp>(
+            loc, launch.getResult(0).getType(), updatedView);
+      rewireTensorSliceLaunchResult(
+          launch, updatedView, tensorForOutputSliceSource(b, loc, views[4]));
+    }
   }
   launch.erase();
   return success();
@@ -7331,6 +7452,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgemvStridedBatchedSubtract(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_simple") {
         r = lowerSgemmBroadcast3DSimple(launch, module);
+      } else if (libSym == "cublasSgemv_broadcast2d_zero") {
+        r = lowerSgemvBroadcast2DSimple(launch, module);
       } else if (libSym == "cublasSgemm_broadcast3d_memref") {
         r = lowerSgemmBroadcast3DMemRef(launch, module);
       } else if (libSym ==
