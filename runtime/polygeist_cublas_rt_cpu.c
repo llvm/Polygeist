@@ -2149,6 +2149,16 @@ void polygeist_cuda_add_f32(
     Out[i] = X[i] + Y[i];
 }
 
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out) {
+  float ss = 0.0f;
+  for (int32_t i = 0; i < N; ++i)
+    ss += X[i] * X[i];
+  float scale = 1.0f / sqrtf(ss / (float)N + 1.0e-5f);
+  for (int32_t i = 0; i < N; ++i)
+    Out[i] = Weight[i] * (scale * X[i]);
+}
+
 void polygeist_cudnn_pointwise_affine_relu_f32(
     int32_t N, float alpha, const float *X, const float *Bias, float *Out) {
   for (int32_t i = 0; i < N; ++i) {

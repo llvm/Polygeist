@@ -171,6 +171,8 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnAddTensor_batched",
     "cudnnConvBnReluFwdFused",
     "cudnnConvBiasReluAddFwdFused",
+    "rmsnorm_f32",
+    "rmsnorm_f32_tensor",
     "cudnnPointwiseAffineRelu_f32",
     "cudnnPointwiseGraph_f32",
     "cubInclusiveSum1D_f32_tensor",
@@ -1413,6 +1415,11 @@ def _trace_tensor_storage_base(text: str, ssa: str) -> str:
     """Trace tensor view/update SSA values to the tensor that owns storage."""
     for _ in range(16):
         patterns = (
+            # Polygeist submaps are logical views of their first tensor.
+            rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submap\s*\(\s*(%[\w_\-]+)",
+            # submapInverse functionally updates its first tensor while
+            # preserving that tensor's underlying storage identity.
+            rf"^\s*{re.escape(ssa)}\s*=\s*polygeist\.submapInverse\s*\(\s*(%[\w_\-]+)",
             # A slice is a view of its source tensor.
             rf"^\s*{re.escape(ssa)}\s*=\s*tensor\.extract_slice\s+(%[\w_\-]+)",
             # An insert_slice updates its destination tensor.
@@ -12493,6 +12500,61 @@ def rewrite_mlir(
                 span=last.span,
                 indent=last.indent,
             )
+
+        if entry.name == "rmsnorm_f32":
+            # RMSNorm is a two-stage semantic composition:
+            #   ss = sum(x[i] * x[i])
+            #   out[i] = weight[i] * x[i] / sqrt(ss / N + epsilon)
+            # Emit one operation so the reduction, reciprocal square root,
+            # and scale remain device-side and CUDA-Graph captureable.
+            forms = body_forms[i : i + n]
+            x_names = _extract_ssa_names(instances[i].ins_part)
+            x_types = _extract_ssa_types(instances[i].ins_part)
+            scale_ins = _extract_ssa_names(instances[i + 1].ins_part)
+            scale_in_types = _extract_ssa_types(instances[i + 1].ins_part)
+            out_names = _extract_ssa_names(instances[i + 1].outs_part)
+            out_types = _extract_ssa_types(instances[i + 1].outs_part)
+            if (len(x_names) < 1 or len(scale_ins) < 2 or
+                    len(out_names) < 1 or
+                    any(form != forms[0] for form in forms)):
+                report.append(("rmsnorm_reject", i, entry.name))
+                i += 1
+                continue
+            operands = [x_names[0], scale_ins[0], out_names[0]]
+            operand_types = [x_types[0], scale_in_types[0], out_types[0]]
+            binds = {}
+            if forms[0] == "tensor":
+                emit_name = "rmsnorm_f32_tensor"
+                # Submap views for weight/output are commonly constructed in
+                # the scalar gap between the two generics. Since full-span
+                # replacement removes those view operations too, use their
+                # storage roots as the fused launch operands.
+                operands = [
+                    _trace_tensor_storage_base(text, operand)
+                    for operand in operands
+                ]
+                inferred_types = [
+                    _infer_tensor_type(text, operand) for operand in operands
+                ]
+                if not all(inferred_types):
+                    report.append(("rmsnorm_base_reject", i, entry.name))
+                    i += 1
+                    continue
+                operand_types = inferred_types
+                # The scalar arithmetic between the two generics consumes the
+                # reduction result. The fused shim recomputes that complete
+                # chain, so replace the whole matched span.
+                replace_full_span = True
+            else:
+                last = LinalgInstance(
+                    result_ssa=None,
+                    result_count=0,
+                    ins_part=last.ins_part,
+                    outs_part=last.outs_part,
+                    result_type=None,
+                    span=last.span,
+                    indent=last.indent,
+                )
 
 
         if entry.name in ("cudnnSoftmaxForward", "cudnnSoftmaxForward_tensor"):

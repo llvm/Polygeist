@@ -13,6 +13,8 @@
 #include "mlir/Pass/Pass.h"
 #include "polygeist/Passes/Passes.h"
 
+#include "llvm/ADT/DenseSet.h"
+
 using namespace mlir;
 
 namespace {
@@ -82,6 +84,207 @@ struct PrepareGpuResidualPipelinePass
       copyIn.erase();
       copyOut.erase();
       alloc.erase();
+    }
+
+    // Bufferization of tensor.insert_slice/submap write-backs commonly makes
+    // a chain of full snapshots around a small update:
+    //
+    //   copy %external -> %a; update(subview %a)
+    //   copy %a -> %b; copy %b -> %external
+    //
+    // The chain only exists to express tensor value semantics. Once the
+    // destination is a memref, redirecting the snapshots to the original
+    // buffer preserves the ordered update and avoids copying the complete KV
+    // cache (or activation vector) before and after every slice insertion.
+    // Require an exact type and a closed copy chain back to the same value;
+    // this keeps the rewrite deliberately narrower than general copy
+    // forwarding.
+    SmallVector<memref::AllocOp> snapshotRoots;
+    function.walk([&](memref::AllocOp alloc) {
+      memref::CopyOp incoming;
+      for (Operation *user : alloc.getResult().getUsers())
+        if (auto copy = dyn_cast<memref::CopyOp>(user))
+          if (copy.getTarget() == alloc.getResult()) {
+            if (incoming) {
+              incoming = nullptr;
+              break;
+            }
+            incoming = copy;
+          }
+      if (incoming && !incoming.getSource().getDefiningOp<memref::AllocOp>())
+        snapshotRoots.push_back(alloc);
+    });
+    for (memref::AllocOp root : snapshotRoots) {
+      if (!root || root->getBlock() == nullptr)
+        continue;
+      memref::CopyOp rootIncoming;
+      for (Operation *user : root.getResult().getUsers())
+        if (auto copy = dyn_cast<memref::CopyOp>(user))
+          if (copy.getTarget() == root.getResult())
+            rootIncoming = copy;
+      if (!rootIncoming)
+        continue;
+      Value external = rootIncoming.getSource();
+      if (external.getType() != root.getType())
+        continue;
+
+      SmallVector<memref::AllocOp> chain;
+      SmallVector<memref::CopyOp> chainCopies;
+      chain.push_back(root);
+      chainCopies.push_back(rootIncoming);
+      Value current = root.getResult();
+      bool closed = false;
+      while (true) {
+        memref::CopyOp outgoing;
+        for (Operation *user : current.getUsers()) {
+          auto copy = dyn_cast<memref::CopyOp>(user);
+          if (!copy || copy.getSource() != current)
+            continue;
+          if (outgoing) {
+            outgoing = nullptr;
+            break;
+          }
+          outgoing = copy;
+        }
+        if (!outgoing)
+          break;
+        chainCopies.push_back(outgoing);
+        Value next = outgoing.getTarget();
+        if (next == external) {
+          closed = true;
+          break;
+        }
+        auto nextAlloc = next.getDefiningOp<memref::AllocOp>();
+        if (!nextAlloc || next.getType() != external.getType())
+          break;
+        memref::CopyOp uniqueIncoming;
+        for (Operation *user : next.getUsers())
+          if (auto copy = dyn_cast<memref::CopyOp>(user))
+            if (copy.getTarget() == next) {
+              if (uniqueIncoming) {
+                uniqueIncoming = nullptr;
+                break;
+              }
+              uniqueIncoming = copy;
+            }
+        if (uniqueIncoming != outgoing)
+          break;
+        chain.push_back(nextAlloc);
+        current = next;
+      }
+      if (!closed)
+        continue;
+      for (memref::CopyOp copy : chainCopies)
+        copy.erase();
+      for (memref::AllocOp alloc : chain)
+        alloc.getResult().replaceAllUsesWith(external);
+      for (memref::AllocOp alloc : llvm::reverse(chain))
+        if (alloc.getResult().use_empty())
+          alloc.erase();
+    }
+
+    // LowerSubmap can also expose plain perfect copy/fill nests that carry no
+    // tensor iter_arg. Promote only the trivially injective form: one store in
+    // the innermost body, with every induction variable used directly as a
+    // distinct destination index. This covers embedding/cache view copies
+    // without speculating about modulo, clamped, or reduction-like writes.
+    SmallVector<scf::ForOp> injectiveCopies;
+    function.walk([&](scf::ForOp loop) {
+      if (!isa_and_nonnull<scf::ForOp>(loop->getParentOp()))
+        injectiveCopies.push_back(loop);
+    });
+    for (scf::ForOp outer : injectiveCopies) {
+      if (outer.getNumRegionIterArgs() != 0 || outer.getNumResults() != 0)
+        continue;
+      SmallVector<scf::ForOp> nest;
+      scf::ForOp current = outer;
+      bool perfect = true;
+      while (current) {
+        if (current.getNumRegionIterArgs() != 0 || current.getNumResults() != 0) {
+          perfect = false;
+          break;
+        }
+        nest.push_back(current);
+        scf::ForOp child;
+        bool sawNonLoop = false;
+        for (Operation &op : current.getBody()->without_terminator()) {
+          auto candidate = dyn_cast<scf::ForOp>(op);
+          if (!candidate) {
+            sawNonLoop = true;
+            continue;
+          }
+          if (child || sawNonLoop) {
+            child = nullptr;
+            perfect = false;
+            break;
+          }
+          child = candidate;
+        }
+        if (!perfect)
+          break;
+        // The innermost loop contains the scalar load/store body. Every
+        // enclosing level of a perfect nest must contain only its child loop.
+        if (!child)
+          break;
+        if (sawNonLoop) {
+          perfect = false;
+          break;
+        }
+        current = child;
+      }
+      if (!perfect || nest.empty())
+        continue;
+      scf::ForOp inner = nest.back();
+      memref::StoreOp store;
+      for (Operation &op : inner.getBody()->without_terminator()) {
+        if (auto candidate = dyn_cast<memref::StoreOp>(op)) {
+          if (store) {
+            store = nullptr;
+            break;
+          }
+          store = candidate;
+        } else if (op.getNumRegions() != 0 || op.hasTrait<OpTrait::IsTerminator>()) {
+          store = nullptr;
+          break;
+        }
+      }
+      if (!store)
+        continue;
+      llvm::SmallDenseSet<unsigned> usedStoreDims;
+      bool injective = true;
+      for (scf::ForOp loop : nest) {
+        bool found = false;
+        for (auto [index, storeIndex] : llvm::enumerate(store.getIndices())) {
+          if (storeIndex == loop.getInductionVar() &&
+              usedStoreDims.insert(index).second) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          injective = false;
+          break;
+        }
+      }
+      if (!injective)
+        continue;
+
+      SmallVector<Value> lower, upper, step;
+      for (scf::ForOp loop : nest) {
+        lower.push_back(loop.getLowerBound());
+        upper.push_back(loop.getUpperBound());
+        step.push_back(loop.getStep());
+      }
+      OpBuilder builder(outer);
+      auto parallel =
+          builder.create<scf::ParallelOp>(outer.getLoc(), lower, upper, step);
+      IRMapping mapping;
+      for (auto [loop, iv] : llvm::zip(nest, parallel.getInductionVars()))
+        mapping.map(loop.getInductionVar(), iv);
+      builder.setInsertionPointToStart(parallel.getBody());
+      for (Operation &op : inner.getBody()->without_terminator())
+        builder.clone(op, mapping);
+      outer.erase();
     }
 
     // LowerSubmapInverse marks affine write-backs only after proving their

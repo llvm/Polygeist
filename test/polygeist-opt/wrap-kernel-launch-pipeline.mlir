@@ -4,6 +4,7 @@
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true' '--wrap-kernel-launch-pipeline=cuda-graphs=true' %s | FileCheck %s --check-prefix=GRAPH
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true' %s | FileCheck %s --check-prefix=HOST-GRAPH
 // RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true maximal-device-sequence=true' %s | FileCheck %s --check-prefix=MAX-GRAPH
+// RUN: polygeist-opt '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-libraries=true maximal-device-sequence=true' %s | FileCheck %s --check-prefix=LIBRARY-GRAPH
 
 module attributes {gpu.container_module} {
   gpu.module @generated_kernels {
@@ -19,6 +20,7 @@ module attributes {gpu.container_module} {
   func.func private @generated_scale_device(i32)
       attributes {polygeist.cuda_graph_safe}
   func.func private @some_host_helper(i32)
+  func.func private @polygeist_cutensor_permute_f32(i32)
 
   func.func @matched_dispatch(%arg0: i32) {
     func.call @polygeist_cublas_dgemm(%arg0) : (i32) -> ()
@@ -82,6 +84,15 @@ module attributes {gpu.container_module} {
     memref.store %arg0, %metadata[%c0] : memref<1xi32>
     func.call @polygeist_cutensornet_contraction2_f64_device(%arg0)
         : (i32) -> ()
+    return
+  }
+
+  func.func @cutensor_sequence_with_registration(%arg0: i32,
+                                                  %buffer: memref<4xf32>) {
+    func.call @polygeist_cutensor_permute_f32(%arg0) : (i32) -> ()
+    %unranked = memref.cast %buffer : memref<4xf32> to memref<*xf32>
+    gpu.host_register %unranked : memref<*xf32>
+    func.call @polygeist_cutensor_permute_f32(%arg0) : (i32) -> ()
     return
   }
 }
@@ -180,6 +191,17 @@ module attributes {gpu.container_module} {
 // MAX-GRAPH: polygeist.cuda_graph_scope
 // MAX-GRAPH-NOT: polygeist.cuda_graph_scope
 // MAX-GRAPH: return
+
+// LIBRARY-GRAPH-LABEL: func.func @cutensor_sequence_with_registration
+// LIBRARY-GRAPH: call @polygeist_cuda_graph_begin
+// LIBRARY-GRAPH: scf.if
+// LIBRARY-GRAPH: call @polygeist_cutensor_permute_f32
+// LIBRARY-GRAPH: gpu.host_register
+// LIBRARY-GRAPH: call @polygeist_cutensor_permute_f32
+// LIBRARY-GRAPH: call @polygeist_cuda_graph_end
+// LIBRARY-GRAPH: polygeist.cuda_graph_scope
+// LIBRARY-GRAPH-NOT: polygeist.cuda_graph_scope
+// LIBRARY-GRAPH: return
 
 // HOST-GRAPH-LABEL: func.func @mixed_dispatch
 // HOST-GRAPH: call @polygeist_cuda_graph_begin

@@ -734,6 +734,8 @@ void polygeist_cudnn_conv_bn_relu_fused(
 
 // llama2.c RMSNorm, FP32:
 //   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out);
 // cuDNN backend operation graph: Out = relu(alpha * X + Bias).
 void polygeist_cudnn_pointwise_affine_relu_f32(
     int32_t N, float alpha, const float *X, const float *Bias, float *Out);
