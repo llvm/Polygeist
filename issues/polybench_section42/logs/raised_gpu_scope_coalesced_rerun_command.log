@@ -1,0 +1,19 @@
+timestamp=2026-09-07T12:12:05-07:00
+host_commit=c376ba8dff5d250a3c87444a7b0606de845d716d
+device=nvidia@192.168.57.1 via pva-general
+gpu=Jetson Orin sm_87
+cuda=12.6.85 (/home/nvidia/cuda-12.6 on device; /usr/local/cuda-12.6 host cross toolkit)
+common_environment=POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_MINIMAL_RUNTIME=0
+build_template=POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_<kernel> POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_<kernel> POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_<kernel> POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-coalesced-rerun-20260907/<kernel>/work scripts/correctness/build_jetson.sh /tmp/polybench-resident/<kernel>/export/abi.mlir /tmp/polybench-coalesced-rerun-20260907/<kernel>/<kernel>-coalesced /tmp/polybench-resident/<kernel>/export/wrapper.o /tmp/polybench-resident/<kernel>/export/harness.o /tmp/polybench-resident/<kernel>/polybench.o
+sampling=one correctness run followed by six timing runs; first timing run discarded as warmup and median of remaining five accepted
+correctness=scripts/correctness/compare_polybench_dumps.py <native_reference.out> <candidate.out> --rtol 5e-4 --atol 1.1e-2
+3mm_input_sha256=0746e78aeceb4cd65289df2a9db8453916990326444260745148901a45cb5b39
+3mm_binary_sha256=1e245023297abd815a6ae7e64303d106e5328a297429abec62a9f21dfa9e0ac9
+atax_input_sha256=0206e9801f3bdd0ef62acf6b7584aeedfcd8d188472f435bba452d2d24fe32a7
+atax_binary_sha256=055ed6db2aa3698d99f394c0fae9e8e854454b8492cbd739e6fa113021c3c096
+bicg_input_sha256=32ced332a8a6972dcef88a3a34bc4d208acc7c31651950624d6060fbd5b3faf7
+bicg_binary_sha256=f16a549a26a459ba819edaf290e98526ed80cb18b3a709475d6d64ae2837753b
+gesummv_input_sha256=69d27fd8ffd2c69013b4ca8b27c81c386d45f1d96ad3b66bff3d824241771020
+gesummv_binary_sha256=0e60dfe06064ab1890b815db0a044c2f7a519f7508a15e840b4eb6504fdbdf47
+mvt_input_sha256=2b0cf2ce6fa59acb2f92b666e8a6a9b6e3a737b2aab9a3d7f3a5096a7a82f80c
+mvt_binary_sha256=17173b6333dc71e05304e9ca7680836fe5efdc97800d361f5b66cb7436a829be
