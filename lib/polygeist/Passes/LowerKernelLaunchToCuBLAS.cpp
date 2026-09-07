@@ -43,6 +43,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
@@ -51,6 +52,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 
 #include <optional>
@@ -62,6 +64,166 @@ using namespace mlir::polygeist;
 using namespace mlir::polygeist::kernel;
 
 namespace {
+
+/// Marks a matched BLAS launch whose destination is known to contain uniform
+/// zero on entry.  This is deliberately a semantic attribute rather than a
+/// library-symbol suffix: CPU and GPU ABI lowering can both turn the same fact
+/// into beta=0.
+static constexpr StringLiteral kBlasBetaZeroAttr =
+    "polygeist.blas_beta_zero";
+
+static bool isZeroFillLaunch(LaunchOp launch) {
+  auto symbol = launch->getAttrOfType<SymbolRefAttr>("kernel");
+  if (!symbol || launch.getNumOperands() != 1 ||
+      launch.getNumResults() != 1)
+    return false;
+  StringRef name = symbol.getLeafReference().getValue();
+  return name == "memset_zero_1D" || name == "memset_zero_1D_f32" ||
+         name == "memset_zero_2D" || name == "memset_zero_2D_f32";
+}
+
+/// Collect the matched zero-fill launches proving that every element of
+/// `value` is zero.  Extracting a slice of a uniform value preserves the fact;
+/// inserting a slice preserves it only when both source and destination are
+/// themselves uniformly zero.  Unknown aliases, block arguments, and general
+/// computation conservatively stop the proof.
+static bool collectUniformZeroInitializers(
+    Value value, SmallVectorImpl<LaunchOp> &initializers,
+    llvm::SmallPtrSetImpl<Operation *> &visiting) {
+  Operation *def = value.getDefiningOp();
+  if (!def || !visiting.insert(def).second)
+    return false;
+
+  auto leave = [&]() { visiting.erase(def); };
+  if (auto launch = dyn_cast<LaunchOp>(def)) {
+    bool zero = isZeroFillLaunch(launch);
+    if (zero)
+      initializers.push_back(launch);
+    leave();
+    return zero;
+  }
+  if (auto cast = dyn_cast<tensor::CastOp>(def)) {
+    bool zero = collectUniformZeroInitializers(cast.getSource(), initializers,
+                                                visiting);
+    leave();
+    return zero;
+  }
+  if (auto slice = dyn_cast<tensor::ExtractSliceOp>(def)) {
+    bool zero = collectUniformZeroInitializers(slice.getSource(), initializers,
+                                                visiting);
+    leave();
+    return zero;
+  }
+  if (auto insert = dyn_cast<tensor::InsertSliceOp>(def)) {
+    bool sourceZero = collectUniformZeroInitializers(
+        insert.getSource(), initializers, visiting);
+    bool destZero = sourceZero && collectUniformZeroInitializers(
+                                      insert.getDest(), initializers, visiting);
+    leave();
+    return sourceZero && destZero;
+  }
+  if (auto submap = dyn_cast<polygeist::SubmapOp>(def)) {
+    bool zero = collectUniformZeroInitializers(submap.getBase(), initializers,
+                                                visiting);
+    leave();
+    return zero;
+  }
+  if (auto inverse = dyn_cast<polygeist::SubmapInverseOp>(def)) {
+    bool zero = collectUniformZeroInitializers(inverse.getOperand(1),
+                                                initializers, visiting);
+    leave();
+    return zero;
+  }
+
+  leave();
+  return false;
+}
+
+static bool isKnownFiniteFloat(Value value) {
+  Attribute attr;
+  if (!matchPattern(value, m_Constant(&attr)))
+    return false;
+  auto floatAttr = dyn_cast<FloatAttr>(attr);
+  return floatAttr && floatAttr.getValue().isFinite();
+}
+
+/// Return the destination/accumulator operand for BLAS operations whose ABI
+/// has a beta parameter.  Library-specific operand positions belong here;
+/// constant propagation itself remains independent of benchmark names and
+/// dimensions.
+static std::optional<unsigned> blasAccumulatorOperand(LaunchOp launch) {
+  auto symbol = launch->getAttrOfType<SymbolRefAttr>("kernel");
+  if (!symbol)
+    return std::nullopt;
+  StringRef name = symbol.getLeafReference().getValue();
+  if (name == "cublasDgemv" || name == "cublasDgemv_T" ||
+      name == "cublasDgemv_subtract" ||
+      name == "cublasDgemv_subtract_T" || name == "cublasDgemv_alpha" ||
+      name == "cublasSgemv" || name == "cublasSgemv_T")
+    return launch.getNumOperands() >= 3 ? std::optional<unsigned>(2)
+                                        : std::nullopt;
+  if (name == "cublasDgemm" && launch.getNumOperands() == 5)
+    return isKnownFiniteFloat(launch.getOperand(3))
+               ? std::optional<unsigned>(2)
+               : std::nullopt;
+  if ((name == "cublasDgemm_simple" ||
+       name == "cublasDgemm_alpha_only" ||
+       name == "cublasDgemm_subtract") &&
+      launch.getNumOperands() >= 3)
+    return 2;
+  if (name.starts_with("cublasSgemm_") && launch.getNumOperands() >= 3) {
+    if (name.ends_with("_alpha_beta"))
+      return launch.getNumOperands() == 5 &&
+                     isKnownFiniteFloat(launch.getOperand(3))
+                 ? std::optional<unsigned>(2)
+                 : std::nullopt;
+    if (name.ends_with("_zero"))
+      return std::nullopt;
+    if (name == "cublasSgemm_nn" || name == "cublasSgemm_nt" ||
+        name == "cublasSgemm_tn" || name == "cublasSgemm_tt" ||
+        name.ends_with("_alpha"))
+      return 2;
+  }
+  return std::nullopt;
+}
+
+/// Propagate uniform-zero tensor state across matched candidates and record
+/// it as a normalized beta=0 fact on the consuming BLAS launch.  This replaces
+/// the need to enumerate a separate `_zero` matcher symbol for every ordinary
+/// GEMV/GEMM layout.  Whole-value exclusive fills can be erased immediately.
+/// Slice-scoped fill erasure requires a stronger coverage proof and is left to
+/// canonical destination forwarding.
+static void propagateUniformZeroIntoBlas(ModuleOp module) {
+  SmallVector<LaunchOp> launches;
+  SmallVector<LaunchOp> deadInitializers;
+  module.walk([&](LaunchOp launch) { launches.push_back(launch); });
+  for (LaunchOp launch : launches) {
+    std::optional<unsigned> accumulator = blasAccumulatorOperand(launch);
+    if (!accumulator)
+      continue;
+    SmallVector<LaunchOp> initializers;
+    llvm::SmallPtrSet<Operation *, 8> visiting;
+    if (!collectUniformZeroInitializers(launch.getOperand(*accumulator),
+                                        initializers, visiting))
+      continue;
+    launch->setAttr(kBlasBetaZeroAttr,
+                    UnitAttr::get(module.getContext()));
+
+    // A whole-value fill used exclusively as this accumulator is now dead:
+    // beta=0 makes the library call overwrite the destination without reading
+    // its prior contents.  Slice-derived facts still select beta=0, but retain
+    // their fill until separate coverage analysis proves that no elements
+    // outside the overwritten slice are observable.
+    if (initializers.size() == 1 &&
+        launch.getOperand(*accumulator) == initializers.front().getResult(0) &&
+        initializers.front().getResult(0).hasOneUse()) {
+      launch->setOperand(*accumulator, initializers.front().getOperand(0));
+      deadInitializers.push_back(initializers.front());
+    }
+  }
+  for (LaunchOp initializer : deadInitializers)
+    initializer.erase();
+}
 
 // Symbol of the runtime ABI function for each supported library op. Add
 // more entries here as the matcher's library grows.
@@ -1095,6 +1257,9 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
+  if (launch->hasAttr(kBlasBetaZeroAttr))
+    beta = b.create<arith::ConstantOp>(loc, b.getF64Type(),
+                                       b.getF64FloatAttr(0.0));
 
   // Bufferize tensors → memrefs (whose ABI carries the data pointer when
   // lowered to LLVM). Do this BEFORE dim queries so we can use memref.dim.
@@ -1187,6 +1352,9 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
                                                b.getF64FloatAttr(-1.0))
                 : one;
   }
+  if (launch->hasAttr(kBlasBetaZeroAttr))
+    beta = b.create<arith::ConstantOp>(loc, b.getF64Type(),
+                                       b.getF64FloatAttr(0.0));
 
   auto At = dyn_cast<RankedTensorType>(A.getType());
   auto Bt = dyn_cast<RankedTensorType>(B.getType());
@@ -1292,6 +1460,9 @@ static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
     beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
                                        b.getF32FloatAttr(0.0));
   }
+  if (launch->hasAttr(kBlasBetaZeroAttr))
+    beta = b.create<arith::ConstantOp>(loc, b.getF32Type(),
+                                       b.getF32FloatAttr(0.0));
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(), b.getI32Type(),
@@ -4148,7 +4319,8 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   Value one = b.create<arith::ConstantOp>(loc, scalarTy, oneAttr);
   TypedAttr zeroAttr = useF32 ? b.getF32FloatAttr(0.0f)
                               : b.getF64FloatAttr(0.0);
-  Value beta = overwrite
+  bool zeroAccumulator = overwrite || launch->hasAttr(kBlasBetaZeroAttr);
+  Value beta = zeroAccumulator
                    ? b.create<arith::ConstantOp>(loc, scalarTy, zeroAttr)
                    : one;
   TypedAttr minusOneAttr = useF32 ? b.getF32FloatAttr(-1.0f)
@@ -7328,6 +7500,12 @@ struct LowerKernelLaunchToCuBLASPass
           LowerKernelLaunchToCuBLASPass> {
   void runOnOperation() override {
     ModuleOp module = getOperation();
+
+    // Egglog proves scalar algebra inside each candidate.  This pre-ABI
+    // analysis supplies the complementary program-level fact: a destination
+    // produced by a zero fill remains uniformly zero through tensor views and
+    // therefore permits an ordinary BLAS match to use beta=0.
+    propagateUniformZeroIntoBlas(module);
 
     // Track the set of kernel symbols we lower; after launches are gone we
     // delete any kernel.defn carrying one of these symbols, since no users

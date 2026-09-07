@@ -488,6 +488,13 @@ def LowerKernelLaunchToCuBLAS
     Expected input: `kernel.launch` ops in TENSOR form (the matcher's
     default output). The pass synthesises `bufferization.to_memref` /
     `bufferization.to_tensor` ops around the call.
+
+    Before ABI conversion, the pass also propagates uniform-zero destination
+    state between matched candidates through safe tensor views. Ordinary
+    GEMV/GEMM matches then lower with beta=0 without requiring a distinct
+    constant-specific library symbol. Whole-value zero fills are removed only
+    when the overwriting launch is their exclusive user; slice-scoped fills
+    remain unless complete overwrite coverage is already explicit.
   }];
   let constructor = "mlir::polygeist::createLowerKernelLaunchToCuBLASPass()";
   let dependentDialects = [
