@@ -1,0 +1,7 @@
+kernel=gemver
+function=kernel_gemver
+input=/tmp/polybench-resident/gemver/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/gemver/gemver-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_gemver POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_gemver POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_gemver POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/gemver/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/gemver/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/gemver/gemver-region-timed /tmp/polybench-resident/gemver/export/wrapper.o /tmp/polybench-resident/gemver/export/harness.o /tmp/polybench-resident/gemver/polybench.o
+5fab15847c6a0b7c0706c5b43e2be7c8add58e8f5daef76c5666d2a0fc41076a  /tmp/polybench-gpu-region-sweep-20260907/gemver/gemver-region-timed

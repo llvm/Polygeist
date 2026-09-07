@@ -1,0 +1,7 @@
+kernel=syr2k
+function=kernel_syr2k
+input=/tmp/polybench-resident/syr2k/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/syr2k/syr2k-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_syr2k POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_syr2k POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_syr2k POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/syr2k/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/syr2k/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/syr2k/syr2k-region-timed /tmp/polybench-resident/syr2k/export/wrapper.o /tmp/polybench-resident/syr2k/export/harness.o /tmp/polybench-resident/syr2k/polybench.o
+068bf076becec0919679f8e2e3ef9ff968c6d5f0231d4380b7561a5f018d63d7  /tmp/polybench-gpu-region-sweep-20260907/syr2k/syr2k-region-timed

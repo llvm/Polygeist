@@ -155,6 +155,32 @@ static int            g_pipeline_depth = 0;
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
 
+#define POLYGEIST_GPU_TIMING_CATEGORY_COUNT 8
+#define POLYGEIST_GPU_TIMING_STACK_CAP 64
+#define POLYGEIST_GPU_TIMING_REGION_CAP 8
+
+typedef struct {
+  cudaEvent_t event;
+  int32_t category;
+} PolygeistGpuTimingMark;
+
+typedef struct {
+  int64_t region_id;
+  int32_t current_category;
+  int32_t category_stack[POLYGEIST_GPU_TIMING_STACK_CAP];
+  size_t category_depth;
+  PolygeistGpuTimingMark *marks;
+  size_t mark_count;
+  size_t mark_capacity;
+  double host_ms[POLYGEIST_GPU_TIMING_CATEGORY_COUNT];
+  double host_start_ms;
+  double host_last_ms;
+} PolygeistGpuTimingRegion;
+
+static __thread PolygeistGpuTimingRegion
+    g_gpu_timing_regions[POLYGEIST_GPU_TIMING_REGION_CAP];
+static __thread size_t g_gpu_timing_region_depth;
+
 typedef struct {
   int32_t nx, ny, nz, out_x, out_y, out_z;
   float center_scale, neighbor_scale;
@@ -2249,6 +2275,59 @@ void polygeist_cublas_dgemm(
                              dC + (size_t)row * (size_t)ldc, 1));
   timing_gpu_end("cublasDgemm", M, N, K, host_start_ms);
 
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_dsyrk_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    double beta, double *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)N * (size_t)lda * sizeof(double);
+  size_t bytes_C = (size_t)N * (size_t)ldc * sizeof(double);
+  void *hosts[2] = {(void *)A, C};
+  size_t sizes[2] = {bytes_A, bytes_C};
+  void *devices[2];
+  register_host_operands_safe(hosts, sizes, devices, 2);
+  double *dA = (double *)devices[0];
+  double *dC = (double *)devices[1];
+
+  // Row-major lower C = alpha*A*A^T + beta*C maps to column-major upper with
+  // OP_T. Deployment resolves this call against the Jetson cuBLAS library.
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDsyrk(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+                           N, K, &alpha, dA, lda, &beta, dC, ldc));
+  timing_gpu_end("cublasDsyrk", N, N, K, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_dsyr2k_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta, double *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)N * (size_t)lda * sizeof(double);
+  size_t bytes_B = (size_t)N * (size_t)ldb * sizeof(double);
+  size_t bytes_C = (size_t)N * (size_t)ldc * sizeof(double);
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dB = (double *)devices[1];
+  double *dC = (double *)devices[2];
+
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDsyr2k(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+                            N, K, &alpha, dA, lda, dB, ldb,
+                            &beta, dC, ldc));
+  timing_gpu_end("cublasDsyr2k", N, N, K, host_start_ms);
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)B);
   unregister_host_safe(C);
@@ -9800,4 +9879,157 @@ double polygeist_cublas_time_end_ms(void) {
   float ms = 0.0f;
   cudaEventElapsedTime(&ms, g_ev_begin, g_ev_end);
   return (double)ms;
+}
+
+static const char *gpu_timing_category_name(int32_t category) {
+  static const char *names[POLYGEIST_GPU_TIMING_CATEGORY_COUNT] = {
+      "host", "compute", "alloc", "free", "h2d", "d2h", "d2d", "h2h"};
+  if (category < 0 || category >= POLYGEIST_GPU_TIMING_CATEGORY_COUNT)
+    return "invalid";
+  return names[category];
+}
+
+static PolygeistGpuTimingRegion *active_gpu_timing_region(void) {
+  if (g_gpu_timing_region_depth == 0)
+    return NULL;
+  return &g_gpu_timing_regions[g_gpu_timing_region_depth - 1];
+}
+
+static void gpu_timing_record_boundary(PolygeistGpuTimingRegion *region) {
+  if (region->mark_count == region->mark_capacity) {
+    size_t capacity = region->mark_capacity ? region->mark_capacity * 2 : 16;
+    PolygeistGpuTimingMark *marks = (PolygeistGpuTimingMark *)realloc(
+        region->marks, capacity * sizeof(PolygeistGpuTimingMark));
+    if (!marks) {
+      fprintf(stderr, "polygeist runtime: GPU timing marker allocation failed\n");
+      abort();
+    }
+    region->marks = marks;
+    region->mark_capacity = capacity;
+  }
+  PolygeistGpuTimingMark *mark = &region->marks[region->mark_count++];
+  CUDA_CHECK(cudaEventCreate(&mark->event));
+  mark->category = region->current_category;
+  CUDA_CHECK(cudaEventRecord(mark->event, g_stream));
+}
+
+void polygeist_gpu_region_timing_begin(int64_t region_id) {
+  if (g_gpu_timing_region_depth == POLYGEIST_GPU_TIMING_REGION_CAP) {
+    fprintf(stderr, "polygeist runtime: GPU timing region nesting exceeds %d\n",
+            POLYGEIST_GPU_TIMING_REGION_CAP);
+    abort();
+  }
+  PolygeistGpuTimingRegion *region =
+      &g_gpu_timing_regions[g_gpu_timing_region_depth++];
+  memset(region, 0, sizeof(*region));
+  region->region_id = region_id;
+  region->current_category = POLYGEIST_GPU_TIMING_HOST;
+  region->host_start_ms = wall_time_ms();
+  region->host_last_ms = region->host_start_ms;
+  polygeist_cublas_init();
+  double initialized_ms = wall_time_ms();
+  region->host_ms[POLYGEIST_GPU_TIMING_HOST] +=
+      initialized_ms - region->host_last_ms;
+  gpu_timing_record_boundary(region);
+  region->host_last_ms = wall_time_ms();
+}
+
+void polygeist_gpu_region_timing_enter(int32_t category) {
+  PolygeistGpuTimingRegion *region = active_gpu_timing_region();
+  if (!region)
+    return;
+  if (category < 0 || category >= POLYGEIST_GPU_TIMING_CATEGORY_COUNT) {
+    fprintf(stderr, "polygeist runtime: invalid GPU timing category %d\n",
+            category);
+    abort();
+  }
+  if (region->category_depth == POLYGEIST_GPU_TIMING_STACK_CAP) {
+    fprintf(stderr, "polygeist runtime: GPU timing category nesting exceeds %d\n",
+            POLYGEIST_GPU_TIMING_STACK_CAP);
+    abort();
+  }
+  region->category_stack[region->category_depth++] =
+      region->current_category;
+  if (category == region->current_category)
+    return;
+  double now = wall_time_ms();
+  region->host_ms[region->current_category] += now - region->host_last_ms;
+  gpu_timing_record_boundary(region);
+  region->current_category = category;
+  region->marks[region->mark_count - 1].category = category;
+  region->host_last_ms = wall_time_ms();
+}
+
+void polygeist_gpu_region_timing_leave(void) {
+  PolygeistGpuTimingRegion *region = active_gpu_timing_region();
+  if (!region)
+    return;
+  if (region->category_depth == 0) {
+    fprintf(stderr, "polygeist runtime: unbalanced GPU timing category leave\n");
+    abort();
+  }
+  int32_t category = region->category_stack[--region->category_depth];
+  if (category == region->current_category)
+    return;
+  double now = wall_time_ms();
+  region->host_ms[region->current_category] += now - region->host_last_ms;
+  gpu_timing_record_boundary(region);
+  region->current_category = category;
+  region->marks[region->mark_count - 1].category = category;
+  region->host_last_ms = wall_time_ms();
+}
+
+void polygeist_gpu_region_timing_end(void) {
+  PolygeistGpuTimingRegion *region = active_gpu_timing_region();
+  if (!region)
+    return;
+  double before_sync_ms = wall_time_ms();
+  region->host_ms[region->current_category] +=
+      before_sync_ms - region->host_last_ms;
+  gpu_timing_record_boundary(region);
+  PolygeistGpuTimingMark *final_mark =
+      &region->marks[region->mark_count - 1];
+  CUDA_CHECK(cudaEventSynchronize(final_mark->event));
+  double device_ms[POLYGEIST_GPU_TIMING_CATEGORY_COUNT] = {0.0};
+  for (size_t i = 0; i + 1 < region->mark_count; ++i) {
+    float elapsed_ms = 0.0f;
+    CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, region->marks[i].event,
+                                    region->marks[i + 1].event));
+    device_ms[region->marks[i].category] += elapsed_ms;
+  }
+  double e2e_host_ms = wall_time_ms() - region->host_start_ms;
+  double memory_device_ms = 0.0;
+  double memory_host_ms = 0.0;
+  for (int32_t category = POLYGEIST_GPU_TIMING_ALLOC;
+       category < POLYGEIST_GPU_TIMING_CATEGORY_COUNT; ++category) {
+    memory_device_ms += device_ms[category];
+    memory_host_ms += region->host_ms[category];
+  }
+  FILE *output = timing_file();
+  if (!output)
+    output = stderr;
+  fprintf(output,
+          "POLYGEIST_GPU_REGION_TIMING region=%llu "
+          "compute_device_ms=%.6f memory_device_ms=%.6f "
+          "e2e_host_ms=%.6f compute_wall_ms=%.6f memory_wall_ms=%.6f",
+          (unsigned long long)(uint64_t)region->region_id,
+          device_ms[POLYGEIST_GPU_TIMING_COMPUTE], memory_device_ms,
+          e2e_host_ms, region->host_ms[POLYGEIST_GPU_TIMING_COMPUTE],
+          memory_host_ms);
+  for (int32_t category = 0;
+       category < POLYGEIST_GPU_TIMING_CATEGORY_COUNT; ++category) {
+    if (category == POLYGEIST_GPU_TIMING_COMPUTE)
+      continue;
+    fprintf(output, " %s_device_ms=%.6f %s_wall_ms=%.6f",
+            gpu_timing_category_name(category), device_ms[category],
+            gpu_timing_category_name(category), region->host_ms[category]);
+  }
+  fprintf(output, " markers=%zu\n", region->mark_count);
+  fflush(output);
+
+  for (size_t i = 0; i < region->mark_count; ++i)
+    CUDA_CHECK(cudaEventDestroy(region->marks[i].event));
+  free(region->marks);
+  memset(region, 0, sizeof(*region));
+  g_gpu_timing_region_depth--;
 }

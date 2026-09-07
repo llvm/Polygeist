@@ -246,6 +246,37 @@ void polygeist_cublas_dgemm(
   }
 }
 
+void polygeist_cublas_dsyrk_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    double beta, double *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dsyrk(CblasRowMajor, CblasLower, CblasNoTrans, N, K, alpha, A, lda,
+              beta, C, ldc);
+#else
+  (void)N; (void)K; (void)alpha; (void)A; (void)lda;
+  (void)beta; (void)C; (void)ldc;
+  fprintf(stderr, "Polygeist runtime: FP64 SYRK requires external CBLAS\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_dsyr2k_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta, double *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dsyr2k(CblasRowMajor, CblasLower, CblasNoTrans, N, K, alpha, A, lda,
+               B, ldb, beta, C, ldc);
+#else
+  (void)N; (void)K; (void)alpha; (void)A; (void)lda;
+  (void)B; (void)ldb; (void)beta; (void)C; (void)ldc;
+  fprintf(stderr, "Polygeist runtime: FP64 SYR2K requires external CBLAS\n");
+  abort();
+#endif
+}
+
 void polygeist_cublas_sgemm(
     int32_t M, int32_t N, int32_t K,
     float alpha,
@@ -2560,3 +2591,15 @@ double polygeist_cublas_time_end_ms(void) {
                  (double)(t1.tv_nsec - g_t0.tv_nsec);
   return dt_ns / 1.0e6;
 }
+
+void polygeist_gpu_region_timing_begin(int64_t region_id) {
+  (void)region_id;
+}
+
+void polygeist_gpu_region_timing_enter(int32_t category) {
+  (void)category;
+}
+
+void polygeist_gpu_region_timing_leave(void) {}
+
+void polygeist_gpu_region_timing_end(void) {}

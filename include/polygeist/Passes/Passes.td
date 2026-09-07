@@ -429,6 +429,39 @@ def PlanGpuDataResidency
   ];
 }
 
+def InstrumentGpuRegionTiming
+    : Pass<"instrument-gpu-region-timing", "::mlir::ModuleOp"> {
+  let summary =
+      "Measure GPU compute, allocation, transfer, and end-to-end regions";
+  let description = [{
+    Adds non-synchronizing CUDA-event category markers around compiler-visible
+    GPU work. Device dispatches nested in one top-level structured operation
+    are measured as a single compute region, so loops do not acquire a marker
+    per dynamic iteration. gpu.alloc, gpu.dealloc, and gpu.memcpy operations
+    temporarily switch to memory-management categories even when they occur in
+    the middle of a compute region. The runtime synchronizes once at function
+    exit and reports both device-timeline and host-wall-clock aggregates.
+
+    With no function option, functions carrying the
+    polygeist.gpu_data_residency attribute are instrumented. A stable 64-bit
+    FNV-1a hash of the function name identifies each region in runtime logs
+    and is also retained as the polygeist.gpu_timing_region_id attribute.
+  }];
+  let constructor =
+      "mlir::polygeist::createInstrumentGpuRegionTimingPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "func::FuncDialect",
+    "gpu::GPUDialect",
+    "memref::MemRefDialect",
+  ];
+  let options = [
+    Option<"functionName", "function", "std::string", /*default=*/"\"\"",
+           "Exact function to instrument. By default, instrument functions "
+           "marked polygeist.gpu_data_residency.">,
+  ];
+}
+
 def LowerKernelLaunchToCuBLAS
     : Pass<"lower-kernel-launch-to-cublas", "::mlir::ModuleOp"> {
   let summary = "Lower kernel.launch ops to runtime-shim func.calls (cuBLAS ABI)";
