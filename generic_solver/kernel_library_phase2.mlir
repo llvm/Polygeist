@@ -688,6 +688,29 @@ module {
     kernel.yield %result : tensor<?x?x?xf32>
   }
 
+  // A row-major SGEMV expressed by the C raiser as broadcast rank-2 views:
+  // A[m,k] * x[k] -> y[m]. ABI lowering proves the submap layouts and calls
+  // the physical rank-[2,1,1] CBLAS/cuBLAS implementation.
+  kernel.defn @cublasSgemv_broadcast2d_zero(
+      %A: tensor<?x?xf32>, %x: tensor<?x?xf32>,
+      %y: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf32>, tensor<?x?xf32>)
+      outs(%y : tensor<?x?xf32>) {
+    ^bb0(%a: f32, %b: f32, %out: f32):
+      %p = arith.mulf %a, %b : f32
+      %s = arith.addf %out, %p : f32
+      linalg.yield %s : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
   // Parboil's basic SGEMM is raised as (M,N,K) broadcast views over flat,
   // column-major buffers.  The semantic body is still cublasDgemm above;
   // this ABI name records the proven view layout for lowering.

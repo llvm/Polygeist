@@ -2708,9 +2708,27 @@ void polygeist_cublas_sgemv(
   size_t bytes_x = (size_t)N * sizeof(float);
   size_t bytes_y = (size_t)M * sizeof(float);
 
-  float *dA = (float *)register_host_safe((void *)A, bytes_A);
-  float *dx = (float *)register_host_safe((void *)x, bytes_x);
-  float *dy = (float *)register_host_safe(y, bytes_y);
+  void *hosts[3] = {(void *)A, (void *)x, y};
+  size_t sizes[3] = {bytes_A, bytes_x, bytes_y};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dx = (float *)devices[1];
+  float *dy = (float *)devices[2];
+  float *dx_snapshot = NULL;
+
+  // BLAS does not permit x/y overlap.  Tensor pipelines can update a vector
+  // in place, so preserve x before the library writes y.
+  uintptr_t x_begin = (uintptr_t)x;
+  uintptr_t x_end = x_begin + bytes_x;
+  uintptr_t y_begin = (uintptr_t)y;
+  uintptr_t y_end = y_begin + bytes_y;
+  if (x_begin < y_end && y_begin < x_end) {
+    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
+    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
+                          cudaMemcpyDeviceToDevice));
+    dx = dx_snapshot;
+  }
 
   timing_gpu_begin();
   CUBLAS_CHECK(cublasSgemv(g_handle,
@@ -2722,6 +2740,9 @@ void polygeist_cublas_sgemv(
                             &beta,
                             dy, 1));
   timing_gpu_end("cublasSgemv", M, N, 0, host_start_ms);
+
+  if (dx_snapshot)
+    CUDA_CHECK(cudaFree(dx_snapshot));
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -2803,9 +2824,25 @@ void polygeist_cublas_sgemv_T(
   size_t bytes_x = (size_t)M * sizeof(float);
   size_t bytes_y = (size_t)N * sizeof(float);
 
-  float *dA = (float *)register_host_safe((void *)A, bytes_A);
-  float *dx = (float *)register_host_safe((void *)x, bytes_x);
-  float *dy = (float *)register_host_safe(y, bytes_y);
+  void *hosts[3] = {(void *)A, (void *)x, y};
+  size_t sizes[3] = {bytes_A, bytes_x, bytes_y};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dx = (float *)devices[1];
+  float *dy = (float *)devices[2];
+  float *dx_snapshot = NULL;
+
+  uintptr_t x_begin = (uintptr_t)x;
+  uintptr_t x_end = x_begin + bytes_x;
+  uintptr_t y_begin = (uintptr_t)y;
+  uintptr_t y_end = y_begin + bytes_y;
+  if (x_begin < y_end && y_begin < x_end) {
+    CUDA_CHECK(cudaMalloc((void **)&dx_snapshot, bytes_x));
+    CUDA_CHECK(cudaMemcpy(dx_snapshot, dx, bytes_x,
+                          cudaMemcpyDeviceToDevice));
+    dx = dx_snapshot;
+  }
 
   timing_gpu_begin();
   CUBLAS_CHECK(cublasSgemv(g_handle,
@@ -2817,6 +2854,9 @@ void polygeist_cublas_sgemv_T(
                             &beta,
                             dy, 1));
   timing_gpu_end("cublasSgemv_T", M, N, 0, host_start_ms);
+
+  if (dx_snapshot)
+    CUDA_CHECK(cudaFree(dx_snapshot));
 
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)x);
@@ -8367,6 +8407,15 @@ void polygeist_cudnn_pointwise_graph_f32(
   float scalars[8] = {s0, s1, s2, s3, s4, s5, s6, s7};
   const float *inputs[4] = {In0, In1, In2, In3};
   const int32_t strides[4] = {stride0, stride1, stride2, stride3};
+  const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
+  const int graph_diagnostics = diagnostics && diagnostics[0] != '0';
+  if (graph_diagnostics) {
+    cudaError_t prior = cudaStreamSynchronize(g_stream);
+    fprintf(stderr,
+            "polygeist runtime: pointwise graph entry N=%d nodes=%d "
+            "prior=%s out=%p out_stride=%d\n",
+            N, num_nodes, cudaGetErrorString(prior), (void *)Out, out_stride);
+  }
   struct pointwise_graph_plan *p =
       find_pointwise_graph_plan(N, words, num_nodes);
   if (!p) {
@@ -8377,8 +8426,7 @@ void polygeist_cudnn_pointwise_graph_f32(
     }
   }
   if (!p || p->unsupported) {
-    const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
-    if (diagnostics && diagnostics[0] != '0')
+    if (graph_diagnostics)
       fprintf(stderr,
               "polygeist runtime: generic cuDNN pointwise graph fallback "
               "(N=%d, nodes=%d)\n", N, num_nodes);
@@ -8387,23 +8435,55 @@ void polygeist_cudnn_pointwise_graph_f32(
                              out_stride, Out);
     return;
   }
+  /* Resolve every host/device operand as one group.  Registering a host range
+   * may merge an overlapping page registration and thereby replace its mapped
+   * device address, so resolving inputs one at a time can leave an earlier
+   * address stale.  The grouped helper performs all registration changes
+   * first and only then returns stable device-visible addresses. */
+  void *host_ptrs[5] = {(void *)In0, (void *)In1, (void *)In2,
+                        (void *)In3, (void *)Out};
+  size_t byte_sizes[5] = {0, 0, 0, 0, 0};
+  for (int i = 0; i < 4; ++i)
+    if (p->used_inputs[i])
+      byte_sizes[i] =
+          ((size_t)(N - 1) * (size_t)strides[i] + 1) * sizeof(float);
+  byte_sizes[4] =
+      ((size_t)(N - 1) * (size_t)out_stride + 1) * sizeof(float);
+  void *device_ptrs[5];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 5);
+
   memcpy(p->scalars, scalars, sizeof(p->scalars));
   double host_start_ms = wall_time_ms();
   timing_gpu_begin();
   for (int i = 0; i < 4; ++i)
     if (p->used_inputs[i]) {
+      if (graph_diagnostics) {
+        struct cudaPointerAttributes src_attr, dst_attr;
+        cudaError_t src_status =
+            cudaPointerGetAttributes(&src_attr, device_ptrs[i]);
+        if (src_status != cudaSuccess) (void)cudaGetLastError();
+        cudaError_t dst_status =
+            cudaPointerGetAttributes(&dst_attr, p->d_inputs[i]);
+        if (dst_status != cudaSuccess) (void)cudaGetLastError();
+        fprintf(stderr,
+                "polygeist runtime: pointwise input=%d src=%p src_attr=%s "
+                "dst=%p dst_attr=%s bytes=%zu stride=%d\n",
+                i, device_ptrs[i], cudaGetErrorString(src_status),
+                (void *)p->d_inputs[i], cudaGetErrorString(dst_status),
+                p->bytes, strides[i]);
+      }
       if (strides[i] == 1)
-        CUDA_CHECK(cudaMemcpyAsync(p->d_inputs[i], inputs[i], p->bytes,
-                                   cudaMemcpyHostToDevice, g_stream));
+        CUDA_CHECK(cudaMemcpyAsync(p->d_inputs[i], device_ptrs[i], p->bytes,
+                                   cudaMemcpyDeviceToDevice, g_stream));
       else
-        CUDA_CHECK(cudaMemcpy2DAsync(p->d_inputs[i], sizeof(float), inputs[i],
+        CUDA_CHECK(cudaMemcpy2DAsync(p->d_inputs[i], sizeof(float),
+                                     device_ptrs[i],
                                      (size_t)strides[i] * sizeof(float),
-                                     sizeof(float), N, cudaMemcpyHostToDevice,
+                                     sizeof(float), N, cudaMemcpyDeviceToDevice,
                                      g_stream));
     }
   static int reported = 0;
-  const char *diagnostics = getenv("POLYGEIST_RT_GRAPH_DIAGNOSTICS");
-  if (!reported && diagnostics && diagnostics[0] != '0') {
+  if (!reported && graph_diagnostics) {
     fprintf(stderr,
             "polygeist runtime: generic cuDNN pointwise graph active "
             "(N=%d, nodes=%d)\n", N, num_nodes);
@@ -8411,12 +8491,13 @@ void polygeist_cudnn_pointwise_graph_f32(
   }
   CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
   if (out_stride == 1)
-    CUDA_CHECK(cudaMemcpyAsync(Out, p->d_out, p->bytes, cudaMemcpyDeviceToHost,
-                               g_stream));
+    CUDA_CHECK(cudaMemcpyAsync(device_ptrs[4], p->d_out, p->bytes,
+                               cudaMemcpyDeviceToDevice, g_stream));
   else
-    CUDA_CHECK(cudaMemcpy2DAsync(Out, (size_t)out_stride * sizeof(float),
-                                 p->d_out, sizeof(float), sizeof(float), N,
-                                 cudaMemcpyDeviceToHost, g_stream));
+    CUDA_CHECK(cudaMemcpy2DAsync(device_ptrs[4],
+                                 (size_t)out_stride * sizeof(float), p->d_out,
+                                 sizeof(float), sizeof(float), N,
+                                 cudaMemcpyDeviceToDevice, g_stream));
   timing_gpu_end("cudnnPointwiseGraph_f32", 1, N, num_nodes, host_start_ms);
 }
 
