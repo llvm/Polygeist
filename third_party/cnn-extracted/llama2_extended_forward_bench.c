@@ -319,6 +319,60 @@ __attribute__((noinline)) void kernel_llama2_extended_forward(
 #pragma endscop
 }
 
+// Ordinary-C lifetime boundary for accelerator lowering.  Keeping the
+// repeated calls inside one compiler-visible function lets a device-residency
+// pass allocate and upload at entry, reuse the buffers for every forward, and
+// copy observable results back once at exit.  There are intentionally no CUDA
+// types or calls in this interface.
+__attribute__((noinline)) void kernel_llama2_extended_forward_session(
+    int repetitions, int token, int pos,
+    DATA_TYPE tok_embeddings[VOCAB][MODEL_DIM],
+    DATA_TYPE rms_att_weight[MODEL_DIM],
+    DATA_TYPE wq_even[NUM_HEADS][HALF_HEAD_DIM][MODEL_DIM],
+    DATA_TYPE wq_odd[NUM_HEADS][HALF_HEAD_DIM][MODEL_DIM],
+    DATA_TYPE wk_even[NUM_HEADS][HALF_HEAD_DIM][MODEL_DIM],
+    DATA_TYPE wk_odd[NUM_HEADS][HALF_HEAD_DIM][MODEL_DIM],
+    DATA_TYPE wv[MODEL_DIM][MODEL_DIM], DATA_TYPE wo[MODEL_DIM][MODEL_DIM],
+    DATA_TYPE rms_ffn_weight[MODEL_DIM],
+    DATA_TYPE w_gate[FFN_DIM][MODEL_DIM],
+    DATA_TYPE w_up[FFN_DIM][MODEL_DIM],
+    DATA_TYPE w_down[MODEL_DIM][FFN_DIM],
+    DATA_TYPE rms_final_weight[MODEL_DIM],
+    DATA_TYPE lm_head[VOCAB][MODEL_DIM],
+    DATA_TYPE cos_table[SEQ_LEN][HALF_HEAD_DIM],
+    DATA_TYPE sin_table[SEQ_LEN][HALF_HEAD_DIM],
+    DATA_TYPE k_cache_even[SEQ_LEN][NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE k_cache_odd[SEQ_LEN][NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE v_cache[SEQ_LEN][MODEL_DIM], DATA_TYPE x[MODEL_DIM],
+    DATA_TYPE att_normed[MODEL_DIM], DATA_TYPE v[MODEL_DIM],
+    DATA_TYPE q_even[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE q_odd[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE k_even[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE k_odd[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE q_even_rot[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE q_odd_rot[NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE k_read_even[SEQ_LEN][NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE k_read_odd[SEQ_LEN][NUM_HEADS][HALF_HEAD_DIM],
+    DATA_TYPE v_read[SEQ_LEN][MODEL_DIM], DATA_TYPE scores[SEQ_LEN],
+    DATA_TYPE masked_scores[SEQ_LEN], DATA_TYPE probs[SEQ_LEN],
+    DATA_TYPE att_out[MODEL_DIM], DATA_TYPE proj_out[MODEL_DIM],
+    DATA_TYPE resid_att[MODEL_DIM], DATA_TYPE ffn_normed[MODEL_DIM],
+    DATA_TYPE gate[FFN_DIM], DATA_TYPE up[FFN_DIM],
+    DATA_TYPE ffn_hidden[FFN_DIM], DATA_TYPE ffn_out[MODEL_DIM],
+    DATA_TYPE resid_ffn[MODEL_DIM], DATA_TYPE final_normed[MODEL_DIM],
+    DATA_TYPE logits[VOCAB]) {
+  for (int iteration = 0; iteration < repetitions; ++iteration) {
+    kernel_llama2_extended_forward(
+        token, pos, tok_embeddings, rms_att_weight, wq_even, wq_odd, wk_even,
+        wk_odd, wv, wo, rms_ffn_weight, w_gate, w_up, w_down,
+        rms_final_weight, lm_head, cos_table, sin_table, k_cache_even,
+        k_cache_odd, v_cache, x, att_normed, v, q_even, q_odd, k_even, k_odd,
+        q_even_rot, q_odd_rot, k_read_even, k_read_odd, v_read, scores,
+        masked_scores, probs, att_out, proj_out, resid_att, ffn_normed, gate,
+        up, ffn_hidden, ffn_out, resid_ffn, final_normed, logits);
+  }
+}
+
 static DATA_TYPE tok_embeddings[VOCAB][MODEL_DIM];
 static DATA_TYPE rms_att_weight[MODEL_DIM];
 static DATA_TYPE wq_even[NUM_HEADS][HALF_HEAD_DIM][MODEL_DIM];
