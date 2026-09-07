@@ -109,8 +109,12 @@ static cudaStream_t     g_stream;
 // allowing generated kernels and library operations to coexist in one CUDA
 // Graph capture. The first (warmup) execution populates these caches; capture
 // and replay perform no module-management work.
-#define POLYGEIST_GENERATED_MODULE_CAP 32
-#define POLYGEIST_GENERATED_FUNCTION_CAP 128
+// A compiler-visible application pipeline can contain hundreds of distinct
+// residual kernels (for example, one for each structured stage around library
+// calls).  Keep enough entries for complete generated programs rather than
+// imposing the old microbenchmark-sized 128-function ceiling.
+#define POLYGEIST_GENERATED_MODULE_CAP 256
+#define POLYGEIST_GENERATED_FUNCTION_CAP 1024
 typedef struct {
   const void *image;
   CUmodule module;
@@ -727,7 +731,11 @@ static void ensure_cublaslt(void) {
 // before returning, which makes an entry from an earlier call safe to evict;
 // a still-live tensor is simply registered again on its next use.
 
-#define HOSTREG_CACHE_CAP 256
+// Full raised applications can have hundreds of simultaneously live mapped
+// workspaces (the MFEM Navier pipeline has 305).  Keep enough registrations
+// that the LRU fallback is not forced to evict a live compiler workspace
+// before its first generated-kernel use.
+#define HOSTREG_CACHE_CAP 1024
 struct hostreg_entry {
   void *host;
   void *dev;
@@ -2118,6 +2126,20 @@ void mgpuLaunchKernel(void *raw_function, intptr_t grid_x, intptr_t grid_y,
       extra));
   if (getenv("POLYGEIST_GENERATED_GPU_DIAGNOSTICS"))
     fprintf(stderr, "polygeist generated launch enqueued\n");
+  if (getenv("POLYGEIST_GENERATED_GPU_SYNCHRONOUS")) {
+    const char *name = "<unknown>";
+    for (size_t i = 0; i < g_generated_function_count; ++i)
+      if (g_generated_functions[i].function == (CUfunction)raw_function) {
+        name = g_generated_functions[i].name;
+        break;
+      }
+    cudaError_t status = cudaStreamSynchronize(g_stream);
+    if (status != cudaSuccess) {
+      fprintf(stderr, "polygeist generated kernel failed: %s: %s\n", name,
+              cudaGetErrorString(status));
+      abort();
+    }
+  }
 }
 
 void *mgpuStreamCreate(void) {
@@ -2173,14 +2195,15 @@ void mgpuMemcpy(void *destination, void *source, size_t size_bytes,
     // mapped buffers.  Passing such a partially covered host range directly
     // to cudaMemcpy is rejected on Tegra.  Stage through an independent host
     // allocation, then finish with an ordinary CPU copy.
-    void *staging = malloc(size_bytes);
-    if (!staging) {
-      fprintf(stderr, "polygeist runtime: D2H staging allocation failed\n");
-      abort();
-    }
+    // Use an explicitly pinned allocation. An ordinary malloc allocation can
+    // land on a page already covered by one of the persistent mapped-host
+    // registrations, in which case Tegra rejects it as a D2H destination with
+    // cudaErrorInvalidValue even though the byte ranges do not overlap.
+    void *staging = NULL;
+    CUDA_CHECK(cudaMallocHost(&staging, size_bytes));
     CUDA_CHECK(cudaMemcpy(staging, source, size_bytes, kind));
     memcpy(destination, staging, size_bytes);
-    free(staging);
+    CUDA_CHECK(cudaFreeHost(staging));
   } else
     CUDA_CHECK(cudaMemcpyAsync(destination, source, size_bytes, kind,
                                cuda_stream));

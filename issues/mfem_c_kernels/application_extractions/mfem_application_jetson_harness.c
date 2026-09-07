@@ -11,6 +11,9 @@
 #ifndef MFEM_BENCH_NE
 #define MFEM_BENCH_NE 2
 #endif
+#ifndef MFEM_REPLAY_WARMUPS
+#define MFEM_REPLAY_WARMUPS 2
+#endif
 
 #define MAX_EXTENT (2250 * MFEM_BENCH_NE)
 #define MAX_OUTPUTS 6
@@ -232,14 +235,23 @@ static void run_reference(double state[MAX_OUTPUTS][MAX_EXTENT]) {
 static const int64_t output_extents[] = {64 * MFEM_BENCH_NE};
 extern void mfem_app_abs_l1_mass_3d(
     const double *, const double *, const double *, const double *, double *);
+extern void mfem_app_abs_l1_mass_3d_session(
+    int, const double *, const double *, const double *, const double *,
+    double *);
 extern void mfem_app_abs_l1_mass_3d_reference(
     const double *, const double *, const double *, const double *, double *);
 static void run_raised(double state[MAX_OUTPUTS][MAX_EXTENT]) {
-  mfem_app_abs_l1_mass_3d(args[0], args[1], args[2], args[3], state[0]);
+  mfem_app_abs_l1_mass_3d_session(
+      1, args[0], args[1], args[2], args[3], state[0]);
 }
 static void run_reference(double state[MAX_OUTPUTS][MAX_EXTENT]) {
   mfem_app_abs_l1_mass_3d_reference(
       args[0], args[1], args[2], args[3], state[0]);
+}
+static void run_raised_session(int repetitions,
+                               double state[MAX_OUTPUTS][MAX_EXTENT]) {
+  mfem_app_abs_l1_mass_3d_session(
+      repetitions, args[0], args[1], args[2], args[3], state[0]);
 }
 #elif defined(MFEM_APP_ABS_DIFFUSION)
 #define APP_NAME "abs_l1_diffusion_3d"
@@ -308,6 +320,14 @@ static void run_reference(double state[MAX_OUTPUTS][MAX_EXTENT]) {
 #error "Select one MFEM_APP_* application"
 #endif
 
+#if !defined(MFEM_APP_ABS_MASS)
+static void run_raised_session(int repetitions,
+                               double state[MAX_OUTPUTS][MAX_EXTENT]) {
+  for (int iteration = 0; iteration < repetitions; ++iteration)
+    run_raised(state);
+}
+#endif
+
 static double seconds(void) {
   struct timespec value;
   clock_gettime(CLOCK_MONOTONIC, &value);
@@ -367,7 +387,8 @@ int main(void) {
   /* CUDA Graph execution warms on the first call, captures on the second,
    * and replays from the third call onward. Reset the same stable output
    * buffers between calls so the correctness comparison exercises replay. */
-  for (int replay_warmup = 0; replay_warmup < 2; ++replay_warmup) {
+  for (int replay_warmup = 0; replay_warmup < MFEM_REPLAY_WARMUPS;
+       ++replay_warmup) {
     memcpy(raised_state, initial_state, sizeof(initial_state));
     run_raised(raised_state);
   }
@@ -375,6 +396,7 @@ int main(void) {
   double max_abs = 0.0;
   double max_rel = 0.0;
   for (int output = 0; output < OUTPUT_COUNT; ++output) {
+    double output_max_abs = 0.0;
     for (int64_t i = 0; i < output_extents[output]; ++i) {
       double abs_error = fabs(reference_state[output][i] - raised_state[output][i]);
       double scale = fmax(1.0, fabs(reference_state[output][i]));
@@ -388,9 +410,14 @@ int main(void) {
 #endif
       if (abs_error > max_abs)
         max_abs = abs_error;
+      if (abs_error > output_max_abs)
+        output_max_abs = abs_error;
       if (rel_error > max_rel)
         max_rel = rel_error;
     }
+#ifdef MFEM_DEBUG_OUTPUT_SUMMARY
+    printf("output=%d max_abs=%.17g\n", output, output_max_abs);
+#endif
   }
   int correct = isfinite(max_abs) && max_rel <= 1.0e-10;
   printf("application=%s correctness=%s max_abs=%.17g max_rel=%.17g\n",
@@ -410,8 +437,7 @@ int main(void) {
   run_raised(raised_state);
   memcpy(raised_state, initial_state, sizeof(initial_state));
   start = seconds();
-  for (int i = 0; i < BENCH_ITERS; ++i)
-    run_raised(raised_state);
+  run_raised_session(BENCH_ITERS, raised_state);
   double raised_us = (seconds() - start) * 1.0e6 / BENCH_ITERS;
 
   printf("application=%s iterations=%d cpu_reference_us=%.6f raised_gpu_us=%.6f speedup=%.6f\n",

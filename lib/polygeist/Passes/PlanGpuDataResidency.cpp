@@ -117,6 +117,12 @@ static bool hasOnlyDeviceOrDescriptorUses(Value root) {
   return true;
 }
 
+static bool hasSimpleDynamicLaunchUses(Value root) {
+  return llvm::all_of(root.getUsers(), [](Operation *user) {
+    return isa<gpu::LaunchFuncOp, memref::DeallocOp>(user);
+  });
+}
+
 static bool hasGpuDispatch(func::FuncOp function) {
   bool found = false;
   llvm::DenseSet<Operation *> visited;
@@ -166,7 +172,13 @@ struct PlanGpuDataResidencyPass
     // scratch allocation can be hoisted into the outer lifetime.
     SmallVector<memref::AllocOp> localAllocations;
     function.walk([&](memref::AllocOp allocation) {
-      if (hasOnlyDeviceOrDescriptorUses(allocation.getResult()))
+      // GPU-to-LLVM can expand a dynamic gpu.alloc used directly by outlined
+      // launches. It cannot yet reconcile the descriptor when that allocation
+      // also flows through a view or library-pointer extraction. Keep mixed
+      // dynamic scratch on the mapped-host fallback.
+      if ((allocation.getType().hasStaticShape() ||
+           hasSimpleDynamicLaunchUses(allocation.getResult())) &&
+          hasOnlyDeviceOrDescriptorUses(allocation.getResult()))
         localAllocations.push_back(allocation);
     });
 

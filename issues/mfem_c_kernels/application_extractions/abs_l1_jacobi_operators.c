@@ -10,6 +10,17 @@ void mfem_app_abs_l1_mass_3d(const double *B, const double *Bt,
   mfem_pa_mass_apply_3d_stage_sliced(B, Bt, op, x, y);
 }
 
+/* Ordinary-C accelerator lifetime boundary.  This contains no target API:
+ * it only makes repeated applications visible to the compiler so promoted
+ * arguments and scratch storage can remain device-resident for the session. */
+// polygeist-arg-extents mfem_app_abs_l1_mass_3d_session: B=20, Bt=20, op=125*MFEM_BENCH_NE, x=64*MFEM_BENCH_NE, y=64*MFEM_BENCH_NE
+__attribute__((noinline)) void mfem_app_abs_l1_mass_3d_session(
+    int repetitions, const double *B, const double *Bt, const double *op,
+    const double *x, double *y) {
+  for (int iteration = 0; iteration < repetitions; ++iteration)
+    mfem_app_abs_l1_mass_3d(B, Bt, op, x, y);
+}
+
 // polygeist-arg-extents mfem_app_abs_l1_diffusion_3d: B=20, G=20, Bt=20, Gt=20, op=750*MFEM_BENCH_NE, x=64*MFEM_BENCH_NE, y=64*MFEM_BENCH_NE
 void mfem_app_abs_l1_diffusion_3d(
     const double *B, const double *G, const double *Bt, const double *Gt,

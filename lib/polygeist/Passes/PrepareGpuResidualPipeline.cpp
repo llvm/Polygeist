@@ -36,6 +36,30 @@ static Value stripMemrefCasts(Value value) {
   return value;
 }
 
+// Return true when a local host allocation (possibly through any number of
+// memref-producing view/descriptor operations) is passed to an outlined GPU
+// kernel.  Library calls already map their pointer operands in the runtime;
+// generated kernels instead consume the memref pointer directly and therefore
+// require an explicit gpu.host_register when the allocation was not promoted
+// to gpu.alloc.
+static bool reachesGpuLaunch(Value root) {
+  SmallVector<Value> worklist{root};
+  llvm::DenseSet<Value> visited;
+  while (!worklist.empty()) {
+    Value value = worklist.pop_back_val();
+    if (!visited.insert(value).second)
+      continue;
+    for (Operation *user : value.getUsers()) {
+      if (isa<gpu::LaunchFuncOp>(user))
+        return true;
+      for (Value result : user->getResults())
+        if (isa<BaseMemRefType>(result.getType()))
+          worklist.push_back(result);
+    }
+  }
+  return false;
+}
+
 struct PrepareGpuResidualPipelinePass
     : public mlir::polygeist::PrepareGpuResidualPipelineBase<
           PrepareGpuResidualPipelinePass> {
@@ -466,6 +490,41 @@ struct PrepareGpuResidualPipelinePass
           UnrankedMemRefType::get(type.getElementType(), type.getMemorySpace());
       Value cast = builder.create<memref::CastOp>(loc, unranked, value);
       builder.create<gpu::HostRegisterOp>(loc, cast);
+    }
+
+    // Dynamic scratch that also participates in host/library descriptor
+    // operations cannot always be represented as gpu.alloc by the current
+    // GPU-to-LLVM conversion.  Keep such allocations target-neutral in the
+    // residency planner, then map them here for generated kernels.  Emitting
+    // registration immediately after the allocation keeps it outside later
+    // CUDA Graph scopes and makes the rule apply to arbitrary raised C code,
+    // not to a particular benchmark harness.
+    SmallVector<memref::AllocOp> localAllocations;
+    function.walk([&](memref::AllocOp alloc) {
+      if (reachesGpuLaunch(alloc.getResult()))
+        localAllocations.push_back(alloc);
+    });
+    for (memref::AllocOp alloc : localAllocations) {
+      auto type = alloc.getType();
+      auto unranked =
+          UnrankedMemRefType::get(type.getElementType(), type.getMemorySpace());
+      OpBuilder afterAlloc(alloc);
+      afterAlloc.setInsertionPointAfter(alloc);
+      Value cast =
+          afterAlloc.create<memref::CastOp>(alloc.getLoc(), unranked, alloc);
+      afterAlloc.create<gpu::HostRegisterOp>(alloc.getLoc(), cast);
+
+      // Preserve the dialect-level lifetime contract for allocations that do
+      // have an explicit deallocation.  (Application scratch produced by
+      // one-shot bufferization is frequently function-lifetime and has none.)
+      SmallVector<memref::DeallocOp> deallocations;
+      for (Operation *user : alloc.getResult().getUsers())
+        if (auto dealloc = dyn_cast<memref::DeallocOp>(user))
+          deallocations.push_back(dealloc);
+      for (memref::DeallocOp dealloc : deallocations) {
+        OpBuilder beforeDealloc(dealloc);
+        beforeDealloc.create<gpu::HostUnregisterOp>(dealloc.getLoc(), cast);
+      }
     }
     function->setAttr("polygeist.gpu_residual_pipeline",
                       UnitAttr::get(module.getContext()));

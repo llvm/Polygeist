@@ -4,6 +4,7 @@
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=possibly_aliasing' %s | FileCheck %s --check-prefix=ALIAS-FALLBACK
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=repeated_owner' %s | FileCheck %s --check-prefix=CALLEE
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=local_scratch promote-function-arguments=false' %s | FileCheck %s --check-prefix=SCRATCH
+// RUN: polygeist-opt '--plan-gpu-data-residency=function=dynamic_library_scratch promote-function-arguments=false' %s | FileCheck %s --check-prefix=DYNAMIC
 
 module attributes {gpu.container_module} {
   gpu.module @kernels {
@@ -93,7 +94,28 @@ module attributes {gpu.container_module} {
     }
     return
   }
+
+  func.func @dynamic_library_scratch(%size: index) {
+    %c1 = arith.constant 1 : index
+    %buffer = memref.alloc(%size) : memref<?xf32>
+    %address = memref.extract_aligned_pointer_as_index %buffer
+        : memref<?xf32> -> index
+    %address_i64 = arith.index_cast %address : index to i64
+    %pointer = llvm.inttoptr %address_i64 : i64 to !llvm.ptr
+    call @polygeist_cublas_test(%pointer) : (!llvm.ptr) -> ()
+    gpu.launch_func @kernels::@touch
+        blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1)
+        args(%buffer : memref<?xf32>)
+    memref.dealloc %buffer : memref<?xf32>
+    return
+  }
 }
+
+// Dynamic local scratch remains mapped-host storage because the downstream
+// GPU-to-LLVM path cannot reconcile its mixed launch/library descriptor.
+// DYNAMIC-LABEL: func.func @dynamic_library_scratch
+// DYNAMIC: %[[BUFFER:.*]] = memref.alloc({{.*}}) : memref<?xf32>
+// DYNAMIC: gpu.launch_func {{.*}}args(%[[BUFFER]] : memref<?xf32>)
 
 // RESIDENT-LABEL: func.func @device_region
 // RESIDENT-SAME: attributes {polygeist.gpu_data_residency}
