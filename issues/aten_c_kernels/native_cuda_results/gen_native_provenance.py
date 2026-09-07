@@ -156,6 +156,11 @@ def main():
             comparability = "EXACT_MATERIALIZED_COMPOSITION"
             legal_ratio = "yes_composition"
             note = "same dense result and layout, implemented by multiple ATen operations"
+        elif spec.get("comparison_scope") == "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER":
+            comparability = "NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION"
+            legal_ratio = "no"
+            note = ("native benchmark recipe is now explicit, but whole-operation "
+                    "equivalence must be adjudicated before publishing a ratio")
         else:
             comparability = "EXACT_ATEN_OPERATION"
             legal_ratio = "yes"

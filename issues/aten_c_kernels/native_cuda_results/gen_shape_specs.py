@@ -18,6 +18,13 @@ except SystemExit:
     pass
 
 LP = ROOT / "issues/aten_c_kernels/silicon_results/large_problem_comparison.csv"
+NATIVE_AUDIT = ROOT / "issues/aten_c_kernels/native_cuda_audit.csv"
+NATIVE_OP = {
+    row["kernel"]: row["op_token"]
+    for row in csv.DictReader(NATIVE_AUDIT.open())
+    if row.get("kernel") and row.get("op_token")
+    and row.get("has_native_cuda") == "yes"
+}
 
 # base torch op -> category
 UNARY = {"abs","abs_complex","acos","acosh","asin","asinh","atan","atanh","ceil",
@@ -43,6 +50,13 @@ CAT.update({
 
 
 def matched_base(kernel):
+    """Resolve the native operation without requiring a prior timing row.
+
+    Exact measured names remain preferred for compatibility with the existing
+    campaign.  The exhaustive native audit is the fallback, removing the old
+    circular rule that an operation had to be timed before a timing spec could
+    be generated for it.
+    """
     if kernel in m._NATIVE_CUDA_US:
         return m._native_base(kernel)
     b = m._native_base(kernel)
@@ -55,7 +69,7 @@ def matched_base(kernel):
         if (mb in bt or b in mbt or b.startswith(mb+"_") or b.endswith("_"+mb)
                 or mb.startswith(b+"_") or mb.endswith("_"+b)):
             return mb
-    return None
+    return NATIVE_OP.get(kernel)
 
 
 def parse(shape):

@@ -86,10 +86,12 @@ def main() -> None:
     rows = []
     for spec in specs:
         kernel = spec["kernel"]
-        g, c, r, prov = gpu[kernel], cpu[kernel], resident.get(kernel), provenance[kernel]
+        g, c = gpu.get(kernel, {}), cpu.get(kernel, {})
+        r, prov = resident.get(kernel), provenance.get(kernel, {})
         verified = bool(r and r.get("correctness_scope") ==
                         "device_pointer_output_vs_C_reference")
-        comparable = (verified and prov["legal_ratio"] == "yes" and
+        comparable = (verified and prov.get("legal_ratio") == "yes" and
+                      bool(g.get("shape")) and
                       shape_key(r["shape"]) == shape_key(g["shape"]))
         if verified:
             status, detail = "VERIFIED_RESIDENT", "device output matches C reference"
@@ -108,34 +110,39 @@ def main() -> None:
         else:
             status, detail = "NO_COMPLETE_CURRENT_LIBRARY_REWRITE", "no fresh device-safe whole rewrite"
         raised = float(r["resident_us"]) if r and r.get("resident_us") else None
-        native = float(g["time_us"])
+        native = float(g["time_us"]) if g.get("time_us") else None
         rows.append({
             "kernel": kernel, "shape": spec["shape"], "dtype": spec["dtype"],
-            "native_gpu_us": g["time_us"], "native_cpu_us": c["time_us"],
+            "native_gpu_us": g.get("time_us", ""),
+            "native_cpu_us": c.get("time_us", ""),
             "raised_resident_us": f"{raised:.6f}" if raised is not None else "",
-            "ratio_raised_over_native": f"{raised/native:.6f}" if comparable else "",
-            "comparability": prov["comparability"], "raised_status": status,
+            "ratio_raised_over_native": (
+                f"{raised/native:.6f}" if comparable and native else ""),
+            "comparability": prov.get("comparability", "UNADJUDICATED"),
+            "raised_status": status,
             "status_detail": detail,
         })
 
     with a.output_csv.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=FIELDS)
+        writer = csv.DictWriter(stream, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader(); writer.writerows(rows)
     counts = {s: sum(r["raised_status"] == s for r in rows)
               for s in sorted({r["raised_status"] for r in rows})}
     ratios = [float(r["ratio_raised_over_native"]) for r in rows
               if r["ratio_raised_over_native"]]
     missing = [r["kernel"] for r in rows if not r["raised_resident_us"]]
+    total = len(specs)
     lines = [
         "# ATen benchmark campaign status", "",
-        "All 116 native GPU and x86 CPU baselines use the exact recorded shape/dtype, "
+        f"The resolved campaign contains {total} shape/dtype specifications. "
+        "Available native GPU and x86 CPU baselines use the exact recorded shape/dtype, "
         "five warmups, and best-of-20 synchronized wall time. Raised ratios are emitted "
         "only after a device-pointer output comparison against the extracted C reference.", "",
-        f"- Native GPU baselines: {sum(gpu[k['kernel']]['status']=='PASS' for k in specs)}/116",
-        f"- Native x86 CPU baselines: {sum(cpu[k['kernel']]['status']=='PASS' for k in specs)}/116",
-        f"- Raised resident values: {sum(bool(r['raised_resident_us']) for r in rows)}/116",
-        f"- Strictly device-verified raised values: {counts.get('VERIFIED_RESIDENT', 0)}/116",
-        f"- Legally comparable raised/native ratios: {len(ratios)}/116",
+        f"- Native GPU baselines: {sum(gpu.get(k['kernel'], {}).get('status')=='PASS' for k in specs)}/{total}",
+        f"- Native x86 CPU baselines: {sum(cpu.get(k['kernel'], {}).get('status')=='PASS' for k in specs)}/{total}",
+        f"- Raised resident values: {sum(bool(r['raised_resident_us']) for r in rows)}/{total}",
+        f"- Strictly device-verified raised values: {counts.get('VERIFIED_RESIDENT', 0)}/{total}",
+        f"- Legally comparable raised/native ratios: {len(ratios)}/{total}",
         f"- Median raised/native ratio (eligible rows only): {statistics.median(ratios):.3f}x" if ratios else
         "- Median raised/native ratio: unavailable", "", "## Raised status", "",
     ]

@@ -18,13 +18,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("logs", type=Path, nargs="+")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--existing", type=Path,
+                        help="merge new results into an existing parsed CSV")
     parser.add_argument("--hardware", required=True)
     parser.add_argument("--torch-version", default="2.6.0")
     parser.add_argument("--date", default=date.today().isoformat())
     args = parser.parse_args()
 
-    rows = []
     by_kernel = {}
+    if args.existing and args.existing.exists():
+        with args.existing.open(newline="") as stream:
+            by_kernel.update({row["kernel"]: row for row in csv.DictReader(stream)
+                              if row.get("kernel")})
     for log in args.logs:
         for raw in log.read_text().splitlines():
             match = LINE.match(raw)
@@ -49,7 +54,7 @@ def main() -> None:
         writer = csv.DictWriter(stream, fieldnames=[
             "kernel", "time_us", "status", "metric", "timing", "shape",
             "hardware", "framework", "date", "raw_result",
-        ])
+        ], lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     passed = sum(row["status"] == "PASS" for row in rows)
