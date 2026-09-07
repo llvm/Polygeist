@@ -26,6 +26,23 @@
 #   ./<out_exe>
 # Or profile with nsys (on the Jetson):
 #   nsys profile -o trace ./<out_exe>
+#
+# With POLYGEIST_GPU_RESIDUAL_FUNCTION set, device residency can be enabled for
+# a compiler-visible enclosing function with:
+#   POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=<function>
+# The pass keeps provably GPU-only memref arguments in cudaMalloc storage for
+# that complete invocation. Unannotated, potentially overlapping C pointers
+# remain on the mapped-host fallback. Set
+# POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 only when the caller provides
+# the equivalent of C `restrict` for all promoted arguments.
+# When residual outlining happens in a private helper but the C ABI wrapper
+# calls a distinct enclosing function, set POLYGEIST_ENTRY_FUNCTION to that
+# public entry. It is the symbol renamed to `<function>_impl` for the wrapper.
+# Set POLYGEIST_INLINE_GPU_ENTRY_CALLS=1 when that enclosing function owns a
+# repeated call loop. Residency is planned across the owned call first; the
+# call is then inlined and a local-only residency pass hoists GPU scratch into
+# the outer lifetime. This preserves the helper's argument eligibility while
+# avoiding a very large lowered memref ABI call inside the loop.
 
 set -euo pipefail
 _CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -187,9 +204,31 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   $POLYGEIST_OPT \
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
+  GRAPH_INPUT=$WORK/gpu_registered.mlir
+  if [ -n "${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION:-}" ]; then
+    RESIDENCY_ARGS="function=${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION}"
+    if [ "${POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS:-0}" != "0" ]; then
+      RESIDENCY_ARGS="$RESIDENCY_ARGS assume-no-alias=true"
+    fi
+    $POLYGEIST_OPT \
+      "--plan-gpu-data-residency=${RESIDENCY_ARGS}" \
+      $WORK/gpu_registered.mlir -o $WORK/gpu_resident.mlir
+    GRAPH_INPUT=$WORK/gpu_resident.mlir
+  fi
+  if [ "${POLYGEIST_INLINE_GPU_ENTRY_CALLS:-0}" != "0" ]; then
+    $MLIR_OPT --inline --symbol-dce \
+      $GRAPH_INPUT -o $WORK/gpu_entry_inlined.mlir
+    GRAPH_INPUT=$WORK/gpu_entry_inlined.mlir
+    if [ -n "${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION:-}" ]; then
+      $POLYGEIST_OPT \
+        "--plan-gpu-data-residency=function=${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION} promote-function-arguments=false" \
+        $GRAPH_INPUT -o $WORK/gpu_local_resident.mlir
+      GRAPH_INPUT=$WORK/gpu_local_resident.mlir
+    fi
+  fi
   $POLYGEIST_OPT \
     '--wrap-kernel-launch-pipeline=cuda-graphs=true capture-host-mapped-cutensornet=true capture-host-mapped-libraries=true maximal-device-sequence=true' \
-    $WORK/gpu_registered.mlir -o $WORK/gpu_graphed.mlir
+    $GRAPH_INPUT -o $WORK/gpu_graphed.mlir
   # Current mlir-opt rejects combining a nested --pass-pipeline with
   # individual top-level pass flags. Attach the NVPTX target in its own
   # invocation, then serialize modules and lower the host side.
@@ -234,7 +273,14 @@ sed -i 's/@kernel_gemm\b/@kernel_gemm_impl/g' $WORK/kernel.ll
 # GEMM harness for any explicitly selected residual-GPU application.
 if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   GPU_FN=$POLYGEIST_GPU_RESIDUAL_FUNCTION
-  sed -i "s/@${GPU_FN}\\b/@${GPU_FN}_impl/g" $WORK/kernel.ll
+  ENTRY_FN=${POLYGEIST_ENTRY_FUNCTION:-$GPU_FN}
+  sed -i "s/@${ENTRY_FN}\\b/@${ENTRY_FN}_impl/g" $WORK/kernel.ll
+  if [ "$ENTRY_FN" != "$GPU_FN" ]; then
+    # Keep the helper externally visible through function-boundary
+    # bufferization, then give it a collision-free internal application name
+    # in the final object. Calls are rewritten together with the definition.
+    sed -i "s/@${GPU_FN}\\b/@${GPU_FN}_resident_callee/g" $WORK/kernel.ll
+  fi
 fi
 
 echo "  [4/6] cross-compile .ll → aarch64 .o via Polygeist clang"

@@ -11818,17 +11818,20 @@ def rewrite_mlir(
             ranks = [_tensor_rank(t) for t in operand_types[:2]]
             elems = [_sniff_elem_type(t) for t in operand_types[:2]]
             unary_body = bodies[i]
-            source = all_tensor_ins[0] if all_tensor_ins else ""
-            source_is_submap = bool(source and re.search(
-                rf"^\s*{re.escape(source)}\s*=\s*polygeist\.submap\b",
-                text[:instances[i].span[0]], re.MULTILINE))
+            # The current raising pipeline preserves polygeist.submap until
+            # after matching.  A rank-1 identity submap has exactly the same
+            # physical traversal as its base tensor, so it is legal for the
+            # flat cuTENSOR unary ABI.  Keep rejecting offsets, broadcasts,
+            # permutations, and other affine views.
+            views_legal = _cudnn_pointwise_views_legal(
+                text, all_tensor_ins + outs0, instances[i].span[0])
             if (len(operand_types) != 2 or len(ranks) != 2 or
                     ranks != [1, 1] or
                     elems != ["f32", "f32"] or
                     len(unary_body.indexing_maps) != 2 or
                     unary_body.indexing_maps[0] != unary_body.indexing_maps[1] or
                     all_tensor_in_types[0] != outs0_types[0] or
-                    source_is_submap):
+                    not views_legal):
                 report.append(("rank_dtype_or_layout_reject", i, entry.name))
                 i += n
                 continue
@@ -12649,6 +12652,36 @@ def rewrite_mlir(
                     final_type = inverse_match.group(2).strip()
                     custom_edit_span = (
                         start, last.span[1] + inverse_match.end())
+
+            # A softmax nested in a compiler-visible repetition loop can
+            # carry the otherwise-dead max/sum scalar containers through the
+            # enclosing affine.yield.  The fused library call does not expose
+            # those implementation-detail reductions.  Preserve any scalar
+            # initializer created inside the erased span and redirect only
+            # yield uses of the erased reduction containers back to their
+            # initializer.  The values are reinitialized at the top of the
+            # next iteration; non-yield escaping uses are deliberately left
+            # untouched so verification rejects an unsafe fusion.
+            if custom_edit_span is not None:
+                erased = text[custom_edit_span[0]:custom_edit_span[1]]
+                scalar_inverses = re.finditer(
+                    r"(?m)^\s*(%[\w.$-]+)\s*=\s*"
+                    r"polygeist\.submapInverse\(\s*(%[\w.$-]+),[^\n]*"
+                    r"->\s*tensor<f32>\s*$",
+                    erased,
+                )
+                for scalar_inverse in scalar_inverses:
+                    erased_result, initializer = scalar_inverse.groups()
+                    tail_only_rewires.append((erased_result, initializer))
+                    initializer_def = re.search(
+                        rf"(?m)^\s*{re.escape(initializer)}\s*=\s*"
+                        rf"tensor\.insert[^\n]*$",
+                        erased,
+                    )
+                    if initializer_def is not None:
+                        definition = initializer_def.group(0)
+                        if definition not in preserved_defs:
+                            preserved_defs.append(definition)
             last = LinalgInstance(
                 result_ssa=final_result,
                 result_count=1,
@@ -13507,6 +13540,30 @@ def rewrite_mlir(
         if replace_full_span:
             edit_start, edit_end = custom_edit_span or (start, end)
             edits.append((edit_start, edit_end, replacement))
+            # Full-span fusions can erase auxiliary reduction values that are
+            # semantically internal to the library operation but still appear
+            # as dead loop-carried operands in an enclosing affine.yield.
+            # Specialized legality above records the only safe substitutions.
+            if tail_only_rewires:
+                tail_start = edit_end
+                return_match = re.search(
+                    r"\n[ \t]*return\b", text[tail_start:])
+                tail_end = (tail_start + return_match.start()
+                            if return_match else tail_start)
+                tail = text[tail_start:tail_end]
+                # Edit only the terminator line.  Replacing the whole tail
+                # would overlap later, independent kernel rewrites.
+                for yield_match in re.finditer(r"affine\.yield[^\n]*", tail):
+                    original_yield = yield_match.group(0)
+                    rewritten_yield = original_yield
+                    for old_root, new_root in tail_only_rewires:
+                        rewritten_yield = re.sub(
+                            rf"(?<![\w]){re.escape(old_root)}(?![\w])",
+                            new_root, rewritten_yield)
+                    if rewritten_yield != original_yield:
+                        yield_start = tail_start + yield_match.start()
+                        yield_end = tail_start + yield_match.end()
+                        edits.append((yield_start, yield_end, rewritten_yield))
         elif n == 1:
             # Single-step composition: one generic, one launch. No
             # intervening ops to preserve.

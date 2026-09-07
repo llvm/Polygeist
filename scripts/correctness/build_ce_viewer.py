@@ -2037,7 +2037,13 @@ def _load_resident_silicon():
 
 _RESIDENT_SILICON = _load_resident_silicon()
 _NATIVE_RESIDENT_CSV = (
-    ATEN_C_ROOT / "native_cuda_results" / "native_resident.csv"
+    ATEN_C_ROOT / "native_cuda_results" / "torch_aten_resident_sync_wall.csv"
+)
+_NATIVE_CPU_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "torch_aten_cpu_sync_wall.csv"
+)
+_NATIVE_PROVENANCE_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "torch_aten_baseline_provenance.csv"
 )
 
 
@@ -2048,11 +2054,25 @@ def _load_native_resident():
     if _NATIVE_RESIDENT_CSV.exists():
         for r in csv.DictReader(_NATIVE_RESIDENT_CSV.open()):
             if r.get("kernel"):
+                r["native_us"] = r.get("time_us", "")
                 out[r["kernel"]] = r
     return out
 
 
 _NATIVE_RESIDENT = _load_native_resident()
+
+
+def _load_kernel_csv(path):
+    out = {}
+    if path.exists():
+        for row in csv.DictReader(path.open()):
+            if row.get("kernel"):
+                out[row["kernel"]] = row
+    return out
+
+
+_NATIVE_CPU = _load_kernel_csv(_NATIVE_CPU_CSV)
+_NATIVE_PROVENANCE = _load_kernel_csv(_NATIVE_PROVENANCE_CSV)
 _NATIVE_SUF = [
     "_backward_cpu", "_backward", "_forward_cpu", "_forward", "_out_cpu", "_out",
     "_scalarized", "_transform_cpu", "_transform", "_template_cpu", "_cpu",
@@ -2900,18 +2920,26 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         # print a bogus ratio again.
         _rs = _RESIDENT_SILICON.get(kernel)
         _nr = _NATIVE_RESIDENT.get(kernel)
+        _nc = _NATIVE_CPU.get(kernel)
+        _np = _NATIVE_PROVENANCE.get(kernel, {})
         _res_shape = (_rs or {}).get("shape", "")
         _nat_shape = (_nr or {}).get("shape", "")
+        _resident_verified = ((_rs or {}).get("correctness_scope", "") ==
+                              "device_pointer_output_vs_C_reference")
         # order-independent compare (dim key order can differ across processes)
         _shapes_match = bool(_res_shape) and (
             sorted(_res_shape.split("_")) == sorted(_nat_shape.split("_")))
         # native_us used for the column + ratio is the shape-matched one.
         native_us = _nr.get("native_us") if _nr else None
+        cpu_us = _nc.get("time_us") if _nc else None
+        _legal_ratio = _np.get("legal_ratio", "yes") != "no"
         try:
             _res = float(_rs["resident_us"]) if _rs and _rs.get("resident_us") else 0.0
             _nv = float(native_us) if native_us else 0.0
             ratio = (html.escape(f"{_res / _nv:.3f}×")
-                     if (_res and _nv and _shapes_match) else "—")
+                     if (_res and _nv and _shapes_match and _legal_ratio and
+                         _resident_verified)
+                     else "—")
         except (ValueError, TypeError, ZeroDivisionError):
             ratio = "—"
         # Dtype the raised path actually ran (from the mapped library symbol).
@@ -2933,7 +2961,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             raised_dtype = "f32"
         else:
             raised_dtype = ""
-        native_dtype = "f32" if native_us else ""
+        native_dtype = _np.get("dtype", "") if native_us else ""
         if raised_dtype and native_dtype and raised_dtype != native_dtype:
             dtype_tag = (
                 f'<span title="raised runs {raised_dtype}; ATen native measured '
@@ -2951,20 +2979,36 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             dtype_tag = ""
         correctness_class = "pass" if correctness == "PASS" else "none"
         if native_us:
+            _native_color = ("#137333" if _legal_ratio else "#8a6d00")
+            _native_scope = html.escape(_np.get("comparability", ""))
+            _native_api = html.escape(_np.get("benchmark_api", "torch"))
             native_cell = (
-                f'<td style="color:#137333;font-weight:600" '
+                f'<td style="color:{_native_color};font-weight:600" '
                 f'title="torch native at the resident shape {_nat_shape} '
-                f'(f32, device-resident)">{float(native_us):.1f}</td>'
+                f'({_native_scope}; {_native_api})">{float(native_us):.1f}</td>'
             )
         else:
             native_cell = '<td class="none">—</td>'
+        if cpu_us:
+            cpu_cell = (
+                f'<td title="PyTorch 2.6 CPU on x86 host, 24 threads; '
+                f'{html.escape(_np.get("comparability", ""))}">'
+                f'{float(cpu_us):.1f}</td>'
+            )
+        else:
+            cpu_cell = '<td class="none">—</td>'
         # Device-resident timing: operands in cudaMalloc'd DRAM, copies
         # excluded (the same way torch measures its own kernels).
         if _rs and _rs.get("resident_us"):
+            _resident_color = "#137333" if _resident_verified else "#8a6d00"
+            _resident_check = ("device-pointer output checked against C reference"
+                               if _resident_verified else
+                               "legacy timing: host path checked, device-pointer output not rechecked")
             resident_cell = (
-                f'<td style="color:#137333;font-weight:600" '
+                f'<td style="color:{_resident_color};font-weight:600" '
                 f'title="raised kernel, operands device-resident (cudaMalloc, '
-                f'copies excluded)">{float(_rs["resident_us"]):.1f}</td>'
+                f'copies excluded); {_resident_check}">'
+                f'{float(_rs["resident_us"]):.1f}</td>'
             )
         else:
             resident_cell = '<td class="none">—</td>'
@@ -2998,6 +3042,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             f"{mapped_cell}"
             f"{resident_cell}"
             f"{native_cell}"
+            f"{cpu_cell}"
             f"<td>{ratio}</td><td>{baseline}</td>"
             f"<td>{assessment}</td></tr>"
         )
@@ -3054,7 +3099,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         f'const ATEN_PAGE_SIZE={ATEN_PAGE_SIZE};'
         'let atenRows=[];let atenPage=1;'
         'let atenSortColumn=0;let atenSortDirection=1;'
-        'const atenNumericColumns=new Set([3,4,6,11,12,13,14]);'
+        'const atenNumericColumns=new Set([3,4,6,11,12,13,14,15]);'
         'function atenMissing(v){return !v||v==="—"||v==="-"||v==="N/A";}'
         'function atenValue(row,column){'
         'var v=row.cells[column].textContent.trim();'
@@ -3132,7 +3177,8 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
          '<span style="font-weight:normal;text-transform:none;font-size:10px">'
          'host-pointer ABI</span>'),
         'resident (<span style="text-transform:none">µs</span>)',
-        'ATen native (<span style="text-transform:none">µs</span>)',
+        'ATen CUDA (<span style="text-transform:none">µs</span>)',
+        'ATen CPU x86 (<span style="text-transform:none">µs</span>)',
         "resident / native", "resident baseline", "assessment",
     ]
     header_html = "".join(
@@ -3166,16 +3212,18 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'standalone C extractions of ATen mathematics, not the unmodified '
         'PyTorch C++ translation units (whose direct 224-file sweep produced '
         '0 Linalg operations). Large-problem silicon results use a Jetson '
-        'Orin in MAXN mode. Raised time is the current host-pointer ABI; the '
-        'resident baseline keeps operands on the GPU and times only the '
-        'cuBLAS/cuDNN or fused CUDA operation. Both columns are warm medians '
-        'of process runs 2–4 and are shown only after correctness passes. '
-        'Generic cuDNN pointwise-graph rows use 3–4 independently warmed '
-        'processes (three untimed warmups and the mean of ten calls per '
-        'process); their median is likewise published only when the runtime '
-        'confirmed that a cuDNN graph executed and the reference comparison '
-        'passed. A failed boundary-state check or a large-shape graph/build '
-        'gap is displayed explicitly with its timing withheld.'
+        'Orin in MAXN mode. Raised time is the host-pointer ABI; the resident '
+        'baseline keeps operands on the GPU and excludes transfers and '
+        'allocations. Raised-resident and PyTorch CUDA use the same '
+        'best-of-20 synchronized wall-clock boundary after five warmups. '
+        'PyTorch CPU uses the same shapes and dtypes on the separate x86 host '
+        '(24 threads), so it is labeled as a cross-system baseline rather than '
+        'a same-hardware speedup. Green resident results passed a device-pointer '
+        'comparison with the C reference; amber resident results are retained '
+        'legacy measurements and are excluded from ratios pending that recheck. '
+        'Green ATen numbers are legally comparable; amber numbers are real '
+        'PyTorch measurements of an internal stage or dense-math proxy and do '
+        'not receive a resident/native ratio.'
         ' <a href="performance.html"><b>Why are some kernels slow?</b></a> '
         'groups the measured gaps by cause and starts with a GEMV deep dive.'
         '</div>'

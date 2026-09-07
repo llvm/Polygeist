@@ -388,6 +388,47 @@ def PrepareGpuResidualPipeline
   ];
 }
 
+def PlanGpuDataResidency
+    : Pass<"plan-gpu-data-residency", "::mlir::ModuleOp"> {
+  let summary =
+      "Keep compiler-visible C buffers resident across a GPU function scope";
+  let description = [{
+    Creates CUDA device shadows for promotable memref arguments of a selected
+    function, copies host state to the shadows at function entry, rewires both
+    external-library pointer extraction and generated gpu.launch_func users to
+    the shadows, and copies state back before every return. Allocations and
+    transfers therefore occur once per selected function invocation rather
+    than between individual GPU operations; selecting an outer function keeps
+    data resident across loops and repeated nested dispatches.
+
+    The transformation is deliberately conservative. Arguments with direct
+    host element accesses, host memref copies, unsupported layouts, or unknown
+    memref consumers remain on the existing mapped-host path. The default
+    read/write boundary copies preserve arbitrary C semantics. Later access
+    analysis may remove an unnecessary input or output transfer without
+    changing this ownership model.
+  }];
+  let constructor =
+      "mlir::polygeist::createPlanGpuDataResidencyPass()";
+  let dependentDialects = [
+    "func::FuncDialect",
+    "gpu::GPUDialect",
+    "memref::MemRefDialect",
+  ];
+  let options = [
+    Option<"functionName", "function", "std::string", /*default=*/"\"\"",
+           "Exact function whose GPU buffers should become device resident.">,
+    Option<"assumeNoAlias", "assume-no-alias", "bool", /*default=*/"false",
+           "Allow multiple unannotated memref arguments to be promoted; "
+           "the caller guarantees that they do not overlap.">,
+    Option<"promoteFunctionArguments", "promote-function-arguments", "bool",
+           /*default=*/"true",
+           "Create device shadows for eligible function arguments. Disable "
+           "for a second, post-inline invocation that only promotes local "
+           "GPU scratch allocations.">,
+  ];
+}
+
 def LowerKernelLaunchToCuBLAS
     : Pass<"lower-kernel-launch-to-cublas", "::mlir::ModuleOp"> {
   let summary = "Lower kernel.launch ops to runtime-shim func.calls (cuBLAS ABI)";

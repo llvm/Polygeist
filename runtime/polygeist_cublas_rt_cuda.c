@@ -2098,6 +2098,68 @@ void *mgpuStreamCreate(void) {
   return polygeist_cuda_graph_stream();
 }
 
+// MLIR GPU runtime ABI used by compiler-planned device-resident buffers.
+// Allocation and transfers are deliberately outside CUDA Graph capture; the
+// graph itself only contains the connected library/generated-kernel work.
+void *mgpuMemAlloc(uint64_t size_bytes, void *stream, uint8_t host_shared) {
+  (void)stream;
+  void *pointer = NULL;
+  if (size_bytes == 0)
+    return NULL;
+  if (host_shared)
+    CUDA_CHECK(cudaHostAlloc(&pointer, (size_t)size_bytes,
+                             cudaHostAllocMapped));
+  else
+    CUDA_CHECK(cudaMalloc(&pointer, (size_t)size_bytes));
+  return pointer;
+}
+
+void mgpuMemFree(void *pointer, void *stream) {
+  (void)stream;
+  if (pointer)
+    CUDA_CHECK(cudaFree(pointer));
+}
+
+void mgpuMemcpy(void *destination, void *source, size_t size_bytes,
+                void *stream) {
+  if (size_bytes == 0)
+    return;
+  cudaStream_t cuda_stream = stream ? (cudaStream_t)stream : g_stream;
+  void *ignored = NULL;
+  int destination_is_device =
+      pointer_is_device_resident(destination, &ignored);
+  int source_is_device = pointer_is_device_resident(source, &ignored);
+  enum cudaMemcpyKind kind = cudaMemcpyHostToHost;
+  if (destination_is_device && source_is_device)
+    kind = cudaMemcpyDeviceToDevice;
+  else if (destination_is_device)
+    kind = cudaMemcpyHostToDevice;
+  else if (source_is_device)
+    kind = cudaMemcpyDeviceToHost;
+  // A C caller's output buffer is not necessarily pinned.  CUDA permits the
+  // initial pageable H2D staging used above, but asynchronous D2H into a
+  // pageable (or page-adjacent partially registered) destination is not
+  // portable and returns cudaErrorInvalidValue on Orin.  Copy-back is already
+  // a function-boundary synchronization point, so make that direction
+  // explicitly synchronous.
+  if (kind == cudaMemcpyDeviceToHost) {
+    // Some ordinary-C objects share OS pages with separately registered
+    // mapped buffers.  Passing such a partially covered host range directly
+    // to cudaMemcpy is rejected on Tegra.  Stage through an independent host
+    // allocation, then finish with an ordinary CPU copy.
+    void *staging = malloc(size_bytes);
+    if (!staging) {
+      fprintf(stderr, "polygeist runtime: D2H staging allocation failed\n");
+      abort();
+    }
+    CUDA_CHECK(cudaMemcpy(staging, source, size_bytes, kind));
+    memcpy(destination, staging, size_bytes);
+    free(staging);
+  } else
+    CUDA_CHECK(cudaMemcpyAsync(destination, source, size_bytes, kind,
+                               cuda_stream));
+}
+
 // ABI used by MLIR's gpu.host_register lowering. `descriptor` points to the
 // ranked descriptor nested in an unranked memref: allocated pointer, aligned
 // pointer, offset, sizes[rank], strides[rank]. Generated residual kernels use
@@ -8941,12 +9003,8 @@ void polygeist_cublas_broadcast_1d_to_2d_f32(
   int32_t source_count = axis == 0 ? rows : cols;
   size_t out_bytes = (size_t)rows * cols * sizeof(float);
   size_t source_bytes = (size_t)source_count * sizeof(float);
-  float *dX = NULL;
-  float *dOut = NULL;
-  DEVICE_MALLOC((void **)&dX, source_bytes);
-  DEVICE_MALLOC((void **)&dOut, out_bytes);
-  CUDA_CHECK(cudaMemcpyAsync(dX, X, source_bytes,
-                             cudaMemcpyHostToDevice, g_stream));
+  float *dX = (float *)register_host_safe((void *)X, source_bytes);
+  float *dOut = (float *)register_host_safe(Out, out_bytes);
   int32_t ones_count = axis == 0 ? cols : rows;
   float *host_ones = (float *)malloc((size_t)ones_count * sizeof(float));
   float *dOnes = NULL;
@@ -8956,6 +9014,10 @@ void polygeist_cublas_broadcast_1d_to_2d_f32(
   CUDA_CHECK(cudaMemcpyAsync(dOnes, host_ones,
                              (size_t)ones_count * sizeof(float),
                              cudaMemcpyHostToDevice, g_stream));
+  // GER is an update (A += x*y^T), whereas broadcast has overwrite
+  // semantics.  Clear the destination regardless of whether it is a mapped
+  // host allocation or an already-resident device allocation.
+  CUDA_CHECK(cudaMemsetAsync(dOut, 0, out_bytes, g_stream));
   const float one = 1.0f;
   timing_gpu_begin();
   if (axis == 0)
@@ -8964,13 +9026,9 @@ void polygeist_cublas_broadcast_1d_to_2d_f32(
   else
     CUBLAS_CHECK(cublasSger(g_handle, cols, rows, &one,
                             dX, 1, dOnes, 1, dOut, cols));
-  CUDA_CHECK(cudaMemcpyAsync(Out, dOut, out_bytes,
-                             cudaMemcpyDeviceToHost, g_stream));
   timing_gpu_end("cublasBroadcast1DTo2D_f32", rows, cols, axis, host_start_ms);
   DEVICE_FREE(dOnes);
   free(host_ones);
-  DEVICE_FREE(dOut);
-  DEVICE_FREE(dX);
 }
 
 void polygeist_cuda_add_f32(

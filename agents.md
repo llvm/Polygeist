@@ -1,5 +1,22 @@
 # Agent Notes
 
+## Slack Turn-Completion Communication
+
+- Slack users cannot tell whether the agent has stopped or is still thinking.
+  Never end work silently after a tool failure, timeout, blocked experiment, or
+  partial result.
+- Before ending every Slack turn, post an explicit final message that says
+  whether the requested work is complete, incomplete, or blocked. If it is not
+  complete, state the last successful step, the exact blocker, whether any
+  process is still running, and the next required action.
+- Do not imply that work will continue asynchronously after the turn ends. If
+  no command or monitoring task remains active, say so directly. If a process
+  is intentionally left running, identify it and say when/how its result will
+  be checked.
+- For multi-hour or batch requests, send concise progress updates during the
+  work and a clear stopping notice as soon as work stops; do not leave the
+  Slack thread appearing active for hours without an update.
+
 ## Paper / Overleaf Location
 
 - The local Overleaf Git clone for the current paper is
@@ -38,6 +55,18 @@
   SpMV, and CSR SpMV CUDA routes were removed in September 2026. Keep their
   structural/Egglog recognition analysis-only until a permitted external
   library implementation is wired.
+
+## CPU / GPU Benchmark Placement
+
+- Run all native CPU baselines on the x86 machine hosting this working
+  checkout, not on a Jetson Orin. This applies to ATen, MFEM, PolyBench, and
+  other evaluation suites unless the user explicitly changes the policy.
+- Cross-compile CUDA configurations on this x86 host and execute them on the
+  selected Jetson Orin silicon.
+- Because the CPU and GPU measurements come from different machines, label
+  both systems explicitly and do not describe their ratio as a same-hardware
+  CPU-versus-GPU speedup. Preserve identical operation semantics, shapes,
+  dtypes, inputs, and timing scope wherever those are comparable.
 
 ## Proxy-App Raising Fixes: miniAMR and HyPar
 
@@ -783,6 +812,36 @@
     /tmp/jetson_smoke jetson_smoke`.
   - The smoke run staged to `/tmp/polygeist_jetson_runs/...`, printed
     `polygeist jetson smoke ok`, and exited 0.
+- Verified PVA-lab Orin access (2026-09-06):
+  - Use `scripts/correctness/run_jetson.sh`; the Orin USB addresses are routed
+    through the `arjaiswal@pva-general` bounce host and are not expected to be
+    reachable directly from this VM.
+  - Orin 1 is `nvidia@192.168.57.1`
+    (`pva-compiler-orin-1.nvidia.com`), password `dfkb89@*`.
+  - Orin 2 is `nvidia@192.168.58.1` (`tegra-ubuntu`), password `nvidia`.
+  - The permission-restricted local credentials file
+    `~/.config/polygeist/jetson.env` currently supplies the Orin 1 password.
+    It is sourced by the runner and can overwrite an inline
+    `ST_TRACKER_JETSON_PASS`, so bypass it when selecting Orin 2:
+    ```bash
+    POLYGEIST_JETSON_CREDENTIALS_FILE=/dev/null \
+    POLYGEIST_SILICON_PROFILE=pva-general \
+    ST_TRACKER_JETSON_HOST=192.168.58.1 \
+    ST_TRACKER_JETSON_PASS=nvidia \
+      scripts/correctness/run_jetson.sh --exe <aarch64-binary> <tag>
+    ```
+  - For Orin 1, the credentials file supplies the password, so the usual form
+    is:
+    ```bash
+    POLYGEIST_SILICON_PROFILE=pva-general \
+    ST_TRACKER_JETSON_HOST=192.168.57.1 \
+      scripts/correctness/run_jetson.sh --exe <aarch64-binary> <tag>
+    ```
+  - The same runner also accepts `--mlir <post-ABI.mlir> [tag]`. Use
+    `--dry-run` before deployment to inspect the selected route and staging
+    paths without connecting to either board.
+  - `issues/aten_c_kernels/native_cuda_results/run_resident_sweep.sh` is the
+    ATen batch wrapper and currently pins Orin 1 (`192.168.57.1`).
 - Llama/CUDA blocker discovered:
   - The Llama suffix binaries built successfully locally for Jetson:
     `/tmp/llama_pipeline_scope_20260605_172506/llama_suffix_baseline`
