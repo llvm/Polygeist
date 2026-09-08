@@ -1,0 +1,5 @@
+ec6c0f2cafc8000445be94b28e182e1671097e4105a92e2396155408d0cdcee1  tools/cgeist/Test/polybench/linear-algebra/blas/syr2k/syr2k.c
+089501a788d93cc55cbde4a06d72f4766c8cb3677b5e6a7da42fd8da5e3d19e3  /tmp/polybench-publication-orin-cpu/syr2k/native-cpu-correctness
+52fab29bc97106ad0e1e51e95a23c3bce3d2cf2e313ea7172ad51b56126a179e  /tmp/polybench-publication-orin-cpu/syr2k/raised-openblas-correctness
+412ffcdd0077a3ce239997453e82a5fc19a1b1fdedb59234900ded7538e34e6a  /tmp/polybench-publication-orin-cpu/syr2k/native-cpu-timing
+514cd708b278ddd44999f28d6080ee9bac6f1093cd7aa5e3d9abbb12509ae538  /tmp/polybench-publication-orin-cpu/syr2k/raised-openblas-timing

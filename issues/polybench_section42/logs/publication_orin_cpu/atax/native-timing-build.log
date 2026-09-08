@@ -1,0 +1,20 @@
+Timing: one process, 5 warmups + 5 samples, AArch64 GCC -O3
+/tmp/polybench-publication-orin-cpu/atax/native-cpu-timing: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=8f99af77620ec14dc746fade2bc3d190880ae4e4, for GNU/Linux 3.7.0, not stripped
+Direct call audit:
+95:0000000000000150 <kernel_atax>:
+107: 17c:	540000cd 	b.le	194 <kernel_atax+0x44>
+115: 198:	5400090d 	b.le	2b8 <kernel_atax+0x168>
+141: 200:	5400066d 	b.le	2cc <kernel_atax+0x17c>
+149: 220:	54ffff4c 	b.gt	208 <kernel_atax+0xb8>
+155: 238:	540004a0 	b.eq	2cc <kernel_atax+0x17c>  // b.none
+165: 260:	540003a0 	b.eq	2d4 <kernel_atax+0x184>  // b.none
+175: 288:	54ffff41 	b.ne	270 <kernel_atax+0x120>  // b.any
+177: 290:	540000c0 	b.eq	2a8 <kernel_atax+0x158>  // b.none
+186: 2b4:	54fff9e1 	b.ne	1f0 <kernel_atax+0xa0>  // b.any
+193: 2d0:	17fffff6 	b	2a8 <kernel_atax+0x158>
+202: 2f4:	54ffff2c 	b.gt	2d8 <kernel_atax+0x188>
+203: 2f8:	17ffffec 	b	2a8 <kernel_atax+0x158>
+357: 4e0:	97ffff1c 	bl	150 <kernel_atax>
+f31f15b65b19e7d779c21ea9ad5c017fbb51278a333d9b541b5fa34705525e9b  tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c
+719ef186a8e60f669cdda167450b4a37d1726329d7dbce194e37b792f60c43ba  runtime/polybench_repeat_driver.c
+31761e89c20a15293a2269d3e03b4c818f16830f11a1ab00871bf1aaa4e5c746  /tmp/polybench-publication-orin-cpu/atax/native-cpu-timing

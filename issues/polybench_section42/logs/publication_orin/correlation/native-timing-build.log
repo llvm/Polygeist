@@ -1,0 +1,20 @@
++ set -x
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -Dmain=polygeist_polybench_iteration -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/datamining/correlation -c tools/cgeist/Test/polybench/datamining/correlation/correlation.c -o /tmp/polybench-publication-orin/correlation/native-publication-work/harness-timing-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_correlation /tmp/polybench-publication-orin/correlation/native-publication-work/harness-timing-full.o /tmp/polybench-publication-orin/correlation/native-publication-work/harness-timing.o
++ aarch64-linux-gnu-gcc -O3 -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/correlation/native-publication-work/polybench-timing.o
++ aarch64-linux-gnu-gcc -O3 -c runtime/polybench_repeat_driver.c -o /tmp/polybench-publication-orin/correlation/native-publication-work/repeat-driver.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/correlation/native-publication-work/harness-timing.o /tmp/polybench-publication-orin/correlation/native-publication-work/polybench-timing.o /tmp/polybench-publication-orin/correlation/native-publication-work/repeat-driver.o /tmp/polybench-publication-orin/correlation/native-publication-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/correlation/native-timing-5x5
++ aarch64-linux-gnu-objdump -dr /tmp/polybench-publication-orin/correlation/native-publication-work/harness-timing-full.o
++ rg -B1 -A5 'R_AARCH64_CALL26.*kernel_correlation'
+ 730:	94000000 	bl	2a0 <kernel_correlation>
+			730: R_AARCH64_CALL26	kernel_correlation
+ 734:	94000000 	bl	0 <polybench_timer_stop>
+			734: R_AARCH64_CALL26	polybench_timer_stop
+ 738:	94000000 	bl	0 <polybench_timer_print>
+			738: R_AARCH64_CALL26	polybench_timer_print
+ 73c:	7100aaff 	cmp	w23, #0x2a
++ file /tmp/polybench-publication-orin/correlation/native-timing-5x5
+/tmp/polybench-publication-orin/correlation/native-timing-5x5: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=c4bfcf2032b93a76702fdd4b55b2a1696eb81488, for GNU/Linux 3.7.0, not stripped
++ sha256sum /tmp/polybench-publication-orin/correlation/native-timing-5x5 runtime/polybench_repeat_driver.c
+0854da5f71899f868787af05062495f0644648255e4ef505a39287a6b8decf90  /tmp/polybench-publication-orin/correlation/native-timing-5x5
+719ef186a8e60f669cdda167450b4a37d1726329d7dbce194e37b792f60c43ba  runtime/polybench_repeat_driver.c

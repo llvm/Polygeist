@@ -1,0 +1,57 @@
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c  function=kernel_atax  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+[polygeist] harness=issues/polybench_section42/logs/publication_orin_cpu/atax/raised_cpu_harness.c
+[polygeist] gcc passthrough: -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/atax
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/atax/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 4 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_atax
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+         + optimized AArch64 CPU CBLAS runtime enabled
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+         exported link objects to /tmp/polybench-publication-orin-cpu/atax/raised-correctness-export
+  [9/9] link → /tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: cannot find -lgfortran: No such file or directory
+collect2: error: ld returned 1 exit status
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c  function=kernel_atax  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+[polygeist] harness=issues/polybench_section42/logs/publication_orin_cpu/atax/raised_cpu_harness.c
+[polygeist] gcc passthrough: -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/atax
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/atax/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 4 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_atax
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+         + optimized AArch64 CPU CBLAS runtime enabled
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+         exported link objects to /tmp/polybench-publication-orin-cpu/atax/raised-correctness-export
+  [9/9] link → /tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: /tmp/polygeist-openblas-0.3.31/libopenblas_armv8-r0.3.31.a(memory.o): in function `openblas_fork_handler':
+memory.c:(.text+0x364): undefined reference to `blas_thread_shutdown_'
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: memory.c:(.text+0x370): undefined reference to `blas_thread_shutdown_'
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: /tmp/polygeist-openblas-0.3.31/libopenblas_armv8-r0.3.31.a(memory.o): in function `blas_shutdown':
+memory.c:(.text+0xa24): undefined reference to `blas_thread_shutdown_'
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: /tmp/polygeist-openblas-0.3.31/libopenblas_armv8-r0.3.31.a(memory.o): in function `gotoblas_init':
+memory.c:(.text.startup+0x40): undefined reference to `blas_server_avail'
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: memory.c:(.text.startup+0x44): undefined reference to `blas_server_avail'
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: memory.c:(.text.startup+0x68): undefined reference to `blas_thread_init'
+collect2: error: ld returned 1 exit status
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c  function=kernel_atax  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+[polygeist] harness=issues/polybench_section42/logs/publication_orin_cpu/atax/raised_cpu_harness.c
+[polygeist] gcc passthrough: -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/atax
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/atax/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 4 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_atax
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+         + optimized AArch64 CPU CBLAS runtime enabled
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+         exported link objects to /tmp/polybench-publication-orin-cpu/atax/raised-correctness-export
+  [9/9] link → /tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness
+
+═══ build complete ═══
+/tmp/polybench-publication-orin-cpu/atax/raised-openblas-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=3b0835e973e67520b235d999ab8c39def5d90252, for GNU/Linux 3.7.0, not stripped

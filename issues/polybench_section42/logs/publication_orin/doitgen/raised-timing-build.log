@@ -1,0 +1,39 @@
+  [1/6] lower Polygeist views + canonicalise input MLIR
+  [2/6] one-shot-bufferize + lower to LLVM dialect (host-side, on this VM)
+/tmp/polybench-publication-orin/doitgen/raised-timing-final-work/abi.mlir:15:15: error: op was not bufferized
+      %22:2 = affine.for %arg9 = 0 to %2 iter_args(%arg10 = %arg7, %arg11 = %arg8) -> (tensor<?xf64>, tensor<?x?x?xf64>) {
+              ^
+/tmp/polybench-publication-orin/doitgen/raised-timing-final-work/abi.mlir:15:15: note: see current operation: 
+%50:2 = "affine.for"(%8, %arg7, %arg8) ({
+^bb0(%arg9: index, %arg10: tensor<?xf64>, %arg11: tensor<?x?x?xf64>):
+  %51 = "memref.dim"(%arg4, %3) : (memref<?x?xf64>, index) -> index
+  %52 = "arith.index_cast"(%51) : (index) -> i32
+  %53 = "memref.extract_aligned_pointer_as_index"(%arg4) : (memref<?x?xf64>) -> index
+  %54 = "arith.index_cast"(%53) : (index) -> i64
+  %55 = "llvm.inttoptr"(%54) : (i64) -> !llvm.ptr
+  %56 = "memref.extract_aligned_pointer_as_index"(%arg3) : (memref<?x?x?xf64>) -> index
+  %57 = "arith.index_cast"(%56) : (index) -> i64
+  %58:8 = "memref.extract_strided_metadata"(%arg3) : (memref<?x?x?xf64>) -> (memref<f64>, index, index, index, index, index, index, index)
+  %59 = "arith.index_cast"(%arg6) : (index) -> i64
+  %60 = "arith.index_cast"(%58#5) : (index) -> i64
+  %61 = "arith.muli"(%59, %60) : (i64, i64) -> i64
+  %62 = "arith.index_cast"(%arg9) : (index) -> i64
+  %63 = "arith.index_cast"(%58#6) : (index) -> i64
+  %64 = "arith.muli"(%62, %63) : (i64, i64) -> i64
+  %65 = "arith.addi"(%61, %64) : (i64, i64) -> i64
+  %66 = "arith.muli"(%65, %2) : (i64, i64) -> i64
+  %67 = "arith.addi"(%57, %66) : (i64, i64) -> i64
+  %68 = "llvm.inttoptr"(%67) : (i64) -> !llvm.ptr
+  %69 = "memref.subview"(%arg3, %arg6, %arg9, %9) <{operandSegmentSizes = array<i32: 1, 2, 1, 0>, static_offsets = array<i64: -9223372036854775808, -9223372036854775808, 0>, static_sizes = array<i64: 1, 1, -9223372036854775808>, static_strides = array<i64: 1, 1, 1>}> : (memref<?x?x?xf64>, index, index, index) -> memref<?xf64, strided<[1], offset: ?>>
+  %70 = "memref.extract_aligned_pointer_as_index"(%69) : (memref<?xf64, strided<[1], offset: ?>>) -> index
+  %71 = "arith.index_cast"(%70) : (index) -> i64
+  %72:4 = "memref.extract_strided_metadata"(%69) : (memref<?xf64, strided<[1], offset: ?>>) -> (memref<f64>, index, index, index)
+  %73 = "arith.index_cast"(%72#1) : (index) -> i64
+  %74 = "arith.muli"(%73, %2) : (i64, i64) -> i64
+  %75 = "arith.addi"(%71, %74) : (i64, i64) -> i64
+  %76 = "llvm.inttoptr"(%75) : (i64) -> !llvm.ptr
+  "func.call"() <{callee = @polygeist_cublas_pipeline_begin}> : () -> ()
+  "func.call"(%arg2, %arg2, %4, %55, %52, %68, %5, %76) <{callee = @polygeist_cublas_dgemv_T}> : (i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, f64, !llvm.ptr) -> ()
+  "func.call"() <{callee = @polygeist_cublas_pipeline_end}> : () -> ()
+  "affine.yield"(%arg10, %arg11) : (tensor<?xf64>, tensor<?x?x?xf64>) -> ()
+}) {lower_bound = affine_map<() -> (0)>, step = 1 : index, upper_bound = affine_map<()[s0] -> (s0)>} : (index, tensor<?xf64>, tensor<?x?x?xf64>) -> (tensor<?xf64>, tensor<?x?x?xf64>)

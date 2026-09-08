@@ -1,0 +1,34 @@
++ set -x
++ /usr/local/cuda-12.6/bin/nvcc -O3 -std=c++17 -arch=sm_87 -ccbin aarch64-linux-gnu-g++ -Iissues/polybench_section42/polybenchgpu_adapters -Ithird_party/polybenchGpu -c issues/polybench_section42/polybenchgpu_adapters/covariance.cu -o /tmp/polybench-publication-orin/covariance/native-publication-work/adapter.o
+third_party/polybenchGpu/CUDA/COVAR/covariance.cu: In function ‘void covarianceCuda(int, int, double (*)[1400], double (*)[1200], double*, double (*)[1200])’:
+third_party/polybenchGpu/CUDA/COVAR/covariance.cu:199:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  199 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/COVAR/covariance.cu:201:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  201 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/COVAR/covariance.cu:203:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  203 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/datamining/covariance -c tools/cgeist/Test/polybench/datamining/covariance/covariance.c -o /tmp/polybench-publication-orin/covariance/native-publication-work/harness-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_covariance /tmp/polybench-publication-orin/covariance/native-publication-work/harness-full.o /tmp/polybench-publication-orin/covariance/native-publication-work/harness.o
++ aarch64-linux-gnu-gcc -O3 -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/covariance/native-publication-work/polybench.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/covariance/native-publication-work/harness.o /tmp/polybench-publication-orin/covariance/native-publication-work/polybench.o /tmp/polybench-publication-orin/covariance/native-publication-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/covariance/native-correctness
++ file /tmp/polybench-publication-orin/covariance/native-correctness
+/tmp/polybench-publication-orin/covariance/native-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=cc9988fb71ca9bd940874e8eb7a15c1d6c87b725, for GNU/Linux 3.7.0, not stripped
++ aarch64-linux-gnu-nm /tmp/polybench-publication-orin/covariance/native-correctness
++ rg ' T kernel_covariance$'
+0000000000003584 T kernel_covariance
++ sha256sum tools/cgeist/Test/polybench/datamining/covariance/covariance.c issues/polybench_section42/polybenchgpu_adapters/covariance.cu /tmp/polybench-publication-orin/covariance/native-correctness
+cb87cdbc44548b7108e1e31830e8ec454f57672bfb711eb4f9bf1fdbe914dc60  tools/cgeist/Test/polybench/datamining/covariance/covariance.c
+dd62a7ebc9a40f2dca75ae7ae12873736dc342cdb2de19a926c9c5c12ea1882b  issues/polybench_section42/polybenchgpu_adapters/covariance.cu
+144b1ba50dd56ffefda6afb0ed8e129d847e5db37b38950dded83327d09bb2c8  /tmp/polybench-publication-orin/covariance/native-correctness

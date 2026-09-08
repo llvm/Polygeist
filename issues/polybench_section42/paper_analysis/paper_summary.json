@@ -1,0 +1,57 @@
+{
+  "cpu_paired_kernels": 17,
+  "cpu_geomean_speedup": 7.698938777124112,
+  "cpu_median_speedup": 9.302674899034576,
+  "cpu_speedup_min": 1.2684451933694256,
+  "cpu_speedup_max": 32.90681565676615,
+  "cpu_missing": [
+    "adi",
+    "deriche",
+    "durbin",
+    "fdtd-2d",
+    "floyd-warshall",
+    "gramschmidt",
+    "heat-3d",
+    "jacobi-1d",
+    "jacobi-2d",
+    "lu",
+    "ludcmp",
+    "nussinov",
+    "seidel-2d"
+  ],
+  "gpu_native_kernels": 13,
+  "gpu_raised_kernels": 16,
+  "gpu_paired_kernels": 11,
+  "gpu_geomean_device_speedup": 1.5549958662068464,
+  "gpu_median_device_speedup": 2.185775461902268,
+  "gpu_raised_faster": 8,
+  "gpu_native_faster": 3,
+  "gpu_native_only": [
+    "fdtd-2d",
+    "gemm"
+  ],
+  "gpu_raised_only": [
+    "cholesky",
+    "doitgen",
+    "symm",
+    "trisolv",
+    "trmm"
+  ],
+  "gpu_neither": [
+    "adi",
+    "deriche",
+    "durbin",
+    "floyd-warshall",
+    "gramschmidt",
+    "heat-3d",
+    "jacobi-1d",
+    "jacobi-2d",
+    "lu",
+    "ludcmp",
+    "nussinov",
+    "seidel-2d"
+  ],
+  "manifest_rows": 30,
+  "manifest_rows_with_explicit_status": 30,
+  "publication_status": "pending_fixed_hardware_state_verification"
+}

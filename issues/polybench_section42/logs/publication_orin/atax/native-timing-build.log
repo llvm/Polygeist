@@ -1,0 +1,13 @@
+BUILD native ATAX timing: one AArch64 process, 5 warmups + 5 samples
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c:33:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+0000000000003104 T kernel_atax
+0000000000001970 T polygeist_polybench_iteration
+/tmp/polybench-publication-orin/atax/native-timing-5x5: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=5eb8879c4e2bb7aeae5c1d36acd734f33b302b19, for GNU/Linux 3.7.0, not stripped
+a30727c8768983044f9b98484937f06d2d4040c9632157c62db2e61a05792951  /tmp/polybench-publication-orin/atax/native-timing-5x5
+719ef186a8e60f669cdda167450b4a37d1726329d7dbce194e37b792f60c43ba  runtime/polybench_repeat_driver.c
