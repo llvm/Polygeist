@@ -45,6 +45,15 @@ void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     double *B, int32_t ldb);
 void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A);
+void polygeist_cublas_dgramschmidt_mgs_row_major(
+    int32_t m, int32_t n, double *A, int32_t lda,
+    double *R, int32_t ldr, double *Q, int32_t ldq);
+void polygeist_cublas_dcovariance_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *cov, int32_t ldc, double *mean);
+void polygeist_cublas_dcorrelation_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *corr, int32_t ldc, double *mean, double *stddev);
 
 // NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
 // derived from the MLIR memref descriptors; row_offsets[rows] supplies nnz.

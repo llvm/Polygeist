@@ -1018,6 +1018,89 @@ struct LowerFlatTensorSubmapToMemrefView
   }
 };
 
+// Once linalg has been converted to explicit loops, accesses through a
+// polygeist.submap are ordinary memref.load/store operations.  Compose the
+// logical access indices with the submap's affine map and address the base
+// memref directly.  Unlike memref.subview/reinterpret_cast, this is able to
+// represent reversed dimensions and arbitrary runtime-symbol offsets without
+// manufacturing a temporary buffer.  It is also the exact memref analogue of
+// the affine.load/store canonicalizations registered on SubmapOp.
+static std::optional<SmallVector<Value>>
+composeMemrefAccessIndices(SubmapOp submap, ValueRange accessIndices,
+                           PatternRewriter &rewriter) {
+  AffineMap map = submap.getMap();
+  if (accessIndices.size() != map.getNumDims())
+    return std::nullopt;
+
+  SmallVector<Value> operands(accessIndices.begin(), accessIndices.end());
+  operands.append(submap.getSymbols().begin(), submap.getSymbols().end());
+  SmallVector<Value> baseIndices;
+  baseIndices.reserve(map.getNumResults());
+  for (AffineExpr result : map.getResults()) {
+    AffineMap resultMap = AffineMap::get(
+        map.getNumDims(), map.getNumSymbols(), result, map.getContext());
+    baseIndices.push_back(rewriter.create<affine::AffineApplyOp>(
+        submap.getLoc(), resultMap, operands));
+  }
+  return baseIndices;
+}
+
+struct LowerMemrefLoadThroughSubmap
+    : public OpRewritePattern<memref::LoadOp> {
+  using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::LoadOp load,
+                                PatternRewriter &rewriter) const final {
+    auto submap = load.getMemRef().getDefiningOp<SubmapOp>();
+    if (!submap || !isa<MemRefType>(submap.getBase().getType()))
+      return failure();
+    auto indices =
+        composeMemrefAccessIndices(submap, load.getIndices(), rewriter);
+    if (!indices)
+      return failure();
+    rewriter.replaceOpWithNewOp<memref::LoadOp>(
+        load, submap.getBase(), *indices);
+    return success();
+  }
+};
+
+struct LowerMemrefStoreThroughSubmap
+    : public OpRewritePattern<memref::StoreOp> {
+  using OpRewritePattern<memref::StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::StoreOp store,
+                                PatternRewriter &rewriter) const final {
+    auto submap = store.getMemRef().getDefiningOp<SubmapOp>();
+    if (!submap || !isa<MemRefType>(submap.getBase().getType()))
+      return failure();
+    auto indices =
+        composeMemrefAccessIndices(submap, store.getIndices(), rewriter);
+    if (!indices)
+      return failure();
+    rewriter.replaceOpWithNewOp<memref::StoreOp>(
+        store, store.getValue(), submap.getBase(), *indices);
+    return success();
+  }
+};
+
+struct LowerMemrefDimThroughSubmap : public OpRewritePattern<memref::DimOp> {
+  using OpRewritePattern<memref::DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::DimOp dim,
+                                PatternRewriter &rewriter) const final {
+    auto submap = dim.getSource().getDefiningOp<SubmapOp>();
+    if (!submap)
+      return failure();
+    auto index = getConstantIndex(dim.getIndex());
+    if (!index || *index < 0 ||
+        static_cast<unsigned>(*index) >= submap.getMap().getNumDims() ||
+        static_cast<unsigned>(*index) >= submap.getSizes().size())
+      return failure();
+    rewriter.replaceOp(dim, submap.getSizes()[*index]);
+    return success();
+  }
+};
+
 // After linalg-to-loops, a reduction over a scalar accumulator can retain the
 // frontend's logical broadcast view:
 //
@@ -2014,6 +2097,51 @@ struct LowerPolygeistSubmapPass
   }
 
   void runOnOperation() override {
+    // A post-linalg cleanup invocation contains explicit memref accesses and
+    // no linalg.generic operations.  Restrict rewriting to accesses whose
+    // producer is actually a SubmapOp.  Running the unrestricted greedy
+    // folder here also folds unrelated dynamically-offset memref.subview
+    // accesses in this MLIR revision and can materialize kDynamic (INT64_MIN)
+    // as an array index.  The targeted mode both avoids that miscompile and
+    // is sufficient to eliminate arbitrary affine submaps after loop
+    // conversion.
+    SmallVector<Operation *> submapAccesses;
+    bool hasLinalgGeneric = false;
+    getOperation()->walk([&](Operation *op) {
+      hasLinalgGeneric |= isa<linalg::GenericOp>(op);
+      if (auto load = dyn_cast<memref::LoadOp>(op)) {
+        if (load.getMemRef().getDefiningOp<SubmapOp>())
+          submapAccesses.push_back(op);
+      } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
+        if (store.getMemRef().getDefiningOp<SubmapOp>())
+          submapAccesses.push_back(op);
+      } else if (auto dim = dyn_cast<memref::DimOp>(op)) {
+        if (dim.getSource().getDefiningOp<SubmapOp>())
+          submapAccesses.push_back(op);
+      }
+    });
+    if (!hasLinalgGeneric && !submapAccesses.empty()) {
+      RewritePatternSet accessPatterns(&getContext());
+      accessPatterns.add<LowerMemrefLoadThroughSubmap,
+                         LowerMemrefStoreThroughSubmap,
+                         LowerMemrefDimThroughSubmap>(&getContext());
+      GreedyRewriteConfig accessConfig;
+      accessConfig.strictMode = GreedyRewriteStrictness::ExistingOps;
+      if (failed(applyOpPatternsAndFold(
+              submapAccesses,
+              FrozenRewritePatternSet(std::move(accessPatterns)),
+              accessConfig))) {
+        signalPassFailure();
+        return;
+      }
+      SmallVector<SubmapOp> deadSubmaps;
+      getOperation()->walk([&](SubmapOp submap) {
+        if (submap->use_empty())
+          deadSubmaps.push_back(submap);
+      });
+      for (SubmapOp submap : llvm::reverse(deadSubmaps))
+        submap.erase();
+    } else {
     RewritePatternSet patterns(&getContext());
     patterns.add<FoldIdentitySubmapInverse,
                  NormalizeTensorReductionOutputSubmap,
@@ -2021,6 +2149,8 @@ struct LowerPolygeistSubmapPass
                  ComposeTensorInputSubmapIntoLinalgGeneric,
                  LowerFlatTensorSubmapToMemrefView,
                  ComposeSubmapIntoLinalgGeneric,
+                 LowerMemrefLoadThroughSubmap,
+                 LowerMemrefStoreThroughSubmap,
                  LowerScalarBroadcastMemrefSubmap,
                  LowerDynamicIdentityMemrefSubmap,
                  LowerRowMajorFlatMemrefSubmap,
@@ -2030,6 +2160,7 @@ struct LowerPolygeistSubmapPass
     if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                              std::move(patterns)))) {
       // Some submaps remain — caller may want to know but it's not fatal.
+    }
     }
 
     // C array parameters are represented as dynamic memrefs by cgeist even

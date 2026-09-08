@@ -1,0 +1,151 @@
+date=2026-09-07
+branch=raisetolinalg
+starting_commit=6514a004
+
+Retained debufferized IR cleanup command:
+  build/bin/polygeist-opt issues/polybench_section42/ir/<kernel>/raised_debufferized.mlir --lower-polygeist-submap --canonicalize --cse -o /tmp/<kernel>-submap-lowered.mlir
+
+Results:
+  adi: exit 0; 4 polygeist.submapInverse operations remain
+  durbin: exit 0; 0 polygeist.submap/submapInverse operations remain
+  ludcmp: exit 0; 0 polygeist.submap/submapInverse operations remain
+  nussinov: exit 0; 2 polygeist.submap operations remain
+  seidel-2d: exit 0; 0 polygeist.submap/submapInverse operations remain
+
+Fresh LARGE durbin command:
+  PATH=/home/arjaiswal/Polygeist/build/bin:$PATH POLYBENCH_DATASET=LARGE POLYBENCH_COMPILE_OPT=-O3 POLYBENCH_E2E_OUTPUT_ROOT=/tmp/polybench-section42-gaps bash scripts/correctness/run_kernel_e2e.sh tools/cgeist/Test/polybench/linear-algebra/solvers/durbin durbin --debuf
+
+Result:
+  The pre-debufferization raise and lower-submap stages complete. The combined
+  invocation remained in polygeist-opt --linalg-debufferize at 100% CPU for
+  9 minutes 9 seconds and was manually interrupted. No executable was emitted.
+  The canonical pipeline lowers submaps before debufferization; the remaining
+  negative/symbolic memref views become lowerable only after debufferization,
+  exposing the current ordering/compile-time problem.
+
+Generic loop-access lowering result:
+  Added direct composition of memref.load/store indices with arbitrary affine
+  submap maps. The canonical residual harness selects this allocation-free
+  route only when opaque views remain after the ordinary lowering stage.
+  Focused lit regression: 1 passed, 0 failed.
+
+MINI FP64 correctness:
+  adi: fail (executes; output differs)
+  durbin: pass
+  ludcmp: fail (executes; output differs)
+  nussinov: pass
+  seidel-2d: pass
+
+LARGE FP64 correctness:
+  durbin: pass; build-and-compare wall_seconds=0.88; maxrss_kb=111596
+  nussinov: pass; build-and-compare wall_seconds=173.58; maxrss_kb=111140
+  seidel-2d: pass; build-and-compare wall_seconds=68.10; maxrss_kb=109452
+
+The wall times above cover the complete build and correctness comparison and
+are not performance measurements for performance_cpu.csv.
+
+Dynamic subview sentinel diagnosis:
+  The initial loop-first IR for ADI/Ludcmp contained literal index
+  -9223372036854775808 after unrestricted greedy folding of dynamic subviews.
+  Restricting post-loop rewriting to direct submap load/store/dim operations
+  and omitting broad canonicalization removes every such index.
+
+Final LARGE FP64 correctness:
+  adi: pass; build-and-compare wall_seconds=45.05; maxrss_kb=111200
+  ludcmp: pass; build-and-compare wall_seconds=265.91; maxrss_kb=111528
+
+Final result: all five previously raise-blocked kernels lower without residual
+Polygeist operations and pass exact LARGE output comparison.
+
+Correlation residual diagnosis and result:
+  The affine `j = i + 1 .. M` wrapper around a nested dot-product was raised
+  without applying its active predicate to the nested generic's yielded
+  accumulator. This computed the diagonal/lower triangle as well as the upper
+  triangle. Bound masking now covers nested-generic and direct-store yields.
+  MINI FP64: pass.
+  LARGE FP64: pass; build-and-compare wall_seconds=62.89; maxrss_kb=109992.
+GRAMSCHMIDT CURRENT MATCHER AUDIT
+Command:
+  /usr/bin/python3 scripts/correctness/kernel_match_rewrite.py issues/polybench_section42/ir/gramschmidt/raised_debufferized.mlir --dry-run --show-candidates --show-semantic-only --show-structured-regions
+Result:
+  five linalg.generic bodies; zero matches emitted
+  body#3 candidates: cublasDgemv, cublasDgemv_alpha
+  body#3 result: masked_gemv_reject cublasDgemv
+Conclusion:
+  the previous full-vector GEMV OpenBLAS/cuBLAS experiments were not equivalent
+  to the dynamically active suffix and are unavailable, not correctness fails.
+  Native PolyBenchGPU correctness failure is independent and remains retained.
+
+CHOLESKY EXTERNAL-LIBRARY CORRECTNESS RECHECK
+Dataset/type: LARGE, n=2000, FP64, canonical t-r-s PolyBench initializer.
+Host build:
+  POLYGEIST_CPU_BLAS=1 ... polygeist_build.sh --target=host --no-debuf ...
+Host result (real OpenBLAS Fortran DPOTRF, one thread):
+  POLYBENCH_CHOLESKY_PASS n=2000 max_abs=1.5121237595394632e-13
+Jetson route: all binaries cross-compiled on x86, deployed through pva-general.
+Rejected diagnostics:
+  whole legacy cusolverDnDpotrf: info=0, max_abs=654.86538399998142,
+    worst (1536,1472), got 655.12938399998143, want 0.26400000000005414
+  explicit cudaMalloc staging: identical failure
+  whole cusolverDnXpotrf ALG_1: identical failure, device workspace 384 bytes
+  blocked Xpotrf + DTRSM + DSYRK: max_abs=654.86538399998142
+  blocked Xpotrf + DTRSV + DSYRK: max_abs=25.424966576804064,
+    worst (1537,1536), proving DTRSM was one failure and submatrix DSYRK another
+Accepted Jetson composition:
+  packed 512-column cusolverDnXpotrf panels + cublasDtrsv trailing solves +
+  cublasDgemv symmetric trailing-column updates
+  panel info values: 0, 0, 0, 0
+  POLYBENCH_CHOLESKY_PASS n=2000 max_abs=1.921796055626146e-13
+No project-authored computational kernel is present in either accepted path.
+
+LU RESIDUAL MEMORY AND TIMING RECHECK
+Rejected retained tensor-bufferized binary:
+  command: taskset -c 21 timeout 900s /tmp/polybench-section42-cpu-timing/lu/residual
+  result: signal 9 after 208.16 s, peak RSS 59,887,328 KB
+Accepted generic route:
+  POLYBENCH_RESIDUAL_LOOPS=1 POLYBENCH_DATASET=LARGE
+    scripts/correctness/run_kernel_e2e.sh .../lu lu --debuf
+  correctness: exact PASS; complete validation wall 196.03 s; peak RSS 105,280 KB
+  timing scope: PolyBench kernel call, CPU 21, one process/thread
+  warmup: 18.362169 s (discarded)
+  samples: 16.380867, 17.464700, 17.757082, 17.547201, 18.299740 s
+  median: 17.547201 s
+  native median: 11.734263 s
+  speedup versus native: 0.668726x
+
+GRAMSCHMIDT WHOLE EXTERNAL-BLAS COMPOSITION
+Recognized complete recurrence:
+  for each k: DNRM2(A[:,k]); DCOPY+DSCAL into Q[:,k];
+  GEMV for R[k,k+1:n]; GER update of A[:,k+1:n]
+The matcher consumes all five Linalg bodies and all loop-carried A/R/Q state;
+it does not emit the previously invalid masked full-vector GEMV.
+OpenBLAS LARGE/FP64 result:
+  FAIL values=2640000 failures=492160 max_abs=60.3 max_rel=276.5
+  first_failure index=604104 (R[503][504]) reference=-1.18 candidate=-0.07
+cuBLAS LARGE/FP64 Jetson result (host cross-compiled):
+  FAIL values=2640000 failures=490516 max_abs=88.05 max_rel=694.5
+  first_failure index=604104 (R[503][504]) reference=-1.18 candidate=-5.62
+Disposition: valid external-library compositions, correctness fail, no timing.
+
+CHOLESKY ACCEPTED TIMING
+OpenBLAS CPU, CPU 21, one thread, one discarded warmup:
+  samples_ms=68.531,60.894,65.014,62.975,64.021
+  median_ms=64.021; native_ms=1919.037; speedup=29.975118x
+Jetson blocked cuSOLVER/cuBLAS, one discarded warmup:
+  device_samples_ms=542.020630,568.255615,545.908875,543.584167,542.977295
+  e2e_samples_ms=629.824,678.130,636.291,632.020,630.924
+  device_median_ms=543.584167; e2e_median_ms=632.020
+
+COVARIANCE EXTERNAL COMPOSITION
+Structural whole-operation match; OpenBLAS and Jetson cuBLAS correctness PASS
+1440000/1440000 at LARGE FP64. CPU 21 OpenBLAS post-warmup samples_s=
+0.086062,0.082079,0.082939,0.082363,0.085438; median_ms=82.939.
+Jetson device samples_ms=588.207275,592.426514,592.099670,584.427185,
+590.681763; median_ms=590.681763. E2E median_ms=659.460.
+
+CORRELATION EXTERNAL COMPOSITION
+Structural whole-operation match; OpenBLAS and Jetson cuBLAS correctness PASS
+1440000/1440000 exactly at LARGE FP64. CPU 21 OpenBLAS post-warmup samples_s=
+0.095494,0.094161,0.094717,0.093178,0.096396; median_ms=94.717.
+Jetson device samples_ms=780.492249,782.953125,767.080688,774.067383,
+767.818481; median_ms=774.067383. E2E median_ms=843.458.

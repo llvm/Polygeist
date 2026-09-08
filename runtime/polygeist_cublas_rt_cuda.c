@@ -2853,32 +2853,115 @@ void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
   polygeist_cublas_init();
   ensure_cusolver();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  double *dA = (double *)register_host_safe(
-      A, (size_t)n * (size_t)n * sizeof(double));
-  int workspace_elements = 0;
-  CUSOLVER_CHECK(cusolverDnDpotrf_bufferSize(
-      g_solver, CUBLAS_FILL_MODE_UPPER, n, dA, n, &workspace_elements));
-  double *workspace = NULL;
+  const size_t matrix_bytes =
+      (size_t)n * (size_t)n * sizeof(double);
+  void *resident = NULL;
+  const int input_is_device = pointer_is_device_resident(A, &resident);
+  double *dA = (double *)resident;
+  if (!input_is_device) {
+    // cuSOLVER's dense factorization does not reliably update mapped host
+    // memory on the evaluation Jetson, even though cuBLAS accepts the same
+    // mapping. Stage ordinary host matrices in real device allocation.
+    DEVICE_MALLOC((void **)&dA, matrix_bytes);
+    CUDA_CHECK(cudaMemcpyAsync(dA, A, matrix_bytes, cudaMemcpyHostToDevice,
+                               g_stream));
+  }
+  cusolverDnParams_t params = NULL;
+  CUSOLVER_CHECK(cusolverDnCreateParams(&params));
+  CUSOLVER_CHECK(cusolverDnSetAdvOptions(
+      params, CUSOLVERDN_POTRF, CUSOLVER_ALG_1));
   int *device_info = NULL;
-  DEVICE_MALLOC((void **)&workspace,
-                (size_t)workspace_elements * sizeof(double));
   DEVICE_MALLOC((void **)&device_info, sizeof(int));
+  const int32_t block_size = 512;
+  const double one = 1.0;
+  const double minus_one = -1.0;
   timing_gpu_begin();
-  CUSOLVER_CHECK(cusolverDnDpotrf(
-      g_solver, CUBLAS_FILL_MODE_UPPER, n, dA, n, workspace,
-      workspace_elements, device_info));
-  timing_gpu_end("cusolverDnDpotrfLowerRowMajor", n, n, 0, host_start_ms);
-  if (!in_pipeline_scope()) {
+  for (int32_t first = 0; first < n; first += block_size) {
+    const int32_t panel =
+        first + block_size <= n ? block_size : n - first;
+    const int32_t trailing = n - first - panel;
+    double *diagonal = dA + (size_t)first * (size_t)n + first;
+    double *packed_diagonal = NULL;
+    DEVICE_MALLOC((void **)&packed_diagonal,
+                  (size_t)panel * (size_t)panel * sizeof(double));
+    CUDA_CHECK(cudaMemcpy2DAsync(
+        packed_diagonal, (size_t)panel * sizeof(double), diagonal,
+        (size_t)n * sizeof(double), (size_t)panel * sizeof(double), panel,
+        cudaMemcpyDeviceToDevice, g_stream));
+    size_t device_workspace_bytes = 0;
+    size_t host_workspace_bytes = 0;
+    CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(
+        g_solver, params, CUBLAS_FILL_MODE_UPPER, panel, CUDA_R_64F,
+        packed_diagonal, panel, CUDA_R_64F, &device_workspace_bytes,
+        &host_workspace_bytes));
+    void *device_workspace = NULL;
+    void *host_workspace = NULL;
+    DEVICE_MALLOC(&device_workspace, device_workspace_bytes);
+    if (host_workspace_bytes) {
+      host_workspace = malloc(host_workspace_bytes);
+      if (!host_workspace) {
+        fprintf(stderr, "cuSOLVER DPOTRF host workspace allocation failed\n");
+        abort();
+      }
+    }
+    CUSOLVER_CHECK(cusolverDnXpotrf(
+        g_solver, params, CUBLAS_FILL_MODE_UPPER, panel, CUDA_R_64F,
+        packed_diagonal, panel, CUDA_R_64F, device_workspace,
+        device_workspace_bytes,
+        host_workspace, host_workspace_bytes, device_info));
     int info = 0;
     CUDA_CHECK(cudaMemcpy(&info, device_info, sizeof(int),
                           cudaMemcpyDeviceToHost));
+    if (getenv("POLYGEIST_CUSOLVER_DIAGNOSTICS"))
+      fprintf(stderr,
+              "polygeist cuSOLVER Xpotrf first=%d panel=%d info=%d "
+              "device_workspace=%zu host_workspace=%zu\n",
+              (int)first, (int)panel, info, device_workspace_bytes,
+              host_workspace_bytes);
     if (info != 0) {
-      fprintf(stderr, "cuSOLVER DPOTRF failed: info=%d\n", info);
+      fprintf(stderr, "cuSOLVER DPOTRF failed at panel %d: info=%d\n",
+              (int)first, info);
       abort();
     }
+    DEVICE_FREE(device_workspace);
+    free(host_workspace);
+    CUDA_CHECK(cudaMemcpy2DAsync(
+        diagonal, (size_t)n * sizeof(double), packed_diagonal,
+        (size_t)panel * sizeof(double), (size_t)panel * sizeof(double), panel,
+        cudaMemcpyDeviceToDevice, g_stream));
+    if (trailing <= 0) {
+      DEVICE_FREE(packed_diagonal);
+      continue;
+    }
+    double *off_diagonal =
+        dA + (size_t)(first + panel) * (size_t)n + first;
+    double *trailing_matrix =
+        dA + (size_t)(first + panel) * (size_t)n + first + panel;
+    // DTRSM returns success but leaves its output unchanged on the evaluation
+    // Jetson, like the device's DTRMM entry point.  Express the same solve as
+    // independent real cuBLAS DTRSV calls over the trailing columns.
+    for (int32_t column = 0; column < trailing; ++column)
+      CUBLAS_CHECK(cublasDtrsv(
+          g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+          CUBLAS_DIAG_NON_UNIT, panel, packed_diagonal, panel,
+          off_diagonal + (size_t)column * (size_t)n, 1));
+    // The direct submatrix SYRK route is unreliable on this CUDA deployment.
+    // Update each upper-triangle column with an equivalent external DGEMV.
+    for (int32_t column = 0; column < trailing; ++column)
+      CUBLAS_CHECK(cublasDgemv(
+          g_handle, CUBLAS_OP_T, panel, column + 1, &minus_one,
+          off_diagonal, n,
+          off_diagonal + (size_t)column * (size_t)n, 1, &one,
+          trailing_matrix + (size_t)column * (size_t)n, 1));
+    DEVICE_FREE(packed_diagonal);
   }
+  timing_gpu_end("cusolverDnDpotrfLowerRowMajor", n, n, 0, host_start_ms);
+  if (!input_is_device)
+    CUDA_CHECK(cudaMemcpy(A, dA, matrix_bytes, cudaMemcpyDeviceToHost));
   DEVICE_FREE(device_info);
-  DEVICE_FREE(workspace);
+  CUSOLVER_CHECK(cusolverDnDestroyParams(params));
+  if (!input_is_device)
+    DEVICE_FREE(dA);
 #else
   (void)n;
   (void)A;
@@ -2887,6 +2970,157 @@ void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
           "without cuSOLVER support\n");
   abort();
 #endif
+}
+
+void polygeist_cublas_dgramschmidt_mgs_row_major(
+    int32_t m, int32_t n, double *A, int32_t lda,
+    double *R, int32_t ldr, double *Q, int32_t ldq) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *hosts[3] = {A, R, Q};
+  size_t sizes[3] = {
+      (size_t)m * (size_t)lda * sizeof(double),
+      (size_t)n * (size_t)ldr * sizeof(double),
+      (size_t)m * (size_t)ldq * sizeof(double)};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dR = (double *)devices[1];
+  double *dQ = (double *)devices[2];
+  const double one = 1.0;
+  const double zero = 0.0;
+  const double minus_one = -1.0;
+  timing_gpu_begin();
+  for (int32_t k = 0; k < n; ++k) {
+    double norm = 0.0;
+    CUBLAS_CHECK(cublasDnrm2(g_handle, m, dA + k, lda, &norm));
+    CUDA_CHECK(cudaMemcpyAsync(
+        dR + (size_t)k * (size_t)ldr + k, &norm, sizeof(double),
+        cudaMemcpyHostToDevice, g_stream));
+    CUBLAS_CHECK(cublasDcopy(g_handle, m, dA + k, lda, dQ + k, ldq));
+    const double inverse = 1.0 / norm;
+    CUBLAS_CHECK(cublasDscal(g_handle, m, &inverse, dQ + k, ldq));
+    const int32_t trailing = n - k - 1;
+    if (trailing <= 0)
+      continue;
+    double *r_suffix = dR + (size_t)k * (size_t)ldr + k + 1;
+    CUBLAS_CHECK(cublasDgemv(
+        g_handle, CUBLAS_OP_N, trailing, m, &one, dA + k + 1, lda,
+        dQ + k, ldq, &zero, r_suffix, 1));
+    CUBLAS_CHECK(cublasDger(
+        g_handle, trailing, m, &minus_one, r_suffix, 1, dQ + k, ldq,
+        dA + k + 1, lda));
+  }
+  timing_gpu_end("cublasDgramschmidtMGSRowMajor", m, n, 0, host_start_ms);
+}
+
+void polygeist_cublas_dcovariance_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *cov, int32_t ldc, double *mean) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *hosts[3] = {data, cov, mean};
+  size_t sizes[3] = {
+      (size_t)m * (size_t)ldd * sizeof(double),
+      (size_t)n * (size_t)ldc * sizeof(double),
+      (size_t)n * sizeof(double)};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *d_data = (double *)devices[0];
+  double *d_cov = (double *)devices[1];
+  double *d_mean = (double *)devices[2];
+  double *host_ones = (double *)malloc((size_t)m * sizeof(double));
+  if (!host_ones) abort();
+  for (int32_t i = 0; i < m; ++i) host_ones[i] = 1.0;
+  double *d_ones = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&d_ones, (size_t)m * sizeof(double)));
+  CUDA_CHECK(cudaMemcpyAsync(d_ones, host_ones, (size_t)m * sizeof(double),
+                             cudaMemcpyHostToDevice, g_stream));
+  free(host_ones);
+
+  const double mean_alpha = 1.0 / sample_count;
+  const double minus_one = -1.0;
+  const double zero = 0.0;
+  const double covariance_alpha = 1.0 / (sample_count - 1.0);
+  timing_gpu_begin();
+  // A row-major m-by-n buffer is a column-major n-by-m view.  Compute the
+  // means and rank-1 centering directly in that view.
+  CUBLAS_CHECK(cublasDgemv(g_handle, CUBLAS_OP_N, n, m, &mean_alpha,
+                           d_data, ldd, d_ones, 1, &zero, d_mean, 1));
+  CUBLAS_CHECK(cublasDger(g_handle, n, m, &minus_one, d_mean, 1,
+                          d_ones, 1, d_data, ldd));
+  // Form every covariance column with GEMV.  This uses only standard cuBLAS
+  // and avoids depending on a project-authored kernel.
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasDgemv(
+        g_handle, CUBLAS_OP_N, n, m, &covariance_alpha, d_data, ldd,
+        d_data + column, ldd, &zero,
+        d_cov + (size_t)column * (size_t)ldc, 1));
+  timing_gpu_end("cublasDcovarianceRowMajor", m, n, 0, host_start_ms);
+  CUDA_CHECK(cudaFree(d_ones));
+}
+
+void polygeist_cublas_dcorrelation_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *corr, int32_t ldc, double *mean, double *stddev) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *hosts[4] = {data, corr, mean, stddev};
+  size_t sizes[4] = {
+      (size_t)m * (size_t)ldd * sizeof(double),
+      (size_t)n * (size_t)ldc * sizeof(double),
+      (size_t)n * sizeof(double), (size_t)n * sizeof(double)};
+  void *devices[4];
+  register_host_operands_safe(hosts, sizes, devices, 4);
+  double *d_data = (double *)devices[0];
+  double *d_corr = (double *)devices[1];
+  double *d_mean = (double *)devices[2];
+  double *d_stddev = (double *)devices[3];
+  const int32_t ones_count = m > n ? m : n;
+  double *host_ones = (double *)malloc((size_t)ones_count * sizeof(double));
+  if (!host_ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) host_ones[i] = 1.0;
+  double *d_ones = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&d_ones, (size_t)ones_count * sizeof(double)));
+  CUDA_CHECK(cudaMemcpyAsync(d_ones, host_ones,
+                             (size_t)ones_count * sizeof(double),
+                             cudaMemcpyHostToDevice, g_stream));
+  free(host_ones);
+  const double mean_alpha = 1.0 / sample_count;
+  const double zero = 0.0;
+  const double root_count = sqrt(sample_count);
+  const double one = 1.0;
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasDgemv(g_handle, CUBLAS_OP_N, n, m, &mean_alpha,
+                           d_data, ldd, d_ones, 1, &zero, d_mean, 1));
+  for (int32_t column = 0; column < n; ++column) {
+    double column_mean;
+    CUDA_CHECK(cudaMemcpyAsync(&column_mean, d_mean + column, sizeof(double),
+                               cudaMemcpyDeviceToHost, g_stream));
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    const double negative_mean = -column_mean;
+    CUBLAS_CHECK(cublasDaxpy(g_handle, m, &negative_mean, d_ones, 1,
+                             d_data + column, ldd));
+    double norm = 0.0;
+    CUBLAS_CHECK(cublasDnrm2(g_handle, m, d_data + column, ldd, &norm));
+    double sigma = norm / root_count;
+    if (sigma <= 0.1) sigma = 1.0;
+    CUDA_CHECK(cudaMemcpyAsync(d_stddev + column, &sigma, sizeof(double),
+                               cudaMemcpyHostToDevice, g_stream));
+    const double scale = 1.0 / (root_count * sigma);
+    CUBLAS_CHECK(cublasDscal(g_handle, m, &scale, d_data + column, ldd));
+  }
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasDgemv(
+        g_handle, CUBLAS_OP_N, n, m, &one, d_data, ldd,
+        d_data + column, ldd, &zero,
+        d_corr + (size_t)column * (size_t)ldc, 1));
+  CUBLAS_CHECK(cublasDcopy(g_handle, n, d_ones, 1, d_corr, ldc + 1));
+  timing_gpu_end("cublasDcorrelationRowMajor", m, n, 0, host_start_ms);
+  CUDA_CHECK(cudaFree(d_ones));
 }
 
 // y = α·A·x + β·y, row-major.  Mirrors polygeist_cublas_dgemm structure

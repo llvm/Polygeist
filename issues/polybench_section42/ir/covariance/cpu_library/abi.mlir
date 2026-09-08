@@ -34,13 +34,9 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<!llvm.ptr<272>, d
     %16 = arith.muli %15, %c8_i64_20 : i64
     %17 = arith.addi %14, %16 : i64
     %18 = llvm.inttoptr %17 : i64 to !llvm.ptr
-    call @polygeist_cublas_pipeline_begin() : () -> ()
     call @polygeist_cublas_dcovariance_row_major(%0, %1, %arg2, %6, %7, %12, %13, %18) : (i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr) -> ()
-    call @polygeist_cublas_pipeline_end() : () -> ()
     return
   }
   func.func private @polygeist_cublas_dcovariance_row_major(i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr)
-  func.func private @polygeist_cublas_pipeline_begin()
-  func.func private @polygeist_cublas_pipeline_end()
 }
 

@@ -95,7 +95,8 @@ cgeist "$SRC" --function=$FN --resource-dir=/usr/lib/clang/14 \
 polygeist-opt "${PIPELINE_OPTS[@]}" $OUT/orig.mlir \
   -o $OUT/raised.mlir 2>>$OUT/raise.err
 LOOPS_PRELOWERED=""
-if grep -qE "polygeist\.(submap|submapInverse)" $OUT/raised.mlir; then
+if [ "${POLYBENCH_RESIDUAL_LOOPS:-0}" != 0 ] || \
+   grep -qE "polygeist\.(submap|submapInverse)" $OUT/raised.mlir; then
   polygeist-opt --convert-linalg-to-loops --lower-polygeist-submap \
     $OUT/raised.mlir -o $OUT/std.mlir \
     2>>$OUT/raise.err
@@ -181,9 +182,15 @@ sed -i "s/@${FN}\b/@${FN}_impl/g" $OUT/kernel.ll
 # Step 6: generate the C wrapper for this kernel.
 python3 $SCRIPT_DIR/gen_wrapper.py "$SRC" "$FN" > $OUT/wrapper.c 2>$OUT/wrapper_gen.err
 
-# Step 7: compile pieces. Weaken kernel_* in gemm.o so wrapper.o wins.
+# Step 7: compile pieces. The original application object must not define the
+# transformed function; linker-symbol replacement is forbidden.
 $CLANG -c $CFLAGS $DYN_FLAGS $SRC -o $OUT/full.o
-objcopy --weaken-symbol=$FN $OUT/full.o $OUT/nokernel.o
+if nm --defined-only $OUT/full.o | awk '{print $3}' | grep -qx "$FN"; then
+  echo "ERROR: source object defines $FN; weak-symbol replacement is forbidden" >&2
+  echo "Use a dedicated algorithm-neutral harness that only invokes the transformed ABI." >&2
+  exit 1
+fi
+cp $OUT/full.o $OUT/nokernel.o
 $CLANG -c $CFLAGS $UTIL/polybench.c -o $OUT/polybench.o
 $CLANG -c $OUT/wrapper.c -o $OUT/wrapper.o
 $CLANG -c $OUT/kernel.ll -o $OUT/kernel.o

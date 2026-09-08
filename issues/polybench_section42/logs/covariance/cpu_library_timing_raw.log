@@ -1,0 +1,7 @@
+command: taskset -c 21 env OPENBLAS_NUM_THREADS=1 /tmp/polybench-section42-covariance-openblas-timing
+covariance,openblas_cblas_1t,warmup,0,0.081877
+covariance,openblas_cblas_1t,1,0,0.086062
+covariance,openblas_cblas_1t,2,0,0.082079
+covariance,openblas_cblas_1t,3,0,0.082939
+covariance,openblas_cblas_1t,4,0,0.082363
+covariance,openblas_cblas_1t,5,0,0.085438

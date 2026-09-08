@@ -51,6 +51,9 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDtrsvLowerRowMajor_memref",
     "cublasDsymmLeftLowerRowMajor_memref",
     "cublasDtrmmLeftLowerTransUnitRowMajor_memref",
+    "cublasDgramschmidtMGSRowMajor_memref",
+    "cublasDcovarianceRowMajor_memref",
+    "cublasDcorrelationRowMajor_memref",
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
@@ -7513,6 +7516,72 @@ def _render_dense_factorization_regions(
         if not args or not upper_match:
             continue
         upper = upper_match.group(1)
+
+        # Modified Gram-Schmidt: norm one column, normalize it into Q, form
+        # the dynamically shrinking row of R, then apply the rank-1 trailing
+        # matrix update. Match the complete loop-carried recurrence so an
+        # isolated masked GEMV can never be substituted for the algorithm.
+        gramschmidt_types = [
+            "i32", "i32", "memref<?x?xf64>", "memref<?x?xf64>",
+            "memref<?x?xf64>",
+        ]
+        if [ty for _, ty in args] == gramschmidt_types:
+            column_cast = re.search(
+                rf"{re.escape(upper)}\s*=\s*arith\.index_cast\s+"
+                rf"{re.escape(args[1][0])}\s*:\s*i32\s+to\s+index",
+                prefix)
+            line_start = text.rfind("\n", 0, loop.span[0]) + 1
+            line_prefix = text[line_start:loop.span[0]]
+            result = re.search(r"(%[\w.$-]+):3\s*=\s*$", line_prefix)
+            tail = None
+            if result:
+                tail = re.match(
+                    rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(result.group(1))}#2\b[^\n]*\n\s*"
+                    rf"memref\.copy\s+\1,\s*{re.escape(args[4][0])}\b[^\n]*\n"
+                    rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(result.group(1))}#1\b[^\n]*\n\s*"
+                    rf"memref\.copy\s+\2,\s*{re.escape(args[3][0])}\b[^\n]*\n"
+                    rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                    rf"{re.escape(result.group(1))}#0\b[^\n]*\n\s*"
+                    rf"memref\.copy\s+\3,\s*{re.escape(args[2][0])}\b[^\n]*",
+                    text[loop.span[1]:])
+            tensor_form = bool(result and tail)
+            memref_form = bool(
+                result is None and "iter_args" not in line_prefix and
+                re.search(rf"affine\.store\s+%[\w.$-]+,\s*"
+                          rf"{re.escape(args[3][0])}\[", body) and
+                all(re.search(rf"polygeist\.submap\("
+                              rf"{re.escape(operand)}\b", body)
+                    for operand, _ in args[2:]))
+            legal_gramschmidt = bool(
+                column_cast and (tensor_form or memref_form) and
+                body.count("linalg.generic") == 5 and
+                body.count('iterator_types = ["reduction"]') == 1 and
+                'iterator_types = ["parallel", "reduction"]' in body and
+                'iterator_types = ["parallel", "parallel"]' in body and
+                "math.sqrt" in body and "arith.divf" in body and
+                "arith.addf" in body and "arith.subf" in body and
+                "linalg.index" in body and "arith.select" in body and
+                (not tensor_form or "tensor.insert_slice" in body))
+            if legal_gramschmidt:
+                indent = re.match(r"\s*", line_prefix).group(0)
+                symbol = "cublasDgramschmidtMGSRowMajor_memref"
+                launch = (
+                    f"{indent}kernel.launch @{symbol}("
+                    f"{args[2][0]}, {args[3][0]}, {args[4][0]}) : "
+                    "(memref<?x?xf64>, memref<?x?xf64>, "
+                    "memref<?x?xf64>) -> ()")
+                consumed = [i for i, inst in enumerate(instances)
+                            if loop.span[0] <= inst.span[0] and
+                            inst.span[1] <= loop.span[1]]
+                replacement_end = (
+                    loop.span[1] + tail.end() if tensor_form else loop.span[1])
+                rendered.append((line_start, replacement_end, launch, symbol,
+                                 consumed))
+                claimed.append((line_start, replacement_end))
+                continue
+
         n_arg = args[0][0]
         if args[0][1] != "i32" or not re.search(
                 rf"{re.escape(upper)}\s*=\s*arith\.index_cast\s+"
@@ -7652,6 +7721,127 @@ def _render_dense_factorization_regions(
             rendered.append((loop.span[0], loop.span[1], launch, symbol,
                              consumed))
             claimed.append(loop.span)
+    return rendered
+
+
+def _render_dense_covariance_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize a complete mean-center-and-Gram covariance algorithm.
+
+    This is deliberately a semantic, name-independent whole-function match:
+    the launch is legal only when the body contains the mean zero/reduction,
+    normalization, matrix centering, upper-triangle dot products, symmetric
+    writeback, and division by ``sample_count - 1``.
+    """
+    rendered = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
+        re.MULTILINE)
+    expected = ["i32", "i32", "f64", "memref<?x?xf64>",
+                "memref<?x?xf64>", "memref<?xf64>"]
+    for function in function_re.finditer(text):
+        args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
+            r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(2))]
+        if [ty for _, ty in args] != expected:
+            continue
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        body = text[opening + 1:function_end - 1]
+        data, cov, mean = args[3][0], args[4][0], args[5][0]
+        legal = bool(
+            body.count("linalg.generic") == 5 and
+            body.count('iterator_types = ["parallel"]') == 2 and
+            body.count('iterator_types = ["parallel", "reduction"]') == 1 and
+            body.count('iterator_types = ["parallel", "parallel"]') == 1 and
+            len(re.findall(r"\baffine\.for\b", body)) == 2 and
+            "arith.addf" in body and "arith.subf" in body and
+            "arith.mulf" in body and body.count("arith.divf") >= 2 and
+            re.search(r"arith\.subf\s+%[\w.$-]+,\s*%[\w.$-]+\s*:\s*f64",
+                      body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(data)}\b", body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(cov)}\b", body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(mean)}\b", body) and
+            re.search(rf"memref\.copy[^\n]*,\s*{re.escape(data)}\b", body) and
+            re.search(rf"memref\.copy[^\n]*,\s*{re.escape(cov)}\b", body) and
+            re.search(rf"memref\.copy[^\n]*,\s*{re.escape(mean)}\b", body) and
+            body.count("tensor.insert") >= 3 and
+            "polygeist.submapInverse" in body)
+        if not legal:
+            continue
+        indent = re.match(r"\s*", text[text.rfind("\n", 0, function.start()) + 1:
+                                      function.start()]).group(0)
+        body_indent = indent + "  "
+        symbol = "cublasDcovarianceRowMajor_memref"
+        launch = (
+            f"\n{body_indent}kernel.launch @{symbol}("
+            f"{args[2][0]}, {data}, {cov}, {mean}) : "
+            "(f64, memref<?x?xf64>, memref<?x?xf64>, memref<?xf64>) -> ()\n"
+            f"{body_indent}return\n{indent}")
+        consumed = [i for i, inst in enumerate(instances)
+                    if opening < inst.span[0] and inst.span[1] < function_end]
+        rendered.append((opening + 1, function_end - 1, launch, symbol,
+                         consumed))
+    return rendered
+
+
+def _render_dense_correlation_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize complete mean/standardize/Gram correlation semantics."""
+    rendered = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
+        re.MULTILINE)
+    expected = ["i32", "i32", "f64", "memref<?x?xf64>",
+                "memref<?x?xf64>", "memref<?xf64>", "memref<?xf64>"]
+    for function in function_re.finditer(text):
+        args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
+            r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(2))]
+        if [ty for _, ty in args] != expected:
+            continue
+        signature_end = text.find("\n", function.end())
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        body = text[opening + 1:function_end - 1]
+        data, corr, mean, stddev = (args[i][0] for i in range(3, 7))
+        legal = bool(
+            body.count("linalg.generic") == 10 and
+            len(re.findall(r"\baffine\.for\b", body)) == 2 and
+            body.count('iterator_types = ["parallel", "reduction"]') == 2 and
+            'iterator_types = ["parallel", "parallel", "reduction"]' in body and
+            body.count("math.sqrt") >= 2 and body.count("arith.divf") >= 3 and
+            body.count("arith.subf") >= 2 and body.count("arith.mulf") >= 3 and
+            "arith.cmpf ole" in body and "arith.select" in body and
+            (body.count("tensor.extract_slice") >= 6 or
+             body.count("polygeist.submap(") >= 10) and
+            (body.count("tensor.insert_slice") >= 3 or
+             body.count("polygeist.submapInverse") >= 8) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(data)}\b", body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(corr)}\b", body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(mean)}\b", body) and
+            re.search(rf"bufferization\.to_tensor\s+{re.escape(stddev)}\b", body) and
+            all(re.search(rf"memref\.copy[^\n]*,\s*{re.escape(x)}\b", body)
+                for x in (data, corr, mean, stddev)))
+        if not legal:
+            continue
+        indent = re.match(r"\s*", text[text.rfind("\n", 0, function.start()) + 1:
+                                      function.start()]).group(0)
+        body_indent = indent + "  "
+        symbol = "cublasDcorrelationRowMajor_memref"
+        launch = (
+            f"\n{body_indent}kernel.launch @{symbol}("
+            f"{args[2][0]}, {data}, {corr}, {mean}, {stddev}) : "
+            "(f64, memref<?x?xf64>, memref<?x?xf64>, memref<?xf64>, "
+            "memref<?xf64>) -> ()\n"
+            f"{body_indent}return\n{indent}")
+        consumed = [i for i, inst in enumerate(instances)
+                    if opening < inst.span[0] and inst.span[1] < function_end]
+        rendered.append((opening + 1, function_end - 1, launch, symbol,
+                         consumed))
     return rendered
 
 
@@ -8452,6 +8642,24 @@ def rewrite_mlir(
             edits.append((start, end, replacement))
             consumed_structured_bodies.update(consumed)
             report.append(("match", consumed, symbol + "[whole-algorithm]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in \
+                _render_dense_covariance_regions(text, instances):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-covariance]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in \
+                _render_dense_correlation_regions(text, instances):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-correlation]"))
             emitted_launches += 1
         for start, end, replacement, symbol, consumed in \
                 _render_dense_symm_regions(text, instances):
