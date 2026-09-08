@@ -9107,8 +9107,12 @@ void polygeist_cudnn_softmax_forward_out_f32(
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
+  void *host_ptrs[2] = {(void *)X, Out};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  float *dX = (float *)device_ptrs[0];
+  float *dOut = (float *)device_ptrs[1];
 
   timing_gpu_begin();
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
@@ -9123,8 +9127,12 @@ void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
 
   size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
+  void *host_ptrs[2] = {(void *)X, Out};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  float *dX = (float *)device_ptrs[0];
+  float *dOut = (float *)device_ptrs[1];
 
   timing_gpu_begin();
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
@@ -9137,8 +9145,12 @@ void polygeist_cuda_copy_f64(int32_t N, const double *X, double *Out) {
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   size_t bytes = (size_t)N * sizeof(double);
-  double *dX = (double *)register_host_safe((void *)X, bytes);
-  double *dOut = (double *)register_host_safe(Out, bytes);
+  void *host_ptrs[2] = {(void *)X, Out};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  double *dX = (double *)device_ptrs[0];
+  double *dOut = (double *)device_ptrs[1];
   timing_gpu_begin();
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
                              g_stream));
@@ -9150,8 +9162,12 @@ void polygeist_cuda_copy_i32(int32_t N, const int32_t *X, int32_t *Out) {
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   size_t bytes = (size_t)N * sizeof(int32_t);
-  int32_t *dX = (int32_t *)register_host_safe((void *)X, bytes);
-  int32_t *dOut = (int32_t *)register_host_safe(Out, bytes);
+  void *host_ptrs[2] = {(void *)X, Out};
+  size_t byte_sizes[2] = {bytes, bytes};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  int32_t *dX = (int32_t *)device_ptrs[0];
+  int32_t *dOut = (int32_t *)device_ptrs[1];
   timing_gpu_begin();
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
                              g_stream));

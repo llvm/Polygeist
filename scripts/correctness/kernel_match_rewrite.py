@@ -2079,7 +2079,13 @@ def _weight_cast_op(src_ty: str, dst_ty: str) -> str:
 def _format_weight_literal(value: float, ty: str) -> str:
     if ty.startswith("f"):
         lit = repr(value)
-        return lit if any(c in lit for c in ".eE") else lit + ".0"
+        exponent = next((c for c in ("e", "E") if c in lit), None)
+        if exponent:
+            mantissa, power = lit.split(exponent, 1)
+            if "." not in mantissa:
+                mantissa += ".0"
+            return mantissa + exponent + power
+        return lit if "." in lit else lit + ".0"
     return str(int(value))
 
 
@@ -11968,10 +11974,7 @@ def rewrite_mlir(
                     else:
                         ssa = _derived_ssa_name(
                             last.result_ssa, f"pw_{tag}_scalar_{scalar_i}")
-                        value = repr(float(key[1]))
-                        if ("." not in value and "e" not in value and
-                                "E" not in value):
-                            value += ".0"
+                        value = _format_weight_literal(float(key[1]), "f32")
                         scalar_lines.append(
                             f"{last.indent}{ssa} = arith.constant {value} : f32")
                         scalar_names.append(ssa)
@@ -12181,9 +12184,8 @@ def rewrite_mlir(
                         bound[0] == "Lit"):
                     suffix = coefficient.lstrip("%")
                     scalar = _derived_ssa_name(last.result_ssa, suffix)
-                    value = repr(float(bound[1]))
-                    if "." not in value and "e" not in value and "E" not in value:
-                        value += ".0"
+                    value = _format_weight_literal(float(bound[1]),
+                                                   coefficient_type)
                     scalar_lines.append(
                         f"{last.indent}{scalar} = arith.constant {value} : {coefficient_type}"
                     )
@@ -12353,40 +12355,11 @@ def rewrite_mlir(
                 contraction_inst.outs_part
             )
 
-            # An opaque library call currently cannot safely consume a submap
-            # whose base is itself a computed tensor (notably an MFEM
-            # quadrature result assembled through submapInverse).  Converting
-            # that tensor to a raw pointer before one-shot bufferization can
-            # select an earlier aliased buffer.  Keep such contractions as
-            # residual Linalg until the runtime call is represented by a
-            # bufferizable op with explicit read/write effects.
-            prefix = text[:contraction_inst.span[0]]
-
-            def _computed_submap_base(value: str) -> bool:
-                matches = list(re.finditer(
-                    rf"^\s*{re.escape(value)}\s*=\s*polygeist\.submap\(\s*(%[\w.$-]+)",
-                    prefix, re.MULTILINE,
-                ))
-                if not matches:
-                    return False
-                base = matches[-1].group(1)
-                if base.startswith("%arg"):
-                    return False
-                direct_arg_view = re.search(
-                    rf"^\s*{re.escape(base)}\s*=\s*bufferization\.to_tensor\s+%arg\d+\b",
-                    prefix, re.MULTILINE,
-                )
-                return direct_arg_view is None
-
-            if any(_computed_submap_base(value)
-                   for value in contraction_ins[:2]):
-                report.append(("computed_submap_base_reject", i, entry.name))
-                # Reject this multi-op composition, not the contraction body
-                # itself.  The following iteration may still select a
-                # layout-aware one-body lowering which snapshots the physical
-                # submap bases safely (for example an FP32 GEMV).
-                i += 1
-                continue
+            # kernel.launch now carries explicit destination aliasing through
+            # BufferizableOpInterface. Computed submap bases can therefore
+            # remain in tensor SSA until one-shot bufferization selects their
+            # concrete storage; the connected-network pass independently
+            # proves matching/injective views before composing them.
             init_results = (
                 [instances[i].result_ssa]
                 if instances[i].result_ssa else []
@@ -13449,9 +13422,7 @@ def rewrite_mlir(
                             bound[0] == "Lit"):
                         suffix = scalar_name.lstrip("%")
                         scalar = _derived_ssa_name(last.result_ssa, suffix)
-                        value = repr(float(bound[1]))
-                        if "." not in value and "e" not in value and "E" not in value:
-                            value += ".0"
+                        value = _format_weight_literal(float(bound[1]), "f64")
                         pre_launch_lines.append(
                             f"{last.indent}{scalar} = arith.constant {value} : f64")
                         binds[scalar_name] = ("Cap", scalar)

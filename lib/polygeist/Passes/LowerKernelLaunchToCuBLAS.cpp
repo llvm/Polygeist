@@ -495,7 +495,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cutensornet_tensor_product_3d_f32";
   if (libSym == "cutensornetTensorProduct3D_f64_tensor")
     return "polygeist_cutensornet_tensor_product_3d_f64";
-  if (libSym == "cutensornetContraction2_f64" ||
+  if (libSym.starts_with("cutensornetContraction2_f64_physical_") ||
+      libSym == "cutensornetContraction2_f64" ||
       libSym == "cutensornetContraction2_f64_r4r5r4" ||
       libSym == "cutensornetContraction2_f64_r5r4r4" ||
       libSym == "cutensornetContraction2_f64_r5r5r4")
@@ -3090,6 +3091,24 @@ buildNetworkViewMetadata(OpBuilder &b, Location loc, Value operand,
     return buildContractionViewMetadata(b, loc, operand, accessMap,
                                         /*preserveDirectSubmapBase=*/true);
 
+  // Rank-independent kernel ABIs bufferize tensor.cast ranked->unranked as a
+  // memref.cast with the same ranked source. Recover that source before
+  // building extents and strides: the affine access map supplies the logical
+  // rank, while the cast source retains the concrete descriptor needed by the
+  // runtime. This is a general ABI normalization, independent of the matched
+  // contraction's dimensions.
+  Value rankedMemref = operand;
+  for (int hops = 0; hops < 8; ++hops) {
+    auto cast = rankedMemref.getDefiningOp<memref::CastOp>();
+    if (!cast)
+      break;
+    rankedMemref = cast.getSource();
+    if (isa<MemRefType>(rankedMemref.getType()))
+      break;
+  }
+  if (rankedMemref != operand && isa<MemRefType>(rankedMemref.getType()))
+    operand = rankedMemref;
+
   // One-shot bufferization is allowed to leave an unknown Polygeist tensor
   // view behind a to_memref boundary. Recover that tensor provenance here
   // instead of treating the materialized memref as the semantic operand. The
@@ -3513,13 +3532,6 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
   }
   if (globalModeCount > kContractionMaxModes)
     return launch.emitError("cuTensorNet network exceeds the 64-mode ABI");
-  if (launch.getNumResults() == 1 && !deviceResident &&
-      !sourceToTensorOp(metadata.back().base))
-    return launch.emitError(
-        "host-ABI cuTensorNet network requires a direct ABI-backed output; "
-        "computed tensor accumulators must remain uncomposed until the "
-        "connected region is bufferized/device-resident");
-
   llvm::SmallSet<int64_t, 16> inputModes;
   llvm::SmallSet<int64_t, 16> outputModes;
   for (unsigned tensor = 0; tensor + 1 < metadata.size(); ++tensor)
@@ -3558,6 +3570,8 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
   storeI64(metadataBuffer, 2,
            constantI64(launch->hasAttr("network_accumulate") ? 1 : 0));
   int64_t metadataCursor = 3 + tensorCount;
+  SmallVector<Value, 8> operandMemrefs;
+  operandMemrefs.reserve(tensorCount);
   for (int64_t tensor = 0; tensor < tensorCount; ++tensor) {
     storeI64(metadataBuffer, 3 + tensor,
              constantI64(metadata[tensor].modes.size()));
@@ -3598,7 +3612,10 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
         pointer = b.create<LLVM::IntToPtrOp>(
             loc, LLVM::LLVMPointerType::get(b.getContext()), address);
       }
+      operandMemrefs.push_back(memref);
     }
+    if (isa<MemRefType>(operand.getType()))
+      operandMemrefs.push_back(operand);
     Value address = b.create<LLVM::PtrToIntOp>(
         loc, b.getI64Type(), pointer);
     storeI64(pointerArray, tensor, address);
@@ -3627,6 +3644,20 @@ static LogicalResult lowerCutensornetNetwork(LaunchOp launch, ModuleOp module,
     // pre-call tensor back over the data just produced by cuTensorNet.
     Value outputView = launch.getOperand(outputOperand);
     Value outputBase = metadata.back().base;
+    if (!deviceResident && !sourceToTensorOp(outputBase)) {
+      // The opaque host ABI mutates a computed accumulator through a raw
+      // pointer. Snapshot it exactly as the pairwise contraction lowering
+      // does, making the produced value and its lifetime visible to later
+      // tensor bufferization instead of relying on an implicit side effect.
+      if (operandMemrefs.size() != (unsigned)tensorCount)
+        return failure();
+      Value snapshot = snapshotOpaqueCallResult(b, loc,
+                                                operandMemrefs.back());
+      Value updated = memrefToTensor(b, loc, snapshot, outputBase.getType());
+      launch.getResult(0).replaceAllUsesWith(updated);
+      launch.erase();
+      return success();
+    }
     if (failed(rewireSubmapLaunchResult(launch, outputView, outputBase))) {
       return failure();
     }
@@ -8081,7 +8112,9 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCutensornetTensorProduct3D(
             launch, module,
             libSym == "cutensornetTensorProduct3D_f64_tensor");
-      } else if (libSym == "cutensornetContraction2_f64" ||
+      } else if (libSym.starts_with(
+                     "cutensornetContraction2_f64_physical_") ||
+                 libSym == "cutensornetContraction2_f64" ||
                  libSym == "cutensornetContraction2_f64_r4r5r4" ||
                  libSym == "cutensornetContraction2_f64_r5r4r4" ||
                  libSym == "cutensornetContraction2_f64_r5r5r4") {
