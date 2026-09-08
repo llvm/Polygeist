@@ -966,22 +966,26 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     if not supports_resident:
         build_command.append("-DBENCH_MAPPED_ONLY")
     run(build_command, work / "raised.build.log", env)
-    matched_text = (artifacts / "matched.mlir").read_text()
-    abi_text = (artifacts / "abi_canon.mlir").read_text()
-    residual_patterns = {
-        "linalg": r"\blinalg\.",
-        "scf_loop": r"\bscf\.(?:for|while)\b",
-        "affine_loop": r"\baffine\.(?:for|parallel)\b",
-        "affine_access": r"\baffine\.(?:load|store)\b",
-        "memref_copy": r"\bmemref\.copy\b",
-        "memref_access": r"\bmemref\.(?:load|store)\b",
-    }
-    residual = [name for name, pattern in residual_patterns.items()
-                if re.search(pattern, abi_text)]
-    library_calls = sorted(set(re.findall(
-        r"call\s+@(polygeist_(?!(?:cublas_pipeline_(?:begin|end)))[\w]+)",
-        abi_text)))
-    resident_safe = bool(library_calls) and not residual
+
+    def inspect_artifacts():
+        matched = (artifacts / "matched.mlir").read_text()
+        abi = (artifacts / "abi_canon.mlir").read_text()
+        unsafe = _device_unsafe_residuals(abi)
+        calls = sorted(set(re.findall(
+            r"call\s+@(polygeist_(?!(?:cublas_pipeline_(?:begin|end)))[\w]+)",
+            abi)))
+        return matched, abi, unsafe, calls, bool(calls) and not unsafe
+
+    matched_text, abi_text, residual, library_calls, resident_safe = \
+        inspect_artifacts()
+    # Auto-discovered compositions may become fully device-safe as matcher and
+    # ABI lowering coverage grows. The first build intentionally suppresses
+    # its resident harness until the emitted ABI has been inspected. Rebuild
+    # once without BENCH_MAPPED_ONLY when that inspection proves it safe.
+    if resident_safe and not supports_resident:
+        run(build_command[:-1], work / "raised.resident_rebuild.log", env)
+        matched_text, abi_text, residual, library_calls, resident_safe = \
+            inspect_artifacts()
     return {"kernel": kernel,
             "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()),
             "coverage": cfg["coverage"], "executable": str(exe),
@@ -1004,6 +1008,38 @@ def _matched_kernels() -> list[str]:
 
 def _cfg_for(kernel: str) -> dict | None:
     return CASES.get(kernel) or auto_spec(kernel)
+
+
+def _device_unsafe_residuals(abi_text: str) -> list[str]:
+    """Find host operations that would dereference resident tensor storage.
+
+    cuTENSOR lowering builds small rank/extent/stride/mode arrays in host
+    stack allocas. Stores into those i32/i64 metadata arrays are descriptor
+    setup, not accesses to cudaMalloc tensor operands.
+    """
+    patterns = {
+        "linalg": r"\blinalg\.",
+        "scf_loop": r"\bscf\.(?:for|while)\b",
+        "affine_loop": r"\baffine\.(?:for|parallel)\b",
+        "affine_access": r"\baffine\.(?:load|store)\b",
+        "memref_copy": r"\bmemref\.copy\b",
+    }
+    residual = [name for name, pattern in patterns.items()
+                if re.search(pattern, abi_text)]
+    metadata_allocas = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*memref\.alloca\(\)\s*:\s*"
+        r"memref<\d+x(?:i32|i64)>", abi_text))
+    access_buffers = re.findall(
+        r"\bmemref\.(?:load|store)\b[^\n]*?(%[\w.$-]+)\s*\[", abi_text)
+    if any(buffer not in metadata_allocas for buffer in access_buffers):
+        residual.append("memref_access")
+    direct_memref_tensors = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%", abi_text))
+    materialized_tensors = re.findall(
+        r"bufferization\.to_memref\s+(%[\w.$-]+)", abi_text)
+    if any(tensor not in direct_memref_tensors for tensor in materialized_tensors):
+        residual.append("host_materialization")
+    return residual
 
 
 def _complete_library_missing() -> list[str]:

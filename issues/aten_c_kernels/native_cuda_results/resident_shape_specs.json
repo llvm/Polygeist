@@ -227,6 +227,21 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_allany_dims_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 131072,
+"C": 64
+},
+"n": 8388608,
+"shape": "R=131072_C=64",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full dynamic CUB segmented all-or-any reduction",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_aminmax_allreduce_cpu",
 "op": "aminmax_allreduce",
 "cat": "native_fixture",
@@ -252,6 +267,21 @@
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_and_reduce_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CUB segmented logical-and reduction",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -515,6 +545,35 @@
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
 },
 {
+"kernel": "aten_bf16_dot_cpu",
+"op": "bf16_dot",
+"cat": "native_fixture",
+"dims": {
+"K": 4194304
+},
+"n": 4194304,
+"shape": "K=4194304",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full scalarized-f32 dot product through the bufferized cuBLAS Sdot route",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_bf16_gemv_trans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"M": 4096,
+"K": 8192
+},
+"n": 33554432,
+"shape": "M=4096_K=8192",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full scalarized-f32 transposed GEMV through bufferized cuBLAS Sgemv",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_bilinear_cpu",
 "op": "bilinear",
 "cat": "native_fixture",
@@ -544,6 +603,63 @@
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "cuDNN pointwise loss graph followed by cuDNN mean reduction",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_blas_axpy_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_blas_copy_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_blas_dot_naive_cpu",
+"op": "blas_dot",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_blas_gemv_generic_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_blas_scale_cpu",
@@ -606,6 +722,21 @@
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
 },
 {
+"kernel": "aten_cartesian_prod_cpu",
+"op": "prod",
+"cat": "native_fixture",
+"dims": {
+"A": 1673,
+"B": 1254
+},
+"n": 2097942,
+"shape": "A=1673_B=1254",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_cat_serial_cpu",
 "op": "cat",
 "cat": "cat_serial",
@@ -663,6 +794,41 @@
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_channel_shuffle",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 14,
+"CPG": 28,
+"G": 14,
+"H": 28,
+"W": 28
+},
+"n": 4302592,
+"shape": "B=14_CPG=28_G=14_H=28_W=28",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_channel_shuffle_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 17,
+"CPG": 26,
+"G": 34,
+"S": 276
+},
+"n": 4147728,
+"shape": "B=17_CPG=26_G=34_S=276",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_clamp",
@@ -746,6 +912,23 @@
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_compressed_block_convert_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 2048,
+"C": 2048,
+"BR": 4,
+"BC": 4
+},
+"n": 67108864,
+"shape": "R=2048_C=2048_BR=4_BC=4",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full dense-to-block-major layout conversion via cuTENSOR permutation",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -950,6 +1133,36 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_convert_coo_to_csr_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full COO-to-CSR index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_convert_csr_to_coo_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CSR-to-COO row-index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_copy_cpu",
 "op": "copy",
 "cat": "native_fixture",
@@ -1034,6 +1247,56 @@
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "full segmented CUB transformed count-nonzero reduction",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_cpu_blas_gemm_batched_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 52,
+"K": 311,
+"M": 208,
+"N": 259
+},
+"n": 871217984,
+"shape": "B=52_K=311_M=208_N=259",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_cpu_blas_gemm_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2290,
+"M": 1374,
+"N": 1832
+},
+"n": 5764314720,
+"shape": "K=2290_M=1374_N=1832",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_cpu_blas_gemm_strided_batched_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 52,
+"K": 311,
+"M": 208,
+"N": 259
+},
+"n": 871217984,
+"shape": "B=52_K=311_M=208_N=259",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_cross",
@@ -1140,6 +1403,20 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_diff_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 16777216
+},
+"n": 16777216,
+"shape": "N=16777216",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full forward adjacent difference via CUB",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_dilated_convolution_cpu",
 "op": "dilated_convolution",
 "cat": "native_fixture",
@@ -1227,6 +1504,23 @@
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "full FP64 dot product through cuBLAS",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_dropout_feature_noise_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 32,
+"C": 64,
+"H": 64,
+"W": 64
+},
+"n": 8388608,
+"shape": "B=32_C=64_H=64_W=64",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "feature-wise broadcast multiply through cuDNN OpTensor",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_elu",
@@ -1370,6 +1664,53 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_fast_cat_dim0_cpu",
+"op": "fast_cat_dim0",
+"cat": "native_fixture",
+"dims": {
+"B": 256,
+"N": 16383
+},
+"n": 4194048,
+"shape": "B=256_N=16383",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_flatten_nd_linear_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 80,
+"K": 322,
+"M": 161,
+"N": 241
+},
+"n": 999513760,
+"shape": "B=80_K=322_M=161_N=241",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_flip_tensor_transform_cpu",
+"op": "flip",
+"cat": "native_fixture",
+"dims": {
+"C": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "C=2897_R=1448",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_floor",
 "op": "floor",
 "cat": "unary",
@@ -1420,6 +1761,80 @@
 },
 "n": 4194304,
 "shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_fp16_dot_cpu",
+"op": "fp16_dot",
+"cat": "native_fixture",
+"dims": {
+"K": 4194304
+},
+"n": 4194304,
+"shape": "K=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_fp16_gemv_f16arith_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_fp16_gemv_f32arith_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_fp16_gemv_notrans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_fp16_gemv_trans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"M": 1448
+},
+"n": 4194856,
+"shape": "K=2897_M=1448",
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
@@ -1564,6 +1979,70 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_gemm_notrans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_gemm_transa_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_gemm_transab_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_gemm_transb_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_geometric_cpu",
 "op": "geometric",
 "cat": "native_fixture",
@@ -1622,6 +2101,20 @@
 {
 "kernel": "aten_gradient_cpu",
 "op": "gradient",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph interior",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_gradient_float_cpu",
+"op": null,
 "cat": "native_fixture",
 "dims": {
 "N": 4194304
@@ -1729,6 +2222,20 @@
 "dtype": "f32",
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "compound predicate through two numeric masks",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_histogram_select_outer_bin_edges_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -1852,6 +2359,54 @@
 "dtype": "f32",
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "full i8 by i8 to i32 matrix multiplication through cuBLAS GemmEx",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_joint_scaling_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 16777216
+},
+"n": 16777216,
+"shape": "N=16777216",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "two max-absolute reductions through cuBLAS Isamax",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_kron_impl_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"A": 256,
+"B": 128,
+"C": 32,
+"D": 32
+},
+"n": 33554432,
+"shape": "A=256_B=128_C=32_D=32",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Kronecker product through mode-based cuTENSOR multiply",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_kron_out_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"A": 256,
+"B": 128,
+"C": 32,
+"D": 32
+},
+"n": 33554432,
+"shape": "A=256_B=128_C=32_D=32",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Kronecker product through mode-based cuTENSOR multiply",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -2458,6 +3013,52 @@
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
 },
 {
+"kernel": "aten_nested_all_cpu",
+"op": "nested_all",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_nested_batch_offsets_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 4194302
+},
+"n": 4194302,
+"shape": "B=4194302",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_nested_bmm_cpu",
+"op": "nested_bmm",
+"cat": "native_fixture",
+"dims": {
+"B": 83,
+"K": 248,
+"M": 165,
+"N": 206
+},
+"n": 699650160,
+"shape": "B=83_K=248_M=165_N=206",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_nested_clone_cpu",
 "op": "nested_clone",
 "cat": "native_fixture",
@@ -2533,6 +3134,21 @@
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_nested_sum_dim_cpu",
+"op": "nested_sum_dim",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_norm_cpu",
@@ -2701,6 +3317,21 @@
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_quant_col_offsets_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1048576,
+"N": 48
+},
+"n": 50331648,
+"shape": "K=1048576_N=48",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full signed-int8 column reduction and zero-point offset via CUB",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -2962,6 +3593,63 @@
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
 },
 {
+"kernel": "aten_slow_conv3d_backward_input_cpu",
+"op": "slow_conv3d_backward_input",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full slow-conv3d input gradient through cuDNN backward-data",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_slow_conv3d_backward_weight_cpu",
+"op": "slow_conv3d_backward_weight",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full slow-conv3d filter gradient through cuDNN backward-filter",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_slow_conv3d_forward_cpu",
+"op": "slow_conv3d",
+"cat": "native_fixture",
+"dims": {
+"C": 14,
+"D": 55,
+"H": 62,
+"K": 21,
+"O": 21,
+"W": 68
+},
+"n": 1431627120,
+"shape": "C=14_D=55_H=62_K=21_O=21_W=68",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_smooth_l1_backward",
 "op": "smooth_l1",
 "cat": "native_fixture",
@@ -3125,6 +3813,23 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_sparse_bmm_cpu",
+"op": "sparse_bmm",
+"cat": "native_fixture",
+"dims": {
+"B": 37,
+"K": 375,
+"M": 300,
+"N": 225
+},
+"n": 936562500,
+"shape": "B=37_K=375_M=300_N=225",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_sparse_coo_softmax_backward_cpu",
 "op": "softmax",
 "cat": "sparse_softmax_backward",
@@ -3138,6 +3843,21 @@
 "shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
 "shape_selection_note": "partial graph epilogue",
 "comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED"
+},
+{
+"kernel": "aten_sparse_coo_to_csr_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full COO-to-CSR index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
 "kernel": "aten_sparse_csr_addmm_cpu",
@@ -3196,6 +3916,37 @@
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_sparse_matmul_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"C": 2047,
+"N": 16380,
+"R": 2047
+},
+"n": 68635623420,
+"shape": "C=2047_N=16380_R=2047",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_sparse_matmul_csr_to_coo_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CSR-to-COO row-index conversion via cuSPARSE",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
@@ -3361,6 +4112,23 @@
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {
+"kernel": "aten_sumproduct_pair_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 70,
+"K": 282,
+"M": 141,
+"N": 211
+},
+"n": 587284740,
+"shape": "B=70_K=282_M=141_N=211",
+"dtype": "f32",
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
 "kernel": "aten_tan",
 "op": "tan",
 "cat": "unary",
@@ -3444,6 +4212,23 @@
 "dtype": "f32",
 "shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
 "shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+},
+{
+"kernel": "aten_transform_bias_rescale_qkv_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 8,
+"S": 512,
+"H": 16,
+"D": 64
+},
+"n": 4194304,
+"shape": "B=8_S=512_H=16_D=64",
+"dtype": "f32",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "three full QKV slice-bias-permute stages through cuDNN OpTensor",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
 },
 {

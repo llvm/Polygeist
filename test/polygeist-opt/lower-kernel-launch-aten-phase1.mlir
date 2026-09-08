@@ -81,4 +81,21 @@ module {
         : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     return %0 : tensor<?xf32>
   }
+
+  // Bufferization can leave a contiguous copy after an otherwise complete
+  // library rewrite. It must remain device-resident instead of becoming a
+  // host loop.
+  // CHECK-LABEL: func.func @residual_contiguous_copy
+  // CHECK: call @polygeist_cuda_copy_strided_2d_f32
+  // CHECK: call @polygeist_cuda_copy_f32
+  // CHECK-NOT: memref.copy
+  func.func @residual_contiguous_copy(
+      %src: memref<?xf32>, %tmp: memref<?xf32>, %out: memref<?xf32>) {
+    %src_t = bufferization.to_tensor %src restrict : memref<?xf32>
+    %tmp_t = bufferization.to_tensor %tmp restrict writable : memref<?xf32>
+    %0 = kernel.launch @cudaCopy1D_f32_tensor(%src_t, %tmp_t)
+        : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+    memref.copy %tmp, %out : memref<?xf32> to memref<?xf32>
+    return
+  }
 }
