@@ -14,6 +14,17 @@
 #ifndef MFEM_REPLAY_WARMUPS
 #define MFEM_REPLAY_WARMUPS 2
 #endif
+#ifndef MFEM_PUBLICATION_WARMUPS
+#define MFEM_PUBLICATION_WARMUPS 5
+#endif
+#ifndef MFEM_PUBLICATION_SAMPLES
+#define MFEM_PUBLICATION_SAMPLES 20
+#endif
+#ifdef MFEM_RAISED_CPU
+#define MFEM_RAISED_IMPLEMENTATION "raised_cpu"
+#else
+#define MFEM_RAISED_IMPLEMENTATION "raised_gpu"
+#endif
 
 #define MAX_EXTENT (2250 * MFEM_BENCH_NE)
 #define MAX_OUTPUTS 6
@@ -241,17 +252,12 @@ extern void mfem_app_abs_l1_mass_3d_session(
 extern void mfem_app_abs_l1_mass_3d_reference(
     const double *, const double *, const double *, const double *, double *);
 static void run_raised(double state[MAX_OUTPUTS][MAX_EXTENT]) {
-  mfem_app_abs_l1_mass_3d_session(
-      1, args[0], args[1], args[2], args[3], state[0]);
+  mfem_app_abs_l1_mass_3d(
+      args[0], args[1], args[2], args[3], state[0]);
 }
 static void run_reference(double state[MAX_OUTPUTS][MAX_EXTENT]) {
   mfem_app_abs_l1_mass_3d_reference(
       args[0], args[1], args[2], args[3], state[0]);
-}
-static void run_raised_session(int repetitions,
-                               double state[MAX_OUTPUTS][MAX_EXTENT]) {
-  mfem_app_abs_l1_mass_3d_session(
-      repetitions, args[0], args[1], args[2], args[3], state[0]);
 }
 #elif defined(MFEM_APP_ABS_DIFFUSION)
 #define APP_NAME "abs_l1_diffusion_3d"
@@ -320,13 +326,11 @@ static void run_reference(double state[MAX_OUTPUTS][MAX_EXTENT]) {
 #error "Select one MFEM_APP_* application"
 #endif
 
-#if !defined(MFEM_APP_ABS_MASS)
 static void run_raised_session(int repetitions,
                                double state[MAX_OUTPUTS][MAX_EXTENT]) {
   for (int iteration = 0; iteration < repetitions; ++iteration)
     run_raised(state);
 }
-#endif
 
 static double seconds(void) {
   struct timespec value;
@@ -395,12 +399,21 @@ int main(void) {
 
   double max_abs = 0.0;
   double max_rel = 0.0;
+  double reference_checksum = 0.0;
+  double raised_checksum = 0.0;
+  double reference_delta_max = 0.0;
   for (int output = 0; output < OUTPUT_COUNT; ++output) {
     double output_max_abs = 0.0;
     for (int64_t i = 0; i < output_extents[output]; ++i) {
       double abs_error = fabs(reference_state[output][i] - raised_state[output][i]);
       double scale = fmax(1.0, fabs(reference_state[output][i]));
       double rel_error = abs_error / scale;
+      double reference_delta =
+          fabs(reference_state[output][i] - initial_state[output][i]);
+      reference_checksum += reference_state[output][i];
+      raised_checksum += raised_state[output][i];
+      if (reference_delta > reference_delta_max)
+        reference_delta_max = reference_delta;
 #ifdef MFEM_DEBUG_MISMATCHES
       if (abs_error > 1.0e-12)
         printf("mismatch output=%d index=%lld reference=%.17g raised=%.17g "
@@ -419,12 +432,43 @@ int main(void) {
     printf("output=%d max_abs=%.17g\n", output, output_max_abs);
 #endif
   }
-  int correct = isfinite(max_abs) && max_rel <= 1.0e-10;
-  printf("application=%s correctness=%s max_abs=%.17g max_rel=%.17g\n",
-         APP_NAME, correct ? "PASS" : "FAIL", max_abs, max_rel);
+  int correct = isfinite(max_abs) && max_rel <= 1.0e-10 &&
+                reference_delta_max > 1.0e-14;
+  printf("application=%s correctness=%s max_abs=%.17g max_rel=%.17g "
+         "reference_checksum=%.17g raised_checksum=%.17g "
+         "reference_delta_max=%.17g\n",
+         APP_NAME, correct ? "PASS" : "FAIL", max_abs, max_rel,
+         reference_checksum, raised_checksum, reference_delta_max);
   if (!correct)
     return 2;
 
+#ifdef MFEM_PUBLICATION_PROTOCOL
+  for (int i = 0; i < MFEM_PUBLICATION_WARMUPS; ++i) {
+    memcpy(reference_state, initial_state, sizeof(initial_state));
+    run_reference(reference_state);
+  }
+  for (int i = 0; i < MFEM_PUBLICATION_WARMUPS; ++i) {
+    memcpy(raised_state, initial_state, sizeof(initial_state));
+    run_raised(raised_state);
+  }
+  for (int i = 0; i < MFEM_PUBLICATION_SAMPLES; ++i) {
+    memcpy(reference_state, initial_state, sizeof(initial_state));
+    double sample_start = seconds();
+    run_reference(reference_state);
+    double sample_us = (seconds() - sample_start) * 1.0e6;
+    printf("application=%s implementation=vanilla_cpu sample=%d time_us=%.9f\n",
+           APP_NAME, i, sample_us);
+  }
+  for (int i = 0; i < MFEM_PUBLICATION_SAMPLES; ++i) {
+    memcpy(raised_state, initial_state, sizeof(initial_state));
+    double sample_start = seconds();
+    run_raised(raised_state);
+    double sample_us = (seconds() - sample_start) * 1.0e6;
+    printf("application=%s implementation=%s sample=%d time_us=%.9f\n",
+           APP_NAME, MFEM_RAISED_IMPLEMENTATION, i, sample_us);
+  }
+  return 0;
+#else
   reset_states();
   run_reference(reference_state);
   memcpy(reference_state, initial_state, sizeof(initial_state));
@@ -443,4 +487,5 @@ int main(void) {
   printf("application=%s iterations=%d cpu_reference_us=%.6f raised_gpu_us=%.6f speedup=%.6f\n",
          APP_NAME, BENCH_ITERS, cpu_us, raised_us, cpu_us / raised_us);
   return 0;
+#endif
 }

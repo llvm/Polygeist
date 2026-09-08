@@ -4820,6 +4820,38 @@ def build_mfem_application_extraction_pages() -> list[dict]:
             / "application_native_vs_raised_large_ne.csv"
         )
     }
+    # Prefer the fresh, correctness-gated application-path campaign over the
+    # historical mixed-protocol ledger. These remain derived hot paths, not
+    # untouched end-to-end MFEM applications.
+    for current in _read_csv(
+        MFEM_SECTION42_DIR / "application_performance_20260908.csv"
+    ):
+        comparison_rows[current["function"]] = {
+            "correctness": current.get("correctness", "NOT RUN"),
+            "max_abs": current.get("max_abs", ""),
+            "native_cpu_runtime_us": current.get("vanilla_cpu_us", ""),
+            "raised_cpu_runtime_us": current.get("raised_cpu_us", ""),
+            "raised_runtime_us": current.get("raised_gpu_us", ""),
+            "mfem_native_runtime_us": "",
+            "raised_over_native": "",
+            "comparison_quality": "CURRENT_DERIVED_PATH",
+            "comparison_scope": (
+                "current NE=1024 extracted hot path; complete-output reference; "
+                "native MFEM application baseline not rerun"
+            ),
+            "native_components": "not rerun",
+            "ne": current.get("ne", "1024"),
+            "d1d": "4",
+            "q1d": "5",
+            "raised_iterations": "5 processes x 20 samples",
+            "native_iterations": "",
+            "measurement_statistic": (
+                f'median_of_{current.get("gpu_correct_processes", "0")}_gpu_'
+                f'and_{current.get("cpu_correct_processes", "0")}_cpu_process_medians'
+            ),
+            "raised_cpu_build": current.get("raised_cpu_build", "false"),
+            "raised_gpu_build": current.get("raised_gpu_build", "false"),
+        }
     for row in summary:
         function = row["function"]
         source = MFEM_APPLICATION_EXTRACTIONS_DIR / row["source"]
@@ -4945,11 +4977,18 @@ def build_mfem_application_extraction_pages() -> list[dict]:
         silicon = MFEM_APPLICATION_JETSON_RUNS.get(function)
         if comparison:
             raised_us = comparison.get("raised_runtime_us", "")
+            raised_cpu_us = comparison.get("raised_cpu_runtime_us", "")
             native_us = comparison.get("mfem_native_runtime_us", "")
             ratio = comparison.get("raised_over_native", "")
             runtime_parts = []
             if raised_us:
-                runtime_parts.append(f"raised {float(raised_us) / 1000.0:.6f} ms")
+                runtime_parts.append(
+                    f"raised GPU {float(raised_us) / 1000.0:.6f} ms"
+                )
+            if raised_cpu_us:
+                runtime_parts.append(
+                    f"raised CPU {float(raised_cpu_us) / 1000.0:.6f} ms"
+                )
             if native_us:
                 runtime_parts.append(
                     f"MFEM native {float(native_us) / 1000.0:.6f} ms"
@@ -5096,6 +5135,7 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
                 f'<span class="{silicon_class}">{html.escape(correctness)}</span>'
             )
             raised_us = comparison.get("raised_runtime_us", "")
+            raised_cpu_us = comparison.get("raised_cpu_runtime_us", "")
             cpu_us = comparison.get("native_cpu_runtime_us", "")
             native_us = comparison.get("mfem_native_runtime_us", "")
             ratio = comparison.get("raised_over_native", "")
@@ -5105,6 +5145,10 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             )
             raised_runtime = (
                 f'{float(raised_us) / 1000.0:.6f} ms' if raised_us else "—"
+            )
+            raised_cpu_runtime = (
+                f'{float(raised_cpu_us) / 1000.0:.6f} ms'
+                if raised_cpu_us else "—"
             )
             native_runtime = (
                 f'{float(native_us) / 1000.0:.6f} ms' if native_us else "—"
@@ -5133,6 +5177,7 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             max_abs = "—"
             cpu_runtime = "—"
             raised_runtime = "—"
+            raised_cpu_runtime = "—"
             native_runtime = "—"
             ratio_text = "—"
             comparison_scope = "—"
@@ -5149,7 +5194,8 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
             f'<small>{row["network_launches_int"]} network(s)</small></td>'
             f'<td>{matched_implementations}</td>'
             f'<td>{silicon_outcome}<br><small>max abs {html.escape(max_abs or "—")}</small></td>'
-            f'<td>{cpu_runtime}</td><td>{raised_runtime}</td>'
+            f'<td>{cpu_runtime}</td><td>{raised_cpu_runtime}</td>'
+            f'<td>{raised_runtime}</td>'
             f'<td>{native_runtime}</td><td>{ratio_text}</td>'
             f'<td>{comparison_scope}</td><td><small>{measurement}</small></td>'
             f'<td>{silicon_params}</td></tr>'
@@ -5170,9 +5216,9 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         'at <b>NE=1024, D1D=4, Q1D=5</b> and run on the Jetson Orin in MAXN mode. '
         'All 11 paths pass correctness at this size. Native CPU values are strict '
         '<code>-O3</code> C references executed on the same Jetson AGX Orin '
-        'aarch64 CPU; they are not x86 measurements. The mass path uses the final '
-        'five-process compiler-visible repeated-session protocol. Other current '
-        'CPU and raised values are explicitly labeled single-process diagnostics. '
+        'aarch64 CPU; they are not x86 measurements. Current vanilla CPU, raised '
+        'CPU, and raised GPU values use five independent processes with five '
+        'warmups and twenty samples per process. '
         '<b>EXACT_OPERATOR</b> is a directly paired native MFEM '
         'CUDA operator. <b>COMPONENT_SUM</b> sums separately measured resident MFEM '
         'CUDA PA kernels and is a conservative component baseline, not a fused '
@@ -5187,7 +5233,7 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         '<th>launches before→after composition</th>'
         '<th>matched implementation</th><th>correctness</th>'
         '<th>native CPU<br><small>Jetson AGX Orin aarch64</small></th>'
-        '<th>raised warm</th>'
+        '<th>raised CPU</th><th>raised GPU</th>'
         '<th>MFEM native CUDA</th><th>raised/native</th>'
         '<th>comparison scope</th><th>measurement evidence</th>'
         '<th>test parameters</th></tr></thead><tbody>'
@@ -5335,6 +5381,60 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
             '</tr>'
         )
 
+    application_data = _read_csv(
+        MFEM_SECTION42_DIR / "application_performance_20260908.csv"
+    )
+    application_table_rows = []
+    application_bars = []
+    for row in application_data:
+        vanilla = value(row, "vanilla_cpu_us") / 1000.0
+        raised_cpu = value(row, "raised_cpu_us") / 1000.0
+        raised_gpu = value(row, "raised_gpu_us") / 1000.0
+        cpu_ratio = value(row, "raised_cpu_over_vanilla")
+        gpu_ratio = value(row, "raised_gpu_over_vanilla")
+        complete = row.get("correctness") == "PASS"
+        application_table_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(row["id"])}</b></td>'
+            f'<td>{html.escape(row.get("structural_launches", ""))}</td>'
+            f'<td>{vanilla:.6f}</td><td>{raised_cpu:.6f}</td>'
+            f'<td>{raised_gpu:.6f}</td>'
+            f'<td>{cpu_ratio:.2f}&times;</td><td>{gpu_ratio:.2f}&times;</td>'
+            f'<td>{html.escape(row.get("cpu_correct_processes", "0"))}/5 CPU; '
+            f'{html.escape(row.get("gpu_correct_processes", "0"))}/5 GPU</td>'
+            f'<td><span class="{"pass" if complete else "partial"}">'
+            f'{html.escape(row.get("correctness", "NOT RUN"))}</span></td></tr>'
+        )
+        application_bars.append(
+            '<div class="mfem-slow-row">'
+            f'<span>{html.escape(row["id"])}</span>'
+            '<div class="mfem-slow-track">'
+            f'<i style="width:{min(100.0, gpu_ratio / 25.0 * 100.0):.3f}%"></i>'
+            '</div>'
+            f'<b>{gpu_ratio:.2f}&times;</b></div>'
+        )
+    application_section = ""
+    if application_data:
+        application_section = (
+            '<div class="section-header"><h3 class="section-title">'
+            'MFEM-derived application hot paths</h3></div>'
+            '<div class="intro"><b>Scope:</b> 11 manually extracted MFEM '
+            'application/operator hot paths, not untouched applications. Every '
+            'row was freshly rebuilt from C at NE=1024. Correctness compares all '
+            'output elements against the direct extracted-C reference before '
+            'timing. Native MFEM application baselines were not rerun.</div>'
+            '<div class="paper-chart-wrap"><h4>Raised GPU slowdown versus '
+            'vanilla CPU reference (lower is better)</h4><div class="mfem-slow-bars">'
+            + ''.join(application_bars) + '</div></div>'
+            '<table class="audit-table paper-family mfem-results"><thead><tr>'
+            '<th>derived path</th><th>structural launches</th>'
+            '<th>vanilla CPU (ms)</th><th>raised CPU (ms)</th>'
+            '<th>raised GPU (ms)</th><th>raised CPU/vanilla</th>'
+            '<th>raised GPU/vanilla</th><th>correct processes</th>'
+            '<th>correctness</th></tr></thead><tbody>'
+            + ''.join(application_table_rows) + '</tbody></table>'
+        )
+
     artifact = "mfem_section42_artifacts"
     return (
         '<div class="section-header"><h2 class="section-title">'
@@ -5375,6 +5475,8 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         '<th>raised CPU (ms)</th><th>raised GPU (ms)</th>'
         '<th>native MFEM GPU (ms)</th><th>raised/native</th><th>correctness</th>'
         '</tr></thead><tbody>' + ''.join(table_rows) + '</tbody></table>'
+        + application_section
+        +
         '<div class="section-header"><h3 class="section-title">Correctness '
         'and exclusions</h3></div>'
         '<div class="paper-notes">'
@@ -5415,6 +5517,8 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="paper-notes">'
         f'<div><b>Concise result ledger</b><span><a href="{artifact}/performance_20260908.csv">'
         'performance_20260908.csv</a></span></div>'
+        f'<div><b>Derived-application result ledger</b><span><a href="{artifact}/application_performance_20260908.csv">'
+        'application_performance_20260908.csv</a></span></div>'
         f'<div><b>Detailed four-way comparison</b><span><a href="{artifact}/comparison_with_native_20260908.csv">'
         'comparison_with_native_20260908.csv</a></span></div>'
         f'<div><b>Native distribution summary</b><span><a href="{artifact}/native_summary_20260908.csv">'
@@ -5448,8 +5552,10 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         for row in stats
     )
     paper_ready = sum(
-        "median_of_5_process_means_20260907" in
-        (row.get("comparison") or {}).get("measurement_statistic", "")
+        ("median_of_5_process_means_20260907" in
+         (row.get("comparison") or {}).get("measurement_statistic", "") or
+         "median_of_5_gpu_and_5_cpu_process_medians" in
+         (row.get("comparison") or {}).get("measurement_statistic", ""))
         for row in stats
     )
 
@@ -5469,7 +5575,8 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         evidence = comparison.get("measurement_statistic", "")
         evidence_label = (
             "paper-ready repeated session"
-            if "median_of_5_process_means_20260907" in evidence
+            if ("median_of_5_process_means_20260907" in evidence or
+                "median_of_5_gpu_and_5_cpu_process_medians" in evidence)
             else "single-process diagnostic"
         )
         rows.append(
@@ -5482,6 +5589,7 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
             f'<td class="{correctness_class}">{html.escape(correctness)}<br>'
             f'<small>max abs {html.escape(comparison.get("max_abs", "") or "—")}</small></td>'
             f'<td>{runtime_cell("native_cpu_runtime_us")}</td>'
+            f'<td>{runtime_cell("raised_cpu_runtime_us")}</td>'
             f'<td>{runtime_cell("raised_runtime_us")}</td>'
             f'<td>{runtime_cell("mfem_native_runtime_us")}</td>'
             f'<td><code>{html.escape(quality.lower().replace("_", " "))}</code></td>'
@@ -5495,6 +5603,9 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         "SAFE_PAIRWISE_FALLBACK": "conservative separately timed components",
         "PARTIAL_COMPONENT_SUM": "native components omit part of the raised path",
         "UNAVAILABLE": "no equivalent native MFEM CUDA timing",
+        "CURRENT_DERIVED_PATH": (
+            "fresh five-process vanilla/raised CPU/GPU derived-path campaign"
+        ),
     }
     quality_rows = "".join(
         '<tr>'
@@ -5507,11 +5618,11 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
 
     issues = [
         (
-            "1", "High", "Repeatable whole-pipeline timing",
-            f"Only {paper_ready}/{total} paths use the compiler-visible, "
-            "multi-process repeated-session protocol.",
-            "Convert the other paths from host repetition to compiler-owned "
-            "sessions and collect independent medians.",
+            "1", "Low", "Repeatable whole-pipeline timing",
+            f"{paper_ready}/{total} paths use the fresh multi-process "
+            "warmup-plus-sampling protocol.",
+            "Retain raw logs and rerun from a clean committed compiler revision "
+            "before freezing paper numbers.",
         ),
         (
             "2", "High", "Comparable native GPU baselines",
@@ -5554,8 +5665,8 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="section-header"><h2 class="section-title">'
         'Paper analysis: MFEM (Section 4.2 draft)</h2></div>'
         '<div class="intro"><b>Current conclusion:</b> MFEM now provides strong '
-        'whole-path correctness and structural-raising evidence, but only one '
-        'application path currently has the final performance protocol. This page '
+        'whole-path correctness, structural-raising, and repeated CPU/GPU timing '
+        'evidence for all eleven derived paths. This page '
         'keeps static raising, numerical execution, native-baseline quality, and '
         'paper-ready performance as separate claims.</div>'
         '<div class="audit-metrics">'
@@ -5582,7 +5693,8 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         '<table class="audit-table paper-family"><thead><tr>'
         '<th>path</th><th>Linalg ops</th><th>residual loops</th><th>matches</th>'
         '<th>correctness</th><th>native CPU<br>'
-        '<small>Jetson AGX Orin aarch64</small></th><th>raised GPU</th>'
+        '<small>Jetson AGX Orin aarch64</small></th><th>raised CPU</th>'
+        '<th>raised GPU</th>'
         '<th>native MFEM GPU</th><th>native comparison</th><th>evidence</th>'
         '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
         '<div class="section-header"><h3 class="section-title">Native comparison quality</h3></div>'
@@ -5593,8 +5705,8 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="paper-notes">'
         '<div><b>Native CPU</b><span>Strict -O3 C on the same Jetson AGX Orin '
         'aarch64 CPU, MAXN with locked clocks.</span></div>'
-        '<div><b>Raised GPU</b><span>Jetson AGX Orin SM87, CUDA 12.6, f64, '
-        'NE=1024, D1D=4, Q1D=5, CUDA Graph enabled.</span></div>'
+        '<div><b>Raised CPU/GPU</b><span>Jetson AGX Orin, f64, NE=1024, '
+        'D1D=4, Q1D=5; five processes, five warmups, and twenty samples.</span></div>'
         '<div><b>Native GPU</b><span>Resident MFEM CUDA; exact operators and '
         'component-derived comparisons are explicitly distinguished.</span></div>'
         '<div><b>Publication cohort</b><span>Only independently repeated, '
@@ -5607,8 +5719,9 @@ def _mfem_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="intro"><b>Safe claim today:</b> “For 11 extracted MFEM '
         'application/operator paths at NE=1024, the compiler produces loop-free '
         'structured IR with semantic library matches and all 11 raised executions '
-        'pass numerical validation. One path currently has a final repeated-session '
-        'performance comparison; the remaining timings are diagnostic.”</div>'
+        'pass numerical validation. All eleven have repeated vanilla CPU, raised '
+        'CPU, and raised GPU measurements; native MFEM application baselines remain '
+        'unavailable in the fresh campaign.”</div>'
     )
 
 
