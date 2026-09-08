@@ -17,7 +17,8 @@ while IFS=, read -r kernel category source dataset datatype hash native raise ma
   start=$(date -Is)
   timeout 300s /usr/bin/time -f 'wall_seconds=%e maxrss_kb=%M' \
     /usr/bin/python3 "$repo/scripts/correctness/kernel_match_rewrite.py" \
-    "$ir_dir/raised_debufferized.mlir" > "$ir_dir/matched.mlir" \
+    --enable-structured-rewrite "$ir_dir/raised_debufferized.mlir" \
+    > "$ir_dir/matched.mlir" \
     2> "$log_dir/matcher.log"
   rc=$?
   end=$(date -Is)

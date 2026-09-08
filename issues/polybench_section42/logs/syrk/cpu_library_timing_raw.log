@@ -1,0 +1,5 @@
+syrk,openblas_cblas_1t,1,0,0.036875
+syrk,openblas_cblas_1t,2,0,0.035339
+syrk,openblas_cblas_1t,3,0,0.031893
+syrk,openblas_cblas_1t,4,0,0.035826
+syrk,openblas_cblas_1t,5,0,0.033338

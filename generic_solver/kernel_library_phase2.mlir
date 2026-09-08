@@ -28,6 +28,13 @@ module {
       %A: memref<?x?xf64>, %b: memref<?xf64>, %x: memref<?xf64>) {
     kernel.yield
   }
+  kernel.defn @cublasDsymmLeftLowerRowMajor_memref(
+      %A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>,
+      %alpha: f64, %beta: f64) { kernel.yield }
+  kernel.defn @cublasDtrmmLeftLowerTransUnitRowMajor_memref(
+      %A: memref<?x?xf64>, %B: memref<?x?xf64>, %alpha: f64) {
+    kernel.yield
+  }
   kernel.defn @cusolverDnDpotrfLowerRowMajor_memref(
       %A: memref<?x?xf64>) { kernel.yield }
 
@@ -1475,11 +1482,10 @@ module {
   // affine.apply inside each linalg.generic so the defn body is
   // self-contained — no external mask SSA is threaded as an operand.
   //
-  // Operand order (matches matcher emit): two A-views (the matcher passes
-  // both ins of the gemm-shape linalg, which is the same A twice), C, beta,
-  // alpha.
-  kernel.defn @cublasDsyrk(%A: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
-                            %C: tensor<?x?xf64>,
+  // Operand order (matches matcher emit): A, C, beta, alpha. The matcher
+  // proves that both contraction inputs alias the same source before it
+  // collapses the redundant views to this external-library ABI.
+  kernel.defn @cublasDsyrk(%A: tensor<?x?xf64>, %C: tensor<?x?xf64>,
                             %beta: f64, %alpha: f64) -> tensor<?x?xf64> {
     %scaled = linalg.generic {
       indexing_maps = [affine_map<(d0, d1) -> (d1, d0)>],
@@ -1501,7 +1507,7 @@ module {
         affine_map<(d0, d1, d2) -> (d2, d0)>
       ],
       iterator_types = ["parallel", "reduction", "parallel"]
-    } ins(%A, %A2 : tensor<?x?xf64>, tensor<?x?xf64>)
+    } ins(%A, %A : tensor<?x?xf64>, tensor<?x?xf64>)
       outs(%scaled : tensor<?x?xf64>) {
     ^bb0(%a: f64, %a_t: f64, %out: f64):
       %i = linalg.index 0 : index
@@ -1519,11 +1525,10 @@ module {
 
   // SYR2K: C[j<=i] = beta*C[j<=i] + alpha*(A*B^T + B*A^T)  (rank-2k update).
   //
-  // Five tensor operands: (A1, B1, B2, A2, C) — the matcher's body splits
-  // the rank-2 update across four ins to the second linalg.generic. Maps
-  // and iter ordering replicate exactly what RaiseToLinalg emits.
-  kernel.defn @cublasDsyr2k(%A1: tensor<?x?xf64>, %B1: tensor<?x?xf64>,
-                             %B2: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
+  // Operand order (matches matcher emit): A, B, C, beta, alpha. The matcher
+  // proves the four raised views alias the corresponding A/B sources before
+  // collapsing them to this external-library ABI.
+  kernel.defn @cublasDsyr2k(%A: tensor<?x?xf64>, %B: tensor<?x?xf64>,
                              %C: tensor<?x?xf64>,
                              %beta: f64, %alpha: f64) -> tensor<?x?xf64> {
     %scaled = linalg.generic {
@@ -1548,7 +1553,7 @@ module {
         affine_map<(d0, d1, d2) -> (d2, d0)>
       ],
       iterator_types = ["parallel", "reduction", "parallel"]
-    } ins(%A1, %B1, %B2, %A2
+    } ins(%A, %B, %B, %A
           : tensor<?x?xf64>, tensor<?x?xf64>,
             tensor<?x?xf64>, tensor<?x?xf64>)
       outs(%scaled : tensor<?x?xf64>) {

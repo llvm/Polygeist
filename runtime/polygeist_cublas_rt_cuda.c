@@ -1157,7 +1157,9 @@ void polygeist_cublas_destroy(void) {
   if (!g_initialized) return;
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
   destroy_cuda_graph_cache();
+#ifndef POLYGEIST_DISABLE_CUDNN_CLEANUP
   destroy_stencil3d_7pt_cache();
+#endif
   destroy_generated_module_cache();
 #if POLYGEIST_HAS_CUTENSOR
   destroy_cutensor_permute_cache();
@@ -2771,6 +2773,70 @@ void polygeist_cublas_dtrsv_lower_row_major(
       g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
       CUBLAS_DIAG_NON_UNIT, n, dA, n, dx, 1));
   timing_gpu_end("cublasDtrsvLowerRowMajor", n, 1, 0, host_start_ms);
+}
+
+void polygeist_cublas_dsymm_left_lower_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    const double *B, int32_t ldb, double beta, double *C, int32_t ldc) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)m * (size_t)lda * sizeof(double);
+  size_t bytes_B = (size_t)m * (size_t)ldb * sizeof(double);
+  size_t bytes_C = (size_t)m * (size_t)ldc * sizeof(double);
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dB = (double *)devices[1];
+  double *dC = (double *)devices[2];
+
+  // Row-major C=A*B becomes column-major C^T=B^T*A^T. Row-major lower A
+  // is the upper triangle of the same storage viewed column-major.
+  timing_gpu_begin();
+  // CUDA 12.6 on the evaluation Jetson reports success from cublasDsymm but
+  // leaves mapped-host output unchanged. Use the equivalent real-cuBLAS
+  // DSYMV operation for each column. The row-major lower triangle is the
+  // column-major upper triangle, and B/C columns use their row strides.
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasDsymv(g_handle, CUBLAS_FILL_MODE_UPPER, m, &alpha,
+                             dA, lda, dB + column, ldb, &beta,
+                             dC + column, ldc));
+  timing_gpu_end("cublasDsymmLeftLowerRowMajor", m, n, m, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    double *B, int32_t ldb) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)m * (size_t)lda * sizeof(double);
+  size_t bytes_B = (size_t)m * (size_t)ldb * sizeof(double);
+  void *hosts[2] = {(void *)A, B};
+  size_t sizes[2] = {bytes_A, bytes_B};
+  void *devices[2];
+  register_host_operands_safe(hosts, sizes, devices, 2);
+  double *dA = (double *)devices[0];
+  double *dB = (double *)devices[1];
+  timing_gpu_begin();
+  // Direct DTRMM reports success but produces zero output on the evaluation
+  // Jetson. Each row-major B column is an independent triangular matvec:
+  // row-major lower A is column-major upper A^T, so A_row^T*x = A_col*x.
+  for (int32_t column = 0; column < n; ++column) {
+    CUBLAS_CHECK(cublasDtrmv(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+                             CUBLAS_DIAG_UNIT, m, dA, lda,
+                             dB + column, ldb));
+    CUBLAS_CHECK(cublasDscal(g_handle, m, &alpha, dB + column, ldb));
+  }
+  timing_gpu_end("cublasDtrmmLeftLowerTransUnitRowMajor", m, n, m,
+                 host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe(B);
 }
 
 #if POLYGEIST_HAS_CUSOLVER
@@ -9064,6 +9130,32 @@ void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
   CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
                              g_stream));
   timing_gpu_end("cudaCopy_f32", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cuda_copy_f64(int32_t N, const double *X, double *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(double);
+  double *dX = (double *)register_host_safe((void *)X, bytes);
+  double *dOut = (double *)register_host_safe(Out, bytes);
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
+                             g_stream));
+  timing_gpu_end("cudaCopy_f64", N, 1, 0, host_start_ms);
+}
+
+void polygeist_cuda_copy_i32(int32_t N, const int32_t *X, int32_t *Out) {
+  if (N <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes = (size_t)N * sizeof(int32_t);
+  int32_t *dX = (int32_t *)register_host_safe((void *)X, bytes);
+  int32_t *dOut = (int32_t *)register_host_safe(Out, bytes);
+  timing_gpu_begin();
+  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
+                             g_stream));
+  timing_gpu_end("cudaCopy_i32", N, 1, 0, host_start_ms);
 }
 
 void polygeist_cuda_copy_strided_2d_f32(

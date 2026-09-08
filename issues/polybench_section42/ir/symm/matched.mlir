@@ -14,51 +14,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f80, dense<128> :
     %6 = arith.index_cast %arg0 : i32 to index
     %7 = arith.subi %6, %c1 : index
     %8 = arith.subi %6, %c1 : index
-    %9:2 = affine.for %arg7 = 0 to %6 iter_args(%arg8 = %inserted, %arg9 = %0) -> (tensor<f64>, tensor<?x?xf64>) {
-      %11:2 = affine.for %arg10 = 0 to %3 iter_args(%arg11 = %arg8, %arg12 = %arg9) -> (tensor<f64>, tensor<?x?xf64>) {
-        %inserted_0 = tensor.insert %cst into %arg11[] : tensor<f64>
-        %extracted_slice = tensor.extract_slice %2[%arg7, %arg10] [1, 1] [1, 1] : tensor<?x?xf64> to tensor<f64>
-        %extracted_slice_1 = tensor.extract_slice %1[%arg7, 0] [1, %7] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-        %extracted_slice_2 = tensor.extract_slice %arg12[0, %arg10] [%7, 1] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-        %12 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map1], iterator_types = ["parallel"], library_call = ""} ins(%extracted_slice, %extracted_slice_1 : tensor<f64>, tensor<?xf64>) outs(%extracted_slice_2 : tensor<?xf64>) {
-        ^bb0(%in: f64, %in_9: f64, %out: f64):
-          %20 = arith.mulf %arg2, %in : f64
-          %21 = arith.mulf %20, %in_9 : f64
-          %22 = arith.addf %out, %21 : f64
-          %23 = linalg.index 0 : index
-          %24 = arith.cmpi slt, %23, %arg7 : index
-          %25 = arith.select %24, %22, %out : f64
-          linalg.yield %25 : f64
-        } -> tensor<?xf64>
-        %inserted_slice = tensor.insert_slice %12 into %arg12[0, %arg10] [%7, 1] [1, 1] : tensor<?xf64> into tensor<?x?xf64>
-        %extracted_slice_3 = tensor.extract_slice %2[0, %arg10] [%8, 1] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-        %extracted_slice_4 = tensor.extract_slice %1[%arg7, 0] [1, %8] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-        %13 = linalg.generic {doc = "", indexing_maps = [#map1, #map1, #map], iterator_types = ["reduction"], library_call = ""} ins(%extracted_slice_3, %extracted_slice_4 : tensor<?xf64>, tensor<?xf64>) outs(%inserted_0 : tensor<f64>) {
-        ^bb0(%in: f64, %in_9: f64, %out: f64):
-          %20 = arith.mulf %in, %in_9 : f64
-          %21 = arith.addf %out, %20 : f64
-          %22 = linalg.index 0 : index
-          %23 = arith.cmpi slt, %22, %arg7 : index
-          %24 = arith.select %23, %21, %out : f64
-          linalg.yield %24 : f64
-        } -> tensor<f64>
-        %extracted = tensor.extract %inserted_slice[%arg7, %arg10] : tensor<?x?xf64>
-        %14 = arith.mulf %arg3, %extracted : f64
-        %extracted_5 = tensor.extract %2[%arg7, %arg10] : tensor<?x?xf64>
-        %15 = arith.mulf %arg2, %extracted_5 : f64
-        %extracted_6 = tensor.extract %1[%arg7, %arg7] : tensor<?x?xf64>
-        %16 = arith.mulf %15, %extracted_6 : f64
-        %17 = arith.addf %14, %16 : f64
-        %extracted_7 = tensor.extract %13[] : tensor<f64>
-        %18 = arith.mulf %arg2, %extracted_7 : f64
-        %19 = arith.addf %17, %18 : f64
-        %inserted_8 = tensor.insert %19 into %inserted_slice[%arg7, %arg10] : tensor<?x?xf64>
-        affine.yield %13, %inserted_8 : tensor<f64>, tensor<?x?xf64>
-      }
-      affine.yield %11#0, %11#1 : tensor<f64>, tensor<?x?xf64>
-    }
-    %10 = bufferization.to_memref %9#1 : memref<?x?xf64>
-    memref.copy %10, %arg4 : memref<?x?xf64> to memref<?x?xf64>
+    kernel.launch @cublasDsymmLeftLowerRowMajor_memref(%arg5, %arg6, %arg4, %arg2, %arg3) : (memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, f64, f64) -> ()
     return
   }
 }

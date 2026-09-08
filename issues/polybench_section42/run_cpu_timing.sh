@@ -6,7 +6,7 @@ result_root="$repo/issues/polybench_section42"
 util="$repo/tools/cgeist/Test/polybench/utilities"
 clang=/home/arjaiswal/Polygeist/llvm-project/build/bin/clang
 llvm=/home/arjaiswal/Polygeist/llvm-project/build/bin
-build=/tmp/polygeist-section42-build
+build=${POLYGEIST_BUILD:-/tmp/polygeist-section42-build}
 cpu=${POLYBENCH_TIMING_CPU:-21}
 skip_native=${POLYBENCH_SKIP_NATIVE:-0}
 start_at=${POLYBENCH_START_AT:-}
@@ -94,7 +94,7 @@ while IFS=, read -r kernel category source_rel dataset datatype hash native rais
 done < "$result_root/manifest.csv"
 fi
 
-default_library_kernels=(2mm atax bicg gemm gemver gesummv mvt)
+default_library_kernels=(2mm atax bicg gemm gemver gesummv mvt syr2k syrk trisolv symm trmm)
 library_kernels=("${default_library_kernels[@]}")
 if [[ $# -gt 0 ]]; then library_kernels=("$@"); fi
 for kernel in "${library_kernels[@]}"; do

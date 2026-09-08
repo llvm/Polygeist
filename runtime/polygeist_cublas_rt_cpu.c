@@ -62,12 +62,45 @@ void polygeist_cub_histogram_even_i32_shift_zero(
 
 void polygeist_cublas_dtrsv_lower_row_major(
     int32_t n, const double *A, const double *b, double *x) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dcopy(n, b, 1, x, 1);
+  cblas_dtrsv(CblasRowMajor, CblasLower, CblasNoTrans, CblasNonUnit,
+              n, A, n, x, 1);
+#else
   for (int32_t i = 0; i < n; ++i) {
     double value = b[i];
     for (int32_t j = 0; j < i; ++j)
       value -= A[(size_t)i * (size_t)n + (size_t)j] * x[j];
     x[i] = value / A[(size_t)i * (size_t)n + (size_t)i];
   }
+#endif
+}
+
+void polygeist_cublas_dsymm_left_lower_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    const double *B, int32_t ldb, double beta, double *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dsymm(CblasRowMajor, CblasLeft, CblasLower, m, n, alpha, A, lda,
+              B, ldb, beta, C, ldc);
+#else
+  (void)m; (void)n; (void)alpha; (void)A; (void)lda;
+  (void)B; (void)ldb; (void)beta; (void)C; (void)ldc;
+  fprintf(stderr, "Polygeist runtime: FP64 SYMM requires external CBLAS\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    double *B, int32_t ldb) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dtrmm(CblasRowMajor, CblasLeft, CblasLower, CblasTrans,
+              CblasUnit, m, n, alpha, A, lda, B, ldb);
+#else
+  (void)m; (void)n; (void)alpha; (void)A; (void)lda; (void)B; (void)ldb;
+  fprintf(stderr, "Polygeist runtime: FP64 TRMM requires external CBLAS\n");
+  abort();
+#endif
 }
 
 void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
@@ -2171,6 +2204,16 @@ void polygeist_cudnn_softmax_forward_out_f32(
 void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out) {
   if (N <= 0) return;
   memcpy(Out, X, (size_t)N * sizeof(float));
+}
+
+void polygeist_cuda_copy_f64(int32_t N, const double *X, double *Out) {
+  if (N <= 0) return;
+  memcpy(Out, X, (size_t)N * sizeof(double));
+}
+
+void polygeist_cuda_copy_i32(int32_t N, const int32_t *X, int32_t *Out) {
+  if (N <= 0) return;
+  memcpy(Out, X, (size_t)N * sizeof(int32_t));
 }
 
 void polygeist_cuda_copy_strided_2d_f32(

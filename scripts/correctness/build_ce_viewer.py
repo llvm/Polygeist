@@ -252,6 +252,10 @@ GINSBACH_SILICON = env_path(
     "POLYGEIST_GINSBACH_SILICON",
     REPO_ROOT / "issues/ginsbach_asplos18/silicon_results_2026-09-05.csv",
 )
+GINSBACH_CURRENT_RESULTS = env_path(
+    "POLYGEIST_GINSBACH_CURRENT_RESULTS",
+    REPO_ROOT / "issues/ginsbach_asplos18/current_match_results_2026-09-07.csv",
+)
 GINSBACH_AUDIT_ROOT = env_path(
     "POLYGEIST_GINSBACH_AUDIT_ROOT",
     "/tmp/ginsbach_external_hist_fact",
@@ -2034,6 +2038,9 @@ _NATIVE_RESIDENT_CSV = (
 _NATIVE_CPU_CSV = (
     ATEN_C_ROOT / "native_cuda_results" / "torch_aten_cpu_sync_wall.csv"
 )
+_NATIVE_CPU_ORIN_CSV = (
+    ATEN_C_ROOT / "native_cuda_results" / "torch_aten_orin_cpu_sync_wall.csv"
+)
 _NATIVE_PROVENANCE_CSV = (
     ATEN_C_ROOT / "native_cuda_results" / "torch_aten_baseline_provenance.csv"
 )
@@ -2067,6 +2074,7 @@ def _load_kernel_csv(path):
 
 
 _NATIVE_CPU = _load_kernel_csv(_NATIVE_CPU_CSV)
+_NATIVE_CPU_ORIN = _load_kernel_csv(_NATIVE_CPU_ORIN_CSV)
 _NATIVE_PROVENANCE = _load_kernel_csv(_NATIVE_PROVENANCE_CSV)
 _ATEN_BENCHMARK_STATUS = _load_kernel_csv(_ATEN_BENCHMARK_STATUS_CSV)
 _NATIVE_SUF = [
@@ -2633,7 +2641,8 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
             cpu = float(status.get("native_cpu_us", ""))
         except ValueError:
             continue
-        measurements.append((ratio, raised, native, cpu, kernel, status))
+        cpu_orin = status.get("native_cpu_orin_us", "")
+        measurements.append((ratio, raised, native, cpu, cpu_orin, kernel, status))
     measurements.sort(reverse=True, key=lambda item: item[0])
 
     category_counts: dict[str, int] = {}
@@ -2653,7 +2662,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         "bandwidth-bound elementwise/reduction": "cause-bandwidth",
     }
     rows = []
-    for ratio, raised, native, cpu, kernel, status in measurements:
+    for ratio, raised, native, cpu, cpu_orin, kernel, status in measurements:
         symbols = ", ".join(aten_stats.get(kernel, {}).get("matched_symbols", []))
         category, reason, remedy = _aten_slowness_diagnosis(
             kernel, symbols, ratio
@@ -2666,10 +2675,14 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         )
         severity = "none" if ratio >= 20 else ("partial" if ratio >= 2 else "pass")
         category_style = category_styles.get(category, "cause-setup")
+        cpu_orin_cell = (
+            f'<td>{float(cpu_orin):,.3f}</td>' if cpu_orin else '<td>—</td>'
+        )
         rows.append(
             f'<tr><td>{kernel_html}</td>'
             f'<td><code>{html.escape(status.get("shape", "—").replace("_", " "))}</code></td>'
             f'<td>{raised:,.3f}</td><td>{native:,.3f}</td><td>{cpu:,.3f}</td>'
+            f'{cpu_orin_cell}'
             f'<td class="{severity}"><b>{ratio:,.2f}&times;</b></td>'
             f'<td><span class="cause-tag {category_style}">{html.escape(category)}</span>'
             f'<br>{html.escape(reason)}</td>'
@@ -2703,7 +2716,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         f'<ul>{category_items}</ul></div>'
         '<table><thead><tr><th>kernel</th><th>benchmark shape</th>'
         '<th>raised resident (µs)</th><th>PyTorch CUDA resident (µs)</th>'
-        '<th>PyTorch CPU x86 (µs)</th><th>raised/native</th>'
+        '<th>PyTorch CPU x86 (µs)</th><th>PyTorch CPU Orin (µs)</th><th>raised/native</th>'
         '<th>dominant reason</th><th>next correction</th></tr></thead><tbody>'
         + "\n".join(rows) + '</tbody></table>'
     )
@@ -3066,10 +3079,12 @@ def _aten_paper_analysis_page() -> str:
         ),
         (
             "6", "Medium", "CPU/GPU platform interpretation",
-            "CPU measurements are from the local x86-64 host with 24 threads; "
-            "GPU measurements are from Jetson AGX Orin.",
-            "Present CPU as cross-system context, never as a controlled "
-            "same-machine CPU-to-GPU speedup.",
+            "The x86 CPU measurements use a separate 24-thread host. The new "
+            "Jetson CPU measurements use the same Orin as the GPU with 12 "
+            "PyTorch threads, but currently use PyTorch 2.8+cpu rather than "
+            "the GPU campaign's PyTorch 2.6 build.",
+            "Keep both CPU columns labeled with hardware, thread count, and "
+            "framework version; do not merge them into one CPU baseline.",
         ),
         (
             "7", "Medium", "Statistical reporting",
@@ -3212,6 +3227,8 @@ def _aten_paper_analysis_page() -> str:
         'best of 20 synchronized wall-clock measurements after five warmups.</span></div>'
         '<div><b>Native CPU</b><span>PyTorch 2.6 on the separate x86-64 host, 24 '
         'threads; context only, not a same-hardware GPU speedup.</span></div>'
+        '<div><b>Jetson CPU</b><span>PyTorch 2.8+cpu on the same Jetson AGX Orin, '
+        '12 threads; reported separately from the x86 baseline.</span></div>'
         '<div><b>Shapes</b><span>Automatically scalable cases target about '
         '4,194,304 elements; structured cases use explicit semantic shapes.</span></div>'
         '</div>'
@@ -3221,8 +3238,8 @@ def _aten_paper_analysis_page() -> str:
         '</tr></thead><tbody>' + issues_html + '</tbody></table>'
         '<div class="intro"><b>Safe claim today:</b> “Across 598 standalone ATen '
         'C specializations, the compiler identifies 271 complete mappings to '
-        'external library/runtime definitions. Of those, 101 currently have strict '
-        'resident silicon evidence; 71 cases have a legally comparable native '
+        f'external library/runtime definitions. Of those, {strict_resident} currently have strict '
+        f'resident silicon evidence; {legal_ratios} cases have a legally comparable native '
         'PyTorch CUDA timing in the current performance cohort.” The native-support '
         'four-way split remains provisional pending an auditable classification.</div>'
     )
@@ -3346,6 +3363,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         )
         _nr = _NATIVE_RESIDENT.get(kernel)
         _nc = _NATIVE_CPU.get(kernel)
+        _nco = _NATIVE_CPU_ORIN.get(kernel)
         _np = _NATIVE_PROVENANCE.get(kernel, {})
         _res_shape = benchmark.get("shape", "") or _spec.get("shape", "")
         _nat_shape = (_nr or {}).get("shape", "")
@@ -3358,6 +3376,8 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         _resident_verified = _status == "VERIFIED_RESIDENT"
         native_us = benchmark.get("native_gpu_us") or None
         cpu_us = benchmark.get("native_cpu_us") or None
+        cpu_orin_us = (benchmark.get("native_cpu_orin_us") or
+                       (_nco or {}).get("time_us") or None)
         _legal_ratio = _np.get("legal_ratio", "yes") != "no"
         ratio_value = benchmark.get("ratio_raised_over_native", "")
         ratio = (html.escape(f"{float(ratio_value):.3f}×")
@@ -3399,6 +3419,14 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             )
         else:
             cpu_cell = '<td class="none">—</td>'
+        if cpu_orin_us:
+            cpu_orin_cell = (
+                f'<td title="PyTorch 2.8 CPU on Jetson AGX Orin, 12 threads; '
+                f'{html.escape(_np.get("comparability", ""))}">'
+                f'{float(cpu_orin_us):.1f}</td>'
+            )
+        else:
+            cpu_orin_cell = '<td class="none">—</td>'
         # Only strict, current-campaign resident timings are headline results.
         if _resident_verified and benchmark.get("raised_resident_us"):
             resident_cell = (
@@ -3444,6 +3472,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             f"<td>{cuda_impl_cell}</td>"
             f"{native_cell}"
             f"{cpu_cell}"
+            f"{cpu_orin_cell}"
             f"<td>{ratio}</td>"
             f"<td>{assessment}</td></tr>"
         )
@@ -3512,7 +3541,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         f'const ATEN_PAGE_SIZE={ATEN_PAGE_SIZE};'
         'let atenRows=[];let atenPage=1;'
         'let atenSortColumn=0;let atenSortDirection=1;'
-        'const atenNumericColumns=new Set([3,4,6,11,13,14,15]);'
+        'const atenNumericColumns=new Set([3,4,6,11,13,14,15,16]);'
         'function atenMissing(v){return !v||v==="—"||v==="-"||v==="N/A";}'
         'function atenValue(row,column){'
         'var v=row.cells[column].textContent.trim();'
@@ -3590,6 +3619,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         "native PyTorch CUDA dispatch",
         'PyTorch CUDA resident (<span style="text-transform:none">µs</span>)',
         'PyTorch CPU x86-64, 24 threads (<span style="text-transform:none">µs</span>)',
+        'PyTorch CPU Jetson Orin, 12 threads (<span style="text-transform:none">µs</span>)',
         "raised / PyTorch CUDA", "assessment",
     ]
     header_html = "".join(
@@ -3631,9 +3661,10 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'historical mapped-host timings are not used in this table or in the '
         'slowness page. Raised-resident and PyTorch CUDA use the same '
         'best-of-20 synchronized wall-clock boundary after five warmups. '
-        'PyTorch CPU uses the same shapes and dtypes on the separate x86 host '
-        '(24 threads), so it is labeled as a cross-system baseline rather than '
-        'a same-hardware speedup. Green resident results passed a device-pointer '
+        'PyTorch CPU baselines use the same shapes and dtypes. The x86 column '
+        'uses the separate 24-thread host; the Jetson column uses the same Orin '
+        'as the GPU with 12 PyTorch threads. Neither is folded into the raised/CUDA '
+        'ratio. Green resident results passed a device-pointer '
         'comparison with the C reference; legacy resident measurements are '
         'withheld pending that recheck. The benchmark ledger now represents '
         f'all {resolved_native_raised}/{len(native_raised)} kernels with both '
@@ -3651,7 +3682,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'semantic conditions required by the selected vendor API while fitting '
         'device memory. These are benchmark shapes, not a claim that every row '
         'is a representative production workload. The exact shape and dtype '
-        'are shared by raised, PyTorch CUDA, and PyTorch CPU measurements; '
+        'are shared by raised, PyTorch CUDA, and both PyTorch CPU measurements; '
         'explicit structured exceptions are recorded in '
         '<code>resident_shape_specs.json</code>.'
         ' <a href="performance.html"><b>Why are some kernels slow?</b></a> '
@@ -6662,12 +6693,31 @@ def _ginsbach_page() -> tuple[str, int]:
     computational_launches = totals["kernel_launches"] - sum(
         memory_only_launches.values()
     )
+    current_rows = _read_csv(GINSBACH_CURRENT_RESULTS)
+    current_results = {
+        (row.get("suite", ""), row.get("program", "")): row
+        for row in current_rows
+    }
+    for row in rows:
+        key = (row.get("suite", ""), row.get("program", ""))
+        current = current_results.get(key)
+        if current and current.get("compute_launches", ""):
+            snapshot_compute = (
+                int(row.get("kernel_launches", 0) or 0)
+                - memory_only_launches.get(key, 0)
+            )
+            computational_launches += (
+                int(current["compute_launches"]) - snapshot_compute
+            )
     backend_routes = {
         ("snu-npb", "BT"): (
             "cuBLAS strided-batched subtract GEMM + GEMV "
             "(combined ABI passes 3/3; full-app transform pending)"
         ),
-        ("snu-npb", "CG"): "cuSPARSE CSR SpMV ×4",
+        ("snu-npb", "CG"): (
+            "cuSPARSE CSR SpMV ×4; cuBLAS Ddot ×3; "
+            "CUB squared-L2 transform-reduce ×1"
+        ),
         ("snu-npb", "FT"): "cuFFT: no executable match yet",
         ("snu-npb", "IS"): "CUB histogram ×6 corpus sites; ×2 in rank",
         ("snu-npb", "UA"): (
@@ -6706,10 +6756,25 @@ def _ginsbach_page() -> tuple[str, int]:
         key = (row.get("suite", ""), row.get("program", ""))
         raw_launches = int(row.get("kernel_launches", 0) or 0)
         launches = raw_launches - memory_only_launches.get(key, 0)
+        current = current_results.get(key)
+        if current and current.get("compute_launches", ""):
+            launches = int(current["compute_launches"])
         launch_class = "pass" if launches else "nope"
-        route = backend_routes.get(
+        route = (
+            current.get("external_route", "") if current else ""
+        ) or backend_routes.get(
             key, "— (memory-only excluded)" if raw_launches else "—"
         )
+        if current:
+            latest = (
+                '<span class="pass">CURRENT BRANCH</span><br><small>'
+                + html.escape(current.get("latest_result", ""))
+                + '</small><br><small><b>Scope:</b> '
+                + html.escape(current.get("notes", ""))
+                + '</small>'
+            )
+        else:
+            latest = "—"
         silicon_row = silicon.get(key)
         if silicon_row:
             silicon_status = silicon_row.get("status", "PASS")
@@ -6743,6 +6808,7 @@ def _ginsbach_page() -> tuple[str, int]:
             f'<td>{row.get("linalg_generics", "0")}</td>'
             f'<td class="{launch_class}">{launches}</td>'
             f'<td>{html.escape(route)}</td>'
+            f'<td>{latest}</td>'
             f'<td>{validation}</td>'
             f'<td>{runtime}</td>'
             f'<td>{row.get("structured_fusions", "0")}</td>'
@@ -6764,6 +6830,16 @@ def _ginsbach_page() -> tuple[str, int]:
         'is never presented as a full-application measurement. Click any '
         'program name to inspect its translation units and their source, '
         'raised Linalg, and matcher-generated IR.</div>'
+        '<div class="intro"><b>Latest CG update (isolated implementation '
+        'branch):</b> the retained <code>cg.c</code> now emits <b>8</b> '
+        'external-library calls: 4 cuSPARSE SpMV, 3 cuBLAS Ddot, and 1 CUB '
+        'squared-L2 transform-reduce. All eight lower to runtime calls with '
+        'zero residual launches. The squared-L2 CPU reference passes for '
+        'FP32/FP64, and its host-cross-compiled CUDA 12.6 AArch64 '
+        '<code>sm_87</code> standalone smoke passed 3/3 on Orin #2. This '
+        '<b>does not yet mean</b> the complete CG application has run with '
+        'all eight replacements, and 8 is not a confirmed subset of the '
+        'paper&apos;s 60-occurrence denominator.</div>'
         f'<div class="audit-metrics">{metrics}</div>'
         '<div class="intro"><b>Analysis-only inventory:</b> '
         f'{totals["structured_fusions"]} Egglog-proved structured regions; '
@@ -6775,12 +6851,15 @@ def _ginsbach_page() -> tuple[str, int]:
         '<table class="audit-table"><thead><tr>'
         '<th>suite</th><th>program</th><th>units</th><th>raised</th>'
         '<th>linalg</th><th>compute launches</th><th>external route</th>'
+        '<th>latest implementation result</th>'
         '<th>silicon validation</th><th>silicon runtime</th>'
         '<th>Egglog regions</th><th>reductions</th><th>stencils</th>'
         '<th>histograms</th><th>paper idioms</th>'
         '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
         '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S passed '
         'three post-reboot runs (0.13 s each; 501.82 median Mop/s). '
+        'That full-application result predates the new squared-L2 route; the '
+        'new route currently has a separate 3/3 ABI smoke only. '
         'The original Parboil SGEMM application exactly matches the CPU output '
         'and is 3.90× faster in compute (1.99× including I/O). The original '
         'Parboil stencil application is correct and, after caching cuDNN setup, '
@@ -7138,7 +7217,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
                len(mfem_application_extraction_stats),
                "Section 4.2 evidence ladder, application ledger, baseline quality, and open issues.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
-               "103/103 units raised; 23 compute launches and 4 silicon-validated program rows.")
+               "103/103 units raised; CG currently emits 8 external-library calls, with scope-labelled silicon evidence.")
         + card("ai.html", "AI kernels",
                len(llama_forward_stats) + len(whisper_ops_stats) + len(llmc_stats),
                "Llama forward, Whisper/ggml, and llm.c forward/backward kernels.")

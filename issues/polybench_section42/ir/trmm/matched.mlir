@@ -9,30 +9,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i16, dense<16> : 
     %1 = bufferization.to_tensor %arg4 restrict : memref<?x?xf64>
     %2 = arith.index_cast %arg1 : i32 to index
     %3 = arith.index_cast %arg0 : i32 to index
-    %4 = affine.for %arg5 = 0 to %3 iter_args(%arg6 = %1) -> (tensor<?x?xf64>) {
-      %extracted_slice = tensor.extract_slice %0[0, %arg5] [%3, 1] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-      %extracted_slice_0 = tensor.extract_slice %arg6[0, 0] [%3, %2] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
-      %extracted_slice_1 = tensor.extract_slice %arg6[%arg5, 0] [1, %2] [1, 1] : tensor<?x?xf64> to tensor<?xf64>
-      %6 = linalg.generic {doc = "", indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "reduction"], library_call = ""} ins(%extracted_slice, %extracted_slice_0 : tensor<?xf64>, tensor<?x?xf64>) outs(%extracted_slice_1 : tensor<?xf64>) {
-      ^bb0(%in: f64, %in_2: f64, %out: f64):
-        %8 = arith.mulf %in, %in_2 : f64
-        %9 = arith.addf %out, %8 : f64
-        %10 = linalg.index 1 : index
-        %11 = affine.apply #map3(%arg5)
-        %12 = arith.cmpi sge, %10, %11 : index
-        %13 = arith.select %12, %9, %out : f64
-        linalg.yield %13 : f64
-      } -> tensor<?xf64>
-      %7 = linalg.generic {doc = "", indexing_maps = [#map4], iterator_types = ["parallel"], library_call = ""} outs(%6 : tensor<?xf64>) {
-      ^bb0(%out: f64):
-        %8 = arith.mulf %arg2, %out : f64
-        linalg.yield %8 : f64
-      } -> tensor<?xf64>
-      %inserted_slice = tensor.insert_slice %7 into %arg6[%arg5, 0] [1, %2] [1, 1] : tensor<?xf64> into tensor<?x?xf64>
-      affine.yield %inserted_slice : tensor<?x?xf64>
-    }
-    %5 = bufferization.to_memref %4 : memref<?x?xf64>
-    memref.copy %5, %arg4 : memref<?x?xf64> to memref<?x?xf64>
+    kernel.launch @cublasDtrmmLeftLowerTransUnitRowMajor_memref(%arg3, %arg4, %arg2) : (memref<?x?xf64>, memref<?x?xf64>, f64) -> ()
     return
   }
 }

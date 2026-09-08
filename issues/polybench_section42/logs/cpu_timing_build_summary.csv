@@ -1,2 +1,2 @@
 kernel,configuration,status,build_rc,samples,cpu,threads
-doitgen,openblas_cblas_1t,pass,0,5,21,1
+trmm,openblas_cblas_1t,pass,0,5,21,1
