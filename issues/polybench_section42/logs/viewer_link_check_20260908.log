@@ -1,0 +1,5 @@
+Command:
+python3 issues/polybench_section42/check_viewer_links.py /tmp/ir_viewer
+
+Result:
+PASS: 5579 local links across 1589 HTML pages

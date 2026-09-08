@@ -1,0 +1,25 @@
+0000000000038940 T kernel_gemm
+0000000000005114 T kernel_gemm_impl
+00000000000116b0 T polygeist_cublas_dgemm
+0000000000013e10 T polygeist_cublas_dgemm_outer_product
+0000000000013604 T polygeist_cublas_dgemm_strided_batched_subtract
+    4f10:	1e69196b 	fdiv	d11, d11, d9
+    4f14:	1f482c4b 	fmadd	d11, d2, d8, d11
+    4f18:	9400ce8a 	bl	38940 <kernel_gemm>
+    4f1c:	aa1c03e1 	mov	x1, x28
+    4f20:	52800020 	mov	w0, #0x1                   	// #1
+    4f24:	97fffd8b 	bl	4550 <clock_gettime@plt>
+--
+    52b8:	aa1703e7 	mov	x7, x23
+    52bc:	b90003f6 	str	w22, [sp]
+    52c0:	940030fc 	bl	116b0 <polygeist_cublas_dgemm>
+    52c4:	94001f53 	bl	d010 <polygeist_cublas_pipeline_end>
+    52c8:	9400c822 	bl	37350 <polygeist_gpu_region_timing_leave>
+    52cc:	94002f09 	bl	10ef0 <mgpuStreamCreate>
+--
+   38984:	a9061fe8 	stp	x8, x7, [sp, #96]
+   38988:	a9072fe7 	stp	x7, x11, [sp, #112]
+   3898c:	97ff31e2 	bl	5114 <kernel_gemm_impl>
+   38990:	a9487bfd 	ldp	x29, x30, [sp, #128]
+   38994:	910243ff 	add	sp, sp, #0x90
+   38998:	d65f03c0 	ret

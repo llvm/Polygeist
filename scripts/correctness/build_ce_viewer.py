@@ -3879,8 +3879,7 @@ def _polybench_paper_analysis_page() -> str:
         '<div class="section-header"><h3 class="section-title">Incomplete and blocked '
         'experiments</h3></div><div class="intro"><ul>'
         '<li><b>All timing claims:</b> pending fixed Orin hardware-state verification.</li>'
-        '<li><b>Fresh raised GPU GEMM:</b> missing; the fresh native result is retained '
-        'without a ratio.</li><li><b>Coverage gaps:</b> native-only '
+        '<li><b>Coverage gaps:</b> native-only '
         f'<code>{html.escape(native_only)}</code>; raised-only '
         f'<code>{html.escape(raised_only)}</code>; neither GPU path '
         f'<code>{html.escape(gpu_neither)}</code>.</li>'
@@ -4004,8 +4003,10 @@ def write_polybench_results_page() -> None:
             incomplete.append(
                 f'<li><b>{html.escape(kernel)}</b>: '
                 f'{html.escape(row.get("failure_reason", "not completed"))}</li>')
-        native_cpu = cpu_time(kernel, ("native_clang18_noinline", "native_clang18"))
-        raised_cpu = cpu_time(kernel, ("openblas_cblas_1t",))
+        native_cpu = cpu_time(kernel, (
+            "native_orin_gcc11", "native_clang18_noinline", "native_clang18"))
+        raised_cpu = cpu_time(kernel, (
+            "raised_openblas_orin_1t", "openblas_cblas_1t"))
         native_gpu_device, native_gpu_e2e = gpu_times(
             kernel, ("polybenchgpu", "native_gpu"))
         raised_gpu_device, raised_gpu_e2e = gpu_times(kernel, ("raised_gpu",))
@@ -4021,12 +4022,21 @@ def write_polybench_results_page() -> None:
         except (ValueError, ZeroDivisionError):
             pass
         log_directory = SECTION42_RESULTS_DIR / row["log_dir"]
+        publication_cpu_directory = (
+            SECTION42_RESULTS_DIR / "logs" / "publication_orin_cpu" / kernel)
         publication_gpu_directory = (
             SECTION42_RESULTS_DIR / "logs" / "publication_orin" / kernel)
-        log_links = [retained(log_directory / name, label)
-                     for name, label in (("large_residual.log", "residual"),
-                                         ("cpu_library_correctness.log", "CPU-lib"),
-                                         ("cpu_library_timing_raw.log", "CPU time"))]
+        log_links = [retained(log_directory / "large_residual.log", "residual")]
+        log_links.extend((
+            retained_first(publication_cpu_directory,
+                           ("raised-openblas-correctness.compare.log",),
+                           "CPU-lib") or
+            retained(log_directory / "cpu_library_correctness.log", "CPU-lib"),
+            retained_first(publication_cpu_directory,
+                           ("raised-openblas-cpu-samples.csv",),
+                           "CPU time") or
+            retained(log_directory / "cpu_library_timing_raw.log", "CPU time"),
+        ))
         log_links.extend((
             retained_first(publication_gpu_directory,
                            ("native-correctness.compare.log",),
@@ -4039,7 +4049,8 @@ def write_polybench_results_page() -> None:
             retained(log_directory / "polybenchgpu_timing_raw.log",
                      "native GPU time"),
             retained_first(publication_gpu_directory,
-                           ("raised-correctness.compare.log",),
+                           ("raised-paper-correctness.compare.log",
+                            "raised-correctness.compare.log"),
                            "raised GPU") or
             retained_first(log_directory,
                            ("raised_gpu_scope_coalesced_correctness.log",
@@ -4075,7 +4086,7 @@ def write_polybench_results_page() -> None:
         rendered_rows.append(
             f'<tr data-filter="{bucket}"><td><a class="kernel" href="{html.escape(kernel)}.html">'
             f'{html.escape(kernel)}</a></td>'
-            f'<td>{cpu_cell(row.get("native_cpu_status", ""), native_cpu, "Clang -O3")}</td>'
+            f'<td>{cpu_cell(row.get("native_cpu_status", ""), native_cpu, "native C -O3")}</td>'
             f'<td>{cpu_cell(row.get("cpu_library_status", ""), raised_cpu, "external CPU library")}</td>'
             f'<td>{gpu_cell(row.get("polybenchgpu_status", ""), native_gpu_device, native_gpu_e2e, "PolyBenchGPU CUDA")}</td>'
             f'<td>{gpu_cell(row.get("raised_gpu_status", ""), raised_gpu_device, raised_gpu_e2e, "external CUDA library")}</td>'

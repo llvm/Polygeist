@@ -10,12 +10,12 @@ timings in the legacy result ledger.
   has a 7.70x geometric-mean speedup and a
   9.30x median speedup; the range is
   1.27x--32.91x.
-- GPU: 13 native and 16
-  raised resident measurements, with 11 one-to-one device-time
-  pairs. Raised is faster for 8 pairs and native is
+- GPU: 13 native and 17
+  raised resident measurements, with 12 one-to-one device-time
+  pairs. Raised is faster for 9 pairs and native is
   faster for 3; geometric-mean native/raised
-  device speedup is 1.55x.
-- Native-only GPU rows: fdtd-2d, gemm.
+  device speedup is 1.50x.
+- Native-only GPU rows: fdtd-2d.
 - Raised-only GPU rows: cholesky, doitgen, symm, trisolv, trmm.
 - CPU rows without a fresh native/raised OpenBLAS pair:
   adi, deriche, durbin, fdtd-2d, floyd-warshall, gramschmidt, heat-3d, jacobi-1d, jacobi-2d, lu, ludcmp, nussinov, seidel-2d.

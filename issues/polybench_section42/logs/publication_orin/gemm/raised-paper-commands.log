@@ -1,0 +1,64 @@
+GEMM raised-GPU publication commands (2026-09-08)
+
+All compilation and linking ran on the x86 host. The Jetson AGX Orin only
+executed the cross-compiled AArch64 binaries.
+
+1. Export semantic matched objects
+
+POLYGEIST_MINIMAL_CUDA_RUNTIME=1 \
+POLYGEIST_EXPORT_OBJECT_DIR=/tmp/polybench-publication-orin/gemm/raised-paper-export \
+POLYGEIST_SKIP_LINK=1 \
+scripts/correctness/polygeist_build.sh --target=jetson \
+  --semantic-mlir=issues/polybench_section42/ir/gemm/raised_gpu/matched.mlir \
+  --harness=issues/polybench_section42/logs/publication_orin/gemm/raised_harness.c \
+  -o /tmp/polybench-publication-orin/gemm/unused \
+  tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c \
+  -O3 -Itools/cgeist/Test/polybench/utilities \
+  -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm \
+  -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO
+
+2. Link correctness executable with the x86-host cross-builder
+
+POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 \
+POLYGEIST_GPU_REGION_TIMING=1 \
+POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_ARCH=sm_87 \
+POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-publication-orin/gemm/raised-paper-correctness-work \
+HARNESS_CFLAGS='-O3 -DCORRECTNESS_RUN' \
+scripts/correctness/build_jetson.sh \
+  /tmp/polybench-publication-orin/gemm/raised-paper-export/abi.mlir \
+  /tmp/polybench-publication-orin/gemm/raised-paper-correctness \
+  /tmp/polybench-publication-orin/gemm/raised-paper-export/wrapper.o \
+  issues/polybench_section42/logs/publication_orin/gemm/raised_harness.c
+
+3. Execute correctness on Orin
+
+POLYGEIST_SILICON_PROFILE=pva-general \
+scripts/correctness/run_jetson.sh --exe \
+  /tmp/polybench-publication-orin/gemm/raised-paper-correctness \
+  publication_gemm_raised_paper_correctness
+
+4. Link timing executable with the x86-host cross-builder
+
+POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 \
+POLYGEIST_GPU_REGION_TIMING=1 \
+POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_gemm \
+POLYGEIST_GPU_ARCH=sm_87 \
+POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-publication-orin/gemm/raised-paper-timing-work \
+HARNESS_CFLAGS='-O3' \
+scripts/correctness/build_jetson.sh \
+  /tmp/polybench-publication-orin/gemm/raised-paper-export/abi.mlir \
+  /tmp/polybench-publication-orin/gemm/raised-paper-timing \
+  /tmp/polybench-publication-orin/gemm/raised-paper-export/wrapper.o \
+  issues/polybench_section42/logs/publication_orin/gemm/raised_harness.c
+
+5. Execute one-process five-warmup/five-sample timing on Orin
+
+POLYGEIST_SILICON_PROFILE=pva-general \
+scripts/correctness/run_jetson.sh --exe \
+  /tmp/polybench-publication-orin/gemm/raised-paper-timing \
+  publication_gemm_raised_paper_timing_5x5

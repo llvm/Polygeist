@@ -1,17 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 512" role="img" aria-label="PolyBench GPU: native CUDA versus raised resident library">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 547" role="img" aria-label="PolyBench GPU: native CUDA versus raised resident library">
 <style>text{font-family:system-ui,sans-serif;fill:#24292f}.title{font-size:20px;font-weight:700}.axis{font-size:11px}.kernel{font-size:12px;font-weight:600}.ratio{font-size:11px;font-weight:700}.grid{stroke:#d8dee4;stroke-width:1}.pair{stroke:#8c959f;stroke-width:1.4}</style>
 <text class="title" x="155" y="28">PolyBench GPU: native CUDA versus raised resident library</text>
 <text class="axis" x="155" y="48">LARGE/FP64 on Orin SM87; CUDA-event device time; median of 5 after 5 warmups</text>
-<line class="grid" x1="155.00" y1="60" x2="155.00" y2="462"/>
-<text class="axis" x="155.00" y="494" text-anchor="middle">0.1 ms</text>
-<line class="grid" x1="388.75" y1="60" x2="388.75" y2="462"/>
-<text class="axis" x="388.75" y="494" text-anchor="middle">1 ms</text>
-<line class="grid" x1="622.50" y1="60" x2="622.50" y2="462"/>
-<text class="axis" x="622.50" y="494" text-anchor="middle">10 ms</text>
-<line class="grid" x1="856.25" y1="60" x2="856.25" y2="462"/>
-<text class="axis" x="856.25" y="494" text-anchor="middle">100 ms</text>
-<line class="grid" x1="1090.00" y1="60" x2="1090.00" y2="462"/>
-<text class="axis" x="1090.00" y="494" text-anchor="middle">1000 ms</text>
+<line class="grid" x1="155.00" y1="60" x2="155.00" y2="497"/>
+<text class="axis" x="155.00" y="529" text-anchor="middle">0.1 ms</text>
+<line class="grid" x1="388.75" y1="60" x2="388.75" y2="497"/>
+<text class="axis" x="388.75" y="529" text-anchor="middle">1 ms</text>
+<line class="grid" x1="622.50" y1="60" x2="622.50" y2="497"/>
+<text class="axis" x="622.50" y="529" text-anchor="middle">10 ms</text>
+<line class="grid" x1="856.25" y1="60" x2="856.25" y2="497"/>
+<text class="axis" x="856.25" y="529" text-anchor="middle">100 ms</text>
+<line class="grid" x1="1090.00" y1="60" x2="1090.00" y2="497"/>
+<text class="axis" x="1090.00" y="529" text-anchor="middle">1000 ms</text>
 <text class="kernel" x="145" y="76" text-anchor="end">2mm</text>
 <line class="pair" x1="822.54" y1="72" x2="850.29" y2="72"/>
 <circle cx="822.54" cy="72" r="5" fill="#0969da"><title>Native PolyBenchGPU: 71.743362 ms</title></circle>
@@ -42,32 +42,37 @@
 <circle cx="978.51" cy="247" r="5" fill="#0969da"><title>Native PolyBenchGPU: 333.460938 ms</title></circle>
 <circle cx="881.65" cy="247" r="5" fill="#d97706"><title>Raised CUDA library: 128.429794 ms</title></circle>
 <text class="ratio" x="1100" y="251">2.60×</text>
-<text class="kernel" x="145" y="286" text-anchor="end">gemver</text>
-<line class="pair" x1="487.56" y1="282" x2="664.28" y2="282"/>
-<circle cx="487.56" cy="282" r="5" fill="#0969da"><title>Native PolyBenchGPU: 2.646880 ms</title></circle>
-<circle cx="664.28" cy="282" r="5" fill="#d97706"><title>Raised CUDA library: 15.091168 ms</title></circle>
-<text class="ratio" x="1100" y="286">0.18×</text>
-<text class="kernel" x="145" y="321" text-anchor="end">gesummv</text>
-<line class="pair" x1="376.16" y1="317" x2="306.66" y2="317"/>
-<circle cx="376.16" cy="317" r="5" fill="#0969da"><title>Native PolyBenchGPU: 0.883328 ms</title></circle>
-<circle cx="306.66" cy="317" r="5" fill="#d97706"><title>Raised CUDA library: 0.445472 ms</title></circle>
-<text class="ratio" x="1100" y="321">1.98×</text>
-<text class="kernel" x="145" y="356" text-anchor="end">mvt</text>
-<line class="pair" x1="465.84" y1="352" x2="386.46" y2="352"/>
-<circle cx="465.84" cy="352" r="5" fill="#0969da"><title>Native PolyBenchGPU: 2.137024 ms</title></circle>
-<circle cx="386.46" cy="352" r="5" fill="#d97706"><title>Raised CUDA library: 0.977696 ms</title></circle>
-<text class="ratio" x="1100" y="356">2.19×</text>
-<text class="kernel" x="145" y="391" text-anchor="end">syr2k</text>
-<line class="pair" x1="930.48" y1="387" x2="767.87" y2="387"/>
-<circle cx="930.48" cy="387" r="5" fill="#0969da"><title>Native PolyBenchGPU: 207.753952 ms</title></circle>
-<circle cx="767.87" cy="387" r="5" fill="#d97706"><title>Raised CUDA library: 41.871967 ms</title></circle>
-<text class="ratio" x="1100" y="391">4.96×</text>
-<text class="kernel" x="145" y="426" text-anchor="end">syrk</text>
-<line class="pair" x1="837.84" y1="422" x2="705.94" y2="422"/>
-<circle cx="837.84" cy="422" r="5" fill="#0969da"><title>Native PolyBenchGPU: 83.418144 ms</title></circle>
-<circle cx="705.94" cy="422" r="5" fill="#d97706"><title>Raised CUDA library: 22.748960 ms</title></circle>
-<text class="ratio" x="1100" y="426">3.67×</text>
-<circle cx="155" cy="472" r="5" fill="#0969da"/><text class="axis" x="165" y="476">Native PolyBenchGPU</text>
-<circle cx="365" cy="472" r="5" fill="#d97706"/><text class="axis" x="375" y="476">Raised CUDA library</text>
-<text class="axis" x="1090" y="476" text-anchor="end">right label: native / raised speedup</text>
+<text class="kernel" x="145" y="286" text-anchor="end">gemm</text>
+<line class="pair" x1="826.81" y1="282" x2="822.43" y2="282"/>
+<circle cx="826.81" cy="282" r="5" fill="#0969da"><title>Native PolyBenchGPU: 74.829247 ms</title></circle>
+<circle cx="822.43" cy="282" r="5" fill="#d97706"><title>Raised CUDA library: 71.664803 ms</title></circle>
+<text class="ratio" x="1100" y="286">1.04×</text>
+<text class="kernel" x="145" y="321" text-anchor="end">gemver</text>
+<line class="pair" x1="487.56" y1="317" x2="664.28" y2="317"/>
+<circle cx="487.56" cy="317" r="5" fill="#0969da"><title>Native PolyBenchGPU: 2.646880 ms</title></circle>
+<circle cx="664.28" cy="317" r="5" fill="#d97706"><title>Raised CUDA library: 15.091168 ms</title></circle>
+<text class="ratio" x="1100" y="321">0.18×</text>
+<text class="kernel" x="145" y="356" text-anchor="end">gesummv</text>
+<line class="pair" x1="376.16" y1="352" x2="306.66" y2="352"/>
+<circle cx="376.16" cy="352" r="5" fill="#0969da"><title>Native PolyBenchGPU: 0.883328 ms</title></circle>
+<circle cx="306.66" cy="352" r="5" fill="#d97706"><title>Raised CUDA library: 0.445472 ms</title></circle>
+<text class="ratio" x="1100" y="356">1.98×</text>
+<text class="kernel" x="145" y="391" text-anchor="end">mvt</text>
+<line class="pair" x1="465.84" y1="387" x2="386.46" y2="387"/>
+<circle cx="465.84" cy="387" r="5" fill="#0969da"><title>Native PolyBenchGPU: 2.137024 ms</title></circle>
+<circle cx="386.46" cy="387" r="5" fill="#d97706"><title>Raised CUDA library: 0.977696 ms</title></circle>
+<text class="ratio" x="1100" y="391">2.19×</text>
+<text class="kernel" x="145" y="426" text-anchor="end">syr2k</text>
+<line class="pair" x1="930.48" y1="422" x2="767.87" y2="422"/>
+<circle cx="930.48" cy="422" r="5" fill="#0969da"><title>Native PolyBenchGPU: 207.753952 ms</title></circle>
+<circle cx="767.87" cy="422" r="5" fill="#d97706"><title>Raised CUDA library: 41.871967 ms</title></circle>
+<text class="ratio" x="1100" y="426">4.96×</text>
+<text class="kernel" x="145" y="461" text-anchor="end">syrk</text>
+<line class="pair" x1="837.84" y1="457" x2="705.94" y2="457"/>
+<circle cx="837.84" cy="457" r="5" fill="#0969da"><title>Native PolyBenchGPU: 83.418144 ms</title></circle>
+<circle cx="705.94" cy="457" r="5" fill="#d97706"><title>Raised CUDA library: 22.748960 ms</title></circle>
+<text class="ratio" x="1100" y="461">3.67×</text>
+<circle cx="155" cy="507" r="5" fill="#0969da"/><text class="axis" x="165" y="511">Native PolyBenchGPU</text>
+<circle cx="365" cy="507" r="5" fill="#d97706"/><text class="axis" x="375" y="511">Raised CUDA library</text>
+<text class="axis" x="1090" y="511" text-anchor="end">right label: native / raised speedup</text>
 </svg>
