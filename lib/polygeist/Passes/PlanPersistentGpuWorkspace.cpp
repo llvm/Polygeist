@@ -3,8 +3,10 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -15,6 +17,84 @@
 using namespace mlir;
 
 namespace {
+
+/// Return true when `value` is a tensor view of storage that the selected
+/// function is allowed to update in place.  Do not treat arbitrary tensor
+/// arguments or functional tensor computations as writable destinations: the
+/// copy-back normalization below would otherwise change their value semantics.
+static bool isStorageBackedTensor(Value value) {
+  llvm::SmallDenseSet<Value> visited;
+  while (value && visited.insert(value).second) {
+    if (value.getDefiningOp<bufferization::ToTensorOp>())
+      return true;
+    if (auto cast = value.getDefiningOp<tensor::CastOp>()) {
+      value = cast.getSource();
+      continue;
+    }
+    if (auto result = dyn_cast<OpResult>(value)) {
+      if (auto loop = dyn_cast<affine::AffineForOp>(result.getOwner())) {
+        value = loop.getInits()[result.getResultNumber()];
+        continue;
+      }
+      if (auto loop = dyn_cast<scf::ForOp>(result.getOwner())) {
+        value = loop.getInitArgs()[result.getResultNumber()];
+        continue;
+      }
+    }
+    return false;
+  }
+  return false;
+}
+
+/// Make the destructive intent of a storage-backed loop carry explicit.
+///
+/// Debufferization represents a repeated C update as a functional tensor
+/// recurrence.  ABI lowering can then materialize a fresh result buffer, so
+/// One-Shot Bufferize rejects the loop because its yield is not equivalent to
+/// the corresponding iter_arg.  materialize_in_destination expresses the
+/// required copy-back into the stable workspace.  Bufferization can eliminate
+/// the copy when the producer already writes directly into that destination.
+static void materializeLoopCarriedTensorUpdates(func::FuncOp function) {
+  function.walk([&](affine::AffineForOp loop) {
+    auto yield = cast<affine::AffineYieldOp>(loop.getBody()->getTerminator());
+    for (auto [index, iterArg, init, yielded] :
+         llvm::enumerate(loop.getRegionIterArgs(), loop.getInits(),
+                         yield.getOperands())) {
+      if (!isa<RankedTensorType>(iterArg.getType()) || yielded == iterArg ||
+          !isStorageBackedTensor(init))
+        continue;
+      if (auto materialize =
+              yielded.getDefiningOp<bufferization::MaterializeInDestinationOp>();
+          materialize && materialize.getDest() == iterArg)
+        continue;
+      OpBuilder builder(yield);
+      auto materialize =
+          builder.create<bufferization::MaterializeInDestinationOp>(
+              yield.getLoc(), yielded, iterArg);
+      yield->setOperand(index, materialize.getResult());
+    }
+  });
+
+  function.walk([&](scf::ForOp loop) {
+    auto yield = cast<scf::YieldOp>(loop.getBody()->getTerminator());
+    for (auto [index, iterArg, init, yielded] :
+         llvm::enumerate(loop.getRegionIterArgs(), loop.getInitArgs(),
+                         yield.getOperands())) {
+      if (!isa<RankedTensorType>(iterArg.getType()) || yielded == iterArg ||
+          !isStorageBackedTensor(init))
+        continue;
+      if (auto materialize =
+              yielded.getDefiningOp<bufferization::MaterializeInDestinationOp>();
+          materialize && materialize.getDest() == iterArg)
+        continue;
+      OpBuilder builder(yield);
+      auto materialize =
+          builder.create<bufferization::MaterializeInDestinationOp>(
+              yield.getLoc(), yielded, iterArg);
+      yield->setOperand(index, materialize.getResult());
+    }
+  });
+}
 
 struct ScratchRoot {
   Operation *op;
@@ -100,6 +180,11 @@ struct PlanPersistentGpuWorkspacePass
     });
 
     if (roots.empty() && memrefRoots.empty()) {
+      // The pass is intentionally idempotent. A preceding invocation may
+      // already have replaced every scratch root while a later ABI-lowering
+      // step introduced fresh tensor results at loop yields. Normalize those
+      // carries even when there is no allocation left to promote.
+      materializeLoopCarriedTensorUpdates(function);
       function->setAttr("polygeist.persistent_workspace",
                         UnitAttr::get(module.getContext()));
       return;
@@ -182,6 +267,8 @@ struct PlanPersistentGpuWorkspacePass
         dealloc.erase();
       root.op.erase();
     }
+
+    materializeLoopCarriedTensorUpdates(function);
 
     function->setAttr("polygeist.persistent_workspace",
                       UnitAttr::get(module.getContext()));

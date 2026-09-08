@@ -4311,6 +4311,12 @@ def build_mfem_pages() -> list[dict]:
             MFEM_SILICON_RESULTS_DIR / "native_vs_raised_large_ne.csv"
         )
     }
+    workspace_rows = {
+        row["id"]: row
+        for row in _read_csv(
+            MFEM_SILICON_RESULTS_DIR / "persistent_workspace_ab_20260907.csv"
+        )
+    }
     stats = []
     for row in manifest:
         ident = row["id"]
@@ -4330,6 +4336,9 @@ def build_mfem_pages() -> list[dict]:
             composition_rows.get(ident, {}) if variant == "normalized" else {}
         )
         silicon_row = silicon_rows.get(ident, {}) if variant == "normalized" else {}
+        workspace_row = (
+            workspace_rows.get(ident, {}) if variant == "normalized" else {}
+        )
 
         blocks = []
         css = ""
@@ -4480,6 +4489,7 @@ def build_mfem_pages() -> list[dict]:
             "network_launches": network_launches,
             "matched_symbols": symbols,
             "silicon": silicon_row,
+            "workspace": workspace_row,
         })
     return stats
 
@@ -5293,6 +5303,60 @@ def _mfem_section(mfem_stats: list[dict]) -> str:
         '</tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
+    )
+
+
+def _mfem_workspace_ab_section(mfem_stats: list[dict]) -> str:
+    """Render the same-revision persistent-workspace silicon experiment."""
+    rows = []
+    improved = regressed = incomplete = 0
+    for stats in mfem_stats:
+        result = stats.get("workspace", {})
+        if not result:
+            continue
+        status = result.get("status", "")
+        control = result.get("control_runtime_us", "")
+        persistent = result.get("persistent_workspace_runtime_us", "")
+        speedup = result.get("persistent_workspace_speedup", "")
+        if status == "IMPROVED":
+            improved += 1
+            status_class = "pass"
+            effect = f'<b>{float(speedup):.2f}&times; faster</b>'
+        elif status == "REGRESSION_GT_10_PERCENT":
+            regressed += 1
+            status_class = "none"
+            effect = f'<b>{1.0 / float(speedup):.1f}&times; slower</b>'
+        else:
+            incomplete += 1
+            status_class = "none"
+            effect = html.escape(status.replace("_", " "))
+        control_cell = (
+            _fmt_seconds(float(control) / 1.0e6) if control else "—"
+        )
+        persistent_cell = (
+            _fmt_seconds(float(persistent) / 1.0e6) if persistent else "—"
+        )
+        rows.append(
+            f'<tr><td><code>{html.escape(stats["id"])}</code></td>'
+            f'<td>{control_cell}</td><td>{persistent_cell}</td>'
+            f'<td class="{status_class}">{effect}</td>'
+            f'<td>{html.escape(result.get("correctness", ""))}</td></tr>'
+        )
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Persistent workspace A/B on Orin</h2></div>'
+        '<div class="intro">Same-revision comparison of ordinary lowering '
+        'against opt-in persistent scratch, using NE=1024 and f64. Each value '
+        'is the median of five fresh processes; each process reports the mean '
+        'of 20 calls. This isolates the workspace transform from earlier '
+        'contraction-composition changes. '
+        f'<b>{improved} improved, {regressed} materially regressed, and '
+        f'{incomplete} did not complete.</b> The regressing routes are not '
+        'candidates for automatic enablement until coherence/staging costs are '
+        'modeled or eliminated.'
+        '</div><table><thead><tr><th>kernel</th><th>same-revision control</th>'
+        '<th>persistent workspace</th><th>effect</th><th>correctness</th>'
+        '</tr></thead><tbody>' + "\n".join(rows) + '</tbody></table>'
     )
 
 
@@ -7262,7 +7326,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
                 mfem_application_extraction_stats
             )
             + _mfem_application_section(mfem_application_stats)
-            + _mfem_section(mfem_stats))
+            + _mfem_section(mfem_stats)
+            + _mfem_workspace_ab_section(mfem_stats))
     ginsbach = nav() + ginsbach_body
     ai = nav() + llama_forward_section + whisper_ops_section + llmc_section
     vision = (

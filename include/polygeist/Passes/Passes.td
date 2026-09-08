@@ -343,6 +343,12 @@ def PlanPersistentGpuWorkspace
     of the same function would alias the workspace. A future caller-owned
     workspace ABI can reuse the same scratch analysis while providing
     re-entrancy.
+
+    Storage-backed tensor iter_args are normalized with explicit
+    `bufferization.materialize_in_destination` copy-backs. This preserves the
+    destructive semantics of repeated C updates when library ABI lowering
+    materializes a fresh tensor result, and allows One-Shot Bufferize to prove
+    that each loop yield is equivalent to its persistent destination.
   }];
   let constructor =
       "mlir::polygeist::createPlanPersistentGpuWorkspacePass()";
