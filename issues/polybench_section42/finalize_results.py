@@ -52,7 +52,8 @@ REASONS = {
     "2mm": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
     "atax": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
     "bicg": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
-    "gemm": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
+    "gemm": ("fresh Orin native CPU, raised OpenBLAS, raised cuBLAS, and normalized "
+             "PolyBenchGPU paths pass; KernelFaRer unavailable"),
     "gemver": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
     "3mm": "canonical PolyBenchGPU passes; raised cuTensorNet output is all zero; CPU library unavailable",
     "gesummv": "CPU library and canonical PolyBenchGPU pass; raised CUDA path has an illegal memory access",

@@ -191,7 +191,8 @@ def main() -> None:
                 if native_device is not None and raised_device is not None else None),
             "native_correctness": correctness(directory, ("native-correctness.compare.log",)),
             "raised_correctness": correctness(directory, (
-                "raised-correctness.compare.log", "*publication-correctness*.silicon.log")),
+                "raised-correctness.compare.log", "raised-paper-correctness.compare.log",
+                "*publication-correctness*.silicon.log")),
             "dataset": "LARGE", "datatype": "double", "warmups": 5, "samples": 5,
             "hardware": "Jetson AGX Orin sm_87",
             "publication_status": "pending_fixed_hardware_state_verification",

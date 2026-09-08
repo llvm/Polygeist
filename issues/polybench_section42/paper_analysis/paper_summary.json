@@ -20,15 +20,14 @@
     "seidel-2d"
   ],
   "gpu_native_kernels": 13,
-  "gpu_raised_kernels": 16,
-  "gpu_paired_kernels": 11,
-  "gpu_geomean_device_speedup": 1.5549958662068464,
-  "gpu_median_device_speedup": 2.185775461902268,
-  "gpu_raised_faster": 8,
+  "gpu_raised_kernels": 17,
+  "gpu_paired_kernels": 12,
+  "gpu_geomean_device_speedup": 1.5042346578036323,
+  "gpu_median_device_speedup": 2.0843395180443745,
+  "gpu_raised_faster": 9,
   "gpu_native_faster": 3,
   "gpu_native_only": [
-    "fdtd-2d",
-    "gemm"
+    "fdtd-2d"
   ],
   "gpu_raised_only": [
     "cholesky",
