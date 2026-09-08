@@ -90,6 +90,15 @@
 #                       Copy kernel.o, wrapper.o, runtime objects, and the
 #                       matched/ABI MLIR into this directory for a larger
 #                       application link.
+#   POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION=name
+#                       Materialize scratch owned by this compiler-visible
+#                       repeated function before ABI lowering and normalize
+#                       ABI-created loop-carried tensor results again before
+#                       final bufferization.
+#   POLYGEIST_PERSISTENT_WORKSPACE_LOWER_SUBMAPS=auto|0|1
+#                       Control tensor-view lowering before ABI lowering.
+#                       `auto` (the default) enables it for tensor iter_args;
+#                       use 0 or 1 for controlled layout experiments.
 #   POLYGEIST_SKIP_LINK=1
 #                       Stop after compiling/exporting those objects. This is
 #                       intended for application composition builds whose main
@@ -358,6 +367,28 @@ if [ "${POLYGEIST_COMPOSE_CUTENSORNET_NETWORKS:-1}" != 0 ]; then
 fi
 fi
 
+# A repeated C function exposes the lifetime in which scratch and device
+# buffers may persist. Plan its tensor workspace while view structure is still
+# available, after semantic composition has finished.
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+  PERSISTENT_FN=$POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION
+  polygeist-opt \
+    "--plan-persistent-gpu-workspace=function=${PERSISTENT_FN}" \
+    "$SEMANTIC_INPUT" -o $WORK/semantic_persistent_workspace.mlir
+  SEMANTIC_INPUT=$WORK/semantic_persistent_workspace.mlir
+  # Whole-function sessions acquire tensor iter_args during debufferization.
+  # Lower their views before partial bufferization so the later copy-back is
+  # visible. An explicit override supports layout-preservation experiments.
+  PERSISTENT_LOWER_SUBMAPS=${POLYGEIST_PERSISTENT_WORKSPACE_LOWER_SUBMAPS:-auto}
+  if [ "$PERSISTENT_LOWER_SUBMAPS" = 1 ] || \
+     { [ "$PERSISTENT_LOWER_SUBMAPS" = auto ] && \
+       grep -q 'iter_args' "$SEMANTIC_INPUT"; }; then
+    polygeist-opt --lower-polygeist-submap \
+      "$SEMANTIC_INPUT" -o $WORK/semantic_persistent_views.mlir
+    SEMANTIC_INPUT=$WORK/semantic_persistent_views.mlir
+  fi
+fi
+
 # Bufferize tensor semantics before translating a launch into a CUDA runtime
 # ABI.  This preserves tensor.insert/extract_slice ordering through the normal
 # MLIR destination/alias analysis instead of reconstructing it later from an
@@ -372,7 +403,10 @@ N_TENSOR_NETWORK=$(grep -c 'kernel\.launch @cutensornetNetwork_' \
   "$SEMANTIC_INPUT" || true)
 N_POLYGEIST_SUBMAP=$(grep -c 'polygeist\.submap' "$SEMANTIC_INPUT" || true)
 if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
-  if [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
+  if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ] && \
+     [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; then
+    PRE_ABI_BUFFERIZE=1
+  elif [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
      { [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] || \
        { [ "${N_TENSOR_NETWORK:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] && \
          [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; }; }; then
@@ -465,6 +499,16 @@ if grep -q 'polygeist\.submap' $WORK/abi_canon.mlir; then
       exit 1
     }
   mv $WORK/abi_canon_loops.mlir $WORK/abi_canon.mlir
+fi
+# Library ABI lowering may introduce a fresh result allocation for a tensor
+# carried by a repeated loop. Re-run the idempotent workspace planner so it can
+# express the copy-back with materialize_in_destination before the final
+# One-Shot Bufferize invocation checks iter_arg/yield equivalence.
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+  polygeist-opt \
+    "--plan-persistent-gpu-workspace=function=${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION}" \
+    $WORK/abi_canon.mlir -o $WORK/abi_persistent_workspace.mlir
+  mv $WORK/abi_persistent_workspace.mlir $WORK/abi_canon.mlir
 fi
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
