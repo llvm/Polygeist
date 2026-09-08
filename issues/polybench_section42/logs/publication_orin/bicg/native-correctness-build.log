@@ -1,0 +1,27 @@
+5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c
+aarch64-linux-gnu-gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+Build cuda_12.6.r12.6/compiler.35059454_0
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/bicg/bicg.c:33:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/BICG/bicg.cu: In function ‘void bicgCuda(int, int, double (*)[1900], double*, double*, double*, double*, double*, double*)’:
+third_party/polybenchGpu/CUDA/BICG/bicg.cu:203:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  203 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/BICG/bicg.cu:205:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  205 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+0000000000003014 T kernel_bicg
+6aaa2ce6e5eac66feaedbf79f2b6d08c8d7ae92b998a71eed96969a0f75fd611  tools/cgeist/Test/polybench/linear-algebra/kernels/bicg/bicg.c
+eb1ce2d1a538c5a1cf9afb527457e336eab3ccfa08ce7d3f9d4778a75b9f6d60  issues/polybench_section42/polybenchgpu_adapters/bicg.cu
+ff48e7b3785272b78c25dc384842be58df7a381671f145d90943146b0283b0aa  /tmp/polybench-publication-orin/bicg/native-correctness

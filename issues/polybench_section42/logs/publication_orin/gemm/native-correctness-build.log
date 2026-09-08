@@ -1,0 +1,14 @@
++ /usr/local/cuda-12.6/bin/nvcc -O3 -std=c++17 -arch=sm_87 -ccbin aarch64-linux-gnu-g++ -Iissues/polybench_section42/polybenchgpu_adapters -Ithird_party/polybenchGpu -c issues/polybench_section42/polybenchgpu_adapters/gemm.cu -o /tmp/polybench-publication-orin/gemm/native-publication-work/adapter.o
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -c tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c -o /tmp/polybench-publication-orin/gemm/native-publication-work/harness-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_gemm /tmp/polybench-publication-orin/gemm/native-publication-work/harness-full.o /tmp/polybench-publication-orin/gemm/native-publication-work/harness.o
++ aarch64-linux-gnu-gcc -O3 -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/gemm/native-publication-work/polybench.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/gemm/native-publication-work/harness.o /tmp/polybench-publication-orin/gemm/native-publication-work/polybench.o /tmp/polybench-publication-orin/gemm/native-publication-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/gemm/native-correctness
++ file /tmp/polybench-publication-orin/gemm/native-correctness
+/tmp/polybench-publication-orin/gemm/native-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=a4f77c42ca6e58082aff0c3be41b17b2555fa15d, for GNU/Linux 3.7.0, not stripped
++ aarch64-linux-gnu-nm /tmp/polybench-publication-orin/gemm/native-correctness
++ rg ' T kernel_gemm$'
+0000000000001a00 T kernel_gemm
++ sha256sum tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c issues/polybench_section42/polybenchgpu_adapters/gemm.cu /tmp/polybench-publication-orin/gemm/native-correctness
+1a3b5a3190c8267deb3ef8b821359309596dcf7321ec9943e82ba64db4a8c75f  tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+f69414511342c8572c5319fc51bc5694f1f78ba905f02c0c42fa1837b05c0452  issues/polybench_section42/polybenchgpu_adapters/gemm.cu
+23b6fa7f0b380c70ccac0b6e2627fda9f30a873cdb3b73f134d3fa3891f1a6ae  /tmp/polybench-publication-orin/gemm/native-correctness

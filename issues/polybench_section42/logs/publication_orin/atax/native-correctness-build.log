@@ -1,0 +1,28 @@
+5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c
+aarch64-linux-gnu-gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+Build cuda_12.6.r12.6/compiler.35059454_0
+BUILD native ATAX correctness: AArch64 harness plus pinned upstream PolyBenchGPU CUDA adapter
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c:33:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/ATAX/atax.cu: In function ‘void ataxGpu(int, int, double (*)[2100], double*, double*, double*, double*)’:
+third_party/polybenchGpu/CUDA/ATAX/atax.cu:164:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  164 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/ATAX/atax.cu:166:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  166 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+0000000000002e84 T kernel_atax
+f31f15b65b19e7d779c21ea9ad5c017fbb51278a333d9b541b5fa34705525e9b  tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c
+da4ae0c582726319803fd800c7e6f203de53de9df6caddbaa85f5489f0a29254  issues/polybench_section42/polybenchgpu_adapters/atax.cu
+85f6314d49dc27570ac0eb819d37ab7061da3f819449a15605e24414b5047ee2  /tmp/polybench-publication-orin/atax/native-correctness

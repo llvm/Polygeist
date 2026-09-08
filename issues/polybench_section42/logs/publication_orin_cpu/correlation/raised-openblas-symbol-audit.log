@@ -1,0 +1,17 @@
+0000000000002060 T cblas_daxpy
+0000000000002100 T cblas_dcopy
+0000000000002620 T cblas_dgemm
+0000000000002250 T cblas_dgemv
+00000000000021b0 T cblas_dnrm2
+0000000000002150 T cblas_dscal
+0000000000008eb0 T dgemm_small_kernel_b0_nn
+0000000000008f80 T dgemm_small_kernel_b0_nt
+0000000000009040 T dgemm_small_kernel_b0_tn
+00000000000090f0 T dgemm_small_kernel_b0_tt
+0000000000008b70 T dgemm_small_kernel_nn
+0000000000008c40 T dgemm_small_kernel_nt
+0000000000008d10 T dgemm_small_kernel_tn
+0000000000008dd0 T dgemm_small_kernel_tt
+000000000001cad0 d gemm_small_kernel_b0
+0000000000001ac0 T kernel_correlation
+0000000000001a94 T kernel_correlation_impl

@@ -1,0 +1,30 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/syrk-raised-openblas-timing_20260908_111055/raised-openblas-timing run 1 ...
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=0 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.493055999
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=1 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.322687998
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=2 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.207488000
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=3 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.219776005
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=4 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.235072002
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=0 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.319455996
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=1 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.197152004
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=2 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.157920003
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=3 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.385023996
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=4 total=10
+POLYGEIST_RAISED_GPU_E2E_MS 91.218815997
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.982

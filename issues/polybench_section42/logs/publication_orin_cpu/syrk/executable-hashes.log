@@ -1,0 +1,5 @@
+756e0f2b3d78bffdafd5e3bf984f712eb680afa0d5eeb032e0b84d41dad2cf96  tools/cgeist/Test/polybench/linear-algebra/blas/syrk/syrk.c
+f211046bcf4c36fa49916a61f4945796740eed88ec8bd1e22e8d35e0382e56f8  /tmp/polybench-publication-orin-cpu/syrk/native-cpu-correctness
+4abcba3452d75a5ac957e5481982ae64d320983f8bdedb82872fb8a82f735ad2  /tmp/polybench-publication-orin-cpu/syrk/raised-openblas-correctness
+578d5966e88719fae042b21325969d7a40aaa50f87a58661dae8ab3ccfdcf818  /tmp/polybench-publication-orin-cpu/syrk/native-cpu-timing
+9454df4cb435d444dd6a4a675de5858e78a23d839e1aec7913360a2bf1023794  /tmp/polybench-publication-orin-cpu/syrk/raised-openblas-timing

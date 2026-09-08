@@ -1,0 +1,1 @@
+aarch64-linux-gnu-gcc -O3 -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c tools/cgeist/Test/polybench/utilities/polybench.c -lm -o /tmp/polybench-publication-orin-cpu/gemm/native-cpu-correctness

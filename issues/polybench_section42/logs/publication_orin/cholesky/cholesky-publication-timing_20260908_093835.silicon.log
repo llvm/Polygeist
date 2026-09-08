@@ -1,0 +1,30 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/cholesky-publication-timing_20260908_093835/cholesky_publication_timing run 1 ...
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=541.370944	device_ms=535.673523
+CHOLESKY_SAMPLE phase=warmup index=1 e2e_host_ms=619.797696
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=526.100544	device_ms=520.871826
+CHOLESKY_SAMPLE phase=warmup index=2 e2e_host_ms=530.797792
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.567456	device_ms=520.326965
+CHOLESKY_SAMPLE phase=warmup index=3 e2e_host_ms=530.261152
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.206432	device_ms=520.000977
+CHOLESKY_SAMPLE phase=warmup index=4 e2e_host_ms=529.882272
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.674560	device_ms=520.477661
+CHOLESKY_SAMPLE phase=warmup index=5 e2e_host_ms=530.392128
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=526.000832	device_ms=520.839355
+CHOLESKY_SAMPLE phase=sample index=1 e2e_host_ms=530.688032
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.544384	device_ms=520.398315
+CHOLESKY_SAMPLE phase=sample index=2 e2e_host_ms=530.254496
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.936224	device_ms=520.794128
+CHOLESKY_SAMPLE phase=sample index=3 e2e_host_ms=530.597760
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.572640	device_ms=520.483276
+CHOLESKY_SAMPLE phase=sample index=4 e2e_host_ms=530.203776
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=2000	n=2000	k=0	host_ms=525.358464	device_ms=520.298523
+CHOLESKY_SAMPLE phase=sample index=5 e2e_host_ms=530.020608
+
+[jetson] exit code: 0
+[jetson] elapsed_s 30.329

@@ -1,0 +1,11 @@
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/bicg/bicg.c:33:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+0000000000003284 T kernel_bicg
+/tmp/polybench-publication-orin/bicg/native-timing-5x5: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=055fcf49d134625ceeb90f020fcd3c8115de5414, for GNU/Linux 3.7.0, not stripped
+ca68b459b42c16cbdd9b18675d844db1d29cce2693435bcdf004f155e8ea9a6a  /tmp/polybench-publication-orin/bicg/native-timing-5x5
+719ef186a8e60f669cdda167450b4a37d1726329d7dbce194e37b792f60c43ba  runtime/polybench_repeat_driver.c

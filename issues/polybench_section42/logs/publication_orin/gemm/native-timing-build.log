@@ -1,0 +1,20 @@
++ set -x
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -Dmain=polygeist_polybench_iteration -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -c tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c -o /tmp/polybench-publication-orin/gemm/native-publication-work/harness-timing-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_gemm /tmp/polybench-publication-orin/gemm/native-publication-work/harness-timing-full.o /tmp/polybench-publication-orin/gemm/native-publication-work/harness-timing.o
++ aarch64-linux-gnu-gcc -O3 -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/gemm/native-publication-work/polybench-timing.o
++ aarch64-linux-gnu-gcc -O3 -c runtime/polybench_repeat_driver.c -o /tmp/polybench-publication-orin/gemm/native-publication-work/repeat-driver.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/gemm/native-publication-work/harness-timing.o /tmp/polybench-publication-orin/gemm/native-publication-work/polybench-timing.o /tmp/polybench-publication-orin/gemm/native-publication-work/repeat-driver.o /tmp/polybench-publication-orin/gemm/native-publication-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/gemm/native-timing-5x5
++ aarch64-linux-gnu-objdump -dr /tmp/polybench-publication-orin/gemm/native-publication-work/harness-timing-full.o
++ rg -B1 -A5 'R_AARCH64_CALL26.*kernel_gemm'
+ 554:	94000000 	bl	314 <kernel_gemm>
+			554: R_AARCH64_CALL26	kernel_gemm
+ 558:	94000000 	bl	0 <polybench_timer_stop>
+			558: R_AARCH64_CALL26	polybench_timer_stop
+ 55c:	94000000 	bl	0 <polybench_timer_print>
+			55c: R_AARCH64_CALL26	polybench_timer_print
+ 560:	7100aadf 	cmp	w22, #0x2a
++ file /tmp/polybench-publication-orin/gemm/native-timing-5x5
+/tmp/polybench-publication-orin/gemm/native-timing-5x5: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=68a5c752899ee986a9651f8d4587b0e8af9bf208, for GNU/Linux 3.7.0, not stripped
++ sha256sum /tmp/polybench-publication-orin/gemm/native-timing-5x5 runtime/polybench_repeat_driver.c
+24ef02fa124422be3ec3297f7cc136befb375481ebe8bd166020d632818ba935  /tmp/polybench-publication-orin/gemm/native-timing-5x5
+719ef186a8e60f669cdda167450b4a37d1726329d7dbce194e37b792f60c43ba  runtime/polybench_repeat_driver.c

@@ -1,0 +1,3 @@
+CORRECTED: POLYBENCH_TIME is defined for both benchmark and utility translation units. The earlier zero-output timing run was rejected.
+aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fno-ipa-pure-const -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Dmain=polygeist_polybench_iteration -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/solvers/trisolv -c tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c -o /tmp/polybench-publication-orin-cpu/trisolv/native-main.o
+aarch64-linux-gnu-gcc -O3 -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin-cpu/trisolv/polybench.o

@@ -1,0 +1,20 @@
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gesummv/gesummv.c  function=kernel_gesummv  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/gesummv/whole-raised-openblas-timing
+[polygeist] integration=whole-program-in-place
+[polygeist] repetitions=5+5 in-process
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gesummv -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Dmain=polygeist_polybench_iteration -include /home/arjaiswal/Polygeist/runtime/polybench_repeat_entry.h
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 0 kernel.launch op(s)
+         no ABI-lowerable matches; continuing with residual Linalg
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 0 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_gesummv
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+         + optimized AArch64 CPU CBLAS runtime enabled
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+ERROR: whole-program object does not define transformed kernel_gesummv

@@ -3727,6 +3727,183 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream))
 
 
+def _polybench_paper_analysis_page() -> str:
+    """Render the fresh, publication-protocol PolyBench Section 4.2 results."""
+    analysis_dir = SECTION42_RESULTS_DIR / "paper_analysis"
+    cpu_rows = _read_csv(analysis_dir / "paper_cpu_results.csv")
+    gpu_rows = _read_csv(analysis_dir / "paper_gpu_results.csv")
+    related_rows = _read_csv(analysis_dir / "paper_x86_related_work.csv")
+    summary_path = analysis_dir / "paper_summary.json"
+    if not cpu_rows or not gpu_rows or not summary_path.exists():
+        return (
+            '<div class="intro paper-provisional"><b>PolyBench paper data is not '
+            'generated.</b> Run <code>issues/polybench_section42/'
+            'generate_paper_analysis.py</code> and rebuild the viewer.</div>')
+    summary = json.loads(summary_path.read_text())
+
+    artifact_root = "polybench_section42_artifacts"
+
+    def artifact(relative: str, label: str) -> str:
+        return (f'<a href="{artifact_root}/{html.escape(relative)}">'
+                f'{html.escape(label)}</a>')
+
+    def ms(value: str, iqr: str = "") -> str:
+        if not value:
+            return "&mdash;"
+        rendered = f"{float(value):.3f} ms"
+        if iqr:
+            rendered += f" <span class=\"scope\">(IQR {float(iqr):.3f})</span>"
+        return rendered
+
+    def correctness(value: str) -> str:
+        status = value or "unavailable"
+        return (f'<span class="result-status {html.escape(status)}">'
+                f'{html.escape(status)}</span>')
+
+    cpu_html = []
+    for row in cpu_rows:
+        log_dir = row["log_dir"]
+        evidence = " &middot; ".join((
+            artifact(f"{log_dir}/native-cpu-samples.csv", "native samples"),
+            artifact(f"{log_dir}/raised-openblas-cpu-samples.csv", "raised samples"),
+        ))
+        cpu_html.append(
+            '<tr><td><b>{kernel}</b></td><td>{native}</td><td>{raised}</td>'
+            '<td><b>{speedup:.2f}&times;</b></td><td>{native_ok} / {raised_ok}</td>'
+            '<td>{evidence}</td></tr>'.format(
+                kernel=html.escape(row["kernel"]),
+                native=ms(row["native_ms"], row["native_iqr_ms"]),
+                raised=ms(row["raised_openblas_ms"], row["raised_iqr_ms"]),
+                speedup=float(row["speedup_native_over_raised"]),
+                native_ok=correctness(row["native_correctness"]),
+                raised_ok=correctness(row["raised_correctness"]),
+                evidence=evidence))
+
+    gpu_html = []
+    for row in gpu_rows:
+        log_dir = row["log_dir"]
+        evidence = []
+        if row["native_device_ms"]:
+            evidence.append(artifact(f"{log_dir}/native-gpu-samples.csv", "native samples"))
+        if row["raised_device_ms"]:
+            evidence.append(artifact(f"{log_dir}/raised-gpu-samples.csv", "raised samples"))
+        ratio = (f'<b>{float(row["device_speedup_native_over_raised"]):.2f}&times;</b>'
+                 if row["device_speedup_native_over_raised"] else "&mdash;")
+        gpu_html.append(
+            '<tr><td><b>{kernel}</b></td><td>{native_device}<br>'
+            '<span class="scope">E2E {native_e2e}</span></td>'
+            '<td>{raised_device}<br><span class="scope">resident wall {wall}; '
+            'memory {memory}; E2E {raised_e2e}</span></td><td>{ratio}</td>'
+            '<td>{native_ok} / {raised_ok}</td><td>{modified}</td><td>{evidence}</td></tr>'.format(
+                kernel=html.escape(row["kernel"]),
+                native_device=ms(row["native_device_ms"], row["native_device_iqr_ms"]),
+                native_e2e=ms(row["native_e2e_ms"]),
+                raised_device=ms(row["raised_device_ms"], row["raised_device_iqr_ms"]),
+                wall=ms(row["raised_resident_wall_ms"]),
+                memory=ms(row["raised_memory_device_ms"]),
+                raised_e2e=ms(row["raised_e2e_ms"]), ratio=ratio,
+                native_ok=correctness(row["native_correctness"]),
+                raised_ok=correctness(row["raised_correctness"]),
+                modified=("yes &mdash; normalization adapter" if row["native_modified_source"]
+                          else "&mdash;"),
+                evidence=" &middot; ".join(evidence) or "&mdash;"))
+
+    related_html = []
+    for row in related_rows:
+        related_html.append(
+            f'<tr><td><b>{html.escape(row["kernel"])}</b></td>'
+            f'<td>{ms(row["native_x86_ms"])}</td><td>{ms(row["polly_x86_ms"])}</td>'
+            f'<td>{html.escape(row["polly_speedup"] or "unavailable")}</td>'
+            '<td>unavailable: incompatible LLVM toolchain</td></tr>')
+
+    native_only = ", ".join(summary["gpu_native_only"])
+    raised_only = ", ".join(summary["gpu_raised_only"])
+    cpu_missing = ", ".join(summary["cpu_missing"])
+    gpu_neither = ", ".join(summary["gpu_neither"])
+    return (
+        '<div class="section-header"><h2 class="section-title">PolyBench Section 4.2 '
+        'paper analysis</h2></div>'
+        '<div class="intro paper-provisional"><b>Provisional paper data.</b> The fresh '
+        'runs pass the measurement and correctness protocol, but the runner could not '
+        'read fixed Orin power, clock, fan, temperature, or throttling state. The numbers '
+        'remain publication-pending until that state is verified. Historical one-warmup '
+        'tracker numbers are not used here.</div>'
+        '<div class="audit-metrics">'
+        f'<div class="audit-metric"><b>{summary["cpu_paired_kernels"]}</b><span>paired CPU kernels</span></div>'
+        f'<div class="audit-metric"><b>{summary["cpu_geomean_speedup"]:.2f}&times;</b><span>CPU geometric-mean speedup</span></div>'
+        f'<div class="audit-metric"><b>{summary["gpu_paired_kernels"]}</b><span>paired GPU kernels</span></div>'
+        f'<div class="audit-metric"><b>{summary["gpu_geomean_device_speedup"]:.2f}&times;</b><span>GPU device-time geometric mean</span></div>'
+        f'<div class="audit-metric"><b>{summary["gpu_raised_faster"]}/{summary["gpu_paired_kernels"]}</b><span>GPU pairs won by raised path</span></div>'
+        '</div>'
+        '<div class="paper-notes">'
+        '<div><b>Common experiment</b><span>Canonical PolyBench LARGE, FP64, identical '
+        'initialization, complete-output correctness, one process, five warmups, five '
+        'measured samples, and median reporting.</span></div>'
+        '<div><b>CPU scope</b><span>One Jetson AGX Orin CPU core, pinned to core 0. '
+        'Native C uses -O3; raised uses external OpenBLAS/CBLAS with one thread.</span></div>'
+        '<div><b>GPU scope</b><span>Orin sm_87. Ratios compare CUDA-event device time '
+        'with device time. Resident wall, memory-device, and full end-to-end time are '
+        'reported separately and never mixed into the headline ratio.</span></div>'
+        '<div><b>Source status</b><span>Native PolyBenchGPU uses retained external CUDA '
+        'compute with adapters that normalize FP64, LARGE sizes, inputs, ABI, and timing; '
+        'those rows are explicitly modified-source.</span></div></div>'
+        '<div class="section-header"><h3 class="section-title">Figure: CPU runtime</h3></div>'
+        '<div class="paper-chart-wrap"><img class="paper-chart" '
+        f'src="{artifact_root}/paper_analysis/polybench_cpu_runtime.svg" '
+        'alt="PolyBench CPU native and raised runtime graph"></div>'
+        '<div class="section-header"><h3 class="section-title">Figure: GPU device runtime</h3></div>'
+        '<div class="paper-chart-wrap"><img class="paper-chart" '
+        f'src="{artifact_root}/paper_analysis/polybench_gpu_runtime.svg" '
+        'alt="PolyBench native and raised GPU device runtime graph"></div>'
+        '<div class="section-header"><h3 class="section-title">CPU measurements</h3></div>'
+        '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
+        '<th>native C -O3</th><th>raised OpenBLAS</th><th>native / raised</th>'
+        '<th>correctness native / raised</th><th>raw evidence</th></tr></thead><tbody>'
+        + "".join(cpu_html) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">GPU measurements</h3></div>'
+        '<div class="intro">There are '
+        f'{summary["gpu_native_kernels"]} native and {summary["gpu_raised_kernels"]} raised '
+        f'measurements. Native-only: <code>{html.escape(native_only)}</code>. Raised-only: '
+        f'<code>{html.escape(raised_only)}</code>.</div>'
+        '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
+        '<th>native GPU device</th><th>raised GPU device</th><th>native / raised</th>'
+        '<th>correctness native / raised</th><th>modified source</th><th>raw evidence</th>'
+        '</tr></thead><tbody>' + "".join(gpu_html) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Related CPU compilers '
+        '(secondary x86 evidence)</h3></div><div class="intro">These Polly values are '
+        'retained portability evidence and are not compared with Orin. KernelFaRer could '
+        'not be built with the available LLVM toolchain.</div><div class="table-wrap">'
+        '<table class="audit-table"><thead><tr><th>kernel</th><th>x86 native</th>'
+        '<th>x86 Polly</th><th>reported speedup</th><th>KernelFaRer</th></tr></thead><tbody>'
+        + "".join(related_html) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Incomplete and blocked '
+        'experiments</h3></div><div class="intro"><ul>'
+        '<li><b>All timing claims:</b> pending fixed Orin hardware-state verification.</li>'
+        '<li><b>Fresh raised GPU GEMM:</b> missing; the fresh native result is retained '
+        'without a ratio.</li><li><b>Coverage gaps:</b> native-only '
+        f'<code>{html.escape(native_only)}</code>; raised-only '
+        f'<code>{html.escape(raised_only)}</code>; neither GPU path '
+        f'<code>{html.escape(gpu_neither)}</code>.</li>'
+        '<li><b>CPU pair unavailable:</b> '
+        f'<code>{html.escape(cpu_missing)}</code>. These kernels lack a correctness-gated '
+        'fresh native/raised external-CPU-library pair.</li>'
+        '<li><b>Gramschmidt:</b> correctness failed, so no performance result is admitted.</li>'
+        '<li><b>KernelFaRer:</b> unavailable due to incompatible LLVM/toolchain; Polly is '
+        'available only as separately labelled x86 evidence.</li></ul>'
+        '<p><b>Artifacts:</b> '
+        + " &middot; ".join((
+            artifact("paper_analysis/paper_cpu_results.csv", "CPU CSV"),
+            artifact("paper_analysis/paper_gpu_results.csv", "GPU CSV"),
+            artifact("paper_analysis/paper_x86_related_work.csv", "related-work CSV"),
+            artifact("paper_analysis/paper_summary.json", "summary JSON"),
+            artifact("paper_analysis/PAPER_ANALYSIS.md", "analysis notes"),
+            artifact("paper_analysis/polybench_cpu_runtime.pdf", "CPU figure PDF"),
+            artifact("paper_analysis/polybench_gpu_runtime.pdf", "GPU figure PDF"),
+            artifact("paper_analysis/FIGURE_GENERATION.md", "figure commands"),
+            '<a href="polybench.html">full PolyBench pipeline tracker</a>',
+        )) + '</p></div>')
+
+
 def write_polybench_results_page() -> None:
     """Render the single correctness-gated four-runtime PolyBench ledger."""
     manifest_path = SECTION42_RESULTS_DIR / "manifest.csv"
@@ -3844,18 +4021,34 @@ def write_polybench_results_page() -> None:
         except (ValueError, ZeroDivisionError):
             pass
         log_directory = SECTION42_RESULTS_DIR / row["log_dir"]
+        publication_gpu_directory = (
+            SECTION42_RESULTS_DIR / "logs" / "publication_orin" / kernel)
         log_links = [retained(log_directory / name, label)
                      for name, label in (("large_residual.log", "residual"),
                                          ("cpu_library_correctness.log", "CPU-lib"),
-                                         ("cpu_library_timing_raw.log", "CPU time"),
-                                         ("polybenchgpu_correctness.log", "native GPU"),
-                                         ("polybenchgpu_timing_raw.log", "native GPU time"))]
+                                         ("cpu_library_timing_raw.log", "CPU time"))]
         log_links.extend((
+            retained_first(publication_gpu_directory,
+                           ("native-correctness.compare.log",),
+                           "native GPU") or
+            retained(log_directory / "polybenchgpu_correctness.log",
+                     "native GPU"),
+            retained_first(publication_gpu_directory,
+                           ("native-gpu-samples.csv",),
+                           "native GPU time") or
+            retained(log_directory / "polybenchgpu_timing_raw.log",
+                     "native GPU time"),
+            retained_first(publication_gpu_directory,
+                           ("raised-correctness.compare.log",),
+                           "raised GPU") or
             retained_first(log_directory,
                            ("raised_gpu_scope_coalesced_correctness.log",
                             "raised_gpu_region_correctness.log",
                             "raised_gpu_correctness.log"),
                            "raised GPU"),
+            retained_first(publication_gpu_directory,
+                           ("raised-gpu-samples.csv",),
+                           "raised GPU time") or
             retained_first(log_directory,
                            ("raised_gpu_scope_coalesced_timing_raw.csv",
                             "raised_gpu_region_timing_raw.csv",
@@ -3894,7 +4087,8 @@ def write_polybench_results_page() -> None:
     body = (
         '<div class="header"><h1><a href="index.html">Polygeist IR explorer</a></h1>'
         '<div><a href="index.html">Overview</a> &middot; '
-        '<a href="polybench.html">PolyBench results</a></div></div>'
+        '<a href="polybench.html">PolyBench results</a> &middot; '
+        '<a href="polybench-paper.html">PolyBench paper analysis</a></div></div>'
         '<div class="intro"><b>PolyBench four-runtime correctness-gated results.</b> '
         'All rows use checked-in PolyBench/C initialization, LARGE dimensions, and FP64. '
         '<b>Native CPU</b> is the original C kernel at Clang -O3; <b>raised CPU</b> is '
@@ -5217,7 +5411,7 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         f'<div><b>Native checksum audit</b><span><a href="{artifact}/native_checksum_audit_20260908.csv">'
         'native_checksum_audit_20260908.csv</a></span></div>'
         f'<div><b>Standalone paper figures</b><span><a href="{artifact}/mfem_four_runtime_log.svg">'
-        'four-runtime SVG</a> &middot; <a href="{artifact}/mfem_raised_gpu_vs_native.svg">'
+        f'four-runtime SVG</a> &middot; <a href="{artifact}/mfem_raised_gpu_vs_native.svg">'
         'slowdown SVG</a></span></div>'
         f'<div><b>Publication analysis</b><span><a href="{artifact}/MFEM_PAPER_ANALYSIS_20260908.md">'
         'MFEM_PAPER_ANALYSIS_20260908.md</a></span></div>'
@@ -7602,6 +7796,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="pva.html">PVA backend</a>'
             '</div>'
             '<div style="margin-top:6px; font-size:13px;">'
+            '<a href="polybench-paper.html">PolyBench paper analysis</a> &middot; '
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
             '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
             '<a href="llama-paper.html">Llama paper analysis</a>'
@@ -7634,6 +7829,13 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'background:#fafbfc; } .audit-metric b { display:block; color:#1a7f37; '
         'font-size:22px; } .audit-metric span { color:#555; font-size:12px; } '
         '.audit-table { font-size:12px; } .audit-table td { white-space:nowrap; } '
+        '.table-wrap { overflow:auto; padding:0 20px; } '
+        '.result-status { display:inline-block; border-radius:10px; padding:2px 7px; '
+        'font-size:10px; font-weight:bold; text-transform:uppercase; background:#eee; } '
+        '.result-status.pass { background:#dff5e5; color:#176b35; } '
+        '.result-status.fail,.result-status.partial { background:#ffe2e2; color:#8a1c1c; } '
+        '.result-status.blocked { background:#fff0c2; color:#745600; } '
+        '.scope { font-size:10px; color:#666; } '
         '.paper-matrix { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); '
         'gap:12px; padding:16px 20px; max-width:900px; } '
         '.paper-matrix div,.paper-flow div,.paper-notes div { border:1px solid #d8dee8; '
@@ -7754,6 +7956,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + '<div class="suite-grid">'
         + card("polybench.html", "PolyBench four-runtime results", len(polybench_stats),
                "Strict audit: native CPU remains valid; three linker-substitution columns are excluded pending untouched transformation.")
+        + card("polybench-paper.html", "PolyBench paper analysis", 17,
+               "Fresh Orin 5+5 measurements, correctness gates, CPU/GPU figures, raw evidence, and explicit claim boundaries.")
         + card("backends.html", "CPU + GPU lowering",
                sum(s.get("launches", 0) > 0 for s in polybench_stats.values()),
                "Shared ABI, backend branch point, and implementation coverage.")
@@ -7793,6 +7997,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     )
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
+    polybench_paper = nav() + _polybench_paper_analysis_page()
     aten_paper = nav() + _aten_paper_analysis_page()
     mfem_paper = nav() + _mfem_latest_paper_analysis_page(
         mfem_application_extraction_stats
@@ -7828,6 +8033,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "performance.html": render_html(
             "Polygeist: kernel slowness analysis", performance, extra_css
+        ),
+        "polybench-paper.html": render_html(
+            "Polygeist: PolyBench paper analysis", polybench_paper, extra_css
         ),
         "aten-paper.html": render_html(
             "Polygeist: ATen paper analysis", aten_paper, extra_css
@@ -7985,6 +8193,8 @@ def main():
             polybench_stats, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
         OUTPUT_DIR.joinpath("backends.html").write_text(pages["backends.html"])
+        OUTPUT_DIR.joinpath("polybench-paper.html").write_text(
+            pages["polybench-paper.html"])
         write_polybench_results_page()
         for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
             OUTPUT_DIR.joinpath(obsolete).unlink(missing_ok=True)

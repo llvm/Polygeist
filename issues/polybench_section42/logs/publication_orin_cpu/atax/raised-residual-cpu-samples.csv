@@ -1,0 +1,11 @@
+phase,index,runtime_ms
+warmup,0,6.091136
+warmup,1,6.189824
+warmup,2,6.080864
+warmup,3,6.109504
+warmup,4,6.126496
+sample,0,6.141952
+sample,1,6.070496
+sample,2,6.128448
+sample,3,6.073216
+sample,4,6.081280

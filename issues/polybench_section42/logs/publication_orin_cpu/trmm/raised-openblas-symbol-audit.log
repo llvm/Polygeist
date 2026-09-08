@@ -1,0 +1,4 @@
+/tmp/polybench-publication-orin-cpu/trmm/raised-openblas-timing: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=17003141769c930a6d32cbc28af8dfe6a6763d67, for GNU/Linux 3.7.0, not stripped
+0000000000034780 B blas_server_avail
+000000000001e990 T blas_thread_init
+0000000000001fb0 T cblas_dtrmm

@@ -1,0 +1,23 @@
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c  function=kernel_atax  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/atax/raised-residual-timing
+[polygeist] harness=issues/polybench_section42/logs/publication_orin_cpu/atax/raised_cpu_harness.c
+[polygeist] gcc passthrough: -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/atax
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         all library matching disabled; preserving residual Linalg
+         matched 0 kernel.launch op(s)
+         no ABI-lowerable matches; continuing with residual Linalg
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 0 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_atax
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+         exported link objects to /tmp/polybench-publication-orin-cpu/atax/residual-timing-export
+  [9/9] link → /tmp/polybench-publication-orin-cpu/atax/raised-residual-timing
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: /tmp/tmp.9yWq8Kzz7C/wrapper.o: in function `kernel_atax':
+wrapper.c:(.text+0x50): undefined reference to `kernel_atax_impl'
+collect2: error: ld returned 1 exit status
