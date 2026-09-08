@@ -128,13 +128,41 @@ def load_provenance():
     return result
 
 
+def load_native_fixture_adjudication():
+    path = HERE / "native_fixture_adjudication.csv"
+    rows = {row["kernel"]: row for row in csv.DictReader(path.open())}
+    if not rows:
+        raise RuntimeError(f"empty native-fixture adjudication: {path}")
+    return rows
+
+
 def main():
     specs = json.loads((HERE / "resident_shape_specs.json").read_text())
     provenance = load_provenance()
+    fixture_adjudication = load_native_fixture_adjudication()
+    expected_fixture_rows = {
+        spec["kernel"] for spec in specs
+        if spec.get("comparison_scope")
+        == "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+    }
+    if set(fixture_adjudication) != expected_fixture_rows:
+        missing = sorted(expected_fixture_rows - set(fixture_adjudication))
+        stale = sorted(set(fixture_adjudication) - expected_fixture_rows)
+        raise RuntimeError(
+            "native-fixture adjudication is not exhaustive: "
+            f"missing={missing}, stale={stale}")
+    invalid_legal = sorted(
+        kernel for kernel, row in fixture_adjudication.items()
+        if row.get("legal_ratio") not in {"yes", "no"})
+    if invalid_legal:
+        raise RuntimeError(
+            f"invalid native-fixture legal_ratio values: {invalid_legal}")
     gpu = {row["kernel"]: row for row in csv.DictReader(
         (HERE / "torch_aten_resident_sync_wall.csv").open())}
     cpu = {row["kernel"]: row for row in csv.DictReader(
         (HERE / "torch_aten_cpu_sync_wall.csv").open())}
+    cpu_orin = {row["kernel"]: row for row in csv.DictReader(
+        (HERE / "torch_aten_orin_cpu_sync_wall.csv").open())}
     rows = []
     for spec in specs:
         kernel = spec["kernel"]
@@ -157,10 +185,17 @@ def main():
             legal_ratio = "yes_composition"
             note = "same dense result and layout, implemented by multiple ATen operations"
         elif spec.get("comparison_scope") == "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER":
-            comparability = "NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION"
-            legal_ratio = "no"
-            note = ("native benchmark recipe is now explicit, but whole-operation "
-                    "equivalence must be adjudicated before publishing a ratio")
+            adjudication = fixture_adjudication.get(kernel)
+            if adjudication is None:
+                raise RuntimeError(
+                    f"native fixture lacks an explicit adjudication: {kernel}")
+            if adjudication.get("fixture_op", "") != (spec.get("op") or ""):
+                raise RuntimeError(
+                    f"stale native-fixture adjudication for {kernel}: "
+                    f"{adjudication.get('fixture_op')!r} != {spec.get('op')!r}")
+            comparability = adjudication["comparability"]
+            legal_ratio = adjudication["legal_ratio"]
+            note = adjudication["semantic_note"]
         else:
             comparability = "EXACT_ATEN_OPERATION"
             legal_ratio = "yes"
@@ -175,11 +210,17 @@ def main():
                 else "MEASURED_CUDA_DISPATCH_SOURCE_NOT_PINNED"),
             "comparability": comparability, "legal_ratio": legal_ratio,
             "semantic_note": note, "shape": spec["shape"],
+            "adjudication_source": (
+                "native_fixture_adjudication.csv"
+                if spec.get("comparison_scope")
+                == "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
+                else "built_in_provenance_rule"),
             "dtype": spec["dtype"],
             "shape_selection": spec.get("shape_selection", ""),
             "shape_selection_note": spec.get("shape_selection_note", ""),
             "gpu_status": gpu.get(kernel, {}).get("status", "MISSING"),
             "cpu_status": cpu.get(kernel, {}).get("status", "MISSING"),
+            "cpu_orin_status": cpu_orin.get(kernel, {}).get("status", "MISSING"),
             "timing_scope": "best_of_20_synchronized_wall; warmup=5",
         })
     output = HERE / "torch_aten_baseline_provenance.csv"

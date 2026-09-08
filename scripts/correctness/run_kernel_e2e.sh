@@ -69,11 +69,9 @@ PIPELINE_OPTS=(
   --lower-polygeist-submap
 )
 if [ -n "$DEBUF" ]; then
-  if [ -n "$MULTIROOT" ]; then
-    PIPELINE_OPTS+=('--linalg-debufferize=use-multi-root=true')
-  else
-    PIPELINE_OPTS+=(--linalg-debufferize)
-  fi
+  DEBUFFERIZE_OPT=--linalg-debufferize
+  [ -n "$MULTIROOT" ] && \
+    DEBUFFERIZE_OPT='--linalg-debufferize=use-multi-root=true'
 fi
 
 # Step 1: build the reference exe.
@@ -83,10 +81,33 @@ $CLANG $CFLAGS $DYN_FLAGS $SRC $UTIL/polybench.c -lm -o $OUT/ref_exe 2>$OUT/ref_
 cgeist "$SRC" --function=$FN --resource-dir=/usr/lib/clang/14 \
   $CFLAGS $DYN_FLAGS --raise-scf-to-affine -S -o $OUT/orig.mlir 2>$OUT/cgeist.err
 
-# Step 3: raise + lower-polygeist-submap (+ optional debuferize).
-polygeist-opt "${PIPELINE_OPTS[@]}" $OUT/orig.mlir -o $OUT/std.mlir 2>$OUT/raise.err
+# Step 3: raise + lower-polygeist-submap (+ optional debufferize).
+#
+# Some legal affine views (notably reversed prefixes and runtime-symbol
+# offsets) cannot be represented by memref.subview.  Debufferizing while
+# those opaque views remain is both unnecessary for residual execution and
+# pathologically expensive.  Convert the already-raised Linalg to explicit
+# loops first, then compose every load/store index with the submap affine map.
+# This preserves the exact view without a temporary allocation.  Kernels whose
+# views lower normally retain the established tensor-debufferized route used
+# by the library matcher.
+: >$OUT/raise.err
+polygeist-opt "${PIPELINE_OPTS[@]}" $OUT/orig.mlir \
+  -o $OUT/raised.mlir 2>>$OUT/raise.err
+LOOPS_PRELOWERED=""
+if grep -qE "polygeist\.(submap|submapInverse)" $OUT/raised.mlir; then
+  polygeist-opt --convert-linalg-to-loops --lower-polygeist-submap \
+    $OUT/raised.mlir -o $OUT/std.mlir \
+    2>>$OUT/raise.err
+  LOOPS_PRELOWERED=1
+elif [ -n "$DEBUF" ]; then
+  polygeist-opt "$DEBUFFERIZE_OPT" $OUT/raised.mlir -o $OUT/std.mlir \
+    2>>$OUT/raise.err
+else
+  polygeist-opt $OUT/raised.mlir -o $OUT/std.mlir 2>>$OUT/raise.err
+fi
 
-# Bail if any polygeist ops survive.
+# Bail if any polygeist ops survive both lowering routes.
 if grep -qE "polygeist\.(submap|submapInverse)" $OUT/std.mlir; then
   echo "$TAG: PARTIAL_LOWER (polygeist ops remain)"
   exit 3
@@ -140,7 +161,7 @@ fi
 # Also: one-shot-bufferize doesn't handle `affine.for` with tensor iter_args,
 # which debuferize emits for time-stepping kernels. Convert affine.for ->
 # scf.for first (via --lower-affine) so bufferize sees only scf.for.
-if [ -n "$DEBUF" ]; then
+if [ -n "$DEBUF" ] && [ -z "$LOOPS_PRELOWERED" ]; then
   sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' $OUT/std.mlir
   EXTRA="--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=bufferize-function-boundaries"
 else

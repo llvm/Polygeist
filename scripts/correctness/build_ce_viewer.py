@@ -2844,14 +2844,14 @@ def _aten_paper_analysis_page() -> str:
                         if has_native(k) and has_complete_library_match(k))
     legal_both = sum(has_legal_ratio(k) for k in kernels
                      if has_native(k) and has_complete_library_match(k))
-    newly_admitted = {
+    fixture_adjudicated = {
         k for k in kernels
-        if _NATIVE_PROVENANCE.get(k, {}).get("comparability")
-        == "NATIVE_RECIPE_ADDED_REQUIRES_ADJUDICATION"
+        if _NATIVE_PROVENANCE.get(k, {}).get("adjudication_source")
+        == "native_fixture_adjudication.csv"
     }
-    newly_admitted_status = Counter(
-        _ATEN_BENCHMARK_STATUS.get(k, {}).get("raised_status", "MISSING")
-        for k in newly_admitted
+    fixture_verdicts = Counter(
+        _NATIVE_PROVENANCE.get(k, {}).get("comparability", "MISSING")
+        for k in fixture_adjudicated
     )
 
     measurements = []
@@ -3066,8 +3066,9 @@ def _aten_paper_analysis_page() -> str:
             f"all {both} provisional native+raised kernels. Native CUDA timings "
             f"exist for all {native_timed_both}; raised timings exist for "
             f"{raised_timed_both}, of which {verified_both} pass the strict gate.",
-            "Fix or rerun the residual/build/legacy raised cases and adjudicate "
-            "whole-operation equivalence; continue plotting only accepted legal pairs.",
+            "Fix or rerun the residual/build raised cases. Replace native recipes "
+            "marked non-equivalent, add adapters for rows with no executable native "
+            "baseline, and keep proxy measurements out of paper ratios.",
         ),
         (
             "5", "Medium", "Structured problem-size rationale",
@@ -3152,18 +3153,16 @@ def _aten_paper_analysis_page() -> str:
         f'<div><b>{verified_both}</b><span>strict raised verification</span></div><i>→</i>'
         f'<div><b>{legal_both}</b><span>accepted plotted ratios from this group</span></div>'
         '</div>'
-        f'<div class="intro">The missing native CUDA sweep is complete: all '
-        f'{len(newly_admitted)} newly admitted recipes now have Orin timings. On '
-        'the raised side of those same recipes, '
-        f'{newly_admitted_status.get("VERIFIED_RESIDENT", 0)} are strictly verified, '
-        f'{newly_admitted_status.get("LEGACY_RESIDENT", 0)} retain legacy timings '
-        'that need a device-output recheck, '
-        f'{newly_admitted_status.get("RESIDUAL_IR_BLOCKED", 0)} are blocked by '
-        'device-unsafe residual IR, and '
-        f'{newly_admitted_status.get("BUILD_OR_LOWERING_BLOCKED", 0)} are blocked '
-        'during build/lowering. The new recipes remain conservatively ineligible '
-        'for paper ratios until whole-operation semantics are adjudicated; therefore '
-        'the legal-pair plot does not grow merely because native timing succeeded.</div>'
+        f'<div class="intro"><b>{len(fixture_adjudicated)} native-fixture cases '
+        'have now been adjudicated individually.</b> '
+        f'{fixture_verdicts.get("EXACT_ATEN_OPERATION", 0)} are exact complete '
+        'operations and '
+        f'{fixture_verdicts.get("EXACT_BENCHMARK_DOMAIN", 0)} are exact for the '
+        'documented finite-input benchmark domain. The remaining cases are '
+        'explicitly classified as a non-equivalent current recipe, a layout/storage '
+        'proxy, an RNG/formula scope mismatch, or a missing executable native '
+        'baseline. Only an accepted verdict plus matching timing and strict raised '
+        'correctness produces a plotted ratio.</div>'
         '<div class="section-header"><h3 class="section-title">Evidence ladder</h3></div>'
         '<div class="paper-flow">'
         f'<div><b>{raised}</b><span>complete static match</span></div><i>→</i>'

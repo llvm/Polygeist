@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 FIELDS = ["kernel", "shape", "dtype", "native_gpu_us", "native_cpu_us",
+          "native_cpu_orin_us",
           "raised_resident_us", "ratio_raised_over_native", "comparability",
           "raised_status", "status_detail"]
 RESULT = re.compile(r"RESULT kernel=(\S+).*?errors=(\d+)")
@@ -20,8 +21,26 @@ UNSAFE = {
     "affine_loop": r"\baffine\.(?:for|parallel)\b",
     "affine_access": r"\baffine\.(?:load|store)\b",
     "memref_copy": r"\bmemref\.copy\b",
-    "memref_access": r"\bmemref\.(?:load|store)\b",
 }
+
+
+def device_unsafe_residuals(text: str) -> list[str]:
+    residual = [name for name, pattern in UNSAFE.items()
+                if re.search(pattern, text)]
+    metadata_allocas = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*memref\.alloca\(\)\s*:\s*"
+        r"memref<\d+x(?:i32|i64)>", text))
+    access_buffers = re.findall(
+        r"\bmemref\.(?:load|store)\b[^\n]*?(%[\w.$-]+)\s*\[", text)
+    if any(buffer not in metadata_allocas for buffer in access_buffers):
+        residual.append("memref_access")
+    direct_memref_tensors = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%", text))
+    materialized_tensors = re.findall(
+        r"bufferization\.to_memref\s+(%[\w.$-]+)", text)
+    if any(tensor not in direct_memref_tensors for tensor in materialized_tensors):
+        residual.append("host_materialization")
+    return residual
 
 
 def keyed(path: Path) -> dict[str, dict[str, str]]:
@@ -43,6 +62,7 @@ def main() -> None:
     specs = json.loads((ROOT / "resident_shape_specs.json").read_text())
     gpu = keyed(ROOT / "torch_aten_resident_sync_wall.csv")
     cpu = keyed(ROOT / "torch_aten_cpu_sync_wall.csv")
+    cpu_orin = keyed(ROOT / "torch_aten_orin_cpu_sync_wall.csv")
     resident = keyed(ROOT / "resident_silicon.csv")
     provenance = keyed(ROOT / "torch_aten_baseline_provenance.csv")
 
@@ -56,8 +76,7 @@ def main() -> None:
             if not abi.exists():
                 continue
             text = abi.read_text()
-            residual = [name for name, pattern in UNSAFE.items()
-                        if re.search(pattern, text)]
+            residual = device_unsafe_residuals(text)
             calls = sorted(set(re.findall(
                 r"call\s+@(polygeist_(?!(?:cublas_pipeline_(?:begin|end)))[\w]+)", text)))
             safe = bool(calls) and not residual
@@ -80,13 +99,16 @@ def main() -> None:
                                          f"errors={match[2]}")
             else:
                 kernel = next((k for k in built if k in log.name), "")
-                if kernel and ("Segmentation fault" in text or "exit code: 255" in text):
+                if kernel and ("Segmentation fault" in text or
+                               "dumped core" in text or
+                               "exit code: 255" in text):
                     runtime[kernel] = ("fail", "runtime crash or timeout")
 
     rows = []
     for spec in specs:
         kernel = spec["kernel"]
         g, c = gpu.get(kernel, {}), cpu.get(kernel, {})
+        o = cpu_orin.get(kernel, {})
         r, prov = resident.get(kernel), provenance.get(kernel, {})
         verified = bool(r and r.get("correctness_scope") ==
                         "device_pointer_output_vs_C_reference")
@@ -95,6 +117,8 @@ def main() -> None:
                       shape_key(r["shape"]) == shape_key(g["shape"]))
         if verified:
             status, detail = "VERIFIED_RESIDENT", "device output matches C reference"
+        elif runtime.get(kernel, ("", ""))[0] == "fail":
+            status, detail = "SEMANTIC_OR_RUNTIME_FAILURE", runtime[kernel][1]
         elif r:
             status, detail = "LEGACY_RESIDENT", "resident timing exists; device output needs strict recheck"
         elif kernel in built:
@@ -115,6 +139,7 @@ def main() -> None:
             "kernel": kernel, "shape": spec["shape"], "dtype": spec["dtype"],
             "native_gpu_us": g.get("time_us", ""),
             "native_cpu_us": c.get("time_us", ""),
+            "native_cpu_orin_us": o.get("time_us", ""),
             "raised_resident_us": f"{raised:.6f}" if raised is not None else "",
             "ratio_raised_over_native": (
                 f"{raised/native:.6f}" if comparable and native else ""),
@@ -135,11 +160,14 @@ def main() -> None:
     lines = [
         "# ATen benchmark campaign status", "",
         f"The resolved campaign contains {total} shape/dtype specifications. "
-        "Available native GPU and x86 CPU baselines use the exact recorded shape/dtype, "
-        "five warmups, and best-of-20 synchronized wall time. Raised ratios are emitted "
-        "only after a device-pointer output comparison against the extracted C reference.", "",
+        "Available native GPU, x86 CPU, and Jetson CPU measurements use the exact "
+        "recorded shape/dtype, five warmups, and best-of-20 synchronized wall time. "
+        "The Jetson CPU framework version is recorded separately in provenance. "
+        "Raised ratios are emitted only after a device-pointer output comparison "
+        "against the extracted C reference.", "",
         f"- Native GPU baselines: {sum(gpu.get(k['kernel'], {}).get('status')=='PASS' for k in specs)}/{total}",
         f"- Native x86 CPU baselines: {sum(cpu.get(k['kernel'], {}).get('status')=='PASS' for k in specs)}/{total}",
+        f"- Native Jetson CPU baselines: {sum(cpu_orin.get(k['kernel'], {}).get('status')=='PASS' for k in specs)}/{total}",
         f"- Raised resident values: {sum(bool(r['raised_resident_us']) for r in rows)}/{total}",
         f"- Strictly device-verified raised values: {counts.get('VERIFIED_RESIDENT', 0)}/{total}",
         f"- Legally comparable raised/native ratios: {len(ratios)}/{total}",

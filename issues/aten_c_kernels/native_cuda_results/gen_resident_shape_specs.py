@@ -20,23 +20,17 @@ gs = _load("gs", "issues/aten_c_kernels/native_cuda_results/gen_shape_specs.py")
 drv = _load("drv", "scripts/correctness/aten_pointwise_graph_silicon.py")
 
 
-def _complete_native_library_kernels():
-    native_path = ROOT / "issues/aten_c_kernels/native_cuda_audit.csv"
+def _complete_library_kernels():
     library_path = ROOT / "issues/aten_c_kernels/cuda_library_audit.csv"
-    native = {
-        row["kernel"] for row in csv.DictReader(native_path.open())
-        if row.get("has_native_cuda") == "yes"
-    }
     return {
         row["kernel"] for row in csv.DictReader(library_path.open())
-        if row.get("kernel") in native
-        and row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+        if row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
         and row.get("counts_as_library_reuse") == "yes"
     }
 
 
 def main():
-    complete_native_library = _complete_native_library_kernels()
+    complete_library = _complete_library_kernels()
     category_overrides = {
         "aten_adaptive_avg_pool2d_backward_cpu": "adaptavg2d_backward",
         "aten_adaptive_avg_pool3d_backward_cpu": "adaptavg3d_backward",
@@ -92,11 +86,13 @@ def main():
         elif kernel == "aten_sparse_csr_addmm_cpu":
             cat = "sparse_csr_mm"
         if cat is None:
-            if kernel not in complete_native_library:
+            if kernel not in complete_library:
                 continue
-            # Keep every complete native+raised kernel in the resolved ledger.
-            # bench_shaped handles these explicit fixture recipes instead of
-            # silently dropping them because the legacy CAT table is incomplete.
+            # Keep every complete library mapping in the resolved ledger, even
+            # when PyTorch has no corresponding CUDA benchmark recipe.  Raised
+            # correctness coverage must not depend on native-CUDA availability.
+            # bench_shaped emits an explicit skip for adapters it does not yet
+            # implement instead of silently dropping the raised case.
             cat = "native_fixture"
         dims = {k: int(v) for k, v in cfg["dims"].items()}
         # total element count = product of dims (matches resident data size for
@@ -122,7 +118,7 @@ def main():
                           "WHOLE_OR_EXPLICITLY_ADJUDICATED" if cat != "native_fixture"
                           else "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER")})
     resolved = {spec["kernel"] for spec in specs}
-    missing_complete = sorted(complete_native_library - resolved)
+    missing_complete = sorted(complete_library - resolved)
     if missing_complete:
         raise RuntimeError(
             "complete native+raised kernels lack resident benchmark specs: "
@@ -131,8 +127,8 @@ def main():
     out = Path(__file__).with_name("resident_shape_specs.json")
     out.write_text(json.dumps(specs, indent=0))
     print(
-        f"wrote {out} with {len(specs)} native specs at resident shapes; "
-        f"covered all {len(complete_native_library)} complete native+raised kernels"
+        f"wrote {out} with {len(specs)} benchmark specs at resident shapes; "
+        f"covered all {len(complete_library)} complete library mappings"
     )
 
 
