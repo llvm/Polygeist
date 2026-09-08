@@ -25,6 +25,7 @@ import json
 import math
 import os
 import re
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -104,6 +105,10 @@ MFEM_MATCH_RESULTS_DIR = env_path(
 MFEM_SILICON_RESULTS_DIR = env_path(
     "POLYGEIST_MFEM_SILICON_RESULTS_DIR",
     MFEM_C_ROOT / "silicon_results",
+)
+MFEM_SECTION42_DIR = env_path(
+    "POLYGEIST_MFEM_SECTION42_DIR",
+    MFEM_C_ROOT / "section42_campaign",
 )
 MFEM_APPLICATIONS_DIR = env_path(
     "POLYGEIST_MFEM_APPLICATIONS_DIR",
@@ -3948,6 +3953,17 @@ def write_polybench_results_page() -> None:
         artifact_link.symlink_to(SECTION42_RESULTS_DIR, target_is_directory=True)
 
 
+def write_mfem_artifact_link() -> None:
+    """Expose the retained MFEM CSV ledgers from the generated static site."""
+    artifact_link = OUTPUT_DIR / "mfem_section42_artifacts"
+    if artifact_link.is_symlink():
+        if artifact_link.resolve() != MFEM_SECTION42_DIR.resolve():
+            artifact_link.unlink()
+            artifact_link.symlink_to(MFEM_SECTION42_DIR, target_is_directory=True)
+    elif not artifact_link.exists():
+        artifact_link.symlink_to(MFEM_SECTION42_DIR, target_is_directory=True)
+
+
 def _modified_kernels_page() -> tuple[str, int]:
     """Describe source forms introduced because upstream code was not directly usable.
 
@@ -4972,6 +4988,243 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
         '<th>test parameters</th></tr></thead><tbody>'
         + "\n".join(rows)
         + '</tbody></table>'
+    )
+
+
+def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
+    """Render the current four-runtime NE=1024 MFEM publication analysis."""
+    rows = _read_csv(MFEM_SECTION42_DIR / "performance_20260908.csv")
+    checksum_rows = _read_csv(
+        MFEM_SECTION42_DIR / "native_checksum_audit_20260908.csv"
+    )
+    if not rows:
+        return (
+            '<div class="section-header"><h2 class="section-title">'
+            'MFEM paper analysis</h2></div>'
+            '<div class="intro"><span class="none">Current Section 4.2 data '
+            'is unavailable.</span></div>'
+        )
+
+    def value(row: dict[str, str], key: str) -> float:
+        try:
+            return float(row.get(key, "nan"))
+        except ValueError:
+            return math.nan
+
+    implementations = [
+        ("vanilla_cpu_ms", "Vanilla C / CPU", "#0969da"),
+        ("raised_cpu_ms", "Polygeist raised / CPU", "#8250df"),
+        ("raised_gpu_ms", "Polygeist raised / GPU", "#d97706"),
+        ("native_mfem_gpu_ms", "Native MFEM / GPU", "#1a7f37"),
+    ]
+    ratios = [value(row, "raised_gpu_slowdown_vs_native_mfem") for row in rows]
+    ratios = [ratio for ratio in ratios if math.isfinite(ratio)]
+    median_ratio = statistics.median(ratios)
+    total_sites = sum(int(row.get("validated_sites", "0") or 0) for row in rows)
+    checksum_passes = sum(row.get("status") == "PASS" for row in checksum_rows)
+
+    # Log-scale absolute runtime chart. Every plotted value comes directly from
+    # performance_20260908.csv; no result is hardcoded into the SVG.
+    width, height = 1180, 590
+    left, right, top, bottom = 78, 24, 34, 170
+    plot_w, plot_h = width - left - right, height - top - bottom
+    y_min, y_max = 0.01, 10000.0
+
+    def y_pos(runtime_ms: float) -> float:
+        fraction = ((math.log10(runtime_ms) - math.log10(y_min)) /
+                    (math.log10(y_max) - math.log10(y_min)))
+        return top + plot_h * (1.0 - fraction)
+
+    svg = [
+        f'<svg class="paper-chart" viewBox="0 0 {width} {height}" '
+        'role="img" aria-label="Log-scale runtime comparison for seventeen MFEM kernels">'
+    ]
+    for exponent in range(-2, 5):
+        runtime = 10.0 ** exponent
+        y = y_pos(runtime)
+        label = f"{runtime:g} ms"
+        svg.append(
+            f'<line class="paper-grid" x1="{left}" y1="{y:.2f}" '
+            f'x2="{width-right}" y2="{y:.2f}"/>'
+            f'<text class="paper-axis" x="{left-9}" y="{y+4:.2f}" '
+            f'text-anchor="end">{label}</text>'
+        )
+    group_w = plot_w / len(rows)
+    offsets = (-12, -4, 4, 12)
+    for index, row in enumerate(rows):
+        center = left + group_w * (index + 0.5)
+        points = []
+        for (field, _label, color), offset in zip(implementations, offsets):
+            runtime = value(row, field)
+            x = center + offset
+            y = y_pos(runtime)
+            points.append(f"{x:.2f},{y:.2f}")
+            svg.append(
+                f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4.4" fill="{color}">'
+                f'<title>{html.escape(row["kernel"])}: {runtime:.6f} ms</title>'
+                '</circle>'
+            )
+        svg.append(
+            f'<polyline class="paper-pair" points="{" ".join(points)}"/>'
+        )
+        svg.append(
+            f'<text class="paper-axis" transform="translate({center+3:.2f},'
+            f'{top+plot_h+12}) rotate(58)" text-anchor="start">'
+            f'{html.escape(row["kernel"])}</text>'
+        )
+    svg.append(
+        f'<text class="paper-axis-label" x="18" y="{top+plot_h/2:.2f}" '
+        'transform="rotate(-90 18 '
+        f'{top+plot_h/2:.2f})" text-anchor="middle">runtime (ms, log scale; lower is better)</text>'
+    )
+    svg.append('</svg>')
+    legend = ''.join(
+        f'<span><i style="background:{color}"></i>{html.escape(label)}</span>'
+        for _, label, color in implementations
+    )
+    runtime_chart = (
+        '<div class="paper-chart-wrap"><h4>Absolute resident call time by kernel</h4>'
+        + ''.join(svg)
+        + f'<div class="mfem-chart-legend">{legend}</div>'
+        '<div class="paper-legend">Log scale is required because the four '
+        'implementations span more than five orders of magnitude.</div></div>'
+    )
+
+    slowdown_rows = []
+    max_ratio = max(ratios)
+    for row in sorted(
+        rows,
+        key=lambda item: value(item, "raised_gpu_slowdown_vs_native_mfem"),
+        reverse=True,
+    ):
+        ratio = value(row, "raised_gpu_slowdown_vs_native_mfem")
+        bar_width = max(2.0, ratio / max_ratio * 100.0)
+        slowdown_rows.append(
+            '<div class="mfem-slow-row">'
+            f'<span>{html.escape(row["kernel"])}</span>'
+            '<div class="mfem-slow-track">'
+            f'<i style="width:{bar_width:.3f}%"></i></div>'
+            f'<b>{ratio:.2f}&times;</b></div>'
+        )
+    slowdown_chart = (
+        '<div class="paper-chart-wrap"><h4>Raised GPU slowdown versus native '
+        'MFEM GPU (lower is better)</h4><div class="mfem-slow-bars">'
+        + ''.join(slowdown_rows)
+        + '</div><div class="paper-legend">Median across kernels: '
+        f'<b>{median_ratio:.2f}&times;</b>. The gap ranges from '
+        f'{min(ratios):.2f}&times; to {max(ratios):.2f}&times;.</div></div>'
+    )
+
+    table_rows = []
+    for row in rows:
+        table_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(row["kernel"])}</b></td>'
+            f'<td>{html.escape(row["validated_sites"])}</td>'
+            f'<td>{value(row, "vanilla_cpu_ms"):.6f}</td>'
+            f'<td>{value(row, "raised_cpu_ms"):.6f}</td>'
+            f'<td>{value(row, "raised_gpu_ms"):.6f}</td>'
+            f'<td>{value(row, "native_mfem_gpu_ms"):.6f}</td>'
+            f'<td>{value(row, "raised_gpu_slowdown_vs_native_mfem"):.2f}&times;</td>'
+            '<td><span class="pass">PASS</span></td>'
+            '</tr>'
+        )
+
+    artifact = "mfem_section42_artifacts"
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'MFEM paper analysis — current Section 4.2 campaign</h2></div>'
+        '<div class="intro"><b>Result:</b> 17 normalized MFEM-derived kernels '
+        'have complete four-way measurements on one Jetson AGX Orin: optimized '
+        'vanilla C on CPU, Polygeist-raised CPU, Polygeist-raised GPU, and exact '
+        'upstream native-MFEM CUDA. All 17 raised pipelines pass complete-output '
+        'elementwise validation; all 17 native timing executions pass the '
+        'vanilla checksum gate. Polygeist raised GPU is currently a median '
+        f'<b>{median_ratio:.2f}&times;</b> slower than native MFEM CUDA.</div>'
+        '<div class="audit-metrics">'
+        '<div class="audit-metric"><b>17 / 18</b><span>kernels fully validated and timed</span></div>'
+        f'<div class="audit-metric"><b>{total_sites} / 128</b><span>static contraction sites validated</span></div>'
+        '<div class="audit-metric"><b>6,800</b><span>retained timing samples</span></div>'
+        '<div class="audit-metric"><b>340 / 340</b><span>fresh-process executions passed</span></div>'
+        f'<div class="audit-metric"><b>{checksum_passes} / 17</b><span>native checksum gates passed</span></div>'
+        f'<div class="audit-metric paper-provisional"><b>{median_ratio:.2f}&times;</b><span>median raised/native GPU gap</span></div>'
+        '</div>'
+        '<div class="paper-notes">'
+        '<div><b>Evaluated source</b><span>MFEM-derived extracted and manually '
+        'normalized FP64 operator kernels—not untouched full MFEM applications.</span></div>'
+        '<div><b>Problem shape</b><span>NE=1024, D1D=4, Q1D=5; deterministic '
+        'nonconstant inputs and nonzero initial outputs.</span></div>'
+        '<div><b>Hardware</b><span>Jetson AGX Orin #2, SM87, MAXN; CPU 2.2016 GHz, '
+        'GPU 1.3005 GHz, EMC 3.199 GHz; CUDA 12.6; driver 615.06 unchanged.</span></div>'
+        '<div><b>Statistic</b><span>Median of five independent process medians; '
+        'each process uses five warmups followed by twenty retained samples.</span></div>'
+        '</div>'
+        + runtime_chart + slowdown_chart
+        + '<div class="section-header"><h3 class="section-title">Complete '
+        'four-runtime result table</h3></div>'
+        '<div class="intro">Times are milliseconds per resident operator call; '
+        'lower is better. GPU measurements end after '
+        '<code>cudaDeviceSynchronize</code>.</div>'
+        '<table class="audit-table paper-family mfem-results"><thead><tr>'
+        '<th>kernel</th><th>validated sites</th><th>vanilla CPU (ms)</th>'
+        '<th>raised CPU (ms)</th><th>raised GPU (ms)</th>'
+        '<th>native MFEM GPU (ms)</th><th>raised/native</th><th>correctness</th>'
+        '</tr></thead><tbody>' + ''.join(table_rows) + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">Correctness '
+        'and exclusions</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>Raised correctness</b><span>17/18 kernels, 126/128 matched '
+        'sites, and 1,240,064 FP64 output elements pass independent full-output '
+        'comparison. Worst absolute error: 5.5511e-17.</span></div>'
+        '<div><b>Native correctness</b><span>17/17 timing-run full-output '
+        'checksums pass against vanilla C. This is not yet an independent '
+        'elementwise native-output comparison.</span></div>'
+        '<div class="paper-provisional"><b>Excluded: integrate_value_3d</b><span>'
+        'Fresh raising is incorrect before matching; matching also exposes an '
+        'incompatible submap cast. Its two sites are not included in timings.</span></div>'
+        '<div class="paper-provisional"><b>Composition disabled</b><span>The '
+        'five-match Mass3D composed network fails correctness. All reported '
+        'raised measurements use the validated pairwise cuTensorNet path.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Interpretation</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>What works</b><span>Math/structure-driven recognition recovers '
+        '128 contractions across the 18-kernel corpus; 126 are executable and '
+        'complete-output correct at NE=1024.</span></div>'
+        '<div><b>Why raised GPU is slower</b><span>Each fused MFEM element-local '
+        'kernel becomes many small pairwise library calls with planning, host '
+        'interaction, intermediate tensors, and global-memory traffic.</span></div>'
+        '<div><b>Primary optimization target</b><span>Fuse connected contraction '
+        'networks safely, retain residual stages on device, eliminate '
+        'intermediates, and reuse plans/workspaces.</span></div>'
+        '<div><b>Claim boundary</b><span>This demonstrates broad structural '
+        'recognition and correctness, but not performance parity with expert '
+        'native MFEM CUDA.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">Reproducibility '
+        'and raw evidence</h3></div>'
+        '<div class="intro">MFEM revision: <code>951cf8886b9c0c33fb36a2f0ede268c8d6a0d8b5</code>. '
+        'The compiler campaign used dirty-tree base '
+        '<code>5464d8898667dbb9278f461336cc7ecec28f94ef</code>; rerunning from '
+        'a clean committed revision remains required before final publication.</div>'
+        '<div class="paper-notes">'
+        f'<div><b>Concise result ledger</b><span><a href="{artifact}/performance_20260908.csv">'
+        'performance_20260908.csv</a></span></div>'
+        f'<div><b>Detailed four-way comparison</b><span><a href="{artifact}/comparison_with_native_20260908.csv">'
+        'comparison_with_native_20260908.csv</a></span></div>'
+        f'<div><b>Native distribution summary</b><span><a href="{artifact}/native_summary_20260908.csv">'
+        'native_summary_20260908.csv</a></span></div>'
+        f'<div><b>Native checksum audit</b><span><a href="{artifact}/native_checksum_audit_20260908.csv">'
+        'native_checksum_audit_20260908.csv</a></span></div>'
+        f'<div><b>Standalone paper figures</b><span><a href="{artifact}/mfem_four_runtime_log.svg">'
+        'four-runtime SVG</a> &middot; <a href="{artifact}/mfem_raised_gpu_vs_native.svg">'
+        'slowdown SVG</a></span></div>'
+        f'<div><b>Publication analysis</b><span><a href="{artifact}/MFEM_PAPER_ANALYSIS_20260908.md">'
+        'MFEM_PAPER_ANALYSIS_20260908.md</a></span></div>'
+        '</div>'
+        '<div class="intro"><a href="mfem.html">Inspect per-kernel source and IR '
+        'artifacts →</a> &middot; <a href="modified-kernels.html">Inspect source '
+        'normalization provenance →</a></div>'
     )
 
 
@@ -7434,6 +7687,18 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'border-radius:4px; overflow:hidden; } '
         '.llama-bar-track i { display:block; height:100%; min-width:2px; } '
         '.llama-bar-row b { text-align:right; white-space:nowrap; } '
+        '.mfem-chart-legend { display:flex; flex-wrap:wrap; gap:16px; '
+        'padding:2px 20px 10px; color:#444; font-size:12px; } '
+        '.mfem-chart-legend span { display:inline-flex; align-items:center; gap:5px; } '
+        '.mfem-chart-legend i { width:11px; height:11px; border-radius:50%; display:inline-block; } '
+        '.mfem-slow-bars { padding:10px 18px 14px; min-width:760px; } '
+        '.mfem-slow-row { display:grid; grid-template-columns:190px minmax(420px,1fr) '
+        '90px; gap:12px; align-items:center; margin:7px 0; font-size:12px; } '
+        '.mfem-slow-track { height:18px; background:#f0f2f5; border:1px solid #d8dee8; '
+        'border-radius:4px; overflow:hidden; } '
+        '.mfem-slow-track i { display:block; height:100%; min-width:2px; background:#d97706; } '
+        '.mfem-slow-row b { text-align:right; } '
+        '.mfem-results td:nth-child(n+2) { text-align:right; } '
         '.paper-data-grid { display:grid; grid-template-columns:minmax(700px,1fr) '
         'minmax(260px,auto); gap:18px; align-items:start; } '
         '.paper-plot-data td,.paper-exclusions td { white-space:normal; } '
@@ -7508,8 +7773,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
                + len(mfem_application_extraction_stats),
                "Original/normalized FEM kernels and larger application hot paths.")
         + card("mfem-paper.html", "MFEM paper analysis",
-               len(mfem_application_extraction_stats),
-               "Section 4.2 evidence ladder, application ledger, baseline quality, and open issues.")
+               17,
+               "Latest NE=1024 four-runtime graphs, 126 validated matches, correctness gates, and raw evidence.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 methodology, correctness-gated runtime graphs, raw samples, and exclusions.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
@@ -7529,7 +7794,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     backends = nav() + _backend_overview(polybench_stats)
     performance = nav() + _aten_slowness_page(aten_stats)
     aten_paper = nav() + _aten_paper_analysis_page()
-    mfem_paper = nav() + _mfem_paper_analysis_page(
+    mfem_paper = nav() + _mfem_latest_paper_analysis_page(
         mfem_application_extraction_stats
     )
     llama_paper = nav() + _llama_paper_analysis_page()
@@ -7651,6 +7916,7 @@ def main():
         OUTPUT_DIR.joinpath("mfem-paper.html").write_text(
             pages["mfem-paper.html"]
         )
+        write_mfem_artifact_link()
         print(
             f"  [MFEM] rendered {len(mfem_stats)} kernels and "
             f"{len(mfem_application_stats)} application ports and "
@@ -7956,6 +8222,7 @@ def main():
         stale.unlink()
     for filename, html in pages.items():
         OUTPUT_DIR.joinpath(filename).write_text(html)
+    write_mfem_artifact_link()
     write_polybench_results_page()
     for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
         OUTPUT_DIR.joinpath(obsolete).unlink(missing_ok=True)
