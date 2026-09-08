@@ -2830,20 +2830,21 @@ def _aten_paper_analysis_page() -> str:
     resolved_spec_kernels = {
         row.get("kernel") for row in resolved_specs if row.get("kernel")
     }
-    resolved_both = sum(k in resolved_spec_kernels for k in kernels
-                        if has_native(k) and has_complete_library_match(k))
+    benchmark_cohort = {
+        k for k in kernels
+        if k in resolved_spec_kernels and has_complete_library_match(k)
+    }
+    resolved_both = len(benchmark_cohort)
     native_timed_both = sum(
         bool(_ATEN_BENCHMARK_STATUS.get(k, {}).get("native_gpu_us"))
-        for k in kernels if has_native(k) and has_complete_library_match(k)
+        for k in benchmark_cohort
     )
     raised_timed_both = sum(
         bool(_ATEN_BENCHMARK_STATUS.get(k, {}).get("raised_resident_us"))
-        for k in kernels if has_native(k) and has_complete_library_match(k)
+        for k in benchmark_cohort
     )
-    verified_both = sum(current_verified(k) for k in kernels
-                        if has_native(k) and has_complete_library_match(k))
-    legal_both = sum(has_legal_ratio(k) for k in kernels
-                     if has_native(k) and has_complete_library_match(k))
+    verified_both = sum(current_verified(k) for k in benchmark_cohort)
+    legal_both = sum(has_legal_ratio(k) for k in benchmark_cohort)
     fixture_adjudicated = {
         k for k in kernels
         if _NATIVE_PROVENANCE.get(k, {}).get("adjudication_source")
@@ -3147,7 +3148,7 @@ def _aten_paper_analysis_page() -> str:
         'for internal planning but need issue 1 resolved before publication.</div>'
         '<div class="section-header"><h3 class="section-title">Native + raised benchmark readiness</h3></div>'
         '<div class="paper-flow">'
-        f'<div><b>{both}</b><span>static native + raised intersection</span></div><i>→</i>'
+        f'<div><b>{resolved_both}</b><span>complete mappings with resolved benchmark specs</span></div><i>→</i>'
         f'<div><b>{native_timed_both}</b><span>native PyTorch CUDA timings</span></div><i>→</i>'
         f'<div><b>{raised_timed_both}</b><span>raised resident timings, including legacy</span></div><i>→</i>'
         f'<div><b>{verified_both}</b><span>strict raised verification</span></div><i>→</i>'
@@ -3158,11 +3159,14 @@ def _aten_paper_analysis_page() -> str:
         f'{fixture_verdicts.get("EXACT_ATEN_OPERATION", 0)} are exact complete '
         'operations and '
         f'{fixture_verdicts.get("EXACT_BENCHMARK_DOMAIN", 0)} are exact for the '
-        'documented finite-input benchmark domain. The remaining cases are '
-        'explicitly classified as a non-equivalent current recipe, a layout/storage '
-        'proxy, an RNG/formula scope mismatch, or a missing executable native '
-        'baseline. Only an accepted verdict plus matching timing and strict raised '
-        'correctness produces a plotted ratio.</div>'
+        'documented finite-input benchmark domain, '
+        f'{fixture_verdicts.get("EXACT_EXTRACTED_TRANSFORM", 0)} are exact '
+        'pre-generated-input transforms, and '
+        f'{fixture_verdicts.get("EXACT_EXTRACTED_FIXTURE", 0)} reproduce the '
+        'complete fixed C fixture. Extracted-fixture comparisons are stage-only: '
+        'they do not claim to measure extra parent-operator dispatch, container, '
+        'or storage-management work. A ratio still requires matching timing and '
+        'strict raised correctness.</div>'
         '<div class="section-header"><h3 class="section-title">Evidence ladder</h3></div>'
         '<div class="paper-flow">'
         f'<div><b>{raised}</b><span>complete static match</span></div><i>→</i>'

@@ -76,19 +76,75 @@ API_BY_CATEGORY = {
     "weight_norm_backward": "torch.ops.aten._weight_norm_interface_backward",
 }
 
+# Explicit adapters for extracted fixtures that are absent from the legacy
+# category registry.  These labels describe the timed CUDA recipe, including
+# compositions; they are not assertions that a same-named public ATen op
+# exists.
+API_BY_FIXTURE_KERNEL = {
+    "aten_allany_dims_cpu": "torch.all/torch.any + int32 materialization",
+    "aten_and_reduce_cpu": "torch.all + int32 materialization",
+    "aten_bf16_dot_cpu": "torch.dot (fixture stores f32)",
+    "aten_bf16_gemv_trans_cpu": "torch.mv(transposed matrix; fixture stores f32)",
+    "aten_blas_axpy_cpu": "Tensor.add_(alpha=fixture scalar)",
+    "aten_blas_copy_cpu": "Tensor.clone",
+    "aten_blas_dot_naive_cpu": "torch.dot",
+    "aten_blas_gemv_generic_cpu": "torch.mv",
+    "aten_cartesian_prod_cpu": "torch.cartesian_prod",
+    "aten_channel_shuffle": "torch.channel_shuffle",
+    "aten_channel_shuffle_cpu": "torch.channel_shuffle",
+    "aten_compressed_block_convert_cpu": "reshape + permute + contiguous",
+    "aten_convert_coo_to_csr_cpu": "torch._convert_indices_from_coo_to_csr(out_int32=True)",
+    "aten_convert_csr_to_coo_cpu": "torch.repeat_interleave int32 rows",
+    "aten_cpu_blas_gemm_batched_cpu": "torch.bmm",
+    "aten_cpu_blas_gemm_cpu": "torch.matmul",
+    "aten_cpu_blas_gemm_strided_batched_cpu": "torch.bmm",
+    "aten_diff_cpu": "torch.diff",
+    "aten_dropout_feature_noise_cpu": "precomputed feature mask multiply + scale",
+    "aten_fast_cat_dim0_cpu": "reshape + clone",
+    "aten_flatten_nd_linear_cpu": "torch.matmul",
+    "aten_flip_tensor_transform_cpu": "torch.flip",
+    "aten_fp16_dot_cpu": "torch.dot (fixture stores f32)",
+    "aten_fp16_gemv_f16arith_cpu": "torch.mv (fixture stores f32)",
+    "aten_fp16_gemv_f32arith_cpu": "torch.mv (fixture stores f32)",
+    "aten_fp16_gemv_notrans_cpu": "torch.mv (fixture stores f32)",
+    "aten_fp16_gemv_trans_cpu": "torch.mv(transposed matrix; fixture stores f32)",
+    "aten_gemm_notrans_cpu": "initial C + torch.matmul",
+    "aten_gemm_transa_cpu": "initial C + torch.matmul(transpose A)",
+    "aten_gemm_transab_cpu": "initial C + torch.matmul(transpose A/B)",
+    "aten_gemm_transb_cpu": "initial C + torch.matmul(transpose B)",
+    "aten_gradient_float_cpu": "torch.gradient(coordinate spacing)",
+    "aten_histogram_select_outer_bin_edges_cpu": "torch.aminmax",
+    "aten_joint_scaling_cpu": "two torch.amax(abs) reductions + multiply",
+    "aten_kron_impl_cpu": "torch.kron",
+    "aten_kron_out_cpu": "torch.kron",
+    "aten_nested_all_cpu": "masked torch.all + int32 materialization",
+    "aten_nested_batch_offsets_cpu": "torch.cumsum + leading zero",
+    "aten_nested_bmm_cpu": "torch.bmm",
+    "aten_nested_sum_dim_cpu": "masked torch.sum",
+    "aten_quant_col_offsets_cpu": "int32 column sum - zero_point*K",
+    "aten_slow_conv3d_backward_input_cpu": "torch.conv_transpose3d",
+    "aten_slow_conv3d_backward_weight_cpu": "torch.nn.grad.conv3d_weight",
+    "aten_slow_conv3d_forward_cpu": "torch.conv3d",
+    "aten_sparse_bmm_cpu": "torch.bmm (dense extracted fixture)",
+    "aten_sparse_coo_to_csr_cpu": "torch._convert_indices_from_coo_to_csr(out_int32=True)",
+    "aten_sparse_matmul_cpu": "torch.sparse.mm(CSR, dense)",
+    "aten_sparse_matmul_csr_to_coo_cpu": "torch.repeat_interleave int32 rows",
+    "aten_sumproduct_pair_cpu": "torch.bmm",
+    "aten_transform_bias_rescale_qkv_cpu": "bias add + QKV permutes + Q scale",
+}
+
 EXACT_COMPOSITIONS = {"aten_add_clamp", "aten_nested_sum_backward_cpu"}
-DENSE_MATH_PROXIES = {
+DENSE_MATH_PROXIES = set()
+STAGE_EQUIVALENTS = {
+    "aten_batch_norm",
+    "aten_batch_norm_transform_cpu",
+    "aten_conv2d_columns_cpu",
     "aten_cat_sparse_cpu",
     "aten_nested_softmax_backward_cpu",
     "aten_sparse_add_values_cpu",
     "aten_sparse_csr_reduce_all_cpu",
     "aten_sparse_mul_cpu",
     "aten_sparse_sum_cpu",
-}
-STAGE_EQUIVALENTS = {
-    "aten_batch_norm",
-    "aten_batch_norm_transform_cpu",
-    "aten_conv2d_columns_cpu",
 }
 
 # These links identify the implementation reached by CUDA dispatch.  Keep this
@@ -167,8 +223,10 @@ def main():
     for spec in specs:
         kernel = spec["kernel"]
         source, token = provenance.get(kernel, ("", ""))
-        api = API_BY_CATEGORY.get(spec["cat"], "torch.{op}").format(
-            op=spec["op"])
+        api = API_BY_FIXTURE_KERNEL.get(kernel)
+        if api is None:
+            api = API_BY_CATEGORY.get(spec["cat"], "torch.{op}").format(
+                op=spec["op"])
         cuda_source, cuda_token = CUDA_SOURCE_BY_CATEGORY.get(
             spec["cat"], ("", ""))
         if kernel in DENSE_MATH_PROXIES:
@@ -216,6 +274,10 @@ def main():
                 == "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER"
                 else "built_in_provenance_rule"),
             "dtype": spec["dtype"],
+            "recipe_version": spec.get("recipe_version", ""),
+            "recipe_fingerprint": spec.get("recipe_fingerprint", ""),
+            "measured_recipe_fingerprint": gpu.get(kernel, {}).get(
+                "recipe_fingerprint", ""),
             "shape_selection": spec.get("shape_selection", ""),
             "shape_selection_note": spec.get("shape_selection_note", ""),
             "gpu_status": gpu.get(kernel, {}).get("status", "MISSING"),
