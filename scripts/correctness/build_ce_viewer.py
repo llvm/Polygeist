@@ -266,6 +266,11 @@ GINSBACH_CURRENT_RESULTS = env_path(
     "POLYGEIST_GINSBACH_CURRENT_RESULTS",
     REPO_ROOT / "issues/ginsbach_asplos18/current_match_results_2026-09-07.csv",
 )
+GINSBACH_EXACT_REGION_RESULTS = env_path(
+    "POLYGEIST_GINSBACH_EXACT_REGION_RESULTS",
+    REPO_ROOT
+    / "issues/ginsbach_asplos18/orin_exact_region_results_2026-09-08.csv",
+)
 GINSBACH_AUDIT_ROOT = env_path(
     "POLYGEIST_GINSBACH_AUDIT_ROOT",
     "/tmp/ginsbach_external_hist_fact",
@@ -7512,6 +7517,116 @@ def _build_ginsbach_detail_pages() -> dict[tuple[str, str], str]:
     return program_links
 
 
+def _ginsbach_exact_region_results_section() -> str:
+    """Render the current Orin exact-region timing ledger with qualifications."""
+    rows = _read_csv(GINSBACH_EXACT_REGION_RESULTS)
+    if not rows:
+        return ""
+
+    grouped: dict[tuple[str, str], dict[str, dict[str, str]]] = {}
+    notes: dict[tuple[str, str], str] = {}
+    for row in rows:
+        key = (row.get("workload", ""), row.get("region", ""))
+        grouped.setdefault(key, {})[row.get("variant", "")] = row
+        if row.get("availability_note"):
+            notes[key] = row["availability_note"]
+
+    def timing(variants: dict[str, dict[str, str]], variant: str) -> str:
+        row = variants.get(variant)
+        if not row:
+            return '<span class="none">unavailable</span>'
+        median = float(row["median_ms"])
+        minimum = float(row["min_ms"])
+        maximum = float(row["max_ms"])
+        iqr = float(row["iqr_ms"])
+        return (
+            f'<b>{median:.6f} ms</b><br><small>min {minimum:.6f}; '
+            f'max {maximum:.6f}; IQR {iqr:.6f}</small>'
+        )
+
+    table_rows = []
+    for key, variants in grouped.items():
+        workload, region = key
+        cpu = variants.get("native_cpu")
+        native_gpu = variants.get("native_gpu")
+        raised = variants.get("raised_gpu")
+        comparison = "—"
+        comparison_class = ""
+        if cpu and raised:
+            cpu_speedup = float(cpu["median_ms"]) / float(raised["median_ms"])
+            comparisons = [f'CPU / raised: {cpu_speedup:.2f}&times;']
+            if native_gpu:
+                relative = (float(native_gpu["median_ms"])
+                            / float(raised["median_ms"]))
+                if relative >= 1.0:
+                    comparisons.append(
+                        f'raised is {relative:.2f}&times; faster than native GPU')
+                    comparison_class = "pass"
+                else:
+                    comparisons.append(
+                        f'raised is {1.0 / relative:.2f}&times; slower than native GPU')
+                    comparison_class = "nope"
+            elif cpu_speedup < 1.0:
+                comparisons.append(
+                    f'raised is {1.0 / cpu_speedup:.2f}&times; slower than CPU')
+                comparison_class = "nope"
+            comparison = '<br>'.join(comparisons)
+        elif notes.get(key):
+            comparison = html.escape(notes[key])
+            comparison_class = "partial"
+
+        correctness = all(
+            row.get("correctness") == "PASS" for row in variants.values()
+        )
+        status = (
+            '<span class="pass">PASS</span><br><small>complete output</small>'
+            if correctness else '<span class="nope">FAIL</span>'
+        )
+        note = notes.get(key, "")
+        note_html = (
+            f'<br><small>{html.escape(note)}</small>'
+            if note and cpu and raised else ""
+        )
+        table_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(workload)}</b><br><small>{html.escape(region)}</small></td>'
+            f'<td>{timing(variants, "native_cpu")}</td>'
+            f'<td>{timing(variants, "native_gpu")}</td>'
+            f'<td>{timing(variants, "raised_gpu")}</td>'
+            f'<td class="{comparison_class}">{comparison}{note_html}</td>'
+            f'<td>{status}</td>'
+            '</tr>'
+        )
+
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Current Orin exact-region timings</h2></div>'
+        '<div class="intro"><b>Engineering comparison; not a whole-application '
+        'or 60-idiom reproduction.</b> These same-board measurements use one '
+        'process per variant, five untimed warmups, five synchronized timed '
+        'samples, and the median. Native CPU is pinned to one Orin core. All '
+        'reported executable rows passed complete-output correctness. The board '
+        'was uncontended and in MAXN; the clock state could not be independently '
+        'queried by the non-root capture account, so these rows are not promoted '
+        'as fixed-clock publication results. Extracted-region timings do not '
+        'increase automatic whole-program coverage counts.</div>'
+        '<table class="audit-table"><thead><tr>'
+        '<th>workload / exact region</th><th>native CPU</th>'
+        '<th>native GPU</th><th>raised GPU</th><th>comparison</th>'
+        '<th>correctness</th></tr></thead><tbody>'
+        + ''.join(table_rows) + '</tbody></table>'
+        '<div class="intro"><b>Backend routes:</b> SGEMM uses cuBLAS; stencil '
+        'uses cuDNN; CG uses two cuSPARSE SpMV calls plus a cuBLAS dot; IS uses '
+        'two CUB histogram calls. CG and IS are isolated extracted-region '
+        'feasibility measurements and remain excluded from automatic '
+        'whole-program evidence. UA raising is blocked at tensor-result ABI '
+        'writeback, and CUTCP is blocked at struct-pointer lowering. Exact '
+        'native-GPU baselines are unavailable for the extracted NPB regions. '
+        'Full min/max/IQR data: <code>issues/ginsbach_asplos18/'
+        'orin_exact_region_results_2026-09-08.csv</code>.</div>'
+    )
+
+
 def _ginsbach_page() -> tuple[str, int]:
     """Render the external-library-only ASPLOS'18 corpus audit."""
     rows = _read_csv(GINSBACH_SUMMARY)
@@ -7707,8 +7822,9 @@ def _ginsbach_page() -> tuple[str, int]:
         'absolute sum have focused checks. The absolute-sum test is standalone, '
         'not a full CUTCP application, and mapping to the paper&apos;s seven '
         'occurrences remains inferred.</div>'
-        f'<div class="audit-metrics">{metrics}</div>'
-        '<div class="intro"><b>Analysis-only inventory:</b> '
+        + _ginsbach_exact_region_results_section()
+        + f'<div class="audit-metrics">{metrics}</div>'
+        + '<div class="intro"><b>Analysis-only inventory:</b> '
         f'{totals["structured_fusions"]} Egglog-proved structured regions; '
         f'{totals["structured_reductions"]} reduction-shaped regions; '
         f'{totals["structured_stencils"]} stencil-shaped regions; '
