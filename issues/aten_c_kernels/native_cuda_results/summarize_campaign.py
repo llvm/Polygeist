@@ -112,7 +112,9 @@ def main() -> None:
         r, prov = resident.get(kernel), provenance.get(kernel, {})
         verified = bool(r and r.get("correctness_scope") ==
                         "device_pointer_output_vs_C_reference")
-        comparable = (verified and prov.get("legal_ratio") == "yes" and
+        comparable = (verified and prov.get("legal_ratio") in {
+                          "yes", "yes_stage_only", "yes_composition"
+                      } and
                       bool(g.get("shape")) and
                       shape_key(r["shape"]) == shape_key(g["shape"]))
         if verified:

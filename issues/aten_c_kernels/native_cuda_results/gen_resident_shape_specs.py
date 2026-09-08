@@ -3,10 +3,20 @@
 harness uses (driver cfg["dims"]) — the single source of truth so native and
 raised-resident are measured at identical shape + dtype (f32). Output:
 resident_shape_specs.json for bench_shaped.py. Run with /usr/bin/python3.10."""
-import csv, importlib.util, json
+import csv, hashlib, importlib.util, json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+NATIVE_RECIPE_VERSION = "2026-09-08-v3"
+NATIVE_RECIPE_V4_KERNELS = {
+    "aten_angle_complex_scalarized", "aten_as_complex_cpu",
+    "aten_complex_scalarized", "aten_conj_complex_scalarized",
+    "aten_nested_clone_cpu", "aten_nested_squeeze_cpu",
+    "aten_polar_scalarized", "aten_sparse_add_values_cpu",
+    "aten_sparse_intersection_apply_cpu",
+    "aten_sparse_intersection_launch_cpu", "aten_sparse_mul_cpu",
+    "aten_sparse_norm_cpu", "aten_unbind_copy_cpu",
+}
 
 
 def _load(name, path):
@@ -102,11 +112,20 @@ def main():
             n *= max(1, v)
         shape = "_".join(f"{k}={v}" for k, v in cfg["dims"].items())
         kinds = {arg[1] for arg in cfg["args"]}
-        dtype = "f64" if "dptr" in kinds else "f32"
+        if "dptr" in kinds:
+            dtype = "f64"
+        elif kinds and kinds <= {"iptr", "iscalar"}:
+            dtype = "i32"
+        else:
+            dtype = "f32"
+        scalar_args = {
+            arg[0]: arg[2] for arg in cfg["args"]
+            if arg[1] in {"scalar", "dscalar", "iscalar"}
+        }
         explicit_shape = kernel in drv.CASES
-        specs.append({"kernel": kernel, "op": base, "cat": cat,
+        spec = {"kernel": kernel, "op": base, "cat": cat,
                       "dims": dims, "n": n, "shape": shape,
-                      "dtype": dtype,
+                      "dtype": dtype, "scalar_args": scalar_args,
                       "shape_selection": (
                           "EXPLICIT_STRUCTURED_SHAPE" if explicit_shape else
                           "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304"),
@@ -116,7 +135,21 @@ def main():
                           "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2"),
                       "comparison_scope": (
                           "WHOLE_OR_EXPLICITLY_ADJUDICATED" if cat != "native_fixture"
-                          else "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER")})
+                          else "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER")}
+        recipe_version = ("2026-09-08-v4"
+                          if kernel in NATIVE_RECIPE_V4_KERNELS
+                          else NATIVE_RECIPE_VERSION)
+        fingerprint_payload = {
+            "recipe_version": recipe_version,
+            "kernel": kernel, "op": base, "cat": cat, "dims": dims,
+            "dtype": dtype, "scalar_args": scalar_args,
+        }
+        spec["recipe_version"] = recipe_version
+        spec["recipe_fingerprint"] = hashlib.sha256(
+            json.dumps(fingerprint_payload, sort_keys=True,
+                       separators=(",", ":")).encode()
+        ).hexdigest()[:16]
+        specs.append(spec)
     resolved = {spec["kernel"] for spec in specs}
     missing_complete = sorted(complete_library - resolved)
     if missing_complete:

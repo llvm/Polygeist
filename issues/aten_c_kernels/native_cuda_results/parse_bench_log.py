@@ -36,6 +36,7 @@ def main() -> None:
             if not match:
                 continue
             kernel, metric, value, timing, shape = match.groups()
+            recipe_match = re.search(r"\srecipe=([^\s]+)", raw)
             by_kernel[kernel] = {
                 "kernel": kernel,
                 "time_us": "" if value == "SKIP" else value,
@@ -46,6 +47,8 @@ def main() -> None:
                 "hardware": args.hardware,
                 "framework": f"torch_{args.torch_version}",
                 "date": args.date,
+                "recipe_fingerprint": (recipe_match.group(1)
+                                       if recipe_match else ""),
                 "raw_result": raw,
             }
     rows = [by_kernel[kernel] for kernel in sorted(by_kernel)]
@@ -54,6 +57,7 @@ def main() -> None:
         writer = csv.DictWriter(stream, fieldnames=[
             "kernel", "time_us", "status", "metric", "timing", "shape",
             "hardware", "framework", "date", "raw_result",
+            "recipe_fingerprint",
         ], lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
