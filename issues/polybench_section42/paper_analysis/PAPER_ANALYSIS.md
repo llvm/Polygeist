@@ -12,9 +12,10 @@ timings in the legacy result ledger.
   1.27x--32.91x.
 - GPU: 13 native and 17
   raised resident measurements, with 12 one-to-one device-time
-  pairs. Raised is faster for 9 pairs and native is
+  FP64 pairs, plus 1 supplementary
+  FP32 configuration. Raised is faster for 9 FP64 pairs and native is
   faster for 3; geometric-mean native/raised
-  device speedup is 1.50x.
+  device speedup is 1.58x.
 - Native-only GPU rows: fdtd-2d.
 - Raised-only GPU rows: cholesky, doitgen, symm, trisolv, trmm.
 - CPU rows without a fresh native/raised OpenBLAS pair:
@@ -27,7 +28,9 @@ timings in the legacy result ledger.
 
 ## Claim boundary
 
-All measurements use canonical LARGE/FP64 inputs, complete-output correctness,
+The primary campaign uses canonical LARGE/FP64 inputs; the additional GEMM
+FP32 row uses the same dimensions and initialization with float storage. Every
+row records its datatype and requires complete-output correctness,
 one process, five warmups, and five samples. CPU runs are pinned to core 0 with
 one OpenBLAS/OpenMP thread. GPU ratios use device time on both sides; end-to-end
 times are reported separately and never mixed into those ratios. Native

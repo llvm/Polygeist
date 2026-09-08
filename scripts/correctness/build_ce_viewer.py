@@ -3773,10 +3773,12 @@ def _polybench_paper_analysis_page() -> str:
             artifact(f"{log_dir}/raised-openblas-cpu-samples.csv", "raised samples"),
         ))
         cpu_html.append(
-            '<tr><td><b>{kernel}</b></td><td>{native}</td><td>{raised}</td>'
+            '<tr><td><b>{kernel}</b></td><td>{datatype}</td><td>{native}</td><td>{raised}</td>'
             '<td><b>{speedup:.2f}&times;</b></td><td>{native_ok} / {raised_ok}</td>'
             '<td>{evidence}</td></tr>'.format(
                 kernel=html.escape(row["kernel"]),
+                datatype=html.escape(
+                    "FP64" if row["datatype"] == "double" else row["datatype"]),
                 native=ms(row["native_ms"], row["native_iqr_ms"]),
                 raised=ms(row["raised_openblas_ms"], row["raised_iqr_ms"]),
                 speedup=float(row["speedup_native_over_raised"]),
@@ -3788,19 +3790,22 @@ def _polybench_paper_analysis_page() -> str:
     for row in gpu_rows:
         log_dir = row["log_dir"]
         evidence = []
-        if row["native_device_ms"]:
-            evidence.append(artifact(f"{log_dir}/native-gpu-samples.csv", "native samples"))
-        if row["raised_device_ms"]:
-            evidence.append(artifact(f"{log_dir}/raised-gpu-samples.csv", "raised samples"))
+        if row["native_device_ms"] and row.get("native_evidence"):
+            evidence.append(artifact(row["native_evidence"], "native samples"))
+        if row["raised_device_ms"] and row.get("raised_evidence"):
+            evidence.append(artifact(row["raised_evidence"], "raised samples"))
         ratio = (f'<b>{float(row["device_speedup_native_over_raised"]):.2f}&times;</b>'
                  if row["device_speedup_native_over_raised"] else "&mdash;")
         gpu_html.append(
-            '<tr><td><b>{kernel}</b></td><td>{native_device}<br>'
+            '<tr><td><b>{kernel}</b></td><td>{datatype}</td><td>{native_device}<br>'
             '<span class="scope">E2E {native_e2e}</span></td>'
             '<td>{raised_device}<br><span class="scope">resident wall {wall}; '
             'memory {memory}; E2E {raised_e2e}</span></td><td>{ratio}</td>'
             '<td>{native_ok} / {raised_ok}</td><td>{modified}</td><td>{evidence}</td></tr>'.format(
                 kernel=html.escape(row["kernel"]),
+                datatype=html.escape(
+                    "FP32" if row["datatype"] == "float" else
+                    "FP64" if row["datatype"] == "double" else row["datatype"]),
                 native_device=ms(row["native_device_ms"], row["native_device_iqr_ms"]),
                 native_e2e=ms(row["native_e2e_ms"]),
                 raised_device=ms(row["raised_device_ms"], row["raised_device_iqr_ms"]),
@@ -3836,14 +3841,16 @@ def _polybench_paper_analysis_page() -> str:
         '<div class="audit-metrics">'
         f'<div class="audit-metric"><b>{summary["cpu_paired_kernels"]}</b><span>paired CPU kernels</span></div>'
         f'<div class="audit-metric"><b>{summary["cpu_geomean_speedup"]:.2f}&times;</b><span>CPU geometric-mean speedup</span></div>'
-        f'<div class="audit-metric"><b>{summary["gpu_paired_kernels"]}</b><span>paired GPU kernels</span></div>'
+        f'<div class="audit-metric"><b>{summary["gpu_paired_kernels"]}</b><span>paired FP64 GPU kernels</span></div>'
+        f'<div class="audit-metric"><b>{summary.get("gpu_supplementary_datatype_configurations", 0)}</b><span>supplementary GPU datatype configurations</span></div>'
         f'<div class="audit-metric"><b>{summary["gpu_geomean_device_speedup"]:.2f}&times;</b><span>GPU device-time geometric mean</span></div>'
         f'<div class="audit-metric"><b>{summary["gpu_raised_faster"]}/{summary["gpu_paired_kernels"]}</b><span>GPU pairs won by raised path</span></div>'
         '</div>'
         '<div class="paper-notes">'
-        '<div><b>Common experiment</b><span>Canonical PolyBench LARGE, FP64, identical '
-        'initialization, complete-output correctness, one process, five warmups, five '
-        'measured samples, and median reporting.</span></div>'
+        '<div><b>Common experiment</b><span>Canonical PolyBench LARGE with datatype '
+        'shown per row, identical initialization formula, complete-output correctness, '
+        'one process, five warmups, five measured samples, and median reporting. The '
+        'main campaign is FP64; GEMM additionally includes FP32.</span></div>'
         '<div><b>CPU scope</b><span>One Jetson AGX Orin CPU core, pinned to core 0. '
         'Native C uses -O3; raised uses external OpenBLAS/CBLAS with one thread.</span></div>'
         '<div><b>GPU scope</b><span>Orin sm_87. Ratios compare CUDA-event device time '
@@ -3862,6 +3869,7 @@ def _polybench_paper_analysis_page() -> str:
         'alt="PolyBench native and raised GPU device runtime graph"></div>'
         '<div class="section-header"><h3 class="section-title">CPU measurements</h3></div>'
         '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
+        '<th>datatype</th>'
         '<th>native C -O3</th><th>raised OpenBLAS</th><th>native / raised</th>'
         '<th>correctness native / raised</th><th>raw evidence</th></tr></thead><tbody>'
         + "".join(cpu_html) + '</tbody></table></div>'
@@ -3871,6 +3879,7 @@ def _polybench_paper_analysis_page() -> str:
         f'measurements. Native-only: <code>{html.escape(native_only)}</code>. Raised-only: '
         f'<code>{html.escape(raised_only)}</code>.</div>'
         '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
+        '<th>datatype</th>'
         '<th>native GPU device</th><th>raised GPU device</th><th>native / raised</th>'
         '<th>correctness native / raised</th><th>modified source</th><th>raw evidence</th>'
         '</tr></thead><tbody>' + "".join(gpu_html) + '</tbody></table></div>'
@@ -3918,22 +3927,29 @@ def write_polybench_results_page() -> None:
     gpu_records = _read_csv(SECTION42_RESULTS_DIR / "performance_gpu.csv")
 
     records = {
-        (record.get("kernel", ""), record.get("configuration", "")): record
+        (record.get("kernel", ""), record.get("configuration", ""),
+         record.get("datatype", "")): record
         for record in cpu_records + gpu_records
     }
 
-    def cpu_time(kernel: str, configurations: tuple[str, ...]) -> str:
+    def dtype_label(datatype: str) -> str:
+        return {"double": "FP64", "float": "FP32"}.get(datatype, datatype or "—")
+
+    def cpu_time(kernel: str, datatype: str,
+                 configurations: tuple[str, ...]) -> str:
         for configuration in configurations:
-            record = records.get((kernel, configuration), {})
+            record = records.get((kernel, configuration, datatype), {})
             if record.get("correctness_status") == "pass" and record.get("time_ms"):
                 return record["time_ms"]
         return ""
 
-    def gpu_times(kernel: str, prefixes: tuple[str, ...]) -> tuple[str, str]:
+    def gpu_times(kernel: str, datatype: str,
+                  prefixes: tuple[str, ...]) -> tuple[str, str]:
         device = ""
         end_to_end = ""
-        for (record_kernel, configuration), record in records.items():
-            if record_kernel != kernel or not configuration.startswith(prefixes):
+        for (record_kernel, configuration, record_datatype), record in records.items():
+            if (record_kernel != kernel or record_datatype != datatype or
+                    not configuration.startswith(prefixes)):
                 continue
             if record.get("correctness_status") != "pass":
                 continue
@@ -3988,6 +4004,7 @@ def write_polybench_results_page() -> None:
     incomplete = []
     for row in rows:
         kernel = row["kernel"]
+        datatype = row.get("datatype", "")
         overall = row.get("overall_status", "unavailable").lower()
         stages = [row.get(field, "") for field in (
             "raise_status", "matcher_status", "residual_cpu_status",
@@ -4008,13 +4025,14 @@ def write_polybench_results_page() -> None:
             incomplete.append(
                 f'<li><b>{html.escape(kernel)}</b>: '
                 f'{html.escape(row.get("failure_reason", "not completed"))}</li>')
-        native_cpu = cpu_time(kernel, (
+        native_cpu = cpu_time(kernel, datatype, (
             "native_orin_gcc11", "native_clang18_noinline", "native_clang18"))
-        raised_cpu = cpu_time(kernel, (
+        raised_cpu = cpu_time(kernel, datatype, (
             "raised_openblas_orin_1t", "openblas_cblas_1t"))
         native_gpu_device, native_gpu_e2e = gpu_times(
-            kernel, ("polybenchgpu", "native_gpu"))
-        raised_gpu_device, raised_gpu_e2e = gpu_times(kernel, ("raised_gpu",))
+            kernel, datatype, ("polybenchgpu", "native_gpu"))
+        raised_gpu_device, raised_gpu_e2e = gpu_times(
+            kernel, datatype, ("raised_gpu",))
         cpu_speedup = "&mdash;"
         gpu_speedup = "&mdash;"
         try:
@@ -4091,6 +4109,7 @@ def write_polybench_results_page() -> None:
         rendered_rows.append(
             f'<tr data-filter="{bucket}"><td><a class="kernel" href="{html.escape(kernel)}.html">'
             f'{html.escape(kernel)}</a></td>'
+            f'<td><b>{html.escape(dtype_label(datatype))}</b></td>'
             f'<td>{cpu_cell(row.get("native_cpu_status", ""), native_cpu, "native C -O3")}</td>'
             f'<td>{cpu_cell(row.get("cpu_library_status", ""), raised_cpu, "external CPU library")}</td>'
             f'<td>{gpu_cell(row.get("polybenchgpu_status", ""), native_gpu_device, native_gpu_e2e, "PolyBenchGPU CUDA")}</td>'
@@ -4100,13 +4119,34 @@ def write_polybench_results_page() -> None:
             f'<td>{" &middot; ".join(x for x in log_links if x) or "&mdash;"}</td>'
             f'<td>{" &middot; ".join(x for x in ir_links if x) or "&mdash;"}</td></tr>')
 
+    precision_rows = []
+    precision_dir = SECTION42_RESULTS_DIR / "logs" / "gemm_fp32_fp64_20260908"
+    for datatype in ("double", "float"):
+        native_device, native_e2e = gpu_times(
+            "gemm", datatype, ("polybenchgpu", "native_gpu"))
+        raised_device, raised_e2e = gpu_times(
+            "gemm", datatype, ("raised_gpu",))
+        if not (native_device or raised_device):
+            continue
+        ratio = "&mdash;"
+        if native_device and raised_device:
+            ratio = f'{float(native_device) / float(raised_device):.2f}&times; device'
+        precision_rows.append(
+            f'<tr><td><b>{html.escape(dtype_label(datatype))}</b></td>'
+            f'<td>{fmt(native_device)}<br><span class="scope">E2E {fmt(native_e2e)}</span></td>'
+            f'<td>{fmt(raised_device)}<br><span class="scope">E2E {fmt(raised_e2e)}</span></td>'
+            f'<td><b>{ratio}</b></td><td>'
+            f'{retained(precision_dir / "README.md", "protocol and correctness")}</td></tr>')
+
     body = (
         '<div class="header"><h1><a href="index.html">Polygeist IR explorer</a></h1>'
         '<div><a href="index.html">Overview</a> &middot; '
         '<a href="polybench.html">PolyBench results</a> &middot; '
         '<a href="polybench-paper.html">PolyBench paper analysis</a></div></div>'
         '<div class="intro"><b>PolyBench four-runtime correctness-gated results.</b> '
-        'All rows use checked-in PolyBench/C initialization, LARGE dimensions, and FP64. '
+        'Every row labels its datatype. The primary 30-kernel campaign uses checked-in '
+        'PolyBench/C initialization, LARGE dimensions, and FP64; the additional GEMM '
+        'precision experiment repeats the same dimensions and initialization in FP32. '
         '<b>Native CPU</b> is the original C kernel at Clang -O3; <b>raised CPU</b> is '
         'the raised/matched path through a real optimized CPU library; <b>native GPU</b> '
         'is equivalent handwritten PolyBenchGPU CUDA; and <b>raised GPU</b> is the '
@@ -4127,11 +4167,20 @@ def write_polybench_results_page() -> None:
         '<button onclick="s42Filter(\'unavailable\')">unavailable</button> '
         '<button onclick="s42Filter(\'modified\')">modified source</button></div>'
         '<div class="table-wrap"><table class="s42"><thead><tr><th>kernel</th>'
+        '<th>datatype</th>'
         '<th>native CPU runtime</th><th>raised CPU runtime</th>'
         '<th>native GPU runtime</th><th>raised GPU runtime</th>'
         '<th>speedup</th><th>pipeline status</th><th>result / blocker</th>'
         '<th>logs</th><th>IR</th></tr></thead><tbody>' + "".join(rendered_rows) +
-        '</tbody></table></div><div class="section-header"><h2 class="section-title">'
+        '</tbody></table></div>'
+        '<div class="section-header"><h2 class="section-title">GEMM datatype comparison</h2></div>'
+        '<div class="intro">The FP64 row uses direct <code>cublasDgemm</code>; the FP32 '
+        'row uses direct <code>cublasSgemm</code>. Both pass the complete 1,100,000-value '
+        'correctness check before timing. GPU speedups compare device time with device time.</div>'
+        '<div class="table-wrap"><table class="s42"><thead><tr><th>datatype</th>'
+        '<th>native PolyBenchGPU</th><th>raised cuBLAS</th><th>speedup</th><th>evidence</th>'
+        '</tr></thead><tbody>' + "".join(precision_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h2 class="section-title">'
         'Incomplete or blocked experiments</h2></div><div class="intro"><ul>' +
         ("".join(incomplete) or '<li>None.</li>') + '</ul></div>'
         '<script>function s42Filter(v){document.querySelectorAll("table.s42 tbody tr")'
@@ -4141,7 +4190,7 @@ def write_polybench_results_page() -> None:
         '.table-wrap{overflow:auto;padding:0 20px}.s42{border-collapse:collapse;font-size:12px}'
         '.s42 th,.s42 td{border:1px solid #d8dee8;padding:6px;vertical-align:top}'
         '.s42 th{background:#eef2f7;position:sticky;top:0}.s42 td{white-space:nowrap}'
-        '.s42 td:nth-child(8){white-space:normal;min-width:260px}'
+        '.s42 td:nth-child(9){white-space:normal;min-width:260px}'
         '.result-status{display:inline-block;border-radius:10px;padding:2px 7px;'
         'font-size:10px;font-weight:bold;text-transform:uppercase;background:#eee}'
         '.result-status.pass{background:#dff5e5;color:#176b35}'

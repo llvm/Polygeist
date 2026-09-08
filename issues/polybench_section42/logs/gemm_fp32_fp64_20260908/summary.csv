@@ -1,0 +1,5 @@
+datatype,path,correctness,values,max_abs,max_rel,device_compute_median_ms,memory_device_median_ms,gpu_region_e2e_median_ms,harness_e2e_median_ms,notes
+fp64,raised_direct_cublasDgemm,pass,1100000,0.01,4.46388715e-05,40.242176,22.756256,63.532448,63.597120002,isolated runtime change
+fp64,native_polybenchgpu,pass,1100000,0.01,4.46388715e-05,74.829246521,,,81.750000,retained publication baseline
+fp32,raised_cublasSgemm,pass,1100000,0.01,3.00914781e-05,1.369664,12.389472,14.268544,14.333920002,unchanged C source with float datatype macro
+fp32,native_polybenchgpu,pass,1100000,0.01,3.00914781e-05,33.011070251,,,36.785000,datatype-normalized modified-source diagnostic
