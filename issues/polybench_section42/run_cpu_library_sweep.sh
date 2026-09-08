@@ -4,7 +4,7 @@ set -u
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 result_root="$repo/issues/polybench_section42"
 util="$repo/tools/cgeist/Test/polybench/utilities"
-build=/tmp/polygeist-section42-build
+build=${POLYGEIST_BUILD:-/tmp/polygeist-section42-build}
 llvm=/home/arjaiswal/Polygeist/llvm-project/build/bin
 export PATH="$build/bin:$llvm:$PATH"
 export MLIR_OPT="$llvm/mlir-opt"
@@ -19,7 +19,7 @@ printf 'kernel,status,build_rc,run_rc,compare_rc,reference_sha256,candidate_sha2
 # These are the rows whose matches include at least one CBLAS operation.
 # 3mm is cuTensorNet-only; covariance and deriche are memset-only and are not
 # represented as OpenBLAS/CBLAS configurations.
-default_kernels=(2mm atax bicg doitgen gemm gemver gesummv gramschmidt mvt)
+default_kernels=(2mm atax bicg doitgen gemm gemver gesummv gramschmidt mvt syr2k syrk trisolv symm trmm)
 kernels=("${default_kernels[@]}")
 if [[ $# -gt 0 ]]; then kernels=("$@"); fi
 for kernel in "${kernels[@]}"; do

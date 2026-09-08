@@ -18,11 +18,15 @@ static void initialize(int n, double a[n][n]) {
     base[i][i] = 1.0;
   }
   for (int r = 0; r < n; ++r)
-    for (int s = 0; s < n; ++s) {
+    for (int s = 0; s < n; ++s)
       a[r][s] = 0.0;
-      for (int t = 0; t < n; ++t)
+  // Match PolyBench/C's t-r-s accumulation order exactly.  The LARGE input
+  // is ill-conditioned enough that reassociating this initialization changes
+  // the subsequent factorization materially.
+  for (int t = 0; t < n; ++t)
+    for (int r = 0; r < n; ++r)
+      for (int s = 0; s < n; ++s)
         a[r][s] += base[r][t] * base[s][t];
-    }
   free(base);
 }
 

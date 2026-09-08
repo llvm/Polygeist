@@ -3072,14 +3072,16 @@ def _syrk_composition() -> CompositionEntry:
     capture names so the cross-step binding merge in match_composition
     doesn't try to unify them.
     """
+    mask1 = Term.Cmp("slt", T_cap("%mask1_lhs"), T_cap("%mask1_rhs"))
+    mask2 = Term.Cmp("slt", T_cap("%mask2_lhs"), T_cap("%mask2_rhs"))
     s1 = CompositionStep(
-        body=Term.Select(T_cap("%mask1"),
+        body=Term.Select(mask1,
                          Term.Out(0) * T_cap("%beta"),
                          Term.Out(0)),
         num_ins=0, num_outs=1, parallel_dim_count=2, reduction_dim_count=0,
     )
     s2 = CompositionStep(
-        body=Term.Select(T_cap("%mask2"),
+        body=Term.Select(mask2,
                          Term.Out(0) + (T_cap("%alpha") * Term.In(0)) * Term.In(1),
                          Term.Out(0)),
         num_ins=2, num_outs=1, parallel_dim_count=2, reduction_dim_count=1,
@@ -3658,8 +3660,10 @@ def _fdtd_E_update_tensor() -> CompositionEntry:
 
 def _syr2k_composition() -> CompositionEntry:
     """C[j<=i] = β*C[j<=i] + α*(A*B^T + B*A^T)  (symmetric rank-2k update)."""
+    mask1 = Term.Cmp("slt", T_cap("%mask1_lhs"), T_cap("%mask1_rhs"))
+    mask2 = Term.Cmp("slt", T_cap("%mask2_lhs"), T_cap("%mask2_rhs"))
     s1 = CompositionStep(
-        body=Term.Select(T_cap("%mask1"),
+        body=Term.Select(mask1,
                          Term.Out(0) * T_cap("%beta"),
                          Term.Out(0)),
         num_ins=0, num_outs=1, parallel_dim_count=2, reduction_dim_count=0,
@@ -3671,7 +3675,7 @@ def _syr2k_composition() -> CompositionEntry:
     part1 = (T_cap("%alpha") * Term.In(0)) * Term.In(1)
     part2 = (T_cap("%alpha") * Term.In(2)) * Term.In(3)
     s2 = CompositionStep(
-        body=Term.Select(T_cap("%mask2"),
+        body=Term.Select(mask2,
                          Term.Out(0) + (part1 + part2),
                          Term.Out(0)),
         num_ins=4, num_outs=1, parallel_dim_count=2, reduction_dim_count=1,

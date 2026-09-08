@@ -1,0 +1,5 @@
+trmm,openblas_cblas_1t,1,0,0.031027
+trmm,openblas_cblas_1t,2,0,0.031284
+trmm,openblas_cblas_1t,3,0,0.030534
+trmm,openblas_cblas_1t,4,0,0.030984
+trmm,openblas_cblas_1t,5,0,0.033294

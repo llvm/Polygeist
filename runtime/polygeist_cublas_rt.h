@@ -38,6 +38,12 @@ void polygeist_cub_histogram_even_i32_shift_zero(
     int32_t *histogram, int32_t right_shift);
 void polygeist_cublas_dtrsv_lower_row_major(
     int32_t n, const double *A, const double *b, double *x);
+void polygeist_cublas_dsymm_left_lower_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    const double *B, int32_t ldb, double beta, double *C, int32_t ldc);
+void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    double *B, int32_t ldb);
 void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A);
 
 // NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
@@ -791,6 +797,8 @@ void polygeist_cudnn_softmax_forward_out_f32(
 // CUDA-runtime copies plus cuBLAS/cuDNN tensor ops; the CPU backend is a
 // reference implementation for host correctness runs.
 void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out);
+void polygeist_cuda_copy_f64(int32_t N, const double *X, double *Out);
+void polygeist_cuda_copy_i32(int32_t N, const int32_t *X, int32_t *Out);
 void polygeist_cuda_copy_strided_2d_f32(
     int32_t rows, int32_t cols,
     int32_t src_row_stride, int32_t src_col_stride,

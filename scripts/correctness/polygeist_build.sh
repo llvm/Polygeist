@@ -568,7 +568,8 @@ else
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
     RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
-               "-DPOLYGEIST_DISABLE_CUSOLVER")
+               "-DPOLYGEIST_DISABLE_CUSOLVER"
+               "-DPOLYGEIST_DISABLE_CUDNN_CLEANUP")
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
              -lcublas -lcudart -lm -lpthread -ldl \
              -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
@@ -691,9 +692,12 @@ HARNESS_USER_CFLAGS=()
 if [ -n "${POLYGEIST_HARNESS_CFLAGS:-}" ]; then
   read -r -a HARNESS_USER_CFLAGS <<< "$POLYGEIST_HARNESS_CFLAGS"
 fi
-$CC "${GCC_PASSTHROUGH[@]}" -O3 -fno-inline -fno-inline-functions \
-  -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra \
-  -fsemantic-interposition \
+HARNESS_NOINLINE_CFLAGS=(-fno-inline -fno-inline-functions
+                         -fsemantic-interposition)
+if ! "$CC" --version 2>/dev/null | head -1 | grep -qi clang; then
+  HARNESS_NOINLINE_CFLAGS+=(-fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra)
+fi
+$CC "${GCC_PASSTHROUGH[@]}" -O3 "${HARNESS_NOINLINE_CFLAGS[@]}" \
   "${HARNESS_EXTRA_CFLAGS[@]}" \
   "${HARNESS_USER_CFLAGS[@]}" \
   -c "$HARNESS_INPUT" -o $WORK/harness_full.o

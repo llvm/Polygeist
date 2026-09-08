@@ -49,6 +49,8 @@ from structured_loop_egglog import (
 ABI_LOWERABLE_KERNELS = {
     "cubHistogramEvenI32ShiftZero_memref",
     "cublasDtrsvLowerRowMajor_memref",
+    "cublasDsymmLeftLowerRowMajor_memref",
+    "cublasDtrmmLeftLowerTransUnitRowMajor_memref",
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
@@ -67,6 +69,8 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemm_strided_batched_subtract",
     "cublasDgemv_strided_batched_subtract",
     "cublasDgemm_alpha_only",
+    "cublasDsyrk",
+    "cublasDsyr2k",
     "cublasSgemm_broadcast3d_simple",
     "cublasSgemv_broadcast2d_zero",
     "cublasSgemm_broadcast3d_memref",
@@ -7499,9 +7503,10 @@ def _render_dense_factorization_regions(
         body = text[loop.span[0]:loop.span[1]]
         prefix_start = text.rfind("func.func", 0, loop.span[0])
         prefix = text[prefix_start:loop.span[0]] if prefix_start >= 0 else ""
-        if not args or not re.fullmatch(r"0 to (%[\w.$-]+)", loop.bounds):
+        upper_match = re.match(r"0 to (%[\w.$-]+)(?:\s|$)", loop.bounds)
+        if not args or not upper_match:
             continue
-        upper = re.fullmatch(r"0 to (%[\w.$-]+)", loop.bounds).group(1)
+        upper = upper_match.group(1)
         n_arg = args[0][0]
         if args[0][1] != "i32" or not re.search(
                 rf"{re.escape(upper)}\s*=\s*arith\.index_cast\s+"
@@ -7509,7 +7514,9 @@ def _render_dense_factorization_regions(
             continue
         iv = re.escape(loop.induction)
         line_start = text.rfind("\n", 0, loop.span[0]) + 1
-        indent = text[line_start:loop.span[0]]
+        line_prefix = text[line_start:loop.span[0]]
+        indent_match = re.match(r"\s*", line_prefix)
+        indent = indent_match.group(0) if indent_match else ""
         consumed = [i for i, inst in enumerate(instances)
                     if loop.span[0] <= inst.span[0] and
                     inst.span[1] <= loop.span[1]]
@@ -7540,6 +7547,61 @@ def _render_dense_factorization_regions(
             matrix_prefix.append(
                 f"{indent}{matrix_operand} = memref.cast {args[1][0]} : "
                 f"{args[1][1]} to memref<?x?xf64>")
+
+        # Tensorized forward substitution carries x as the affine.for result
+        # and copies it back to the original output memref after the loop.
+        # Recognize the same whole recurrence and consume that write-back too;
+        # otherwise replacing only the loop would leave a dangling SSA use.
+        loop_result_match = re.search(r"(%[\w.$-]+)\s*=\s*$", line_prefix)
+        matrix_tensor_match = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[1][0])}\b", prefix) if len(args) == 4 else None
+        output_tensor_match = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[2][0])}\b", prefix) if len(args) == 4 else None
+        rhs_tensor_match = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[3][0])}\b", prefix) if len(args) == 4 else None
+        tensor_writeback = None
+        if loop_result_match and len(args) == 4:
+            loop_result = loop_result_match.group(1)
+            tensor_writeback = re.match(
+                rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+                rf"{re.escape(loop_result)}\b[^\n]*\n\s*memref\.copy\s+"
+                rf"\1,\s*{re.escape(args[2][0])}\b[^\n]*",
+                text[loop.span[1]:])
+        tensor_recurrence = bool(
+            matrix_tensor_match and output_tensor_match and rhs_tensor_match and
+            tensor_writeback and
+            re.search(rf"iter_args\([^=]+\s*=\s*"
+                      rf"{re.escape(output_tensor_match.group(1))}\)",
+                      line_prefix + body[:body.find("{") + 1]) and
+            re.search(rf"tensor\.extract\s+"
+                      rf"{re.escape(rhs_tensor_match.group(1))}\[{iv}\]", body) and
+            re.search(rf"tensor\.extract\s+"
+                      rf"{re.escape(matrix_tensor_match.group(1))}"
+                      rf"\[{iv},\s*{iv}\]", body) and
+            re.search(rf"tensor\.insert\s+%[\w.$-]+\s+into\s+%[\w.$-]+"
+                      rf"\[{iv}\]", body))
+
+        if (len(args) == 4 and matrix_is_dynamic_f64 and
+                args[2][1] == "memref<?xf64>" and
+                args[3][1] == "memref<?xf64>" and tensor_recurrence and
+                body.count("linalg.generic") == 1 and
+                'iterator_types = ["reduction"]' in body and
+                "arith.mulf" in body and "arith.subf" in body and
+                "arith.divf" in body and "arith.select" in body and
+                re.search(rf"arith\.cmpi\s+slt,\s*%[\w.$-]+,\s*{iv}", body)):
+            symbol = "cublasDtrsvLowerRowMajor_memref"
+            launch = "\n".join(matrix_prefix + [
+                f"{indent}kernel.launch @{symbol}("
+                f"{matrix_operand}, {args[3][0]}, {args[2][0]}) : "
+                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()"])
+            replacement_end = loop.span[1] + tensor_writeback.end()
+            rendered.append((line_start, replacement_end, launch, symbol,
+                             consumed))
+            claimed.append((line_start, replacement_end))
+            continue
 
         if (len(args) == 4 and matrix_is_dynamic_f64 and
                 args[2][1] == "memref<?xf64>" and
@@ -7585,6 +7647,154 @@ def _render_dense_factorization_regions(
                              consumed))
             claimed.append(loop.span)
     return rendered
+
+
+def _render_dense_symm_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize the complete row-major C=alpha*A*B+beta*C SYMM loop.
+
+    The proof covers both triangular contributions, the diagonal term, the
+    beta scale, the two loop bounds, and the tensor write-back. An isolated
+    contraction is deliberately insufficient because it would not establish
+    the symmetric-matrix access contract.
+    """
+    rendered = []
+    loops = sorted(parse_loops(text),
+                   key=lambda loop: loop.span[1] - loop.span[0], reverse=True)
+    for loop in loops:
+        args = _enclosing_func_args(text, loop.span[0])
+        expected = ["i32", "i32", "f64", "f64", "memref<?x?xf64>",
+                    "memref<?x?xf64>", "memref<?x?xf64>"]
+        if not args or [ty for _, ty in args] != expected:
+            continue
+        prefix_start = text.rfind("func.func", 0, loop.span[0])
+        prefix = text[prefix_start:loop.span[0]]
+        body = text[loop.span[0]:loop.span[1]]
+        m_cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(args[0][0])}\s*:\s*i32\s+to\s+index", prefix)
+        n_cast = re.search(
+            rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+            rf"{re.escape(args[1][0])}\s*:\s*i32\s+to\s+index", prefix)
+        if not m_cast or not n_cast or not loop.bounds.startswith(
+                f"0 to {m_cast.group(1)} "):
+            continue
+        line_start = text.rfind("\n", 0, loop.span[0]) + 1
+        line_prefix = text[line_start:loop.span[0]]
+        result = re.search(r"(%[\w.$-]+):2\s*=\s*$", line_prefix)
+        if not result:
+            continue
+        c_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[4][0])}\b", prefix)
+        a_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[5][0])}\b", prefix)
+        b_tensor = re.search(
+            rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+            rf"{re.escape(args[6][0])}\b", prefix)
+        if not c_tensor or not a_tensor or not b_tensor:
+            continue
+        trailing = re.match(
+            rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(result.group(1))}#1\b[^\n]*\n\s*memref\.copy\s+"
+            rf"\1,\s*{re.escape(args[4][0])}\b[^\n]*",
+            text[loop.span[1]:])
+        iv = re.escape(loop.induction)
+        legal = bool(
+            trailing and body.count("linalg.generic") == 2 and
+            body.count('iterator_types = ["parallel"]') == 1 and
+            body.count('iterator_types = ["reduction"]') == 1 and
+            body.count("arith.select") == 2 and
+            body.count("arith.mulf") >= 7 and
+            body.count("arith.addf") >= 4 and
+            re.search(rf"affine\.for\s+%[\w.$-]+\s*=\s*0\s+to\s+"
+                      rf"{re.escape(n_cast.group(1))}\b", body) and
+            len(re.findall(rf"arith\.cmpi\s+slt,\s*%[\w.$-]+,\s*{iv}\b",
+                           body)) == 2 and
+            re.search(rf"tensor\.extract\s+{re.escape(a_tensor.group(1))}"
+                      rf"\[{iv},\s*{iv}\]", body))
+        if not legal:
+            continue
+        indent = re.match(r"\s*", line_prefix).group(0)
+        symbol = "cublasDsymmLeftLowerRowMajor_memref"
+        launch = (
+            f"{indent}kernel.launch @{symbol}("
+            f"{args[5][0]}, {args[6][0]}, {args[4][0]}, "
+            f"{args[2][0]}, {args[3][0]}) : "
+            "(memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, f64, f64) "
+            "-> ()")
+        end = loop.span[1] + trailing.end()
+        consumed = [i for i, inst in enumerate(instances)
+                    if loop.span[0] <= inst.span[0] and
+                    inst.span[1] <= loop.span[1]]
+        rendered.append((line_start, end, launch, symbol, consumed))
+        break
+    return rendered
+
+
+def _render_dense_trmm_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize complete left/lower/transposed/unit-diagonal TRMM loops."""
+    loops = sorted(parse_loops(text),
+                   key=lambda loop: loop.span[1] - loop.span[0], reverse=True)
+    for loop in loops:
+        args = _enclosing_func_args(text, loop.span[0])
+        if (not args or [ty for _, ty in args] !=
+                ["i32", "i32", "f64", "memref<?x?xf64>",
+                 "memref<?x?xf64>"]):
+            continue
+        prefix_start = text.rfind("func.func", 0, loop.span[0])
+        prefix = text[prefix_start:loop.span[0]]
+        body = text[loop.span[0]:loop.span[1]]
+        m_cast = re.search(rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                           rf"{re.escape(args[0][0])}\s*:\s*i32\s+to\s+index",
+                           prefix)
+        n_cast = re.search(rf"(%[\w.$-]+)\s*=\s*arith\.index_cast\s+"
+                           rf"{re.escape(args[1][0])}\s*:\s*i32\s+to\s+index",
+                           prefix)
+        if not m_cast or not n_cast or not loop.bounds.startswith(
+                f"0 to {m_cast.group(1)} "):
+            continue
+        line_start = text.rfind("\n", 0, loop.span[0]) + 1
+        line_prefix = text[line_start:loop.span[0]]
+        result = re.search(r"(%[\w.$-]+)\s*=\s*$", line_prefix)
+        if not result:
+            continue
+        a_tensor = re.search(rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+                             rf"{re.escape(args[3][0])}\b", prefix)
+        b_tensor = re.search(rf"(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+"
+                             rf"{re.escape(args[4][0])}\b", prefix)
+        trailing = re.match(
+            rf"\s*(%[\w.$-]+)\s*=\s*bufferization\.to_memref\s+"
+            rf"{re.escape(result.group(1))}\b[^\n]*\n\s*memref\.copy\s+"
+            rf"\1,\s*{re.escape(args[4][0])}\b[^\n]*",
+            text[loop.span[1]:])
+        iv = re.escape(loop.induction)
+        legal = bool(
+            a_tensor and b_tensor and trailing and
+            body.count("linalg.generic") == 2 and
+            body.count('iterator_types = ["parallel", "reduction"]') == 1 and
+            body.count('iterator_types = ["parallel"]') == 1 and
+            body.count("arith.select") == 1 and
+            body.count("arith.mulf") >= 2 and "arith.addf" in body and
+            re.search(rf"arith\.cmpi\s+sge,\s*%[\w.$-]+,\s*%[\w.$-]+", body) and
+            re.search(rf"affine\.apply[^\n]*\({iv}\)", body) and
+            re.search(rf"tensor\.extract_slice\s+{re.escape(a_tensor.group(1))}"
+                      rf"\[0,\s*{iv}\]", body))
+        if not legal:
+            continue
+        indent = re.match(r"\s*", line_prefix).group(0)
+        symbol = "cublasDtrmmLeftLowerTransUnitRowMajor_memref"
+        launch = (f"{indent}kernel.launch @{symbol}("
+                  f"{args[3][0]}, {args[4][0]}, {args[2][0]}) : "
+                  "(memref<?x?xf64>, memref<?x?xf64>, f64) -> ()")
+        end = loop.span[1] + trailing.end()
+        consumed = [i for i, inst in enumerate(instances)
+                    if loop.span[0] <= inst.span[0] and
+                    inst.span[1] <= loop.span[1]]
+        return [(line_start, end, launch, symbol, consumed)]
+    return []
 
 
 def _render_zeroed_i32_histograms(
@@ -8236,6 +8446,24 @@ def rewrite_mlir(
             edits.append((start, end, replacement))
             consumed_structured_bodies.update(consumed)
             report.append(("match", consumed, symbol + "[whole-algorithm]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in \
+                _render_dense_symm_regions(text, instances):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-symm]"))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in \
+                _render_dense_trmm_regions(text, instances):
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-trmm]"))
             emitted_launches += 1
         for start, end, replacement, symbol in _render_cusparse_csr_spmv(text):
             if max_launches is not None and emitted_launches >= max_launches:
@@ -9007,6 +9235,81 @@ def rewrite_mlir(
         suppress_composition_tail_rewire = False
         pre_launch_lines: list[str] = []
         redundant_zero_fill_span: tuple[int, int] | None = None
+
+        if entry.name in ("cublasDsyrk", "cublasDsyr2k") and n == 2:
+            contraction = instances[i + 1]
+            contraction_ins = _extract_ssa_names(contraction.ins_part)
+            contraction_types = _extract_ssa_types(contraction.ins_part)
+            contraction_outs = _extract_ssa_names(contraction.outs_part)
+            contraction_out_types = _extract_ssa_types(contraction.outs_part)
+
+            def _map_dims(mapping: str) -> list[str]:
+                match = re.search(r"->\s*\(([^)]*)\)>", mapping)
+                return ([part.strip() for part in match.group(1).split(",")]
+                        if match else [])
+
+            def _slice_source(value: str) -> str:
+                prefix = text[:contraction.span[0]]
+                match = re.search(
+                    rf"(?m)^\s*{re.escape(value)}\s*=\s*"
+                    rf"tensor\.extract_slice\s+(%[\w_-]+)", prefix)
+                return match.group(1) if match else value
+
+            maps = [_map_dims(mapping)
+                    for mapping in bodies[i + 1].indexing_maps]
+            roles = bodies[i + 1].iterator_types
+            parallel = {f"d{index}" for index, role in enumerate(roles)
+                        if role == "parallel"}
+            reduction = {f"d{index}" for index, role in enumerate(roles)
+                         if role == "reduction"}
+            sources = [_slice_source(value) for value in contraction_ins]
+            common_legal = (
+                len(contraction_outs) == len(contraction_out_types) == 1
+                and len(outs0) == len(outs0_types) == 1
+                and all(_sniff_elem_type(ty) == "f64"
+                        for ty in contraction_types + contraction_out_types)
+                and all(_tensor_rank(ty) == 2
+                        for ty in contraction_types + contraction_out_types)
+                and len(parallel) == 2 and len(reduction) == 1
+                and len(maps) == len(contraction_ins) + 1
+                and set(maps[-1]) == parallel)
+            if entry.name == "cublasDsyrk":
+                layout_legal = (
+                    common_legal and len(contraction_ins) == 2
+                    and sources[0] == sources[1]
+                    and all(len(mapping) == 2 for mapping in maps)
+                    and set(maps[0]) == {next(iter(reduction)), maps[0][0]}
+                    and set(maps[1]) == {next(iter(reduction)), maps[1][0]}
+                    and {next(dim for dim in maps[0] if dim not in reduction),
+                         next(dim for dim in maps[1] if dim not in reduction)}
+                        == parallel)
+                chosen = [contraction_ins[0], outs0[0]]
+                chosen_types = [contraction_types[0], outs0_types[0]]
+            else:
+                layout_legal = (
+                    common_legal and len(contraction_ins) == 4
+                    and sources[0] == sources[3]
+                    and sources[1] == sources[2]
+                    and sources[0] != sources[1]
+                    and maps[0] == maps[2] and maps[1] == maps[3]
+                    and all(len(mapping) == 2 for mapping in maps)
+                    and all(set(mapping) & reduction == reduction
+                            and len(set(mapping) & parallel) == 1
+                            for mapping in maps[:2])
+                    and {next(dim for dim in mapping if dim in parallel)
+                         for mapping in maps[:2]} == parallel)
+                chosen = [contraction_ins[0], contraction_ins[1], outs0[0]]
+                chosen_types = [contraction_types[0], contraction_types[1],
+                                outs0_types[0]]
+            if not layout_legal:
+                report.append(("symmetric_rankk_layout_reject", i, entry.name))
+                i += n
+                continue
+            operands = chosen
+            operand_types = chosen_types
+            if instances[i].result_ssa is not None:
+                composition_root_rewires.append(
+                    (instances[i].result_ssa, outs0[0]))
 
         # These CUB operations overwrite their destinations.  Their raised
         # forms nevertheless contain an explicit initializer because that is

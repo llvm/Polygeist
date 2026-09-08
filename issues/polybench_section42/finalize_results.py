@@ -12,14 +12,22 @@ ROOT = Path(__file__).resolve().parent
 LOGS = ROOT / "logs"
 MANIFEST = ROOT / "manifest.csv"
 
-CPU_LIBRARY_PASS = {"2mm", "atax", "bicg", "gemm", "gemver", "gesummv", "mvt"}
-CPU_LIBRARY_FAIL = {"doitgen", "gramschmidt"}
-GPU_FAIL = {
+CPU_LIBRARY_PASS = {
     "2mm", "3mm", "atax", "bicg", "doitgen", "gemm", "gemver",
-    "gesummv", "gramschmidt", "mvt",
+    "gesummv", "mvt", "symm", "syr2k", "syrk", "trisolv", "trmm",
 }
-PBGPU_PASS = {"2mm", "3mm", "gemm", "gemver", "gesummv"}
+CPU_LIBRARY_FAIL = {"gramschmidt"}
+GPU_PASS = {
+    "2mm", "3mm", "atax", "bicg", "doitgen", "gemm", "gemver",
+    "gesummv", "mvt", "symm", "syr2k", "syrk", "trisolv", "trmm",
+}
+GPU_FAIL = {"gramschmidt"}
+PBGPU_PASS = {
+    "2mm", "3mm", "atax", "bicg", "correlation", "covariance", "doitgen",
+    "fdtd-2d", "gemm", "gemver", "gesummv", "mvt", "syr2k", "syrk",
+}
 COMMON = {"gemm", "syr2k", "2mm", "3mm"}
+MATCHER_PASS = {"symm", "syr2k", "syrk", "trisolv", "trmm"}
 
 REASONS = {
     "adi": "raising retains polygeist submap operations; no executable residual",
@@ -60,6 +68,8 @@ rows = read_rows(MANIFEST)
 for row in rows:
     kernel = row["kernel"]
     row["native_cpu_status"] = "pass"
+    if kernel in MATCHER_PASS:
+        row["matcher_status"] = "pass"
     row["polybenchgpu_status"] = "pass" if kernel in PBGPU_PASS else "unavailable"
     row["modified_source"] = "true" if kernel in PBGPU_PASS else "false"
     row["kernelfarer_status"] = "unavailable" if kernel in COMMON else "not_applicable"
@@ -77,16 +87,24 @@ for row in rows:
     if row["residual_cpu_status"] != "pass":
         row["raised_gpu_status"] = "unavailable"
         row["overall_status"] = "fail"
+    elif kernel in GPU_PASS:
+        row["raised_gpu_status"] = "pass"
+        row["overall_status"] = "partial"
     elif kernel in GPU_FAIL:
         row["raised_gpu_status"] = "fail"
         row["overall_status"] = "partial"
     else:
         row["raised_gpu_status"] = "unavailable"
         row["overall_status"] = "partial"
-    row["failure_reason"] = REASONS.get(
-        kernel,
-        "residual correctness passes; no eligible external-library match or canonical native-GPU adapter",
-    )
+    target_reason = {
+        "syrk": "OpenBLAS and raised cuBLAS pass the canonical lower-triangle contract",
+        "syr2k": "OpenBLAS and raised cuBLAS pass the canonical lower-triangle contract",
+        "trisolv": "OpenBLAS DTRSV and raised cuBLAS DTRSV pass",
+        "symm": "OpenBLAS DSYMM and equivalent raised cuBLAS DSYMV composition pass",
+        "trmm": "OpenBLAS DTRMM and equivalent raised cuBLAS DTRMV/DSCAL composition pass",
+    }.get(kernel)
+    if target_reason:
+        row["failure_reason"] = target_reason
 
 write_rows(MANIFEST, rows, list(rows[0]))
 
@@ -202,8 +220,17 @@ def gpu_samples(path: Path) -> tuple[list[float], list[float]]:
     return device_values, end_to_end_values
 
 
+existing_gpu = read_rows(ROOT / "performance_gpu.csv") \
+    if (ROOT / "performance_gpu.csv").exists() else []
 gpu_records = []
 for kernel in sorted(PBGPU_PASS):
+    retained = next((row for row in existing_gpu
+                     if row.get("kernel") == kernel and
+                     row.get("configuration") == "native_gpu_polybenchgpu"),
+                    None)
+    if retained:
+        gpu_records.append(retained)
+        continue
     device_values, end_to_end_values = gpu_samples(
         LOGS / kernel / "polybenchgpu_timing_raw.log")
     if not device_values:
@@ -228,6 +255,36 @@ for kernel in sorted(PBGPU_PASS):
         ),
         "command": "issues/polybench_section42/run_polybenchgpu_native.sh",
         "log": f"logs/{kernel}/polybenchgpu_timing_raw.log",
+    })
+
+# Preserve correctness-approved raised rows whose preferred measurements use
+# region/coalesced timing logs, then replace any kernel with a fresh standard
+# five-sample timing log from this run.
+gpu_records.extend(row for row in existing_gpu
+                   if row.get("configuration") == "raised_gpu" and
+                   row.get("kernel") in GPU_PASS)
+for kernel in sorted(GPU_PASS):
+    device_values, end_to_end_values = gpu_samples(
+        LOGS / kernel / "raised_gpu_timing_raw.log")
+    if not device_values:
+        continue
+    gpu_records = [row for row in gpu_records
+                   if not (row["kernel"] == kernel and
+                           row["configuration"] == "raised_gpu")]
+    gpu_records.append({
+        "kernel": kernel, "configuration": "raised_gpu",
+        "dataset": "LARGE", "datatype": "double",
+        "correctness_status": "pass", "samples": "5", "warmups": "1",
+        "statistic": "median",
+        "device_time_ms": f"{statistics.median(device_values):.6f}",
+        "end_to_end_time_ms": f"{statistics.median(end_to_end_values):.6f}",
+        "speedup_vs_native": "", "library": "CUDA 12.6 cuBLAS",
+        "device": "Jetson Orin sm_87",
+        "measurement_scope": (
+            "device CUDA events around external-library computation; E2E "
+            "raised function including memory and orchestration"),
+        "command": "issues/polybench_section42/run_raised_gpu_timing.sh",
+        "log": f"logs/{kernel}/raised_gpu_timing_raw.log",
     })
 
 write_rows(ROOT / "performance_gpu.csv", gpu_records, gpu_fields)

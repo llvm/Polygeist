@@ -4,7 +4,7 @@ set -u
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 result_root="$repo/issues/polybench_section42"
 util="$repo/tools/cgeist/Test/polybench/utilities"
-build=/tmp/polygeist-section42-build
+build=${POLYGEIST_BUILD:-/tmp/polygeist-section42-build}
 llvm=/home/arjaiswal/Polygeist/llvm-project/build/bin
 export PATH="$build/bin:$llvm:$PATH"
 export MLIR_OPT="$llvm/mlir-opt"
@@ -15,7 +15,7 @@ export POLYGEIST_CUDA_TIMING_WRAPPER=1
 summary="$result_root/logs/raised_gpu_timing_summary.csv"
 printf 'kernel,status,build_rc,deploy_rc,samples\n' > "$summary"
 
-default_kernels=(2mm 3mm atax bicg doitgen gemm gemver gesummv mvt)
+default_kernels=(2mm 3mm atax bicg doitgen gemm gemver gesummv mvt syr2k syrk trisolv symm trmm)
 kernels=("${default_kernels[@]}")
 if [[ $# -gt 0 ]]; then kernels=("$@"); fi
 for kernel in "${kernels[@]}"; do
