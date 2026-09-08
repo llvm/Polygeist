@@ -6,6 +6,61 @@
 #include <cstdio>
 
 #include "mfem.hpp"
+#include "fem/dfem/fieldoperator.hpp"
+#include "fem/dfem/tuple.hpp"
+
+// MFEM currently exposes the low-level dfem CUDA kernels only when its MPI
+// integration header is enabled. This benchmark uses a non-MPI MFEM build, so
+// provide the small, source-identical dispatch/data subset required by the
+// upstream interpolate.hpp and integrate.hpp kernels.
+namespace mfem::future {
+namespace dfem {
+template <class... T> constexpr bool always_false = false;
+}
+template <std::size_t N, typename F, std::size_t... I>
+constexpr void mfem_bench_for_constexpr(F &&f, std::index_sequence<I...>) {
+  (f(std::integral_constant<std::size_t, I>{}), ...);
+}
+template <std::size_t N, typename F>
+constexpr void for_constexpr(F &&f) {
+  mfem_bench_for_constexpr<N>(std::forward<F>(f),
+                              std::make_index_sequence<N>{});
+}
+struct ThreadBlocks { int x = 1; int y = 1; int z = 1; };
+template <typename func_t>
+__global__ void mfem_bench_forall_kernel_shmem(func_t f, int n) {
+  const int i = blockIdx.x;
+  extern __shared__ real_t shmem[];
+  if (i < n) f(i, shmem);
+}
+template <typename func_t>
+void forall(func_t f, const int &n, const ThreadBlocks &blocks,
+            int num_shmem = 0, real_t * = nullptr) {
+  const int num_bytes = num_shmem * sizeof(real_t);
+  mfem_bench_forall_kernel_shmem<<<n, dim3(blocks.x, blocks.y, blocks.z),
+                                  num_bytes>>>(f, n);
+  MFEM_GPU_CHECK(cudaGetLastError());
+  MFEM_DEVICE_SYNC;
+}
+struct DofToQuadMap {
+  enum Index { QP, DIM, DOF };
+  DeviceTensor<3, const real_t> B;
+  DeviceTensor<3, const real_t> G;
+  int which_input = -1;
+};
+template <std::size_t N>
+MFEM_HOST_DEVICE inline std::array<DeviceTensor<1>, 6>
+load_scratch_mem(void *mem, int offset, const std::array<int, N> &sizes) {
+  std::array<DeviceTensor<1>, N> result;
+  for (std::size_t i = 0; i < N; ++i) {
+    result[i] = DeviceTensor<1>(&reinterpret_cast<real_t *>(mem)[offset],
+                                sizes[i]);
+    offset += sizes[i];
+  }
+  return result;
+}
+} // namespace mfem::future
+
 #include "fem/dfem/integrate.hpp"
 #include "fem/dfem/interpolate.hpp"
 

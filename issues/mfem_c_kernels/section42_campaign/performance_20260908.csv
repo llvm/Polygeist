@@ -1,0 +1,18 @@
+kernel,validated_sites,vanilla_cpu_ms,raised_cpu_ms,raised_gpu_ms,native_mfem_gpu_ms,raised_cpu_slowdown_vs_vanilla,raised_gpu_slowdown_vs_vanilla,raised_gpu_slowdown_vs_native_mfem,processes,samples_per_process,correctness,notes
+convection_apply_2d,5,0.343552,115.833312,5.486992,0.047296,337.16,15.97,116.01,5,20,pass,pairwise cuTensorNet; native checksum pass
+convection_apply_3d,10,2.833616,1158.955232,34.807136,0.186480,409.00,12.28,186.65,5,20,pass,pairwise cuTensorNet; native checksum pass
+curlcurl_apply_2d,5,0.338192,93.881264,4.891328,0.144784,277.60,14.46,33.78,5,20,pass,pairwise cuTensorNet; native checksum pass
+curlcurl_apply_3d,29,8.463776,2568.061008,148.851792,16.961776,303.43,17.59,8.78,5,20,pass,pairwise cuTensorNet; native checksum pass
+diffusion_apply_2d,6,0.438384,140.091856,7.362000,0.057600,319.57,16.79,127.81,5,20,pass,pairwise cuTensorNet; native checksum pass
+diffusion_apply_3d,14,4.542864,1580.748192,65.700080,0.306432,347.96,14.46,214.40,5,20,pass,pairwise cuTensorNet; native checksum pass
+divdiv_apply_2d,6,0.337808,110.725328,6.607824,0.144560,327.77,19.56,45.71,5,20,pass,pairwise cuTensorNet; native checksum pass
+divdiv_apply_3d,12,3.167824,950.253440,42.518912,0.974512,299.97,13.42,43.63,5,20,pass,pairwise cuTensorNet; native checksum pass
+integrate_grad_2d,4,0.125792,93.012192,4.861264,0.044880,739.41,38.65,108.32,5,20,pass,pairwise cuTensorNet; native checksum pass
+integrate_grad_3d,9,1.622128,949.767744,26.112496,0.174144,585.51,16.10,149.95,5,20,pass,pairwise cuTensorNet; native checksum pass
+integrate_value_2d,1,0.065248,27.364528,0.812688,0.036656,419.39,12.46,22.17,5,20,pass,pairwise cuTensorNet; native checksum pass
+interp_grad_2d,4,0.202080,102.646480,3.319504,0.039872,507.95,16.43,83.25,5,20,pass,pairwise cuTensorNet; native checksum pass
+interp_grad_3d,8,2.403520,872.550288,20.270368,0.128608,363.04,8.43,157.61,5,20,pass,pairwise cuTensorNet; native checksum pass
+interp_value_2d,2,0.103504,48.439712,1.383392,0.033440,467.99,13.37,41.37,5,20,pass,pairwise cuTensorNet; native checksum pass
+interp_value_3d,3,0.624624,322.990912,5.576784,0.065328,517.11,8.93,85.37,5,20,pass,pairwise cuTensorNet; native checksum pass
+mass_apply_2d,3,0.227984,74.873696,2.911520,0.042368,328.42,12.77,68.72,5,20,pass,pairwise cuTensorNet; native checksum pass
+mass_apply_3d,5,1.290880,574.925824,14.167280,0.138752,445.38,10.97,102.11,5,20,pass,pairwise cuTensorNet; composition disabled; native checksum pass
