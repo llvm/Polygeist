@@ -131,11 +131,19 @@ LogicalResult LaunchOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   auto areBufferCompatible = [](Type expected, Type actual) {
     if (expected == actual)
       return true;
-    auto expectedTensor = dyn_cast<RankedTensorType>(expected);
-    auto actualMemref = dyn_cast<MemRefType>(actual);
+    auto expectedTensor = dyn_cast<TensorType>(expected);
+    auto actualMemref = dyn_cast<BaseMemRefType>(actual);
     if (!expectedTensor || !actualMemref ||
-        expectedTensor.getElementType() != actualMemref.getElementType() ||
-        expectedTensor.getRank() != actualMemref.getRank())
+        expectedTensor.getElementType() != actualMemref.getElementType())
+      return false;
+
+    // Rank-independent matcher ABIs intentionally use tensor<*xT>. One-shot
+    // bufferization preserves that contract as memref<*xT>; there is no shape
+    // information to compare beyond the element type. If either side is
+    // ranked, both must be ranked before checking compatible dimensions.
+    if (!expectedTensor.hasRank() || !actualMemref.hasRank())
+      return !expectedTensor.hasRank() && !actualMemref.hasRank();
+    if (expectedTensor.getRank() != actualMemref.getRank())
       return false;
     for (auto [expectedDim, actualDim] :
          llvm::zip(expectedTensor.getShape(), actualMemref.getShape()))

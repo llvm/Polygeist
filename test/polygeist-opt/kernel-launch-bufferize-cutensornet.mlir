@@ -9,6 +9,12 @@
                     (d4 + d3 * 5 + d2 * 20 + d1 * 80 + d0 * 320)>
 
 module {
+  kernel.defn @cutensornetContraction2_f64(
+      %a: tensor<*xf64>, %b: tensor<*xf64>,
+      %c: tensor<*xf64>) -> tensor<*xf64> {
+    kernel.yield %c : tensor<*xf64>
+  }
+
   kernel.defn @cutensornetContraction2_f64_r5r5r4(
       %a: tensor<?x?x?x?x?xf64>, %b: tensor<?x?x?x?x?xf64>,
       %c: tensor<?x?x?x?xf64>) -> tensor<?x?x?x?xf64> {
@@ -63,6 +69,30 @@ module {
         : memref<?x?x?x?xf64> to memref<?x?x?x?xf64>
     return
   }
+
+  func.func @bufferized_unranked_contraction(
+      %a: memref<?x?x?x?x?xf64>, %b: memref<?x?x?x?x?xf64>,
+      %c: memref<?x?x?x?xf64>) {
+    %at = bufferization.to_tensor %a restrict writable
+        : memref<?x?x?x?x?xf64>
+    %bt = bufferization.to_tensor %b restrict writable
+        : memref<?x?x?x?x?xf64>
+    %ct = bufferization.to_tensor %c restrict writable
+        : memref<?x?x?x?xf64>
+    %au = tensor.cast %at : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+    %bu = tensor.cast %bt : tensor<?x?x?x?x?xf64> to tensor<*xf64>
+    %cu = tensor.cast %ct : tensor<?x?x?x?xf64> to tensor<*xf64>
+    %result = kernel.launch @cutensornetContraction2_f64(
+        %au, %bu, %cu) {
+          contraction_maps = [#a, #b, #c]
+        } : (tensor<*xf64>, tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+    %ranked = tensor.cast %result : tensor<*xf64> to tensor<?x?x?x?xf64>
+    %result_memref = bufferization.to_memref %ranked
+        : memref<?x?x?x?xf64>
+    memref.copy %result_memref, %c
+        : memref<?x?x?x?xf64> to memref<?x?x?x?xf64>
+    return
+  }
 }
 
 // CHECK-LABEL: func.func @bufferized_contraction
@@ -77,3 +107,9 @@ module {
 // CHECK-NOT: polygeist.submap
 // CHECK-NOT: bufferization.to_memref
 // CHECK-NOT: memref.copy
+
+// CHECK-LABEL: func.func @bufferized_unranked_contraction
+// CHECK: call @polygeist_cutensornet_contraction2_f64
+// CHECK-NOT: kernel.launch
+// CHECK-NOT: bufferization.to_tensor
+// CHECK-NOT: bufferization.to_memref
