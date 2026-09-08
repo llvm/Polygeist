@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CPU_LOGS = ROOT / "logs" / "publication_orin_cpu"
 GPU_LOGS = ROOT / "logs" / "publication_orin"
+GEMM_PRECISION_LOGS = ROOT / "logs" / "gemm_fp32_fp64_20260908"
 OUT = ROOT / "paper_analysis"
 
 
@@ -108,7 +109,12 @@ def paired_runtime_svg(
         raised = float(row[raised_field])
         xn, xr = xpos(native), xpos(raised)
         ratio = native / raised
-        svg.append(f'<text class="kernel" x="{left-10}" y="{y+4}" text-anchor="end">{html.escape(str(row["kernel"]))}</text>')
+        datatype = str(row.get("datatype", ""))
+        dtype_label = ("FP32" if datatype == "float" else
+                       "FP64" if datatype == "double" else datatype)
+        label = (f'{row["kernel"]} [{dtype_label}]' if dtype_label
+                 else str(row["kernel"]))
+        svg.append(f'<text class="kernel" x="{left-10}" y="{y+4}" text-anchor="end">{html.escape(label)}</text>')
         svg.append(f'<line class="pair" x1="{xn:.2f}" y1="{y}" x2="{xr:.2f}" y2="{y}"/>')
         svg.append(f'<circle cx="{xn:.2f}" cy="{y}" r="5" fill="#0969da"><title>{native_label}: {native:.6f} ms</title></circle>')
         svg.append(f'<circle cx="{xr:.2f}" cy="{y}" r="5" fill="#d97706"><title>{raised_label}: {raised:.6f} ms</title></circle>')
@@ -170,6 +176,9 @@ def main() -> None:
             native_e2e_stats = sample_stats(native_path, native_e2e_field)
             native_device, native_iqr = native_device_stats["median"], native_device_stats["iqr"]
             native_e2e = native_e2e_stats["median"]
+        if (kernel == "gemm" and
+                (GEMM_PRECISION_LOGS / "raised-fp64-samples.csv").exists()):
+            raised_path = GEMM_PRECISION_LOGS / "raised-fp64-samples.csv"
         if raised_path.exists():
             fields = read_csv(raised_path)[0]
             raised_device_stats = sample_stats(raised_path, "compute_device_ms")
@@ -198,6 +207,42 @@ def main() -> None:
             "publication_status": "pending_fixed_hardware_state_verification",
             "native_modified_source": "true" if native_path.exists() else "",
             "log_dir": str(directory.relative_to(ROOT)),
+            "native_evidence": (
+                f"{directory.relative_to(ROOT)}/native-gpu-samples.csv"
+                if native_path.exists() else ""),
+            "raised_evidence": (str(raised_path.relative_to(ROOT))
+                                if raised_path.exists() else ""),
+        })
+
+    fp32_native_path = GEMM_PRECISION_LOGS / "native-fp32-samples.csv"
+    fp32_raised_path = GEMM_PRECISION_LOGS / "raised-fp32-samples.csv"
+    if fp32_native_path.exists() and fp32_raised_path.exists():
+        native_device = sample_stats(fp32_native_path, "device_ms")
+        native_e2e = sample_stats(fp32_native_path, "e2e_ms")
+        raised_device = sample_stats(fp32_raised_path, "compute_device_ms")
+        raised_wall = sample_stats(fp32_raised_path, "compute_wall_ms")
+        raised_memory = sample_stats(fp32_raised_path, "memory_device_ms")
+        raised_e2e = sample_stats(fp32_raised_path, "e2e_host_ms")
+        gpu_rows.append({
+            "kernel": "gemm",
+            "native_device_ms": native_device["median"],
+            "native_device_iqr_ms": native_device["iqr"],
+            "native_e2e_ms": native_e2e["median"],
+            "raised_device_ms": raised_device["median"],
+            "raised_device_iqr_ms": raised_device["iqr"],
+            "raised_resident_wall_ms": raised_wall["median"],
+            "raised_memory_device_ms": raised_memory["median"],
+            "raised_e2e_ms": raised_e2e["median"],
+            "device_speedup_native_over_raised": (
+                native_device["median"] / raised_device["median"]),
+            "native_correctness": "pass", "raised_correctness": "pass",
+            "dataset": "LARGE", "datatype": "float", "warmups": 5,
+            "samples": 5, "hardware": "Jetson AGX Orin sm_87",
+            "publication_status": "pending_fixed_hardware_state_verification",
+            "native_modified_source": "true",
+            "log_dir": str(GEMM_PRECISION_LOGS.relative_to(ROOT)),
+            "native_evidence": str(fp32_native_path.relative_to(ROOT)),
+            "raised_evidence": str(fp32_raised_path.relative_to(ROOT)),
         })
 
     cpu_fields = list(cpu_rows[0])
@@ -229,7 +274,12 @@ def main() -> None:
     write_csv(OUT / "paper_x86_related_work.csv", x86_rows, list(x86_rows[0]))
 
     paired_cpu = [row for row in cpu_rows if row["native_correctness"] == row["raised_correctness"] == "pass"]
-    paired_gpu = [row for row in gpu_rows if row["native_device_ms"] is not None and row["raised_device_ms"] is not None]
+    primary_gpu_rows = [row for row in gpu_rows if row["datatype"] == "double"]
+    paired_gpu_all = [
+        row for row in gpu_rows
+        if row["native_device_ms"] is not None and row["raised_device_ms"] is not None
+    ]
+    paired_gpu = [row for row in paired_gpu_all if row["datatype"] == "double"]
     cpu_speedups = [float(row["speedup_native_over_raised"]) for row in paired_cpu]
     gpu_speedups = [float(row["device_speedup_native_over_raised"]) for row in paired_gpu]
     summary = {
@@ -238,16 +288,17 @@ def main() -> None:
         "cpu_median_speedup": statistics.median(cpu_speedups),
         "cpu_speedup_min": min(cpu_speedups), "cpu_speedup_max": max(cpu_speedups),
         "cpu_missing": sorted(canonical_kernels - {str(row["kernel"]) for row in cpu_rows}),
-        "gpu_native_kernels": sum(row["native_device_ms"] is not None for row in gpu_rows),
-        "gpu_raised_kernels": sum(row["raised_device_ms"] is not None for row in gpu_rows),
+        "gpu_native_kernels": sum(row["native_device_ms"] is not None for row in primary_gpu_rows),
+        "gpu_raised_kernels": sum(row["raised_device_ms"] is not None for row in primary_gpu_rows),
         "gpu_paired_kernels": len(paired_gpu),
+        "gpu_supplementary_datatype_configurations": len(paired_gpu_all) - len(paired_gpu),
         "gpu_geomean_device_speedup": math.exp(statistics.mean(math.log(x) for x in gpu_speedups)),
         "gpu_median_device_speedup": statistics.median(gpu_speedups),
         "gpu_raised_faster": sum(x > 1.0 for x in gpu_speedups),
         "gpu_native_faster": sum(x < 1.0 for x in gpu_speedups),
-        "gpu_native_only": [row["kernel"] for row in gpu_rows if row["native_device_ms"] is not None and row["raised_device_ms"] is None],
-        "gpu_raised_only": [row["kernel"] for row in gpu_rows if row["native_device_ms"] is None and row["raised_device_ms"] is not None],
-        "gpu_neither": sorted(canonical_kernels - {str(row["kernel"]) for row in gpu_rows}),
+        "gpu_native_only": [row["kernel"] for row in primary_gpu_rows if row["native_device_ms"] is not None and row["raised_device_ms"] is None],
+        "gpu_raised_only": [row["kernel"] for row in primary_gpu_rows if row["native_device_ms"] is None and row["raised_device_ms"] is not None],
+        "gpu_neither": sorted(canonical_kernels - {str(row["kernel"]) for row in primary_gpu_rows}),
         "manifest_rows": len(manifest),
         "manifest_rows_with_explicit_status": len(manifest),
         "publication_status": "pending_fixed_hardware_state_verification",
@@ -261,10 +312,10 @@ def main() -> None:
         "LARGE/FP64 on one Orin CPU core; median of 5 after 5 warmups; log runtime",
     )
     paired_runtime_svg(
-        paired_gpu, OUT / "polybench_gpu_runtime.svg",
+        paired_gpu_all, OUT / "polybench_gpu_runtime.svg",
         "PolyBench GPU: native CUDA versus raised resident library",
         "native_device_ms", "raised_device_ms", "Native PolyBenchGPU", "Raised CUDA library",
-        "LARGE/FP64 on Orin SM87; CUDA-event device time; median of 5 after 5 warmups",
+        "LARGE on Orin SM87; datatype labelled per row; CUDA-event device time; median of 5 after 5 warmups",
     )
 
     analysis = f"""# PolyBench Section 4.2 paper analysis
@@ -281,7 +332,8 @@ timings in the legacy result ledger.
   {summary['cpu_speedup_min']:.2f}x--{summary['cpu_speedup_max']:.2f}x.
 - GPU: {summary['gpu_native_kernels']} native and {summary['gpu_raised_kernels']}
   raised resident measurements, with {len(paired_gpu)} one-to-one device-time
-  pairs. Raised is faster for {summary['gpu_raised_faster']} pairs and native is
+  FP64 pairs, plus {summary['gpu_supplementary_datatype_configurations']} supplementary
+  FP32 configuration. Raised is faster for {summary['gpu_raised_faster']} FP64 pairs and native is
   faster for {summary['gpu_native_faster']}; geometric-mean native/raised
   device speedup is {summary['gpu_geomean_device_speedup']:.2f}x.
 - Native-only GPU rows: {', '.join(summary['gpu_native_only']) or 'none'}.
@@ -296,7 +348,9 @@ timings in the legacy result ledger.
 
 ## Claim boundary
 
-All measurements use canonical LARGE/FP64 inputs, complete-output correctness,
+The primary campaign uses canonical LARGE/FP64 inputs; the additional GEMM
+FP32 row uses the same dimensions and initialization with float storage. Every
+row records its datatype and requires complete-output correctness,
 one process, five warmups, and five samples. CPU runs are pinned to core 0 with
 one OpenBLAS/OpenMP thread. GPU ratios use device time on both sides; end-to-end
 times are reported separately and never mixed into those ratios. Native

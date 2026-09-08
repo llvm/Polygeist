@@ -2286,18 +2286,14 @@ void polygeist_cublas_dgemm(
 
   // Row-major C = α A·B + β C  →  col-major Cᵀ = α Bᵀ·Aᵀ + β Cᵀ
   timing_gpu_begin();
-  // The Jetson CUDA 12.6 installation used by the evaluation returns success
-  // from its GEMM entry points but leaves both mapped-host and cudaMalloc
-  // outputs unchanged.  Its GEMV path is functional.  Express the same
-  // row-major product as M independent GEMVs against the column-major view of
-  // B.  All arithmetic remains in the real cuBLAS library.
-  for (int32_t row = 0; row < M; ++row)
-    CUBLAS_CHECK(cublasDgemv(g_handle, CUBLAS_OP_N,
-                             /*m=*/N, /*n=*/K,
-                             &alpha, dB, ldb,
-                             dA + (size_t)row * (size_t)lda, 1,
-                             &beta,
-                             dC + (size_t)row * (size_t)ldc, 1));
+  CUBLAS_CHECK(cublasDgemm(g_handle,
+                           CUBLAS_OP_N, CUBLAS_OP_N,
+                           /*m=*/N, /*n=*/M, /*k=*/K,
+                           &alpha,
+                           dB, ldb,
+                           dA, lda,
+                           &beta,
+                           dC, ldc));
   timing_gpu_end("cublasDgemm", M, N, K, host_start_ms);
 
   unregister_host_safe((void *)A);
