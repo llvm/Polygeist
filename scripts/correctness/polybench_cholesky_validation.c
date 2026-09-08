@@ -54,16 +54,27 @@ int main(void) {
   kernel_cholesky(n, got);
   reference(n, want);
   double max_abs = 0.0, max_rel = 0.0;
+  int worst_i = -1, worst_j = -1;
+  double worst_got = 0.0, worst_want = 0.0;
   for (int i = 0; i < n; ++i)
     for (int j = 0; j <= i; ++j) {
       double error = fabs(got[i][j] - want[i][j]);
       double relative = error / fmax(1.0, fabs(want[i][j]));
-      max_abs = fmax(max_abs, error);
+      if (error > max_abs) {
+        max_abs = error;
+        worst_i = i;
+        worst_j = j;
+        worst_got = got[i][j];
+        worst_want = want[i][j];
+      }
       max_rel = fmax(max_rel, relative);
     }
   int pass = isfinite(max_abs) && max_rel <= 1.0e-10;
   printf("POLYBENCH_CHOLESKY_%s n=%d max_abs=%.17g max_rel=%.17g\n",
          pass ? "PASS" : "FAIL", n, max_abs, max_rel);
+  if (!pass)
+    printf("POLYBENCH_CHOLESKY_WORST i=%d j=%d got=%.17g want=%.17g\n",
+           worst_i, worst_j, worst_got, worst_want);
   free(got);
   free(want);
   return pass ? 0 : 1;

@@ -13,6 +13,8 @@
 
 #ifdef POLYGEIST_CPU_USE_CBLAS
 #include <cblas.h>
+extern void dpotrf_(const char *uplo, const int *n, double *a,
+                    const int *lda, int *info);
 #endif
 
 #ifndef M_PI
@@ -104,22 +106,104 @@ void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
 }
 
 void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
-  for (int32_t i = 0; i < n; ++i) {
-    for (int32_t j = 0; j < i; ++j) {
-      double value = A[(size_t)i * (size_t)n + (size_t)j];
-      for (int32_t k = 0; k < j; ++k)
-        value -= A[(size_t)i * (size_t)n + (size_t)k] *
-                 A[(size_t)j * (size_t)n + (size_t)k];
-      A[(size_t)i * (size_t)n + (size_t)j] =
-          value / A[(size_t)j * (size_t)n + (size_t)j];
-    }
-    double diagonal = A[(size_t)i * (size_t)n + (size_t)i];
-    for (int32_t k = 0; k < i; ++k) {
-      double value = A[(size_t)i * (size_t)n + (size_t)k];
-      diagonal -= value * value;
-    }
-    A[(size_t)i * (size_t)n + (size_t)i] = sqrt(diagonal);
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  // LAPACK is column-major.  The upper triangle of its view is the lower
+  // triangle of the row-major PolyBench matrix.
+  const char uplo = 'U';
+  const int size = n;
+  int info = 0;
+  dpotrf_(&uplo, &size, A, &size, &info);
+  if (info != 0) {
+    fprintf(stderr, "OpenBLAS DPOTRF failed: info=%d\n", info);
+    abort();
   }
+#else
+  (void)n;
+  (void)A;
+  fprintf(stderr, "Polygeist runtime: FP64 DPOTRF requires external LAPACK\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_dgramschmidt_mgs_row_major(
+    int32_t m, int32_t n, double *A, int32_t lda,
+    double *R, int32_t ldr, double *Q, int32_t ldq) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  for (int32_t k = 0; k < n; ++k) {
+    const double norm = cblas_dnrm2(m, A + k, lda);
+    R[(size_t)k * (size_t)ldr + k] = norm;
+    cblas_dcopy(m, A + k, lda, Q + k, ldq);
+    const double inverse = 1.0 / norm;
+    cblas_dscal(m, inverse, Q + k, ldq);
+    const int32_t trailing = n - k - 1;
+    if (trailing <= 0)
+      continue;
+    cblas_dgemv(CblasRowMajor, CblasTrans, m, trailing, 1.0, A + k + 1,
+                lda, Q + k, ldq, 0.0,
+                R + (size_t)k * (size_t)ldr + k + 1, 1);
+    cblas_dger(CblasRowMajor, m, trailing, -1.0, Q + k, ldq,
+               R + (size_t)k * (size_t)ldr + k + 1, 1, A + k + 1, lda);
+  }
+#else
+  (void)m; (void)n; (void)A; (void)lda; (void)R; (void)ldr;
+  (void)Q; (void)ldq;
+  fprintf(stderr,
+          "Polygeist runtime: modified Gram-Schmidt requires external CBLAS\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_dcovariance_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *cov, int32_t ldc, double *mean) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  const int32_t ones_count = m > n ? m : n;
+  double *ones = (double *)malloc((size_t)ones_count * sizeof(double));
+  if (!ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) ones[i] = 1.0;
+  cblas_dgemv(CblasRowMajor, CblasTrans, m, n, 1.0 / sample_count,
+              data, ldd, ones, 1, 0.0, mean, 1);
+  cblas_dger(CblasRowMajor, m, n, -1.0, ones, 1, mean, 1, data, ldd);
+  cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n, n, m,
+              1.0 / (sample_count - 1.0), data, ldd, data, ldd,
+              0.0, cov, ldc);
+  free(ones);
+#else
+  (void)m; (void)n; (void)sample_count; (void)data; (void)ldd;
+  (void)cov; (void)ldc; (void)mean;
+  fprintf(stderr, "Polygeist runtime: covariance requires external CBLAS\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_dcorrelation_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *corr, int32_t ldc, double *mean, double *stddev) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  const int32_t ones_count = m > n ? m : n;
+  double *ones = (double *)malloc((size_t)ones_count * sizeof(double));
+  if (!ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) ones[i] = 1.0;
+  cblas_dgemv(CblasRowMajor, CblasTrans, m, n, 1.0 / sample_count,
+              data, ldd, ones, 1, 0.0, mean, 1);
+  const double root_count = sqrt(sample_count);
+  for (int32_t column = 0; column < n; ++column) {
+    cblas_daxpy(m, -mean[column], ones, 1, data + column, ldd);
+    double sigma = cblas_dnrm2(m, data + column, ldd) / root_count;
+    if (sigma <= 0.1) sigma = 1.0;
+    stddev[column] = sigma;
+    cblas_dscal(m, 1.0 / (root_count * sigma), data + column, ldd);
+  }
+  cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n, n, m,
+              1.0, data, ldd, data, ldd, 0.0, corr, ldc);
+  cblas_dcopy(n, ones, 1, corr, ldc + 1);
+  free(ones);
+#else
+  (void)m; (void)n; (void)sample_count; (void)data; (void)ldd;
+  (void)corr; (void)ldc; (void)mean; (void)stddev;
+  fprintf(stderr, "Polygeist runtime: correlation requires external CBLAS\n");
+  abort();
+#endif
 }
 
 static void require_cusparse_runtime(void) {

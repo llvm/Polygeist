@@ -1,0 +1,7 @@
+-- Testing: 3 tests, 3 workers --
+PASS: polygeist :: polygeist-opt/lower-submap-dynamic-affine-access.mlir (1 of 3)
+PASS: polygeist :: polygeist-opt/lower-kernel-launch-histogram-factorization.mlir (2 of 3)
+PASS: polygeist :: polygeist-opt/raise-triangular-nested-reduction-mask.mlir (3 of 3)
+
+Testing Time: 0.05s
+  Passed: 3

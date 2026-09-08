@@ -269,6 +269,12 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cublas_dtrmm_left_lower_trans_unit_row_major";
   if (libSym == "cusolverDnDpotrfLowerRowMajor_memref")
     return "polygeist_cusolver_dpotrf_lower_row_major";
+  if (libSym == "cublasDgramschmidtMGSRowMajor_memref")
+    return "polygeist_cublas_dgramschmidt_mgs_row_major";
+  if (libSym == "cublasDcovarianceRowMajor_memref")
+    return "polygeist_cublas_dcovariance_row_major";
+  if (libSym == "cublasDcorrelationRowMajor_memref")
+    return "polygeist_cublas_dcorrelation_row_major";
   if (libSym == "cusparseSpMV_CSR_f32_memref")
     return "polygeist_cusparse_spmv_csr_f32_sized";
   if (libSym == "cusparseSpMV_CSR_f64_memref")
@@ -6163,6 +6169,121 @@ static LogicalResult lowerDpotrfLowerRowMajor(LaunchOp launch,
   return success();
 }
 
+static LogicalResult lowerDgramschmidtMGSRowMajor(LaunchOp launch,
+                                                   ModuleOp module) {
+  if (launch.getNumOperands() != 3 || launch.getNumResults() != 0)
+    return launch.emitError("row-major modified Gram-Schmidt expects A, R, Q");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  SmallVector<Value> matrices;
+  for (Value operand : launch.getOperands())
+    matrices.push_back(valueToOutputMemrefPreservingSlice(b, loc, operand));
+  for (Value matrix : matrices) {
+    auto type = dyn_cast<MemRefType>(matrix.getType());
+    if (!type || type.getRank() != 2 || !type.getElementType().isF64())
+      return launch.emitError(
+          "row-major modified Gram-Schmidt requires f64 rank-2 matrices");
+  }
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto stride = [&](Value matrix) {
+    auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, matrix);
+    return valueAsI32(b, loc, metadata.getStrides()[0]);
+  };
+  auto shim = ensureShimDecl(
+      module, "polygeist_cublas_dgramschmidt_mgs_row_major",
+      {b.getI32Type(), b.getI32Type(), ptr, b.getI32Type(), ptr,
+       b.getI32Type(), ptr, b.getI32Type()}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, matrices[0], 0),
+                 memrefDimAsI32(b, loc, matrices[0], 1),
+                 memrefDataPtr(b, loc, matrices[0]), stride(matrices[0]),
+                 memrefDataPtr(b, loc, matrices[1]), stride(matrices[1]),
+                 memrefDataPtr(b, loc, matrices[2]), stride(matrices[2])});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDcovarianceRowMajor(LaunchOp launch,
+                                               ModuleOp module) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 0)
+    return launch.emitError("row-major covariance expects count, data, cov, mean");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value sampleCount = launch.getOperand(0);
+  Value data = valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(1));
+  Value cov = valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(2));
+  Value mean = valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(3));
+  auto dataTy = dyn_cast<MemRefType>(data.getType());
+  auto covTy = dyn_cast<MemRefType>(cov.getType());
+  auto meanTy = dyn_cast<MemRefType>(mean.getType());
+  if (!sampleCount.getType().isF64() || !dataTy || dataTy.getRank() != 2 ||
+      !covTy || covTy.getRank() != 2 || !meanTy || meanTy.getRank() != 1 ||
+      !dataTy.getElementType().isF64() || !covTy.getElementType().isF64() ||
+      !meanTy.getElementType().isF64())
+    return launch.emitError("row-major covariance requires f64 scalar/buffers");
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto stride = [&](Value matrix) {
+    auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, matrix);
+    return valueAsI32(b, loc, metadata.getStrides()[0]);
+  };
+  auto shim = ensureShimDecl(
+      module, "polygeist_cublas_dcovariance_row_major",
+      {b.getI32Type(), b.getI32Type(), b.getF64Type(), ptr, b.getI32Type(),
+       ptr, b.getI32Type(), ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, data, 0),
+                 memrefDimAsI32(b, loc, data, 1), sampleCount,
+                 memrefDataPtr(b, loc, data), stride(data),
+                 memrefDataPtr(b, loc, cov), stride(cov),
+                 memrefDataPtr(b, loc, mean)});
+  launch.erase();
+  return success();
+}
+
+static LogicalResult lowerDcorrelationRowMajor(LaunchOp launch,
+                                                ModuleOp module) {
+  if (launch.getNumOperands() != 5 || launch.getNumResults() != 0)
+    return launch.emitError("row-major correlation expects count and four buffers");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value sampleCount = launch.getOperand(0);
+  SmallVector<Value> buffers;
+  for (unsigned i = 1; i < 5; ++i)
+    buffers.push_back(valueToOutputMemrefPreservingSlice(
+        b, loc, launch.getOperand(i)));
+  auto dataTy = dyn_cast<MemRefType>(buffers[0].getType());
+  auto corrTy = dyn_cast<MemRefType>(buffers[1].getType());
+  auto meanTy = dyn_cast<MemRefType>(buffers[2].getType());
+  auto stdTy = dyn_cast<MemRefType>(buffers[3].getType());
+  if (!sampleCount.getType().isF64() || !dataTy || dataTy.getRank() != 2 ||
+      !corrTy || corrTy.getRank() != 2 || !meanTy || meanTy.getRank() != 1 ||
+      !stdTy || stdTy.getRank() != 1 ||
+      !dataTy.getElementType().isF64() || !corrTy.getElementType().isF64() ||
+      !meanTy.getElementType().isF64() || !stdTy.getElementType().isF64())
+    return launch.emitError("row-major correlation requires f64 scalar/buffers");
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto stride = [&](Value matrix) {
+    auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, matrix);
+    return valueAsI32(b, loc, metadata.getStrides()[0]);
+  };
+  auto shim = ensureShimDecl(
+      module, "polygeist_cublas_dcorrelation_row_major",
+      {b.getI32Type(), b.getI32Type(), b.getF64Type(), ptr, b.getI32Type(),
+       ptr, b.getI32Type(), ptr, ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, buffers[0], 0),
+                 memrefDimAsI32(b, loc, buffers[0], 1), sampleCount,
+                 memrefDataPtr(b, loc, buffers[0]), stride(buffers[0]),
+                 memrefDataPtr(b, loc, buffers[1]), stride(buffers[1]),
+                 memrefDataPtr(b, loc, buffers[2]),
+                 memrefDataPtr(b, loc, buffers[3])});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCubPredicateReduction(
     LaunchOp launch, ModuleOp module, StringRef libSym) {
   bool bufferized = launch->hasAttr("polygeist.bufferized");
@@ -7912,6 +8033,12 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDtrmmLeftLowerTransUnitRowMajor(launch, module);
       } else if (libSym == "cusolverDnDpotrfLowerRowMajor_memref") {
         r = lowerDpotrfLowerRowMajor(launch, module);
+      } else if (libSym == "cublasDgramschmidtMGSRowMajor_memref") {
+        r = lowerDgramschmidtMGSRowMajor(launch, module);
+      } else if (libSym == "cublasDcovarianceRowMajor_memref") {
+        r = lowerDcovarianceRowMajor(launch, module);
+      } else if (libSym == "cublasDcorrelationRowMajor_memref") {
+        r = lowerDcorrelationRowMajor(launch, module);
       } else if (libSym == "cusparseSpMV_CSR_f32_memref" ||
           libSym == "cusparseSpMV_CSR_f64_memref") {
         r = lowerCusparseCsrSpmv(launch, module);

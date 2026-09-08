@@ -3809,9 +3809,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       auto arg = blk->addArgument(load.getType(), load.getLoc());
       rewriter.replaceOp(load, arg);
     }
+    SmallVector<Value> directStoreOldValues;
     for (auto &&[conds, store] : stores) {
       auto arg =
           blk->addArgument(store.getValueToStore().getType(), store.getLoc());
+      directStoreOldValues.push_back(arg);
 
       SmallVector<AffineLoadOp> inverted;
       for (auto &&[map_load, map_store] : stores_map) {
@@ -3828,6 +3830,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     }
 
     SmallVector<Value> toreturn;
+    SmallVector<Value> toreturnOldValues;
 
     for (auto genPair : linalgGenerics) {
       auto genOp = genPair.second;
@@ -3836,9 +3839,12 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       auto &genBlock = genOp->getRegion(0).front();
       auto term = genBlock.getTerminator();
       mlir::IRMapping map;
-      for (auto arg : genBlock.getArguments()) {
+      SmallVector<Value> nestedOldValues;
+      for (auto [argIndex, arg] : llvm::enumerate(genBlock.getArguments())) {
         auto arg2 = blk->addArgument(arg.getType(), arg.getLoc());
         map.map(arg, arg2);
+        if (argIndex >= genOp.getNumDpsInputs())
+          nestedOldValues.push_back(arg2);
       }
       for (auto &op : genBlock.without_terminator()) {
         Operation *cloned = rewriter.clone(op, map);
@@ -3849,15 +3855,20 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
           idxOp.setDim(idxOp.getDim() + 1);
         }
       }
-      for (auto op : term->getOperands()) {
+      if (nestedOldValues.size() != term->getNumOperands())
+        return failure();
+      for (auto [yieldIndex, op] : llvm::enumerate(term->getOperands())) {
         toreturn.push_back(map.lookupOrDefault(op));
+        toreturnOldValues.push_back(nestedOldValues[yieldIndex]);
       }
       // llvm::errs() << genOp->getParentOfType<func::FuncOp>() << "\n";
       rewriter.eraseOp(genOp);
     }
 
-    for (auto &&[conds, store] : stores) {
+    for (auto [storeIndex, entry] : llvm::enumerate(stores)) {
+      auto &&[conds, store] = entry;
       toreturn.push_back(store.getValueToStore());
+      toreturnOldValues.push_back(directStoreOldValues[storeIndex]);
       rewriter.eraseOp(store);
     }
 
@@ -3887,21 +3898,18 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
                      : ubOk;
       }
 
-      // The last `stores.size()` entries of `toreturn` correspond to the
-      // store-derived yields; the last `stores.size()` block args of `blk`
-      // are the output operand block-args (representing the existing
-      // accumulator/output value at this iteration).
-      unsigned nArgs = blk->getNumArguments();
-      unsigned nStores = stores.size();
-      if (nStores > 0 && nArgs >= nStores && toreturn.size() >= nStores) {
-        unsigned firstStoreArg = nArgs - nStores;
-        unsigned firstStoreYield = toreturn.size() - nStores;
-        for (unsigned i = 0; i < nStores; ++i) {
-          Value oldAcc = blk->getArgument(firstStoreArg + i);
-          Value gated = rewriter.create<arith::SelectOp>(
-              loop.getLoc(), active, toreturn[firstStoreYield + i], oldAcc);
-          toreturn[firstStoreYield + i] = gated;
-        }
+      // Every yielded value has a corresponding destination block argument.
+      // This includes values yielded by a nested linalg.generic, not only
+      // direct affine.store operations.  A triangular wrapper around a dot
+      // product has no direct store at this level; failing to gate the nested
+      // yield expands `for j = i + 1 .. M` into the full rectangle and
+      // corrupts the diagonal/lower triangle.
+      if (toreturnOldValues.size() != toreturn.size())
+        return failure();
+      for (unsigned i = 0; i < toreturn.size(); ++i) {
+        Value gated = rewriter.create<arith::SelectOp>(
+            loop.getLoc(), active, toreturn[i], toreturnOldValues[i]);
+        toreturn[i] = gated;
       }
     }
 

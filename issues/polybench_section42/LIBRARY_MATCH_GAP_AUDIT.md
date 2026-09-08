@@ -17,9 +17,9 @@ libraries; no project-authored computational kernel is proposed.
 | `trisolv` | OpenBLAS `cblas_dtrsv` | cuBLAS `cublasDtrsv` | Complete: integrated into the canonical tensor-raised sweep; LARGE CPU and Jetson correctness pass. |
 | `symm` | OpenBLAS `cblas_dsymm` | equivalent cuBLAS `cublasDsymv` composition | Complete: structural whole-operation recognition and row/column-major mapping pass LARGE correctness. Direct Jetson `cublasDsymm` was non-functional and rejected. |
 | `trmm` | OpenBLAS `cblas_dtrmm` | equivalent cuBLAS `cublasDtrmv` + `cublasDscal` composition | Complete: structural whole-operation recognition passes LARGE correctness. Direct Jetson `cublasDtrmm` produced zero output and was rejected. |
-| `syrk` | OpenBLAS `cblas_dsyrk` | existing `cublasDsyrk` | Already implemented and correctness/performance tested on `fix/polybench-syrk-syr2k` (`a6c10e2a`); port the matcher/lowering dispatch and retained results into `raisetolinalg`. The CPU runtime shim itself is already present here. |
-| `syr2k` | OpenBLAS `cblas_dsyr2k` | existing `cublasDsyr2k` | Already implemented and correctness/performance tested on `fix/polybench-syrk-syr2k` (`a6c10e2a`); port the matcher/lowering dispatch and retained results into `raisetolinalg`. The CPU runtime shim itself is already present here. |
-| `cholesky` | LAPACK `dpotrf` | cuSOLVER `cusolverDnDpotrf` | The route already exists and emits one library call, but LARGE fails the strict canonical source-output check; investigate numerical/order behavior before accepting it. |
+| `syrk` | OpenBLAS `cblas_dsyrk` | existing `cublasDsyrk` | Complete: canonical matcher/lowering is integrated and LARGE CPU/Jetson correctness and timing pass. |
+| `syr2k` | OpenBLAS `cblas_dsyr2k` | existing `cublasDsyr2k` | Complete: canonical matcher/lowering is integrated and LARGE CPU/Jetson correctness and timing pass. |
+| `cholesky` | LAPACK `dpotrf` | cuSOLVER + cuBLAS blocked composition | Complete: LARGE passes through OpenBLAS DPOTRF and a 512-column cuSOLVER/cuBLAS composition; the direct Jetson call was rejected after returning success with an incomplete factorization. |
 
 The installed OpenBLAS exports all six CPU symbols above.  The CUDA 12.6
 SBSA headers used for host cross-compilation declare all corresponding cuBLAS
@@ -29,9 +29,9 @@ and cuSOLVER entry points.
 
 | Kernel | Candidate composition | Principal matcher requirement |
 |---|---|---|
-| `covariance` | GEMV for column means, GER for centering, then full GEMM for `X^T X/(n-1)` | Recognize the complete normalize-and-product dataflow. Full GEMM avoids an extra project-authored triangle-mirroring kernel. |
-| `correlation` | GEMV + GER, strided `Dnrm2`/`Dscal` per column, residual epsilon clamp, then full GEMM | Fix the current raised residual correctness first, then compose the stages. A single SYRK is insufficient because both output triangles are live. |
-| `gramschmidt` | Per outer step: `Dnrm2`, copy/scale, one GEMV over the trailing matrix, and one GER rank-1 update | Match dynamic trailing slices and preserve the Modified Gram-Schmidt order. LAPACK/cuSOLVER GEQRF is Householder QR and is not an output-equivalent replacement. |
+| `covariance` | GEMV for column means, GER for centering, then Gram product | Complete: structural whole-operation recognition and real OpenBLAS/cuBLAS compositions pass LARGE FP64 on CPU and Jetson. |
+| `correlation` | GEMV, per-column AXPY/DNRM2/DSCAL, then Gram product | Complete: residual correctness is fixed and structural OpenBLAS/cuBLAS compositions pass LARGE FP64 exactly. |
+| `gramschmidt` | Per outer step: `Dnrm2`, copy/scale, one GEMV over the trailing matrix, and one GER rank-1 update | Implemented and structurally valid, but OpenBLAS and cuBLAS fail LARGE numerical correctness because this ill-conditioned Modified Gram-Schmidt input is reduction-order sensitive. No timing is accepted. |
 | `durbin` | DOT over a reversed prefix plus COPY/AXPY over forward and negative-stride views | Lower dynamic submaps first, then recognize BLAS level-1 reductions/updates inside the sequential Levinson recurrence. No confirmed single-call routine exists in the installed stack. |
 | `seidel-2d` | Build each row RHS with AXPY-like operations, then solve the left-to-right bidiagonal recurrence with `Dtbsv` or sparse triangular solve | Prove the in-place wavefront dependence and retain row ordering. A convolution is invalid because it ignores newly written left/top values. |
 | `adi` | Pointwise RHS formation plus cuSPARSE `cusparseDgtsv2_nopivot` (multiple RHS) or `cusparseDgtsv2StridedBatch` for each alternating sweep | Lower dynamic submaps, form the three diagonals, and map row/column storage without changing boundary values. The installed CUDA 12.6 cross headers contain both FP64 APIs. CPU can use LAPACK `dgtsv`. |
@@ -57,19 +57,19 @@ and cuSOLVER entry points.
 
 ## Raising gaps versus matching gaps
 
-The five current raising gaps remain `adi`, `durbin`, `ludcmp`, `nussinov`,
-and `seidel-2d`.  Their candidate libraries do not remove the need to fix the
-common submap/view lowering first.  The highest-value raising fix is therefore
-generic dynamic submap lowering with preserved alias, offset, size, and stride
-information; it unlocks ADI's tridiagonal systems, Durbin's prefix/reverse
-views, and Ludcmp's triangular slices without benchmark-specific rewrites.
+The former five raising gaps—`adi`, `durbin`, `ludcmp`, `nussinov`, and
+`seidel-2d`—now all lower and pass canonical LARGE/FP64 residual correctness.
+The generic fix composes load/store/dimension accesses through dynamic affine
+submaps while preserving offsets, sizes, and strides; no benchmark-name rule
+was added. Their remaining gaps are external-library selection/composition,
+not raising.
 
 The raised-but-unmatched group contains several easier wins.  Trisolv and
-Cholesky already have benchmark-independent whole-recurrence recognizers;
-Trisolv is now correctness-approved at LARGE, while Cholesky is not.
-SYMM/TRMM and CPU SYRK/SYR2K should be implemented before stencil and graph
-libraries because they are direct standard calls with no algorithmic
-reformulation.
+Cholesky already have benchmark-independent whole-recurrence recognizers and
+both are now correctness-approved at LARGE. SYMM/TRMM, SYRK/SYR2K,
+covariance, and correlation are also complete. The remaining candidates need
+recurrence-aware BLAS/LAPACK/cuSPARSE composition or new external dependencies;
+they are not direct missing-symbol dispatches.
 
 ## Required validation order
 

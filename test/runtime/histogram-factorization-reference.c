@@ -1,4 +1,4 @@
-// RUN: clang -O2 -I%polygeist_src_root/runtime %s %polygeist_src_root/runtime/polygeist_cublas_rt_cpu.c -lm -o %t && %t | FileCheck %s
+// RUN: clang -O2 -DPOLYGEIST_CPU_USE_CBLAS -I%polygeist_src_root/runtime %s %polygeist_src_root/runtime/polygeist_cublas_rt_cpu.c -lopenblas -lm -o %t && OPENBLAS_NUM_THREADS=1 %t | FileCheck %s
 
 #include "polygeist_cublas_rt.h"
 

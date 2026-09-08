@@ -13,31 +13,42 @@ LOGS = ROOT / "logs"
 MANIFEST = ROOT / "manifest.csv"
 
 CPU_LIBRARY_PASS = {
-    "2mm", "3mm", "atax", "bicg", "doitgen", "gemm", "gemver",
-    "gesummv", "mvt", "symm", "syr2k", "syrk", "trisolv", "trmm",
+    "2mm", "3mm", "atax", "bicg", "cholesky", "doitgen", "gemm", "gemver",
+    "correlation", "covariance", "gesummv", "mvt", "symm", "syr2k",
+    "syrk", "trisolv", "trmm",
 }
 CPU_LIBRARY_FAIL = {"gramschmidt"}
 GPU_PASS = {
-    "2mm", "3mm", "atax", "bicg", "doitgen", "gemm", "gemver",
-    "gesummv", "mvt", "symm", "syr2k", "syrk", "trisolv", "trmm",
+    "2mm", "3mm", "atax", "bicg", "cholesky", "doitgen", "gemm", "gemver",
+    "correlation", "covariance", "gesummv", "mvt", "symm", "syr2k",
+    "syrk", "trisolv", "trmm",
 }
 GPU_FAIL = {"gramschmidt"}
 PBGPU_PASS = {
     "2mm", "3mm", "atax", "bicg", "correlation", "covariance", "doitgen",
     "fdtd-2d", "gemm", "gemver", "gesummv", "mvt", "syr2k", "syrk",
 }
+PBGPU_FAIL = {"gramschmidt"}
 COMMON = {"gemm", "syr2k", "2mm", "3mm"}
-MATCHER_PASS = {"symm", "syr2k", "syrk", "trisolv", "trmm"}
+MATCHER_PASS = {
+    "cholesky", "correlation", "covariance", "gramschmidt", "symm",
+    "syr2k", "syrk", "trisolv", "trmm",
+}
+LOOP_LOWERED_RESIDUAL_PASS = {
+    "adi", "durbin", "ludcmp", "nussinov", "seidel-2d",
+}
+LOOP_LOWERED_RESIDUAL_FAIL: set[str] = set()
+CORRECTED_RESIDUAL_PASS = {"correlation"}
 
 REASONS = {
-    "adi": "raising retains polygeist submap operations; no executable residual",
-    "correlation": "raised residual executes but differs from the native output",
-    "durbin": "raising retains dynamic tensor submap operations",
-    "ludcmp": "raising retains a dynamic tensor submap operation",
-    "nussinov": "raising retains memref submap operations",
-    "seidel-2d": "raising retains eight tensor submap operations",
+    "adi": "generic affine-view lowering and residual correctness pass; no external-library match",
+    "correlation": "raised residual, OpenBLAS/cuBLAS composition, and normalized PolyBenchGPU pass",
+    "durbin": "generic affine-view lowering and residual correctness pass; no external-library match",
+    "ludcmp": "generic affine-view lowering and residual correctness pass; no external-library match",
+    "nussinov": "generic affine-view lowering and residual correctness pass; no external-library match",
+    "seidel-2d": "generic affine-view lowering and residual correctness pass; no external-library match",
     "doitgen": "matched CPU/GPU ABI lowering rejects changed loop-carried tensor values",
-    "gramschmidt": "OpenBLAS output is non-finite/wrong; raised CUDA launch times out",
+    "gramschmidt": "whole MGS BLAS composition and native PolyBenchGPU fail LARGE numerical correctness",
     "2mm": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
     "atax": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
     "bicg": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
@@ -46,9 +57,9 @@ REASONS = {
     "3mm": "canonical PolyBenchGPU passes; raised cuTensorNet output is all zero; CPU library unavailable",
     "gesummv": "CPU library and canonical PolyBenchGPU pass; raised CUDA path has an illegal memory access",
     "mvt": "CPU library passes; raised CUDA path has an illegal memory access",
-    "covariance": "residual correctness passes; match is only zero-fill, not an eligible GPU computational-library path",
+    "covariance": "OpenBLAS/cuBLAS mean-center-Gram composition passes LARGE FP64",
     "deriche": "residual correctness passes; match is only zero-fill, not an eligible GPU computational-library path",
-    "lu": "residual correctness passes, but its timing warmup was killed by the host; no external-library match",
+    "lu": "allocation-free loop-lowered residual passes and is timed; no external-library match",
 }
 
 
@@ -68,9 +79,23 @@ rows = read_rows(MANIFEST)
 for row in rows:
     kernel = row["kernel"]
     row["native_cpu_status"] = "pass"
+    if kernel in LOOP_LOWERED_RESIDUAL_PASS | LOOP_LOWERED_RESIDUAL_FAIL:
+        row["raise_status"] = "pass"
+        row["matcher_status"] = "no_match"
+    if kernel in LOOP_LOWERED_RESIDUAL_PASS:
+        row["residual_cpu_status"] = "pass"
+    elif kernel in LOOP_LOWERED_RESIDUAL_FAIL:
+        row["residual_cpu_status"] = "fail"
+    if kernel in CORRECTED_RESIDUAL_PASS:
+        row["residual_cpu_status"] = "pass"
+    if kernel == "gramschmidt":
+        row["matcher_status"] = "no_match"
     if kernel in MATCHER_PASS:
         row["matcher_status"] = "pass"
-    row["polybenchgpu_status"] = "pass" if kernel in PBGPU_PASS else "unavailable"
+    row["polybenchgpu_status"] = (
+        "pass" if kernel in PBGPU_PASS else
+        "fail" if kernel in PBGPU_FAIL else "unavailable"
+    )
     row["modified_source"] = "true" if kernel in PBGPU_PASS else "false"
     row["kernelfarer_status"] = "unavailable" if kernel in COMMON else "not_applicable"
     row["polly_status"] = "unavailable" if kernel in COMMON else "not_applicable"
@@ -98,13 +123,18 @@ for row in rows:
         row["overall_status"] = "partial"
     target_reason = {
         "syrk": "OpenBLAS and raised cuBLAS pass the canonical lower-triangle contract",
+        "cholesky": "OpenBLAS DPOTRF and blocked cuSOLVER/cuBLAS composition pass LARGE FP64",
         "syr2k": "OpenBLAS and raised cuBLAS pass the canonical lower-triangle contract",
         "trisolv": "OpenBLAS DTRSV and raised cuBLAS DTRSV pass",
         "symm": "OpenBLAS DSYMM and equivalent raised cuBLAS DSYMV composition pass",
         "trmm": "OpenBLAS DTRMM and equivalent raised cuBLAS DTRMV/DSCAL composition pass",
+        "covariance": "OpenBLAS/cuBLAS mean-center-Gram composition passes LARGE FP64",
+        "correlation": "OpenBLAS/cuBLAS mean-standardize-Gram composition passes LARGE FP64",
     }.get(kernel)
     if target_reason:
         row["failure_reason"] = target_reason
+    elif kernel in REASONS:
+        row["failure_reason"] = REASONS[kernel]
 
 write_rows(MANIFEST, rows, list(rows[0]))
 
@@ -167,11 +197,18 @@ for row in rows:
 for row in rows:
     kernel = row["kernel"]
     if row["residual_cpu_status"] == "pass":
-        add_cpu(kernel, "raised_residual_cpu",
-                samples(LOGS / kernel / "residual_timing_raw.log", "raised_residual_cpu"),
+        residual_configuration = (
+            "raised_residual_cpu_loop_lowered" if kernel == "lu"
+            else "raised_residual_cpu")
+        residual_log = (
+            "residual_loop_timing_raw.log" if kernel == "lu"
+            else "residual_timing_raw.log")
+        add_cpu(kernel, residual_configuration,
+                samples(LOGS / kernel / residual_log,
+                        residual_configuration),
                 "none", "PolyBench kernel call; pinned CPU 21; one process/thread",
                 "issues/polybench_section42/run_cpu_timing.sh",
-                f"logs/{kernel}/residual_timing_raw.log")
+                f"logs/{kernel}/{residual_log}")
     if kernel in CPU_LIBRARY_PASS:
         add_cpu(kernel, "openblas_cblas_1t",
                 samples(LOGS / kernel / "cpu_library_timing_raw.log", "openblas_cblas_1t"),

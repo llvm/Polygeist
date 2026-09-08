@@ -37,6 +37,16 @@ module {
   }
   kernel.defn @cusolverDnDpotrfLowerRowMajor_memref(
       %A: memref<?x?xf64>) { kernel.yield }
+  kernel.defn @cublasDgramschmidtMGSRowMajor_memref(
+      %A: memref<?x?xf64>, %R: memref<?x?xf64>,
+      %Q: memref<?x?xf64>) { kernel.yield }
+  kernel.defn @cublasDcovarianceRowMajor_memref(
+      %sample_count: f64, %data: memref<?x?xf64>,
+      %cov: memref<?x?xf64>, %mean: memref<?xf64>) { kernel.yield }
+  kernel.defn @cublasDcorrelationRowMajor_memref(
+      %sample_count: f64, %data: memref<?x?xf64>,
+      %corr: memref<?x?xf64>, %mean: memref<?xf64>,
+      %stddev: memref<?xf64>) { kernel.yield }
 
   // NVIDIA cuSPARSE generic-API CSR SpMV. These are ABI contracts: the
   // matcher proves the row-pointer traversal and multiply-add reduction, and
