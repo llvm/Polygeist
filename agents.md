@@ -56,17 +56,208 @@
   structural/Egglog recognition analysis-only until a permitted external
   library implementation is wired.
 
-## CPU / GPU Benchmark Placement
+### Absolute prohibition on name- and fixture-based matching
 
-- Run all native CPU baselines on the x86 machine hosting this working
-  checkout, not on a Jetson Orin. This applies to ATen, MFEM, PolyBench, and
-  other evaluation suites unless the user explicitly changes the policy.
-- Cross-compile CUDA configurations on this x86 host and execute them on the
-  selected Jetson Orin silicon.
-- Because the CPU and GPU measurements come from different machines, label
-  both systems explicitly and do not describe their ratio as a same-hardware
-  CPU-versus-GPU speedup. Preserve identical operation semantics, shapes,
-  dtypes, inputs, and timing scope wherever those are comparable.
+- Never select, enable, specialize, or parameterize a match from a benchmark
+  name, suite name, source path, filename, source-function name, symbol name,
+  line number, known argument position, fixture manifest entry, or exact
+  source-text fragment.
+- Renaming a source function, moving it to another file, or embedding the same
+  raised IR in a different benchmark must not change the detected library
+  operation, operands, parameters, or legality decision. Add rename-invariance
+  and structurally perturbed negative tests for every new matcher.
+- Never omit, delete, weaken, intercept, or replace an original source
+  function merely to call a desired library routine. Do not use adapters,
+  `llvm-extract --delete`, `objcopy --weaken-symbol`, textual source rewriting,
+  or link-order symbol substitution as evidence of an automatic match.
+- Test harnesses may invoke a compiler-generated function by symbol solely as
+  an ABI entry point, but the symbol may not determine recognition or the
+  selected backend. Such harness execution must not be described as an
+  untouched whole-program transformation.
+- Recognition must be derived entirely from raised program semantics:
+  operations and algebra, iterator/reduction structure, indexing and layout,
+  control flow and predicates, constants recovered from IR, types/shapes,
+  aliasing, initialization, and data dependencies. Library parameters must be
+  derived from that evidence rather than supplied from corpus knowledge.
+- Direct library adapters and hand-edited/extracted source compositions may be
+  retained only as explicitly isolated feasibility experiments. They count as
+  zero matcher coverage, zero automatic replacements, and zero end-to-end
+  Polygeist application successes, and must never appear in paper-facing
+  performance comparisons.
+- Internal names created *after* semantic recognition, such as a typed
+  `kernel.launch` library-definition symbol used by ABI lowering, are allowed
+  only as compiler IR opcodes. They must never be inferred from or keyed to the
+  original source symbol.
+- Before publishing counts or HTML results, audit for source-name checks,
+  corpus-specific maps, textual substitutions, deleted/weakened symbols, and
+  adapter-based replacement. Exclude every affected result until a
+  rename-invariant semantic matcher and in-place compiler transformation pass.
+
+## Publication Benchmark Methodology
+
+The canonical paper-facing protocol is
+[`PUBLICATION_BENCHMARK_METHODOLOGY.md`](PUBLICATION_BENCHMARK_METHODOLOGY.md).
+Before planning, running, interpreting, publishing, or regenerating HTML for a
+benchmark campaign, read that document completely and follow it. If this
+summary and the canonical document disagree, the canonical document wins.
+
+### Board-access data is local-only
+
+- Never commit board passwords, private host/IP inventories, USB-interface
+  mappings, SSH aliases, or route profiles. Keep them only in
+  permission-restricted local configuration outside the repository; tracked
+  scripts may expose generic environment-variable hooks but no access data.
+- Before staging or committing, inspect the staged diff for credentials and
+  board endpoints. Do not publish them in logs, generated HTML, patches, or
+  documentation either.
+
+### Hardware placement
+
+- The primary publication comparison runs native CPU, raised CPU/library,
+  native or expert CUDA, raised GPU/library, and raised PVA configurations on
+  the same selected Jetson AGX Orin through the locally configured silicon
+  runner. Record a non-secret board identifier in campaign artifacts, but keep
+  access details out of the repository.
+- Cross-compile every AArch64 CPU, CUDA, and PVA executable on the x86
+  development host. Deploy only finished executables and required shared
+  libraries to the Orin; do not compile project code on the board.
+- Retain the existing Intel Cascade Lake x86 CPU measurements as a secondary
+  portability and related-system dataset. Polly and KernelFaRer comparisons
+  remain x86-only. Never mix x86 CPU values into a same-Orin speedup.
+- For the primary CPU result, pin execution to one declared Orin CPU core and
+  set every BLAS/OpenMP library to one thread. A separately labelled all-core
+  CPU throughput result is allowed, but it must not replace the single-core
+  library-replacement comparison.
+- Put the Orin in a fixed performance/clock/fan configuration and record the
+  power mode, clocks, software versions, temperature, and throttling state.
+  Run CPU, GPU, and PVA variants sequentially, never concurrently, and rotate
+  their order across workloads to reduce systematic thermal-order bias.
+
+### Repetition and aggregation
+
+- Use the same operation semantics, shapes, dtypes, initialization, complete
+  live outputs, and correctness thresholds for every comparable
+  implementation.
+- Run each benchmark configuration in one process. Perform five untimed
+  warm-ups followed by five synchronized timed iterations.
+- Report the median of the five timed iterations together with their minimum,
+  maximum, and interquartile range. Do not substitute a best-of-N value or
+  describe within-process samples as cross-process variability.
+- Accept timing samples only after the executable passes the declared
+  correctness gate. Reject and retain evidence for errors, non-finite output,
+  thermal throttling, or invalid timing; never silently replace failed runs.
+- Run only one paper-facing benchmark process at a time. Do not use parallel
+  jobs, concurrent kernels, overlapping native/raised configurations, or
+  background benchmark workloads during runtime measurements. A `--jobs`
+  option used by an offline audit is not a runtime benchmark parameter and
+  must not be carried into performance evaluation commands.
+- Before deploying or timing anything, inspect the selected Jetson for other
+  active benchmark, compiler, CPU-intensive, CUDA, or PVA processes and check
+  accelerator utilization. If another workload is using the board, do not
+  start the benchmark: wait until the Jetson is free and repeat the preflight
+  check immediately before measurement. Never stop or kill another user's
+  process merely to obtain an idle board. Record the idle-board preflight in
+  the retained run log.
+
+### ATen native CUDA baseline integrity
+
+- Compare each raised ATen result against native CUDA execution of exactly the
+  source region represented by the extracted C fixture: identical operation
+  semantics, inputs, outputs, shapes, dtypes, layouts, index widths, mutation,
+  and device-resident boundary. Do not substitute a larger public operator or
+  time framework preprocessing that is absent from the extracted region.
+- Never write, port, synthesize, or maintain a handwritten CUDA kernel as an
+  ATen native baseline. Native measurements may use only an existing ATen CUDA
+  kernel, an actual ATen-generated/template-instantiated kernel, or an existing
+  external vendor-library implementation called with the fixture's exact ABI
+  and semantics.
+- When the raised region maps to an existing external library, use that
+  library's existing operation as the same-region CUDA baseline. Label it as
+  an expert/vendor-library baseline rather than native ATen unless it is
+  invoked through the real ATen CUDA implementation.
+- If the real ATen path performs additional representation conversion,
+  allocation, indexing, or output construction outside the extracted region,
+  retain that measurement only as a separately labelled framework-level
+  result. It must not replace the same-region comparison.
+- If no existing implementation can reproduce the exact extracted region,
+  record the native baseline as unavailable. Never fill the gap with a custom
+  reimplementation, translated CPU loop, benchmark-specific CUDA kernel, or
+  numerical proxy, and never include such artifacts in paper-facing native
+  counts or speedup ratios.
+
+### Timing scopes
+
+- Report a primary steady-state resident scope: arrays and accelerator buffers
+  are already allocated and initialized, library handles/descriptors/plans are
+  warmed, and the timed region contains only the repeated logical operation or
+  application graph plus the synchronization required to observe completion.
+- Use synchronized host wall time around that same resident region as the
+  common CPU/GPU/PVA comparison metric. Also report CUDA-event device time and
+  PVA submit-to-completion wall time as separately labelled backend-specific
+  breakdowns; never present PVA synchronized wall time as device-only time.
+- Report a secondary end-to-end invocation scope where useful. It includes
+  mandatory host/accelerator transfers, dispatch, and synchronization, but
+  excludes compilation and process startup. Never combine resident and
+  end-to-end measurements in one ratio.
+- A same-Orin CPU/GPU/PVA ratio may be described as a same-system speedup only
+  when it uses the common synchronized scope. Keep x86-versus-Orin ratios as
+  cross-system context, not same-hardware speedups.
+
+### Correctness and provenance
+
+- Compare complete outputs whenever practical; a checksum alone is
+  insufficient when full comparison is affordable. Use exact equality for
+  integer results and declared `atol`/`rtol` thresholds for floating-point
+  results. Explicitly reject mismatched NaNs and infinities.
+- Keep correctness work outside the timed region. Record source, compiler,
+  library, harness, executable, and input hashes plus the exact build and run
+  commands for every published row.
+- Count a raised match only when it lowers to a pre-existing external library
+  or platform API under the external-library-only rule above.
+
+## MFEM Persistent-Workspace Fallback
+
+- `--plan-persistent-gpu-workspace` is an opt-in optimization, not a required
+  correctness step.  Enable it only by setting
+  `POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION`; leaving that variable unset uses
+  the control pipeline.
+- Until the persistent-workspace lowering is structurally fixed and revalidated,
+  use the control pipeline for these six normalized MFEM kernels:
+  `interp_value_2d_scratch_sliced`, `interp_value_3d_scratch_sliced`,
+  `interp_grad_2d_stage_sliced`, `integrate_grad_3d_stage_sliced`,
+  `integrate_value_3d_scratch_sliced`, and
+  `interp_grad_3d_stage_sliced`.
+- The first four compiled and passed correctness with persistence enabled but
+  regressed from approximately 1.43, 3.98, 3.29, and 6.18 ms to 95.34,
+  456.00, 373.68, and 238.94 ms, respectively.  The final two failed with an
+  incompatible submap/memref cast and an OOM exit, respectively.
+- Explicitly disable the optimization in fallback builds with:
+  `env -u POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION -u
+  POLYGEIST_PERSISTENT_WORKSPACE_LOWER_SUBMAPS ...`.
+- This temporary campaign-level fallback must not become name-based compiler
+  recognition.  Any permanent profitability or legality decision must be
+  derived from IR structure, data residency, aliasing, workspace size, and
+  observed host/device uses.  Report paper-facing results as guarded
+  optimization results and retain both control and enabled measurements.
+- The retained A/B evidence is
+  `issues/mfem_c_kernels/silicon_results/persistent_workspace_ab_20260907.csv`.
+
+### Equality-saturation ablation and compile cost
+
+- For the RQ3/RQ4 experiment, run ten fresh compiler invocations per input:
+  five with Egglog/equality saturation enabled and five with it disabled.
+  Use the same compiler revision, machine, inputs, and resource limits.
+- Run these compiler invocations sequentially with one job (`--jobs 1` where
+  applicable). Do not evaluate candidates or enabled/disabled configurations
+  concurrently; parallel execution would introduce CPU and memory contention
+  into compile-time and peak-RSS measurements.
+- Record total compilation time, raising time, matching time, saturation time,
+  peak RSS, e-graph nodes/classes, iteration count, matches, and timeout
+  outcome. Use a fixed ten-second saturation limit per candidate unless the
+  paper explicitly declares another limit.
+- Report timeouts and unmatched inputs directly. Do not recover ablation
+  matches through duplicated hardcoded semantic matchers or count
+  analysis-only patterns as executable library matches.
 
 ## Proxy-App Raising Fixes: miniAMR and HyPar
 
@@ -783,11 +974,9 @@
 - 2026-06-05 tested and fixed `scripts/correctness/run_jetson.sh`.
 - Initial test result:
   - `--dry-run --mlir /tmp/run_jetson_smoke_abi.mlir smoke` worked, but showed
-    the stale default route `nvidia@jetson-orin` with a forced bounce through
-    `arjaiswal@10.176.207.72`.
-  - Even with `POLYGEIST_JETSON_HOST=enmity` and
-    `POLYGEIST_JETSON_USER=ubuntu`, the old script still printed the bounce
-    route because `ST_TRACKER_DEV_HOST` defaulted internally.
+    that a stale default route could override an explicitly selected board.
+  - The old script still printed the bounce route because
+    `ST_TRACKER_DEV_HOST` defaulted internally.
 - Script fixes:
   - Added direct SSH/SCP mode when `ST_TRACKER_DEV_HOST` is unset.
   - Kept bounce mode available when `ST_TRACKER_DEV_HOST` is explicitly set.
@@ -799,54 +988,38 @@
   - Added `POLYGEIST_JETSON_RUNS` to run an executable multiple times.
   - Added `POLYGEIST_JETSON_LD_LIBRARY_PATH` with a default that includes
     `/home/<user>/venv/lib/python3.12/site-packages/nvidia/cudnn/lib`, needed
-    on `ubuntu@enmity` because `libcudnn.so.9` is installed in the Python
-    package path, not the default linker path.
+    on one development board because `libcudnn.so.9` is installed in the
+    Python package path, not the default linker path.
   - Cleaned the accelerator status probe to fall back cleanly from `nvidia-smi`
     to `tegrastats` on Jetson.
 - Validation:
   - `bash -n scripts/correctness/run_jetson.sh` passed.
   - Built `/tmp/jetson_smoke` with `aarch64-linux-gnu-gcc`.
-  - Real silicon smoke run passed:
-    `POLYGEIST_JETSON_HOST=enmity POLYGEIST_JETSON_USER=ubuntu
-    POLYGEIST_JETSON_RUNS=1 scripts/correctness/run_jetson.sh --exe
+  - A real silicon smoke run passed through the locally selected profile with
+    `POLYGEIST_JETSON_RUNS=1 scripts/correctness/run_jetson.sh --exe
     /tmp/jetson_smoke jetson_smoke`.
   - The smoke run staged to `/tmp/polygeist_jetson_runs/...`, printed
     `polygeist jetson smoke ok`, and exited 0.
 - Verified PVA-lab Orin access (2026-09-06):
-  - Use `scripts/correctness/run_jetson.sh`; the Orin USB addresses are routed
-    through the `arjaiswal@pva-general` bounce host and are not expected to be
-    reachable directly from this VM.
-  - Orin 1 is `nvidia@192.168.57.1`
-    (`pva-compiler-orin-1.nvidia.com`), password `dfkb89@*`.
-  - Orin 2 is `nvidia@192.168.58.1` (`tegra-ubuntu`), password `nvidia`.
-  - The permission-restricted local credentials file
-    `~/.config/polygeist/jetson.env` currently supplies the Orin 1 password.
-    It is sourced by the runner and can overwrite an inline
-    `ST_TRACKER_JETSON_PASS`, so bypass it when selecting Orin 2:
+  - Use `scripts/correctness/run_jetson.sh`; board routes, users, endpoints,
+    and credentials belong only in the permission-restricted local silicon
+    profile and must never be copied into this repository.
+  - Select the intended local profile and run a prebuilt AArch64 executable:
     ```bash
-    POLYGEIST_JETSON_CREDENTIALS_FILE=/dev/null \
-    POLYGEIST_SILICON_PROFILE=pva-general \
-    ST_TRACKER_JETSON_HOST=192.168.58.1 \
-    ST_TRACKER_JETSON_PASS=nvidia \
-      scripts/correctness/run_jetson.sh --exe <aarch64-binary> <tag>
-    ```
-  - For Orin 1, the credentials file supplies the password, so the usual form
-    is:
-    ```bash
-    POLYGEIST_SILICON_PROFILE=pva-general \
-    ST_TRACKER_JETSON_HOST=192.168.57.1 \
+    POLYGEIST_SILICON_PROFILE=<local-profile> \
       scripts/correctness/run_jetson.sh --exe <aarch64-binary> <tag>
     ```
   - The same runner also accepts `--mlir <post-ABI.mlir> [tag]`. Use
     `--dry-run` before deployment to inspect the selected route and staging
     paths without connecting to either board.
   - `issues/aten_c_kernels/native_cuda_results/run_resident_sweep.sh` is the
-    ATen batch wrapper and currently pins Orin 1 (`192.168.57.1`).
+    ATen batch wrapper; board selection must come from local configuration.
 - Llama/CUDA blocker discovered:
   - The Llama suffix binaries built successfully locally for Jetson:
     `/tmp/llama_pipeline_scope_20260605_172506/llama_suffix_baseline`
     and `/tmp/llama_pipeline_scope_20260605_172506/llama_suffix_wrapped`.
-  - Running the CUDA binary on `ubuntu@enmity` aborts in CUDA initialization:
+  - Running the CUDA binary on the then-selected development board aborted in
+    CUDA initialization:
     `cuda error: no CUDA-capable device is detected`.
   - Independent C runtime check on the Jetson also reports:
     `cudaGetDeviceCount err=100 name=no CUDA-capable device is detected`.

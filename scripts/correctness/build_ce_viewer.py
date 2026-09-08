@@ -240,6 +240,11 @@ EXTRACTED_DARKNET_MLIR_DIR = env_path(
     "/tmp/extracted_darknet_mlir",
 )
 OUTPUT_DIR = env_path("POLYGEIST_IR_VIEWER_OUT", "/tmp/ir_viewer")
+LLAMA_PROTOCOL_RESULTS = env_path(
+    "POLYGEIST_LLAMA_PROTOCOL_RESULTS",
+    REPO_ROOT
+    / "issues/llama_section42/protocol_1x5x5_20260908/performance.csv",
+)
 SECTION42_RESULTS_DIR = env_path(
     "POLYGEIST_SECTION42_RESULTS_DIR",
     REPO_ROOT / "issues/polybench_section42",
@@ -1402,10 +1407,10 @@ LLAMA_FORWARD_RUNTIMES: dict[str, list[dict]] = {
     ],
     "extended_forward": [
         {"size": "Section 4.2: 7B-size FP32 one layer, position 1024",
-         "raised": "28.014 ms/forward",
-         "reference": "native Orin CPU 341.617 ms<br>expert ggml CUDA 15.954 ms",
-         "winner": "raised GPU is 12.19&times; faster than native CPU; expert GPU is 1.76&times; faster than raised",
-         "notes": "Direct CUDA-event interval over 100 resident forwards after 5 warm-ups; excludes allocation, host/device staging, and readback. Output summary matches ggml CUDA exactly."},
+         "raised": "excluded: host 12.826 ms<br>CUDA event 12.813 ms",
+         "reference": "native Orin CPU 272.888 ms<br>expert ggml CUDA 9.691 ms",
+         "winner": "no claimable raised result; ggml CUDA is 28.16&times; faster than native CPU",
+         "notes": "Current 1-process, 5-warm-up, 5-timed-iteration sweep. Raised GPU fails the predeclared strict gate for 7,922/32,000 logits and is not a performance result."},
     ],
 }
 
@@ -3107,6 +3112,12 @@ def _aten_paper_analysis_page() -> str:
     return (
         '<div class="section-header"><h2 class="section-title">'
         'Paper analysis: ATen (Section 4.2 draft)</h2></div>'
+        '<div class="intro"><b>Strict-audit warning:</b> name-specific ATen '
+        'renderers were removed on 2026-09-07. Stored mapping-ledger and performance '
+        'counts below were generated before that cleanup and are <b>stale, '
+        'non-claimable planning data</b> until the complete ATen corpus and '
+        'silicon cohort are regenerated. See the Ginsbach audit page and '
+        '<code>issues/ginsbach_asplos18/NAME_INDEPENDENCE_AUDIT.md</code>.</div>'
         '<div class="intro"><b>Current conclusion:</b> the repository contains '
         'enough evidence for a preliminary coverage figure and a restricted '
         'performance figure, but not for an unqualified final ATen claim. Counts '
@@ -3239,12 +3250,11 @@ def _aten_paper_analysis_page() -> str:
         '<table class="audit-table paper-issues"><thead><tr><th>#</th><th>severity</th>'
         '<th>issue</th><th>current evidence</th><th>required resolution</th>'
         '</tr></thead><tbody>' + issues_html + '</tbody></table>'
-        '<div class="intro"><b>Safe claim today:</b> “Across 598 standalone ATen '
-        'C specializations, the compiler identifies 271 complete mappings to '
-        f'external library/runtime definitions. Of those, {strict_resident} currently have strict '
-        f'resident silicon evidence; {legal_ratios} cases have a legally comparable native '
-        'PyTorch CUDA timing in the current performance cohort.” The native-support '
-        'four-way split remains provisional pending an auditable classification.</div>'
+        '<div class="intro"><b>No aggregate ATen claim is safe today.</b> The '
+        'strict name-independence cleanup invalidated a subset of the stored '
+        'mapping ledger and every derived aggregate must be regenerated before '
+        'publication. Individual structurally recognized cases may be restored '
+        'only after rename-invariance and correctness validation.</div>'
     )
 
 
@@ -3636,6 +3646,11 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         '<a name="aten-c"></a>'
         '<div class="section-header"><h2 class="section-title">'
         'ATen extracted C numerical kernels</h2></div>'
+        '<div class="intro"><b>Strict-audit warning:</b> this table currently '
+        'has regenerated current-matcher launch counts, but still joins stored '
+        'mapping and performance ledgers created before removal of the '
+        'name-specific ATen renderers. Those ledger-derived fields and affected '
+        'historical rows must not be used in the paper until regenerated.</div>'
         '<div class="intro">'
         f'<b>{fully_raised}/{len(aten_stats)} fully raised:</b> {total_linalg} '
         f'<code>linalg.generic</code> operations and {total_residual_loops} '
@@ -5703,45 +5718,233 @@ def _llama2c_runtime_summary() -> str:
 def _llama_forward_runtime_summary() -> str:
     return (
         '<div class="intro" style="padding-top:0">'
-        '<b>Section 4.2 headline comparison</b>'
+        '<b>Section 4.2 current protocol sweep</b> &middot; '
+        '<a href="llama-paper.html">open the complete Llama paper analysis</a>'
         '</div>'
         '<table style="margin-top:4px"><thead><tr>'
         '<th>implementation</th>'
         '<th>runtime / forward</th>'
-        '<th>relative to raised GPU</th>'
+        '<th>publication status</th>'
         '<th>correctness</th>'
         '<th>notes</th>'
         '</tr></thead><tbody>'
         '<tr>'
         '<td><b>native Orin CPU, strict -O3</b></td>'
-        '<td>341.617 ms</td><td>12.19&times; slower</td>'
+        '<td>272.888 ms</td><td><span class="pass">eligible reference</span></td>'
         '<td>numerical reference</td>'
-        '<td>median; same FP32 fixture and Orin</td>'
+        '<td>one process; median of 5 synchronized iterations after 5 warm-ups</td>'
         '</tr>'
         '<tr>'
         '<td><b>Polygeist raised Jetson GPU</b></td>'
-        '<td><b>28.014 ms</b></td><td><b>1.00&times;</b></td>'
-        '<td>checksum, sumsq, maxabs, and 8 samples match ggml CUDA exactly</td>'
-        '<td>direct CUDA-event timing of 100 GPU-resident forwards after 5 warm-ups</td>'
+        '<td>12.826 ms synchronized host<br>12.813 ms CUDA event</td>'
+        '<td><span class="none">excluded</span></td>'
+        '<td>FAIL: 7,922/32,000 logits exceed atol=1e-3, rtol=1e-4</td>'
+        '<td>visible diagnostic only; not used for a speedup claim</td>'
         '</tr>'
         '<tr>'
         '<td><b>ggml CUDA expert implementation</b></td>'
-        '<td>15.954 ms</td><td>1.76&times; faster</td>'
-        '<td>PASS: max abs 4.5185e-3; atol=1e-2, rtol=1e-4</td>'
-        '<td>median; ggml revision f24588a with identical FP32 fixture math</td>'
+        '<td>9.691 ms</td><td><span class="pass">eligible expert baseline</span></td>'
+        '<td>PASS: 32,000 logits at atol=1e-2, rtol=1e-4</td>'
+        '<td>28.16&times; faster than native CPU; same 1&times;5+5 protocol</td>'
         '</tr>'
         '</tbody></table>'
-        '<div class="intro"><b>Timing boundary:</b> the raised result is one '
-        'CUDA-event interval containing 100 forwards after 5 untimed warm-ups. '
-        'Model allocation, host/device staging, final readback, and teardown are '
-        'outside the interval. Automatic residency keeps function arguments and '
-        'compiler-created scratch storage on the GPU between forwards.</div>'
+        '<div class="intro"><b>Headline status:</b> two of the three roles '
+        'requested by the paper are currently publishable. The raised-GPU slot '
+        'remains empty until it passes the declared strict correctness gate and '
+        'can be regenerated from the current source pipeline.</div>'
         '<div class="intro"><b>Scope:</b> one token at position 1024, one '
         '7B-size layer (4096/11008/32000/2048, 32 heads). This is an extracted '
         'FP32 fixture—not full 32-layer inference or quantized GGUF execution. '
         'It uses split even/odd RoPE and branchless masking because the exact '
-        'interleaved and branchy forms remain raising gaps. Authoritative data: '
-        '<code>issues/llama_section42/performance.csv</code>.</div>'
+        'interleaved and branchy forms remain raising gaps. Current data: '
+        '<code>issues/llama_section42/protocol_1x5x5_20260908/performance.csv</code>.</div>'
+    )
+
+
+def _llama_paper_analysis_page() -> str:
+    """Render the Section 4.2 Llama result with correctness gates intact."""
+    rows = _read_csv(LLAMA_PROTOCOL_RESULTS)
+    by_id = {row.get("run_id", ""): row for row in rows}
+
+    def number(row: dict[str, str], key: str) -> float:
+        try:
+            return float(row.get(key, "nan"))
+        except ValueError:
+            return math.nan
+
+    native = by_id.get("protocol_native_cpu", {})
+    raised_cpu = by_id.get("protocol_raised_cpu", {})
+    raised_gpu_host = by_id.get("protocol_raised_gpu_host", {})
+    raised_gpu_event = by_id.get("protocol_raised_gpu_device", {})
+    ggml = by_id.get("protocol_ggml_cuda", {})
+    native_ms = number(native, "median_ms")
+    ggml_ms = number(ggml, "median_ms")
+    speedup = native_ms / ggml_ms if native_ms > 0 and ggml_ms > 0 else math.nan
+
+    # The headline chart contains only rows that passed their declared role's
+    # correctness gate. Excluded measurements remain visible in the audit table.
+    chart_entries = [
+        ("Native CPU (-O3)", native_ms, "#0969da"),
+        ("ggml CUDA (expert)", ggml_ms, "#1a7f37"),
+    ]
+    chart_max = max((value for _, value, _ in chart_entries
+                     if math.isfinite(value)), default=1.0)
+    bar_rows = []
+    for label, value, color in chart_entries:
+        width = max(2.0, value / chart_max * 100.0)
+        bar_rows.append(
+            '<div class="llama-bar-row">'
+            f'<span>{html.escape(label)}</span>'
+            '<div class="llama-bar-track">'
+            f'<i style="width:{width:.3f}%;background:{color}"></i></div>'
+            f'<b>{value:.3f} ms</b></div>'
+        )
+    runtime_chart = (
+        '<div class="paper-chart-wrap"><h4>Eligible end-to-end invocation time '
+        '(lower is better)</h4><div class="llama-bars">'
+        + ''.join(bar_rows)
+        + '</div><div class="paper-legend">Raised CPU and raised GPU are '
+        'intentionally absent: both failed the predeclared Polygeist '
+        'correctness gate.</div></div>'
+    )
+
+    speedup_chart = (
+        '<div class="paper-chart-wrap"><h4>Eligible speedup over native Orin CPU '
+        '(higher is better)</h4><div class="llama-bars">'
+        '<div class="llama-bar-row"><span>Native CPU</span>'
+        '<div class="llama-bar-track"><i style="width:3.551%;background:#0969da"></i></div>'
+        '<b>1.00&times;</b></div>'
+        '<div class="llama-bar-row"><span>ggml CUDA (expert)</span>'
+        '<div class="llama-bar-track"><i style="width:100%;background:#1a7f37"></i></div>'
+        f'<b>{speedup:.2f}&times;</b></div></div>'
+        '<div class="paper-legend">This is the only valid speedup calculation '
+        'from the current sweep. It is a hardware-baseline comparison, not yet '
+        'a Polygeist speedup claim.</div></div>'
+    )
+
+    labels = {
+        "protocol_native_cpu": "Native CPU (-O3)",
+        "protocol_raised_cpu": "Polygeist raised CPU / NVPL",
+        "protocol_raised_gpu_host": "Polygeist raised GPU (synchronized host)",
+        "protocol_raised_gpu_device": "Polygeist raised GPU (CUDA event)",
+        "protocol_ggml_cuda": "ggml CUDA expert baseline",
+    }
+    audit_rows = []
+    for row in rows:
+        run_id = row.get("run_id", "")
+        eligible = row.get("publication_status", "").startswith("eligible_")
+        status = ('<span class="pass">eligible</span>' if eligible else
+                  '<span class="none">excluded</span>')
+        samples = ", ".join(
+            f'{number(row, f"sample_{index}_ms"):.6f}' for index in range(5)
+        )
+        audit_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(labels.get(run_id, run_id))}</b><br>'
+            f'<small><code>{html.escape(row.get("timing_scope", ""))}</code></small></td>'
+            f'<td>{samples}</td>'
+            f'<td><b>{number(row, "median_ms"):.6f}</b></td>'
+            f'<td>{number(row, "min_ms"):.6f}–{number(row, "max_ms"):.6f}</td>'
+            f'<td>{number(row, "q1_ms"):.6f}–{number(row, "q3_ms"):.6f}<br>'
+            f'IQR {number(row, "iqr_ms"):.6f}</td>'
+            f'<td>{html.escape(row.get("checksum", ""))}</td>'
+            f'<td>{html.escape(row.get("correctness_status", ""))}</td>'
+            f'<td>{status}<br><small>{html.escape(row.get("publication_status", ""))}</small></td>'
+            '</tr>'
+        )
+
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Paper analysis: Llama (Section 4.2 draft)</h2></div>'
+        '<div class="intro"><b>Current conclusion:</b> the new protocol has '
+        'claimable native-CPU and expert-CUDA baselines, but no claimable '
+        'Polygeist row. The measured raised timings are retained as diagnostics '
+        'and excluded from every headline comparison because they fail the '
+        'predeclared strict correctness gate.</div>'
+        '<div class="audit-metrics">'
+        '<div class="audit-metric"><b>1</b><span>FP32 token through one extracted layer</span></div>'
+        '<div class="audit-metric"><b>2 / 3</b><span>Section 4.2 roles currently eligible</span></div>'
+        '<div class="audit-metric"><b>5 + 5</b><span>warm-up + timed iterations</span></div>'
+        '<div class="audit-metric"><b>32,000</b><span>logits checked per implementation</span></div>'
+        f'<div class="audit-metric"><b>{speedup:.2f}&times;</b><span>expert CUDA vs native CPU</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Three roles requested by Section 4.2</h3></div>'
+        '<div class="paper-matrix">'
+        '<div><b>272.888 ms</b><span>vanilla CPU on Orin<br>'
+        '<span class="pass">eligible numerical reference</span></span></div>'
+        '<div class="paper-provisional"><b>12.826 ms</b><span>raised Jetson GPU, synchronized host wall<br>'
+        '<span class="none">slot pending: strict correctness failed</span></span></div>'
+        '<div><b>9.691 ms</b><span>expert-written ggml CUDA<br>'
+        '<span class="pass">eligible expert baseline</span></span></div>'
+        '<div><b>—</b><span>claimable Polygeist speedup<br>'
+        'not reported until the raised path passes</span></div>'
+        '</div>'
+        + runtime_chart + speedup_chart
+        + '<div class="section-header"><h3 class="section-title">'
+        'Workload represented by the C fixture</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>Model dimensions</b><span>FP32; model width 4096; FFN width '
+        '11008; vocabulary 32000; sequence capacity 2048; 32 attention heads.</span></div>'
+        '<div><b>Invocation</b><span>One token (token 7) at position 1024 through '
+        'one 7B-size layer, including logits projection.</span></div>'
+        '<div><b>Included stages</b><span>Embedding, RMSNorm, Q/K/V projections, '
+        'split RoPE, KV-cache access, attention, FFN/SwiGLU, final RMSNorm, and lm_head.</span></div>'
+        '<div><b>Scope boundary</b><span>Extracted deterministic one-layer '
+        'fixture—not 32-layer inference, tokenization, sampling, a GGUF model, '
+        'or a tokens-per-second result.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Measurement methodology</h3></div>'
+        '<div class="paper-flow">'
+        '<div><b>1</b><span>cross-compile every AArch64 binary on the x86 host</span></div><i>→</i>'
+        '<div><b>idle</b><span>preflight the selected Orin; wait if another benchmark is active</span></div><i>→</i>'
+        '<div><b>5</b><span>untimed warm-up invocations in one process</span></div><i>→</i>'
+        '<div><b>5</b><span>synchronized timed invocations</span></div><i>→</i>'
+        '<div><b>median</b><span>retain every sample plus min, max, quartiles, and IQR</span></div>'
+        '</div>'
+        '<div class="paper-notes">'
+        '<div><b>Same hardware and inputs</b><span>All displayed configurations '
+        'use the same selected Jetson AGX Orin, shapes, FP32 fixture, token, position, and output checks.</span></div>'
+        '<div><b>CPU controls</b><span>CPU execution pinned to core 3; BLAS and '
+        'OpenMP thread counts fixed to one; native compiled with -O3.</span></div>'
+        '<div><b>Accelerator controls</b><span>MAXN mode; GPU idle at every final '
+        'preflight; synchronized host-wall time is the comparable primary boundary.</span></div>'
+        '<div><b>Resident scope</b><span>Steady-state computation excludes model '
+        'allocation, initial host/device staging, final readback, and teardown. '
+        'CUDA-event time is shown only as backend breakdown.</span></div>'
+        '</div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'All retained measurements</h3></div>'
+        '<table class="audit-table paper-exclusions"><thead><tr>'
+        '<th>implementation / scope</th><th>five samples (ms)</th><th>median</th>'
+        '<th>min–max</th><th>Q1–Q3 / IQR</th><th>checksum</th>'
+        '<th>correctness</th><th>paper status</th></tr></thead><tbody>'
+        + ''.join(audit_rows) + '</tbody></table>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Why the raised rows are excluded</h3></div>'
+        '<div class="paper-notes">'
+        '<div class="paper-provisional"><b>Raised CPU / NVPL</b><span>Median '
+        f'{number(raised_cpu, "median_ms"):.3f} ms; 10,456/32,000 logits fail '
+        'atol=1e-3, rtol=1e-4 (max absolute error 0.0063534). The fresh path '
+        'also retains only five dense NVPL calls versus eleven previously.</span></div>'
+        '<div class="paper-provisional"><b>Raised resident GPU</b><span>Median '
+        f'{number(raised_gpu_host, "median_ms"):.3f} ms host and '
+        f'{number(raised_gpu_event, "median_ms"):.3f} ms event; 7,922/32,000 '
+        'logits fail the same strict gate (max absolute error 0.0051174).</span></div>'
+        '<div><b>Provenance limitation</b><span>The current GPU pipeline cannot '
+        'regenerate the executable because gpu.alloc conversion fails. The '
+        'diagnostic timing reused a retained GPU-targeted compiler object with '
+        'timing-only instrumentation.</span></div>'
+        '<div><b>Required next evidence</b><span>Repair the changed CPU match '
+        'structure and GPU allocation lowering, regenerate from source, pass '
+        'all 32,000 logits, then rerun this exact 1&times;5+5 protocol.</span></div>'
+        '</div>'
+        '<div class="intro"><b>Authoritative artifacts:</b> '
+        '<code>issues/llama_section42/protocol_1x5x5_20260908/performance.csv</code>, '
+        '<code>RUN_STATUS.md</code>, and the complete output dumps under '
+        '<code>full_outputs/</code>. This page deliberately does not reuse the '
+        'older 2-warm-up/10-iteration or 100-forward aggregate numbers.</div>'
     )
 
 
@@ -6685,6 +6888,11 @@ def _build_ginsbach_detail_pages() -> dict[tuple[str, str], str]:
                 f'<div class="header"><h1><a href="{program_page}">'
                 f'← {html.escape(suite)} / {html.escape(program)}</a> '
                 f'&nbsp; {html.escape(unit_name)}</h1></div>'
+                '<div class="intro"><b>Snapshot warning:</b> these retained IR '
+                'artifacts predate the strict name-independence cleanup. Any '
+                'launch removed or excluded on the parent audit page is '
+                'historical and must not be cited as a current result. Rerun '
+                'the audit to obtain claimable current IR.</div>'
                 '<div class="summary" style="padding:8px 20px; '
                 'border-bottom:1px solid #eee;background:#fafafa;font-size:13px;">'
                 f'<b>{unit.get("linalg_generics", "0")}</b> linalg.generic '
@@ -6715,7 +6923,10 @@ def _build_ginsbach_detail_pages() -> dict[tuple[str, str], str]:
             '<div class="header"><h1><a href="ginsbach.html">'
             '← Ginsbach ASPLOS\'18</a> &nbsp; '
             f'{html.escape(suite)} / {html.escape(program)}</h1></div>'
-            '<div class="intro">Click a translation unit to inspect its '
+            '<div class="intro"><b>Snapshot warning:</b> retained artifacts '
+            'may predate the strict name-independence cleanup. Parent-page '
+            'exclusions override the counts shown here until regeneration. '
+            'Click a translation unit to inspect its '
             'original source, raised Linalg, and exact matcher-generated IR. '
             'The counts are static operations in the corpus audit, not '
             'dynamic runtime invocations.</div>'
@@ -6782,14 +6993,16 @@ def _ginsbach_page() -> tuple[str, int]:
             "(combined ABI passes 3/3; full-app transform pending)"
         ),
         ("snu-npb", "CG"): (
-            "cuSPARSE CSR SpMV ×4; cuBLAS Ddot ×3; "
-            "CUB squared-L2 transform-reduce ×1"
+            "static structural inventory only: cuSPARSE CSR SpMV ×4; "
+            "cuBLAS Ddot ×3; CUB squared-L2 ×1"
         ),
-        ("snu-npb", "FT"): "cuFFT: no executable match yet",
-        ("snu-npb", "IS"): "CUB histogram ×6 corpus sites; ×2 in rank",
+        ("snu-npb", "FT"): (
+            "no compliant automatic match; direct fftXYZ substitution removed"
+        ),
+        ("snu-npb", "IS"): "static CUB histogram inventory ×6; application composition excluded",
+        ("snu-npb", "MG"): "no compliant executable match; name-dispatched renderer removed",
         ("snu-npb", "UA"): (
-            "cuBLAS DAXPBY ×3; tiny Ddot ×14 recognized but "
-            "profitability-gated"
+            "static cuBLAS DAXPBY inventory ×3; application composition excluded"
         ),
         ("parboil", "sgemm"): "cuBLAS SGEMM ×1",
         ("parboil", "spmv"): (
@@ -6809,8 +7022,8 @@ def _ginsbach_page() -> tuple[str, int]:
         ("Frontend passed", totals["frontend_ok"]),
         ("Raise passed", totals["raise_ok"]),
         ("Linalg generics", totals["linalg_generics"]),
-        ("Computational launches", computational_launches),
-        ("Silicon-tested programs", len(silicon_rows)),
+        ("Current structural launches", computational_launches),
+        ("Silicon audit rows", len(silicon_rows)),
         ("Published idioms", totals["published_idioms"]),
     )
     metrics = ''.join(
@@ -6834,7 +7047,7 @@ def _ginsbach_page() -> tuple[str, int]:
         )
         if current:
             latest = (
-                '<span class="pass">CURRENT BRANCH</span><br><small>'
+                '<span class="pass">CURRENT STRICT AUDIT</span><br><small>'
                 + html.escape(current.get("latest_result", ""))
                 + '</small><br><small><b>Scope:</b> '
                 + html.escape(current.get("notes", ""))
@@ -6897,27 +7110,31 @@ def _ginsbach_page() -> tuple[str, int]:
         'is never presented as a full-application measurement. Click any '
         'program name to inspect its translation units and their source, '
         'raised Linalg, and matcher-generated IR.</div>'
-        '<div class="intro"><b>Latest CG update (isolated implementation '
-        'branch):</b> the whole-file, post-inlining view emits <b>8</b> '
-        'call-site-level launches: 4 cuSPARSE SpMV, 3 cuBLAS Ddot, and 1 CUB '
-        'squared-L2 transform-reduce. The executable preserves the original '
-        'Class S driver and replaces the source-faithful <code>conj_grad</code> '
-        'helper once, so it contains <b>5 distinct static sites</b>: 2 SpMV, '
-        '2 Ddot, and 1 squared-L2. All five lower with zero residual launches. '
-        'The host-cross-compiled CUDA 12.6 AArch64 <code>sm_87</code> '
-        'application passed NASA verification 3/3 on Orin #2 (median 855.66 '
-        'Mop/s; median process time 0.275 s). Eight is <b>not</b> eight '
-        'distinct source occurrences and is not a confirmed subset of the '
-        'paper&apos;s 60-occurrence denominator.</div>'
-        '<div class="intro"><b>Latest CUTCP update (isolated implementation '
-        'branch):</b> all <b>7 reconstructed scalar sites</b> now have exact '
-        'external-library routes: 6 cuDNN strided min/max reductions and 1 '
-        'CUB mixed-precision absolute sum. The exact '
-        '<code>write_lattice_summary</code> source IR matches and lowers with '
-        'zero residual launches; its independently checked AArch64 runtime '
-        'test passed 3/3 on Orin #2 (result 16.375; median device time 2.117280 '
-        'ms). This is a standalone ABI/runtime validation, not a full CUTCP '
-        'application run, and the mapping to the paper&apos;s seven CUTCP '
+        '<div class="intro"><b>Strict recognition audit — retractions:</b> '
+        'library selection must depend only on operations, dataflow, indexing, '
+        'loop/control-flow structure, types, and proven semantics. Names, paths, '
+        'source text, line numbers, argument positions, and benchmark identity '
+        'are forbidden. FT&apos;s direct <code>fftXYZ</code> substitution, '
+        'EP&apos;s source-text Gaussian rewrite, MG&apos;s '
+        '<code>resid/psinv/rprj3</code> name dispatch, and the CG/IS/UA manual '
+        'application compositions are excluded. Their former correctness and '
+        'timing results are not automatic matcher evidence. FT and MG now show '
+        '<b>0 compliant executable matches</b>; the three directly evidenced EP '
+        'occurrences remain <b>0/3</b>. EP&apos;s separately inferred final '
+        '<code>gc</code> sum remains one structural CUB match without a full-app '
+        'claim.</div>'
+        '<div class="intro"><b>Project-wide cleanup:</b> name-specific ATen '
+        'renderers for bilinear upsampling, compressed-block conversion, '
+        'all/any, NaN sum, sparse norm, joint scaling, arg-reduction, fixed '
+        'pooling backward, sparse-index conversion, quantized column offsets, '
+        'adjacent difference, and embedding-bag counts were removed. Stored '
+        'artifacts produced by those paths are stale until regenerated. Neutral '
+        'wrappers may invoke a transformed entry point, but may not select the '
+        'algorithm or library.</div>'
+        '<div class="intro"><b>CUTCP remains a focused structural result:</b> '
+        'six name-independent strided min/max sites and one mixed-precision '
+        'absolute sum have focused checks. The absolute-sum test is standalone, '
+        'not a full CUTCP application, and mapping to the paper&apos;s seven '
         'occurrences remains inferred.</div>'
         f'<div class="audit-metrics">{metrics}</div>'
         '<div class="intro"><b>Analysis-only inventory:</b> '
@@ -6935,29 +7152,17 @@ def _ginsbach_page() -> tuple[str, int]:
         '<th>Egglog regions</th><th>reductions</th><th>stencils</th>'
         '<th>histograms</th><th>paper idioms</th>'
         '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table>'
-        '<div class="intro"><b>Silicon evidence:</b> NPB CG Class S passed '
-        'three post-reboot runs (0.13 s each; 501.82 median Mop/s). '
-        'The newer five-site helper composition, including squared-L2, also '
-        'passes the full Class S application 3/3 (0.08 s reported each run; '
-        '855.66 median Mop/s). The two runs were not interleaved, so the '
-        'apparent improvement is not yet a controlled performance claim. '
-        'The original Parboil SGEMM application exactly matches the CPU output '
-        'and is 3.90× faster in compute (1.99× including I/O). The original '
-        'Parboil stencil application is correct and, after caching cuDNN setup, '
-        'is currently 1.15× slower. NPB UA verifies with its three DAXPBY '
-        'replacements; a profitability guard now keeps its proven-tiny Ddot '
-        'operations in Linalg. The BT combined strided-batched GEMM+GEMV ABI '
-        'passes 3/3, and Egglog loop lifting lowers the prototype, but full BT '
-        'still needs helper-first raising and workspace privatization. NPB FT '
-        'passes its CPU baseline but does not yet match '
-        'cuFFT. NPB IS passes full '
-        'Class-S verification in three post-reboot runs (122.61 median Mop/s) '
-        'with the original driver and full_verify around '
-        'a source-faithful rank core containing two CUB histogram sites. '
-        'Exact sizes, timing scopes, and incomplete outcomes are shown in the '
-        'table. See '
-        '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the '
-        'exact evidence and remaining gaps.</div>'
+        '<div class="intro"><b>Silicon evidence after exclusions:</b> '
+        'Parboil SGEMM and stencil retain static structural matches, but their '
+        'former application binaries omitted original computational helpers; '
+        'their application correctness and timings are excluded. CUTCP has '
+        'focused source-region and standalone ABI checks, not a complete '
+        'application claim. Standalone cuBLAS, cuSPARSE, cuDNN, CUB, and cuFFT '
+        'smokes validate runtime plumbing only. CG, IS, UA, FT, EP fused '
+        'statistics, and MG application results are explicitly excluded by the '
+        'strict recognition audit. See '
+        '<code>issues/ginsbach_asplos18/SILICON_STATUS.md</code> for the exact '
+        'classification.</div>'
     )
     return body, len(rows)
 
@@ -7145,7 +7350,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '</div>'
             '<div style="margin-top:6px; font-size:13px;">'
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
-            '<a href="mfem-paper.html">MFEM paper analysis</a>'
+            '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
+            '<a href="llama-paper.html">Llama paper analysis</a>'
             '</div></div>'
         )
 
@@ -7221,6 +7427,13 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.paper-axis { fill:#57606a; font:11px sans-serif; } '
         '.paper-axis-label { fill:#24292f; font:12px sans-serif; font-weight:600; } '
         '.paper-chart circle { stroke:white; stroke-width:1; cursor:help; } '
+        '.llama-bars { padding:14px 18px 10px; min-width:720px; } '
+        '.llama-bar-row { display:grid; grid-template-columns:190px minmax(360px,1fr) '
+        '100px; gap:12px; align-items:center; margin:11px 0; font-size:12px; } '
+        '.llama-bar-track { height:26px; background:#f0f2f5; border:1px solid #d8dee8; '
+        'border-radius:4px; overflow:hidden; } '
+        '.llama-bar-track i { display:block; height:100%; min-width:2px; } '
+        '.llama-bar-row b { text-align:right; white-space:nowrap; } '
         '.paper-data-grid { display:grid; grid-template-columns:minmax(700px,1fr) '
         'minmax(260px,auto); gap:18px; align-items:start; } '
         '.paper-plot-data td,.paper-exclusions td { white-space:normal; } '
@@ -7275,7 +7488,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
           'Each kernel still has a static IR preview and a full CE link.</div>'
         + '<div class="suite-grid">'
         + card("polybench.html", "PolyBench four-runtime results", len(polybench_stats),
-               "Native CPU, raised CPU-library, native CUDA, and raised CUDA timings with correctness gates.")
+               "Strict audit: native CPU remains valid; three linker-substitution columns are excluded pending untouched transformation.")
         + card("backends.html", "CPU + GPU lowering",
                sum(s.get("launches", 0) > 0 for s in polybench_stats.values()),
                "Shared ABI, backend branch point, and implementation coverage.")
@@ -7297,6 +7510,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + card("mfem-paper.html", "MFEM paper analysis",
                len(mfem_application_extraction_stats),
                "Section 4.2 evidence ladder, application ledger, baseline quality, and open issues.")
+        + card("llama-paper.html", "Llama paper analysis", 5,
+               "Section 4.2 methodology, correctness-gated runtime graphs, raw samples, and exclusions.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
                "103/103 units raised; CG currently emits 8 external-library calls, with scope-labelled silicon evidence.")
         + card("ai.html", "AI kernels",
@@ -7317,6 +7532,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     mfem_paper = nav() + _mfem_paper_analysis_page(
         mfem_application_extraction_stats
     )
+    llama_paper = nav() + _llama_paper_analysis_page()
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -7353,6 +7569,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         ),
         "mfem-paper.html": render_html(
             "Polygeist: MFEM paper analysis", mfem_paper, extra_css
+        ),
+        "llama-paper.html": render_html(
+            "Polygeist: Llama paper analysis", llama_paper, extra_css
         ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
