@@ -598,6 +598,10 @@ int main(int argc, char ** argv) {
                 out.size() > 6 ? out[6] : 0.0f,
                 out.size() > 7 ? out[7] : 0.0f);
 
+    for (size_t i = 0; i < times.size(); ++i) {
+        std::printf("TIMING_SAMPLE,%zu,%.9f\n", i, times[i]);
+    }
+
     if (bench.opts.dump_all) {
         std::printf("output_index,value\n");
         for (size_t i = 0; i < out.size(); ++i) {

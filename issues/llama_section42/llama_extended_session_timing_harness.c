@@ -1,12 +1,22 @@
 #define _POSIX_C_SOURCE 200809L
 #define main polygeist_llama_fixture_original_main
+#define kernel_llama2_extended_forward_session \
+  kernel_llama2_extended_forward_session_native
 #include "../../third_party/cnn-extracted/llama2_extended_forward_bench.c"
+#undef kernel_llama2_extended_forward_session
 #undef main
+
+/* Implemented by the generated ABI wrapper linked with this harness. */
+extern void kernel_llama2_extended_forward_session();
 
 #include <time.h>
 
 #ifndef SESSION_REPETITIONS
 #define SESSION_REPETITIONS 100
+#endif
+
+#ifndef DUMP_ALL
+#define DUMP_ALL 0
 #endif
 
 static double now_ms(void) {
@@ -52,5 +62,8 @@ int main(void) {
          total_ms / (double)SESSION_REPETITIONS, checksum, sumsq, maxabs);
   for (int i = 0; i < 8 && i < VOCAB; ++i)
     printf("SAMPLE,%d,%.9g\n", i, (double)logits[i]);
+  if (DUMP_ALL)
+    for (int i = 0; i < VOCAB; ++i)
+      printf("LOGIT,%d,%.9g\n", i, (double)logits[i]);
   return 0;
 }
