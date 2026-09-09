@@ -18,10 +18,10 @@ pdflatex -interaction=nonstopmode -halt-on-error polybench_cpu_native_vs_raised.
 pdflatex -interaction=nonstopmode -halt-on-error polybench_gpu_native_vs_raised.tex
 ```
 
-Both comparison figures plot the native/raised runtime ratio on a base-2
-logarithmic axis. The `1x` line means equal performance; values to its right
-are raised-code speedups and values to its left are regressions. This single
-continuous scale replaces the former CPU broken-axis/cutoff presentation and
-keeps large and small ratios visible without truncation. The CPU-versus-GPU
-chart is not a paper figure and is intentionally omitted from the HTML
-analysis.
+The CPU comparison plots the native/raised runtime ratio on a base-2
+logarithmic axis. This single continuous scale replaces its former broken-axis
+presentation and keeps large and small ratios visible without truncation. The
+GPU comparison retains its linear percentage axis because it did not require a
+break; its positive and negative PGFPlots series both use `bar shift=0pt` so
+every bar stays vertically centered on its kernel row. The CPU-versus-GPU chart
+is not a paper figure and is intentionally omitted from the HTML analysis.

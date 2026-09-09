@@ -4529,7 +4529,7 @@ def _polybench_paper_analysis_page() -> str:
             "PolyBench: native CPU vs raised CPU (log scale)")
         + paper_pdf_figure(
             "polybench_gpu_native_vs_raised.pdf",
-            "PolyBench: native GPU vs raised GPU (log scale)")
+            "PolyBench: native GPU vs raised GPU")
     )
     raised_only_rows = sorted(
         (row for row in main_gpu_rows
@@ -4640,10 +4640,10 @@ def _polybench_paper_analysis_page() -> str:
         + '<div class="section-header"><h3 class="section-title">Paper figures '
           '(same PDFs as Overleaf)</h3></div>'
           '<div class="intro">The HTML embeds the exact generated PDFs used by '
-          'the paper. Both use one continuous logarithmic native/raised ratio '
-          'axis: 1&times; is parity, right is a raised-code win, and left is a '
-          'regression. No values are cut off, and no CPU-versus-GPU comparison '
-          'is included.</div>'
+          'the paper. The CPU plot uses one continuous logarithmic '
+          'native/raised ratio axis instead of a broken axis. The GPU plot '
+          'retains its linear percentage axis, with every bar centered on its '
+          'kernel row. No CPU-versus-GPU comparison is included.</div>'
         + paper_figures
         + '<div class="section-header"><h3 class="section-title">GPU results '
           'without a native GPU baseline</h3></div>'
