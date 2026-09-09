@@ -1955,9 +1955,34 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       return success();
     };
 
+    // A full-rank pure permutation is not a tensor slice: insert_slice keeps
+    // source dimension order and therefore cannot implement a transpose.
+    // Handle it with the affine elementwise path before the rectangular-slice
+    // classifier below has an opportunity to refine the view to the physical
+    // base shape through an invalid cast.
+    if (m.getNumResults() == numViewDims) {
+      bool purePermutation = true;
+      bool identityOrder = true;
+      SmallVector<bool> seen(numViewDims, false);
+      for (auto [baseDim, expr] : llvm::enumerate(m.getResults())) {
+        auto dim = expr.dyn_cast<AffineDimExpr>();
+        if (!dim || dim.getPosition() >= numViewDims ||
+            seen[dim.getPosition()]) {
+          purePermutation = false;
+          break;
+        }
+        seen[dim.getPosition()] = true;
+        identityOrder &= dim.getPosition() == baseDim;
+      }
+      if (purePermutation && !identityOrder)
+        return lowerElementwiseAffineWriteback();
+    }
+
     SmallVector<OpFoldResult> offsets, subSizes, strides;
     SmallVector<int64_t> sourceShape;
     SmallVector<int64_t> viewDimSeen(numViewDims, 0);
+    bool viewDimsFollowBaseOrder = true;
+    unsigned nextViewDim = 0;
     OpFoldResult zeroAttr = rewriter.getIndexAttr(0);
     OpFoldResult oneAttr = rewriter.getIndexAttr(1);
 
@@ -2040,6 +2065,17 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
       if (hasViewDim) {
         if (viewDim >= sizes.size())
           return lowerElementwiseAffineWriteback();
+        // tensor.insert_slice does not transpose its source.  It is valid only
+        // when source dimensions occur in the same order as the destination
+        // base dimensions.  A map such as (d0,d1,d2,d3)->(d0,d3,d1,d2)
+        // describes an injective permutation, but casting the logical
+        // [d0,d1,d2,d3] view to the physical [d0,d3,d1,d2] slice shape both
+        // corrupts data and can hide an incompatible static-shape cast behind
+        // an intermediate dynamic type.  Use the exact affine write-back for
+        // such permutations.
+        if (viewDim != nextViewDim)
+          viewDimsFollowBaseOrder = false;
+        ++nextViewDim;
         if (auto constant = getConstantIndex(sizes[viewDim])) {
           subSizes.push_back(rewriter.getIndexAttr(*constant));
           sourceShape.push_back(*constant);
@@ -2057,6 +2093,8 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
     for (unsigned j = 0; j < numViewDims; ++j)
       if (!viewDimSeen[j])
         return lowerElementwiseAffineWriteback();
+    if (!viewDimsFollowBaseOrder)
+      return lowerElementwiseAffineWriteback();
 
     // If the view's rank differs from the slice's rank (because of symbol-
     // only base-dims that rank-reduced on the way in), we need to reshape

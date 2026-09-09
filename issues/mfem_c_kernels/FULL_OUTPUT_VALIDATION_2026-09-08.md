@@ -8,22 +8,31 @@ The validator compares every FP64 output element against a separately compiled
 copy of the normalized C source; it does not use checksums.
 
 - 128 fresh static `kernel.launch` contraction sites were recovered.
-- 17/18 matched kernels built and passed complete-output comparison.
-- 126/128 sites are therefore lowered, built, executed, and elementwise
+- 18/18 matched kernels built and passed complete-output comparison.
+- 128/128 sites are therefore lowered, built, executed, and elementwise
   validated in their complete operator pipelines.
-- 1,240,064 output elements were compared across those 17 kernels.
+- 1,305,600 output elements were compared across those 18 kernels.
 - Worst absolute error was `5.5511151231257827e-17`.
 - Tolerance was `abs_error <= 1e-11 + 1e-10 * abs(reference)`.
 - Inputs, basis/gradient matrices, operators, and initial output buffers were
   nonconstant deterministic values.
 
-The two unvalidated sites are both in
-`mfem_integrate_value_3d_scratch_sliced`. With zero matches the freshly raised
-NE=1024 executable already disagrees with the source reference on all 65,536
-outputs (`max_abs=0.0051067106369118986`). Enabling its first match additionally
-fails ABI cleanup with an incompatible cast from
-`memref<1024x5x4x5xf64>` to `memref<1024x5x5x4xf64>`. This is a raising/submap
-shape-order bug, not a completed correctness validation.
+The final two sites in `mfem_integrate_value_3d_scratch_sliced` initially
+failed even with matching disabled: all 65,536 outputs differed from the
+reference (`max_abs=0.0051067106369118986`). The cause was a tensor
+`submapInverse` permutation `(d0,d1,d2,d3)->(d0,d3,d1,d2)` being lowered as
+`tensor.insert_slice`, which cannot transpose its source dimensions. That path
+also hid the incompatible static shapes behind a dynamic tensor cast.
+
+`LowerPolygeistSubmap` now routes non-identity full-rank permutations through
+the exact affine elementwise writeback. A focused FileCheck regression passes.
+Fresh host control and matched pipelines both pass, and the x86-cross-compiled
+AArch64 matched executable passes on Orin with both expected
+`cutensornetContraction2_f64` launches. The complete-output result is 0 failing
+elements and `max_abs=5.5511151231257827e-17`. The retained machine-readable
+record and raw Orin log are in
+`section42_campaign/postfix_full_output_validation_20260908.csv` and
+`section42_campaign/integrate_value_3d_fixed_orin.log`.
 
 ## Network-composition finding
 
@@ -43,6 +52,7 @@ All rows below passed with zero failing elements:
 integrate_grad_2d   sites=4  elements=16384  max_abs=0
 integrate_grad_3d   sites=9  elements=65536  max_abs=0
 integrate_value_2d  sites=1  elements=16384  max_abs=5.5511151231257827e-17
+integrate_value_3d  sites=2  elements=65536  max_abs=5.5511151231257827e-17
 convection_2d       sites=5  elements=16384  max_abs=3.4694469519536142e-18
 convection_3d       sites=10 elements=65536  max_abs=3.4694469519536142e-18
 curlcurl_2d         sites=5  elements=24576  max_abs=4.3368086899420177e-19
