@@ -37,3 +37,30 @@ module {
 // CHECK:           llvm.return %[[VAL_7]] : i1
 // CHECK:         }
 
+// -----
+
+module {
+  func.func private @callee(i32) -> i32
+
+  func.func @caller(%arg0: i32) -> i32 {
+    %0 = func.call @callee(%arg0) : (i32) -> i32
+    return %0 : i32
+  }
+}
+
+// CHECK: llvm.func @callee(i32) -> i32
+// CHECK: llvm.func @caller(%{{.*}}: i32) -> i32
+// CHECK: llvm.call @callee(%{{.*}}) : (i32) -> i32
+
+// -----
+
+module {
+  func.func @aligned_pointer_index(%arg0: memref<?xf64>) -> index {
+    %0 = memref.extract_aligned_pointer_as_index %arg0 : memref<?xf64> -> index
+    return %0 : index
+  }
+}
+
+// CHECK: llvm.func @aligned_pointer_index(%[[PTR:.*]]: !llvm.ptr) -> i64
+// CHECK: %[[INT:.*]] = llvm.ptrtoint %[[PTR]] : !llvm.ptr to i64
+// CHECK: llvm.return %[[INT]] : i64

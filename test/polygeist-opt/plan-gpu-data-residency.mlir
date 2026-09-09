@@ -5,8 +5,15 @@
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=repeated_owner' %s | FileCheck %s --check-prefix=CALLEE
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=local_scratch promote-function-arguments=false' %s | FileCheck %s --check-prefix=SCRATCH
 // RUN: polygeist-opt '--plan-gpu-data-residency=function=dynamic_library_scratch promote-function-arguments=false' %s | FileCheck %s --check-prefix=DYNAMIC
+// RUN: polygeist-opt '--plan-gpu-data-residency=function=persistent_device_scratch promote-function-arguments=false' %s | FileCheck %s --check-prefix=PERSISTENT
+// RUN: polygeist-opt '--plan-gpu-data-residency=function=persistent_host_visible promote-function-arguments=false' %s | FileCheck %s --check-prefix=PERSISTENT-HOST
+// RUN: polygeist-opt '--plan-persistent-gpu-workspace=function=persistent_device_from_alloc' '--plan-gpu-data-residency=function=persistent_device_from_alloc promote-function-arguments=false' %s | FileCheck %s --check-prefix=PERSISTENT-PIPELINE
 
 module attributes {gpu.container_module} {
+  memref.global "private" @device_workspace : memref<128xf32>
+      {polygeist.persistent_gpu_workspace_candidate}
+  memref.global "private" @host_workspace : memref<128xf32>
+      {polygeist.persistent_gpu_workspace_candidate}
   gpu.module @kernels {
     gpu.func @touch(%arg0: memref<?xf32>) kernel {
       gpu.return
@@ -109,6 +116,40 @@ module attributes {gpu.container_module} {
     memref.dealloc %buffer : memref<?xf32>
     return
   }
+
+  func.func @persistent_device_scratch() {
+    %c1 = arith.constant 1 : index
+    %scratch = memref.get_global @device_workspace : memref<128xf32>
+    %unranked = memref.cast %scratch : memref<128xf32> to memref<*xf32>
+    gpu.host_register %unranked : memref<*xf32>
+    gpu.launch_func @kernels::@touch_static
+        blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1)
+        args(%scratch : memref<128xf32>)
+    return
+  }
+
+  func.func @persistent_host_visible() -> f32 {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %scratch = memref.get_global @host_workspace : memref<128xf32>
+    gpu.launch_func @kernels::@touch_static
+        blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1)
+        args(%scratch : memref<128xf32>)
+    %value = memref.load %scratch[%c0] : memref<128xf32>
+    return %value : f32
+  }
+
+  func.func @persistent_device_from_alloc() {
+    %c1 = arith.constant 1 : index
+    %scratch = memref.alloc() : memref<128xf32>
+    %unranked = memref.cast %scratch : memref<128xf32> to memref<*xf32>
+    gpu.host_register %unranked : memref<*xf32>
+    gpu.launch_func @kernels::@touch_static
+        blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1)
+        args(%scratch : memref<128xf32>)
+    memref.dealloc %scratch : memref<128xf32>
+    return
+  }
 }
 
 // Dynamic local scratch remains mapped-host storage because the downstream
@@ -170,3 +211,28 @@ module attributes {gpu.container_module} {
 // SCRATCH-NOT: memref.alloc
 // SCRATCH: gpu.launch_func
 // SCRATCH-SAME: args(%[[DEVICE]] : memref<?xf32>)
+
+// PERSISTENT-PIPELINE-LABEL: func.func @persistent_device_from_alloc
+// PERSISTENT-PIPELINE: %[[DEVICE:.*]], %[[TOKEN:.*]] = gpu.alloc async
+// PERSISTENT-PIPELINE-NOT: gpu.host_register
+// PERSISTENT-PIPELINE-NOT: memref.get_global
+// PERSISTENT-PIPELINE-NOT: memref.alloc
+// PERSISTENT-PIPELINE: gpu.launch_func
+// PERSISTENT-PIPELINE-SAME: args(%[[DEVICE]] : memref<128xf32>)
+// PERSISTENT-PIPELINE: gpu.dealloc %[[DEVICE]] : memref<128xf32>
+
+// PERSISTENT-LABEL: func.func @persistent_device_scratch
+// PERSISTENT: %[[STREAM:.*]] = gpu.wait async
+// PERSISTENT: %[[DEVICE:.*]], %[[TOKEN:.*]] = gpu.alloc async [%[[STREAM]]]
+// PERSISTENT: gpu.wait [%[[TOKEN]]]
+// PERSISTENT-NOT: memref.get_global @device_workspace
+// PERSISTENT-NOT: gpu.host_register
+// PERSISTENT: gpu.launch_func
+// PERSISTENT-SAME: args(%[[DEVICE]] : memref<128xf32>)
+// PERSISTENT: gpu.dealloc %[[DEVICE]] : memref<128xf32>
+
+// PERSISTENT-HOST-LABEL: func.func @persistent_host_visible
+// PERSISTENT-HOST-NOT: gpu.alloc
+// PERSISTENT-HOST: %[[HOST:.*]] = memref.get_global @host_workspace
+// PERSISTENT-HOST: gpu.launch_func
+// PERSISTENT-HOST: memref.load %[[HOST]]

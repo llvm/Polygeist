@@ -13,8 +13,10 @@
 
 #ifdef POLYGEIST_CPU_USE_CBLAS
 #include <cblas.h>
-extern void dpotrf_(const char *uplo, const int *n, double *a,
-                    const int *lda, int *info);
+// OpenBLAS exposes the Fortran LAPACK entry point with this C declaration in
+// common_interface.h.  Keep the fallback declaration ABI-compatible with that
+// header as well as installations whose cblas.h omits LAPACK declarations.
+extern int dpotrf_(char *uplo, int *n, double *a, int *lda, int *info);
 #endif
 
 #ifndef M_PI
@@ -109,8 +111,8 @@ void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A) {
 #ifdef POLYGEIST_CPU_USE_CBLAS
   // LAPACK is column-major.  The upper triangle of its view is the lower
   // triangle of the row-major PolyBench matrix.
-  const char uplo = 'U';
-  const int size = n;
+  char uplo = 'U';
+  int size = n;
   int info = 0;
   dpotrf_(&uplo, &size, A, &size, &info);
   if (info != 0) {
@@ -1024,28 +1026,6 @@ void polygeist_cudnn_conv3d_ntap_f32(
       }
     }
   }
-}
-
-void polygeist_cudnn_stencil3d_symmetric_f64(
-    int32_t inD, int32_t inH, int32_t inW,
-    int32_t outD, int32_t outH, int32_t outW,
-    int32_t strideD, int32_t strideH, int32_t strideW,
-    int32_t inOffD, int32_t inOffH, int32_t inOffW,
-    int32_t outOffD, int32_t outOffH, int32_t outOffW,
-    double center, double face, double edge, double corner,
-    double alpha, double beta,
-    const double *input, const double *addend, double *output) {
-  (void)inD; (void)inH; (void)inW;
-  (void)outD; (void)outH; (void)outW;
-  (void)strideD; (void)strideH; (void)strideW;
-  (void)inOffD; (void)inOffH; (void)inOffW;
-  (void)outOffD; (void)outOffH; (void)outOffW;
-  (void)center; (void)face; (void)edge; (void)corner;
-  (void)alpha; (void)beta;
-  (void)input; (void)addend; (void)output;
-  fprintf(stderr,
-          "cudnnStencil3DSymmetric_f64 requires the CUDA/cuDNN runtime\n");
-  abort();
 }
 
 void polygeist_cufft_z2z_1d(

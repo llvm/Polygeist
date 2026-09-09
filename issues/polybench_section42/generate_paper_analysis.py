@@ -147,12 +147,14 @@ def main() -> None:
         raised = sample_stats(raised_path, "runtime_ms")
         cpu_rows.append({
             "kernel": directory.name,
-            "native_ms": native["median"], "native_min_ms": native["min"],
+            "native_ms": native["min"], "native_min_ms": native["min"],
+            "native_median_ms": native["median"],
             "native_max_ms": native["max"], "native_iqr_ms": native["iqr"],
-            "raised_openblas_ms": raised["median"],
+            "raised_openblas_ms": raised["min"],
             "raised_min_ms": raised["min"], "raised_max_ms": raised["max"],
+            "raised_median_ms": raised["median"],
             "raised_iqr_ms": raised["iqr"],
-            "speedup_native_over_raised": native["median"] / raised["median"],
+            "speedup_native_over_raised": native["min"] / raised["min"],
             "native_correctness": correctness(directory, ("native-cpu-correctness.compare.log", "native-correctness.compare.log")),
             "raised_correctness": correctness(directory, ("raised-openblas-correctness.compare.log",)),
             "dataset": "LARGE", "datatype": "double", "warmups": 5, "samples": 5,
@@ -174,25 +176,29 @@ def main() -> None:
             native_device_stats = sample_stats(native_path, "device_ms")
             native_e2e_field = "e2e_ms" if "e2e_ms" in fields else "end_to_end_ms"
             native_e2e_stats = sample_stats(native_path, native_e2e_field)
-            native_device, native_iqr = native_device_stats["median"], native_device_stats["iqr"]
-            native_e2e = native_e2e_stats["median"]
+            native_device, native_iqr = native_device_stats["min"], native_device_stats["iqr"]
+            native_e2e = native_e2e_stats["min"]
         if (kernel == "gemm" and
                 (GEMM_PRECISION_LOGS / "raised-fp64-samples.csv").exists()):
             raised_path = GEMM_PRECISION_LOGS / "raised-fp64-samples.csv"
         if raised_path.exists():
             fields = read_csv(raised_path)[0]
             raised_device_stats = sample_stats(raised_path, "compute_device_ms")
-            raised_device, raised_iqr = raised_device_stats["median"], raised_device_stats["iqr"]
+            raised_device, raised_iqr = raised_device_stats["min"], raised_device_stats["iqr"]
             if "compute_wall_ms" in fields:
-                raised_wall = sample_stats(raised_path, "compute_wall_ms")["median"]
+                raised_wall = sample_stats(raised_path, "compute_wall_ms")["min"]
             if "memory_device_ms" in fields:
-                raised_memory = sample_stats(raised_path, "memory_device_ms")["median"]
-            raised_e2e = sample_stats(raised_path, "e2e_host_ms")["median"]
+                raised_memory = sample_stats(raised_path, "memory_device_ms")["min"]
+            raised_e2e = sample_stats(raised_path, "e2e_host_ms")["min"]
         gpu_rows.append({
             "kernel": kernel,
             "native_device_ms": native_device, "native_device_iqr_ms": native_iqr,
+            "native_device_median_ms": (native_device_stats["median"] if native_path.exists() else None),
+            "native_device_max_ms": (native_device_stats["max"] if native_path.exists() else None),
             "native_e2e_ms": native_e2e,
             "raised_device_ms": raised_device, "raised_device_iqr_ms": raised_iqr,
+            "raised_device_median_ms": (raised_device_stats["median"] if raised_path.exists() else None),
+            "raised_device_max_ms": (raised_device_stats["max"] if raised_path.exists() else None),
             "raised_resident_wall_ms": raised_wall,
             "raised_memory_device_ms": raised_memory, "raised_e2e_ms": raised_e2e,
             "device_speedup_native_over_raised": (
@@ -225,16 +231,20 @@ def main() -> None:
         raised_e2e = sample_stats(fp32_raised_path, "e2e_host_ms")
         gpu_rows.append({
             "kernel": "gemm",
-            "native_device_ms": native_device["median"],
+            "native_device_ms": native_device["min"],
             "native_device_iqr_ms": native_device["iqr"],
-            "native_e2e_ms": native_e2e["median"],
-            "raised_device_ms": raised_device["median"],
+            "native_device_median_ms": native_device["median"],
+            "native_device_max_ms": native_device["max"],
+            "native_e2e_ms": native_e2e["min"],
+            "raised_device_ms": raised_device["min"],
             "raised_device_iqr_ms": raised_device["iqr"],
-            "raised_resident_wall_ms": raised_wall["median"],
-            "raised_memory_device_ms": raised_memory["median"],
-            "raised_e2e_ms": raised_e2e["median"],
+            "raised_device_median_ms": raised_device["median"],
+            "raised_device_max_ms": raised_device["max"],
+            "raised_resident_wall_ms": raised_wall["min"],
+            "raised_memory_device_ms": raised_memory["min"],
+            "raised_e2e_ms": raised_e2e["min"],
             "device_speedup_native_over_raised": (
-                native_device["median"] / raised_device["median"]),
+                native_device["min"] / raised_device["min"]),
             "native_correctness": "pass", "raised_correctness": "pass",
             "dataset": "LARGE", "datatype": "float", "warmups": 5,
             "samples": 5, "hardware": "Jetson AGX Orin sm_87",
@@ -309,13 +319,13 @@ def main() -> None:
         paired_cpu, OUT / "polybench_cpu_runtime.svg",
         "PolyBench CPU: native versus raised OpenBLAS",
         "native_ms", "raised_openblas_ms", "Native C -O3", "Raised OpenBLAS",
-        "LARGE/FP64 on one Orin CPU core; median of 5 after 5 warmups; log runtime",
+        "LARGE/FP64 on one Orin CPU core; minimum of 5 after 5 warmups; log runtime",
     )
     paired_runtime_svg(
         paired_gpu_all, OUT / "polybench_gpu_runtime.svg",
         "PolyBench GPU: native CUDA versus raised resident library",
         "native_device_ms", "raised_device_ms", "Native PolyBenchGPU", "Raised CUDA library",
-        "LARGE on Orin SM87; datatype labelled per row; CUDA-event device time; median of 5 after 5 warmups",
+        "LARGE on Orin SM87; datatype labelled per row; CUDA-event device time; minimum of 5 after 5 warmups",
     )
 
     analysis = f"""# PolyBench Section 4.2 paper analysis
@@ -355,6 +365,9 @@ one process, five warmups, and five samples. CPU runs are pinned to core 0 with
 one OpenBLAS/OpenMP thread. GPU ratios use device time on both sides; end-to-end
 times are reported separately and never mixed into those ratios. Native
 PolyBenchGPU rows use normalization adapters and are `modified_source=true`.
+Every headline runtime and derived speedup uses the minimum of the five timed
+samples; the generated ledgers also retain the median, maximum, IQR, and raw
+sample links.
 
 The runner reported accelerator/hardware state as `N/A`. Consequently every
 timing is **publication-pending** until fixed power, clock, fan, temperature,

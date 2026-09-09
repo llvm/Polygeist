@@ -30,6 +30,7 @@
 #include "mlir/Dialect/Linalg/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -97,6 +98,14 @@ int main(int argc, char **argv) {
   // Register the standard passes we want.
   mlir::registerCSEPass();
   mlir::registerConvertAffineToStandardPass();
+  mlir::registerArithToLLVMConversionPass();
+  mlir::registerConvertControlFlowToLLVMPass();
+  mlir::registerConvertFuncToLLVMPass();
+  mlir::registerConvertIndexToLLVMPass();
+  mlir::registerConvertMathToLLVMPass();
+  mlir::registerFinalizeMemRefToLLVMConversionPass();
+  mlir::registerReconcileUnrealizedCastsPass();
+  mlir::registerSCFToControlFlowPass();
   mlir::registerSCCPPass();
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
@@ -105,6 +114,7 @@ int main(int argc, char **argv) {
   mlir::registerConvertSCFToOpenMPPass();
   mlir::affine::registerAffinePasses();
   mlir::registerLinalgPasses();
+  mlir::memref::registerMemRefPasses();
   // Register the complete bufferization pipeline.  In particular,
   // destination-style library launches coexist with tensor.empty scratch in
   // real raised applications; empty-tensor-to-alloc-tensor must run before

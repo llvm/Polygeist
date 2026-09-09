@@ -222,8 +222,20 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
   GRAPH_INPUT=$WORK/gpu_registered.mlir
-  if [ -n "${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION:-}" ]; then
-    RESIDENCY_ARGS="function=${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION}"
+  RESIDENCY_FUNCTION=${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION:-}
+  RESIDENCY_PROMOTE_ARGUMENTS=true
+  # Persistent scratch begins as private host globals so it has a stable
+  # address before outlining. Once the complete GPU use graph is visible,
+  # automatically give GPU-only workspaces device storage. Keep function
+  # arguments on their existing boundary policy unless residency was
+  # explicitly requested for them.
+  if [ -z "$RESIDENCY_FUNCTION" ] && \
+     [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+    RESIDENCY_FUNCTION=$POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION
+    RESIDENCY_PROMOTE_ARGUMENTS=false
+  fi
+  if [ -n "$RESIDENCY_FUNCTION" ]; then
+    RESIDENCY_ARGS="function=${RESIDENCY_FUNCTION} promote-function-arguments=${RESIDENCY_PROMOTE_ARGUMENTS}"
     if [ "${POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS:-0}" != "0" ]; then
       RESIDENCY_ARGS="$RESIDENCY_ARGS assume-no-alias=true"
     fi

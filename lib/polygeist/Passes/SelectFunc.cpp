@@ -68,6 +68,19 @@ struct SelectFuncPass
       return;
     }
 
+    // preserve-module mode applies the nested pipeline to the requested roots
+    // while retaining every other top-level operation byte-for-byte.  Keep a
+    // detached clone of those operations while the existing dependency-aware
+    // filter provides a small, verifiable module to the nested pipeline.
+    Block preservedOperations;
+    if (preserveModule) {
+      for (Operation &op : module.getBody()->getOperations()) {
+        auto symbolOp = dyn_cast<SymbolOpInterface>(&op);
+        if (!symbolOp || !llvm::is_contained(funcNames, symbolOp.getName()))
+          preservedOperations.push_back(op.clone());
+      }
+    }
+
     // Keep the requested roots and the transitive symbol dependencies they
     // reference. Previously this pass erased declarations such as `@logf`
     // while leaving calls in the selected function, producing invalid IR.
@@ -120,7 +133,7 @@ struct SelectFuncPass
     // therefore the calls' exact ABI) without compiling unrelated bodies.
     // This is especially important when one of those bodies contains IR that
     // is outside the lowering scope of the selected function.
-    if (externalizeDependencies) {
+    if (externalizeDependencies || preserveModule) {
       for (Operation *op : keep) {
         if (roots.contains(op))
           continue;
@@ -145,7 +158,23 @@ struct SelectFuncPass
 
       if (failed(runPipeline(pm, module))) {
         signalPassFailure();
+        return;
       }
+    }
+
+    if (preserveModule) {
+      // Discard dependency declarations used only to verify the isolated
+      // transformation, then restore their original definitions together
+      // with every untouched function/global.  The selected function remains
+      // at its original symbol and all existing callers continue to target it.
+      for (Operation &op : llvm::make_early_inc_range(
+               module.getBody()->getOperations())) {
+        auto symbolOp = dyn_cast<SymbolOpInterface>(&op);
+        if (!symbolOp || !llvm::is_contained(funcNames, symbolOp.getName()))
+          op.erase();
+      }
+      module.getBody()->getOperations().splice(
+          module.getBody()->end(), preservedOperations.getOperations());
     }
   }
 
@@ -161,6 +190,12 @@ struct SelectFuncPass
   Option<bool> externalizeDependencies{
       *this, "externalize-dependencies",
       llvm::cl::desc("Keep transitive function dependencies as declarations"),
+      llvm::cl::init(false)};
+
+  Option<bool> preserveModule{
+      *this, "preserve-module",
+      llvm::cl::desc("Run the pipeline only on selected roots and restore all "
+                     "other top-level operations unchanged"),
       llvm::cl::init(false)};
 };
 

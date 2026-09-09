@@ -4027,7 +4027,42 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                                MemRefLayoutAttrInterface(),
                                                mt.getMemorySpace());
 
-              auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt0);
+              // polybench_alloc_data returns an untyped allocation which is
+              // immediately cast to a pointer-to-(possibly variable) array.
+              // The cast type, rather than the flat element count passed to
+              // the allocator, carries each logical memref dimension.  Keep
+              // those extents on memref.alloc so compiling a complete
+              // PolyBench application does not produce an invalid dynamic
+              // memref with no dimension operands.
+              SmallVector<mlir::Value, 4> dynamicSizes;
+              QualType arrayType =
+                  cast<clang::PointerType>(
+                      E->getType()->getUnqualifiedDesugaredType())
+                      ->getPointeeType();
+              while (true) {
+                const clang::Type *desugared =
+                    arrayType->getUnqualifiedDesugaredType();
+                if (auto varArray = dyn_cast<VariableArrayType>(desugared)) {
+                  auto extent = Visit(varArray->getSizeExpr())
+                                    .getValue(loc, builder);
+                  extent = builder.create<IndexCastOp>(
+                      loc, builder.getIndexType(), extent);
+                  dynamicSizes.push_back(extent);
+                  arrayType = varArray->getElementType();
+                  continue;
+                }
+                if (auto constantArray =
+                        dyn_cast<ConstantArrayType>(desugared)) {
+                  arrayType = constantArray->getElementType();
+                  continue;
+                }
+                break;
+              }
+              assert(static_cast<int64_t>(dynamicSizes.size()) ==
+                         mt0.getNumDynamicDims() &&
+                     "cast array extents must describe dynamic memref dims");
+              auto alloc = builder.create<mlir::memref::AllocOp>(
+                  loc, mt0, dynamicSizes);
               return ValueCategory(alloc, /*isReference*/ false);
             }
           }
@@ -4849,7 +4884,12 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     break;
   }
 
-  auto rt = getMLIRType(FD->getType());
+  // LLVM globals must store LLVM-dialect element types.  In particular,
+  // libc stream globals such as `stderr` have pointer-to-record C types;
+  // getMLIRType models those pointers as memrefs for structured C lowering,
+  // which is not a legal LLVM::GlobalOp element type.  Preserve the real LLVM
+  // ABI type at this boundary and let AddressOf/Load expose the pointer value.
+  auto rt = typeTranslator.translateType(anonymize(getLLVMType(FD->getType())));
 
   mlir::OpBuilder builder(module->getContext());
   builder.setInsertionPointToStart(module->getBody());

@@ -1,5 +1,6 @@
 // RUN: polygeist-opt --select-func="func-name=root" %s | FileCheck %s
 // RUN: polygeist-opt --select-func="func-name=root externalize-dependencies=true" %s | FileCheck %s --check-prefix=EXTERNAL
+// RUN: polygeist-opt --select-func="func-name=root preserve-module=true pipeline=canonicalize" %s | FileCheck %s --check-prefix=PRESERVE
 
 module {
   func.func @root(%arg0: f32) -> f32 {
@@ -29,3 +30,10 @@ module {
 // EXTERNAL-NOT: call @logf
 // EXTERNAL: func.func private @logf(f32) -> f32
 // EXTERNAL-NOT: func.func @unrelated
+
+// PRESERVE: func.func @root
+// PRESERVE: call @helper
+// PRESERVE: func.func private @helper
+// PRESERVE: call @logf
+// PRESERVE: func.func private @logf
+// PRESERVE: func.func @unrelated

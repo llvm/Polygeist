@@ -71,51 +71,12 @@ while IFS=, read -r kernel category source_rel dataset datatype hash native rais
     printf '%s,native_clang18,%s,%d,%s,%s,1\n' "$kernel" "$native_status" "$native_build" 5 "$cpu" | tee -a "$summary"
   fi
 
-  cp "/tmp/polybench-section42-residual/e2e_${kernel}_debuf/wrapper.c" "$out/residual_wrapper.c"
-  "$clang" -O3 -fno-inline -fno-inline-functions \
-    -fsemantic-interposition -fgnu89-inline \
-    "${common[@]}" -Dstatic= -c "$source" -o "$out/harness_full.o" &&
-    objcopy --weaken-symbol="$function" "$out/harness_full.o" "$out/harness.o" &&
-    "$clang" -O3 "${common[@]}" -c "$util/polybench.c" -o "$out/polybench.o" &&
-    "$clang" -O3 -c "$out/residual_wrapper.c" -o "$out/residual_wrapper.o" &&
-    "$clang" -O3 -c "$result_root/ir/$kernel/residual.ll" -o "$out/residual_kernel.o" &&
-    "$clang" "$out/harness.o" "$out/residual_wrapper.o" "$out/residual_kernel.o" \
-      "$out/polybench.o" -lm -L/home/arjaiswal/Polygeist/llvm-project/build/lib \
-      -Wl,-rpath,/home/arjaiswal/Polygeist/llvm-project/build/lib \
-      -lmlir_c_runner_utils -o "$out/residual" \
-      > "$log_dir/residual_timing_build.log" 2>&1
-  residual_build=$?
-  residual_status=fail
-  if [[ $residual_build -eq 0 ]] && nm "$out/residual" | grep -q " T $function$" && \
-      run_samples "$kernel" raised_residual_cpu "$out/residual" "$log_dir/residual_timing_raw.log"; then
-    residual_status=pass
-  fi
-  printf '%s,raised_residual_cpu,%s,%d,%s,%s,1\n' "$kernel" "$residual_status" "$residual_build" 5 "$cpu" | tee -a "$summary"
+  # The former raised-residual path weakened the original kernel symbol so a
+  # selected replacement won at link time. That is now forbidden and excluded.
+  printf '%s,raised_residual_cpu,excluded,125,%s,%s,1\n' "$kernel" 0 "$cpu" | tee -a "$summary"
 done < "$result_root/manifest.csv"
 fi
 
-default_library_kernels=(2mm atax bicg gemm gemver gesummv mvt syr2k syrk trisolv symm trmm)
-library_kernels=("${default_library_kernels[@]}")
-if [[ $# -gt 0 ]]; then library_kernels=("$@"); fi
-for kernel in "${library_kernels[@]}"; do
-  source_rel=$(awk -F, -v k="$kernel" '$1==k {print $3}' "$result_root/manifest.csv")
-  source="$repo/$source_rel"
-  function="kernel_${kernel//-/_}"
-  out="$root/$kernel/openblas"
-  log_dir="$result_root/logs/$kernel"
-  export POLYGEIST_CPU_BLAS=1
-  export POLYGEIST_CPU_BLAS_LIBS=-lopenblas
-  "$repo/scripts/correctness/polygeist_build.sh" --target=host \
-    --function="$function" --semantic-mlir="$result_root/ir/$kernel/matched.mlir" \
-    -o "$out" "$source" -O3 -I"$util" -I"$(dirname "$source")" -Dstatic= \
-    -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO \
-    -DPOLYBENCH_TIME -DPOLYBENCH_DUMP_ARRAYS \
-    > "$log_dir/cpu_library_timing_build.log" 2>&1
-  build_rc=$?
-  status=fail
-  if [[ $build_rc -eq 0 ]] && nm "$out" | grep -q " T $function$" && \
-      run_samples "$kernel" openblas_cblas_1t "$out" "$log_dir/cpu_library_timing_raw.log"; then
-    status=pass
-  fi
-  printf '%s,openblas_cblas_1t,%s,%d,%s,%s,1\n' "$kernel" "$status" "$build_rc" 5 "$cpu" | tee -a "$summary"
-done
+# CPU-library application rows formerly used the same symbol-substitution
+# mechanism through polygeist_build.sh. They are excluded until an untouched
+# compiler transformation and application build are available.

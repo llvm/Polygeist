@@ -17,7 +17,24 @@ module {
     }
     return
   }
+
+  func.func @dot_lifted_c(%x2: memref<?xf64>, %y2: memref<?xf64>,
+                          %storage2: memref<?xf64>) {
+    %zero = arith.constant 0.0 : f64
+    affine.store %zero, %storage2[0] : memref<?xf64>
+    %out2 = memref.reinterpret_cast %storage2 to offset: [0], sizes: [], strides: [] : memref<?xf64> to memref<f64>
+    linalg.generic {indexing_maps = [#id, #id, #scalar], iterator_types = ["reduction"]} ins(%x2, %y2 : memref<?xf64>, memref<?xf64>)
+      outs(%out2 : memref<f64>) {
+    ^bb0(%in: f64, %in_0: f64, %out_value: f64):
+      %product = arith.mulf %in, %in_0 : f64
+      %sum = arith.addf %out_value, %product : f64
+      linalg.yield %sum : f64
+    }
+    return
+  }
 }
 
+// CHECK: kernel.launch @cublasDdot_memref
+// CHECK-NOT: affine.store
 // CHECK: kernel.launch @cublasDdot_memref
 // CHECK-NOT: linalg.generic
