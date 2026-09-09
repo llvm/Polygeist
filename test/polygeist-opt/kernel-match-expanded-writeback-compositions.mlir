@@ -24,6 +24,7 @@
 #map21 = affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d1, d4, d5, d6)>
 #map22 = affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d4, d5 + d2, d6 + d3)>
 #map23 = affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3, d4, d5, d6)>
+#map24 = affine_map<(d0, d1) -> (d1)>
 
 module {
   func.func @count_nonzero_expanded(%arg0: memref<?x64xf32>, %arg1: memref<?xi32>) {
@@ -132,7 +133,7 @@ module {
     return
   }
 
-  func.func @aten_avg_pool2d_backward_cpu(%arg0: memref<?xf32>, %arg1: memref<?xf32>) {
+  func.func @pool_backward_expanded(%arg0: memref<?xf32>, %arg1: memref<?xf32>) {
     %zero = arith.constant 0.0 : f32
     %four = arith.constant 4.0 : f32
     %c6 = arith.constant 6 : index
@@ -252,6 +253,23 @@ module {
     memref.copy %result, %arg2 : memref<?x32x130x130xf32> to memref<?x32x130x130xf32>
     return
   }
+
+  func.func @hidden_rank1_broadcast(%arg0: memref<?xf32>, %arg1: memref<?x8192xf32>) {
+    %c512 = arith.constant 512 : index
+    %c8192 = arith.constant 8192 : index
+    %source = bufferization.to_tensor %arg0 : memref<?xf32>
+    %output = bufferization.to_tensor %arg1 : memref<?x8192xf32>
+    %source_view = polygeist.submap(%source, %c512, %c8192) {map = #map24} : (tensor<?xf32>, index, index) -> tensor<?x?xf32>
+    %output_view = polygeist.submap(%output, %c512, %c8192) {map = #map1} : (tensor<?x8192xf32>, index, index) -> tensor<?x?xf32>
+    %broadcast = linalg.generic {indexing_maps = [#map1, #map1], iterator_types = ["parallel", "parallel"]} ins(%source_view : tensor<?x?xf32>) outs(%output_view : tensor<?x?xf32>) {
+    ^bb0(%in: f32, %out: f32):
+      linalg.yield %in : f32
+    } -> tensor<?x?xf32>
+    %written = polygeist.submapInverse(%output, %broadcast, %c512, %c8192) {map = #map1} : (tensor<?x8192xf32>, tensor<?x?xf32>, index, index) -> tensor<?x8192xf32>
+    %result = bufferization.to_memref %written : memref<?x8192xf32>
+    memref.copy %result, %arg1 : memref<?x8192xf32> to memref<?x8192xf32>
+    return
+  }
 }
 
 // CHECK-LABEL: func.func @count_nonzero_expanded
@@ -271,9 +289,10 @@ module {
 // CHECK: kernel.launch @cubSegmentedSum_f64_memref
 // CHECK-SAME: polygeist.fixed_extents = array<i64: 65536, 64>
 // CHECK-NEXT: return
-// CHECK-LABEL: func.func @aten_avg_pool2d_backward_cpu
-// CHECK: kernel.launch @cudnnAveragePool_f32_flat2
-// CHECK-NEXT: return
+// CHECK-LABEL: func.func @pool_backward_expanded
+// CHECK: kernel.launch @memset_zero_1D_f32
+// CHECK-NOT: kernel.launch @cudnnAveragePool_f32_flat2
+// CHECK: return
 // CHECK-LABEL: func.func @kron_expanded
 // CHECK: kernel.launch @cutensorKroneckerProduct2D_f32_memref
 // CHECK-NEXT: return
@@ -283,3 +302,6 @@ module {
 // CHECK-LABEL: func.func @aten_conv_transpose2d
 // CHECK: kernel.launch @cudnnConvolutionTranspose2D_f32_memref
 // CHECK-NEXT: return
+// CHECK-LABEL: func.func @hidden_rank1_broadcast
+// CHECK: kernel.launch @cublasBroadcastAxis1_f32
+// CHECK-NOT: kernel.launch @cutensorPermute

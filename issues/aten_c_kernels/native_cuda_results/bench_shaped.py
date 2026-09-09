@@ -6,12 +6,18 @@ at the same shape and dtype as the raised resident harness.  CUDA timing uses
 a synchronized wall-clock scope by default so it is directly comparable to
 the raised harness.  Prints one machine-readable kernel line per spec.
 """
-import json, os, sys, time
+import json, os, statistics, sys, time
 import torch
 import torch.nn.functional as F
 
 d = os.environ.get("ATEN_BENCH_DEVICE", "cuda")
 timing = os.environ.get("ATEN_BENCH_TIMING", "sync_wall")
+if d == "cpu" and os.environ.get("ATEN_BENCH_CPU_THREADS"):
+    torch.set_num_threads(int(os.environ["ATEN_BENCH_CPU_THREADS"]))
+if d == "cpu" and os.environ.get("ATEN_BENCH_CPU_INTEROP_THREADS"):
+    torch.set_num_interop_threads(
+        int(os.environ["ATEN_BENCH_CPU_INTEROP_THREADS"])
+    )
 SPECS = json.load(open(sys.argv[1] if len(sys.argv) > 1 else "shape_specs.json"))
 validate_only = os.environ.get("ATEN_BENCH_VALIDATE_ONLY", "0") not in {
     "", "0", "false", "FALSE"
@@ -704,7 +710,7 @@ def bench_native_fixture(k, op, dims, n, shape, scalar_args):
          f"{recipe_suffix(k)} shape='{shape}'")
 
 
-def bench(name, fn, shape, warm=5, it=20):
+def bench(name, fn, shape, warm=5, it=5):
     if validate_only:
         warm, it = 0, 1
     try:
@@ -712,7 +718,7 @@ def bench(name, fn, shape, warm=5, it=20):
             fn()
         if d == "cuda":
             torch.cuda.synchronize()
-        best = 1e30
+        samples = []
         for _ in range(it):
             if d == "cuda" and timing == "cuda_event":
                 s = torch.cuda.Event(enable_timing=True)
@@ -724,9 +730,12 @@ def bench(name, fn, shape, warm=5, it=20):
                 if d == "cuda":
                     torch.cuda.synchronize()
                 elapsed_us = (time.perf_counter_ns() - start) / 1000.0
-            best = min(best, elapsed_us)
+            samples.append(elapsed_us)
+        value = statistics.median(samples)
         metric = "torch_resident_us" if d == "cuda" else "torch_cpu_us"
-        emit(f"kernel={name} {metric}={best:.3f} timing={timing} "
+        raw = ",".join(f"{sample:.3f}" for sample in samples)
+        emit(f"SAMPLES kernel={name} {metric}={raw} median_us={value:.3f}")
+        emit(f"kernel={name} {metric}={value:.3f} timing={timing} "
              f"{recipe_suffix(name)} shape='{shape}'")
     except Exception as ex:
         metric = "torch_resident_us" if d == "cuda" else "torch_cpu_us"

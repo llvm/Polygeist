@@ -613,6 +613,27 @@ public:
         opName,
         castedOperands      // Use casted operands
     );
+
+    // A matched linalg.generic is destination-style, but a library definition
+    // may yield a computed SSA value instead of yielding its output block
+    // argument directly.  Preserve the original DPS destination mapping on
+    // the launch so One-Shot Bufferize can reuse the caller's output buffer
+    // before the launch is lowered to a runtime call.  Operand casts do not
+    // change operand numbering, so derive the mapping from the uncast values.
+    SmallVector<int64_t> resultDestinations;
+    resultDestinations.reserve(genericOp.getNumDpsInits());
+    for (Value init : genericOp.getDpsInits()) {
+      auto destination = llvm::find(operands, init);
+      if (destination == operands.end()) {
+        resultDestinations.clear();
+        break;
+      }
+      resultDestinations.push_back(
+          static_cast<int64_t>(std::distance(operands.begin(), destination)));
+    }
+    if (resultDestinations.size() == launchOp.getNumResults())
+      launchOp->setAttr("polygeist.result_destinations",
+                        rewriter.getDenseI64ArrayAttr(resultDestinations));
     
     // Cast results back to original types if needed
     SmallVector<Value> finalResults;
@@ -762,4 +783,4 @@ std::unique_ptr<Pass> createLinalgToKernelPass(const std::string& kernelLibraryP
   return std::make_unique<LinalgToKernelPass>(kernelLibraryPath);
 }
 
-} // namespace mlir::polygeist 
+} // namespace mlir::polygeist

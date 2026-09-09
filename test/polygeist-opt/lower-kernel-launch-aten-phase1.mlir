@@ -98,4 +98,16 @@ module {
     memref.copy %tmp, %out : memref<?xf32> to memref<?xf32>
     return
   }
+
+  // A tensor-to-memref round trip over the same destination is also an
+  // identity copy, even when canonicalization has folded away insert_slice.
+  // CHECK-LABEL: func.func @roundtrip_identity_copy
+  // CHECK-NOT: memref.copy
+  // CHECK: return
+  func.func @roundtrip_identity_copy(%out: memref<?xf64>) {
+    %out_t = bufferization.to_tensor %out restrict writable : memref<?xf64>
+    %roundtrip = bufferization.to_memref %out_t : memref<?xf64>
+    memref.copy %roundtrip, %out : memref<?xf64> to memref<?xf64>
+    return
+  }
 }
