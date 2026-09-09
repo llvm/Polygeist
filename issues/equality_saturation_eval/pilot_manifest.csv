@@ -1,0 +1,3 @@
+suite,input_id,path
+regression,reassociated_gemm,/home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-reassociated-gemm.mlir
+polybench,gemm,/tmp/polybench_new/gemm_debuf_mr.mlir

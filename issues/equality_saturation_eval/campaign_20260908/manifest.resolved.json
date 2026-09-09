@@ -1,0 +1,4124 @@
+[
+  {
+    "input_id": "2mm",
+    "path": "/tmp/polybench_new/2mm_debuf.mlir",
+    "sha256": "f4bde9c30112c993312f8b8cd2f0a6f425986828f77170f013715f0656b7ed56",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "3mm",
+    "path": "/tmp/polybench_new/3mm_debuf.mlir",
+    "sha256": "f5737043d731e584286b167ed13fb8449f99a2eda413fc39ab743af3a26f6570",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "adi",
+    "path": "/tmp/polybench_new/adi_debuf.mlir",
+    "sha256": "ae1fc372879391f749f68af05c0b991e7b5a5c8c68e6cb6bbcc0da05e0997e46",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "atax",
+    "path": "/tmp/polybench_new/atax_debuf.mlir",
+    "sha256": "02d42e5c9c52f0bcb1d801d8f04a8b221745877ed18d016b40d337515d483967",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "bicg",
+    "path": "/tmp/polybench_new/bicg_debuf.mlir",
+    "sha256": "cde693b58f0967435381c4b82f5dac118a9ef5af5dd7b34f38f841597ead36a0",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "cholesky",
+    "path": "/tmp/polybench_new/cholesky_debuf.mlir",
+    "sha256": "f11f3515eda84e336a046f2effe13e3ae04b5b0bdc6c148eb437f6fcfeac5cbb",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "correlation",
+    "path": "/tmp/polybench_new/correlation_debuf.mlir",
+    "sha256": "d8a229e67216a440898dfae2e5b503040551351d2102bbc92ec6ce5657d22aaf",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "covariance",
+    "path": "/tmp/polybench_new/covariance_debuf.mlir",
+    "sha256": "83ff5feae6a93e48f62308bbb38efa9973826e495db307a69e6ed5f3515197ec",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "deriche",
+    "path": "/tmp/polybench_new/deriche_debuf.mlir",
+    "sha256": "418f71687dee9208a37b07a22ca8eedd90c9045c0c1db3af1e4b1e79435df325",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "doitgen",
+    "path": "/tmp/polybench_new/doitgen_debuf.mlir",
+    "sha256": "ad5071ab7cf173bbf4ba8f7f8386e34218ac7c4f7fee84f1bc1ca7e916fb33ff",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "durbin",
+    "path": "/tmp/polybench_new/durbin_debuf.mlir",
+    "sha256": "4e2de5ad4421819b50b8507ddc9c68153510a921a2ed22813ed5ad6735568481",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "fdtd-2d",
+    "path": "/tmp/polybench_new/fdtd-2d_debuf.mlir",
+    "sha256": "a58b734394eb311c5bfa4240f03fdd955d105039cd7845c3e28e3619eb4fb386",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "floyd-warshall",
+    "path": "/tmp/polybench_new/floyd-warshall_debuf.mlir",
+    "sha256": "c24faf3be91a1e5fbf866632426f1a4baba8fbbe68791710bfbb4cfac35114ec",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gemm",
+    "path": "/tmp/polybench_new/gemm_debuf.mlir",
+    "sha256": "ad63d36831dc1b8165d650d9c99ab0c5e08c2313aa91c03245b1fb1b21eff7b6",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gemver",
+    "path": "/tmp/polybench_new/gemver_debuf.mlir",
+    "sha256": "122c852ea27b98b0b4478dd079430cffd240602da80a79ad0a57eda4f502cdb6",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gesummv",
+    "path": "/tmp/polybench_new/gesummv_debuf.mlir",
+    "sha256": "43add1362cdb7389767cc380fa8f56b7095faa4eaa1a1662c35c7e675cbc916c",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gramschmidt",
+    "path": "/tmp/polybench_new/gramschmidt_debuf.mlir",
+    "sha256": "528a2aa39502113fbb5d1516cae3f6c377b4da85b61ab5c0a9c6c292e0b779ea",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "heat-3d",
+    "path": "/tmp/polybench_new/heat-3d_debuf.mlir",
+    "sha256": "7c8ddfcfd4563b5aad234b581b17b6abfc36b3aba35b61f53f55b89ed4b58ec7",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "jacobi-1d",
+    "path": "/tmp/polybench_new/jacobi-1d_debuf.mlir",
+    "sha256": "e27d3faae8be9509b17c1774b36df57a982c08c1526572cc4574f73591403a12",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "jacobi-2d",
+    "path": "/tmp/polybench_new/jacobi-2d_debuf.mlir",
+    "sha256": "677bf9307626a499e348b4bc247746269eef2b799ad6fb2b848f49d9944324f4",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "lu",
+    "path": "/tmp/polybench_new/lu_debuf.mlir",
+    "sha256": "ece93a03365d3f03eeec0517b604124f97112054a65f7d01125e2517cc72eaa5",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "ludcmp",
+    "path": "/tmp/polybench_new/ludcmp_debuf.mlir",
+    "sha256": "377afee04a0fc8cb2335aa8d8643d5fc9de6016a91bea86f15e6440e1a80fdaa",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "mvt",
+    "path": "/tmp/polybench_new/mvt_debuf.mlir",
+    "sha256": "43dc2ed49a2518e95ac97c63a67732474079780fa50ed4ca4f293d334d8de850",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "nussinov",
+    "path": "/tmp/polybench_new/nussinov_debuf.mlir",
+    "sha256": "1bbdc3fec8f84d40219602c881c5b6434b2de278071ce26b83baa5c86b326599",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "seidel-2d",
+    "path": "/tmp/polybench_new/seidel-2d_debuf.mlir",
+    "sha256": "7d386052ea5a0b212922458c059b06c3d1ffb9f240593cd0b4c78299f7d21bcf",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "symm",
+    "path": "/tmp/polybench_new/symm_debuf.mlir",
+    "sha256": "f1647a7fb7eec5e9a3fc3aeff7e761b67f70034d2b01f911ef87887bf3d8ae98",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "syr2k",
+    "path": "/tmp/polybench_new/syr2k_debuf.mlir",
+    "sha256": "f5d1a233836dea468c7a2a7a7e141a301fc59101c8969fc6793969a923950e6c",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "syrk",
+    "path": "/tmp/polybench_new/syrk_debuf.mlir",
+    "sha256": "d2f8213564f5bdb81ea3397725f486722d47cc91b7b4fc27bf5b5571b6fd5262",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "trisolv",
+    "path": "/tmp/polybench_new/trisolv_debuf.mlir",
+    "sha256": "95d2bde734d434f5425644c22ff90a722ff63d5dbdc03aa5fd87629720965920",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "trmm",
+    "path": "/tmp/polybench_new/trmm_debuf.mlir",
+    "sha256": "ffe57ad58d1b46820e13a964460500a71fa397d5a069e526d9cb15ff68e99db2",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "aten_abs",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_abs/debuf.mlir",
+    "sha256": "e40bb3d37c8ac77f8636f1ec0506c5c6a074813d1008bdd94a63054ca33a37be",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_acos",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_acos/debuf.mlir",
+    "sha256": "643a7ef4fb332dbfb4533b74ed07bcf7e25d49fb5d3796b60b48692b2dbb1483",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_acosh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_acosh/debuf.mlir",
+    "sha256": "97c5b281954ae5f0de6b59c6354a9b82f9f1d7e4a3d15117e92d9b2aefff7ff0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool2d/debuf.mlir",
+    "sha256": "d66b002b8f6f650c92b930771e5adb7c03a8bba37e096d007aa835c8b854b3f5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool2d_backward_cpu/debuf.mlir",
+    "sha256": "744b2d2093ca9bbb27281c8ec930e0e89e8a62447459b8695ee99f99b9ec1634",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool2d_cpu/debuf.mlir",
+    "sha256": "10dac0670973119f7215932af3d3224ef00d65723ec26f492c3b11d023dd80d0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool3d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool3d/debuf.mlir",
+    "sha256": "7680ffbc480895627e101461edbe74244e7cce7ad03a8bca72b6adb6e9b0465c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool3d_backward_cpu/debuf.mlir",
+    "sha256": "6e507e6da12a6af960857054dace5381de2ebedd04b7634321c8023af9cbf0dc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_avg_pool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_avg_pool3d_cpu/debuf.mlir",
+    "sha256": "565ef1763ab0857cab1460e9685eda95427b058257e7d493ee9f2853d74b53ef",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool1d_cpu/debuf.mlir",
+    "sha256": "6bdcdcccbcb27ed58488a9063ad61a98b39b38149275cf9b7091b8eb370ee92e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool2d_backward_cpu/debuf.mlir",
+    "sha256": "60cb95b82e795d4f08a52e560bd71dcccd84013fb3c76e2b34136ae083eaf2d2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool2d_cpu/debuf.mlir",
+    "sha256": "5adf4438a39758a6790e032064fc0020813678cc5239f769a2d2434d972f263f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool3d_backward_cpu/debuf.mlir",
+    "sha256": "31c2f3b6535a0ee2ca054af90f8dc31783080879b149a6be5b8769777b82849d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool3d_cpu/debuf.mlir",
+    "sha256": "743877a3031b8194b0996c12ad760fe8b4b9cf0a7a00453955cc088bd84278e5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool3d_legacy_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool3d_legacy_backward_cpu/debuf.mlir",
+    "sha256": "33b6074b4926d73f6403b36947b6348669c9480f09e32e63da44c0a0f765a2c1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_adaptive_max_pool3d_legacy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_adaptive_max_pool3d_legacy_cpu/debuf.mlir",
+    "sha256": "1d46361eebe498da7c8fcc17bed42e27d9cd9785bc7407dc158bf2c30a91941e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_add",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_add/debuf.mlir",
+    "sha256": "6788af53a06ac73c19263d6c3f20b8afbe8145e9880b9af491806767c7abd168",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_add_clamp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_add_clamp/debuf.mlir",
+    "sha256": "aeeb6eebf05f1197ee2ac81c6e8ad05e4555276529fa3d7de7e0179c131f496f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_addcdiv",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addcdiv/debuf.mlir",
+    "sha256": "2cb376c6af9813b7e35c96cb3c5e61f112d3dddbbbdf12c93bb1c98030d47ad0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_addcmul",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addcmul/debuf.mlir",
+    "sha256": "6216e9b4a9b3758a2ae901638c258e87952985dcbe6ebc1ec31e79fe6f9c50e0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_addmm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir",
+    "sha256": "d4ec02dd4624ae6f0e9d9206ca100cb54c2e9045f36484a7a9aeb1bd6d863e12",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_addr_elementwise",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addr_elementwise/debuf.mlir",
+    "sha256": "8f6189a7945d9d6e62cfab5cd7fa0dd88666f0a36c66b2824fe64ca5bb053e62",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_airy_ai",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_airy_ai/debuf.mlir",
+    "sha256": "53e415380ab93db7449a984a25f94b20ec901c4c3224471e356421291b219c9a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_allany_dims_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_allany_dims_cpu/debuf.mlir",
+    "sha256": "9e42365b0ed9cfa0e61f48c215d79859c35fbb5815a955c03e3ae99724aef6a0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_aminmax_allreduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_aminmax_allreduce_cpu/debuf.mlir",
+    "sha256": "c3bc38a821b0a88d90fc9621745b77dadcedab9b27fc2999ed91d585baa79238",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_aminmax_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_aminmax_cpu/debuf.mlir",
+    "sha256": "5b41fe97e6af61beae7beafca70833bd62dad613a05eddc5efc67d8b169471ed",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_amp_update_scale_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_amp_update_scale_cpu/debuf.mlir",
+    "sha256": "ea4a0d4799ffbb2b68482a3e6a000bff6ed5d276b4bce6f601598efefbbe939c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_and_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_and_reduce_cpu/debuf.mlir",
+    "sha256": "ecc39f2b5f79a0e05500c7a26014f04ca33b810718c61c397165f7b69f6add13",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_angle_complex_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_angle_complex_scalarized/debuf.mlir",
+    "sha256": "355e64f6cb2560064c146abf8218e3fbc6c78e5772bfec14f6d33cc23bbe2277",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_angle_real",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_angle_real/debuf.mlir",
+    "sha256": "f494fe955eb5c039a87a80b1ac44ece249780a3cf5651a64fc82c35d5eafc88e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_arange_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_arange_cpu/debuf.mlir",
+    "sha256": "69fbc9f4de435708f0ef7d22cda7005817c9b1934499192a27dc1e23801e01b9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_argmax_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_argmax_cpu/debuf.mlir",
+    "sha256": "80b9b9990556950ff48e441368faa29c131a365ab23e687ff2cea567a873f837",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_argmin_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_argmin_cpu/debuf.mlir",
+    "sha256": "6a3ef90e21dc4d08eec63391f194379f4d7c334dc2a56066259335b9d8cebba8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_as_complex_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_as_complex_cpu/debuf.mlir",
+    "sha256": "052009a780718944e5bb0c1251eb7c2ebd91484eaa764fabe67b7fbb0fbee123",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_asin",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_asin/debuf.mlir",
+    "sha256": "f9c7190bb500b4dc00716d7506a297dd656bf80ccf7eb332746cb45ae9285980",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_asinh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_asinh/debuf.mlir",
+    "sha256": "4c91f893240070e1c8972f400c66a7b337902fa4c1bf49c9dc267b8a976cc077",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_atan",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_atan/debuf.mlir",
+    "sha256": "3499ee739920ba8509a64c9926a35c91ee2689be699b74128e806c31193095c3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_atan2",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_atan2/debuf.mlir",
+    "sha256": "1548f646d8466d9a08561aa2dcd312a02567be9767ed37cad6a4a174f0e20b82",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_atanh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_atanh/debuf.mlir",
+    "sha256": "78b2c86e3100abca8bdffd15e9217fe41a12fb1eefb03a56ec7e9e51902c8a35",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool2d/debuf.mlir",
+    "sha256": "ca370acd72a68ba63622ea27cf83d588cb083d5c6876dcc0543f3b30c4c0f44c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool2d_backward_cpu/debuf.mlir",
+    "sha256": "4c4ebe3646567aeafb47b6880f729a5f672177b6c273aa10385c12a203db5097",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool2d_cpu/debuf.mlir",
+    "sha256": "6ccd0cf5f9a7fd14005378a615684c58dca25309ac7b8f2445fa00e1faf9bc1b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool3d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool3d/debuf.mlir",
+    "sha256": "55a6c3faa053720bb6d9d538013b1dce579e95fdaf42f6a20895a4a6e73b82b4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool3d_backward_cpu/debuf.mlir",
+    "sha256": "3c9070ee89f688d6f00599eda93d2130846cca159013c2b7a10e98e569781f56",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_avg_pool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_avg_pool3d_cpu/debuf.mlir",
+    "sha256": "95c6d80639d104217f240f73e1ad843137d51ac484825c7e529a2f74b7f8c0e5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm/debuf.mlir",
+    "sha256": "ca4c985ff58e0a25548c94c51c2c2a08097166e664d906edb99386cfbf680a76",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_backward_cpu/debuf.mlir",
+    "sha256": "e04baf04febffb3027d37d5682dcd5bea41863baf952c70059ca8c50c70ab905",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_backward_template_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_backward_template_cpu/debuf.mlir",
+    "sha256": "ab5c3273c3030f91152e0981f805026ffd1be7e958ba8327593148f49daedf1b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_collect_stats_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_collect_stats_cpu/debuf.mlir",
+    "sha256": "b8fff9d1596a73c1d266717a0806733de20a8c200754e855e7651c00dff51bb0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_cpu_entry",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_cpu_entry/debuf.mlir",
+    "sha256": "ff734fd4b1515a8e7d515ac494aaa59e3b00e15b6568d506b55ac84688770080",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_stats_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_stats_cpu/debuf.mlir",
+    "sha256": "bc9e0e803e6b1647bc02337d3dde914eef3c309ce954fffdafb23c937d26f3bf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_batch_norm_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_batch_norm_transform_cpu/debuf.mlir",
+    "sha256": "c9633a54fcb16d3cde25488bab016937bfbf41ed7f170e44f0cf8b465de9c78b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bernoulli_scalar_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bernoulli_scalar_cpu/debuf.mlir",
+    "sha256": "52c3c606f2e1b73a2c247cce2faf1601565ddfc7d7b1c49bc3f3cb8dda14020b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bernoulli_tensor_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bernoulli_tensor_cpu/debuf.mlir",
+    "sha256": "c11ef191bc898cb7b11cac0803e00be30cbdcc68b0b97969883b8c7ea6480f63",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bessel_j0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bessel_j0/debuf.mlir",
+    "sha256": "38473e18796b0179902048c9358ae24c3d19d3750e4d131211313906e1983a03",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bessel_j1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bessel_j1/debuf.mlir",
+    "sha256": "07e9dcbab8a45e7eaf4461261d18101ea98fc0784e485f5d85451a66350d5995",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bessel_y0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bessel_y0/debuf.mlir",
+    "sha256": "186c6aaa5e1d7aa650b8c76f7d644bde195e7d673291a3fcd199b1cbd9985a5f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bessel_y1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bessel_y1/debuf.mlir",
+    "sha256": "6db2b9ea600f896fb89e4b9f8f1e61cc096b26232145620842756e8c02a3f3d8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bf16_dot_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bf16_dot_cpu/debuf.mlir",
+    "sha256": "eab6721bb987a708bc94be75e07986e7fe08af76b3a1b565f5956713b328a18c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bf16_gemv_trans_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bf16_gemv_trans_cpu/debuf.mlir",
+    "sha256": "4836d8c1c777e098581893eb1fcba8b44f2530370af4624e5c07daae9f1c40e4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bilinear_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bilinear_cpu/debuf.mlir",
+    "sha256": "100a639bcf0a7297cab338850beab39908f68bb820e86bbe55d1e7369f33379b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_binary_cross_entropy",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_binary_cross_entropy/debuf.mlir",
+    "sha256": "7d022c833c329940a91784a37fe29bccbf90ad9568cce3ba93c9eeaea665c17c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_binary_search_strided_rightmost_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_binary_search_strided_rightmost_cpu/debuf.mlir",
+    "sha256": "b145521e33357f9678a1b0230ece317f75f18f6d72b3ad9d2b747aa74e6b9c55",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bincount_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bincount_cpu/debuf.mlir",
+    "sha256": "a6344762340960393d945e6c52cdae1420c5ed76302fb0ad7ff270aabf041f75",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_binomial_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_binomial_transform_cpu/debuf.mlir",
+    "sha256": "f1c45b218a81749363e64800810aa0056a05565f1ee13868076f009a67994e72",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bitwise_and_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bitwise_and_i32/debuf.mlir",
+    "sha256": "01a7baa46b21748817dffac627134cfff86cd6d8a3eb0cfbd42b7b816a56629b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bitwise_not_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bitwise_not_i32/debuf.mlir",
+    "sha256": "53209c6c32a2f4e3c4bcbdf529a3dd980aa36e6128ab58f3c32575f1a45e4146",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bitwise_or_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bitwise_or_i32/debuf.mlir",
+    "sha256": "7e7280b238fec265a2b416ff75760b98b20ba6063c5b5eb56eaf050bdf6f6114",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bitwise_xor_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bitwise_xor_i32/debuf.mlir",
+    "sha256": "5c2539ebd60b1eda593b8ef4b2e1bf2432f4850b9af863e4147b56d0938d0fde",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_axpy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_axpy_cpu/debuf.mlir",
+    "sha256": "f66f3502ce2bd9ee97a5af17d48d854f5b9349a1583c73ee06bc75d43e0bff78",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_copy_cpu/debuf.mlir",
+    "sha256": "deeada5390218201b35781d0c6a0747b29236e669a6419b3d5ecce4e0b8e1363",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_dot_naive_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_dot_naive_cpu/debuf.mlir",
+    "sha256": "903910d214d7e8dbfe4260494ee623f2186c7ea00b82d1bd0cf8b7a9dedc5410",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_gemv_generic_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_gemv_generic_cpu/debuf.mlir",
+    "sha256": "6f55e60a440b5196e5ac11154aad11bcd0bf021d4b04b50d88f42862b53e906f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_scale_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_scale_cpu/debuf.mlir",
+    "sha256": "829ec6a83ea2369599a062bd21933d471048aecea43920d73fd9cdb7baa34b30",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_blas_sum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_blas_sum_cpu/debuf.mlir",
+    "sha256": "114c56452a2dfa2a9e65db1452bac90fbab5cfa799c520084c0dfa179359cf2c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_block_diag_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_block_diag_cpu/debuf.mlir",
+    "sha256": "25655dad10a6c7c0ace723396f10fd6c850b144198d02e9759fce510296e4e82",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_bmm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_bmm/debuf.mlir",
+    "sha256": "a5c2fe34c0509da6490013f44d5c59f8f905c00e8f5f3e263f20bcbe3abda3ab",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cartesian_prod_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cartesian_prod_cpu/debuf.mlir",
+    "sha256": "75de47d2d2f0bfb40b02f91fe26d6cc8c8bc6399f0519e696e1148339a2b8e45",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cat_serial_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cat_serial_cpu/debuf.mlir",
+    "sha256": "680a7535bf0b434ca2652be130a127e128f501a148fb49ff1ff67bdb28c4b516",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cat_sparse_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cat_sparse_cpu/debuf.mlir",
+    "sha256": "6d456619f091d87bc691ceae6aba897ef7371f6d8acb34e11b20387bd5d5bd81",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cauchy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cauchy_cpu/debuf.mlir",
+    "sha256": "715d5ab8eb75a3a42a11f75f4373daae4921e124555dda68fe4578fc5f28b75f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cdist_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cdist_backward_cpu/debuf.mlir",
+    "sha256": "49128193b9ed6ff2f0683daa2ca3f1964f2cd04d7b8e29fdda245c8393997c52",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cdist_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cdist_cpu/debuf.mlir",
+    "sha256": "6305541692b2875d6822b8dc10d88501765f4adeb2d9e43e8d75219b9ad9fc46",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ceil",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ceil/debuf.mlir",
+    "sha256": "073dcb0eaca10d248c8330c2e0b908740c98e436836bc8975dd19e91fb9925e4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_channel_shuffle",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_channel_shuffle/debuf.mlir",
+    "sha256": "de5add8b3339e65dfb9b697eae20f077a5771c2715e4d9b87cde79c68e1e4d82",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_channel_shuffle_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_channel_shuffle_cpu/debuf.mlir",
+    "sha256": "efc85f4ed1b977679e3a29c1887bef185eb004e4720d59a9310710a04e042b2f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_chebyshev_polynomial_t",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_chebyshev_polynomial_t/debuf.mlir",
+    "sha256": "0c5dcf2342bd8d0b6bd3c14dc7cfea85fb333ba759f797e629759bb37ca8d604",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_chebyshev_polynomial_u",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_chebyshev_polynomial_u/debuf.mlir",
+    "sha256": "668b1cf74c42af64582e1dc0d10ec5ed39f0401085936843d8c794caae7996af",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_chebyshev_polynomial_v",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_chebyshev_polynomial_v/debuf.mlir",
+    "sha256": "3e1f527db6ff3f4c8d8bc9ea9e85e877d05c6f96afe01bd7ccc01cebe724aa0e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_chebyshev_polynomial_w",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_chebyshev_polynomial_w/debuf.mlir",
+    "sha256": "74d2e9e8c457831be6b08d925e8e50d4d18473df4e7945a38af566c972d8c16e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_circular_pad_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_circular_pad_cpu/debuf.mlir",
+    "sha256": "260f1da30854ff648eeb59eacdacf4e8415e5af8905b48fe11f4b859fa0ebbb2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_clamp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_clamp/debuf.mlir",
+    "sha256": "c10dc8073ab7e7b3976286431426248a0b1ee43bcc384f0432e1b2ec435db343",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_clamp_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_clamp_cpu/debuf.mlir",
+    "sha256": "b9a58b0dfd76107fb19f4d71a98e5a0b7b82c98d168cd04237eca75ba6bd5454",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_clamp_max_scalar_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_clamp_max_scalar_cpu/debuf.mlir",
+    "sha256": "5e3fd20f02cc56e268aafcdd21f5da7efc182a8b94f0c6066ee7bc0e76592ff9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_clamp_min_scalar_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_clamp_min_scalar_cpu/debuf.mlir",
+    "sha256": "b34a7c09c769d54fdba5fcb3ae2846d53409f2fc80a847903ca87a5ef8022804",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_clamp_scalar_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_clamp_scalar_cpu/debuf.mlir",
+    "sha256": "55ee8bedaa91e3f2875017af4fcc873759c600dbc54541d9a3e4c8f61cef5869",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_coalesce_sparse_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_coalesce_sparse_cpu/debuf.mlir",
+    "sha256": "41e69b1c455322bc883468585629f1ef730592cbb830858a3892c0345786943f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_col2im_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_col2im_cpu/debuf.mlir",
+    "sha256": "407b6a00e7b78d55a46555c83c94758d7624362c076ed083b527881a5bab7043",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_combinations_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_combinations_cpu/debuf.mlir",
+    "sha256": "10613fa2887beb9145fbfb12b1f52e812325e90dd2aaa52b82f2774a11373604",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_complex_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_complex_scalarized/debuf.mlir",
+    "sha256": "182005c1dc281c4f3749c0730fb8f65a3f5c300b224e029059502328219616dc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_compressed_block_convert_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_compressed_block_convert_cpu/debuf.mlir",
+    "sha256": "f7e59831682e01e28c40ea60fbc689c9b27e2e70949844ee463e3ea1887543e5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conj_complex_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conj_complex_scalarized/debuf.mlir",
+    "sha256": "b45e9faa30cb65693e7bf8088b8a3e12316dbbd29e3f9889d039514e2e7a2ff2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_constant_pad_nd_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_constant_pad_nd_cpu/debuf.mlir",
+    "sha256": "e2aec30fc2fa1a5ad5bbd52f8d37b88ba3d854e252661352378175e5e1220e29",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv1d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv1d/debuf.mlir",
+    "sha256": "02664bcf2095276b451b3e0f8e2bb47bd8a80b98ec999b7b410dc5a130cb7ce8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv2d/debuf.mlir",
+    "sha256": "afc5fad5f6e536c4cef3f659d136a1d4a7320b19fcf1fd198be0944bf623ba74",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv2d_columns_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv2d_columns_cpu/debuf.mlir",
+    "sha256": "cc6e88935e77738e52fd2cc02f3576a9b5f83737712afab88958b6e5c6262b4f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv3d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv3d/debuf.mlir",
+    "sha256": "fa3fb914d9c6621c0d44f80e5725fccc05c03b7b1d62fbfd88bc3faebb977811",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv3d_columns_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv3d_columns_cpu/debuf.mlir",
+    "sha256": "af7fca8ed74d01a9895c576a5c97496a8045fa8460b9f306b3e430b32ad1801d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_tbc_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_tbc_backward_cpu/debuf.mlir",
+    "sha256": "3c3511b211bc637182361efbd1c3cf031b60f2b171480a32deab91683214c240",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_tbc_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_tbc_cpu/debuf.mlir",
+    "sha256": "fefa530cae9176ca5e5acb2a25e240cbde21302d120b0f84fbe92cadaa83f846",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_transpose2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_transpose2d/debuf.mlir",
+    "sha256": "d1318c5cf23c158e43ca2a5c71195631f74317b943887700c655ae6be4fd9813",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_transpose3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_transpose3d_backward_cpu/debuf.mlir",
+    "sha256": "35acee9a86bd3b519c68b1442a36eb84cb918aaa0df990fc810f2f9d7377dfe6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_transpose3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_transpose3d_cpu/debuf.mlir",
+    "sha256": "f3351152464d5d7d4ab0e7cee954c6d870974997386032687b4ec55ebbc1a759",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_conv_transpose3d_grad_weight_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_conv_transpose3d_grad_weight_cpu/debuf.mlir",
+    "sha256": "cc9503494ed303af3f4a8e3b17bee56c5c38649ea2b38b79c9dc1876acfb9cca",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_convert_coo_to_csr_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_convert_coo_to_csr_cpu/debuf.mlir",
+    "sha256": "2068a1c631c7a4e6e0e2d763861df7f47beb287e5db4cfeaec282b31a37a64be",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_convert_csr_to_coo_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_convert_csr_to_coo_cpu/debuf.mlir",
+    "sha256": "ffd9a906e894b93d2cad57f18537b721cc50c7d4f92a3d8e19027dc4cbc5ba78",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_copy_cpu/debuf.mlir",
+    "sha256": "a3f7280ccd2c5d60de565813517dfd9c89318c2ee92d8685cceb4a8c84bbfa36",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_copy_tensor_array_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_copy_tensor_array_cpu/debuf.mlir",
+    "sha256": "f560a970736309c21051f3dbfe57ebec9c846daa087a007f784ce1771b5bff7b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_copysign",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_copysign/debuf.mlir",
+    "sha256": "a78e03ff4e2959b27306354ea1cfdcc9df70f0b571a74de3fca9da06d43e59ae",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cos",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cos/debuf.mlir",
+    "sha256": "3c547eb2e9a9508ea922614ec8f8e026825dbec2f539e43c2afa3c85be342c65",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cosh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cosh/debuf.mlir",
+    "sha256": "8b496132dcfbf7066833e523743b306efc35549f3895abaae88569f62f92f3ea",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_count_nonzero_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_count_nonzero_cpu/debuf.mlir",
+    "sha256": "8f560b8ce6b7d58317ba226fabc8604ecf37fd3957498a3ea96ca363bb7aef0e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_count_nonzero_impl_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_count_nonzero_impl_cpu/debuf.mlir",
+    "sha256": "8a1c9892f9940042028d17836b8d75c88733d7d0480139d6c9bc267e2f5c246b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cpu_blas_gemm_batched_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cpu_blas_gemm_batched_cpu/debuf.mlir",
+    "sha256": "6897a07f4cb97b69bd1e02fbdcd80d46ac8dc2bd6a723c78a0763aee487b474b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cpu_blas_gemm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cpu_blas_gemm_cpu/debuf.mlir",
+    "sha256": "f9c45661ccd875042c6393fc2d1ed84018c2e4f7f373eb23c26095bf94a398c1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cpu_blas_gemm_strided_batched_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cpu_blas_gemm_strided_batched_cpu/debuf.mlir",
+    "sha256": "eabe95b01764f5da9f963c36a28f30dae68fbd5b8b767736d66ac9bfa9ad8cf3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cross",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cross/debuf.mlir",
+    "sha256": "4e1860b2b43dc7105b0713735c04c4d5e4239f7e187ef713ae609cb6378d0906",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cross_cpu_backend",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cross_cpu_backend/debuf.mlir",
+    "sha256": "14d6da0d644c5dc7318ba22282e95c948a2348f9317d51901ed7b481c4d4a3a9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ctc_loss_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ctc_loss_backward_cpu/debuf.mlir",
+    "sha256": "c5017178cf691788f48b85f5219fc9820a66e668b8b666922dfdf56a6ff4c246",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ctc_loss_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ctc_loss_cpu/debuf.mlir",
+    "sha256": "257dc9980234f17c2c533997adaace3ecdf723571d7e7c708e29aec6a04f02dd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cummax_cummin_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cummax_cummin_cpu/debuf.mlir",
+    "sha256": "21fd96f3b4530ac01d636f9997870841aadb0bd386a39b73898bd41100215983",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cumprod_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cumprod_backward_cpu/debuf.mlir",
+    "sha256": "3f51fc65cadf60888bfb1e05e4a04b0b21226ab532c389cf0081e7b74e33ebf4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cumprod_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cumprod_cpu/debuf.mlir",
+    "sha256": "a1c2ce97c3b863b1fa6aca2db933d3326a2069800a12670c8af885cb8dfd081e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_cumsum",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_cumsum/debuf.mlir",
+    "sha256": "f0394057585da9379c8b6f448d4d2c754deede20f4ffda3eb4f4cee4e00581c5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dense_sparse_add_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dense_sparse_add_cpu/debuf.mlir",
+    "sha256": "12481a0a18acf079625fea5deb8741c49e02efb65112b97f47ed25defd343b92",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_depthwise_conv3x3_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_depthwise_conv3x3_cpu/debuf.mlir",
+    "sha256": "9fa4b5052a99f3e1e4ba6a67f9276326760f6911de88f89841e967a1664073af",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_diff_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_diff_cpu/debuf.mlir",
+    "sha256": "8198a2013e3091c4b0c5ffb39b7478454a4bf9d1fd47abcecc6544414dd2510c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_digamma",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_digamma/debuf.mlir",
+    "sha256": "6551108ce2f24c5df34bc0c92284f50fb10e3522f0d7ae3d4e42a39974b0eafb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dilated_convolution_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dilated_convolution_cpu/debuf.mlir",
+    "sha256": "da9d1ec6337ab0623b1ade2ca4c6f0a1a4e3ec190aa7f12edee506b6f23008bb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dirichlet_grad_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dirichlet_grad_cpu/debuf.mlir",
+    "sha256": "1b503890efeaeb6738f28aa04dcf1cacd9d33bedcc5a7b46e79a9184530b1f0b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dirichlet_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dirichlet_transform_cpu/debuf.mlir",
+    "sha256": "dff0b11d92597fc4db686b96283f759af4147f57c2d34b422874602aeacab886",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_div",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_div/debuf.mlir",
+    "sha256": "8caaad602dea879cd98bd508c66c2e28eab9d6e68368f01091ab9ced196d738d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_div_floor",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_div_floor/debuf.mlir",
+    "sha256": "65dd35d6a472cc6f70a721e72d14def0922beb6ae4f3d7e6b3de526100a0a2fd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_div_trunc",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_div_trunc/debuf.mlir",
+    "sha256": "6d9a1a9673564e980681516aa7aede38e4450361cefdacdb2a9dc7b973c60d2e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dot",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dot/debuf.mlir",
+    "sha256": "a7a0ff6ac01880a1993dca8a04eb710220cc3f510cbce4c39383cf31e512f5c1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dropout_feature_noise_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dropout_feature_noise_cpu/debuf.mlir",
+    "sha256": "69524e69a48085698636b3973a67a073d5e30d2ff89f9f936e44aaf023fe77bb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dyn_quant_matmul_4bit_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dyn_quant_matmul_4bit_cpu/debuf.mlir",
+    "sha256": "90e219a6c36442cd60450dcebb6988821111ee6a48b1e54068cc9fc42ce0c786",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_dyn_quant_pack_4bit_weight_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_dyn_quant_pack_4bit_weight_cpu/debuf.mlir",
+    "sha256": "e92fbcef1cff4acdc560636d1f6e0ea989318320476d9fb60953a8902da82696",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_eig_complex_vectors_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_eig_complex_vectors_cpu/debuf.mlir",
+    "sha256": "b3a5716f1dcaf277f3698ee56e03db311a7e304cc099e2a5b5b033c10feb04d3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_elu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_elu/debuf.mlir",
+    "sha256": "b6d58c3ee58194bf6689a43ab596c0ca4f0b33cc0321fa746d77c478d87710a2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_elu_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_elu_backward/debuf.mlir",
+    "sha256": "c2aa02d50eae98b4705df5131d6c78b2a445628f3e3b9ef788ea9adc0b96c10e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding/debuf.mlir",
+    "sha256": "d885fb447d4f8508a6b1ed21474f3a2641a3dea91771e9192ee8334f57b44a5e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_backward_max_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_backward_max_cpu/debuf.mlir",
+    "sha256": "4417ba9fdcd816ba0705fc1a8c8053af0e542dde7ac3c3c2de183150acffd2a3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_backward_sum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_backward_sum_cpu/debuf.mlir",
+    "sha256": "4d12a87db3a13faa74258cbb140b5c194d963067aa6cb693fe41f3b484107feb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_counts_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_counts_cpu/debuf.mlir",
+    "sha256": "ebf4b48ac0f5e6f70088ed188b9fbf7bea7df0d23e979d0a04036fb94c41cefe",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_counts_uniq_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_counts_uniq_cpu/debuf.mlir",
+    "sha256": "6548e4fb52bbf311bb8e2b9f831fa26a07998237e4efcad5a6ad86a894dc1e47",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_max_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_max_cpu/debuf.mlir",
+    "sha256": "a3a6e9c7cdc3f753265971830641d99e9cb44338b46c5f7cbc5732b1dbca2b4e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_embedding_bag_per_sample_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_embedding_bag_per_sample_backward_cpu/debuf.mlir",
+    "sha256": "30822be1cc550e19027ec6b011d3e2af16247c8b2e72c21bd7bf3d718972af3e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_entr",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_entr/debuf.mlir",
+    "sha256": "0b231701d5a1379229e8541a7faf30bbc66e33a2a7b20fe5d74cf981a273d9e5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_eq",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_eq/debuf.mlir",
+    "sha256": "c75ea1ec7a4dffbfaada835a38d9a597f3e1e5a06b3e72177c2c2d6037c556c1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_equal_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_equal_cpu/debuf.mlir",
+    "sha256": "ebda6769817344f37a31725a8c5527d38ef9426bd8b478f1217c62e8a648fd24",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_erf",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_erf/debuf.mlir",
+    "sha256": "baacc6f7b6b2281c0bdc902fd8c78901d7d438244a3e94d7efb505f3804f0ebc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_erfc",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_erfc/debuf.mlir",
+    "sha256": "280ff61d37069a0a4a7d93ecc2fa6c8cef35353b6bd92e3ea8d6e50330d06ded",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_erfcx",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_erfcx/debuf.mlir",
+    "sha256": "9519e54a71ac495693fe0b417a2df661cd4450cf166a98c17516127539ae9cb4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_erfinv",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_erfinv/debuf.mlir",
+    "sha256": "50158e4f5414df73b8f622cc8909de894188cff420f2eea3f5ccdc8c83e8c9ba",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_exp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_exp/debuf.mlir",
+    "sha256": "f9832d9c7faf526e77036130f47a8824fbcd7ccf5027e9f17831eecd136f2101",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_exp2",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_exp2/debuf.mlir",
+    "sha256": "dd0ed7690977cc611fd0e350decd055165d46a7831e53f7eec87f6ab63db7c8d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_expm1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_expm1/debuf.mlir",
+    "sha256": "b044eef8b5dbe2fd4ba8f7451e75a570a715fa28a6a4374599035ec3d292dbd2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_exponential_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_exponential_cpu/debuf.mlir",
+    "sha256": "cb8ed9a0ce83dd277b25b893115a0bec847fd30715542b32e767d0053f0a1652",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_eye_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_eye_cpu/debuf.mlir",
+    "sha256": "99a01e6389f342f840cdc91971c552044f3f4388fe404dba5cd6adfe735935f5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fast_cat_dim0_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fast_cat_dim0_cpu/debuf.mlir",
+    "sha256": "2e292dffc0c66a9661d2eef08085620ec7f31546e525454c9987bd757b2cad35",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fft_conjugate_symmetry_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fft_conjugate_symmetry_cpu/debuf.mlir",
+    "sha256": "bdec4ab1454da900e35cc7b05e49d7abbd73634e3becc4f766516c10b700933a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fftshift_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fftshift_cpu/debuf.mlir",
+    "sha256": "2bc851cf1a5493637d52399f22cbeed7295036426a7899b9cc6058be7ed4476f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fill",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fill/debuf.mlir",
+    "sha256": "bfb1a0a115a8dda95d7a1bbb35b9f1ea2f9cbe06adacfa598527e9e449e5403f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fill_diagonal_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fill_diagonal_cpu/debuf.mlir",
+    "sha256": "4862fb98f15c2f1eeee69546df28b5ec2ac75945ab99f597a83eb8a4a900ccb8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flash_attention_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flash_attention_backward_cpu/debuf.mlir",
+    "sha256": "16aae1f9c1a379be381f4ab467a755c4ae9989d7fdaa8c01b02a52049ced71ae",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flash_attention_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flash_attention_cpu/debuf.mlir",
+    "sha256": "949e2d444a79550c523ff753348784ae1d9e1fe3cd0ae64578e2e9ee54577e2f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flatten_indices_launch_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flatten_indices_launch_cpu/debuf.mlir",
+    "sha256": "f719d3ac20898f678a4393b2fb108f70d51502860707abdd584180277ad0b394",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flatten_nd_linear_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flatten_nd_linear_cpu/debuf.mlir",
+    "sha256": "97e29fcd1a0bd5253c7ec05f540e66fb8e238c3ea411f019426862855edc3e23",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flip_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flip_cpu/debuf.mlir",
+    "sha256": "339d2a10676a841144951c194ac6a367e69a7f4028be9200ec3ab92fea667236",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_flip_tensor_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_flip_tensor_transform_cpu/debuf.mlir",
+    "sha256": "08c5f89c37f350d08f6f073b5951c8eb880d4293b99c1205185aae0ee2551cf3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_floor",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_floor/debuf.mlir",
+    "sha256": "414e380dbb1fb53bc5c8bdee2b2b25b7f137dcc7114ccbee72545a9a52e25b84",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fmax",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fmax/debuf.mlir",
+    "sha256": "f973482457fd7ebf7a8365eeaae7e6be2226a2fc75b582e67db2d37732dc3a2c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fmin",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fmin/debuf.mlir",
+    "sha256": "6609113fa7ea4cc968ebf775697569eb24be6ba48a168297d0d797bd72e5f261",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fmod",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fmod/debuf.mlir",
+    "sha256": "af62b6336a6871707e32e02a7761446a56e9f6be6247be48f8ffac924d21d032",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fp16_dot_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fp16_dot_cpu/debuf.mlir",
+    "sha256": "a6fa53b94ee4d977f3422fc16c40cbacae2e270df7fe9d03e7eb88d67bdf363a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fp16_gemv_f16arith_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fp16_gemv_f16arith_cpu/debuf.mlir",
+    "sha256": "76f032100e1af6bdc399201baf8c0a694bb727ff68845d3b57277025b5db40a6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fp16_gemv_f32arith_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fp16_gemv_f32arith_cpu/debuf.mlir",
+    "sha256": "9caa1d9ff1952ead442b9f45156cdf609ec927fb51b63fae65681b484ecc993c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fp16_gemv_notrans_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fp16_gemv_notrans_cpu/debuf.mlir",
+    "sha256": "f690cdeb2c16fbcf9474c0416d2ecbc90749aac9754b785e32a7f9aad33a5b85",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fp16_gemv_trans_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fp16_gemv_trans_cpu/debuf.mlir",
+    "sha256": "e30b3d0692e5f744eb368ead2642140989293535ff0214fffe7ae6508c7655ee",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_frac",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_frac/debuf.mlir",
+    "sha256": "85247397821c9ce4538b73ef5b6ecc2d53e06e32454e5c670c1b9ed03d0c00dd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fractional_max_pool2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fractional_max_pool2d_backward_cpu/debuf.mlir",
+    "sha256": "87fcd921206fc89bb4330085a8f004f24f55485d4f9b15cd32b8a1ba8d66aca7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fractional_max_pool2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fractional_max_pool2d_cpu/debuf.mlir",
+    "sha256": "b12a6905bccca74fe1889f620bfbe534fd3c40e161b77d5d7d5ab2c8060a63eb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fractional_max_pool3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fractional_max_pool3d_backward_cpu/debuf.mlir",
+    "sha256": "ea0d64fea537a94f7abc879feee2dfb3316aec2e81c8babe1e0eaed006751257",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fractional_max_pool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fractional_max_pool3d_cpu/debuf.mlir",
+    "sha256": "eb48ed1e1a69332902a36c048e046fdc27ac4b97b54f9b92b1ff90f0942813f3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fused_adagrad_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fused_adagrad_cpu/debuf.mlir",
+    "sha256": "d0a70198a4c9c99fbb2e692192bad953760ff4d44c3e48dd01a325809dc5d246",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fused_adam_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fused_adam_cpu/debuf.mlir",
+    "sha256": "37201be760492c765c44a58e0137eec7079f3544b51fe3e965455e8757b02558",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_fused_sgd_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_fused_sgd_cpu/debuf.mlir",
+    "sha256": "881b09425116b21058756429ddc4a6d312892908a35818f88607d15611c87074",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gamma_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gamma_transform_cpu/debuf.mlir",
+    "sha256": "45d11a71e48fa5d238a1ac33580b971cc2818eb2c020ee28f7f5ed47102b81ce",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gather_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gather_cpu/debuf.mlir",
+    "sha256": "0599ff296682c6cb246ad036fb1be0a2052d357e45b7094a376dd662842d8383",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gather_expanded_index_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gather_expanded_index_cpu/debuf.mlir",
+    "sha256": "7b05f4d9c50be516720e8641629ae4a3703e13ee362ef983cd45738287ccd7f1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gcd_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gcd_i32/debuf.mlir",
+    "sha256": "7f051cdaf77e0dc20b9ef879b7b4efa99a28e38c584e05c8e195dad157228e9c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ge",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ge/debuf.mlir",
+    "sha256": "1c907a00fa2bb8170a5c19e42d989a2431c84dedb8067b5f28bb6ee4f51c749b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gelu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gelu/debuf.mlir",
+    "sha256": "9fbe717a8c5a37c1c815b117e0efc15eb936298754b9daa5173975e298eb1586",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gelu_backward_cpu_exact",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gelu_backward_cpu_exact/debuf.mlir",
+    "sha256": "452db2c80fcb5cfc28c07ab00914bdb108dc356bb4566bdb7d425ef6752867fc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gelu_backward_cpu_tanh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gelu_backward_cpu_tanh/debuf.mlir",
+    "sha256": "6853d3c2b3c1bbcac4f44eb53da20f06e2d82c8e1141cda0ae5b2a8bb5c96bd5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gelu_cpu_exact",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gelu_cpu_exact/debuf.mlir",
+    "sha256": "9a401d941dbf69ac7fc5afdc51f7f6de7cf449523b52d4eca86ba43a2104cf54",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gelu_cpu_tanh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gelu_cpu_tanh/debuf.mlir",
+    "sha256": "eb0e12e9a45ace3c96d8858d5a68e02eeaf7803e7edd5c956ec8390ff36c1ad3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gemm_notrans_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gemm_notrans_cpu/debuf.mlir",
+    "sha256": "91ceb27097a8b283811b75b171523dccbb029cdb4babac07d019a39256f6fea5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gemm_transa_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gemm_transa_cpu/debuf.mlir",
+    "sha256": "52c49e9a35bef0e50ec4a9d40f10dc0509e82555f723dc3c9cf2e411cdf94887",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gemm_transab_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gemm_transab_cpu/debuf.mlir",
+    "sha256": "e7512c0b8f3fbccd1c9350d19e76f1d53c215d9d419405d0ff16d48f455920cf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gemm_transb_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gemm_transb_cpu/debuf.mlir",
+    "sha256": "03f8b4ac9bf4bd14d9623a5f6d7e6d69e7a89b50c91d3c6c9492b0f3d71b4db0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_geometric_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_geometric_cpu/debuf.mlir",
+    "sha256": "9f0754e634e9e4239a2d6c6f0926269582a1e2b5e00996ad11cd05d600242be8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_glu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_glu/debuf.mlir",
+    "sha256": "fdb4e53721d86ad8c52485d9293105c391eda3e8b5557be2547dd8764e117a82",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_glu_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_glu_backward/debuf.mlir",
+    "sha256": "498033cef3bb6739fd357fb2c15d0e7b5084adc26cb213ac6f80ee1fa0f4b3b5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_glu_jvp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_glu_jvp/debuf.mlir",
+    "sha256": "8b38df4c629544dc4283bdfd2499eff57d8426b0b9809dd6d536a7d99f70105c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gradient_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gradient_cpu/debuf.mlir",
+    "sha256": "26384dbca823f9bd27783de1820f4c4dc08073c5b8bde2e92e34c1921249fb91",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gradient_float_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gradient_float_cpu/debuf.mlir",
+    "sha256": "5d5d6b1d3fb9ee923643aac47c4b08e10a93e45e5aa779e4256976fe8f4e16f5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_2d_backward_cpu/debuf.mlir",
+    "sha256": "3cf7a05914e8bba7e6b4314a2000ddbe1d0d01f158db8e648dcbebc33716d6b8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_2d_cpu/debuf.mlir",
+    "sha256": "591d12cc21efc6f13235ca689d981ffe382828bf96762e91a5da24877585e901",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_2d_fallback_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_2d_fallback_cpu/debuf.mlir",
+    "sha256": "ffa2dee1d32bced21252cff52c38d4162b0128e94781daad91cf5b90d240a286",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_2d_quantized_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_2d_quantized_cpu/debuf.mlir",
+    "sha256": "0a1ee84ba57b34703d629db47622ee68f3d712a7f02d71638c90db3f23e9f77f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_3d_backward_cpu/debuf.mlir",
+    "sha256": "4d194d2ccbbe63fe3618043ebf2703e59e7890879b50d3d819d1c42085c2e584",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_grid_sampler_3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_grid_sampler_3d_cpu/debuf.mlir",
+    "sha256": "f4956e6d8f877af200b086aedf0c85f6b2af7cad41b60ca93f98bef4738b9783",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_group_norm_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_group_norm_backward_cpu/debuf.mlir",
+    "sha256": "707917f500d11dfc295c8b7ca10050e3a5f4e60f988e6edeae3569e69debb70e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_group_norm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_group_norm_cpu/debuf.mlir",
+    "sha256": "28c76c02d2496d4192974bc75bc22ecc2e714dfccebbc2077e097e2639fc5886",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_gt",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_gt/debuf.mlir",
+    "sha256": "2c90eeccd43a39a9a96fb8d948012d25438f1bc321770ef50ed4913e36f56840",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardshrink",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardshrink/debuf.mlir",
+    "sha256": "6ef131f3612f701160ab33e3cd071233d7d45a1bc7b356a2c9aef3e5782518d0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardsigmoid",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardsigmoid/debuf.mlir",
+    "sha256": "08bdb697521d76871c7f8a7a7b5db9c79c1cd0483859340ffa97f4cc5ee95dfe",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardsigmoid_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardsigmoid_backward/debuf.mlir",
+    "sha256": "0a5b124d129329cc8b18aec3c2c538bc4ab10af22c5e78f08641850ff4d331de",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardswish",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardswish/debuf.mlir",
+    "sha256": "7faf2b636f0a331a726e865bbdcf392276b6015f11f552f1143768cab376bd17",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardswish_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardswish_backward/debuf.mlir",
+    "sha256": "1b2093e12de7974c0daf02127ef94422ab757763e62e68ad93b5f2f69031327f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardtanh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardtanh/debuf.mlir",
+    "sha256": "ffdde84f228bfe671e2f8af707dda56707c1c6292062ed40544f0948345e47fe",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hardtanh_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hardtanh_backward/debuf.mlir",
+    "sha256": "4848d66df017a9a92b9a0017cc1670d35a6a175f235b13a88c0a2f584a139c47",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_heaviside",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_heaviside/debuf.mlir",
+    "sha256": "86ab8976674f13b22574a4bafdf355dfba0af00f26ecbc0c2315ac8bc6df777b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hermite_polynomial_h",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hermite_polynomial_h/debuf.mlir",
+    "sha256": "4144be7bdf4bc2ffa1b9ddc1784cf22604bb0c3462fbd15cd8cff97d8a4e2d8a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hermite_polynomial_he",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hermite_polynomial_he/debuf.mlir",
+    "sha256": "e02433b70f00f22f4b946a5a647ea5f5d20d8ad395de8c7ab719e4e31bec17e8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_histogram_select_outer_bin_edges_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_histogram_select_outer_bin_edges_cpu/debuf.mlir",
+    "sha256": "88d602fcb1398c94b2d90c34c309a10a1c3bb6c3f7f539bb4a175f94f6244994",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_histogramdd_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_histogramdd_cpu/debuf.mlir",
+    "sha256": "3743339076ca371fbbcf3e24001d4105b23d09f35a598dc4947fdf5c795b9730",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_histogramdd_linear_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_histogramdd_linear_cpu/debuf.mlir",
+    "sha256": "e81bb28e65611df764467f2b2b35e0c4642aa72b9f9f4cece9227d5325090840",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_host_softmax_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_host_softmax_backward_cpu/debuf.mlir",
+    "sha256": "7d34c4cfe92f670a7c929ccc8f8b2d51d9720914a80236f8617a473ef427df6d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_host_softmax_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_host_softmax_cpu/debuf.mlir",
+    "sha256": "8411ea327eecbe8cbd45124d1bd17a1c565a7e21482c95574689190a4bf926b6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hspmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hspmm_cpu/debuf.mlir",
+    "sha256": "201a82667886ed5b7d33220178b12c6ae635a9abf0ab97e011c7231b452d35db",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_huber_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_huber_backward/debuf.mlir",
+    "sha256": "2aa20532d9669b35755b8a206d303be4e03e2110680f485b0e1d2274a9e2b6be",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_huber_elementwise",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_huber_elementwise/debuf.mlir",
+    "sha256": "53c486f36aadd49353b31dfb45851b1fea25793c0bc8c8c199e05d0f8382a0ce",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_hypot",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_hypot/debuf.mlir",
+    "sha256": "813ddba12dad68a9a0fb13cdb1af7b0a614793b94e3d70b2b31d1161a756666d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_i0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_i0/debuf.mlir",
+    "sha256": "51a4b37a07f48fe7b18819cee6a2b7500468de9a33b1a63093faa4b025620d95",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_i0e",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_i0e/debuf.mlir",
+    "sha256": "9800c385df83b484f855a6304cea1ad3ff6f166997770c72138dc3b8e6ab25ef",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_i1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_i1/debuf.mlir",
+    "sha256": "af0dcdc7d30b4118f2baeb48f8f210d50949f2252a5ac19dbedd94459a8716ac",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_i1e",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_i1e/debuf.mlir",
+    "sha256": "4f4c3ced4ca59718ccea19fe99d7c3ba5cecb9192f6d9d46739707b714b4d797",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ifftshift_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ifftshift_cpu/debuf.mlir",
+    "sha256": "f588285cfda2330de1c85befcd1ef8ce32abcce067854612a5f3b3e2aef84151",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_igamma",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_igamma/debuf.mlir",
+    "sha256": "85f53b8e937b08d71bffcba379a0f41e0406f5495080ef75cd9f84425f592d9f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_igammac",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_igammac/debuf.mlir",
+    "sha256": "cebf5488a494d284aa5b0c5fe5946ae2440f6f462b855010f275dac75cde85b7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_im2col",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_im2col/debuf.mlir",
+    "sha256": "be6d5a490a4293fe005fbfc62b347f053d4d32b4448534960a796333e75b6065",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_copy_cpu/debuf.mlir",
+    "sha256": "69277d77505001cf84b949d82321426175e927b3de08c5b47300271716664aa6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_cpu/debuf.mlir",
+    "sha256": "807c9219948a44a34edc2237e16e413e98b403ef83e47b14df1de1b79d287e18",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_fill_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_fill_cpu/debuf.mlir",
+    "sha256": "4fca6a5c72e86f529750ba5c34daa567fc872a6961ebdb0a60773f60b3d7ad9c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_put_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_put_cpu/debuf.mlir",
+    "sha256": "e95d32951523023f27e5fbc13a90f0d192224388f66a2c06d124c9e17200df4a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_put_impl_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_put_impl_cpu/debuf.mlir",
+    "sha256": "783e18bfda771718e5c2337b168cdb97025656e92e5b68031d67a629707c5195",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_reduce_impl_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_reduce_impl_cpu/debuf.mlir",
+    "sha256": "f1b411d48f5c7e8ef7cc6a68e45b46a77e5f5e6d48cce7c4f0cddb5d7815e2cd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_select_dim1_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_select_dim1_cpu/debuf.mlir",
+    "sha256": "a4ef37f0233b8a8df6b897225ff9265006bfa537aa15dee74b9320775e36b68b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_select_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_select_out_cpu/debuf.mlir",
+    "sha256": "4b876114f15f64bd083db22109fdb2b3ee3729880779205962b68358aa477afe",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_index_select_sparse_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_index_select_sparse_cpu/debuf.mlir",
+    "sha256": "c8e537c88f9db26af02e5d7758695745227dec6cffd0b7fce64d63ce16e94e09",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_int4pack_mm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_int4pack_mm_cpu/debuf.mlir",
+    "sha256": "46980bd0bfb9882382d20ab554e7e59b1a017a19895a62a8adf84f262c7e5c32",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_int8pack_mm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_int8pack_mm_cpu/debuf.mlir",
+    "sha256": "e2f2da795ff877f924e9334f51ffd1896af3de352fa098c934b933d20172a94a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_int_mm_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_int_mm_out_cpu/debuf.mlir",
+    "sha256": "6fb5c208e37d65ae9cea41d2b7b6c9fc43de6349684eaffdceb278ab499734d9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_isin_default_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_isin_default_cpu/debuf.mlir",
+    "sha256": "c8201cf1a51176c5ea59e98e151bd81a4d23a66a78b053b43173214f4b42d244",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_isneginf",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_isneginf/debuf.mlir",
+    "sha256": "541f1a5f93aba244a4d8b0a632eda86ee280c95654dabb45b77be26682762c90",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_isposinf",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_isposinf/debuf.mlir",
+    "sha256": "5e7cfb92a0efd59c77455d35b7b4870e8d4b27a34150d5700ca467126a6eff99",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_jagged_to_padded_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_jagged_to_padded_cpu/debuf.mlir",
+    "sha256": "ff0fd2961bb3c0d62323e2588548430f720fde6ba1be193afb267a9380718c8d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_joint_scaling_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_joint_scaling_cpu/debuf.mlir",
+    "sha256": "e4b20815e81151684074dca4705cdbb53efa2647c9a918fa463421104f051203",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_kaiser_window",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_kaiser_window/debuf.mlir",
+    "sha256": "e3eb3f97b32f73099d00d2643092765b92b3578958ced231222de76787b3a9dc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_kron_impl_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_kron_impl_cpu/debuf.mlir",
+    "sha256": "f93e3f86cc718ce0f86b7a57b1fe23e2faf8785f20895ef8a7de741fe6ce2de5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_kron_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_kron_out_cpu/debuf.mlir",
+    "sha256": "06f6e9e74b7571d9524f5038501588f1e2c94e26dd1b4c31b69f778e1f0ec2da",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_kthvalue_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_kthvalue_cpu/debuf.mlir",
+    "sha256": "08d6d7d0374f93fb84ece47495eeebfdcd70e396dc67546c032112c01f086c7d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_l1_loss",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_l1_loss/debuf.mlir",
+    "sha256": "4ce27f5da4523821bf041ef253e7bcf68b30a675dcb9afb371c69e52c5805a7c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_laguerre_polynomial_l",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_laguerre_polynomial_l/debuf.mlir",
+    "sha256": "957c7a8b681108f0785fa1387d2df4bf09ee86c275d420b6ec7ed0667c8fa39a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_layer_norm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_layer_norm/debuf.mlir",
+    "sha256": "3322a5851c5b36818b6a10a61b85d7b50e68c7670ede11e9c5a2b9034e1e68b9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_layer_norm_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_layer_norm_backward_cpu/debuf.mlir",
+    "sha256": "bd39cb1fddb132aa229131691287989db52f39a28f420c00438546490b0f982d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_layer_norm_cpu_backend",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_layer_norm_cpu_backend/debuf.mlir",
+    "sha256": "d9b754827e656f0d70194f58e04fba9f5a87bbac5ec55367eaea96b490c7785b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lcm_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lcm_i32/debuf.mlir",
+    "sha256": "953d764edf2f03adc8361176ef0ede0fe3073b3984e7bc2e1b65e19f597e79b9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ldexp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ldexp/debuf.mlir",
+    "sha256": "72b4dcfe27769b77f809197c740914ed6f79dca8adb26c4e17fd5b815b8e7459",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_le",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_le/debuf.mlir",
+    "sha256": "3020da93df1d946d4de39dddab6f4cd581b044d38408c21ad2d5a29dac6637ed",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_leaky_relu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_leaky_relu/debuf.mlir",
+    "sha256": "ba1829bd92e7dcc55005adeba2a0327215dfb4a01e3c12f2dab4818b2af6914b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_legendre_polynomial_p",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_legendre_polynomial_p/debuf.mlir",
+    "sha256": "d1357381d29dab6f118997ff804c5b08428eb1ad6d39a9f49c26d4bea74fb156",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lerp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lerp/debuf.mlir",
+    "sha256": "af15a0cac13dc41021ece53320e1f9a726af766bf306d393a4a4ee97defa5b95",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lerp_scalar",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lerp_scalar/debuf.mlir",
+    "sha256": "442b8301d37c7d9d19983957410c8fa3452109a0a462c7119f73a04b33d73755",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lerp_scalar_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lerp_scalar_cpu/debuf.mlir",
+    "sha256": "9c8a46f340dd92a5a467afb60691959246e6f941a6f79f02b89815618c605f90",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lerp_tensor_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lerp_tensor_cpu/debuf.mlir",
+    "sha256": "6cae97f1952f87dfb3bcb240cc994a1b81f505568e267e60e4e76f4f96c3bc87",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lgamma",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lgamma/debuf.mlir",
+    "sha256": "e833d36b2dc010b3f1a8bc0fa5abffe80ddb663baab0833e16af87c4c8c110b3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_linalg_powsum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_linalg_powsum_cpu/debuf.mlir",
+    "sha256": "b29e6dcde3db97a9b89e7ef2aa3cebc62b1754037ed410006bd7b5ab90f13121",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_linear_combination_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_linear_combination_cpu/debuf.mlir",
+    "sha256": "cf202f66af2b937e16f6d13fea440c7205d3281bfcfd61f6a89c1ced3519389c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_linspace",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_linspace/debuf.mlir",
+    "sha256": "6c8cdbfc948c8c9b37dfc244cedf54605635d4ac82a9569ad2b8c286efca9438",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log/debuf.mlir",
+    "sha256": "eb1e6a88d799fee5b09ddf6b31e016e54246245fd84fb06dd032178fad7bfa3c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log10",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log10/debuf.mlir",
+    "sha256": "39f8cc795f3a9b9a46f4f8ecaea4f6d4ea9f6248b414523bb94cb737fe7556c6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log1p",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log1p/debuf.mlir",
+    "sha256": "eca91218df1e69daf80bbe970c1dff02ab7f98f6c4d6bcaddc78367656654d58",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log2",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log2/debuf.mlir",
+    "sha256": "fbe6c95adcbcfa1894fdb4103046040ef59c13461c1f0630ecac7304b411fdcf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log_ndtr",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log_ndtr/debuf.mlir",
+    "sha256": "ebad2387ba94696080cb14b68759bbd31db7f05f52fbf1b6e37112de08c984a6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log_normal_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log_normal_cpu/debuf.mlir",
+    "sha256": "73a06f97f4e924fae227de5f703744da7986c6a3f45dde91452dad0b040521b4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log_sigmoid_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log_sigmoid_backward_cpu/debuf.mlir",
+    "sha256": "2f554e0c6e17252525a314139b6d59df5a1d9436225c4b5b430aca467ac703ea",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_log_sigmoid_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_log_sigmoid_cpu/debuf.mlir",
+    "sha256": "c2faeea143b273167376eada1989293305f73152318336cb72f511a6aaf521c2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logaddexp",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logaddexp/debuf.mlir",
+    "sha256": "40fed4a34830b73bc93dc66b143dbfd3764f7c637bf5ff9f084e2ac461712ff0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logaddexp2",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logaddexp2/debuf.mlir",
+    "sha256": "1ed8cc4bdc3aec30935f940c88f992871204bdd5be372fc6760f32a77db8fca6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logcumsumexp_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logcumsumexp_cpu/debuf.mlir",
+    "sha256": "59a15d8ea8be8f294cc04151bd36e044f24026ba0653bf2373e4c032b572339d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logical_and",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logical_and/debuf.mlir",
+    "sha256": "019e2f9d05e0eb7ece80f48f93892d8485482a8ccdcd0d7f883f104b77fa288d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logical_not_f32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logical_not_f32/debuf.mlir",
+    "sha256": "e7dd9a8d30e9f412d694ab859e4ced5b4ac5da42de63a939963df075d123c309",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logical_or",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logical_or/debuf.mlir",
+    "sha256": "0c580c633cba25fe42c1b23ab338f968edd0aecda4fe6eafd63d178b57108eb3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logical_xor",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logical_xor/debuf.mlir",
+    "sha256": "3e20069ad7faa00c118534a233e38cb8f0ace40378e8558658bc3920f24d398c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logit",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logit/debuf.mlir",
+    "sha256": "5d311d4620b4d2b6f5fec53637a47f331a67d6c8aec91567568a5ea6555890b8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logit_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logit_backward/debuf.mlir",
+    "sha256": "ea34395caf3a50b5c2c3212d8ed68d90fb1a7de841263f4373ab87ebd443f2ac",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_logspace_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_logspace_cpu/debuf.mlir",
+    "sha256": "fe7dfe9d1ebce92674a97d6bed6f39d05294cdd1bdab82268ee10b193c7078ae",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lower_bound_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lower_bound_cpu/debuf.mlir",
+    "sha256": "3ecba782c0eb82ebcb4b65aebd81849ef1adc3d749681ab0232cc6fc28691adf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lshift_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lshift_i32/debuf.mlir",
+    "sha256": "13165b430bd5200855fa69a7ef6c029a11746782df1d57091dd1f35d25e0bb97",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_lt",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_lt/debuf.mlir",
+    "sha256": "dca487828dfd6c248e05731c193c92848ea0760920c3ab9b735bb5d9933b2189",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_fill_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_fill_cpu/debuf.mlir",
+    "sha256": "36c2f113a7f4a8c170a259102b06c26b1a26683150ce85264d6334ba50bbf4ff",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_scale",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_scale/debuf.mlir",
+    "sha256": "2851ca4ab3094dd5e29b6a574a871451acc0ccf6df1a5aa7cc3ca6983a3eb6e9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_scatter_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_scatter_backward_cpu/debuf.mlir",
+    "sha256": "82e111e679c7221e2f5086e99d9628243beab41509b44ddb453e4a8146fe3ecf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_scatter_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_scatter_cpu/debuf.mlir",
+    "sha256": "90c7cf80935c4dae964d77ef37c41221de70f619afa5e95311869f6aec755021",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_select_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_select_cpu/debuf.mlir",
+    "sha256": "221c2a3039083cf5dd85f8be10ffcb78e49521e535d96daa53563f01d7ddf2e2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_masked_select_serial_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_masked_select_serial_cpu/debuf.mlir",
+    "sha256": "c729f82850ea059aa678eb0038aa8002f023719f4ed533b10ba92b5d83f4e349",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_all_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_all_cpu/debuf.mlir",
+    "sha256": "c56b73ed92a374a57b936728e2c834dd785c4a702c3eeffb48adb15a2c2b053b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_pool1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_pool1d_cpu/debuf.mlir",
+    "sha256": "7a258852f1934f4119fea673f5cde2450354f744369aabebd6f7a29145e09a50",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_pool2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_pool2d/debuf.mlir",
+    "sha256": "3ba30bbf22f417efc786f0db8d8ca225818a4c39302ca6b128e6a42355413233",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_pool3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_pool3d_backward_cpu/debuf.mlir",
+    "sha256": "a8449cb26450d9064e3c50968254b4e4dc609265ff268c60758573224f5bf46c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_pool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_pool3d_cpu/debuf.mlir",
+    "sha256": "543edf69b1ac17c215253193ad33284c8e114afc1be95b6bb5dff0f8b6c56c1b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_reduce_cpu/debuf.mlir",
+    "sha256": "6306036f04655e7abc1223fc1e370f6e0bdbfda5cc1cdb9718602bca2bf039dc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_unpool2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_unpool2d_cpu/debuf.mlir",
+    "sha256": "cb370953012852b0020d9b7f578f326a54dd2508939d2ce5c53eafcfacd05e5b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_unpool3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_unpool3d_cpu/debuf.mlir",
+    "sha256": "74d70e5fe482e9965f408e408406c1dc8e9a6da9b8bb8686b1afdc49a69ca1b1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_unpool_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_unpool_backward_cpu/debuf.mlir",
+    "sha256": "1fd97b4bc21274830874f88178d2fab2388e7fa8351adeb9366053492fb0c74a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_max_values_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_max_values_cpu/debuf.mlir",
+    "sha256": "e63a3da15121641bc7cbadecad0b7517070d9726fa07a9752fdedb54a6f69d8e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_maximum",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_maximum/debuf.mlir",
+    "sha256": "252d0b3918bb909bce454ba18b647032896a0c7b8c0f2a0c58cbfba25c4db0d3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mean",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mean/debuf.mlir",
+    "sha256": "5413aab4a878e54f912d0e43fa56663fd92749d49897edf86c2cbda66cdfc754",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_median_indices_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_median_indices_cpu/debuf.mlir",
+    "sha256": "e20002913cd96145f2e9a5a4b43341e3c5e401f7a3c37cd1880a37718563461e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_min_all_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_min_all_cpu/debuf.mlir",
+    "sha256": "4081e98d31e7083374a9356cb6863d7d08720b009c7c4088f08d44821a7d6630",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_min_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_min_reduce_cpu/debuf.mlir",
+    "sha256": "f6e836654a98750d5d45b7c5c071e425e5f0bee6832da956204b5aaa3cfbb89f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_min_values_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_min_values_cpu/debuf.mlir",
+    "sha256": "135d5ff7ff07b8b90a3ded9b24e2b20c8f237898d5d073122263f8048ab0b273",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_minimum",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_minimum/debuf.mlir",
+    "sha256": "7f6dc37b44525d33d1aeb96a5b2fdaad348822476376edbd0bbd894223c320a2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mish",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mish/debuf.mlir",
+    "sha256": "a96aff20547889a2eecdf6d8ccc34cf1541714683c24cdff7ede63d595649a2b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mish_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mish_backward/debuf.mlir",
+    "sha256": "f8080e6dba573d19d8d7987fd5182274d1a38e8c7573da5cbfa09c8e0a356765",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mm/debuf.mlir",
+    "sha256": "1e63ad620812ad653a8551b7bf142984258baa80ebddbff1a4b32b351ffed73a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mode_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mode_cpu/debuf.mlir",
+    "sha256": "eee27741bf5c883a02146eeeffa528a43d4bfd68f4fa4359677d8c5ffdecd5a6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_modified_bessel_i0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_modified_bessel_i0/debuf.mlir",
+    "sha256": "aa3321005236bc683adbb0a2329bcc6ef893a1fa86bcadcda4720ba139a4b5c2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_modified_bessel_i1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_modified_bessel_i1/debuf.mlir",
+    "sha256": "0609147b9b4e559a0aafe4a6dace573151cd47e2074d322a5fafa51b94e71a49",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_modified_bessel_k0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_modified_bessel_k0/debuf.mlir",
+    "sha256": "1a2f5864ccd0db9213bc6474a64b3ca7cdc9ed801e603016b08d36a4ed94095f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_modified_bessel_k1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_modified_bessel_k1/debuf.mlir",
+    "sha256": "a95f9dbd9d494ab303b682a79475807658148d9ae8ad9bba111e6eb3b960a7c9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mse_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mse_backward/debuf.mlir",
+    "sha256": "98d2de65591e3e2ec73848430e55987615fdd3028f9a26aca5ffe266e8bb6afd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mse_elementwise",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mse_elementwise/debuf.mlir",
+    "sha256": "3ce8f8fe861e44d09e862e1b223ec047a02b849df20eeca90e096c051b1f46e7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mse_loss",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mse_loss/debuf.mlir",
+    "sha256": "8eaa6b78e5ee633252358eaa38ce6fa640d56cde298c1169c9d992115f348a9d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mul",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mul/debuf.mlir",
+    "sha256": "cbef3bdb5d2acca1a1f7abd9e80c0ef035c2849d413ad8336748430057bdf63d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_multi_margin_loss_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_multi_margin_loss_backward_cpu/debuf.mlir",
+    "sha256": "4f5ad0bc00dc0a9fd55a2c2a75c3d72d1fa32f7787c4af0532144b51e686560b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_multi_margin_loss_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_multi_margin_loss_cpu/debuf.mlir",
+    "sha256": "3ebaca2661e93d25af157113eb9bac8a9048448dc8d7d39c7e6b197904341c79",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_multilabel_margin_loss_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_multilabel_margin_loss_backward_cpu/debuf.mlir",
+    "sha256": "93263b3b1d5f074668456e3924e291f44bfaebd05d2e0516a07de7df56769b54",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_multilabel_margin_loss_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_multilabel_margin_loss_forward_cpu/debuf.mlir",
+    "sha256": "29375bbc4e99c53715f1e7c62f04aba01ea2d07b135ca162dfd2f0b6b45edec3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_multinomial_with_replacement_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_multinomial_with_replacement_cpu/debuf.mlir",
+    "sha256": "ebbd1c9df22b5f4d1cbecd5d03e79ea27ae27c5433af7b404285932e166e8ecf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_mv",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_mv/debuf.mlir",
+    "sha256": "3781b02eae331dbdeb572cbfd0ae3f4195bef67ae9cca48687d89f1cd78f3258",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nan_to_num",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nan_to_num/debuf.mlir",
+    "sha256": "18d763287686651f8db6b4059d61b4e4a1b0b21ca5a168802fcbbfc6918d0c3b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nansum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nansum_cpu/debuf.mlir",
+    "sha256": "0a0c3ac9338bcf147b6955cc936d55774bec913a9d70f54f4699d55922e6476c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_narrow_copy_dense_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_narrow_copy_dense_cpu/debuf.mlir",
+    "sha256": "7dd949c66786baa1815742f397397177df5ce90db197e33e5aa8f30773d6c1d3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ndtri",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ndtri/debuf.mlir",
+    "sha256": "dd6741ca1b2575973c2a71167e2bee9edc78bb833ef6609804156511df46524e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_ne",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_ne/debuf.mlir",
+    "sha256": "a226b93a27598a0bab63d4293a02b11b8f133fabe5d014d097dfac4ceff4afd4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_neg",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_neg/debuf.mlir",
+    "sha256": "c3b8acdf1b4884d2b9de1df45c60e138fc804cc119da49a0776826e84628891f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_all_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_all_cpu/debuf.mlir",
+    "sha256": "fc530597279a38e9b247bee32eb3f14f98ee5dde66fc38bae74d14246266048e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_batch_offsets_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_batch_offsets_cpu/debuf.mlir",
+    "sha256": "c1d1c0e56fa536c4e05f7b5f4d83a3bbf7dd8f83a67a61af74bc96f6797cce7c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_bmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_bmm_cpu/debuf.mlir",
+    "sha256": "ef2140f8be6621c9b5901bc4c08ff6150ec4c52d5333564e7b0e13adf4240445",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_clone_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_clone_cpu/debuf.mlir",
+    "sha256": "2ed88e1e7bea457c860d104fe3579a5591c903770ffa6e94f89cc961acf7cfd5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_from_padded_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_from_padded_cpu/debuf.mlir",
+    "sha256": "0489cb6f99dc167203103011ca6a532994157cf09367f20a49b5f615733da98f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_matmul_broadcast_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_matmul_broadcast_cpu/debuf.mlir",
+    "sha256": "99526bd5b2c75ca913a32e37808920fb7d722b4fa9bd32e2eb3eca7b46573cd8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_pad_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_pad_cpu/debuf.mlir",
+    "sha256": "9c3bf99d6312d6757ba8dfd4de144b51f23fd14a66a8d95c1b7637aedc07ceae",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_select_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_select_cpu/debuf.mlir",
+    "sha256": "58403147bb8edd57f3b59ebd2b6f183cf9d4519615d9a6f5b0bbfee77730e945",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_softmax_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_softmax_backward_cpu/debuf.mlir",
+    "sha256": "1618563914fcbdfbfa45b99d8f24c43454fe5db6570fd79407f08ab098e82cfd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_softmax_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_softmax_cpu/debuf.mlir",
+    "sha256": "86b568943be209201e3860a66b8ad0d353d6b4b66f88026635f461c3961bafed",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_softmax_dropout_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_softmax_dropout_cpu/debuf.mlir",
+    "sha256": "9da90338527dca248168f5a84a07ae17be84d9d5f068a795350e03008324d23b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_squeeze_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_squeeze_cpu/debuf.mlir",
+    "sha256": "5f8adb0579b301d79256290eb07a3595b7c4bc9f4ce969cf27653bb7893f3cda",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_sum_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_sum_backward_cpu/debuf.mlir",
+    "sha256": "74f45e074d71110a2451f9cc2775e64f17786bb6e0b4442769cbfbde33a11050",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_sum_dim_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_sum_dim_cpu/debuf.mlir",
+    "sha256": "fb38a797452207797a7bdbdf3d5c6222d31fa0cbb0feb5b66d98d9c04bb20c38",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_to_mask_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_to_mask_cpu/debuf.mlir",
+    "sha256": "592f5cad320dd0fdfeec0af43ab9a342dac4fae10236a8bcaa6b414abe9f4c5c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_to_padded_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_to_padded_cpu/debuf.mlir",
+    "sha256": "35172ea6355d899d34ad365ab567adc80d3923bbcd2129f97d4523a1233ff99f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_where_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_where_cpu/debuf.mlir",
+    "sha256": "4e007dcb0a1af67753a5942c1d2fba70020a4b31e3eed4427593991ebd385fe1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nested_where_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nested_where_out_cpu/debuf.mlir",
+    "sha256": "a0ae3099acf53110f736b48a6d794a2b104221adc9393dfc2dc6feb51132854e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nextafter",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nextafter/debuf.mlir",
+    "sha256": "739b48a003e5bf6edfaffddf9d82b2654d94bd300af7ca911799b363b528a692",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nll_loss2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nll_loss2d_backward_cpu/debuf.mlir",
+    "sha256": "8154664d2e0c0e3e1f4ff45c1b06c4622e70a84ad2a9bd411572892ca51899d5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nll_loss2d_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nll_loss2d_forward_cpu/debuf.mlir",
+    "sha256": "f0857792b229d928da4025b5bfa6b4d8e1c00a1f4565dd5f997488578d53d9df",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nll_loss_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nll_loss_backward_cpu/debuf.mlir",
+    "sha256": "f462679d0bd864b2a6a4d118e5b08b6e7dd40a6fa8b9f9bce84cd7c08b7a9c66",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nll_loss_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nll_loss_forward_cpu/debuf.mlir",
+    "sha256": "7c4b145ade77f851b4aa5b4525213394e829cad1a856e5833be5d8fa11034f54",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_nonzero_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_nonzero_out_cpu/debuf.mlir",
+    "sha256": "5d0e6d612b487b594ceb22a569383c3db32a0923488ece7f09cb0d4aacf1cec2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_norm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_norm_cpu/debuf.mlir",
+    "sha256": "e27b53a2a3b98357de03156409fc39ababf29da983e5e5ea463b8e5a5d8fd44e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_normal_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_normal_cpu/debuf.mlir",
+    "sha256": "716794b77ad1b5c638b9e869ab3f207b4b67e1a98075442686f8f8eb669cd76f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_or_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_or_reduce_cpu/debuf.mlir",
+    "sha256": "eaf802705b6b76dfcf237419a21638685d4bf0285d07339f4b5aa98852338782",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_outer",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_outer/debuf.mlir",
+    "sha256": "4af44bed94a9609747f508441567eb3c93b8e15f172ee0c8f855d91a5a0da894",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_padded_to_jagged_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_padded_to_jagged_cpu/debuf.mlir",
+    "sha256": "69760510fa123e21d3fbea931082f74b1b9e364e5f10991c2f786589cdd8ee5c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pdist_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pdist_backward_cpu/debuf.mlir",
+    "sha256": "c107c62409153a2338c86a2e1abb59e7be8283d0d947caa27ea765994ace9a1d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pdist_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pdist_forward_cpu/debuf.mlir",
+    "sha256": "6bed72da4a8bcdae8a45609f955185ab20cc4b9210115b8e8dab823ba1cd4dc2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_permute_sparse_coo_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_permute_sparse_coo_cpu/debuf.mlir",
+    "sha256": "0270d6df78ff10de839c784dd7439f52fca01b7fc4f841870ad07df26830cbc1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pixel_shuffle",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pixel_shuffle/debuf.mlir",
+    "sha256": "cc7aaad632c34f87d95c52bda3d25708048d23e123fdc55c1766f5a02044d98c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pixel_shuffle_cpu_backend",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pixel_shuffle_cpu_backend/debuf.mlir",
+    "sha256": "d053c55b4e35b78c29e87cf301d5894fa63e0d426aa28ef7139223cbe6c2e197",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pixel_unshuffle_cpu_backend",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pixel_unshuffle_cpu_backend/debuf.mlir",
+    "sha256": "6697d9adf5f33c1d6b0c011a6343ff09e81c9f4bb05f277e832dcb8d683f7c20",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_poisson_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_poisson_transform_cpu/debuf.mlir",
+    "sha256": "fc844e752a27d6dec06ac44305cb210130c196d2748d463818a9ff92c7a2c229",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_polar_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_polar_scalarized/debuf.mlir",
+    "sha256": "f18cdf9da7ab4bd792a928783b9ca23564fade071add87cd843539eb8fcb6875",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_polygamma",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_polygamma/debuf.mlir",
+    "sha256": "7485d433b5f299bede9f49a4651b671f54d003fcebda7a9d626ac2e7a711c30f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pow",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pow/debuf.mlir",
+    "sha256": "62056bd833be604b36bfcd962ae844a215f82e7424613411a934f9b7fb6c8f1c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_pow_tensor_scalar",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_pow_tensor_scalar/debuf.mlir",
+    "sha256": "e016f927c63304e68e2254af57c1b5888106c4079ab7a747945f0bd5a9c010f3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_powsum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_powsum_cpu/debuf.mlir",
+    "sha256": "c013c97ff9b538254a8ebe4cb8eeb92d795e0aff5463418ebeafb6ea2a3a7772",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_prod",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_prod/debuf.mlir",
+    "sha256": "ca1bcd2984dd3de67f87ab407cb641a4580c9c5bd4abb148a50ed48afcb07248",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_put_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_put_cpu/debuf.mlir",
+    "sha256": "edc8a660d89879fab87bed419ec9e7c836f27f0b6809fe7166dc1831b919c444",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_quant_col_offsets_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_quant_col_offsets_cpu/debuf.mlir",
+    "sha256": "f726d38a24e1ea18acf8c5d32edc177a408d7b78245b27c9617deebde28c5aa5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_quant_saturation_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_quant_saturation_cpu/debuf.mlir",
+    "sha256": "67c7c7933fa46293415ec61e7c4e19c7528f768e9e928e8109614bd774227566",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_quick_select_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_quick_select_cpu/debuf.mlir",
+    "sha256": "81a7faeaf460f3705cb08518e0f8e4731ef6f11a3c0dd4aeb39c9a05b28b8e97",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_random_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_random_cpu/debuf.mlir",
+    "sha256": "e4ace31c7e9daef809a875e04beaa13d6e1196492f3b6b9234a2ec12983c3116",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_random_from_to_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_random_from_to_cpu/debuf.mlir",
+    "sha256": "fe712254d0f6457865c0f348d1d004546525c9e2df04f18205baa678e9b6ee84",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_random_full_64_bits_range_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_random_full_64_bits_range_cpu/debuf.mlir",
+    "sha256": "0f1f92019d47bdee45b1f5c18d8667a82417b0f0e4203f9ace63ba1ec9a203c6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_randperm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_randperm_cpu/debuf.mlir",
+    "sha256": "dd2dd715c11f86e8e44989f5038f1a43f949c31b5b975f7326702c0d464ad4ba",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_range_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_range_out_cpu/debuf.mlir",
+    "sha256": "396aa26eac4e8a34b276b0fa679ac2f71d692d6c68ba3311b733918b6b01a469",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reciprocal",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reciprocal/debuf.mlir",
+    "sha256": "3bbfc1b13dbe25258659d92748d31cb5559fe6b3d96f470a60ce926fd6e8ec0b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflect_conj_tri_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflect_conj_tri_cpu/debuf.mlir",
+    "sha256": "14e6315e51a7001145837876d9c1562f2bbf17b6f50ed38f239b2e69f55d96e7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad1d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad1d_backward_cpu/debuf.mlir",
+    "sha256": "db15d224bc2a7c8b35dbe405a70a02e66d08c7f354e13e1076b74f4750ea1850",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad1d_cpu/debuf.mlir",
+    "sha256": "6f82006cf02061043a364ce4ae475c3dfd2519bbdd5880ac7840d7558a8a1cfd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad2d/debuf.mlir",
+    "sha256": "510caa5633a5f6e5a1959f685405c93df58a6b52b788a54d863bf6ce7fa25cf2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad2d_backward_cpu/debuf.mlir",
+    "sha256": "b5c4b65fd4ad4458a2c11544b739fe9247a09622897d547363980040da3cb3d1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad2d_cpu/debuf.mlir",
+    "sha256": "4b954399897a941655182f4d17ca8fd87ec7e5667be12c616217bb2e827ecbec",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad3d_backward_cpu/debuf.mlir",
+    "sha256": "d6f7871f045e3434a3b2e1ded5b58ed9f205465ede5782b9affa7f6c61924b1a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_reflection_pad3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_reflection_pad3d_cpu/debuf.mlir",
+    "sha256": "c7823e4562bdbaca9a357adce23f396d0d13a2aae044b807ea928510d232b8ad",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_relu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_relu/debuf.mlir",
+    "sha256": "5d1c3d2afa2014fc9a64febb10c4f2d52f60e504dae2003921dbd30da5e69bac",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_remainder",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_remainder/debuf.mlir",
+    "sha256": "4f4af6f427e38a14e683bd56e50f1d56e07e81665297445c75269b23600b2a0d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_renorm_scale_factor",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_renorm_scale_factor/debuf.mlir",
+    "sha256": "5a40321b1ca04c1156a786c6cfab0bf73b66828707de088b723d57e8a672a5e8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_repeat_compute_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_repeat_compute_cpu/debuf.mlir",
+    "sha256": "2780616f9caec9346f80e7ee850ffb4b9c575a44240ca5c86787eab43035b9ee",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_repeat_tensor_shape_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_repeat_tensor_shape_cpu/debuf.mlir",
+    "sha256": "cf70928110777f068310b34419d6979d90ebc16536f56df77a5dccb6a0396a61",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad1d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad1d_backward_cpu/debuf.mlir",
+    "sha256": "f93ecea35c494de263d346ba600eab0756473571b2b6fa35c9efc67d22d7ed62",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad1d_cpu/debuf.mlir",
+    "sha256": "a92f1edc6654ab97082bd9884428e0dbc59cf1d83718aa500abd867bebdd1a97",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad2d/debuf.mlir",
+    "sha256": "303aae6f0a6f6d862d1e7ac4c8e21bb1a2df47bf8cc76291d7cf3f3b13805df1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad2d_backward_cpu/debuf.mlir",
+    "sha256": "08d4278d7df79a117c4cb97aa69830cffd01de0a2ad440444fb60baaa0f1e6bd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad2d_cpu/debuf.mlir",
+    "sha256": "51267081cb3afc06f4fcc1aabc9ef1de24af917445d24f20ff5291a0db927d47",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad3d_backward_cpu/debuf.mlir",
+    "sha256": "d26207f8a69ff18e375917032d35e63c0d700853abac1e48a71ef651e733d607",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_replication_pad3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_replication_pad3d_cpu/debuf.mlir",
+    "sha256": "b0431fa55a1c8e912c0451a1c803dabbcb26ae0da75149e26aa9d5cc60ad5731",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_rms_norm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_rms_norm/debuf.mlir",
+    "sha256": "d02f2ea9f758217ab92dc001ab4a8ebb79893e528e7a9a0f2ecdf62007d45302",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_round",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_round/debuf.mlir",
+    "sha256": "5e059779b629b34b761b228e5588f63216e4128238d3effa99dac82ae48b8291",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_round_decimals",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_round_decimals/debuf.mlir",
+    "sha256": "1a6d10ffaccc6311c02f9446d7634e777c2af9f93c0d9e907beeb2a30614f40b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_rowwise_prune_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_rowwise_prune_cpu/debuf.mlir",
+    "sha256": "c1f0151c092836832c95166c1d00c7aa02818cbde58d3af55bd21f0155d1caeb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_rshift_i32",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_rshift_i32/debuf.mlir",
+    "sha256": "9158f1be8306c3659a921a7f89d87d4a6b4fd096902130861efd296b7b0886c6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_rsqrt",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_rsqrt/debuf.mlir",
+    "sha256": "b3c6a3a02bae2d7d4fe74afa413c81d875173af1575d3eac83833636b4e2dd82",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sample_poisson_transform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sample_poisson_transform_cpu/debuf.mlir",
+    "sha256": "a03e966c9297488a4a5e1a2cb6b4268ef5f0b6f16040b4b25772c06b81a8dc6e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sampled_addmm_sparse_csr_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sampled_addmm_sparse_csr_cpu/debuf.mlir",
+    "sha256": "2552f13b3ceff687b788594492dc54a6c25db49a7f50ef4bf72c5641859d2ff3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scaled_modified_bessel_k0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scaled_modified_bessel_k0/debuf.mlir",
+    "sha256": "2d348b5ce4cb20de590948323d3e64c722e7bf001e944833f7509070e36b2c87",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scaled_modified_bessel_k1",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scaled_modified_bessel_k1/debuf.mlir",
+    "sha256": "b60b5db1c75b4b9951def6eb21c079298d6c9f7801d1835799e0be3ad27d929e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_add_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_add_cpu/debuf.mlir",
+    "sha256": "5825ebbf2a8e6673cc0f8ebe669f15a2325c05730e5bbe08a8f894c494201df6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_add_expanded_index_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_add_expanded_index_cpu/debuf.mlir",
+    "sha256": "019e77eb20f3ed6f40ec983b0123a2e5cc6c8d24407a68f5c13e287b4cc5ce4d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_cpu/debuf.mlir",
+    "sha256": "b7f84cc3e2f6446484cc25cf3da62da27aa3dddba86ae02fddef6e3d395edd8c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_fill_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_fill_cpu/debuf.mlir",
+    "sha256": "623d365b296c99c7fa33e6894aeb2fb5feb4edf14ec8fb63598904b3bfe64d94",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_reduce_cpu/debuf.mlir",
+    "sha256": "592cd9170fc4fa0a583381d76767f183ff104b3c816b808c2852012e11eb87f4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_reduce_expanded_index_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_reduce_expanded_index_cpu/debuf.mlir",
+    "sha256": "6644bc6fd1152322c6c6b61f8080d5da11dace4382eaa98f73b311a195e375d4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_reduce_two_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_reduce_two_cpu/debuf.mlir",
+    "sha256": "63d6bd01742480d9209f2f1410c307ff70cd7353ef12ff9bf774beb9279e68dc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_scatter_scalar_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_scatter_scalar_reduce_cpu/debuf.mlir",
+    "sha256": "1fdcbd921f302b9d1c2719c0a61d8425812a85740a760fcc9f1393f876074a14",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_searchsorted_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_searchsorted_cpu/debuf.mlir",
+    "sha256": "c562467cda253a77fe55a965f21dd57324c6fdb29213821b11228d3d2814dc14",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_segment_reduce_lengths_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_segment_reduce_lengths_backward_cpu/debuf.mlir",
+    "sha256": "3f5ca8111dc1bb5b7013330793576b2c8668fe8b6ef083572584e6b843ebcc75",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_segment_reduce_lengths_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_segment_reduce_lengths_cpu/debuf.mlir",
+    "sha256": "20e11bcd46b3c72747e32f40108479b202b245a78491221fb886bc3d6caf0238",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sgn_complex_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sgn_complex_scalarized/debuf.mlir",
+    "sha256": "21edb11a3dab8110ec6d18c7063541392e38c26abc36c7af0b3ffce9f8b575d9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_shrink_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_shrink_backward/debuf.mlir",
+    "sha256": "b60e6c8ee6a81c6a025cae61a182c66ed75b7d550729dbb3c1ac3fffd6396472",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sigmoid",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sigmoid/debuf.mlir",
+    "sha256": "07500bc1bfa3c43275efa9121ba04f131fbe5c43d93ed40f4a8997dfe950d2a1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sigmoid_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sigmoid_backward/debuf.mlir",
+    "sha256": "c4e6719e72595bdf51c064b1f193f74afe9c6cc68ef2eb98ac7f1ba1980f302d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sign",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sign/debuf.mlir",
+    "sha256": "f5de06908020357ecc645b6bf5152b90a506e6ae70c4ddc57efe51395c574d17",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_signbit",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_signbit/debuf.mlir",
+    "sha256": "ce0b8e7b33f313475f5fb9857f1e82d631b59ef984fe654ef66ff940c2281e4f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_silu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_silu/debuf.mlir",
+    "sha256": "beea8dc387dfd8c11cda531e4923f19e7b26dbf5ce5838a21961aba7e71bb2e4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_silu_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_silu_backward/debuf.mlir",
+    "sha256": "7b482fdce435564dcffcac97e1780978feac0195a3f1b67f018368a76e27b2fd",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_silu_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_silu_cpu/debuf.mlir",
+    "sha256": "f75b3be985dbb864698b02df050d7e7a20dae4eafdc106b44687f13fb4be5176",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sin",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sin/debuf.mlir",
+    "sha256": "a119069e9ff7cfd756e122da42b4f98dac428a5201397a5ac90d8d61ba0fbac0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sinc",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sinc/debuf.mlir",
+    "sha256": "bb65c7ee4e036c37a48d6277274554d5b04c13bbe48771ff1e339d412c7bd2d0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sinh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sinh/debuf.mlir",
+    "sha256": "4bdd77ba401f9797fdfba39f5bbdc3f882d539f924ca516bc46851dcb26fca01",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_slow_conv3d_backward_input_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_slow_conv3d_backward_input_cpu/debuf.mlir",
+    "sha256": "6f538a6dab1ff76d527ea7ef09043a6a0ccabb1b4d45fd5fa580a241c7d4cbf0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_slow_conv3d_backward_weight_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_slow_conv3d_backward_weight_cpu/debuf.mlir",
+    "sha256": "4dc7ae9d4a9f029871e8d56b6770fc5032938e273013011d6cd6076d781f845f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_slow_conv3d_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_slow_conv3d_forward_cpu/debuf.mlir",
+    "sha256": "f3b08970c9a94a57f5eca1a988461b6395939ca6c9f69851a666c1aea74ba639",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_smooth_l1_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_smooth_l1_backward/debuf.mlir",
+    "sha256": "05128f25593e13aefd2d9336f3741c61ac41a039a9e6056ba6d11ef65090259b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_smooth_l1_elementwise",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_smooth_l1_elementwise/debuf.mlir",
+    "sha256": "94b1d5b91762da9a6b896e2e087c7d480e4ccc5f3de268460a8083479174f355",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sobol_draw_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sobol_draw_cpu/debuf.mlir",
+    "sha256": "5332df2ea7bd22d6d3e150dd30a187b1a56841cfbf265455633259fd2fdcf797",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sobol_fast_forward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sobol_fast_forward_cpu/debuf.mlir",
+    "sha256": "204d9b5c80e354dcbb995d32fd818229672ee7cf153d207fed951c1007bb089d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sobol_initialize_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sobol_initialize_cpu/debuf.mlir",
+    "sha256": "2d9b4489a54fe45102cb3d341b504ae1227566fe06a0fe4f1e99a2a23b9b08e6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sobol_scramble_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sobol_scramble_cpu/debuf.mlir",
+    "sha256": "2a6a91f976de4fa92aa583d086a701747a99733afd4114167bf4c3db9724022f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_softmax",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_softmax/debuf.mlir",
+    "sha256": "17ff33096aba26ff148d7bee46e2e6c60a835133b3ec0a54545b090186deb30d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_softplus",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_softplus/debuf.mlir",
+    "sha256": "236624646892d87d8ceb7fffa81b5215e749ac7ee65f130e6262b14c43c8509d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_softplus_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_softplus_backward/debuf.mlir",
+    "sha256": "577e37a31c40d884fdeb746b7af038fa0c22c5175585ceecfce93a2229368689",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_softshrink",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_softshrink/debuf.mlir",
+    "sha256": "119cb874b711a6e850799def27a724709d47f3d88402c77fb5fbb6e1bd6b953c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sort_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sort_cpu/debuf.mlir",
+    "sha256": "ddbb4ace83fe9ebf7ca705bc3aeffdf4fa7aeaaa11000bd1e0fb9cf48a677a44",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_add_values_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_add_values_cpu/debuf.mlir",
+    "sha256": "80d83c7248a7716718bd92bf5e072a5de2b039346efd09c1f6a598db1ba054c4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_addmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_addmm_cpu/debuf.mlir",
+    "sha256": "242b19e33f2e41a0921d53486d01671d404b2e67a87cb358958ce95e62601a9d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_addmv_bsr_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_addmv_bsr_cpu/debuf.mlir",
+    "sha256": "f98148ac47b1517182aa4a15b4cc7785365fac0d06026634b9ee68651e3b2bc2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_addmv_csr_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_addmv_csr_cpu/debuf.mlir",
+    "sha256": "984c60d04040667e37f577716ae8d07b09609f65c17aaf855fbf4339fd86c6fb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_bmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_bmm_cpu/debuf.mlir",
+    "sha256": "b74770fa7549db3ccd2ae1157faea2997dfe53198b96f7d8237c0b30b55983df",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_coo_softmax_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_coo_softmax_backward_cpu/debuf.mlir",
+    "sha256": "603d8f9cb00e14df25d8db38074772e75154107649016cf03d5333a06fed9f7f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_coo_softmax_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_coo_softmax_cpu/debuf.mlir",
+    "sha256": "b314844b89a95132ecfec105f4afef679fd18344ffe8c57f2ebbe869efc93166",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_coo_to_csr_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_coo_to_csr_cpu/debuf.mlir",
+    "sha256": "a018b4c90e72414d30353c0f26c74c73d460b11031fb70606c418f9a40445431",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_csr_add_dense_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_csr_add_dense_cpu/debuf.mlir",
+    "sha256": "90a5d5852f432ee1316b5218fc7ed9e135fcf087a0ada11472fa36526b0da17b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_csr_addmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_csr_addmm_cpu/debuf.mlir",
+    "sha256": "651dcdb72bba2354213e03a6c91dad7a337e7b4cf44903558d8ae8d8973356bc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_csr_reduce_all_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_csr_reduce_all_cpu/debuf.mlir",
+    "sha256": "91575088675077aee6d42dc2173683a2d9eca6721ce7ef978afa349fd1647c39",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_csr_reduce_dim0_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_csr_reduce_dim0_cpu/debuf.mlir",
+    "sha256": "ffbbbe6fe585910d8496f96f4d88a31931e9d073ac429b6b1ba17eb590d0624e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_csr_reduce_dim1_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_csr_reduce_dim1_cpu/debuf.mlir",
+    "sha256": "6a9b4846e96824c1a320dc0889095e245aaf9b74aee30393444c24ef07710aa8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_dense_intersection_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_dense_intersection_cpu/debuf.mlir",
+    "sha256": "02e02f213cb0f3988e1a5204766eacc4da9c023b74605bb198c866cc94076468",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_flatten_indices_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_flatten_indices_cpu/debuf.mlir",
+    "sha256": "73c64e5fbdcb9b3b4aa163ae977cabe2ef1a152fcc176492d5de4546aae4f775",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_full_coo_indices_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_full_coo_indices_cpu/debuf.mlir",
+    "sha256": "5d26543193b9423a002a210b0db94426fda64388461969c97da0af31764129d4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_intersection_apply_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_intersection_apply_cpu/debuf.mlir",
+    "sha256": "a7b19549322c7deeff218e2c7df7de08ae15d25b183f92b2acdc68435f7f323f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_intersection_launch_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_intersection_launch_cpu/debuf.mlir",
+    "sha256": "9be630b117c48e8326efad4f40a0a29af3c89068d38081619447407b1f364adf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_matmul_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_matmul_cpu/debuf.mlir",
+    "sha256": "2c5bfd0ebb1902cd5e9f90b0814786b49a06a62272c92c60b563c2595a2d5593",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_matmul_csr_to_coo_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_matmul_csr_to_coo_cpu/debuf.mlir",
+    "sha256": "8b11647de294f7f111106c7ad77ae14602fa1809c4d6d3fb16d03b7c90fad245",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_matmul_maxnnz_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_matmul_maxnnz_cpu/debuf.mlir",
+    "sha256": "4db4a642345ec5980c833c1f5dc559c1112089fedffbb42f448d28c468dd5bb7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_mul_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_mul_cpu/debuf.mlir",
+    "sha256": "84d937fc2e09e875501205a616f37695ba787ce5eefb47d26cf905f441a4b524",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_norm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_norm_cpu/debuf.mlir",
+    "sha256": "9899d8b65db78c778011ecd63fb6ab76c41cb0b8dee73116d8b1a9f6f0629d68",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_softmax_offsets_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_softmax_offsets_cpu/debuf.mlir",
+    "sha256": "13bdb83b6fa008e4e683f6b926fa4e7dc5e189e5b153ad7717eeda38143cef75",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_softmax_pools_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_softmax_pools_cpu/debuf.mlir",
+    "sha256": "d251711865d7fbe13a7347c5198c0131ae82e4d9ab4823135c506666a064ee13",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_sum_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_sum_backward_cpu/debuf.mlir",
+    "sha256": "971a8e88e97b1a922cb3690fa8d1e5120238097178bbd04960660aa54dae7022",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sparse_sum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sparse_sum_cpu/debuf.mlir",
+    "sha256": "0f774357136389484984b4191d63e2ca72fb79fbffae258c11c81046b439722a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spdiags_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spdiags_cpu/debuf.mlir",
+    "sha256": "c239c3c189b77b65f858918f2c0c2df87cfee742eee03bf83da8ec66007a5ecb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spherical_bessel_j0",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spherical_bessel_j0/debuf.mlir",
+    "sha256": "324f9a5d3655cde40c5034c6d864a4dafdde89beb685dca15b08d740d9f80dd8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_split_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_split_copy_cpu/debuf.mlir",
+    "sha256": "042bf726ec1c2313192a7061b131e6ca9b475588b7d85f8619e629a6470f3cbe",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_arg_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_arg_cpu/debuf.mlir",
+    "sha256": "fe6fdc2a6b61bd27a8d9e6004f38a1e548419cd2a2f861f6754314b4ba014f4b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_backward_input_arg_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_backward_input_arg_cpu/debuf.mlir",
+    "sha256": "b5d0daec199f453bb040e9e9d0cf01ff5919573e93e4e19dd8427321b78cbe47",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_backward_input_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_backward_input_cpu/debuf.mlir",
+    "sha256": "89ad989a1eed7939b85f028565136b314201bf9f69949eefd2e214e20131e2a5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_backward_other_arg_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_backward_other_arg_cpu/debuf.mlir",
+    "sha256": "c0488f1a61301bcca75b10b9b461cc0c7aa162ba7d601f2da718d1e5389a0e79",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_backward_other_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_backward_other_cpu/debuf.mlir",
+    "sha256": "6218ab0a563498e19c4a1dd27b920237a310972e5c7d403bb8c01f96ac4a7516",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_spmm_reduce_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_spmm_reduce_cpu/debuf.mlir",
+    "sha256": "4f1035d8aba2e1caeaee708cbea3630b65bf3c1a061aa71548b8f7dc8bff633b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sqrt",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sqrt/debuf.mlir",
+    "sha256": "48d0a6c55c78d8dffd5aafe298fa234bc717c8b5afa75dc4d18c419e4ddd827e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_square",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_square/debuf.mlir",
+    "sha256": "4752db444064aaf1b467b97b96e26f98bf806b2ca3931347d7650762eddbbe1b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sspaddmm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sspaddmm_cpu/debuf.mlir",
+    "sha256": "37cef9ae1263fb2322d65336513955d5c0e8a2cc889c5ab79cb2de5c9bcd96fb",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_stack_serial_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_stack_serial_cpu/debuf.mlir",
+    "sha256": "b7f7832c7582eed9d842845d43805bb0e359e6654ac1ffd21af4ea6a05446391",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_standard_gamma_grad_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_standard_gamma_grad_cpu/debuf.mlir",
+    "sha256": "b0e1e4b8cec8f8739e95911b3acf50c71f97f097eedd7ddab65779f209f2266f",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_std_var_all_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_std_var_all_cpu/debuf.mlir",
+    "sha256": "aef880aaeb989a98e814d1547781115dde184ba82d57710993abf6137f0b5e99",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_std_var_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_std_var_cpu/debuf.mlir",
+    "sha256": "9727a44b4ffe4c1366db8e85ccf0fa79da42c474529c40c45b9088595a322474",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sum",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sum/debuf.mlir",
+    "sha256": "cf91819e6003204044e44b5d9ef88e71c9ee69881d839fb3fff2334bcac17ec8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sum_cpu_backend",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sum_cpu_backend/debuf.mlir",
+    "sha256": "75646a8b7dc8308737245e73768eab0d9aa1ecd1a7633234c1cb889669c830e0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_sumproduct_pair_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_sumproduct_pair_cpu/debuf.mlir",
+    "sha256": "dfbf7eb7a38190bfb20ad0908d2058b9a51cc51eb9c9f6794b27a73e7935bd4b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_take_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_take_cpu/debuf.mlir",
+    "sha256": "ca858df85a52625a1e3eac201c8112887706704be64617e1cbb062e108268474",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_tan",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_tan/debuf.mlir",
+    "sha256": "dfa9bfddc41e9278658d68429474a7aff2ed23d8d162dcc76dee0d61ebf52ba0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_tanh",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_tanh/debuf.mlir",
+    "sha256": "72c77a3e869cbeb1b7894d4d6af1c8cea0dd69ebd2590ae36ea05f96a8c1cfb8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_tanh_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_tanh_backward/debuf.mlir",
+    "sha256": "553fa3fc8d7f272f376961449d868b571b1d752f7e1e1a345250b3b04e4046a8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_threshold_backward",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_threshold_backward/debuf.mlir",
+    "sha256": "34525b3ddd04fc10a52c96155e6bf93387c4d43969ecfcf80f44eb9794b44fc4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_topk_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_topk_cpu/debuf.mlir",
+    "sha256": "1c559c186ccd951dab6fc0d2d4cb76fbf192532efd21802f16e202127569e82b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_trace_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_trace_cpu/debuf.mlir",
+    "sha256": "9abdc6488c38d0a40a71289b41fcf38eb27a7613e2f8670600b8088fe0e51b2e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_transform_bias_rescale_qkv_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_transform_bias_rescale_qkv_cpu/debuf.mlir",
+    "sha256": "82f971470edc0a69ef7301e64ccb2d0d691dc6fdd4229e883453a203aed685e7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_transpose_copy",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_transpose_copy/debuf.mlir",
+    "sha256": "2be04b9d92308d084e138fbc28d43bb0bb53e6b86dbb0dad7b37583e5b107dc4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_trigamma",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_trigamma/debuf.mlir",
+    "sha256": "b6b091b8f38a13b47e339b26d0b5bef29164c58af0b774290ce4379e2af734d5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_tril_indices_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_tril_indices_cpu/debuf.mlir",
+    "sha256": "bd577bdce03c266cd6e2eefd848be084f42e6676e7d1c12512c9c0a83055da9d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_trilinear_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_trilinear_cpu/debuf.mlir",
+    "sha256": "94a8064352fb7ab55df5a2dba6b6caa8849510e2907601a7cd6491e6a51219f4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_triu_indices_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_triu_indices_cpu/debuf.mlir",
+    "sha256": "f3e9e24cf6abf35e644969357e2485dae5f4a3cce72179dc160612b637c62da8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_triu_mask_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_triu_mask_cpu/debuf.mlir",
+    "sha256": "8fd8549e7a8068bea31020feec2234e3d7cca92eea6dd8bb9bd01d28ed75f30a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_triu_tril_batch_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_triu_tril_batch_cpu/debuf.mlir",
+    "sha256": "feb2027c9ce1609240ba3f163d8bed725480e508525cfe58c399a1bbb368fbc9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_triu_tril_single_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_triu_tril_single_cpu/debuf.mlir",
+    "sha256": "5c4975f528b6b0734840afa734e2e8a94ed36e6d70f6b6e9ff527895e6d58e71",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_trunc",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_trunc/debuf.mlir",
+    "sha256": "bbb239d1f62d915cde6645d243bd7eaa9f362caa80847792dd74d19813aa68d6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unbind_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unbind_copy_cpu/debuf.mlir",
+    "sha256": "7ad6620f35d49da1b32da88a37743ef911da18df8be3de449300fee80218aba3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfold3d_acc_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfold3d_acc_cpu/debuf.mlir",
+    "sha256": "86758066d19868a69a64e921cf82dc4df07609bed355a7ae0f2991975dbd9619",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfold3d_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfold3d_copy_cpu/debuf.mlir",
+    "sha256": "5c4ea9275e0d686722a771e7e991e3c7099998cc17ffc1da0652cb2d394f9ef4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfold3d_zero_acc_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfold3d_zero_acc_cpu/debuf.mlir",
+    "sha256": "3fdd677d3d0b856edceb68434af0939d470859231de0688e8e02d4e0536a2d42",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfold3d_zero_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfold3d_zero_copy_cpu/debuf.mlir",
+    "sha256": "8e1e6863d0a9d36fc7a87561703a17508f71c983d5a691d125885ae60beef787",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfold_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfold_backward_cpu/debuf.mlir",
+    "sha256": "e097aaaa7653ed512efcfc4d8308d83e194d1a9aeef6243635b41aa506f8562e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfolded2d_acc_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfolded2d_acc_cpu/debuf.mlir",
+    "sha256": "155e85eaf81db688435ee7925f48e4b658739c5de1d7dcb887a128a1c9d61635",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unfolded2d_copy_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unfolded2d_copy_cpu/debuf.mlir",
+    "sha256": "dcc0c1ea2515db6ef929fc60a2141232d7739fb0315137fcb28cbdf4983772f9",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_uniform_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_uniform_cpu/debuf.mlir",
+    "sha256": "449df1ddb80fe93b7322cffad1279198e0a3b49c1590c150e21195551ee5e2ad",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unique_bool_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unique_bool_cpu/debuf.mlir",
+    "sha256": "ace92dfc02295fe899877bd835394d123f05fd979e1f6005a6257f29db079e21",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unique_consecutive_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unique_consecutive_cpu/debuf.mlir",
+    "sha256": "f478aefd5587c758ee0502cb32bd1bd89adf9fc00c76a79e3e84902ca94d5c30",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unique_dim_impl_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unique_dim_impl_cpu/debuf.mlir",
+    "sha256": "ce6ff97582d0857bbc1d3e35322057f3fd3501a13d27fc1e1fa504a73c6fa007",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unique_dim_template_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unique_dim_template_cpu/debuf.mlir",
+    "sha256": "d15c82488a4485a02598d765b9fd6f3f89c8166b11511999f926613f9fe1d462",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unique_sorted_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unique_sorted_cpu/debuf.mlir",
+    "sha256": "61d9cd962bfda6c47a4c34b4f0fb6daea4b972b7df153471ebcdb4fddcba5068",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unpack_pivots_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unpack_pivots_cpu/debuf.mlir",
+    "sha256": "b1f9065e7233d42d0b61028f9891f8cd3b43496cff4d083b39caf4cd3c8bffb2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_unsafe_index_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_unsafe_index_cpu/debuf.mlir",
+    "sha256": "6dd7c91753c3aa6350045da1337068607f03357154030311a7b6ae71936e8aab",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upper_bound_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upper_bound_cpu/debuf.mlir",
+    "sha256": "6e67af9102de6740dc5a3cff37173564cbf166d87458f98f1ed7ac38a788802a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bicubic2d_aa_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bicubic2d_aa_backward_cpu/debuf.mlir",
+    "sha256": "735e596ec914bac227a25c6d3adc0a7125af54cfa8ffabb8a6a9f9e4e849538e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bicubic2d_aa_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bicubic2d_aa_cpu/debuf.mlir",
+    "sha256": "7de74c337a99254b48e8aec76f274b6604a62da19a4eee914023cbce20d4f309",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bicubic2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bicubic2d_backward_cpu/debuf.mlir",
+    "sha256": "38b8ad968a67476c19811b4369911fad137f216e355b5e8eab75c7fae2105e7a",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bicubic2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bicubic2d_cpu/debuf.mlir",
+    "sha256": "cc0fa296bbe6a24e7861229d73f02276299986ed6a879bd661658c9b7370d813",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bilinear2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bilinear2d/debuf.mlir",
+    "sha256": "b8c27818ef13f9105cd201f7d7da7ded7020df2001fe8fc1c9465cfb56cf9ca3",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bilinear2d_aa_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bilinear2d_aa_backward_cpu/debuf.mlir",
+    "sha256": "4d9c45a38b21b273dbfa54fc50fb0c62e81ab73ce4904bf03067e91c35ab85f4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bilinear2d_aa_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bilinear2d_aa_cpu/debuf.mlir",
+    "sha256": "256e8725c95258593f67a0e134eecd42babaafb354bf3b16b8f43eba5dbee5c4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bilinear2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bilinear2d_backward_cpu/debuf.mlir",
+    "sha256": "f29e6f1c3d51a85cc5cc6fc7d629f0117ac799ebb21457c207f0b4eabae6a1b1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_bilinear2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_bilinear2d_cpu/debuf.mlir",
+    "sha256": "e399ff644955dd2aa3b3a247ee823031359bedd9d258e3210e1e9bba44842518",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_lanczos2d_aa_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_lanczos2d_aa_backward_cpu/debuf.mlir",
+    "sha256": "d3a75051bfd356d4238e4090cae45a617c53fbb49904d1b07a608d966e712f98",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_lanczos2d_aa_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_lanczos2d_aa_cpu/debuf.mlir",
+    "sha256": "102142c31aef7313bc9b3d2ce191f0b7f347705d27a44ad0fcc2be95bc5a7720",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_linear1d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_linear1d_backward_cpu/debuf.mlir",
+    "sha256": "9bf3c09bd08f876ef829c7870c9f4cf93f7310f8193782c771144e3e2e3bbf45",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_linear1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_linear1d_cpu/debuf.mlir",
+    "sha256": "df80b157c79ef8748790a478211c6e361ae9cfdda8433627122fd62e26ddbee0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest1d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest1d_backward_cpu/debuf.mlir",
+    "sha256": "060fd2df7698595cfd637dbfc488162cb363d9451f429be1e9f8ef866a6205e1",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest1d_cpu/debuf.mlir",
+    "sha256": "a0938fec5f729bc12b812b01fb44af8a142a298a6e0ccabe74519ca9c799b0d0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest2d",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest2d/debuf.mlir",
+    "sha256": "20e10e4f64cd243cb83be7b7ef4b6e35995e6b904b73898263963f87c9d7348e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest2d_backward_cpu/debuf.mlir",
+    "sha256": "d347ffa1955403de1366e5e32f7da8c7b59fac335d908d453558230d0be9f004",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest2d_cpu/debuf.mlir",
+    "sha256": "a692fa9e823354a3b93aaf103625f5341168b17a32d4a6803a3d35786762a1d6",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest3d_backward_cpu/debuf.mlir",
+    "sha256": "81185950e54f2e234479e6443ff2527c662b41016c6cb5e99c01459968c95b1b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest3d_cpu/debuf.mlir",
+    "sha256": "3cb60a2183e92b7a7ff99c058c25689215b18305e873fb69911def5857f98877",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact1d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact1d_backward_cpu/debuf.mlir",
+    "sha256": "e514509202bb99690c28911ca72fe11eb9c217f29689b378e774a8e6589c7ad5",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact1d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact1d_cpu/debuf.mlir",
+    "sha256": "160592f27e3020f4f4591c786b38f69cae7390fa39b1b6fded763a609255f71d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact2d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact2d_backward_cpu/debuf.mlir",
+    "sha256": "1a716e4df5ccb2d040ba7d8238b3732a6268f87e90a6a2d47649af1a1f58e4a0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact2d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact2d_cpu/debuf.mlir",
+    "sha256": "fbba6726e6edb05d54c14ad1aa3c9b301114abaaa49d2f82ebdfb1bd67319125",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact3d_backward_cpu/debuf.mlir",
+    "sha256": "4196b56972576de5c6dc37d83feaf13087f9c2423f73e32ed2928fe513e319e8",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_nearest_exact3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_nearest_exact3d_cpu/debuf.mlir",
+    "sha256": "a667b5c733b86261436097100228597e0f476819432fd89456fff03bb1be386b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_trilinear3d_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_trilinear3d_backward_cpu/debuf.mlir",
+    "sha256": "42f31e596b27513e9637ca29ad75296cdeb3ded8b66201a45aeaff68db4a1e87",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_upsample_trilinear3d_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_upsample_trilinear3d_cpu/debuf.mlir",
+    "sha256": "4609b9bedb30a0def7cd8ccc2e428d149fec24a36568d6c5054122e49521b763",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_vector_norm_out_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_vector_norm_out_cpu/debuf.mlir",
+    "sha256": "8224c85fb58559ff5f84db8123c6b75786840c0fca0ac7f1dee5eadc90bc99fc",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_weight_norm_backward_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_weight_norm_backward_cpu/debuf.mlir",
+    "sha256": "e46831c8e730d03d57edbc9ea1f055b8b43444f5a3bf5f3626642761a0b3ddd0",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_weight_norm_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_weight_norm_cpu/debuf.mlir",
+    "sha256": "f272567c486400263f04400b94ab08ae1d09d879b363691a0327969bf69307e7",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_weight_to_int4pack_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_weight_to_int4pack_cpu/debuf.mlir",
+    "sha256": "49fc4ebca0cd678d297d67afd597505011ab3a7e7d9e45d5b8b337ef27e745a4",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_where_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_where_cpu/debuf.mlir",
+    "sha256": "1c2436753aba7752bf9249440050d70c41cf6c5643734ccd567eeda6b91e8eb2",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_xlog1py",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_xlog1py/debuf.mlir",
+    "sha256": "12ade65aa4acd3c6046870bd7fefc3f4fce0612bfa34ef111bffba60548c286b",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_xlogy",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_xlogy/debuf.mlir",
+    "sha256": "0385820871243198b3fc30dfa607b91cccbf19b44390bca16bc8eb11e980fc5c",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_xor_sum_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_xor_sum_cpu/debuf.mlir",
+    "sha256": "bf0d04cd4ad1bce2b410a2494df325593a7ce8a82d2d36df8c936714d23b768d",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_zeros_cpu",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_zeros_cpu/debuf.mlir",
+    "sha256": "af28521fbc0d9d156be63ff4669ee4cd0f7757655985d7eea54ac0d9f6eb802e",
+    "suite": "aten"
+  },
+  {
+    "input_id": "aten_zeta",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_zeta/debuf.mlir",
+    "sha256": "551dc18b6edc0d3c1c5423431d32ab9cca805140ddb8da3e63665b86ec0bd4cf",
+    "suite": "aten"
+  },
+  {
+    "input_id": "convection_apply_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/convection_apply_2d_stage_sliced/debufferized.mlir",
+    "sha256": "60394997b2c0825392d275c3925a8b318695e34cee6238e774b8a025e6db7a33",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "convection_apply_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/convection_apply_3d_stage_sliced/debufferized.mlir",
+    "sha256": "0ceba986c0194316098190df1c916637d09e1d367bc2750c0023cee5dd96c21d",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "curlcurl_apply_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/curlcurl_apply_2d_stage_sliced/debufferized.mlir",
+    "sha256": "81dec790c334ff4943a64662357a83e8235bc2c131228325f94bb9f67517e43f",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "curlcurl_apply_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/curlcurl_apply_3d_stage_sliced/debufferized.mlir",
+    "sha256": "ffd54dc05b57dcd6c609e392d5aa43cf9ec850d8e3f3277e66eaf5972a5ca0d9",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "diffusion_apply_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/diffusion_apply_2d_stage_sliced/debufferized.mlir",
+    "sha256": "b95a3c02be00d94e69c11667819dabc35e4f4c4f307e939e1dd79b17ea2ac1c6",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "diffusion_apply_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/diffusion_apply_3d_stage_sliced/debufferized.mlir",
+    "sha256": "83f46446c0492f3ec8f0291fb681cbe948fd1085aaceacbdec758e60b1cabb85",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "divdiv_apply_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/divdiv_apply_2d_stage_sliced/debufferized.mlir",
+    "sha256": "4b2f97d7a3eb05833ae80661625e886638b524d92e00586080f6ed065c9e47a7",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "divdiv_apply_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/divdiv_apply_3d_stage_sliced/debufferized.mlir",
+    "sha256": "a7418b024b43d0cfc64d8c25a2b6ca5030570c9be242eb655f1a33f788942dac",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "elasticity_qpoint_2d_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/elasticity_qpoint_2d_scalarized/debufferized.mlir",
+    "sha256": "0392961ea90b19c55978f0cf4dba0d345344196a30cfc01ef67f5eb3082e6959",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "elasticity_qpoint_3d_scalarized",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/elasticity_qpoint_3d_scalarized/debufferized.mlir",
+    "sha256": "931e3ab488d01b30e0ab16af711b0c83884e431163d49ea71c282681d864edaa",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "integrate_grad_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_grad_2d_stage_sliced/debufferized.mlir",
+    "sha256": "ab05a793e22b4e0186981adabed4ce3859df0706a9303ba31cd5bd6413605eda",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "integrate_grad_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_grad_3d_stage_sliced/debufferized.mlir",
+    "sha256": "183892aa32755cda0ff23b4445dc53bfa169645ea717eb52432bcd8ca9aa40f0",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "integrate_value_2d_scratch_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_value_2d_scratch_sliced/debufferized.mlir",
+    "sha256": "0c9710ddf53bd35c1253a4e8ffd66a47a8af8535266f16a700f41ba6241d6bd2",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "integrate_value_3d_scratch_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/integrate_value_3d_scratch_sliced/debufferized.mlir",
+    "sha256": "4cfb44091e53f640ac51ed866357224d85eadffe3d67938691aff78dfd39c0cd",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "interp_grad_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_grad_2d_stage_sliced/debufferized.mlir",
+    "sha256": "6321d4fbfc7a62123ee830956b9ccc282b9527b4eb786d6c108bbe3d77699a7c",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "interp_grad_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_grad_3d_stage_sliced/debufferized.mlir",
+    "sha256": "04ecf2f5f3f3925606b134219ebf291e0822d4db46005e1db1f08fbae2ad6ee3",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "interp_value_2d_scratch_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_value_2d_scratch_sliced/debufferized.mlir",
+    "sha256": "8337441f276c79cb2b78d0ffca669d6dcd59208b8069b68c13f038b9f4ca9fd9",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "interp_value_3d_scratch_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/interp_value_3d_scratch_sliced/debufferized.mlir",
+    "sha256": "ac0a413032d74bcace3cf0e3cc869210107166e261cf79e0f1bb105c3ca6cc0c",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "mass_apply_2d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/mass_apply_2d_stage_sliced/debufferized.mlir",
+    "sha256": "c3be379bdabfb58a5f8dc3b9b41a7c0844f93c87c2b72b5d44ec381e29570113",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "mass_apply_3d_stage_sliced",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/mass_apply_3d_stage_sliced/debufferized.mlir",
+    "sha256": "54f650f967f21abdb745ad87919ae2828f593b40073db49b3a7d7c1a9bd77c15",
+    "suite": "mfem_kernel"
+  },
+  {
+    "input_id": "mfem_app_abs_l1_curlcurl_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_abs_l1_curlcurl_3d.debufferized.mlir",
+    "sha256": "28f5c82c4fdc301ebce7a65e8aed9d56aaeaed59a119f19c4207f4f36a9365d5",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_abs_l1_curlcurl_3d_partial",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_abs_l1_curlcurl_3d_partial.debufferized.mlir",
+    "sha256": "d16b3c108c56ee2294bc571b8a7f02a5d76629cbf37e03879dd85d82b0189383",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_abs_l1_diffusion_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_abs_l1_diffusion_3d.debufferized.mlir",
+    "sha256": "8cbdb2ddd207a9c3d58370b56486dfe49c5c3cb5cf812a149b49c3162b470509",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_abs_l1_mass_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_abs_l1_mass_3d.debufferized.mlir",
+    "sha256": "251c691947adc6b0fbc2c7a081759b3736eb0d18c8b967ecd8efc56fe428ee70",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_dfem_minimal_surface_2d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_dfem_minimal_surface_2d.debufferized.mlir",
+    "sha256": "98887c4b79340d4aa76a961240dc2f7c8b1bd24b571859ade039f5bfa8228ed6",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex35p_h1_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex35p_h1_3d.debufferized.mlir",
+    "sha256": "f0a2b67bef3f5ee153c69f840a1bb09ff69ab06d7c20976d115f8ab92e3aa3c1",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex35p_hcurl_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex35p_hcurl_3d.debufferized.mlir",
+    "sha256": "75ddc934e8cbf30c7e412b8270c0ed232092fbea8e21f5c5eea23c1ad5e47999",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex35p_hcurl_3d_partial",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex35p_hcurl_3d_partial.debufferized.mlir",
+    "sha256": "b1a46f7250a5e585df42cf7bab68905a82a1921f7e8fccbd18e02f6ae6a4197b",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex35p_hdiv_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex35p_hdiv_3d.debufferized.mlir",
+    "sha256": "be8b673b90dd548dd55010da808200032fbad83894a37e4841b674d66d0caa8f",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex35p_hdiv_3d_partial",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex35p_hdiv_3d_partial.debufferized.mlir",
+    "sha256": "d24f99c72309d23f6f03f094671b88947c283c39610ce96895278c754b69b7ff",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_ex9p_mass_convection_2d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_ex9p_mass_convection_2d.debufferized.mlir",
+    "sha256": "9add4d31b6d7e538118d1b05ccf2c4c55cdcffab98088e6c69e70fdadc95423c",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_grad_div_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_grad_div_3d.debufferized.mlir",
+    "sha256": "cccfa1d001af95371072389160a93cc4e5937f08d5845704e02696bc48123056",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_grad_div_3d_partial",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_grad_div_3d_partial.debufferized.mlir",
+    "sha256": "bab00f98d4312f46dfdfc3a9851842ab5f5eba0be5488e8dadb3af9a053a13a6",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_mtop_iso_elasticity_dfem_2d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_mtop_iso_elasticity_dfem_2d.debufferized.mlir",
+    "sha256": "16ca336dc5f250ba209c1996b30c590b5b2c46f4afb455ab9744ca44792031f4",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_navier_tgv_pa_operators_3d.debufferized.mlir",
+    "sha256": "707c6887448ba611f6c42a053f8a1ac329a9fdf9db6cea682a6cc27e476dd19e",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "mfem_app_navier_tgv_pressure_diffusion_3d",
+    "path": "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/results/mfem_app_navier_tgv_pressure_diffusion_3d.debufferized.mlir",
+    "sha256": "d49dec6897dd536226fe632e3feb3be4b042abb1d8b5e224b519897b6f471404",
+    "suite": "mfem_application"
+  },
+  {
+    "input_id": "matmul",
+    "path": "/tmp/llama2c_mlir/matmul_debuf.mlir",
+    "sha256": "59c7d64331af6a1646d2468ca3e112f258376c4db930e98404a176e62c027b40",
+    "suite": "llama2c"
+  },
+  {
+    "input_id": "rmsnorm",
+    "path": "/tmp/llama2c_mlir/rmsnorm_debuf.mlir",
+    "sha256": "70bebf65acb0b01df3c99373044ca93f304864b69a3072441e880cef8b8a3b3c",
+    "suite": "llama2c"
+  },
+  {
+    "input_id": "softmax",
+    "path": "/tmp/llama2c_mlir/softmax_debuf_mr.mlir",
+    "sha256": "fa2db388157e1ceff73cf265d6ec6acb62feed6528941898ca0fc8dec330f895",
+    "suite": "llama2c"
+  },
+  {
+    "input_id": "attention_mask_if",
+    "path": "/tmp/llama_forward_ops_mlir/attention_mask_if_debuf.mlir",
+    "sha256": "e417d606ea229bf891953b3155191a04775bc0384e2956280cfb1ce837742fb2",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "attention_mask_select",
+    "path": "/tmp/llama_forward_ops_mlir/attention_mask_select_debuf.mlir",
+    "sha256": "c98016f0a127c3c2b8c1da0f71759f5af12672a876707e7e9ac8b76e8f554fa3",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "attention_output",
+    "path": "/tmp/llama_forward_ops_mlir/attention_output_debuf.mlir",
+    "sha256": "b1cb49cf0e7c3e3ac2114e3e1c9335f1a1ceb2bfbfe2db091b5b6be544a7aa5f",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "attention_rmsnorm",
+    "path": "/tmp/llama_forward_ops_mlir/attention_rmsnorm_debuf.mlir",
+    "sha256": "4f17328b99bb9b67570d3539cdb42fef317d92be2b97b8234c7093c6a4652e11",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "attention_scores",
+    "path": "/tmp/llama_forward_ops_mlir/attention_scores_debuf.mlir",
+    "sha256": "0d9ce85d084c9ef9729c88dc96b7cd013fe7a1705da80f80292292241f51270d",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "attention_softmax",
+    "path": "/tmp/llama_forward_ops_mlir/attention_softmax_debuf.mlir",
+    "sha256": "b1092a180e3d6bb89144f2d549650e64d125f48155b16b415fe9fa8d5b6b6d45",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "down_projection",
+    "path": "/tmp/llama_forward_ops_mlir/down_projection_debuf.mlir",
+    "sha256": "c4067070cf2cea12cae73947381e59d63a10440159204b5d42c82b74163088d7",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "extended_forward",
+    "path": "/tmp/llama_forward_ops_mlir/extended_forward_debuf.mlir",
+    "sha256": "53a2dd09624709b4132f8f0987764e62c0141709f7e0fcdec1e77636a051e69d",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "ffn_rmsnorm",
+    "path": "/tmp/llama_forward_ops_mlir/ffn_rmsnorm_debuf.mlir",
+    "sha256": "894276da6af0e8cb1a83778b78d4c00c917df220c1e439b1caecb542804f298b",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "final_rmsnorm",
+    "path": "/tmp/llama_forward_ops_mlir/final_rmsnorm_debuf.mlir",
+    "sha256": "ae5ac3785ba5eb2237d744a376493e79162c38d9a685184b44a99a47f0b69edb",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "gate_up_projection",
+    "path": "/tmp/llama_forward_ops_mlir/gate_up_projection_debuf.mlir",
+    "sha256": "bc4989b4f3434d6e5ccc1af81180dfecaf49a76ad77f9bcea7bae77942514ad0",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "kv_cache_rw",
+    "path": "/tmp/llama_forward_ops_mlir/kv_cache_rw_debuf.mlir",
+    "sha256": "9902e82d8482bce268e1f3865081231d9554d5a1fa452d1e4f6f2172614ef2d4",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "lm_head_projection",
+    "path": "/tmp/llama_forward_ops_mlir/lm_head_projection_debuf.mlir",
+    "sha256": "585f7c9da25dc41c1958a0c2a0a8f65184ef64dfaf297a59de69bd976f20baa9",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "output_projection",
+    "path": "/tmp/llama_forward_ops_mlir/output_projection_debuf.mlir",
+    "sha256": "f91ac95729dff75f955ded96486ec7fbb2b7ec6e0c433eb74b886834c87663b6",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "qkv_projection",
+    "path": "/tmp/llama_forward_ops_mlir/qkv_projection_debuf.mlir",
+    "sha256": "c65cdec2705d189ac302cd659f428380c7eef8c9e9a123fde49b5acfc3cc46db",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "residual_add",
+    "path": "/tmp/llama_forward_ops_mlir/residual_add_debuf.mlir",
+    "sha256": "7fa54668d09834216bf8d912e6033bbf6fa9f11a31b5560d281ea2ac0918e966",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "rope_interleaved",
+    "path": "/tmp/llama_forward_ops_mlir/rope_interleaved_debuf.mlir",
+    "sha256": "aae00bbd5b2c3127bf7ece4675863493c4c2c8f1c6a2a864ef63678295c2bbb0",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "rope_split",
+    "path": "/tmp/llama_forward_ops_mlir/rope_split_debuf.mlir",
+    "sha256": "d312ed5e9f066e7a5994e32b54a44294bb954df4f815330dd3cd36b07aef4da7",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "swiglu",
+    "path": "/tmp/llama_forward_ops_mlir/swiglu_debuf.mlir",
+    "sha256": "70682a4868da42f1c4f7facd4b99c41fbf4b9f17a52a6c7e45a0a55eac6d532d",
+    "suite": "llama_forward"
+  },
+  {
+    "input_id": "token_embedding",
+    "path": "/tmp/llama_forward_ops_mlir/token_embedding_debuf.mlir",
+    "sha256": "71bd0029f76a95bcf5cc3dfb16c5cdd72364ef1387216ea5a141d01343373fa2",
+    "suite": "llama_forward"
+  }
+]

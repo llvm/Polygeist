@@ -254,6 +254,16 @@ SECTION42_RESULTS_DIR = env_path(
     "POLYGEIST_SECTION42_RESULTS_DIR",
     REPO_ROOT / "issues/polybench_section42",
 )
+EQUALITY_SATURATION_RESULTS_DIR = env_path(
+    "POLYGEIST_EQUALITY_SATURATION_RESULTS_DIR",
+    REPO_ROOT / "issues/equality_saturation_eval",
+)
+EQUALITY_SATURATION_CAMPAIGN_DIR = (
+    EQUALITY_SATURATION_RESULTS_DIR / "campaign_20260908"
+)
+EQUALITY_SATURATION_EGRAPH_DIR = (
+    EQUALITY_SATURATION_RESULTS_DIR / "egraph_benefit_20260908"
+)
 GINSBACH_SUMMARY = env_path(
     "POLYGEIST_GINSBACH_SUMMARY",
     REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
@@ -8976,6 +8986,250 @@ def _ginsbach_page() -> tuple[str, int]:
     return body, len(rows)
 
 
+def write_equality_saturation_artifact_link() -> None:
+    """Expose the equality-saturation study and its raw measurements."""
+    artifact_link = OUTPUT_DIR / "equality_saturation_artifacts"
+    if artifact_link.is_symlink():
+        if artifact_link.resolve() != EQUALITY_SATURATION_RESULTS_DIR.resolve():
+            artifact_link.unlink()
+            artifact_link.symlink_to(
+                EQUALITY_SATURATION_RESULTS_DIR, target_is_directory=True)
+    elif not artifact_link.exists():
+        artifact_link.symlink_to(
+            EQUALITY_SATURATION_RESULTS_DIR, target_is_directory=True)
+
+
+def refresh_equality_saturation_viewer_links() -> None:
+    """Add the new study to an existing generated viewer without rebaking IR."""
+    old_nav = '<a href="llama-paper.html">Llama paper analysis</a>'
+    new_nav = (old_nav + ' &middot; <a href="saturation-paper.html">'
+               'Saturation paper study</a>')
+    for page in OUTPUT_DIR.glob("*.html"):
+        text = page.read_text()
+        if "saturation-paper.html" not in text and old_nav in text:
+            page.write_text(text.replace(old_nav, new_nav, 1))
+
+    index_path = OUTPUT_DIR / "index.html"
+    if not index_path.is_file():
+        return
+    text = index_path.read_text()
+    card_href = '<a class="suite-card" href="saturation-paper.html">'
+    if card_href in text:
+        return
+    card = (
+        card_href + '<b>Saturation paper study</b>'
+        '<span>687 tracked rows</span><small>Egglog versus exact syntax: '
+        'match coverage, paired compilation/matching cost, memory, e-graph '
+        'diagnostics, and timeouts.</small></a>')
+    marker = '</div><a name="taxonomy"></a>'
+    if marker not in text:
+        print("warning: could not add saturation study landing card",
+              file=sys.stderr)
+        return
+    index_path.write_text(text.replace(marker, card + marker, 1))
+
+
+def _saturation_paper_study_page() -> str:
+    """Render the audited Egglog-versus-exact-syntax ablation."""
+    summary_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "summary.json"
+    runs_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "runs.csv"
+    graph_runs_path = EQUALITY_SATURATION_EGRAPH_DIR / "runs.csv"
+    if not summary_path.is_file() or not runs_path.is_file():
+        return (
+            '<div class="section-header"><h2 class="section-title">'
+            'Saturation paper study</h2></div>'
+            '<div class="intro paper-provisional"><b>Study artifacts are '
+            'unavailable.</b> Run the equality-saturation ablation and rebuild '
+            'the viewer.</div>')
+
+    summary = json.loads(summary_path.read_text())
+    run_rows = _read_csv(runs_path)
+    graph_rows = _read_csv(graph_runs_path)
+    artifact = "equality_saturation_artifacts"
+
+    coverage = summary.get("by_suite", [])
+    egglog_matches = sum(row["egglog_selected_matches"] for row in coverage)
+    syntax_matches = sum(row["syntactic_selected_matches"] for row in coverage)
+    egglog_bodies = sum(row["egglog_matched_bodies"] for row in coverage)
+    syntax_bodies = sum(row["syntactic_matched_bodies"] for row in coverage)
+    common_inputs = sum(row.get("common_success_inputs", 0) for row in coverage)
+    failures = summary.get("failures", [])
+
+    metrics = "".join((
+        f'<div class="audit-metric"><b>{summary["manifest_inputs"]:,}</b>'
+        '<span>corpus inputs</span></div>',
+        f'<div class="audit-metric"><b>{summary["run_rows"]:,}</b>'
+        '<span>fresh compiler/matcher processes</span></div>',
+        f'<div class="audit-metric"><b>+{egglog_matches-syntax_matches}</b>'
+        '<span>net selected identities</span></div>',
+        f'<div class="audit-metric"><b>+{egglog_bodies-syntax_bodies}</b>'
+        '<span>net covered Linalg bodies</span></div>',
+        f'<div class="audit-metric"><b>{len(failures)}</b>'
+        '<span>whole-input timeouts</span></div>',
+    ))
+
+    coverage_rows = []
+    for row in coverage:
+        coverage_rows.append(
+            '<tr>'
+            f'<td>{html.escape(row["suite"])}</td>'
+            f'<td>{row["inputs"]}</td>'
+            f'<td>{row.get("common_success_inputs", 0)}</td>'
+            f'<td>{row["egglog_selected_matches"]}</td>'
+            f'<td>{row["syntactic_selected_matches"]}</td>'
+            f'<td>{row["egglog_matched_bodies"]}</td>'
+            f'<td>{row["syntactic_matched_bodies"]}</td>'
+            f'<td>+{row["egglog_only_match_identities"]} / '
+            f'-{row["syntactic_only_match_identities"]}</td>'
+            '</tr>')
+
+    timing = summary.get("timing", {})
+    deltas = summary.get("paired_deltas", {})
+
+    def timing_cell(mode: str, metric: str, scale: float = 1.0) -> str:
+        values = timing[f"{mode}_{metric}"]
+        return (f'{values["median"] / scale:,.2f} '
+                f'[{values["q1"] / scale:,.2f}, '
+                f'{values["q3"] / scale:,.2f}]')
+
+    performance_rows = []
+    for metric, label, unit, scale in (
+        ("process_wall_ms", "Fresh-process wall time", "ms", 1.0),
+        ("matcher_elapsed_ms", "Matcher time", "ms", 1.0),
+        ("peak_rss_kib", "Peak RSS", "MiB", 1024.0),
+    ):
+        delta = deltas[metric]
+        performance_rows.append(
+            '<tr>'
+            f'<td>{label}</td><td>{timing_cell("egglog", metric, scale)} {unit}</td>'
+            f'<td>{timing_cell("syntactic", metric, scale)} {unit}</td>'
+            f'<td>{delta["median"] / scale:+,.2f} '
+            f'[{delta["q1"] / scale:+,.2f}, '
+            f'{delta["q3"] / scale:+,.2f}] {unit}</td></tr>')
+
+    paired = {}
+    for row in run_rows:
+        if row.get("status") != "ok":
+            continue
+        key = (row["suite"], row["input_id"], row["repetition"])
+        paired.setdefault(key, {})[row["mode"]] = row
+    suite_overheads: dict[str, list[float]] = {}
+    for (suite, _, _), arms in paired.items():
+        if "egglog" not in arms or "syntactic" not in arms:
+            continue
+        delta = (float(arms["egglog"]["matcher_elapsed_ms"])
+                 - float(arms["syntactic"]["matcher_elapsed_ms"]))
+        suite_overheads.setdefault(suite, []).append(delta)
+    suite_rows = "".join(
+        f'<tr><td>{html.escape(suite)}</td><td>{len(values)}</td>'
+        f'<td>{statistics.median(values):+,.1f} ms</td></tr>'
+        for suite, values in sorted(suite_overheads.items())
+    )
+
+    examples = "".join(
+        '<li><code>{}/{}</code>, bodies <code>{}</code> '
+        '&rarr; <code>{}</code></li>'.format(
+            html.escape(item["suite"]), html.escape(item["input_id"]),
+            html.escape(str(item["body_indices"])), html.escape(item["symbol"]))
+        for item in summary.get("egglog_only_examples", [])
+    )
+
+    graph_table_rows = []
+    for row in graph_rows:
+        if row.get("mode") != "egglog" or row.get("status") != "ok":
+            continue
+        graph_table_rows.append(
+            '<tr>'
+            f'<td><code>{html.escape(row["suite"] + "/" + row["input_id"])}</code></td>'
+            f'<td>{int(float(row["proofs_attempted"]))}</td>'
+            f'<td>{int(float(row["egraph_nodes_max"]))}</td>'
+            f'<td>{int(float(row["egraph_classes_max"]))}</td>'
+            f'<td>{float(row.get("proof_elapsed_max_ms") or 0):,.1f} ms</td>'
+            '</tr>')
+
+    parameters = summary.get("parameters", {})
+    parameter_rows = "".join(
+        f'<tr><td>{html.escape(str(key).replace("_", " "))}</td>'
+        f'<td><code>{html.escape(json.dumps(value))}</code></td></tr>'
+        for key, value in parameters.items()
+    )
+
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'Saturation paper study</h2></div>'
+        '<div class="intro"><b>Equality saturation finds a small but concrete '
+        'set of larger external-library matches that exact syntax misses.</b> '
+        f'On {common_inputs} common-success inputs, Egglog selects '
+        f'{egglog_matches} identities covering {egglog_bodies:,} Linalg bodies; '
+        f'exact syntax selects {syntax_matches} identities covering '
+        f'{syntax_bodies:,} bodies. The important examples are full two-body '
+        '<code>cublasDgemm</code> matches where syntax sees only a one-body '
+        'scale.</div>'
+        f'<div class="audit-metrics">{metrics}</div>'
+        '<div class="intro paper-provisional"><b>Paper-readiness boundary.</b> '
+        'Coverage, matching-stage time, peak RSS, and timeout results use the '
+        'full five-by-five campaign. E-graph size was collected separately only '
+        'for the four benefit inputs, not corpus-wide. The 10-second candidate '
+        'limit is post-return classification rather than hard in-process '
+        'preemption. Times start from already-raised, debufferized MLIR and are '
+        'not full frontend-to-binary compilation or raising time.</div>'
+        '<div class="section-header"><h3 class="section-title">Match coverage</h3></div>'
+        '<div class="table-wrap"><table class="audit-table paper-family"><thead><tr>'
+        '<th>suite</th><th>inputs</th><th>common success</th><th>Egglog identities</th>'
+        '<th>syntax identities</th><th>Egglog bodies</th><th>syntax bodies</th>'
+        '<th>arm-only identities</th></tr></thead><tbody>'
+        + "".join(coverage_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Egglog-only external-library identities</h3></div>'
+        f'<div class="intro"><ul>{examples}</ul><p>The two syntax-only '
+        'identities are the smaller scale operations superseded by the larger '
+        '<code>addmm</code> and <code>gemm</code> matches.</p></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Host matching cost</h3></div>'
+        '<div class="intro">Median [Q1, Q3]. Paired deltas use 3,430 '
+        'same-input, same-repetition pairs.</div>'
+        '<div class="table-wrap"><table class="audit-table paper-family"><thead><tr>'
+        '<th>metric</th><th>Egglog</th><th>exact syntax</th>'
+        '<th>paired Egglog - syntax</th></tr></thead><tbody>'
+        + "".join(performance_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Matcher overhead by suite</h3></div>'
+        '<div class="table-wrap"><table class="audit-table paper-family"><thead><tr>'
+        '<th>suite</th><th>paired repetitions</th><th>median paired overhead</th>'
+        f'</tr></thead><tbody>{suite_rows}</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Timeout outcome</h3></div>'
+        '<div class="intro"><b>Five reproducible whole-input timeouts.</b> '
+        '<code>mfem_app_navier_tgv_pa_operators_3d</code> hit the 120-second '
+        'watchdog in all five Egglog runs. Its exact-syntax runs completed in '
+        '97.1&ndash;105.1 seconds (median 100.2 seconds). No completed individual '
+        f'Egglog proof exceeded 10 seconds; killed processes cannot flush '
+        'per-proof telemetry.</div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Benefit-case e-graph diagnostic</h3></div>'
+        '<div class="intro">Separate one-repetition diagnostic; serialization '
+        'is excluded from the primary performance measurements. These are not '
+        'corpus-wide maxima, and no explicit e-graph-size cap is configured.</div>'
+        '<div class="table-wrap"><table class="audit-table paper-family"><thead><tr>'
+        '<th>input</th><th>proofs</th><th>max nodes</th><th>max classes</th>'
+        '<th>max proof time</th></tr></thead><tbody>'
+        + "".join(graph_table_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Parameters</h3></div>'
+        '<div class="table-wrap"><table class="audit-table paper-family"><tbody>'
+        f'{parameter_rows}</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Artifacts</h3></div>'
+        '<div class="paper-notes">'
+        f'<div><b>Interpretation</b><span><a href="{artifact}/LEO_REPORT.md">'
+        'Leo-ready report</a></span></div>'
+        f'<div><b>Primary campaign</b><span><a href="{artifact}/campaign_20260908/runs.csv">'
+        f'raw CSV</a> &middot; <a href="{artifact}/campaign_20260908/summary.json">'
+        f'summary JSON</a> &middot; <a href="{artifact}/campaign_20260908/manifest.resolved.json">'
+        'resolved manifest + hashes</a></span></div>'
+        f'<div><b>E-graph diagnostic</b><span><a href="{artifact}/egraph_benefit_20260908/runs.csv">'
+        f'raw CSV</a> &middot; <a href="{artifact}/egraph_benefit_20260908/SUMMARY.md">'
+        'summary</a></span></div></div>')
+
+
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
                      mfem_stats: list[dict],
@@ -9161,7 +9415,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="polybench-paper.html">PolyBench paper analysis</a> &middot; '
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
             '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
-            '<a href="llama-paper.html">Llama paper analysis</a>'
+            '<a href="llama-paper.html">Llama paper analysis</a> &middot; '
+            '<a href="saturation-paper.html">Saturation paper study</a>'
             '</div></div>'
         )
 
@@ -9350,6 +9605,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "NE=1024 analysis: 128/128 matches correctness-validated; 17 kernels have four-runtime timings.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 correctness-gated percentage charts, raw samples, and exclusions.")
+        + card("saturation-paper.html", "Saturation paper study",
+               687,
+               "Egglog versus exact syntax: match coverage, paired compilation/matching cost, memory, e-graph diagnostics, and timeouts.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
                "103/103 units raised; CG currently emits 8 external-library calls, with scope-labelled silicon evidence.")
         + card("ai.html", "AI kernels",
@@ -9372,6 +9630,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         mfem_application_extraction_stats
     )
     llama_paper = nav() + _llama_paper_analysis_page()
+    saturation_paper = nav() + _saturation_paper_study_page()
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -9415,6 +9674,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "llama-paper.html": render_html(
             "Polygeist: Llama paper analysis", llama_paper, extra_css
         ),
+        "saturation-paper.html": render_html(
+            "Polygeist: saturation paper study", saturation_paper, extra_css
+        ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
         ),
@@ -9440,6 +9702,7 @@ def main():
     polybench_results_only = "--polybench-results-only" in sys.argv[1:]
     ginsbach_only = "--ginsbach-only" in sys.argv[1:]
     pva_only = "--pva-only" in sys.argv[1:]
+    saturation_only = "--saturation-only" in sys.argv[1:]
     unknown_args = [
         arg for arg in sys.argv[1:]
         if arg not in (
@@ -9448,26 +9711,40 @@ def main():
             "--polybench-results-only",
             "--ginsbach-only",
             "--pva-only",
+            "--saturation-only",
         )
     ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
     if sum((paper_analysis_only, mfem_only, aten_only, polybench_only,
-            polybench_results_only, ginsbach_only, pva_only)) > 1:
+            polybench_results_only, ginsbach_only, pva_only,
+            saturation_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if saturation_only:
+        pages = build_site_pages(
+            {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("saturation-paper.html").write_text(
+            pages["saturation-paper.html"])
+        write_equality_saturation_artifact_link()
+        refresh_equality_saturation_viewer_links()
+        print(f"Done. Open {OUTPUT_DIR}/saturation-paper.html.")
+        return
     if paper_analysis_only:
         pages = build_site_pages(
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
+        write_equality_saturation_artifact_link()
         for page in ("polybench-paper.html", "aten-paper.html",
-                     "llama-paper.html"):
+                     "llama-paper.html", "saturation-paper.html"):
             OUTPUT_DIR.joinpath(page).write_text(pages[page])
         print(
             "Done. Open "
             f"{OUTPUT_DIR}/polybench-paper.html, "
             f"{OUTPUT_DIR}/aten-paper.html, or "
-            f"{OUTPUT_DIR}/llama-paper.html."
+            f"{OUTPUT_DIR}/llama-paper.html, or "
+            f"{OUTPUT_DIR}/saturation-paper.html."
         )
         return
     if pva_only:
@@ -9860,6 +10137,7 @@ def main():
         OUTPUT_DIR.joinpath(filename).write_text(page_html)
     write_mfem_artifact_link()
     write_polybench_results_page()
+    write_equality_saturation_artifact_link()
     for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
         OUTPUT_DIR.joinpath(obsolete).unlink(missing_ok=True)
     print(f"\nWrote {len(pages)} explorer pages.")

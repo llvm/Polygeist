@@ -1,0 +1,45 @@
+suite,input_id,path,sha256,mode,repetition,status,returncode,process_wall_ms,cpu,command,stderr_tail,candidate_matches,candidates,egraph_classes_max,egraph_classes_sum,egraph_function_nodes_sum,egraph_nodes_max,egraph_nodes_sum,input,input_bytes,iteration_limit,linalg_bodies,matched_linalg_bodies,matcher_elapsed_ms,no_matches,peak_rss_kib,proof_elapsed_max_ms,proof_elapsed_ms,proofs_attempted,proofs_matched,proofs_over_10s,rule_matches,selected,selected_matches,syntactic_comparisons,syntactic_unifications,telemetry_elapsed_ms,template_attempts
+polybench,2mm,/tmp/polybench_new/2mm_debuf.mlir,f4bde9c30112c993312f8b8cd2f0a6f425986828f77170f013715f0656b7ed56,egglog,1,ok,0,1419.643860310316,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/2mm_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-2mm-egglog-8vadl8a0.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/2mm_debuf.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],12,72,84,21,110,/tmp/polybench_new/2mm_debuf.mlir,3502,8,4,4,804.6574518084526,0,75592,29.719125479459763,257.5451172888279,16,16,0,150,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,5.359023809432983,38
+polybench,2mm,/tmp/polybench_new/2mm_debuf.mlir,f4bde9c30112c993312f8b8cd2f0a6f425986828f77170f013715f0656b7ed56,syntactic,1,ok,0,1097.107294946909,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/2mm_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-2mm-syntactic-f8cwa51b.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/2mm_debuf.mlir ==
+  match          body#[0]  memset_zero_2D
+  no_match       body#1  ?
+  match          body#[2, 3]  cublasDgemm
+  total: 2 matched / 3 bodies
+",0,[],0,0,,0,0,/tmp/polybench_new/2mm_debuf.mlir,3502,0,4,3,431.5287061035633,1,66100,0.02000853419303894,0.27682259678840637,0,14,0,0,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",2,0,38,0.0,38
+polybench,gemm,/tmp/polybench_new/gemm_debuf.mlir,ad63d36831dc1b8165d650d9c99ab0c5e08c2313aa91c03245b1fb1b21eff7b6,syntactic,1,ok,0,1010.4049518704414,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/gemm_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-gemm-syntactic-caqegiuk.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/gemm_debuf.mlir ==
+  match          body#[0]  cublasDgeam_scale2D
+  no_match       body#1  ?
+  total: 1 matched / 2 bodies
+",0,[],0,0,,0,0,/tmp/polybench_new/gemm_debuf.mlir,2509,0,2,1,407.83074498176575,1,65744,0.02876296639442444,0.18529966473579407,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDgeam_scale2D""}]",1,0,18,0.0,18
+polybench,gemm,/tmp/polybench_new/gemm_debuf.mlir,ad63d36831dc1b8165d650d9c99ab0c5e08c2313aa91c03245b1fb1b21eff7b6,egglog,1,ok,0,939.5212344825268,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/gemm_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-gemm-egglog-riqkeye8.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/gemm_debuf.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],12,34,44,21,54,/tmp/polybench_new/gemm_debuf.mlir,2509,8,2,2,401.58042311668396,0,69776,14.113619923591614,52.76237800717354,4,4,0,52,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.5509352087974548,6
+polybench,gemver,/tmp/polybench_new/gemver_debuf.mlir,122c852ea27b98b0b4478dd079430cffd240602da80a79ad0a57eda4f502cdb6,egglog,1,ok,0,1307.329248636961,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/gemver_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-gemver-egglog-plalkso0.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/gemver_debuf.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],15,90,134,25,158,/tmp/polybench_new/gemver_debuf.mlir,4220,8,4,4,494.462750852108,0,70216,15.436895191669464,98.66625443100929,8,8,0,210,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,2.8150491416454315,16
+polybench,gemver,/tmp/polybench_new/gemver_debuf.mlir,122c852ea27b98b0b4478dd079430cffd240602da80a79ad0a57eda4f502cdb6,syntactic,1,ok,0,811.402328312397,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/tmp/polybench_new/gemver_debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/polybench-gemver-syntactic-oa501ei1.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /tmp/polybench_new/gemver_debuf.mlir ==
+  match          body#[0]  cublasDger_rank2
+  no_match       body#1  ?
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 2 matched / 4 bodies
+",0,[],0,0,,0,0,/tmp/polybench_new/gemver_debuf.mlir,4220,0,4,2,372.8836588561535,2,65960,0.028152018785476685,0.18445029854774475,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",2,0,16,0.0,16
+aten,aten_addmm,/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir,d4ec02dd4624ae6f0e9d9206ca100cb54c2e9045f36484a7a9aeb1bd6d863e12,syntactic,1,ok,0,844.3530946969986,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/aten-aten_addmm-syntactic-pa2l786d.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir ==
+  match          body#[0]  cublasDgeam_scale2D
+  no_match       body#1  ?
+  total: 1 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir,3006,0,2,1,365.8617474138737,1,65816,0.018734484910964966,0.1585148274898529,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDgeam_scale2D""}]",1,0,18,0.0,18
+aten,aten_addmm,/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir,d4ec02dd4624ae6f0e9d9206ca100cb54c2e9045f36484a7a9aeb1bd6d863e12,egglog,1,ok,0,1571.1255185306072,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/egraph_benefit_20260908/aten-aten_addmm-egglog-puli9zp_.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],12,34,44,21,54,/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir,3006,8,2,2,907.7550880610943,0,69860,38.89717534184456,106.51330277323723,4,4,0,52,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.6806386411190033,6

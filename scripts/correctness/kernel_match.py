@@ -48,6 +48,7 @@ def configure_matcher(mode: str = "egglog", *, collect_egraph_sizes: bool = Fals
         "proofs_attempted": 0,
         "proofs_matched": 0,
         "proof_elapsed_ms": 0.0,
+        "proof_elapsed_max_ms": 0.0,
         "telemetry_elapsed_ms": 0.0,
         "egraph_nodes_sum": 0,
         "egraph_nodes_max": 0,
@@ -1023,6 +1024,8 @@ def equivalent(a: Term, b: Term, include_distributivity: bool = True) -> bool:
         matched = _parse_term(_term_repr(a)) == _parse_term(_term_repr(b))
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
+        _MATCHER_TELEMETRY["proof_elapsed_max_ms"] = max(
+            _MATCHER_TELEMETRY["proof_elapsed_max_ms"], elapsed_ms)
         _MATCHER_TELEMETRY["syntactic_comparisons"] += 1
         if matched:
             _MATCHER_TELEMETRY["proofs_matched"] += 1
@@ -1040,6 +1043,8 @@ def equivalent(a: Term, b: Term, include_distributivity: bool = True) -> bool:
         matched = False
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
+    _MATCHER_TELEMETRY["proof_elapsed_max_ms"] = max(
+        _MATCHER_TELEMETRY["proof_elapsed_max_ms"], elapsed_ms)
     _MATCHER_TELEMETRY["rule_matches"] += sum(
         report.num_matches_per_rule.values())
     if elapsed_ms > 10_000.0:
@@ -4704,8 +4709,10 @@ def body_matches_template(body: Term, template: Term) -> Optional[dict]:
         _MATCHER_TELEMETRY["syntactic_unifications"] += 1
         started = time.perf_counter()
         direct = _unify(body_ast, tmpl_ast, {})
-        _MATCHER_TELEMETRY["proof_elapsed_ms"] += (
-            time.perf_counter() - started) * 1000.0
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
+        _MATCHER_TELEMETRY["proof_elapsed_max_ms"] = max(
+            _MATCHER_TELEMETRY["proof_elapsed_max_ms"], elapsed_ms)
         if direct is not None:
             _MATCHER_TELEMETRY["proofs_matched"] += 1
         return direct
