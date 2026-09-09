@@ -7453,6 +7453,102 @@ def _llama_paper_analysis_page() -> str:
             '</tr>'
         )
 
+    def llama_kernel_links(entries: list[tuple[str, str]]) -> str:
+        return ", ".join(
+            f'<a href="llamafwd_{slug}.html"><code>{html.escape(label)}</code></a>'
+            for slug, label in entries
+        )
+
+    fully_matched = [
+        ("token_embedding", "token embedding"),
+        ("attention_rmsnorm", "attention RMSNorm"),
+        ("rope_split", "split RoPE"),
+        ("kv_cache_rw", "KV cache read/write"),
+        ("attention_scores", "attention scores"),
+        ("attention_mask_select", "branchless causal mask"),
+        ("attention_output", "attention output"),
+        ("output_projection", "output projection"),
+        ("residual_add", "residual add"),
+        ("ffn_rmsnorm", "FFN RMSNorm"),
+        ("swiglu", "SwiGLU"),
+        ("down_projection", "down projection"),
+        ("final_rmsnorm", "final RMSNorm"),
+        ("lm_head_projection", "LM-head projection"),
+    ]
+    partially_matched = [
+        ("qkv_projection", "QKV projection"),
+        ("gate_up_projection", "gate/up projection"),
+    ]
+    raised_unmatched = [
+        ("attention_softmax", "standalone attention softmax"),
+    ]
+    not_raised = [
+        ("rope_interleaved", "interleaved RoPE"),
+        ("attention_mask_if", "branch-based causal mask"),
+    ]
+    coverage_section = (
+        '<div class="section-header"><h3 class="section-title">'
+        'Raising and matching coverage</h3></div>'
+        '<div class="audit-metrics">'
+        '<div class="audit-metric"><b>19</b><span>standalone operation variants</span></div>'
+        '<div class="audit-metric"><b>17</b><span>raised to tensor linalg</span></div>'
+        '<div class="audit-metric"><b>14 / 2 / 1</b><span>full / partial / unmatched among raised variants</span></div>'
+        '<div class="audit-metric"><b>2</b><span>source forms did not raise</span></div>'
+        '<div class="audit-metric"><b>47</b><span>linalg.generic ops in the accommodated full fixture</span></div>'
+        '</div>'
+        '<table class="audit-table paper-family"><thead><tr>'
+        '<th>standalone outcome</th><th>count</th><th>operation variants</th>'
+        '<th>interpretation</th></tr></thead><tbody>'
+        '<tr><td><span class="pass">fully matched</span></td><td>14</td><td>'
+        + llama_kernel_links(fully_matched) + '</td><td>Every raised generic in '
+        'the standalone fixture was consumed by the mechanical matcher.</td></tr>'
+        '<tr><td><span class="partial">partially matched</span></td><td>2</td><td>'
+        + llama_kernel_links(partially_matched) + '</td><td>Some projection '
+        'regions matched, while other raised generics remained.</td></tr>'
+        '<tr><td><span class="partial">raised, unmatched</span></td><td>1</td><td>'
+        + llama_kernel_links(raised_unmatched) + '</td><td>The standalone form '
+        'raised, although its three-stage composition was not consumed there; '
+        'the full fixture did match the softmax composition to cuDNN.</td></tr>'
+        '<tr><td><span class="none">not raised</span></td><td>2</td><td>'
+        + llama_kernel_links(not_raised) + '</td><td>Interleaved RoPE retained '
+        'two loops; the branch-based mask retained one loop and one if.</td></tr>'
+        '</tbody></table>'
+        '<div class="intro"><b>End-to-end treatment:</b> neither computation '
+        'was simply omitted. The measured extracted fixture uses split '
+        'even/odd RoPE and a branchless select mask, which are equivalent '
+        'raise-friendly source forms. It therefore contains 47 '
+        '<code>linalg.generic</code> operations and no residual loops or '
+        'conditionals at that raising stage. This is an accommodated fixture, '
+        'not evidence that the two original source spellings raise.</div>'
+        '<h4 style="margin-left:20px">Audited full-layer match provenance</h4>'
+        '<table class="audit-table paper-family"><thead><tr>'
+        '<th>classification</th><th>target / operation</th><th>occurrences</th>'
+        '<th>paper treatment</th></tr></thead><tbody>'
+        '<tr><td rowspan="5"><span class="pass">accepted external/platform matches</span></td>'
+        '<td>CUDA Runtime: 2D zero fill</td><td>4</td><td rowspan="5">13 accepted occurrences</td></tr>'
+        '<tr><td>cuBLAS: split Q/K projection contractions</td><td>3</td></tr>'
+        '<tr><td>cuTENSOR: cache/layout copies and permutations</td><td>3</td></tr>'
+        '<tr><td>CUDA Runtime: 1D zero fill</td><td>2</td></tr>'
+        '<tr><td>cuDNN: attention softmax composition</td><td>1</td></tr>'
+        '<tr><td rowspan="3"><span class="none">excluded project-written CUDA matches</span></td>'
+        '<td><code>cudaMaskSelect</code></td><td>1</td><td rowspan="3">4 excluded occurrences; not library matches</td></tr>'
+        '<tr><td><code>cudaAdd</code></td><td>2</td></tr>'
+        '<tr><td><code>cudaSwiGLU</code></td><td>1</td></tr>'
+        '<tr><td><span class="partial">compiler residuals</span></td>'
+        '<td>raised linalg bodies not replaced by an accepted library call</td>'
+        '<td>32</td><td>executed and included in end-to-end time</td></tr>'
+        '</tbody></table>'
+        '<div class="paper-notes">'
+        '<div><b>Raised is not the same as matched</b><span>A successful raise '
+        'creates structured linalg. Only a subset is subsequently replaced by '
+        'an external-library call; residual bodies still execute.</span></div>'
+        '<div class="paper-provisional"><b>Audit boundary</b><span>The 13 + 4 '
+        'occurrence breakdown is the defensible provenance-audited pipeline. '
+        'The latest regenerated pipeline has a different launch count and must '
+        'be audited again before a newer match count is claimed.</span></div>'
+        '</div>'
+    )
+
     return (
         '<div class="section-header"><h2 class="section-title">'
         'Paper analysis: Llama (Section 4.2 draft)</h2></div>'
@@ -7494,6 +7590,7 @@ def _llama_paper_analysis_page() -> str:
         'fixture—not 32-layer inference, tokenization, sampling, a GGUF model, '
         'or a tokens-per-second result.</span></div>'
         '</div>'
+        + coverage_section +
         '<div class="section-header"><h3 class="section-title">'
         'Measurement methodology</h3></div>'
         '<div class="paper-flow">'
