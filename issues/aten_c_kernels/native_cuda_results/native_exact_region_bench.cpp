@@ -77,6 +77,20 @@ at::Tensor device_int_tensor(const std::vector<int32_t> &host) {
   return tensor;
 }
 
+at::Tensor device_long_tensor(const std::vector<int64_t> &host) {
+  auto options = at::TensorOptions().dtype(at::kLong).device(
+      g_use_cuda ? at::Device(at::kCUDA, 0) : at::Device(at::kCPU));
+  auto tensor = at::empty({static_cast<int64_t>(host.size())}, options);
+  if (g_use_cuda)
+    cuda_ok(cudaMemcpy(tensor.data_ptr<int64_t>(), host.data(),
+                       host.size() * sizeof(int64_t), cudaMemcpyHostToDevice),
+            "copy long input");
+  else
+    std::memcpy(tensor.data_ptr<int64_t>(), host.data(),
+                host.size() * sizeof(int64_t));
+  return tensor;
+}
+
 at::Tensor device_byte_tensor(const std::vector<int8_t> &host) {
   auto options = at::TensorOptions().dtype(at::kChar).device(
       g_use_cuda ? at::Device(at::kCUDA, 0) : at::Device(at::kCPU));
@@ -183,6 +197,60 @@ int finish(const char *kernel, const char *recipe, const at::Tensor &output,
     }
   }
 
+  auto sorted = samples;
+  std::sort(sorted.begin(), sorted.end());
+  const double q1 = 0.5 * (sorted[0] + sorted[1]);
+  const double q3 = 0.5 * (sorted[3] + sorted[4]);
+  const char *metric = g_use_cuda ? "native_aten_resident_wall_us"
+                                  : "cpu_aten_1thread_wall_us";
+  std::printf("SAMPLES kernel=%s %s="
+              "%.6f,%.6f,%.6f,%.6f,%.6f\n",
+              kernel, metric, samples[0], samples[1], samples[2], samples[3],
+              samples[4]);
+  std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
+              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "max_error=%g shape=%s recipe=%s\n",
+              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              max_error, shape, recipe);
+  return errors == 0 ? 0 : 1;
+}
+
+int finish_sparse_dense(const char *kernel, const char *recipe,
+                        at::Tensor &sparse_output,
+                        const std::vector<float> &expected,
+                        const std::function<void()> &operation,
+                        const char *shape) {
+  operation();
+  synchronize("sparse correctness synchronization");
+  for (int i = 0; i < 5; ++i) operation();
+  synchronize("sparse warmup synchronization");
+  std::array<double, 5> samples{};
+  for (double &sample : samples) {
+    const auto start = std::chrono::steady_clock::now();
+    operation();
+    synchronize("sparse timed synchronization");
+    const auto stop = std::chrono::steady_clock::now();
+    sample = std::chrono::duration<double, std::micro>(stop - start).count();
+  }
+  auto dense_output = sparse_output.to_dense();
+  synchronize("sparse densification synchronization");
+  std::vector<float> actual(expected.size());
+  if (g_use_cuda)
+    cuda_ok(cudaMemcpy(actual.data(), dense_output.data_ptr<float>(),
+                       actual.size() * sizeof(float), cudaMemcpyDeviceToHost),
+            "copy sparse dense output");
+  else
+    std::memcpy(actual.data(), dense_output.data_ptr<float>(),
+                actual.size() * sizeof(float));
+  int errors = 0;
+  float max_error = 0.0f;
+  for (size_t i = 0; i < expected.size(); ++i) {
+    const float delta = std::fabs(expected[i] - actual[i]);
+    max_error = std::max(max_error, delta);
+    if (!std::isfinite(actual[i]) ||
+        delta > 0.002f * (1.0f + std::fabs(expected[i])))
+      ++errors;
+  }
   auto sorted = samples;
   std::sort(sorted.begin(), sorted.end());
   const double q1 = 0.5 * (sorted[0] + sorted[1]);
@@ -1318,6 +1386,184 @@ int whole_int_mm() {
                     expected, operation, "M=512_N=512_K=1024");
 }
 
+int whole_external_batch_norm() {
+  constexpr int64_t batch = 11, channels = 46, height = 92, width = 92;
+  constexpr double eps = 1e-5;
+  const int64_t elements = batch * channels * height * width;
+  auto input_host = raised_fixture_values(elements);
+  auto weight_host = raised_fixture_values(channels);
+  auto mean_host = raised_fixture_values(channels);
+  auto bias_host = raised_fixture_values(channels);
+  std::vector<float> inv_std_host(channels), variance_host(channels);
+  for (int64_t c = 0; c < channels; ++c) {
+    inv_std_host[c] = 0.25f + static_cast<float>(c % 101) / 101.0f;
+    variance_host[c] =
+        static_cast<float>(1.0 / (inv_std_host[c] * inv_std_host[c]) - eps);
+  }
+  std::vector<float> expected(elements);
+  for (int64_t b = 0; b < batch; ++b)
+    for (int64_t c = 0; c < channels; ++c)
+      for (int64_t h = 0; h < height; ++h)
+        for (int64_t w = 0; w < width; ++w) {
+          const int64_t i = ((b * channels + c) * height + h) * width + w;
+          expected[i] = weight_host[c] * (input_host[i] - mean_host[c]) *
+                            inv_std_host[c] +
+                        bias_host[c];
+        }
+  auto input = device_tensor(input_host).reshape(
+      {batch, channels, height, width});
+  auto weight = device_tensor(weight_host);
+  auto mean = device_tensor(mean_host);
+  auto variance = device_tensor(variance_host);
+  auto bias = device_tensor(bias_host);
+  auto output = at::empty_like(input);
+  auto save_mean = at::empty({0}, input.options());
+  auto save_invstd = at::empty({0}, input.options());
+  auto operation = [&] {
+    at::native_batch_norm_out(output, save_mean, save_invstd, input, weight,
+                              bias, mean, variance, false, 0.0, eps);
+  };
+  return finish("aten_batch_norm", "7293a8afa214b89c", output, expected,
+                operation, nullptr, nullptr, "B=11_C=46_H=92_W=92");
+}
+
+int whole_external_cumsum() {
+  constexpr int64_t n = 4194304;
+  auto host = raised_fixture_values(n);
+  auto input = device_tensor(host);
+  auto output = at::empty_like(input);
+  std::vector<float> expected(n);
+  float total = 0.0f;
+  for (int64_t i = 0; i < n; ++i) {
+    total += host[i];
+    expected[i] = total;
+  }
+  auto operation = [&] { at::cumsum_out(output, input, 0, at::kFloat); };
+  return finish("aten_cumsum", "484e5f6c8512ace9", output, expected,
+                operation, nullptr, nullptr, "N=4194304");
+}
+
+int whole_external_dot() {
+  constexpr int64_t n = 4194304;
+  auto x_host = raised_double_values(n);
+  auto y_host = raised_double_values(n);
+  auto x = device_double_tensor(x_host);
+  auto y = device_double_tensor(y_host);
+  auto output = at::empty({}, x.options());
+  double expected_value = 0.0;
+  for (int64_t i = 0; i < n; ++i)
+    expected_value += x_host[i] * y_host[i];
+  std::vector<double> expected{expected_value};
+  auto operation = [&] { at::dot_out(output, x, y); };
+  return finish_double("aten_dot", "8c6fe94db11fec1a", output, expected,
+                       operation, "N=4194304");
+}
+
+int whole_external_sparse_addmv() {
+  constexpr int64_t rows = 65536, columns = 65536, nnz = 4194304;
+  constexpr int64_t per_row = nnz / rows;
+  std::vector<int64_t> crow(rows + 1), column_indices(nnz);
+  std::vector<float> values(nnz), vector_values(columns), expected(rows, 0.0f);
+  for (int64_t r = 0; r <= rows; ++r) crow[r] = r * per_row;
+  for (int64_t p = 0; p < nnz; ++p) {
+    column_indices[p] = p % columns;
+    values[p] = (static_cast<float>(p % 101) - 50.0f) / 37.0f;
+  }
+  for (int64_t c = 0; c < columns; ++c)
+    vector_values[c] = (static_cast<float>(c % 101) - 50.0f) / 37.0f;
+  for (int64_t r = 0; r < rows; ++r)
+    for (int64_t p = crow[r]; p < crow[r + 1]; ++p)
+      expected[r] += values[p] * vector_values[column_indices[p]];
+  auto crow_tensor = device_long_tensor(crow);
+  auto column_tensor = device_long_tensor(column_indices);
+  auto values_tensor = device_tensor(values);
+  auto vector_tensor = device_tensor(vector_values);
+  auto sparse = at::sparse_csr_tensor(crow_tensor, column_tensor, values_tensor,
+                                      {rows, columns},
+                                      values_tensor.options().layout(
+                                          at::kSparseCsr));
+  auto initial = at::zeros({rows}, values_tensor.options());
+  auto output = at::empty_like(initial);
+  auto operation = [&] {
+    at::addmv_out(output, initial, sparse, vector_tensor, 0.0, 1.0);
+  };
+  return finish("aten_sparse_addmv_csr_cpu", "29b9ab46cce946f3", output,
+                expected, operation, nullptr, nullptr,
+                "R=65536_C=65536_N=4194304");
+}
+
+int whole_external_hspmm() {
+  constexpr int64_t rows = 64, columns = 4096, nnz = 4096;
+  constexpr int64_t per_row = nnz / rows;
+  std::vector<int64_t> indices(2 * nnz);
+  std::vector<float> values(nnz), dense_values(rows * columns);
+  std::vector<float> expected(rows * columns, 0.0f);
+  for (int64_t p = 0; p < nnz; ++p) {
+    const int64_t row = p / per_row;
+    const int64_t column = (p * 17 + row * 13) % rows;
+    indices[p] = row;
+    indices[nnz + p] = column;
+    values[p] = (static_cast<float>(p % 101) - 50.0f) / 37.0f;
+  }
+  for (int64_t i = 0; i < rows * columns; ++i)
+    dense_values[i] = (static_cast<float>(i % 101) - 50.0f) / 37.0f;
+  for (int64_t p = 0; p < nnz; ++p) {
+    const int64_t row = indices[p], column = indices[nnz + p];
+    for (int64_t c = 0; c < columns; ++c)
+      expected[row * columns + c] +=
+          values[p] * dense_values[column * columns + c];
+  }
+  auto index_tensor = device_long_tensor(indices).reshape({2, nnz});
+  auto value_tensor = device_tensor(values);
+  auto dense = device_tensor(dense_values).reshape({rows, columns});
+  auto sparse = at::sparse_coo_tensor(index_tensor, value_tensor, {rows, rows},
+                                      value_tensor.options().layout(
+                                          at::kSparse)).coalesce();
+  auto output = at::hspmm(sparse, dense);
+  auto operation = [&] { at::hspmm_out(output, sparse, dense); };
+  return finish_sparse_dense("aten_hspmm_cpu", "259b92fa65811255", output,
+                             expected, operation,
+                             "R=64_C=4096_N=4096");
+}
+
+int whole_external_sparse_addmm() {
+  constexpr int64_t rows = 64, inner = 64, columns = 4096, nnz = 4096;
+  constexpr int64_t per_row = nnz / rows;
+  std::vector<int64_t> indices(2 * nnz);
+  std::vector<float> values(nnz), dense_values(inner * columns);
+  std::vector<float> expected(rows * columns, 0.0f);
+  for (int64_t p = 0; p < nnz; ++p) {
+    const int64_t row = p / per_row;
+    const int64_t column = (p * 17 + row * 13) % inner;
+    indices[p] = row;
+    indices[nnz + p] = column;
+    values[p] = (static_cast<float>(p % 101) - 50.0f) / 37.0f;
+  }
+  for (int64_t i = 0; i < inner * columns; ++i)
+    dense_values[i] = (static_cast<float>(i % 101) - 50.0f) / 37.0f;
+  for (int64_t p = 0; p < nnz; ++p) {
+    const int64_t row = indices[p], column = indices[nnz + p];
+    for (int64_t c = 0; c < columns; ++c)
+      expected[row * columns + c] +=
+          values[p] * dense_values[column * columns + c];
+  }
+  auto index_tensor = device_long_tensor(indices).reshape({2, nnz});
+  auto value_tensor = device_tensor(values);
+  auto dense = device_tensor(dense_values).reshape({inner, columns});
+  auto sparse = at::sparse_coo_tensor(index_tensor, value_tensor,
+                                      {rows, inner},
+                                      value_tensor.options().layout(
+                                          at::kSparse)).coalesce();
+  auto initial = at::zeros({rows, columns}, value_tensor.options());
+  auto output = at::empty_like(initial);
+  auto operation = [&] {
+    at::addmm_out(output, initial, sparse, dense, 0.0, 1.0);
+  };
+  return finish("aten_sparse_addmm_cpu", "af6a5bc645cf7bab", output,
+                expected, operation, nullptr, nullptr,
+                "R=64_C=4096_N=4096");
+}
+
 int whole_convolution(const std::string &kernel) {
   const bool conv1d = kernel == "aten_conv1d";
   const bool conv2d = kernel == "aten_conv2d";
@@ -1401,6 +1647,259 @@ int whole_convolution(const std::string &kernel) {
                     "C=8_O=16_D=32_H=32_W=32_K=3";
   return finish(kernel.c_str(), recipe, output, expected, operation, nullptr,
                 nullptr, shape);
+}
+
+int conv_transpose3d_backward_simple() {
+  constexpr int64_t batch = 1;
+  constexpr int64_t input_channels = 4;
+  constexpr int64_t output_channels = 4;
+  constexpr int64_t depth = 16;
+  constexpr int64_t height = 16;
+  constexpr int64_t width = 16;
+  constexpr int64_t k = 3;
+  const std::vector<int64_t> gradient_shape = {
+      batch, output_channels, depth + k - 1, height + k - 1, width + k - 1};
+  const std::vector<int64_t> weight_shape = {
+      input_channels, output_channels, k, k, k};
+  const std::vector<int64_t> output_shape = {
+      batch, input_channels, depth, height, width};
+  auto elements = [](const std::vector<int64_t> &shape) {
+    int64_t result = 1;
+    for (int64_t extent : shape)
+      result *= extent;
+    return result;
+  };
+  auto unit_values = [](int64_t count) {
+    std::vector<float> values(count);
+    for (int64_t i = 0; i < count; ++i)
+      values[i] = 0.05f + 0.9f * static_cast<float>(i % 101) / 101.0f;
+    return values;
+  };
+  auto gradient_host = unit_values(elements(gradient_shape));
+  auto weight_host = unit_values(elements(weight_shape));
+  auto gradient = device_tensor(gradient_host).reshape(gradient_shape);
+  auto weight = device_tensor(weight_host).reshape(weight_shape);
+  auto output = at::empty(output_shape, gradient.options());
+  auto cpu_gradient = cpu_tensor(gradient_host).reshape(gradient_shape);
+  auto cpu_weight = cpu_tensor(weight_host).reshape(weight_shape);
+  auto cpu_output = at::empty(output_shape, cpu_gradient.options());
+  const std::vector<int64_t> stride = {1, 1, 1};
+  const std::vector<int64_t> padding = {0, 0, 0};
+  const std::vector<int64_t> dilation = {1, 1, 1};
+  const std::vector<int64_t> output_padding = {0, 0, 0};
+  at::convolution_out(cpu_output, cpu_gradient, cpu_weight, std::nullopt,
+                      stride, padding, dilation, false, output_padding, 1);
+  std::vector<float> expected(elements(output_shape));
+  std::memcpy(expected.data(), cpu_output.data_ptr<float>(),
+              expected.size() * sizeof(float));
+  auto operation = [&] {
+    at::convolution_out(output, gradient, weight, std::nullopt, stride,
+                        padding, dilation, false, output_padding, 1);
+  };
+  return finish("aten_conv_transpose3d_backward_cpu",
+                "conv3d-backward-k3-simple-v1", output, expected, operation,
+                nullptr, nullptr, "C=4_O=4_D=16_H=16_W=16_K=3");
+}
+
+int conv_tbc_exact(bool backward) {
+  const int64_t time = backward ? 4094 : 4096;
+  constexpr int64_t batch = 16, input_channels = 32;
+  constexpr int64_t output_channels = 64, kernel = 3;
+  auto gradient_or_input_host = raised_fixture_values(
+      time * batch * (backward ? output_channels : input_channels));
+  auto weight_host = raised_fixture_values(
+      kernel * input_channels * output_channels);
+
+  if (!backward) {
+    auto input = device_tensor(gradient_or_input_host).reshape(
+        {time, batch, input_channels});
+    auto weight = device_tensor(weight_host).reshape(
+        {kernel, input_channels, output_channels});
+    auto bias = at::zeros({output_channels}, input.options());
+    auto output = at::empty(
+        {time - kernel + 1, batch, output_channels}, input.options());
+    auto cpu_input = cpu_tensor(gradient_or_input_host).reshape(
+        {time, batch, input_channels});
+    auto cpu_weight = cpu_tensor(weight_host).reshape(
+        {kernel, input_channels, output_channels});
+    auto cpu_bias = at::zeros({output_channels}, cpu_input.options());
+    auto cpu_output = at::empty(
+        {time - kernel + 1, batch, output_channels}, cpu_input.options());
+    at::conv_tbc_out(cpu_output, cpu_input, cpu_weight, cpu_bias, 0);
+    std::vector<float> expected(cpu_output.numel());
+    std::memcpy(expected.data(), cpu_output.data_ptr<float>(),
+                expected.size() * sizeof(float));
+    auto operation = [&] {
+      at::conv_tbc_out(output, input, weight, bias, 0);
+    };
+    return finish("aten_conv_tbc_cpu", "a18bfcf1a32ece09", output,
+                  expected, operation, nullptr, nullptr,
+                  "T=4096_B=16_I=32_O=64_K=3");
+  }
+
+  const int64_t output_time = time + kernel - 1;
+  auto gradient_storage = device_tensor(gradient_or_input_host);
+  auto weight_storage = device_tensor(weight_host);
+  auto gradient = gradient_storage.as_strided(
+      {batch, output_channels, time},
+      {output_channels, 1, batch * output_channels});
+  auto weight = weight_storage.as_strided(
+      {output_channels, input_channels, kernel},
+      {1, output_channels, input_channels * output_channels});
+  auto output = at::empty_strided(
+      {batch, input_channels, output_time},
+      {input_channels, 1, batch * input_channels}, gradient.options());
+  auto cpu_gradient_storage = cpu_tensor(gradient_or_input_host);
+  auto cpu_weight_storage = cpu_tensor(weight_host);
+  auto cpu_gradient = cpu_gradient_storage.as_strided(
+      {batch, output_channels, time},
+      {output_channels, 1, batch * output_channels});
+  auto cpu_weight = cpu_weight_storage.as_strided(
+      {output_channels, input_channels, kernel},
+      {1, output_channels, input_channels * output_channels});
+  auto cpu_output = at::empty_strided(
+      {batch, input_channels, output_time},
+      {input_channels, 1, batch * input_channels}, cpu_gradient.options());
+  const std::vector<int64_t> stride = {1}, padding = {0}, dilation = {1};
+  const std::vector<int64_t> output_padding = {0};
+  at::convolution_out(cpu_output, cpu_gradient, cpu_weight, std::nullopt,
+                      stride, padding, dilation, true, output_padding, 1);
+  std::vector<float> expected(cpu_output.numel());
+  std::memcpy(expected.data(), cpu_output.data_ptr<float>(),
+              expected.size() * sizeof(float));
+  auto operation = [&] {
+    at::convolution_out(output, gradient, weight, std::nullopt, stride,
+                        padding, dilation, true, output_padding, 1);
+  };
+  return finish("aten_conv_tbc_backward_cpu", "f6e9bcda5af283f9", output,
+                expected, operation, nullptr, nullptr,
+                "T=4094_B=16_I=32_O=64_K=3");
+}
+
+int conv_transpose3d_grad_weight_exact() {
+  constexpr int64_t batch = 1, input_channels = 8, output_channels = 16;
+  constexpr int64_t depth = 32, height = 32, width = 32, kernel = 3;
+  const std::vector<int64_t> source_shape = {
+      batch, output_channels, depth + kernel - 1, height + kernel - 1,
+      width + kernel - 1};
+  const std::vector<int64_t> gradient_shape = {
+      batch, input_channels, depth, height, width};
+  const std::vector<int64_t> weight_shape = {
+      input_channels, output_channels, kernel, kernel, kernel};
+  auto elements = [](const std::vector<int64_t> &shape) {
+    int64_t count = 1;
+    for (int64_t extent : shape) count *= extent;
+    return count;
+  };
+  auto source_host = raised_fixture_values(elements(source_shape));
+  auto gradient_host = raised_fixture_values(elements(gradient_shape));
+  auto source = device_tensor(source_host).reshape(source_shape);
+  auto gradient = device_tensor(gradient_host).reshape(gradient_shape);
+  auto weight_template = device_tensor(
+      raised_fixture_values(elements(weight_shape))).reshape(weight_shape);
+  at::Tensor weight;
+  auto cpu_source = cpu_tensor(source_host).reshape(source_shape);
+  auto cpu_gradient = cpu_tensor(gradient_host).reshape(gradient_shape);
+  auto cpu_weight_template = cpu_tensor(
+      raised_fixture_values(elements(weight_shape))).reshape(weight_shape);
+  at::Tensor cpu_weight;
+  const std::vector<int64_t> stride = {1, 1, 1};
+  const std::vector<int64_t> padding = {0, 0, 0};
+  const std::vector<int64_t> dilation = {1, 1, 1};
+  const std::vector<int64_t> output_padding = {0, 0, 0};
+  const std::array<bool, 3> output_mask = {false, true, false};
+  cpu_weight = std::get<1>(at::convolution_backward(
+      cpu_gradient, cpu_source, cpu_weight_template, std::nullopt, stride,
+      padding, dilation, false, output_padding, 1, output_mask));
+  std::vector<float> expected(elements(weight_shape));
+  std::memcpy(expected.data(), cpu_weight.data_ptr<float>(),
+              expected.size() * sizeof(float));
+  auto operation = [&] {
+    weight = std::get<1>(at::convolution_backward(
+        gradient, source, weight_template, std::nullopt, stride, padding,
+        dilation, false, output_padding, 1, output_mask));
+  };
+  return finish("aten_conv_transpose3d_grad_weight_cpu",
+                "1b77db7d015c2eee", weight, expected, operation, nullptr,
+                nullptr, "C=8_O=16_D=32_H=32_W=32_K=3");
+}
+
+int sparse_addmv_bsr_exact() {
+  constexpr int64_t block_rows = 4096, block_columns = 4096;
+  constexpr int64_t block_height = 4, block_width = 4;
+  constexpr int64_t nnz = 262144, per_row = nnz / block_rows;
+  std::vector<int64_t> crow(block_rows + 1), columns(nnz);
+  std::vector<float> values(nnz * block_height * block_width);
+  std::vector<float> vector_values(block_columns * block_width);
+  std::vector<float> expected(block_rows * block_height, 0.0f);
+  for (int64_t row = 0; row <= block_rows; ++row)
+    crow[row] = row * per_row;
+  for (int64_t p = 0; p < nnz; ++p) {
+    const int64_t row = p / per_row;
+    columns[p] = (p * 17 + row * 13) % block_columns;
+  }
+  values = raised_fixture_values(values.size());
+  vector_values = raised_fixture_values(vector_values.size());
+  for (int64_t row = 0; row < block_rows; ++row)
+    for (int64_t i = 0; i < block_height; ++i)
+      for (int64_t p = crow[row]; p < crow[row + 1]; ++p)
+        for (int64_t j = 0; j < block_width; ++j)
+          expected[row * block_height + i] +=
+              values[(p * block_height + i) * block_width + j] *
+              vector_values[columns[p] * block_width + j];
+  auto crow_tensor = device_long_tensor(crow);
+  auto column_tensor = device_long_tensor(columns);
+  auto value_tensor = device_tensor(values).reshape(
+      {nnz, block_height, block_width});
+  auto sparse = at::sparse_bsr_tensor(
+      crow_tensor, column_tensor, value_tensor,
+      {block_rows * block_height, block_columns * block_width},
+      value_tensor.options().layout(at::kSparseBsr));
+  auto vector = device_tensor(vector_values).reshape(
+      {block_columns * block_width, 1});
+  auto output = at::empty({block_rows * block_height, 1}, vector.options());
+  auto operation = [&] { at::mm_out(output, sparse, vector); };
+  return finish("aten_sparse_addmv_bsr_cpu", "f38e82d0726094a7",
+                output, expected, operation, nullptr, nullptr,
+                "R=4096_C=4096_BR=4_BC=4_N=262144");
+}
+
+int dilated_convolution_exact() {
+  constexpr int64_t batch = 1, input_channels = 16, output_channels = 32;
+  constexpr int64_t height = 128, width = 128, kernel = 3, dilation_value = 2;
+  constexpr int64_t output_height = height - (kernel - 1) * dilation_value;
+  constexpr int64_t output_width = width - (kernel - 1) * dilation_value;
+  auto input_host = raised_fixture_values(batch * input_channels * height * width);
+  auto weight_host = raised_fixture_values(
+      output_channels * input_channels * kernel * kernel);
+  auto input = device_tensor(input_host).reshape(
+      {batch, input_channels, height, width});
+  auto weight = device_tensor(weight_host).reshape(
+      {output_channels, input_channels, kernel, kernel});
+  auto output = at::empty(
+      {batch, output_channels, output_height, output_width}, input.options());
+  auto cpu_input = cpu_tensor(input_host).reshape(
+      {batch, input_channels, height, width});
+  auto cpu_weight = cpu_tensor(weight_host).reshape(
+      {output_channels, input_channels, kernel, kernel});
+  auto cpu_output = at::empty(
+      {batch, output_channels, output_height, output_width},
+      cpu_input.options());
+  const std::vector<int64_t> stride = {1, 1}, padding = {0, 0};
+  const std::vector<int64_t> dilation = {dilation_value, dilation_value};
+  const std::vector<int64_t> output_padding = {0, 0};
+  at::convolution_out(cpu_output, cpu_input, cpu_weight, std::nullopt,
+                      stride, padding, dilation, false, output_padding, 1);
+  std::vector<float> expected(cpu_output.numel());
+  std::memcpy(expected.data(), cpu_output.data_ptr<float>(),
+              expected.size() * sizeof(float));
+  auto operation = [&] {
+    at::convolution_out(output, input, weight, std::nullopt, stride, padding,
+                        dilation, false, output_padding, 1);
+  };
+  return finish("aten_dilated_convolution_cpu", "150518b7cd72cf01",
+                output, expected, operation, nullptr, nullptr,
+                "C=16_O=32_H=128_W=128_K=3_D=2");
 }
 
 int whole_nested_sum_backward() {
@@ -2496,19 +2995,36 @@ int structured_matmul(const std::string &kernel) {
     k = 266;
     broadcast_rhs = true;
   }
-  std::vector<float> a_host(batch * m * k, 1.0f);
-  auto b_host = fixture_values((broadcast_rhs ? 1 : batch) * k * n);
+  const bool raised_aligned = kernel == "aten_nested_bmm_cpu" ||
+                              kernel == "aten_nested_matmul_broadcast_cpu";
+  std::vector<float> a_host = raised_aligned
+      ? raised_fixture_values(batch * m * k)
+      : std::vector<float>(batch * m * k, 1.0f);
+  auto b_host = raised_aligned
+      ? raised_fixture_values((broadcast_rhs ? 1 : batch) * k * n)
+      : fixture_values((broadcast_rhs ? 1 : batch) * k * n);
   std::vector<float> expected(batch * m * n);
-  for (int64_t q = 0; q < batch; ++q) {
-    std::vector<float> column_sum(n, 0.0f);
-    const int64_t rhs_batch = broadcast_rhs ? 0 : q;
-    for (int64_t inner = 0; inner < k; ++inner)
-      for (int64_t column = 0; column < n; ++column)
-        column_sum[column] +=
-            b_host[(rhs_batch * k + inner) * n + column];
-    for (int64_t row = 0; row < m; ++row)
-      std::copy(column_sum.begin(), column_sum.end(),
-                expected.begin() + (q * m + row) * n);
+  if (raised_aligned) {
+    auto cpu_a = cpu_tensor(a_host).reshape({batch, m, k});
+    auto cpu_b = cpu_tensor(b_host).reshape(
+        broadcast_rhs ? std::vector<int64_t>{k, n}
+                      : std::vector<int64_t>{batch, k, n});
+    auto cpu_output = broadcast_rhs ? at::matmul(cpu_a, cpu_b)
+                                    : at::bmm(cpu_a, cpu_b);
+    std::memcpy(expected.data(), cpu_output.data_ptr<float>(),
+                expected.size() * sizeof(float));
+  } else {
+    for (int64_t q = 0; q < batch; ++q) {
+      std::vector<float> column_sum(n, 0.0f);
+      const int64_t rhs_batch = broadcast_rhs ? 0 : q;
+      for (int64_t inner = 0; inner < k; ++inner)
+        for (int64_t column = 0; column < n; ++column)
+          column_sum[column] +=
+              b_host[(rhs_batch * k + inner) * n + column];
+      for (int64_t row = 0; row < m; ++row)
+        std::copy(column_sum.begin(), column_sum.end(),
+                  expected.begin() + (q * m + row) * n);
+    }
   }
   auto a = device_tensor(a_host).reshape({batch, m, k});
   auto output = at::empty({batch, m, n}, a.options());
@@ -2657,6 +3173,8 @@ int main(int argc, char **argv) {
       return 2;
     }
   }
+  if (g_use_cuda)
+    at::globalContext().setAllowTF32CuDNN(false);
   const std::string kernel = argv[1];
   if (is_whole_unary(kernel))
     return whole_unary(kernel);
@@ -2716,10 +3234,34 @@ int main(int argc, char **argv) {
     return whole_cumprod();
   if (kernel == "aten_int_mm_out_cpu")
     return whole_int_mm();
+  if (kernel == "aten_batch_norm")
+    return whole_external_batch_norm();
+  if (kernel == "aten_cumsum")
+    return whole_external_cumsum();
+  if (kernel == "aten_dot")
+    return whole_external_dot();
+  if (kernel == "aten_hspmm_cpu")
+    return whole_external_hspmm();
+  if (kernel == "aten_sparse_addmv_csr_cpu")
+    return whole_external_sparse_addmv();
+  if (kernel == "aten_sparse_addmm_cpu")
+    return whole_external_sparse_addmm();
   if (kernel == "aten_conv1d" || kernel == "aten_conv2d" ||
       kernel == "aten_conv_transpose2d" ||
       kernel == "aten_conv_transpose3d_cpu")
     return whole_convolution(kernel);
+  if (kernel == "aten_conv_transpose3d_backward_cpu")
+    return conv_transpose3d_backward_simple();
+  if (kernel == "aten_conv_tbc_cpu")
+    return conv_tbc_exact(false);
+  if (kernel == "aten_conv_tbc_backward_cpu")
+    return conv_tbc_exact(true);
+  if (kernel == "aten_conv_transpose3d_grad_weight_cpu")
+    return conv_transpose3d_grad_weight_exact();
+  if (kernel == "aten_dilated_convolution_cpu")
+    return dilated_convolution_exact();
+  if (kernel == "aten_sparse_addmv_bsr_cpu")
+    return sparse_addmv_bsr_exact();
   if (kernel == "aten_nested_sum_backward_cpu")
     return whole_nested_sum_backward();
   if (kernel == "aten_sampled_addmm_sparse_csr_cpu")

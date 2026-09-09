@@ -1323,22 +1323,22 @@
 "op": "conv_transpose3d",
 "cat": "native_fixture",
 "dims": {
-"C": 15,
-"D": 45,
-"H": 53,
-"K": 23,
-"O": 23,
-"W": 60
+"C": 4,
+"D": 16,
+"H": 16,
+"K": 3,
+"O": 4,
+"W": 16
 },
-"n": 1135498500,
-"shape": "C=15_D=45_H=53_K=23_O=23_W=60",
+"n": 1769472,
+"shape": "C=4_O=4_D=16_H=16_W=16_K=3",
 "dtype": "f32",
 "scalar_args": {},
-"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
-"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "bounded full transposed-conv3d input-gradient convolution; avoids an intractable scalar reference while preserving all reduction and layout dimensions",
 "comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
-"recipe_version": "2026-09-08-v3",
-"recipe_fingerprint": "ba8f850fbd0c8713"
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "conv3d-backward-k3-simple-v1"
 },
 {
 "kernel": "aten_conv_transpose3d_cpu",

@@ -333,6 +333,12 @@ CASES = {
         [ptr("x", "C*D*H*W"), ptr("w", "C*O*K*K*K"),
          ptr("out", "O*(D+2)*(H+2)*(W+2)", True)],
         "full 3d transposed convolution through cuDNN backward-data"),
+    "aten_conv_transpose3d_backward_cpu": spec(
+        {"C": 4, "O": 4, "D": 16, "H": 16, "W": 16, "K": 3},
+        [ptr("g", "O*(D+K-1)*(H+K-1)*(W+K-1)", init="unit"),
+         ptr("w", "C*O*K*K*K", init="unit"),
+         ptr("out", "C*D*H*W", True)],
+        "full transposed-conv3d input gradient through cuDNN convolution"),
     "aten_slow_conv3d_backward_input_cpu": spec(
         {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
         [ptr("g", "O*D*H*W"), ptr("w", "O*C*K*K*K"),
@@ -742,6 +748,7 @@ def scaled_source(kernel: str, cfg: dict, out: Path) -> None:
 
 def harness_text(kernel: str, cfg: dict) -> str:
     decls, call_ref, call_got, allocations, init, comparisons, frees = [], [], [], [], [], [], []
+    reset_ref = []
     # Device-resident path: cudaMalloc buffers, copy in/out OUTSIDE the timed
     # region so timing reflects the op on device DRAM (torch's methodology).
     call_dev, dev_alloc, dev_h2d, dev_d2h, dev_free = [], [], [], [], []
@@ -759,6 +766,8 @@ def harness_text(kernel: str, cfg: dict) -> str:
         allocations.append(f"{ctype} *{name}_ref = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
         allocations.append(f"{ctype} *{name}_got = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
         allocations.append(f"{ctype} *{name}_dev = 0;")
+        reset_ref.append(
+            f"memcpy({name}_ref,{name}_got,{name}_n*sizeof({ctype}));")
         dev_alloc.append(f"cudaMalloc((void**)&{name}_dev, {name}_n*sizeof({ctype}));")
         dev_h2d.append(f"cudaMemcpy({name}_dev, {name}_got, {name}_n*sizeof({ctype}), 1);")
         call_dev.append(f"{name}_dev")
@@ -874,6 +883,32 @@ int main(void) {{
   {' '.join(decls)}
   {' '.join(allocations)}
   {' '.join(init)}
+#ifdef BENCH_CPU_REFERENCE
+  /* Original extracted C computation on CPU. Restore every array before each
+     invocation so mutating kernels see the same logical input state. */
+  {' '.join(reset_ref)}
+  {kernel}_reference({ref_args});
+  for(int i=0;i<5;++i) {{ {' '.join(reset_ref)} {kernel}_reference({ref_args}); }}
+  double cpu_sample[5], cpu_sorted[5];
+  for(int i=0;i<5;++i) {{
+    {' '.join(reset_ref)}
+    double t=now_us(); {kernel}_reference({ref_args});
+    cpu_sample[i]=now_us()-t; cpu_sorted[i]=cpu_sample[i];
+  }}
+  for(int i=1;i<5;++i) {{
+    double v=cpu_sorted[i]; int j=i-1;
+    while(j>=0 && cpu_sorted[j]>v) {{ cpu_sorted[j+1]=cpu_sorted[j]; --j; }}
+    cpu_sorted[j+1]=v;
+  }}
+  double cpu_us=cpu_sorted[2];
+  printf("SAMPLES kernel={kernel} cpu_original_c_wall_us="
+         "%.6f,%.6f,%.6f,%.6f,%.6f median_us=%.6f\\n",
+         cpu_sample[0],cpu_sample[1],cpu_sample[2],cpu_sample[3],cpu_sample[4],cpu_us);
+  printf("CPU_RESULT kernel={kernel} cpu_original_c_us=%.6f errors=0 shape={shape_str}\\n",cpu_us);
+  fflush(stdout);
+  {' '.join(frees)}
+  return 0;
+#else
 #ifndef BENCH_MAPPED_ONLY
   /* Preserve the original inputs on device before host correctness/timing can
      mutate any in-place operands. */
@@ -882,12 +917,16 @@ int main(void) {{
   cudaDeviceSynchronize();
 #endif
   {kernel}_reference({ref_args});
+#ifndef BENCH_RESIDENT_ONLY
   /* Correctness on a SINGLE run, BEFORE the timing loops mutate the buffers.
      In-place ops (e.g. out+=src) would otherwise accumulate over ~36 calls. */
   {kernel}({got_args});
   int errors=0; float max_error=0; {' '.join(comparisons)}
   for(int i=0;i<3;++i) {kernel}({got_args});
   double total=0; for(int i=0;i<10;++i) {{ double t=now_us(); {kernel}({got_args}); total += now_us()-t; }}
+#else
+  int errors=0; float max_error=0; double total=0;
+#endif
   /* Device-resident timing: operands in cudaMalloc'd device DRAM, copy in/out
      ONCE outside the timed loop, so only the op is measured (matches torch). */
   double resident_us = -1.0;
@@ -899,18 +938,34 @@ int main(void) {{
   cudaDeviceSynchronize();
   {' '.join(dev_d2h)}
   {' '.join(comparisons)}
-  /* The correctness invocation above is also the first warmup. */
-  for(int i=0;i<4;++i) {kernel}({dev_args});
+  /* Correctness is outside the benchmark protocol.  Perform five additional
+     untimed warmups before collecting the five publication samples. */
+  for(int i=0;i<5;++i) {kernel}({dev_args});
   cudaDeviceSynchronize();
-  /* Device-resident synchronized wall time.  Native PyTorch uses the same
-     boundary in the paper comparison; allocations and transfers stay out. */
-  {{ double best=1e30; for(int i=0;i<20;++i) {{ double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize(); double d=now_us()-t; if(d<best) best=d; }} resident_us = best; }}
+  /* ATen Section 4.2 protocol: one process, five synchronized resident wall
+     samples, median-of-five.  Allocations and transfers stay outside. */
+  {{ double sample[5], sorted[5];
+     for(int i=0;i<5;++i) {{
+       double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize();
+       sample[i]=now_us()-t; sorted[i]=sample[i];
+     }}
+     for(int i=1;i<5;++i) {{
+       double v=sorted[i]; int j=i-1;
+       while(j>=0 && sorted[j]>v) {{ sorted[j+1]=sorted[j]; --j; }}
+       sorted[j+1]=v;
+     }}
+     resident_us=sorted[2];
+     printf("SAMPLES kernel={kernel} raised_resident_wall_us="
+            "%.6f,%.6f,%.6f,%.6f,%.6f median_us=%.6f\\n",
+            sample[0],sample[1],sample[2],sample[3],sample[4],resident_us);
+  }}
   {' '.join(dev_free)}
 #endif
   printf("RESULT kernel={kernel} warm_us=%.6f resident_us=%.6f errors=%d max_error=%g shape={shape_str} coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,resident_us,errors,max_error);
   fflush(stdout);
   {' '.join(frees)}
   return errors ? 1 : 0;
+#endif
 }}
 '''
 
@@ -928,12 +983,20 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
     harness = work / "harness.c"; harness.write_text(harness_text(kernel, cfg))
     reference = work / "reference.o"
     run(["aarch64-linux-gnu-gcc", "-O3", f"-D{kernel}={kernel}_reference", "-c", str(source), "-o", str(reference)], work / "reference.build.log")
+    cpu_exe = work / f"{kernel}_cpu_reference"
+    run(["aarch64-linux-gnu-gcc", "-O3", "-DBENCH_CPU_REFERENCE",
+         str(harness), str(reference), "-lm", "-o", str(cpu_exe)],
+        work / "cpu_reference.build.log")
     exe = work / kernel
     env = os.environ.copy()
     artifacts = work / "artifacts"
     env.update({"PYTHON": "/usr/bin/python3",
                 "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference),
                 "POLYGEIST_EXPORT_OBJECT_DIR": str(artifacts)})
+    # Let the compiler compare preserved-submap and normalized-submap raising
+    # using residual IR and legal launch counts.  This is deliberately
+    # independent of the corpus/function name.
+    env.setdefault("POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE", "auto")
     # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
     # Keep the full fixed-library runtime for sparse linear-algebra cases.
     supports_resident = (os.environ.get("POLYGEIST_FORCE_RESIDENT", "0") not in
@@ -963,6 +1026,8 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
         env["POLYGEIST_CUTENSOR_ROOT"] = _ct
     build_command = [str(BUILDER), "--target=jetson", f"--function={kernel}",
                      f"--harness={harness}", "-o", str(exe), str(source)]
+    if supports_resident:
+        build_command.append("-DBENCH_RESIDENT_ONLY")
     if not supports_resident:
         build_command.append("-DBENCH_MAPPED_ONLY")
     run(build_command, work / "raised.build.log", env)
@@ -978,17 +1043,32 @@ def build_one(kernel: str, cfg: dict, output: Path) -> dict:
 
     matched_text, abi_text, residual, library_calls, resident_safe = \
         inspect_artifacts()
+    # One-shot pre-ABI bufferization can materialize a tensor result through a
+    # host memref.alloc/memref.copy shell.  That shell is illegal when the C
+    # harness supplies cudaMalloc operands.  The legacy tensor ABI lowers the
+    # same pointwise graph directly into its destination pointer, so rebuild
+    # that family when artifact inspection finds a device-unsafe shell.
+    if (supports_resident and residual and
+            "polygeist_cudnn_pointwise_graph_f32" in library_calls):
+        legacy_env = env.copy()
+        legacy_env["POLYGEIST_BUFFERIZE_BEFORE_ABI"] = "0"
+        run(build_command, work / "raised.resident_tensor_abi_rebuild.log",
+            legacy_env)
+        matched_text, abi_text, residual, library_calls, resident_safe = \
+            inspect_artifacts()
     # Auto-discovered compositions may become fully device-safe as matcher and
     # ABI lowering coverage grows. The first build intentionally suppresses
     # its resident harness until the emitted ABI has been inspected. Rebuild
     # once without BENCH_MAPPED_ONLY when that inspection proves it safe.
     if resident_safe and not supports_resident:
-        run(build_command[:-1], work / "raised.resident_rebuild.log", env)
+        resident_command = build_command[:-1] + ["-DBENCH_RESIDENT_ONLY"]
+        run(resident_command, work / "raised.resident_rebuild.log", env)
         matched_text, abi_text, residual, library_calls, resident_safe = \
             inspect_artifacts()
     return {"kernel": kernel,
             "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()),
             "coverage": cfg["coverage"], "executable": str(exe),
+            "cpu_reference_executable": str(cpu_exe),
             "launches": len(re.findall(r"kernel\.launch\s+@", matched_text)),
             "library_calls": library_calls, "residual_device_unsafe": residual,
             "resident_safe": resident_safe}
