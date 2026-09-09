@@ -28,11 +28,22 @@ module {
       %A: memref<?x?xf64>, %b: memref<?xf64>, %x: memref<?xf64>) {
     kernel.yield
   }
+  kernel.defn @cublasStrsvLowerRowMajor_memref(
+      %A: memref<?x?xf32>, %b: memref<?xf32>, %x: memref<?xf32>) {
+    kernel.yield
+  }
   kernel.defn @cublasDsymmLeftLowerRowMajor_memref(
       %A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>,
       %alpha: f64, %beta: f64) { kernel.yield }
+  kernel.defn @cublasSsymmLeftLowerRowMajor_memref(
+      %A: memref<?x?xf32>, %B: memref<?x?xf32>, %C: memref<?x?xf32>,
+      %alpha: f32, %beta: f32) { kernel.yield }
   kernel.defn @cublasDtrmmLeftLowerTransUnitRowMajor_memref(
       %A: memref<?x?xf64>, %B: memref<?x?xf64>, %alpha: f64) {
+    kernel.yield
+  }
+  kernel.defn @cublasStrmmLeftLowerTransUnitRowMajor_memref(
+      %A: memref<?x?xf32>, %B: memref<?x?xf32>, %alpha: f32) {
     kernel.yield
   }
   kernel.defn @cusolverDnDpotrfLowerRowMajor_memref(
@@ -43,6 +54,9 @@ module {
   kernel.defn @cublasDcovarianceRowMajor_memref(
       %sample_count: f64, %data: memref<?x?xf64>,
       %cov: memref<?x?xf64>, %mean: memref<?xf64>) { kernel.yield }
+  kernel.defn @cublasScovarianceRowMajor_memref(
+      %sample_count: f32, %data: memref<?x?xf32>,
+      %cov: memref<?x?xf32>, %mean: memref<?xf32>) { kernel.yield }
   kernel.defn @cublasDcorrelationRowMajor_memref(
       %sample_count: f64, %data: memref<?x?xf64>,
       %corr: memref<?x?xf64>, %mean: memref<?xf64>,
@@ -177,7 +191,8 @@ module {
   kernel.defn @cubAdjacentDifference_f32_memref(
       %input: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cublasSgemvTZero_memref(
-      %matrix: memref<?x?xf32>, %vector: memref<?xf32>,
+      %matrix: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %vector: memref<?xf32, strided<[1], offset: ?>>,
       %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedSum_f32_memref(
       %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
@@ -1287,6 +1302,20 @@ module {
     kernel.yield %result : tensor<?xf32>
   }
 
+  // ABI-only forms selected after proving broadcast-view or scratch
+  // destination semantics in kernel_match_rewrite.py.
+  kernel.defn @cublasSgemv_T_zero(
+      %A: tensor<?x?xf32>, %x: tensor<?xf32>, %y: tensor<?xf32>)
+      -> tensor<?xf32> {
+    kernel.yield %y : tensor<?xf32>
+  }
+
+  kernel.defn @cublasSgemv_broadcast2d(
+      %A: tensor<?x?xf32>, %x: tensor<?x?xf32>, %y: tensor<?x?xf32>)
+      -> tensor<?x?xf32> {
+    kernel.yield %y : tensor<?x?xf32>
+  }
+
   // GEMV-ALPHA: y += alpha * A * x (gemver pattern).
   kernel.defn @cublasDgemv_alpha(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
                                   %y: tensor<?xf64>,
@@ -1308,6 +1337,58 @@ module {
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>
   }
+
+  kernel.defn @cublasSgemv_alpha(
+      %A: tensor<?x?xf32>, %x: tensor<?xf32>, %y: tensor<?xf32>,
+      %alpha: f32) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf32>, tensor<?xf32>)
+      outs(%y : tensor<?xf32>) {
+    ^bb0(%a: f32, %xv: f32, %out: f32):
+      %p = arith.mulf %a, %xv : f32
+      %ap = arith.mulf %alpha, %p : f32
+      %s = arith.addf %out, %ap : f32
+      linalg.yield %s : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  // Buffer-form C frontend ABI.  The matcher selects the _T symbol when the
+  // matrix indexing map is transposed; both share the same scalar semantics.
+  kernel.defn @cublasSgemv_alpha_memref(
+      %A: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %x: memref<?xf32, strided<[1], offset: ?>>,
+      %y: memref<?xf32>,
+      %alpha: f32) {
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : memref<?x?xf32, strided<[?, 1], offset: ?>>,
+                   memref<?xf32, strided<[1], offset: ?>>)
+      outs(%y : memref<?xf32>) {
+    ^bb0(%a: f32, %xv: f32, %out: f32):
+      %p = arith.mulf %a, %xv : f32
+      %ap = arith.mulf %alpha, %p : f32
+      %s = arith.addf %out, %ap : f32
+      linalg.yield %s : f32
+    }
+    kernel.yield
+  }
+  kernel.defn @cublasSgemv_alpha_T_memref(
+      %A: memref<?x?xf32, strided<[?, 1], offset: ?>>,
+      %x: memref<?xf32, strided<[1], offset: ?>>,
+      %y: memref<?xf32>,
+      %alpha: f32) { kernel.yield }
 
   // GER-RANK2: A += u1*v1^T + u2*v2^T.
   // gemver-style fused rank-2 update.
@@ -1334,6 +1415,83 @@ module {
       linalg.yield %s2 : f64
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
+  }
+
+  kernel.defn @cublasSger_rank2(
+      %u1: tensor<?xf32>, %v1: tensor<?xf32>,
+      %u2: tensor<?xf32>, %v2: tensor<?xf32>,
+      %A: tensor<?x?xf32>) -> tensor<?x?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%u1, %v1, %u2, %v2
+          : tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>)
+      outs(%A : tensor<?x?xf32>) {
+    ^bb0(%u1v: f32, %v1v: f32, %u2v: f32, %v2v: f32, %out: f32):
+      %p1 = arith.mulf %u1v, %v1v : f32
+      %p2 = arith.mulf %u2v, %v2v : f32
+      %s1 = arith.addf %out, %p1 : f32
+      %s2 = arith.addf %s1, %p2 : f32
+      linalg.yield %s2 : f32
+    } -> tensor<?x?xf32>
+    kernel.yield %result : tensor<?x?xf32>
+  }
+
+  kernel.defn @cublasSger_rank2_memref(
+      %u1: memref<?xf32, strided<[1], offset: ?>>,
+      %v1: memref<?xf32, strided<[1], offset: ?>>,
+      %u2: memref<?xf32, strided<[1], offset: ?>>,
+      %v2: memref<?xf32, strided<[1], offset: ?>>,
+      %A: memref<?x?xf32, strided<[?, 1], offset: ?>>) {
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%u1, %v1, %u2, %v2
+          : memref<?xf32, strided<[1], offset: ?>>,
+            memref<?xf32, strided<[1], offset: ?>>,
+            memref<?xf32, strided<[1], offset: ?>>,
+            memref<?xf32, strided<[1], offset: ?>>)
+      outs(%A : memref<?x?xf32, strided<[?, 1], offset: ?>>) {
+    ^bb0(%u1v: f32, %v1v: f32, %u2v: f32, %v2v: f32, %out: f32):
+      %p1 = arith.mulf %u1v, %v1v : f32
+      %p2 = arith.mulf %u2v, %v2v : f32
+      %s1 = arith.addf %out, %p1 : f32
+      %s2 = arith.addf %s1, %p2 : f32
+      linalg.yield %s2 : f32
+    }
+    kernel.yield
+  }
+
+  kernel.defn @cublasSaxpby_memref(
+      %x: memref<?xf32>, %y: memref<?xf32>, %a: f32, %b: f32) {
+    kernel.yield
+  }
+
+  kernel.defn @cudaCopy1D_f32_memref(
+      %input: memref<?xf32, strided<[1], offset: ?>>,
+      %output: memref<?xf32, strided<[1], offset: ?>>) {
+    linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0)>,
+                       affine_map<(d0) -> (d0)>],
+      iterator_types = ["parallel"]
+    } ins(%input : memref<?xf32, strided<[1], offset: ?>>)
+      outs(%output : memref<?xf32, strided<[1], offset: ?>>) {
+    ^bb0(%in: f32, %out: f32):
+      linalg.yield %in : f32
+    }
+    kernel.yield
   }
 
   // Overwriting outer product: C[i,j] = u[i] * v[j].  Unlike the BLAS GER
@@ -1601,6 +1759,19 @@ module {
       linalg.yield %r : f64
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
+  }
+
+  // FP32 symmetric rank-k/rank-2k ABI forms. Recognition is dtype-polymorphic
+  // and derives the operation from the same masked scale/contraction
+  // structure as the FP64 definitions above.
+  kernel.defn @cublasSsyrk(%A: tensor<?x?xf32>, %C: tensor<?x?xf32>,
+                            %beta: f32, %alpha: f32) -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
+  }
+  kernel.defn @cublasSsyr2k(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>,
+                             %C: tensor<?x?xf32>, %beta: f32, %alpha: f32)
+      -> tensor<?x?xf32> {
+    kernel.yield %C : tensor<?x?xf32>
   }
 
   // ========================================================================

@@ -37,6 +37,7 @@ std::unique_ptr<Pass> createRaiseAffineToLinalgPipelinePass();
 std::unique_ptr<Pass> createLinalgDebufferizePass();
 std::unique_ptr<Pass> createLowerPolygeistSubmapPass();
 std::unique_ptr<Pass> createLowerKernelLaunchPass();
+std::unique_ptr<Pass> createSelectContractionBackendPass();
 std::unique_ptr<Pass> createWrapKernelLaunchPipelinePass();
 std::unique_ptr<Pass> createPlanPersistentGpuWorkspacePass();
 std::unique_ptr<Pass> createPrepareGpuResidualPipelinePass();

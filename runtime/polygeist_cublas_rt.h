@@ -38,12 +38,20 @@ void polygeist_cub_histogram_even_i32_shift_zero(
     int32_t *histogram, int32_t right_shift);
 void polygeist_cublas_dtrsv_lower_row_major(
     int32_t n, const double *A, const double *b, double *x);
+void polygeist_cublas_strsv_lower_row_major(
+    int32_t n, const float *A, const float *b, float *x);
 void polygeist_cublas_dsymm_left_lower_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     const double *B, int32_t ldb, double beta, double *C, int32_t ldc);
+void polygeist_cublas_ssymm_left_lower_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc);
 void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     double *B, int32_t ldb);
+void polygeist_cublas_strmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    float *B, int32_t ldb);
 void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A);
 void polygeist_cublas_dgramschmidt_mgs_row_major(
     int32_t m, int32_t n, double *A, int32_t lda,
@@ -51,6 +59,9 @@ void polygeist_cublas_dgramschmidt_mgs_row_major(
 void polygeist_cublas_dcovariance_row_major(
     int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
     double *cov, int32_t ldc, double *mean);
+void polygeist_cublas_scovariance_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *cov, int32_t ldc, float *mean);
 void polygeist_cublas_dcorrelation_row_major(
     int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
     double *corr, int32_t ldc, double *mean, double *stddev);
@@ -164,6 +175,28 @@ void polygeist_cublas_dsyr2k_lower(
     const double *B, int32_t ldb,
     double beta, double *C, int32_t ldc);
 
+void polygeist_cublas_ssyrk_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyr2k_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyrk_lower_tf32(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyr2k_lower_tf32(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc);
+
 void polygeist_cublas_sgemm(
     int32_t M, int32_t N, int32_t K,
     float alpha,
@@ -175,6 +208,19 @@ void polygeist_cublas_sgemm(
 // Row-major SGEMM with independently transposed inputs. transA/transB are
 // boolean integers; lda/ldb describe the physical (pre-transpose) matrices.
 void polygeist_cublas_sgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
+// Same row-major contract as polygeist_cublas_sgemm_transpose, with an
+// explicit relaxed-precision contract. The CUDA implementation uses
+// cublasGemmEx + CUBLAS_COMPUTE_32F_FAST_TF32; the CPU implementation is a
+// numerical reference only.
+void polygeist_cublas_sgemm_transpose_tf32(
     int32_t M, int32_t N, int32_t K,
     int32_t transA, int32_t transB,
     float alpha,
@@ -276,6 +322,9 @@ void polygeist_cublas_daxpby(
 void polygeist_cublas_saxpby(
     int32_t N, float alpha, const float *x, float beta, float *y);
 void polygeist_cublas_sscal(int32_t N, float scale, float *x);
+void polygeist_cublas_sger_rank2(
+    int32_t M, int32_t N, const float *u1, const float *v1,
+    const float *u2, const float *v2, float *A, int32_t lda);
 
 // cuDNN 9-tap conv2d (3x3 stencil) with PolyBench's hardcoded weights.
 // Input A is MxN row-major f64; output B is MxN row-major f64; the

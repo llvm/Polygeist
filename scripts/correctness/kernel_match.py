@@ -1992,6 +1992,16 @@ def _gemv_alpha_accumulate() -> CompositionEntry:
     return _mlir_metadata("cublasDgemv_alpha")
 
 
+def _sgemv_alpha_accumulate() -> CompositionEntry:
+    """Single-precision y += alpha * A * x."""
+    return _mlir_metadata("cublasSgemv_alpha")
+
+
+def _sgemv_alpha_accumulate_memref() -> CompositionEntry:
+    """Buffer-form single-precision y += alpha * A * x."""
+    return _mlir_metadata("cublasSgemv_alpha_memref", form="memref")
+
+
 def _axpy() -> CompositionEntry:
     """y[i] += alpha * x[i]"""
     body = Term.Out(0) + T_cap("%alpha") * Term.In(0)
@@ -3800,6 +3810,11 @@ def _copy_input_tensor() -> CompositionEntry:
     )
 
 
+def _copy_input_f32_memref() -> CompositionEntry:
+    """Contiguous buffer-form FP32 vector copy."""
+    return _mlir_metadata("cudaCopy1D_f32_memref", form="memref")
+
+
 def _copy_input_2d_tensor() -> CompositionEntry:
     """Rank-2 tensor copy. Kept separate from cublasDcopy_tensor because the
     cuBLAS ABI template is 1D-only."""
@@ -3902,7 +3917,7 @@ def _copy_input_6d_tensor() -> CompositionEntry:
 
 def _axpby() -> CompositionEntry:
     """out = α*in0 + β*out  — gesummv combine step (cublasDaxpby)."""
-    return _mlir_metadata("cublasDaxpby")
+    return _mlir_metadata("cublasDaxpby", form="any")
 
 
 def _fma3() -> CompositionEntry:
@@ -3933,6 +3948,16 @@ def _rank_two_update() -> CompositionEntry:
     return _mlir_metadata("cublasDger_rank2")
 
 
+def _rank_two_update_f32() -> CompositionEntry:
+    """Single-precision GEMVER rank-two update."""
+    return _mlir_metadata("cublasSger_rank2")
+
+
+def _rank_two_update_f32_memref() -> CompositionEntry:
+    """Buffer-form single-precision GEMVER rank-two update."""
+    return _mlir_metadata("cublasSger_rank2_memref", form="memref")
+
+
 def composition_library() -> list[CompositionEntry]:
     """Order: longest compositions first; same-length ordered by specificity
     (more-captures first, more shape-constrained first)."""
@@ -3946,6 +3971,10 @@ def composition_library() -> list[CompositionEntry]:
         _hpgmg_apply_op_27pt_tensor(),       # 4-step: scale + identity reductions + 27pt accum
         _cutensornet_tensor_product_3d_f32_tensor(),  # 2-step: zero + ai,bj,ck,ijk->abc
         _cufft_z2z_1d_tensor(),              # 2-step: zero + direct complex DFT
+        # Distinctive GEMVER primitives go early: their exact structural
+        # proofs avoid trying broader one-step algebraic candidates first.
+        _rank_two_update_f32_memref(),
+        _sgemv_alpha_accumulate_memref(),
         _darknet_im2col_gemm_fused(),       # 3-step: zero + guarded im2col + sgemm
         _conv1x1_as_gemm_batched(),          # 2-step: init + 4par+1red contraction = 1x1 conv
         _cudnn_conv_bn_relu_fused(),  # 4-step: init + conv + bn-inplace + relu-inplace
@@ -4015,6 +4044,9 @@ def composition_library() -> list[CompositionEntry]:
         _gemv_accumulate(),
         _gemv_subtract(),
         _gemv_alpha_accumulate(),
+        _sgemv_alpha_accumulate(),
+        _rank_two_update(),
+        _rank_two_update_f32(),
         _axpby(),               # α*in + β*out  — most specific 2-cap form
         _axpby_inputs_1d(),     # α*in0 + β*in1 — out-of-place combine
         _axpy(),
@@ -4022,6 +4054,7 @@ def composition_library() -> list[CompositionEntry]:
         # `alpha * input` rule (alpha=1), otherwise a legal tensor copy is
         # hidden behind an elementwise ABI that is intentionally disabled.
         _copy_input_tensor(),
+        _copy_input_f32_memref(),
         _scal_1d(),
         _scal_2d(),
         _scale_input_1d(),
@@ -4177,8 +4210,12 @@ _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasDgemm_strided_batched_subtract",
     "cublasDgemv_strided_batched_subtract",
     "cublasDgemv", "cublasDgemv_subtract", "cublasDgemv_subtract_T",
-    "cublasDgemv_alpha", "cublasDger_rank2", "cublasSdot",
+    "cublasDgemv_alpha", "cublasSgemv_alpha",
+    "cublasSgemv_alpha_memref",
+    "cublasDger_rank2", "cublasSger_rank2",
+    "cublasSger_rank2_memref", "cublasSdot",
     "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
+    "cudaCopy1D_f32_memref",
     "cudaMaskSelect_f32_tensor", "cudaRopeMulMulAdd_f32_tensor",
     "cudaRopeMulMulSub_f32_tensor", "cudaSwiGLU_f32_tensor",
     "cudnnAddTensor_batched",
@@ -4679,6 +4716,14 @@ def _egglog_accepts_binding(body_ast, template_ast, bindings: dict) -> bool:
     if (_ac_identity_fingerprint(body_ast) !=
             _ac_identity_fingerprint(instantiated)):
         return False
+    # Literal structural equality is already a complete proof and does not
+    # benefit from equality saturation.  In particular, multi-term updates
+    # such as GEMVER's rank-2 GER can make the unrestricted AC e-graph grow
+    # substantially even though the source and library expressions are
+    # byte-for-byte the same after capture substitution.
+    if body_ast == instantiated:
+        _MATCHER_TELEMETRY["proofs_matched"] += 1
+        return True
     # Large equality-saturation jobs run in the isolated audit harness, where
     # a real wall timeout can safely terminate Rust work. The in-process
     # production matcher must remain responsive and therefore declines those
@@ -5254,6 +5299,11 @@ def match_composition(
     """
     for entry in compositions:
         n = len(entry.steps)
+        # Dispatch-only metadata whose kernel.defn has no semantic body is
+        # not a match candidate.  Besides being non-semantic, accepting an
+        # empty composition would make the caller advance by zero forever.
+        if n == 0:
+            continue
         if start + n > len(body_objs):
             continue
         if body_forms is not None and entry.form != "any":

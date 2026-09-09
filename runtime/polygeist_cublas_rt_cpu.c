@@ -396,6 +396,58 @@ void polygeist_cublas_dsyr2k_lower(
 #endif
 }
 
+void polygeist_cublas_ssyrk_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_ssyrk(CblasRowMajor, CblasLower, CblasNoTrans, N, K, alpha, A, lda,
+              beta, C, ldc);
+#else
+  for (int32_t i = 0; i < N; ++i)
+    for (int32_t j = 0; j <= i; ++j) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k)
+        acc += A[(size_t)i * lda + k] * A[(size_t)j * lda + k];
+      C[(size_t)i * ldc + j] =
+          alpha * acc + beta * C[(size_t)i * ldc + j];
+    }
+#endif
+}
+
+void polygeist_cublas_ssyr2k_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_ssyr2k(CblasRowMajor, CblasLower, CblasNoTrans, N, K, alpha, A, lda,
+               B, ldb, beta, C, ldc);
+#else
+  for (int32_t i = 0; i < N; ++i)
+    for (int32_t j = 0; j <= i; ++j) {
+      float acc = 0.0f;
+      for (int32_t k = 0; k < K; ++k)
+        acc += A[(size_t)i * lda + k] * B[(size_t)j * ldb + k] +
+               B[(size_t)i * ldb + k] * A[(size_t)j * lda + k];
+      C[(size_t)i * ldc + j] =
+          alpha * acc + beta * C[(size_t)i * ldc + j];
+    }
+#endif
+}
+
+void polygeist_cublas_ssyrk_lower_tf32(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyrk_lower(N, K, alpha, A, lda, beta, C, ldc);
+}
+
+void polygeist_cublas_ssyr2k_lower_tf32(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyr2k_lower(N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+}
+
 void polygeist_cublas_sgemm(
     int32_t M, int32_t N, int32_t K,
     float alpha,
@@ -450,6 +502,20 @@ void polygeist_cublas_sgemm_transpose(
       *c = alpha * acc + beta * *c;
     }
   }
+}
+
+void polygeist_cublas_sgemm_transpose_tf32(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+  // Host builds validate ABI/dataflow. They intentionally use the ordinary
+  // FP32 reference because TF32 is a CUDA execution-mode contract.
+  polygeist_cublas_sgemm_transpose(M, N, K, transA, transB, alpha, A, lda,
+                                    B, ldb, beta, C, ldc);
 }
 
 void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(

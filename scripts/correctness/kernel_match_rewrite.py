@@ -53,10 +53,14 @@ from structured_loop_egglog import (
 ABI_LOWERABLE_KERNELS = {
     "cubHistogramEvenI32ShiftZero_memref",
     "cublasDtrsvLowerRowMajor_memref",
+    "cublasStrsvLowerRowMajor_memref",
     "cublasDsymmLeftLowerRowMajor_memref",
+    "cublasSsymmLeftLowerRowMajor_memref",
     "cublasDtrmmLeftLowerTransUnitRowMajor_memref",
+    "cublasStrmmLeftLowerTransUnitRowMajor_memref",
     "cublasDgramschmidtMGSRowMajor_memref",
     "cublasDcovarianceRowMajor_memref",
+    "cublasScovarianceRowMajor_memref",
     "cublasDcorrelationRowMajor_memref",
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
@@ -78,6 +82,8 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemm_alpha_only",
     "cublasDsyrk",
     "cublasDsyr2k",
+    "cublasSsyrk",
+    "cublasSsyr2k",
     "cublasSgemm_broadcast3d_simple",
     "cublasSgemv_broadcast2d_zero",
     "cublasSgemm_broadcast3d_memref",
@@ -89,16 +95,22 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemv",
     "cublasDgemv_T",
     "cublasDgemv_T_zero",
+    "cublasSgemv_T_zero",
     "cublasDgemv_subtract",
     "cublasDgemv_subtract_T",
     "cublasSgemv",
     "cublasSgemv_T",
+    "cublasSgemv_broadcast2d",
     "cublasDgemm_outer_product",
     "cublasSgemm_strided_batched_broadcast_rhs",
     "cublasDgemv_alpha",
+    "cublasSgemv_alpha",
+    "cublasSgemv_alpha_memref",
+    "cublasSgemv_alpha_T_memref",
     "cublasDaxpby",
     "cublasDscal",
     "cublasSaxpby",
+    "cublasSaxpby_memref",
     "cublasSscal",
     "cublasSgemm_nn",
     "cublasSgemm_nt",
@@ -122,6 +134,8 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSgemm_strided_batched_nn_zero",
     "cublasDaxpy_unit",
     "cublasDger_rank2",
+    "cublasSger_rank2",
+    "cublasSger_rank2_memref",
     "cudnnConvolution2D_9tap",
     "cudnnConvolution2D_9tap_f32",
     "cudnnConvolution2D_9tap_f16",
@@ -226,6 +240,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnSoftmaxForward_tensor",
     "cudnnSoftmaxForwardOut_tensor",
     "cudaCopy1D_f32_tensor",
+    "cudaCopy1D_f32_memref",
     "cudaCopy2D_f32_tensor",
     "cudaCopy3D_f32_tensor",
     "cudaCopy6D_f32_tensor",
@@ -5641,16 +5656,19 @@ def _render_dense_factorization_regions(
         # Forward substitution: x[i]=b[i]; x[i]-=A[i,j]*x[j];
         # x[i]/=A[i,i].  The loop-carried recurrence is the evidence for
         # DTRSV, not a reason to leave the algorithm unmatched.
-        matrix_is_dynamic_f64 = bool(re.fullmatch(
-            r"memref<\?x(?:\?|[1-9][0-9]*)xf64>", args[1][1])) \
-            if len(args) >= 2 else False
+        matrix_match = (re.fullmatch(
+            r"memref<\?x(?:\?|[1-9][0-9]*)x(f32|f64)>", args[1][1])
+            if len(args) >= 2 else None)
+        matrix_elem = matrix_match.group(1) if matrix_match else ""
+        matrix_is_dynamic_float = matrix_match is not None
         matrix_operand = args[1][0] if len(args) >= 2 else ""
         matrix_prefix: list[str] = []
-        if matrix_is_dynamic_f64 and args[1][1] != "memref<?x?xf64>":
+        canonical_matrix_type = f"memref<?x?x{matrix_elem}>"
+        if matrix_is_dynamic_float and args[1][1] != canonical_matrix_type:
             matrix_operand = f"%factor_matrix_{loop.span[0]}"
             matrix_prefix.append(
                 f"{indent}{matrix_operand} = memref.cast {args[1][0]} : "
-                f"{args[1][1]} to memref<?x?xf64>")
+                f"{args[1][1]} to {canonical_matrix_type}")
 
         # Tensorized forward substitution carries x as the affine.for result
         # and copies it back to the original output memref after the loop.
@@ -5688,28 +5706,31 @@ def _render_dense_factorization_regions(
             re.search(rf"tensor\.insert\s+%[\w.$-]+\s+into\s+%[\w.$-]+"
                       rf"\[{iv}\]", body))
 
-        if (len(args) == 4 and matrix_is_dynamic_f64 and
-                args[2][1] == "memref<?xf64>" and
-                args[3][1] == "memref<?xf64>" and tensor_recurrence and
+        if (len(args) == 4 and matrix_is_dynamic_float and
+                args[2][1] == f"memref<?x{matrix_elem}>" and
+                args[3][1] == f"memref<?x{matrix_elem}>" and tensor_recurrence and
                 body.count("linalg.generic") == 1 and
                 'iterator_types = ["reduction"]' in body and
                 "arith.mulf" in body and "arith.subf" in body and
                 "arith.divf" in body and "arith.select" in body and
                 re.search(rf"arith\.cmpi\s+slt,\s*%[\w.$-]+,\s*{iv}", body)):
-            symbol = "cublasDtrsvLowerRowMajor_memref"
+            symbol = ("cublasStrsvLowerRowMajor_memref"
+                      if matrix_elem == "f32"
+                      else "cublasDtrsvLowerRowMajor_memref")
             launch = "\n".join(matrix_prefix + [
                 f"{indent}kernel.launch @{symbol}("
                 f"{matrix_operand}, {args[3][0]}, {args[2][0]}) : "
-                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()"])
+                f"({canonical_matrix_type}, memref<?x{matrix_elem}>, "
+                f"memref<?x{matrix_elem}>) -> ()"])
             replacement_end = loop.span[1] + tensor_writeback.end()
             rendered.append((line_start, replacement_end, launch, symbol,
                              consumed))
             claimed.append((line_start, replacement_end))
             continue
 
-        if (len(args) == 4 and matrix_is_dynamic_f64 and
-                args[2][1] == "memref<?xf64>" and
-                args[3][1] == "memref<?xf64>" and
+        if (len(args) == 4 and matrix_is_dynamic_float and
+                args[2][1] == f"memref<?x{matrix_elem}>" and
+                args[3][1] == f"memref<?x{matrix_elem}>" and
                 body.count("linalg.generic") == 1 and
                 'iterator_types = ["reduction"]' in body and
                 "arith.mulf" in body and "arith.subf" in body and
@@ -5720,11 +5741,14 @@ def _render_dense_factorization_regions(
                 (rhs_direct_read or rhs_tensor_read) and
                 re.search(rf"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
                           rf"{re.escape(args[2][0])}\[{iv}\]", body)):
-            symbol = "cublasDtrsvLowerRowMajor_memref"
+            symbol = ("cublasStrsvLowerRowMajor_memref"
+                      if matrix_elem == "f32"
+                      else "cublasDtrsvLowerRowMajor_memref")
             launch = "\n".join(matrix_prefix + [
                 f"{indent}kernel.launch @{symbol}("
                 f"{matrix_operand}, {args[3][0]}, {args[2][0]}) : "
-                "(memref<?x?xf64>, memref<?xf64>, memref<?xf64>) -> ()"])
+                f"({canonical_matrix_type}, memref<?x{matrix_elem}>, "
+                f"memref<?x{matrix_elem}>) -> ()"])
             rendered.append((loop.span[0], loop.span[1], launch, symbol,
                              consumed))
             claimed.append(loop.span)
@@ -5732,7 +5756,7 @@ def _render_dense_factorization_regions(
 
         # Unblocked lower Cholesky: an off-diagonal dot/subtract/divide
         # recurrence followed by a diagonal sum-of-squares and sqrt.
-        if (len(args) == 2 and matrix_is_dynamic_f64 and
+        if (len(args) == 2 and matrix_elem == "f64" and
                 body.count("linalg.generic") == 2 and
                 body.count('iterator_types = ["reduction"]') == 2 and
                 body.count("arith.mulf") >= 2 and
@@ -5766,11 +5790,14 @@ def _render_dense_covariance_regions(
     function_re = re.compile(
         r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
         re.MULTILINE)
-    expected = ["i32", "i32", "f64", "memref<?x?xf64>",
-                "memref<?x?xf64>", "memref<?xf64>"]
     for function in function_re.finditer(text):
         args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
             r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(2))]
+        elem = args[2][1] if len(args) == 6 else ""
+        expected = ["i32", "i32", elem, f"memref<?x?x{elem}>",
+                    f"memref<?x?x{elem}>", f"memref<?x{elem}>"]
+        if elem not in ("f32", "f64"):
+            continue
         if [ty for _, ty in args] != expected:
             continue
         signature_end = text.find("\n", function.end())
@@ -5788,7 +5815,7 @@ def _render_dense_covariance_regions(
             len(re.findall(r"\baffine\.for\b", body)) == 2 and
             "arith.addf" in body and "arith.subf" in body and
             "arith.mulf" in body and body.count("arith.divf") >= 2 and
-            re.search(r"arith\.subf\s+%[\w.$-]+,\s*%[\w.$-]+\s*:\s*f64",
+            re.search(rf"arith\.subf\s+%[\w.$-]+,\s*%[\w.$-]+\s*:\s*{elem}",
                       body) and
             re.search(rf"bufferization\.to_tensor\s+{re.escape(data)}\b", body) and
             re.search(rf"bufferization\.to_tensor\s+{re.escape(cov)}\b", body) and
@@ -5803,11 +5830,13 @@ def _render_dense_covariance_regions(
         indent = re.match(r"\s*", text[text.rfind("\n", 0, function.start()) + 1:
                                       function.start()]).group(0)
         body_indent = indent + "  "
-        symbol = "cublasDcovarianceRowMajor_memref"
+        symbol = ("cublasScovarianceRowMajor_memref" if elem == "f32"
+                  else "cublasDcovarianceRowMajor_memref")
         launch = (
             f"\n{body_indent}kernel.launch @{symbol}("
             f"{args[2][0]}, {data}, {cov}, {mean}) : "
-            "(f64, memref<?x?xf64>, memref<?x?xf64>, memref<?xf64>) -> ()\n"
+            f"({elem}, memref<?x?x{elem}>, memref<?x?x{elem}>, "
+            f"memref<?x{elem}>) -> ()\n"
             f"{body_indent}return\n{indent}")
         consumed = [i for i, inst in enumerate(instances)
                     if opening < inst.span[0] and inst.span[1] < function_end]
@@ -5888,8 +5917,11 @@ def _render_dense_symm_regions(
                    key=lambda loop: loop.span[1] - loop.span[0], reverse=True)
     for loop in loops:
         args = _enclosing_func_args(text, loop.span[0])
-        expected = ["i32", "i32", "f64", "f64", "memref<?x?xf64>",
-                    "memref<?x?xf64>", "memref<?x?xf64>"]
+        elem = args[2][1] if args and len(args) == 7 else ""
+        expected = ["i32", "i32", elem, elem, f"memref<?x?x{elem}>",
+                    f"memref<?x?x{elem}>", f"memref<?x?x{elem}>"]
+        if elem not in ("f32", "f64"):
+            continue
         if not args or [ty for _, ty in args] != expected:
             continue
         prefix_start = text.rfind("func.func", 0, loop.span[0])
@@ -5942,12 +5974,14 @@ def _render_dense_symm_regions(
         if not legal:
             continue
         indent = re.match(r"\s*", line_prefix).group(0)
-        symbol = "cublasDsymmLeftLowerRowMajor_memref"
+        symbol = ("cublasSsymmLeftLowerRowMajor_memref" if elem == "f32"
+                  else "cublasDsymmLeftLowerRowMajor_memref")
         launch = (
             f"{indent}kernel.launch @{symbol}("
             f"{args[5][0]}, {args[6][0]}, {args[4][0]}, "
             f"{args[2][0]}, {args[3][0]}) : "
-            "(memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, f64, f64) "
+            f"(memref<?x?x{elem}>, memref<?x?x{elem}>, "
+            f"memref<?x?x{elem}>, {elem}, {elem}) "
             "-> ()")
         end = loop.span[1] + trailing.end()
         consumed = [i for i, inst in enumerate(instances)
@@ -5965,9 +5999,10 @@ def _render_dense_trmm_regions(
                    key=lambda loop: loop.span[1] - loop.span[0], reverse=True)
     for loop in loops:
         args = _enclosing_func_args(text, loop.span[0])
-        if (not args or [ty for _, ty in args] !=
-                ["i32", "i32", "f64", "memref<?x?xf64>",
-                 "memref<?x?xf64>"]):
+        elem = args[2][1] if args and len(args) == 5 else ""
+        if (elem not in ("f32", "f64") or [ty for _, ty in args] !=
+                ["i32", "i32", elem, f"memref<?x?x{elem}>",
+                 f"memref<?x?x{elem}>"]):
             continue
         prefix_start = text.rfind("func.func", 0, loop.span[0])
         prefix = text[prefix_start:loop.span[0]]
@@ -6010,10 +6045,12 @@ def _render_dense_trmm_regions(
         if not legal:
             continue
         indent = re.match(r"\s*", line_prefix).group(0)
-        symbol = "cublasDtrmmLeftLowerTransUnitRowMajor_memref"
+        symbol = ("cublasStrmmLeftLowerTransUnitRowMajor_memref"
+                  if elem == "f32"
+                  else "cublasDtrmmLeftLowerTransUnitRowMajor_memref")
         launch = (f"{indent}kernel.launch @{symbol}("
                   f"{args[3][0]}, {args[4][0]}, {args[2][0]}) : "
-                  "(memref<?x?xf64>, memref<?x?xf64>, f64) -> ()")
+                  f"(memref<?x?x{elem}>, memref<?x?x{elem}>, {elem}) -> ()")
         end = loop.span[1] + trailing.end()
         consumed = [i for i, inst in enumerate(instances)
                     if loop.span[0] <= inst.span[0] and
@@ -6990,21 +7027,6 @@ def rewrite_mlir(
                     [entry for entry in comps
                      if entry.name != "cublasDgemv_strided_batched_subtract"],
                     start=i, body_forms=body_forms)
-        # The scratch-eliding overwrite ABI is currently FP64-only.  Do not
-        # let its longer scalar pattern shadow the established FP32 sequence
-        # (zero + SGEMV + copy) when the legality check cannot select DGEMV.
-        if (m is not None and m[0].name == "cublasDgemv_T_zero" and
-                i + 1 < len(instances)):
-            contraction_types = (
-                _extract_ssa_types(instances[i + 1].ins_part) +
-                _extract_ssa_types(instances[i + 1].outs_part))
-            if any(_sniff_elem_type(ty) != "f64"
-                   for ty in contraction_types):
-                m = match_composition(
-                    bodies, body_terms,
-                    [entry for entry in comps
-                     if entry.name != "cublasDgemv_T_zero"],
-                    start=i, body_forms=body_forms)
         if m is None:
             entry = (None if disable_semantic_fallback else
                      match_elementwise_semantic(
@@ -7283,11 +7305,18 @@ def rewrite_mlir(
             reduction = {f"d{index}" for index, role in enumerate(roles)
                          if role == "reduction"}
             sources = [_slice_source(value) for value in contraction_ins]
+            contraction_elems = [
+                _sniff_elem_type(ty)
+                for ty in contraction_types + contraction_out_types
+            ]
+            contraction_elem = (contraction_elems[0]
+                                if contraction_elems else None)
             common_legal = (
                 len(contraction_outs) == len(contraction_out_types) == 1
                 and len(outs0) == len(outs0_types) == 1
-                and all(_sniff_elem_type(ty) == "f64"
-                        for ty in contraction_types + contraction_out_types)
+                and contraction_elem in ("f32", "f64")
+                and all(elem == contraction_elem
+                        for elem in contraction_elems)
                 and all(_tensor_rank(ty) == 2
                         for ty in contraction_types + contraction_out_types)
                 and len(parallel) == 2 and len(reduction) == 1
@@ -7327,6 +7356,18 @@ def rewrite_mlir(
                 continue
             operands = chosen
             operand_types = chosen_types
+            # SSA spellings are function-local, while the legacy scalar-type
+            # scan is module-wide. Record the coefficient types from this
+            # proved contraction so later functions reusing `%argN` cannot
+            # overwrite alpha/beta with an unrelated type.
+            for coefficient in ("%alpha", "%beta"):
+                bound = binds.get(coefficient)
+                if (isinstance(bound, tuple) and len(bound) == 2 and
+                        bound[0] == "Cap"):
+                    scalar_types[bound[1]] = contraction_elem
+            if contraction_elem == "f32":
+                emit_name = ("cublasSsyrk" if entry.name == "cublasDsyrk"
+                             else "cublasSsyr2k")
             if instances[i].result_ssa is not None:
                 composition_root_rewires.append(
                     (instances[i].result_ssa, outs0[0]))
@@ -7464,12 +7505,14 @@ def rewrite_mlir(
             matrix_index = (ranks[:2].index(2)
                             if sorted(ranks[:2]) == [1, 2] else -1)
             vector_index = 1 - matrix_index if matrix_index >= 0 else -1
+            elem = elems[0] if elems else None
             legal = (
                 len(contraction_ins) == 2
                 and len(contraction_outs) == 1
                 and sorted(ranks[:2]) == [1, 2]
                 and ranks[2:] == [1]
-                and elems == ["f64", "f64", "f64"]
+                and elem in ("f32", "f64")
+                and elems == [elem, elem, elem]
                 and len(parallel_dims) == 1
                 and len(reduction_dims) == 1
                 and len(map_dims) == 3
@@ -7481,7 +7524,7 @@ def rewrite_mlir(
                 and copy_ins == [contraction_inst.result_ssa]
                 and len(copy_outs) == len(copy_out_types) == 1
                 and _tensor_rank(copy_out_types[0]) == 1
-                and _sniff_elem_type(copy_out_types[0]) == "f64"
+                and _sniff_elem_type(copy_out_types[0]) == elem
                 and init_inst.result_ssa is not None
                 and contraction_inst.result_ssa is not None
                 and copy_inst.result_ssa is not None
@@ -7489,9 +7532,12 @@ def rewrite_mlir(
             )
             if not legal:
                 report.append(("gemv_overwrite_abi_reject", i, entry.name))
-                i += n
+                # Preserve the zero initializer, but allow the contraction to
+                # fall back to the broadcast-view SGEMV ABI.
+                i += 1
                 continue
-            emit_name = entry.name
+            emit_name = ("cublasSgemv_T_zero" if elem == "f32"
+                         else entry.name)
             operands = [contraction_ins[matrix_index],
                         contraction_ins[vector_index]] + copy_outs
             operand_types = [contraction_in_types[matrix_index],
@@ -9416,67 +9462,79 @@ def rewrite_mlir(
             init_inst, gemv_inst = instances[i:i + 2]
             init_outs = _extract_ssa_names(init_inst.outs_part)
             gemv_ins = _extract_ssa_names(gemv_inst.ins_part)
+            gemv_in_types = _extract_ssa_types(gemv_inst.ins_part)
             gemv_outs = _extract_ssa_names(gemv_inst.outs_part)
+            gemv_out_types = _extract_ssa_types(gemv_inst.outs_part)
             views = [
                 _parse_memref_view(text, value, gemv_inst.span[0])
                 for value in gemv_ins + gemv_outs
             ]
             maps = [_compact_affine_map(m) for m in bodies[i + 1].indexing_maps]
-            expected_maps = [
-                "affine_map<(d0,d1)->(d1,d0)>",
-                "affine_map<(d0,d1)->(d1)>",
-                "affine_map<(d0,d1)->(d0)>",
-            ]
+            input_ranks = [_shaped_rank(ty) for ty in gemv_in_types]
+            matrix_index = (input_ranks.index(2)
+                            if sorted(input_ranks) == [1, 2] else -1)
+            vector_index = 1 - matrix_index if matrix_index >= 0 else -1
             legal = (
                 n == 2 and len(init_outs) == 1
                 and len(gemv_ins) == 2 and len(gemv_outs) == 1
+                and len(gemv_in_types) == 2 and len(gemv_out_types) == 1
                 and all(view is not None for view in views)
                 and views[0]["kind"] == views[1]["kind"] == "subview"
                 and views[2]["kind"] == "reinterpret_cast"
                 and init_outs[0] == views[2]["base"]
-                and maps == expected_maps
-                and views[0]["sizes"] == ["%c64", "%c128"]
-                and views[1]["sizes"] == ["%c64"]
+                and matrix_index >= 0
+                and maps[matrix_index] ==
+                    "affine_map<(d0,d1)->(d1,d0)>"
+                and maps[vector_index] ==
+                    "affine_map<(d0,d1)->(d1)>"
+                and maps[2] == "affine_map<(d0,d1)->(d0)>"
+                and all(_sniff_elem_type(ty) == "f32"
+                        for ty in gemv_in_types + gemv_out_types)
             )
             if legal:
-                reinterpret = re.search(
-                    rf"^\s*{re.escape(gemv_outs[0])}\s*=\s*"
-                    rf"memref\.reinterpret_cast\s+{re.escape(views[2]['base'])}"
-                    rf"\s+to\s+offset:\s*\[0\],\s*sizes:\s*\[(%[\w_\-]+)\],"
-                    rf"\s*strides:\s*\[1\]",
-                    text[:gemv_inst.span[0]], re.MULTILINE)
-                legal = (reinterpret is not None and
-                         _constant_index_value(text, reinterpret.group(1)) == 128)
-            if legal:
                 physical_operands = [
-                    views[0]["base"], views[1]["base"], views[2]["base"]]
+                    gemv_ins[matrix_index], gemv_ins[vector_index],
+                    views[2]["base"]]
                 physical_types = [
-                    views[0]["base_type"], views[1]["base_type"],
+                    gemv_in_types[matrix_index], gemv_in_types[vector_index],
                     views[2]["base_type"]]
                 legal = (
                     len(set(physical_operands)) == 3
-                    and _plain_f32_memrefs(physical_types, [2, 1, 1])
-                    and _plain_shape_compatible(
-                        physical_types[0], "f32", [64, 128])
+                    and [_shaped_rank(ty) for ty in physical_types] == [2, 1, 1]
+                    and all(_sniff_elem_type(ty) == "f32"
+                            for ty in physical_types)
                 )
             if not legal:
                 report.append(("aten_gemv_transpose_region_reject",
                                [i, i + 1], entry.name))
                 i += n
                 continue
-            uid = gemv_inst.result_ssa.lstrip("%") if gemv_inst.result_ssa else str(i)
-            matrix_cast = f"%aten_gemvt_{uid}_matrix"
-            lines = [
-                f"{gemv_inst.indent}{matrix_cast} = memref.cast "
-                f"{physical_operands[0]} : {physical_types[0]} to memref<?x?xf32>",
+            uid = (gemv_inst.result_ssa.lstrip("%")
+                   if gemv_inst.result_ssa else str(i))
+            canonical_types = [
+                "memref<?x?xf32, strided<[?, 1], offset: ?>>",
+                "memref<?xf32, strided<[1], offset: ?>>",
+                "memref<?xf32>"]
+            launch_operands = list(physical_operands)
+            lines = []
+            for operand_index in range(2):
+                if physical_types[operand_index] == canonical_types[operand_index]:
+                    continue
+                cast_name = f"%sgemvt_{uid}_view{operand_index}"
+                lines.append(
+                    f"{gemv_inst.indent}{cast_name} = memref.cast "
+                    f"{physical_operands[operand_index]} : "
+                    f"{physical_types[operand_index]} to "
+                    f"{canonical_types[operand_index]}")
+                launch_operands[operand_index] = cast_name
+            lines.append(
                 f"{gemv_inst.indent}kernel.launch @{entry.name}("
-                f"{matrix_cast}, {physical_operands[1]}, {physical_operands[2]}) "
-                "{polygeist.fixed_extents = array<i64: 64, 128>} : "
-                f"(memref<?x?xf32>, {physical_types[1]}, {physical_types[2]}) -> ()",
-            ]
+                f"{', '.join(launch_operands)}) : "
+                f"({', '.join(canonical_types)}) -> ()")
             custom_launch_line = "\n".join(lines)
-            replace_full_span = True
-            custom_edit_span = (init_inst.span[0], gemv_inst.span[1])
+            # Delete the two generics independently so intervening subview
+            # definitions remain available to the memref launch.
+            replace_full_span = False
             operands = []
             operand_types = []
             binds = {}
@@ -10216,7 +10274,9 @@ def rewrite_mlir(
                 continue
             coefficient_type = elems[0]
             if coefficient_type == "f32":
-                emit_name = "cublasSaxpby"
+                emit_name = ("cublasSaxpby_memref"
+                             if body_forms[i] == "memref"
+                             else "cublasSaxpby")
 
             scalar_names: list[str] = []
             scalar_lines: list[str] = []
@@ -10229,7 +10289,8 @@ def rewrite_mlir(
                 if (isinstance(bound, tuple) and len(bound) == 2 and
                         bound[0] == "Lit"):
                     suffix = coefficient.lstrip("%")
-                    scalar = _derived_ssa_name(last.result_ssa, suffix)
+                    scalar_anchor = last.result_ssa or outs0[0]
+                    scalar = _derived_ssa_name(scalar_anchor, suffix)
                     value = _format_weight_literal(float(bound[1]),
                                                    coefficient_type)
                     scalar_lines.append(
@@ -10250,6 +10311,20 @@ def rewrite_mlir(
                 result_count=last.result_count,
             )
             custom_launch_line = "\n".join(scalar_lines + [rendered])
+
+        if entry.name in ("cublasDgemv_alpha", "cublasDger_rank2"):
+            elems = [_sniff_elem_type(ty) for ty in operand_types]
+            shaped_elems = [elem for elem in elems if elem is not None]
+            if shaped_elems and all(elem == "f32" for elem in shaped_elems):
+                emit_name = ("cublasSgemv_alpha"
+                             if entry.name == "cublasDgemv_alpha"
+                             else "cublasSger_rank2")
+
+        if entry.name == "cublasSgemv_alpha_memref":
+            matrix_map = (_compact_affine_map(bodies[i].indexing_maps[0])
+                          if bodies[i].indexing_maps else "")
+            if matrix_map == "affine_map<(d0,d1)->(d1,d0)>":
+                emit_name = "cublasSgemv_alpha_T_memref"
 
         if entry.name in ("cublasDdot", "cublasSdot",
                           "cublasDdot_memref", "cublasSdot_memref"):
@@ -10444,7 +10519,10 @@ def rewrite_mlir(
             if not contraction_init_connected:
                 report.append(("contraction_init_provenance_reject", i,
                                entry.name))
-                i += n
+                # A rejected broad composition must not hide a legal match on
+                # its consumer.  Keep the initializer residual and reconsider
+                # the contraction body independently on the next iteration.
+                i += 1
                 continue
             # When the contraction consumes the zero generic directly, pass
             # the zero generic's destination to the beta=0 runtime and erase
@@ -10599,7 +10677,7 @@ def rewrite_mlir(
                 init_types = _extract_ssa_types(instances[i].outs_part)
                 if len(init_outs) != 1 or len(init_types) != 1:
                     report.append(("gemv_init_reject", i, entry.name))
-                    i += n
+                    i += 1
                     continue
                 zero_name = ("memset_zero_1D_f32" if elem == "f32"
                              else "memset_zero_1D")
@@ -10668,7 +10746,7 @@ def rewrite_mlir(
                 init_types = _extract_ssa_types(instances[i].outs_part)
                 if len(init_outs) != 1 or len(init_types) != 1:
                     report.append(("gemm_init_reject", i, entry.name))
-                    i += n
+                    i += 1
                     continue
                 init_line = render_launch(
                     "memset_zero_2D", instances[i].result_ssa,
@@ -10790,7 +10868,7 @@ def rewrite_mlir(
                 )
                 if not legal_maps or not legal_types:
                     report.append(("contraction_abi_reject", i, entry.name))
-                    i += n
+                    i += 1
                     continue
 
                 legacy_names = {
@@ -11467,7 +11545,9 @@ def rewrite_mlir(
         if entry.name in ("cublasDgemm", "cublasDgemm_simple",
                           "cublasDgemm_subtract",
                           "cublasDgemm_strided_batched_subtract",
-                          "cublasDgemm_alpha_only"):
+                          "cublasDgemm_alpha_only",
+                          "cublasSgemm_nn_zero",
+                          "cublasSgemm_strided_batched_nn_zero"):
             # Multi-step GEMM compositions subsume their first producer
             # (typically output scaling or initialization). Any remaining
             # view/update uses of that producer must instead use the original
@@ -11497,17 +11577,24 @@ def rewrite_mlir(
             # alpha=1 in PolyBench 2mm).  Materialize such literals explicitly
             # instead of silently dropping them in render_launch.
             if entry.name == "cublasDgemm":
+                scalar_elem = (_sniff_elem_type(gemm_out_types[0])
+                               if gemm_out_types else "f64")
+                if scalar_elem not in ("f32", "f64"):
+                    report.append(("rank_or_dtype_reject", i, entry.name))
+                    i += n
+                    continue
                 for scalar_name in ("%beta", "%alpha"):
                     bound = binds.get(scalar_name)
                     if (isinstance(bound, tuple) and len(bound) == 2 and
                             bound[0] == "Lit"):
                         suffix = scalar_name.lstrip("%")
                         scalar = _derived_ssa_name(last.result_ssa, suffix)
-                        value = _format_weight_literal(float(bound[1]), "f64")
+                        value = _format_weight_literal(
+                            float(bound[1]), scalar_elem)
                         pre_launch_lines.append(
-                            f"{last.indent}{scalar} = arith.constant {value} : f64")
+                            f"{last.indent}{scalar} = arith.constant {value} : {scalar_elem}")
                         binds[scalar_name] = ("Cap", scalar)
-                        scalar_types[scalar] = "f64"
+                        scalar_types[scalar] = scalar_elem
             if len(gemm_ins) == 2:
                 # Walk each input SSA through polygeist.submap definitions
                 # to find the underlying base. The submap defining-op line
@@ -11750,15 +11837,17 @@ def rewrite_mlir(
             broadcast_f32 = (
                 entry.name == "cublasDgemv" and
                 elems == ["f32", "f32", "f32"] and
-                operand_ranks == [2, 2, 2] and
-                len(operands) >= 3 and _has_zero_broadcast_seed(operands[2])
-            )
+                operand_ranks == [2, 2, 2])
             if broadcast_f32:
                 # C lifting represents A[m,k] * x[k] -> y[m] using rank-2
                 # broadcast submaps for all three operands.  Preserve those
                 # semantic views here; ABI lowering verifies and unwraps their
                 # physical rank-[2,1,1] bases before calling SGEMV.
-                emit_name = "cublasSgemv_broadcast2d_zero"
+                emit_name = (
+                    "cublasSgemv_broadcast2d_zero"
+                    if len(operands) >= 3 and
+                    _has_zero_broadcast_seed(operands[2])
+                    else "cublasSgemv_broadcast2d")
             elif (elem not in ("f64", "f32") or
                     len(elems) != 3 or any(e != elem for e in elems) or
                     operand_ranks != [2, 1, 1]):
@@ -11915,6 +12004,8 @@ def rewrite_mlir(
                     r"\n[ \t]*return\b", text[tail_start:])
                 tail_end = (tail_start + return_match.start()
                             if return_match else tail_start)
+                if i + n < len(instances):
+                    tail_end = min(tail_end, instances[i + n].span[0])
                 tail = text[tail_start:tail_end]
                 # Edit only the terminator line.  Replacing the whole tail
                 # would overlap later, independent kernel rewrites.
@@ -11976,6 +12067,12 @@ def rewrite_mlir(
                     r"\n[ \t]*return\b", text[tail_start:])
                 tail_end = (tail_start + return_match.start()
                             if return_match else tail_start)
+                # Do not overlap a later independent rewrite.  Producer-root
+                # uses between this composition and the next Linalg body are
+                # the only ones owned by this match; later bodies perform
+                # their own rewiring.
+                if i + n < len(instances):
+                    tail_end = min(tail_end, instances[i + n].span[0])
                 tail = text[tail_start:tail_end]
                 for old_root, new_root in composition_root_rewires:
                     tail = re.sub(

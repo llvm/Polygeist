@@ -250,6 +250,44 @@ def ComposeCutensornetNetworks
   ];
 }
 
+def SelectContractionBackend
+    : Pass<"select-contraction-backend", "::mlir::ModuleOp"> {
+  let summary = "Select a target backend for semantically matched contractions";
+  let description = [{
+    Classifies semantically matched GEMM and tensor-contraction launches using
+    dtype, static M/N/K/batch dimensions, padding efficiency, and target
+    architecture. The pass records its decision as
+    `polygeist.contraction.backend` without performing the backend lowering.
+    This deliberately separates mathematical recognition from target-specific
+    instruction/library selection.
+
+    TF32 tensor-core choices are opt-in. When TF32 is disabled, unsupported,
+    the shape is dynamic, or legality metadata is incomplete, the pass retains
+    the existing vendor-library route. Threshold options are exposed as seed
+    cost-model parameters rather than embedding benchmark names or source
+    identities in the compiler.
+  }];
+  let constructor =
+      "mlir::polygeist::createSelectContractionBackendPass()";
+  let dependentDialects = ["polygeist::kernel::KernelDialect"];
+  let options = [
+    Option<"targetArch", "target-arch", "std::string",
+           /*default=*/"\"sm_87\"", "CUDA target architecture">,
+    Option<"allowTf32", "allow-tf32", "bool", /*default=*/"false",
+           "Permit FP32 contractions to use TF32 tensor-core execution">,
+    Option<"minimumMmaOperations", "minimum-mma-operations", "int64_t",
+           /*default=*/"400", "Minimum useful M*N*K work for generated MMA">,
+    Option<"minimumMmaOutputs", "minimum-mma-outputs", "int64_t",
+           /*default=*/"100", "Minimum useful M*N output elements for MMA">,
+    Option<"minimumWmmaOperations", "minimum-wmma-operations", "int64_t",
+           /*default=*/"2048", "Minimum useful M*N*K work for WMMA">,
+    Option<"cublasDxOperations", "cublasdx-operations", "int64_t",
+           /*default=*/"131072", "M*N*K work at which cuBLASDx is preferred">,
+    Option<"maxWmmaPaddingRatio", "max-wmma-padding-ratio", "double",
+           /*default=*/"1.25", "Maximum WMMA padded-work/direct-MMA padded-work ratio">
+  ];
+}
+
 def WrapKernelLaunchPipeline
     : Pass<"wrap-kernel-launch-pipeline", "::mlir::ModuleOp"> {
   let summary =

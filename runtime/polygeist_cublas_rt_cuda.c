@@ -2732,6 +2732,97 @@ void polygeist_cublas_dsyr2k_lower(
   unregister_host_safe(C);
 }
 
+static void polygeist_cublas_ssyrk_lower_impl(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc,
+    int use_tf32) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)N * (size_t)lda * sizeof(float);
+  size_t bytes_C = (size_t)N * (size_t)ldc * sizeof(float);
+  void *hosts[2] = {(void *)A, C};
+  size_t sizes[2] = {bytes_A, bytes_C};
+  void *devices[2];
+  register_host_operands_safe(hosts, sizes, devices, 2);
+  float *dA = (float *)devices[0];
+  float *dC = (float *)devices[1];
+  cublasMath_t previous_math = CUBLAS_DEFAULT_MATH;
+  CUBLAS_CHECK(cublasGetMathMode(g_handle, &previous_math));
+  CUBLAS_CHECK(cublasSetMathMode(
+      g_handle, use_tf32 ? CUBLAS_TF32_TENSOR_OP_MATH
+                         : CUBLAS_PEDANTIC_MATH));
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSsyrk(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+                           N, K, &alpha, dA, lda, &beta, dC, ldc));
+  timing_gpu_end(use_tf32 ? "cublasSsyrk_tf32" : "cublasSsyrk",
+                 N, N, K, host_start_ms);
+  CUBLAS_CHECK(cublasSetMathMode(g_handle, previous_math));
+  unregister_host_safe((void *)A);
+  unregister_host_safe(C);
+}
+
+static void polygeist_cublas_ssyr2k_lower_impl(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc,
+    int use_tf32) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)N * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)N * (size_t)ldb * sizeof(float);
+  size_t bytes_C = (size_t)N * (size_t)ldc * sizeof(float);
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dB = (float *)devices[1];
+  float *dC = (float *)devices[2];
+  cublasMath_t previous_math = CUBLAS_DEFAULT_MATH;
+  CUBLAS_CHECK(cublasGetMathMode(g_handle, &previous_math));
+  CUBLAS_CHECK(cublasSetMathMode(
+      g_handle, use_tf32 ? CUBLAS_TF32_TENSOR_OP_MATH
+                         : CUBLAS_PEDANTIC_MATH));
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSsyr2k(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+                            N, K, &alpha, dA, lda, dB, ldb,
+                            &beta, dC, ldc));
+  timing_gpu_end(use_tf32 ? "cublasSsyr2k_tf32" : "cublasSsyr2k",
+                 N, N, K, host_start_ms);
+  CUBLAS_CHECK(cublasSetMathMode(g_handle, previous_math));
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_ssyrk_lower(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyrk_lower_impl(N, K, alpha, A, lda, beta, C, ldc, 0);
+}
+
+void polygeist_cublas_ssyr2k_lower(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyr2k_lower_impl(
+      N, K, alpha, A, lda, B, ldb, beta, C, ldc, 0);
+}
+
+void polygeist_cublas_ssyrk_lower_tf32(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyrk_lower_impl(N, K, alpha, A, lda, beta, C, ldc, 1);
+}
+
+void polygeist_cublas_ssyr2k_lower_tf32(
+    int32_t N, int32_t K, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc) {
+  polygeist_cublas_ssyr2k_lower_impl(
+      N, K, alpha, A, lda, B, ldb, beta, C, ldc, 1);
+}
+
 void polygeist_cublas_sgemm(
     int32_t M, int32_t N, int32_t K,
     float alpha,
@@ -2786,12 +2877,64 @@ void polygeist_cublas_sgemm_transpose(
   float *dC = (float *)register_host_safe(C, bytes_C);
   timing_gpu_begin();
   // Row-major C=op(A)op(B) becomes column-major C^T=op(B)^T op(A)^T.
-  CUBLAS_CHECK(cublasSgemm(g_handle,
-                           transB ? CUBLAS_OP_T : CUBLAS_OP_N,
-                           transA ? CUBLAS_OP_T : CUBLAS_OP_N,
-                           N, M, K, &alpha, dB, ldb, dA, lda, &beta,
-                           dC, ldc));
-  timing_gpu_end("cublasSgemm_transpose", M, N, K, host_start_ms);
+  // PEDANTIC makes this the strict-FP32 control for the explicit FAST_TF32
+  // route below; do not rely on a CUDA-version-dependent default math mode.
+  CUBLAS_CHECK(cublasGemmEx(
+      g_handle,
+      transB ? CUBLAS_OP_T : CUBLAS_OP_N,
+      transA ? CUBLAS_OP_T : CUBLAS_OP_N,
+      N, M, K, &alpha,
+      dB, CUDA_R_32F, ldb,
+      dA, CUDA_R_32F, lda,
+      &beta,
+      dC, CUDA_R_32F, ldc,
+      CUBLAS_COMPUTE_32F_PEDANTIC,
+      CUBLAS_GEMM_DEFAULT));
+  timing_gpu_end("cublasGemmEx_fp32_pedantic", M, N, K, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
+void polygeist_cublas_sgemm_transpose_tf32(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  int32_t aRows = transA ? K : M;
+  int32_t bRows = transB ? N : K;
+  size_t bytes_A = (size_t)aRows * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)bRows * (size_t)ldb * sizeof(float);
+  size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(float);
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dB = (float *)devices[1];
+  float *dC = (float *)devices[2];
+
+  timing_gpu_begin();
+  // Row-major C=op(A)op(B) becomes column-major C^T=op(B)^T op(A)^T.
+  // FAST_TF32 makes the relaxed precision and Tensor Core eligibility
+  // explicit instead of relying on a process-global cuBLAS math mode.
+  CUBLAS_CHECK(cublasGemmEx(
+      g_handle,
+      transB ? CUBLAS_OP_T : CUBLAS_OP_N,
+      transA ? CUBLAS_OP_T : CUBLAS_OP_N,
+      N, M, K, &alpha,
+      dB, CUDA_R_32F, ldb,
+      dA, CUDA_R_32F, lda,
+      &beta,
+      dC, CUDA_R_32F, ldc,
+      CUBLAS_COMPUTE_32F_FAST_TF32,
+      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+  timing_gpu_end("cublasGemmEx_tf32", M, N, K, host_start_ms);
   unregister_host_safe((void *)A);
   unregister_host_safe((void *)B);
   unregister_host_safe(C);
@@ -3087,6 +3230,38 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
   unregister_host_safe((void *)v2);
 }
 
+void polygeist_cublas_sger_rank2(int32_t M, int32_t N,
+                                  const float *u1, const float *v1,
+                                  const float *u2, const float *v2,
+                                  float *A, int32_t lda) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  float one = 1.0f;
+  size_t matrix_elements = M > 0
+      ? (size_t)(M - 1) * (size_t)lda + (size_t)N : 0;
+  size_t bytes_A = matrix_elements * sizeof(float);
+  size_t bytes_u = (size_t)M * sizeof(float);
+  size_t bytes_v = (size_t)N * sizeof(float);
+  void *hosts[5] = {A, (void *)u1, (void *)v1, (void *)u2, (void *)v2};
+  size_t sizes[5] = {bytes_A, bytes_u, bytes_v, bytes_u, bytes_v};
+  void *devices[5];
+  register_host_operands_safe(hosts, sizes, devices, 5);
+  float *dA = (float *)devices[0];
+  float *du1 = (float *)devices[1];
+  float *dv1 = (float *)devices[2];
+  float *du2 = (float *)devices[3];
+  float *dv2 = (float *)devices[4];
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSger(g_handle, N, M, &one, dv1, 1, du1, 1, dA, lda));
+  CUBLAS_CHECK(cublasSger(g_handle, N, M, &one, dv2, 1, du2, 1, dA, lda));
+  timing_gpu_end("cublasSger_rank2", M, N, 0, host_start_ms);
+  unregister_host_safe(A);
+  unregister_host_safe((void *)u1);
+  unregister_host_safe((void *)v1);
+  unregister_host_safe((void *)u2);
+  unregister_host_safe((void *)v2);
+}
+
 // Preserve the zero-copy host behavior for ordinary C allocations, but also
 // accept an already-device-resident buffer.  This lets a lifted function use
 // the exact same ABI with cudaMalloc operands without attempting a CPU memset
@@ -3149,6 +3324,29 @@ void polygeist_cublas_dtrsv_lower_row_major(
   timing_gpu_end("cublasDtrsvLowerRowMajor", n, 1, 0, host_start_ms);
 }
 
+void polygeist_cublas_strsv_lower_row_major(
+    int32_t n, const float *A, const float *b, float *x) {
+  if (n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t matrix_bytes = (size_t)n * (size_t)n * sizeof(float);
+  size_t vector_bytes = (size_t)n * sizeof(float);
+  void *hosts[3] = {(void *)A, (void *)b, x};
+  size_t sizes[3] = {matrix_bytes, vector_bytes, vector_bytes};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *db = (float *)devices[1];
+  float *dx = (float *)devices[2];
+  if (dx != db)
+    CUDA_CHECK(cudaMemcpyAsync(dx, db, vector_bytes,
+                               cudaMemcpyDeviceToDevice, g_stream));
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasStrsv(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
+                           CUBLAS_DIAG_NON_UNIT, n, dA, n, dx, 1));
+  timing_gpu_end("cublasStrsvLowerRowMajor", n, 1, 0, host_start_ms);
+}
+
 void polygeist_cublas_dsymm_left_lower_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     const double *B, int32_t ldb, double beta, double *C, int32_t ldc) {
@@ -3183,6 +3381,33 @@ void polygeist_cublas_dsymm_left_lower_row_major(
   unregister_host_safe(C);
 }
 
+void polygeist_cublas_ssymm_left_lower_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)m * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)m * (size_t)ldb * sizeof(float);
+  size_t bytes_C = (size_t)m * (size_t)ldc * sizeof(float);
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {bytes_A, bytes_B, bytes_C};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dB = (float *)devices[1];
+  float *dC = (float *)devices[2];
+  timing_gpu_begin();
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasSsymv(g_handle, CUBLAS_FILL_MODE_UPPER, m, &alpha,
+                             dA, lda, dB + column, ldb, &beta,
+                             dC + column, ldc));
+  timing_gpu_end("cublasSsymmLeftLowerRowMajor", m, n, m, host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
 void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     double *B, int32_t ldb) {
@@ -3208,6 +3433,33 @@ void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
     CUBLAS_CHECK(cublasDscal(g_handle, m, &alpha, dB + column, ldb));
   }
   timing_gpu_end("cublasDtrmmLeftLowerTransUnitRowMajor", m, n, m,
+                 host_start_ms);
+  unregister_host_safe((void *)A);
+  unregister_host_safe(B);
+}
+
+void polygeist_cublas_strmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    float *B, int32_t ldb) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  size_t bytes_A = (size_t)m * (size_t)lda * sizeof(float);
+  size_t bytes_B = (size_t)m * (size_t)ldb * sizeof(float);
+  void *hosts[2] = {(void *)A, B};
+  size_t sizes[2] = {bytes_A, bytes_B};
+  void *devices[2];
+  register_host_operands_safe(hosts, sizes, devices, 2);
+  float *dA = (float *)devices[0];
+  float *dB = (float *)devices[1];
+  timing_gpu_begin();
+  for (int32_t column = 0; column < n; ++column) {
+    CUBLAS_CHECK(cublasStrmv(g_handle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+                             CUBLAS_DIAG_UNIT, m, dA, lda,
+                             dB + column, ldb));
+    CUBLAS_CHECK(cublasSscal(g_handle, m, &alpha, dB + column, ldb));
+  }
+  timing_gpu_end("cublasStrmmLeftLowerTransUnitRowMajor", m, n, m,
                  host_start_ms);
   unregister_host_safe((void *)A);
   unregister_host_safe(B);
@@ -3433,6 +3685,48 @@ void polygeist_cublas_dcovariance_row_major(
         d_data + column, ldd, &zero,
         d_cov + (size_t)column * (size_t)ldc, 1));
   timing_gpu_end("cublasDcovarianceRowMajor", m, n, 0, host_start_ms);
+  CUDA_CHECK(cudaFree(d_ones));
+}
+
+void polygeist_cublas_scovariance_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *cov, int32_t ldc, float *mean) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *hosts[3] = {data, cov, mean};
+  size_t sizes[3] = {
+      (size_t)m * (size_t)ldd * sizeof(float),
+      (size_t)n * (size_t)ldc * sizeof(float),
+      (size_t)n * sizeof(float)};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *d_data = (float *)devices[0];
+  float *d_cov = (float *)devices[1];
+  float *d_mean = (float *)devices[2];
+  float *host_ones = (float *)malloc((size_t)m * sizeof(float));
+  if (!host_ones) abort();
+  for (int32_t i = 0; i < m; ++i) host_ones[i] = 1.0f;
+  float *d_ones = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&d_ones, (size_t)m * sizeof(float)));
+  CUDA_CHECK(cudaMemcpyAsync(d_ones, host_ones, (size_t)m * sizeof(float),
+                             cudaMemcpyHostToDevice, g_stream));
+  free(host_ones);
+  const float mean_alpha = 1.0f / sample_count;
+  const float minus_one = -1.0f;
+  const float zero = 0.0f;
+  const float covariance_alpha = 1.0f / (sample_count - 1.0f);
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemv(g_handle, CUBLAS_OP_N, n, m, &mean_alpha,
+                           d_data, ldd, d_ones, 1, &zero, d_mean, 1));
+  CUBLAS_CHECK(cublasSger(g_handle, n, m, &minus_one, d_mean, 1,
+                          d_ones, 1, d_data, ldd));
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasSgemv(
+        g_handle, CUBLAS_OP_N, n, m, &covariance_alpha, d_data, ldd,
+        d_data + column, ldd, &zero,
+        d_cov + (size_t)column * (size_t)ldc, 1));
+  timing_gpu_end("cublasScovarianceRowMajor", m, n, 0, host_start_ms);
   CUDA_CHECK(cudaFree(d_ones));
 }
 
