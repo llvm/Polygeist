@@ -1397,9 +1397,17 @@ template <typename FuncOpType>
 static std::optional<
     std::pair<LLVM::LLVMFunctionType, TypeConverter::SignatureConversion>>
 convertFunctionType(FuncOpType funcOp, const TypeConverter &typeConverter) {
+  auto functionTypeAttr = funcOp->template getAttrOfType<TypeAttr>(
+      funcOp.getFunctionTypeAttrName());
+  auto sourceFunctionType =
+      functionTypeAttr ? dyn_cast<FunctionType>(functionTypeAttr.getValue())
+                       : FunctionType();
+  if (!sourceFunctionType)
+    return std::nullopt;
   TypeConverter::SignatureConversion signatureConversion(
-      funcOp.getNumArguments());
-  for (const auto &[index, type] : llvm::enumerate(funcOp.getArgumentTypes())) {
+      sourceFunctionType.getNumInputs());
+  for (const auto &[index, type] :
+       llvm::enumerate(sourceFunctionType.getInputs())) {
     Type converted = typeConverter.convertType(type);
     if (!converted)
       return std::nullopt;
@@ -1408,7 +1416,7 @@ convertFunctionType(FuncOpType funcOp, const TypeConverter &typeConverter) {
   }
 
   Type resultType =
-      convertAndPackFunctionResultType(funcOp.getFunctionType(), typeConverter);
+      convertAndPackFunctionResultType(sourceFunctionType, typeConverter);
   if (!resultType)
     return std::nullopt;
 
@@ -2632,8 +2640,16 @@ public:
     unsigned numResults = callOp.getNumResults();
     SmallVector<Type, 1> callResultTypes;
     if (!callOp.getResults().empty()) {
+      // Do not resolve the callee symbol here. Dialect conversion is free to
+      // rewrite a declaration to llvm.func before rewriting its callers, in
+      // which case func::CallOp::getCalleeType() attempts to cast an
+      // LLVMFunctionType back to FunctionType. The call operation's own
+      // operands and results are the stable source signature regardless of
+      // conversion order.
+      auto sourceType = FunctionType::get(
+          callOp.getContext(), callOp.getOperandTypes(), callOp.getResultTypes());
       callResultTypes.push_back(convertAndPackFunctionResultType(
-          callOp.getCalleeType(), *typeConverter));
+          sourceType, *typeConverter));
       if (!callResultTypes.back()) {
         return rewriter.notifyMatchFailure(
             callOp.getLoc(), "failed to convert callee signature");
@@ -2708,6 +2724,24 @@ struct ReconcileUnrealizedPointerCasts
   }
 };
 
+/// Lower pointer extraction for the C-style memref convention. Under this
+/// convention a memref is already represented by its aligned data pointer, so
+/// the descriptor-based upstream lowering is not applicable.
+struct CExtractAlignedPointerAsIndexOpLowering
+    : public ConvertOpToLLVMPattern<
+          memref::ExtractAlignedPointerAsIndexOp> {
+  using ConvertOpToLLVMPattern<
+      memref::ExtractAlignedPointerAsIndexOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ExtractAlignedPointerAsIndexOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::PtrToIntOp>(
+        op, getTypeConverter()->getIndexType(), adaptor.getSource());
+    return success();
+  }
+};
+
 /// Appends the patterns lowering operations from the Memref dialect to the LLVM
 /// dialect using the C-style type conversion, i.e. converting memrefs to
 /// pointer to arrays of arrays.
@@ -2716,8 +2750,8 @@ populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
                                      LLVMTypeConverter &typeConverter) {
   patterns.add<CAllocaOpLowering, CAllocOpLowering, CDeallocOpLowering,
                GetGlobalOpLowering, GlobalOpLowering, CLoadOpLowering,
-               CStoreOpLowering, AllocaScopeOpLowering, CAtomicRMWOpLowering>(
-      typeConverter);
+               CStoreOpLowering, AllocaScopeOpLowering, CAtomicRMWOpLowering,
+               CExtractAlignedPointerAsIndexOpLowering>(typeConverter);
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM

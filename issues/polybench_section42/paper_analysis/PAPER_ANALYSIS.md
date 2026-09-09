@@ -9,13 +9,13 @@ timings in the legacy result ledger.
 - CPU: 17 correctness-gated native/raised pairs. Raised OpenBLAS
   has a 7.70x geometric-mean speedup and a
   9.30x median speedup; the range is
-  1.27x--32.91x.
+  1.26x--32.93x.
 - GPU: 13 native and 17
   raised resident measurements, with 12 one-to-one device-time
   FP64 pairs, plus 1 supplementary
-  FP32 configuration. Raised is faster for 9 FP64 pairs and native is
-  faster for 3; geometric-mean native/raised
-  device speedup is 1.58x.
+  FP32 configuration. Raised is faster for 10 FP64 pairs and native is
+  faster for 2; geometric-mean native/raised
+  device speedup is 1.85x.
 - Native-only GPU rows: fdtd-2d.
 - Raised-only GPU rows: cholesky, doitgen, symm, trisolv, trmm.
 - CPU rows without a fresh native/raised OpenBLAS pair:
@@ -35,6 +35,9 @@ one process, five warmups, and five samples. CPU runs are pinned to core 0 with
 one OpenBLAS/OpenMP thread. GPU ratios use device time on both sides; end-to-end
 times are reported separately and never mixed into those ratios. Native
 PolyBenchGPU rows use normalization adapters and are `modified_source=true`.
+Every headline runtime and derived speedup uses the minimum of the five timed
+samples; the generated ledgers also retain the median, maximum, IQR, and raw
+sample links.
 
 The runner reported accelerator/hardware state as `N/A`. Consequently every
 timing is **publication-pending** until fixed power, clock, fan, temperature,

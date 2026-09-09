@@ -14,7 +14,18 @@ NUMBER = re.compile(
 
 def values(path: Path) -> list[float]:
     result: list[float] = []
-    for line in path.read_text(errors="replace").splitlines():
+    lines = path.read_text(errors="replace").splitlines()
+    has_dump_markers = any("BEGIN DUMP_ARRAYS" in line for line in lines)
+    in_dump = not has_dump_markers
+    for line in lines:
+        if "BEGIN DUMP_ARRAYS" in line:
+            in_dump = True
+            continue
+        if "END   DUMP_ARRAYS" in line:
+            in_dump = False
+            continue
+        if not in_dump:
+            continue
         if ("DUMP_ARRAYS" in line or "dump:" in line or
                 "POLYBENCH_NATIVE_GPU_TIMING" in line or
                 "POLYGEIST_DEVICE_TIMING" in line or

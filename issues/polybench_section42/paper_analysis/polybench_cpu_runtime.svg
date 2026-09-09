@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 722" role="img" aria-label="PolyBench CPU: native versus raised OpenBLAS">
 <style>text{font-family:system-ui,sans-serif;fill:#24292f}.title{font-size:20px;font-weight:700}.axis{font-size:11px}.kernel{font-size:12px;font-weight:600}.ratio{font-size:11px;font-weight:700}.grid{stroke:#d8dee4;stroke-width:1}.pair{stroke:#8c959f;stroke-width:1.4}</style>
 <text class="title" x="155" y="28">PolyBench CPU: native versus raised OpenBLAS</text>
-<text class="axis" x="155" y="48">LARGE/FP64 on one Orin CPU core; median of 5 after 5 warmups; log runtime</text>
+<text class="axis" x="155" y="48">LARGE/FP64 on one Orin CPU core; minimum of 5 after 5 warmups; log runtime</text>
 <line class="grid" x1="155.00" y1="60" x2="155.00" y2="672"/>
 <text class="axis" x="155.00" y="704" text-anchor="middle">1 ms</text>
 <line class="grid" x1="388.75" y1="60" x2="388.75" y2="672"/>
@@ -13,90 +13,90 @@
 <line class="grid" x1="1090.00" y1="60" x2="1090.00" y2="672"/>
 <text class="axis" x="1090.00" y="704" text-anchor="middle">10000 ms</text>
 <text class="kernel" x="145" y="76" text-anchor="end">2mm [FP64]</text>
-<line class="pair" x1="1024.78" y1="72" x2="695.22" y2="72"/>
-<circle cx="1024.78" cy="72" r="5" fill="#0969da"><title>Native C -O3: 5260.104000 ms</title></circle>
-<circle cx="695.22" cy="72" r="5" fill="#d97706"><title>Raised OpenBLAS: 204.695040 ms</title></circle>
-<text class="ratio" x="1100" y="76">25.70×</text>
+<line class="pair" x1="1023.67" y1="72" x2="695.19" y2="72"/>
+<circle cx="1023.67" cy="72" r="5" fill="#0969da"><title>Native C -O3: 5202.969000 ms</title></circle>
+<circle cx="695.19" cy="72" r="5" fill="#d97706"><title>Raised OpenBLAS: 204.639648 ms</title></circle>
+<text class="ratio" x="1100" y="76">25.43×</text>
 <text class="kernel" x="145" y="111" text-anchor="end">3mm [FP64]</text>
-<line class="pair" x1="1036.62" y1="107" x2="744.98" y2="107"/>
-<circle cx="1036.62" cy="107" r="5" fill="#0969da"><title>Native C -O3: 5910.661000 ms</title></circle>
-<circle cx="744.98" cy="107" r="5" fill="#d97706"><title>Raised OpenBLAS: 334.162688 ms</title></circle>
-<text class="ratio" x="1100" y="111">17.69×</text>
+<line class="pair" x1="1036.25" y1="107" x2="744.91" y2="107"/>
+<circle cx="1036.25" cy="107" r="5" fill="#0969da"><title>Native C -O3: 5889.152000 ms</title></circle>
+<circle cx="744.91" cy="107" r="5" fill="#d97706"><title>Raised OpenBLAS: 333.964000 ms</title></circle>
+<text class="ratio" x="1100" y="111">17.63×</text>
 <text class="kernel" x="145" y="146" text-anchor="end">atax [FP64]</text>
-<line class="pair" x1="348.23" y1="142" x2="315.44" y2="142"/>
-<circle cx="348.23" cy="142" r="5" fill="#0969da"><title>Native C -O3: 6.709000 ms</title></circle>
-<circle cx="315.44" cy="142" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.856864 ms</title></circle>
-<text class="ratio" x="1100" y="146">1.38×</text>
+<line class="pair" x1="347.90" y1="142" x2="314.68" y2="142"/>
+<circle cx="347.90" cy="142" r="5" fill="#0969da"><title>Native C -O3: 6.687000 ms</title></circle>
+<circle cx="314.68" cy="142" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.820800 ms</title></circle>
+<text class="ratio" x="1100" y="146">1.39×</text>
 <text class="kernel" x="145" y="181" text-anchor="end">bicg [FP64]</text>
-<line class="pair" x1="448.99" y1="177" x2="315.73" y2="177"/>
-<circle cx="448.99" cy="177" r="5" fill="#0969da"><title>Native C -O3: 18.101000 ms</title></circle>
-<circle cx="315.73" cy="177" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.870880 ms</title></circle>
-<text class="ratio" x="1100" y="181">3.72×</text>
+<line class="pair" x1="448.95" y1="177" x2="314.69" y2="177"/>
+<circle cx="448.95" cy="177" r="5" fill="#0969da"><title>Native C -O3: 18.095000 ms</title></circle>
+<circle cx="314.69" cy="177" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.821376 ms</title></circle>
+<text class="ratio" x="1100" y="181">3.75×</text>
 <text class="kernel" x="145" y="216" text-anchor="end">cholesky [FP64]</text>
-<line class="pair" x1="904.87" y1="212" x2="678.46" y2="212"/>
-<circle cx="904.87" cy="212" r="5" fill="#0969da"><title>Native C -O3: 1614.335000 ms</title></circle>
-<circle cx="678.46" cy="212" r="5" fill="#d97706"><title>Raised OpenBLAS: 173.534496 ms</title></circle>
+<line class="pair" x1="904.59" y1="212" x2="678.22" y2="212"/>
+<circle cx="904.59" cy="212" r="5" fill="#0969da"><title>Native C -O3: 1609.927000 ms</title></circle>
+<circle cx="678.22" cy="212" r="5" fill="#d97706"><title>Raised OpenBLAS: 173.131136 ms</title></circle>
 <text class="ratio" x="1100" y="216">9.30×</text>
 <text class="kernel" x="145" y="251" text-anchor="end">correlation [FP64]</text>
-<line class="pair" x1="1041.32" y1="247" x2="720.93" y2="247"/>
-<circle cx="1041.32" cy="247" r="5" fill="#0969da"><title>Native C -O3: 6190.619000 ms</title></circle>
-<circle cx="720.93" cy="247" r="5" fill="#d97706"><title>Raised OpenBLAS: 263.700384 ms</title></circle>
+<line class="pair" x1="1041.30" y1="247" x2="720.92" y2="247"/>
+<circle cx="1041.30" cy="247" r="5" fill="#0969da"><title>Native C -O3: 6189.693000 ms</title></circle>
+<circle cx="720.92" cy="247" r="5" fill="#d97706"><title>Raised OpenBLAS: 263.669088 ms</title></circle>
 <text class="ratio" x="1100" y="251">23.48×</text>
 <text class="kernel" x="145" y="286" text-anchor="end">covariance [FP64]</text>
-<line class="pair" x1="1044.78" y1="282" x2="715.33" y2="282"/>
-<circle cx="1044.78" cy="282" r="5" fill="#0969da"><title>Native C -O3: 6405.555000 ms</title></circle>
-<circle cx="715.33" cy="282" r="5" fill="#d97706"><title>Raised OpenBLAS: 249.543520 ms</title></circle>
-<text class="ratio" x="1100" y="286">25.67×</text>
+<line class="pair" x1="1044.77" y1="282" x2="715.27" y2="282"/>
+<circle cx="1044.77" cy="282" r="5" fill="#0969da"><title>Native C -O3: 6404.684000 ms</title></circle>
+<circle cx="715.27" cy="282" r="5" fill="#d97706"><title>Raised OpenBLAS: 249.388704 ms</title></circle>
+<text class="ratio" x="1100" y="286">25.68×</text>
 <text class="kernel" x="145" y="321" text-anchor="end">doitgen [FP64]</text>
-<line class="pair" x1="801.51" y1="317" x2="693.60" y2="317"/>
-<circle cx="801.51" cy="317" r="5" fill="#0969da"><title>Native C -O3: 583.210000 ms</title></circle>
-<circle cx="693.60" cy="317" r="5" fill="#d97706"><title>Raised OpenBLAS: 201.453728 ms</title></circle>
+<line class="pair" x1="801.49" y1="317" x2="693.57" y2="317"/>
+<circle cx="801.49" cy="317" r="5" fill="#0969da"><title>Native C -O3: 583.105000 ms</title></circle>
+<circle cx="693.57" cy="317" r="5" fill="#d97706"><title>Raised OpenBLAS: 201.382784 ms</title></circle>
 <text class="ratio" x="1100" y="321">2.90×</text>
 <text class="kernel" x="145" y="356" text-anchor="end">gemm [FP64]</text>
-<line class="pair" x1="808.64" y1="352" x2="672.05" y2="352"/>
-<circle cx="808.64" cy="352" r="5" fill="#0969da"><title>Native C -O3: 625.646000 ms</title></circle>
-<circle cx="672.05" cy="352" r="5" fill="#d97706"><title>Raised OpenBLAS: 162.920224 ms</title></circle>
+<line class="pair" x1="808.52" y1="352" x2="672.03" y2="352"/>
+<circle cx="808.52" cy="352" r="5" fill="#0969da"><title>Native C -O3: 624.911000 ms</title></circle>
+<circle cx="672.03" cy="352" r="5" fill="#d97706"><title>Raised OpenBLAS: 162.884736 ms</title></circle>
 <text class="ratio" x="1100" y="356">3.84×</text>
 <text class="kernel" x="145" y="391" text-anchor="end">gemver [FP64]</text>
-<line class="pair" x1="487.37" y1="387" x2="388.12" y2="387"/>
-<circle cx="487.37" cy="387" r="5" fill="#0969da"><title>Native C -O3: 26.419000 ms</title></circle>
-<circle cx="388.12" cy="387" r="5" fill="#d97706"><title>Raised OpenBLAS: 9.937888 ms</title></circle>
-<text class="ratio" x="1100" y="391">2.66×</text>
+<line class="pair" x1="487.18" y1="387" x2="388.09" y2="387"/>
+<circle cx="487.18" cy="387" r="5" fill="#0969da"><title>Native C -O3: 26.370000 ms</title></circle>
+<circle cx="388.09" cy="387" r="5" fill="#d97706"><title>Raised OpenBLAS: 9.935136 ms</title></circle>
+<text class="ratio" x="1100" y="391">2.65×</text>
 <text class="kernel" x="145" y="426" text-anchor="end">gesummv [FP64]</text>
-<line class="pair" x1="362.61" y1="422" x2="225.69" y2="422"/>
-<circle cx="362.61" cy="422" r="5" fill="#0969da"><title>Native C -O3: 7.730000 ms</title></circle>
-<circle cx="225.69" cy="422" r="5" fill="#d97706"><title>Raised OpenBLAS: 2.006464 ms</title></circle>
-<text class="ratio" x="1100" y="426">3.85×</text>
+<line class="pair" x1="362.18" y1="422" x2="223.75" y2="422"/>
+<circle cx="362.18" cy="422" r="5" fill="#0969da"><title>Native C -O3: 7.697000 ms</title></circle>
+<circle cx="223.75" cy="422" r="5" fill="#d97706"><title>Raised OpenBLAS: 1.968448 ms</title></circle>
+<text class="ratio" x="1100" y="426">3.91×</text>
 <text class="kernel" x="145" y="461" text-anchor="end">mvt [FP64]</text>
-<line class="pair" x1="471.55" y1="457" x2="314.13" y2="457"/>
-<circle cx="471.55" cy="457" r="5" fill="#0969da"><title>Native C -O3: 22.605000 ms</title></circle>
-<circle cx="314.13" cy="457" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.794944 ms</title></circle>
-<text class="ratio" x="1100" y="461">4.71×</text>
+<line class="pair" x1="471.42" y1="457" x2="313.89" y2="457"/>
+<circle cx="471.42" cy="457" r="5" fill="#0969da"><title>Native C -O3: 22.578000 ms</title></circle>
+<circle cx="313.89" cy="457" r="5" fill="#d97706"><title>Raised OpenBLAS: 4.783360 ms</title></circle>
+<text class="ratio" x="1100" y="461">4.72×</text>
 <text class="kernel" x="145" y="496" text-anchor="end">symm [FP64]</text>
-<line class="pair" x1="988.11" y1="492" x2="662.69" y2="492"/>
-<circle cx="988.11" cy="492" r="5" fill="#0969da"><title>Native C -O3: 3665.165000 ms</title></circle>
-<circle cx="662.69" cy="492" r="5" fill="#d97706"><title>Raised OpenBLAS: 148.566368 ms</title></circle>
-<text class="ratio" x="1100" y="496">24.67×</text>
+<line class="pair" x1="987.71" y1="492" x2="662.60" y2="492"/>
+<circle cx="987.71" cy="492" r="5" fill="#0969da"><title>Native C -O3: 3650.811000 ms</title></circle>
+<circle cx="662.60" cy="492" r="5" fill="#d97706"><title>Raised OpenBLAS: 148.436736 ms</title></circle>
+<text class="ratio" x="1100" y="496">24.60×</text>
 <text class="kernel" x="145" y="531" text-anchor="end">syr2k [FP64]</text>
-<line class="pair" x1="968.38" y1="527" x2="683.05" y2="527"/>
-<circle cx="968.38" cy="527" r="5" fill="#0969da"><title>Native C -O3: 3017.808000 ms</title></circle>
-<circle cx="683.05" cy="527" r="5" fill="#d97706"><title>Raised OpenBLAS: 181.568704 ms</title></circle>
-<text class="ratio" x="1100" y="531">16.62×</text>
+<line class="pair" x1="967.35" y1="527" x2="683.01" y2="527"/>
+<circle cx="967.35" cy="527" r="5" fill="#0969da"><title>Native C -O3: 2987.431000 ms</title></circle>
+<circle cx="683.01" cy="527" r="5" fill="#d97706"><title>Raised OpenBLAS: 181.498368 ms</title></circle>
+<text class="ratio" x="1100" y="531">16.46×</text>
 <text class="kernel" x="145" y="566" text-anchor="end">syrk [FP64]</text>
-<line class="pair" x1="844.48" y1="562" x2="613.17" y2="562"/>
-<circle cx="844.48" cy="562" r="5" fill="#0969da"><title>Native C -O3: 890.491000 ms</title></circle>
-<circle cx="613.17" cy="562" r="5" fill="#d97706"><title>Raised OpenBLAS: 91.218816 ms</title></circle>
+<line class="pair" x1="844.36" y1="562" x2="613.10" y2="562"/>
+<circle cx="844.36" cy="562" r="5" fill="#0969da"><title>Native C -O3: 889.506000 ms</title></circle>
+<circle cx="613.10" cy="562" r="5" fill="#d97706"><title>Raised OpenBLAS: 91.157920 ms</title></circle>
 <text class="ratio" x="1100" y="566">9.76×</text>
 <text class="kernel" x="145" y="601" text-anchor="end">trisolv [FP64]</text>
-<line class="pair" x1="260.03" y1="597" x2="235.89" y2="597"/>
-<circle cx="260.03" cy="597" r="5" fill="#0969da"><title>Native C -O3: 2.814000 ms</title></circle>
-<circle cx="235.89" cy="597" r="5" fill="#d97706"><title>Raised OpenBLAS: 2.218464 ms</title></circle>
-<text class="ratio" x="1100" y="601">1.27×</text>
+<line class="pair" x1="259.56" y1="597" x2="235.80" y2="597"/>
+<circle cx="259.56" cy="597" r="5" fill="#0969da"><title>Native C -O3: 2.801000 ms</title></circle>
+<circle cx="235.80" cy="597" r="5" fill="#d97706"><title>Raised OpenBLAS: 2.216512 ms</title></circle>
+<text class="ratio" x="1100" y="601">1.26×</text>
 <text class="kernel" x="145" y="636" text-anchor="end">trmm [FP64]</text>
-<line class="pair" x1="947.85" y1="632" x2="593.19" y2="632"/>
-<circle cx="947.85" cy="632" r="5" fill="#0969da"><title>Native C -O3: 2465.386000 ms</title></circle>
-<circle cx="593.19" cy="632" r="5" fill="#d97706"><title>Raised OpenBLAS: 74.920224 ms</title></circle>
-<text class="ratio" x="1100" y="636">32.91×</text>
+<line class="pair" x1="947.83" y1="632" x2="593.08" y2="632"/>
+<circle cx="947.83" cy="632" r="5" fill="#0969da"><title>Native C -O3: 2464.753000 ms</title></circle>
+<circle cx="593.08" cy="632" r="5" fill="#d97706"><title>Raised OpenBLAS: 74.843168 ms</title></circle>
+<text class="ratio" x="1100" y="636">32.93×</text>
 <circle cx="155" cy="682" r="5" fill="#0969da"/><text class="axis" x="165" y="686">Native C -O3</text>
 <circle cx="365" cy="682" r="5" fill="#d97706"/><text class="axis" x="375" y="686">Raised OpenBLAS</text>
 <text class="axis" x="1090" y="686" text-anchor="end">right label: native / raised speedup</text>

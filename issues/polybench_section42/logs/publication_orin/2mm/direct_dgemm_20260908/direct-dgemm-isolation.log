@@ -1,0 +1,16 @@
+ORIN_PROCESS_CHECK timestamp=2026-09-09T04:11:17+00:00 matching_compute_processes=0
+
+RAW_CUBLAS_DEVICE_ALLOCATIONS
+shape1=800x900x1100 got=395.0625 expected=395.06249999999943 rel=1.4388462296676626e-15 PASS
+shape2=800x1200x900 got=180103.74831647708 expected=180103.74831647711 rel=1.6159480704195366e-16 PASS
+
+CURRENT_POLYGEIST_RUNTIME_WRAPPER_DEVICE_ALLOCATIONS_ONE_PIPELINE_SCOPE
+runtime_shape1 got=395.0625 expected=395.06249999999943 rel=1.4388462296676626e-15 PASS
+runtime_shape2 got=180103.74831647708 expected=180103.74831647711 rel=1.6159480704195366e-16 PASS
+
+UNCHANGED_BINARY_RERUN_AFTER_PROBES
+2mm PASS values=960000 failures=0 max_abs=0.01 max_rel=5.52852566e-08 rtol=0.0005 atol=0.011
+3mm PASS values=880000 failures=0 max_abs=0 max_rel=0 rtol=0.0005 atol=0.011
+
+CONCLUSION
+The first-run failures are transient Orin CUDA driver/cuBLAS execution-state failures: the exact same binaries pass after the independent raw-library probe, with no rebuild and no competing process. The earlier compiler-buffer diagnosis is retracted. The precise vendor-runtime trigger is not yet proven; performance remains pending until a repeatable preflight/warm-up guard is validated. Fresh 3mm matching has a separate zero-match regression.

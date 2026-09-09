@@ -1,0 +1,5 @@
+POLYGEIST_RT_TIMING	op=cuda_memset_zero_2d_f64	m=800	n=900	k=0	host_ms=0.037600	device_ms=0.000000
+POLYGEIST_RT_TIMING	op=cublasDgemm	m=800	n=900	k=1100	host_ms=2.676096	device_ms=0.000000
+POLYGEIST_RT_TIMING	op=cublasDgemm	m=800	n=1200	k=900	host_ms=0.104512	device_ms=0.000000
+POLYGEIST_GPU_REGION_TIMING region=17354376414801541759 compute_device_ms=2.881376 memory_device_ms=33.088705 e2e_host_ms=108.412160 compute_wall_ms=2.872704 memory_wall_ms=32.968352 host_device_ms=0.090016 host_wall_ms=72.104768 alloc_device_ms=1.523776 alloc_wall_ms=1.816096 free_device_ms=1.795872 free_wall_ms=3.041024 h2d_device_ms=5.017216 h2d_wall_ms=4.988800 d2h_device_ms=24.751841 d2h_wall_ms=23.122432 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 108.480287999

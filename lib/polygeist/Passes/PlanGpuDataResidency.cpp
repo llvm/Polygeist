@@ -17,12 +17,16 @@
 #include "polygeist/Passes/Passes.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/DenseMap.h"
 
 #include <optional>
 
 using namespace mlir;
 
 namespace {
+
+static constexpr StringLiteral kPersistentWorkspaceCandidateAttr =
+    "polygeist.persistent_gpu_workspace_candidate";
 
 static bool isGpuRuntimeCall(Operation *op) {
   auto call = dyn_cast<func::CallOp>(op);
@@ -117,6 +121,29 @@ static bool hasOnlyDeviceOrDescriptorUses(Value root) {
   return true;
 }
 
+// Collect registrations anywhere below a descriptor/view chain.  A device
+// allocation must never be passed to gpu.host_register: registration is only
+// meaningful for host storage and is both unnecessary and invalid for the
+// replacement produced by this pass.
+static void collectHostRegistrations(
+    Value root, SmallVectorImpl<gpu::HostRegisterOp> &registrations) {
+  SmallVector<Value> worklist{root};
+  llvm::DenseSet<Value> visited;
+  while (!worklist.empty()) {
+    Value value = worklist.pop_back_val();
+    if (!visited.insert(value).second)
+      continue;
+    for (Operation *user : value.getUsers()) {
+      if (auto registration = dyn_cast<gpu::HostRegisterOp>(user)) {
+        registrations.push_back(registration);
+        continue;
+      }
+      if (isDescriptorOnlyUse(user))
+        worklist.append(user->getResults().begin(), user->getResults().end());
+    }
+  }
+}
+
 static bool hasSimpleDynamicLaunchUses(Value root) {
   return llvm::all_of(root.getUsers(), [](Operation *user) {
     return isa<gpu::LaunchFuncOp, memref::DeallocOp>(user);
@@ -163,6 +190,67 @@ struct PlanGpuDataResidencyPass
     if (function.isDeclaration() || !hasGpuDispatch(function))
       return;
 
+    // The persistent-workspace planner initially uses private host globals to
+    // give scratch a stable lifetime before GPU outlining.  At this late point
+    // the complete use graph is visible.  Replace a marked global with one
+    // function-scoped device allocation only when every get_global in this
+    // function is device/descriptor-only.  Host-observable workspaces retain
+    // the mapped-host fallback.
+    llvm::SmallDenseMap<Operation *, SmallVector<memref::GetGlobalOp, 2>, 4>
+        workspaceGets;
+    function.walk([&](memref::GetGlobalOp getGlobal) {
+      auto global = SymbolTable::lookupNearestSymbolFrom<memref::GlobalOp>(
+          getGlobal, getGlobal.getNameAttr());
+      if (!global || !global.isPrivate() ||
+          !global->hasAttr(kPersistentWorkspaceCandidateAttr))
+        return;
+      workspaceGets[global.getOperation()].push_back(getGlobal);
+    });
+
+    for (auto &[globalOperation, gets] : workspaceGets) {
+      auto global = cast<memref::GlobalOp>(globalOperation);
+      if (gets.empty() || llvm::any_of(gets, [](memref::GetGlobalOp get) {
+            return !hasOnlyDeviceOrDescriptorUses(get.getResult());
+          }))
+        continue;
+
+      auto type = cast<MemRefType>(global.getType());
+      if (!type.hasStaticShape())
+        continue;
+
+      OpBuilder entryBuilder = OpBuilder::atBlockBegin(&function.front());
+      Type tokenType = gpu::AsyncTokenType::get(module.getContext());
+      Value stream =
+          entryBuilder
+              .create<gpu::WaitOp>(global.getLoc(), tokenType, ValueRange{})
+              .getAsyncToken();
+      auto deviceAllocation = entryBuilder.create<gpu::AllocOp>(
+          global.getLoc(), type, tokenType, ValueRange{stream},
+          /*dynamicSizes=*/ValueRange{}, /*symbolOperands=*/ValueRange{});
+      entryBuilder.setInsertionPointAfter(deviceAllocation);
+      entryBuilder.create<gpu::WaitOp>(global.getLoc(), /*asyncToken=*/Type(),
+                                       ValueRange{deviceAllocation.getAsyncToken()});
+
+      SmallVector<gpu::HostRegisterOp> registrations;
+      for (memref::GetGlobalOp get : gets) {
+        collectHostRegistrations(get.getResult(), registrations);
+        get.getResult().replaceAllUsesWith(deviceAllocation.getMemref());
+        get.erase();
+      }
+      for (gpu::HostRegisterOp registration : registrations)
+        if (registration && registration->getBlock())
+          registration.erase();
+
+      SmallVector<func::ReturnOp> returns;
+      function.walk([&](func::ReturnOp ret) { returns.push_back(ret); });
+      for (func::ReturnOp ret : returns) {
+        OpBuilder returnBuilder(ret);
+        returnBuilder.create<gpu::DeallocOp>(
+            ret.getLoc(), /*asyncTokenType=*/Type(),
+            /*asyncDependencies=*/ValueRange{}, deviceAllocation.getMemref());
+      }
+    }
+
     // Bufferization may introduce scratch allocations after the source-level
     // ownership boundary has been formed.  A gpu.launch_func cannot safely
     // dereference the ordinary heap pointer produced by memref.alloc.  Turn
@@ -184,6 +272,8 @@ struct PlanGpuDataResidencyPass
 
     for (memref::AllocOp allocation : localAllocations) {
       SmallVector<memref::DeallocOp> deallocations;
+      SmallVector<gpu::HostRegisterOp> registrations;
+      collectHostRegistrations(allocation.getResult(), registrations);
       for (Operation *user : allocation.getResult().getUsers())
         if (auto deallocation = dyn_cast<memref::DeallocOp>(user))
           deallocations.push_back(deallocation);
@@ -238,6 +328,9 @@ struct PlanGpuDataResidencyPass
           ValueRange{deviceAllocation.getAsyncToken()});
       allocation.getResult().replaceAllUsesWith(deviceAllocation.getMemref());
       allocation.erase();
+      for (gpu::HostRegisterOp registration : registrations)
+        if (registration && registration->getBlock())
+          registration.erase();
       for (memref::DeallocOp deallocation : deallocations) {
         OpBuilder deallocationBuilder(deallocation);
         deallocationBuilder.create<gpu::DeallocOp>(

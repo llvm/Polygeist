@@ -1,6 +1,7 @@
 // RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s > %t.matched
 // RUN: FileCheck %s --check-prefix=MATCH < %t.matched
 // RUN: polygeist-opt --lower-kernel-launch-to-cublas %t.matched | FileCheck %s --check-prefix=LOWER
+// RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s --dry-run --matcher-mode syntactic 2>&1 | FileCheck %s --check-prefix=SYNTACTIC
 
 #identity = affine_map<(d0, d1) -> (d0, d1)>
 #a_map = affine_map<(d0, d1, d2) -> (d0, d2)>
@@ -55,3 +56,7 @@ module {
 // LOWER-LABEL: func.func @reordered_gemm
 // LOWER: call @polygeist_cublas_dgemm
 // LOWER-NOT: kernel.launch
+
+// SYNTACTIC: match          body#[0]  cublasDgeam_scale2D
+// SYNTACTIC: no_match       body#1  ?
+// SYNTACTIC-NOT: body#[0, 1]  cublasDgemm

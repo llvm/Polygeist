@@ -18,6 +18,9 @@ using namespace mlir;
 
 namespace {
 
+static constexpr StringLiteral kPersistentWorkspaceCandidateAttr =
+    "polygeist.persistent_gpu_workspace_candidate";
+
 /// Return true when `value` is a tensor view of storage that the selected
 /// function is allowed to update in place.  Do not treat arbitrary tensor
 /// arguments or functional tensor computations as writable destinations: the
@@ -204,6 +207,13 @@ struct PlanPersistentGpuWorkspacePass
           root.op->getLoc(), globalBuilder.getStringAttr(name),
           globalBuilder.getStringAttr("private"), TypeAttr::get(memrefType),
           Attribute{}, UnitAttr{}, globalBuilder.getI64IntegerAttr(4096));
+      // This is an internal lifetime extension, not evidence that the storage
+      // must remain host-visible.  The late GPU-residency pass uses the marker
+      // after library ABI lowering and residual outlining, when it can prove
+      // whether every access is device-side and replace the host global with
+      // one function-scoped gpu.alloc.
+      global->setAttr(kPersistentWorkspaceCandidateAttr,
+                      UnitAttr::get(module.getContext()));
       symbolTable.insert(global);
 
       OpBuilder builder(root.op);
@@ -226,6 +236,8 @@ struct PlanPersistentGpuWorkspacePass
           globalBuilder.getStringAttr("private"),
           TypeAttr::get(root.storageType),
           Attribute{}, UnitAttr{}, globalBuilder.getI64IntegerAttr(4096));
+      global->setAttr(kPersistentWorkspaceCandidateAttr,
+                      UnitAttr::get(module.getContext()));
       symbolTable.insert(global);
 
       OpBuilder builder(root.op);

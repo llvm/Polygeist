@@ -1,0 +1,6 @@
+kernel,configuration,build_status,correctness_status,values,failures,max_abs,max_rel,timing_status,reason
+2mm,fresh_source_direct_dgemm,pass,fail,960000,960000,266862.87,1,rejected,final output unchanged
+2mm,stored_semantic_ir_direct_dgemm,pass,fail,960000,960000,266862.87,1,rejected,isolates failure from fresh matcher
+2mm,device_resident_direct_dgemm,pass,fail,960000,960000,266862.87,1,rejected,device residency does not fix result
+3mm,fresh_source_direct_dgemm,fail,not_run,,,,,not_run,zero matches and missing kernel_3mm_impl at link
+3mm,stored_semantic_ir_direct_dgemm,pass,fail,880000,880000,136791.32,1,rejected,dependent three-DGEMM pipeline returns wrong final output
