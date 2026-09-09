@@ -1,0 +1,47 @@
+% Generated from Polygeist's MFEM Section 4.2 occurrence ledger:
+% issues/mfem_c_kernels/section42_campaign/coverage_fixed_matcher.csv
+% and application_library_matches.csv.  Include with:
+% \input{figures/results/mfem/mfem_library_mappings}
+\begin{table*}[t]
+  \centering
+  \caption{Matched MFEM operators and external-library mappings.  A site is a
+  structurally recognized region inside an operator, rather than a replacement
+  selected from the MFEM function name.  The 128-site total covers the
+  standalone contraction corpus.  The two PCG vector-update sites are reported
+  separately and are not included in that denominator.}
+  \label{tab:mfem-library-mappings}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}llp{3.1cm}p{4.3cm}rrl@{}}
+    \toprule
+    MFEM operator & Dim. & Recognized region & External-library target &
+      Matched & Validated & Status \\
+    \midrule
+    Value interpolation    & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 5  & 5  & Lowered + correct \\
+    Value integration      & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 3  & 3  & Lowered + correct \\
+    Gradient interpolation & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 12 & 12 & Lowered + correct \\
+    Gradient integration   & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 13 & 13 & Lowered + correct \\
+    Mass                   & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 8  & 8  & Lowered + correct \\
+    Diffusion              & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 20 & 20 & Lowered + correct \\
+    Convection             & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 15 & 15 & Lowered + correct \\
+    Curl--curl             & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 34 & 34 & Lowered + correct \\
+    Div--div               & 2D, 3D & FP64 tensor-product contraction &
+      \texttt{cutensornetContraction2\_f64} & 18 & 18 & Lowered + correct \\
+    \midrule
+    \multicolumn{4}{r}{Standalone contraction total} & 128 & 128 & \\
+    \midrule
+    Elasticity quadrature  & 2D, 3D & Jacobian inverse + stress DAG &
+      None (no complete external primitive) & 0 & 0 & Unmatched \\
+    PCG vector updates     & 2D & $y \leftarrow \alpha x + \beta y$ &
+      \texttt{cublasDscal} + \texttt{cublasDaxpy} & 2 & 2 & Lowered + correct \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

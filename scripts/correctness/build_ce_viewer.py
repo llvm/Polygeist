@@ -6183,9 +6183,14 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         )
         backend = ", ".join(sorted(entry["backend"])) or "None"
         if label == "Elasticity quadrature":
+            operator_rows.append(
+                '<tr class="paper-subtotal"><td colspan="4" '
+                'style="text-align:right"><b>Standalone contraction total</b>'
+                f'</td><td><b>{total_sites}</b></td>'
+                f'<td><b>{total_sites}</b></td><td></td></tr>'
+            )
             region = "FP64 Jacobian inverse + stress pointwise DAG"
-            status = ('<span class="none">UNMATCHED</span> — audited: no '
-                      'complete external-library primitive')
+            status = '<span class="none">UNMATCHED</span>'
         elif blocked:
             region = "FP64 tensor-product contraction"
             status = (f'<span class="partial">{blocked} BLOCKED</span> — 3D '
@@ -6209,44 +6214,38 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
     for row in application_library_rows:
         matched = int(row.get("matching_sites", "0") or 0)
         lowered = int(row.get("lowered_sites", "0") or 0)
-        unmatched = int(row.get("unmatched_sites", "0") or 0)
         application_only_sites += matched
         performance = application_performance_by_id.get(
             row.get("application_id", ""), {}
         )
         correctness = performance.get("correctness", "NOT RUN")
         correct_class = "pass" if correctness == "PASS" else "partial"
-        timing_status = (
-            "full derived-path timing available; site-isolated timing not run"
-            if performance.get("raised_gpu_us") else "performance pending"
-        )
-        status = (
-            f'<span class="{correct_class}">LOWERED + {html.escape(correctness)}'
-            f'</span> — {html.escape(timing_status)}'
-        )
+        status_text = ("LOWERED + CORRECT" if correctness == "PASS" else
+                       f"LOWERED + {correctness}")
+        status = (f'<span class="{correct_class}">'
+                  f'{html.escape(status_text)}</span>')
         operator_rows.append(
             '<tr>'
             f'<td><b>{html.escape(row.get("application_region", ""))}</b>'
             '<br><span class="scope">application-only</span></td>'
             '<td>2D</td>'
-            f'<td>FP64 AXPBY: <code>{html.escape(row.get("semantic_operation", ""))}</code></td>'
-            f'<td><code>{html.escape(row.get("target_external_apis", ""))}</code>'
-            f'<br><span class="scope">selector: {html.escape(row.get("internal_symbol", ""))}</span></td>'
+            '<td>FP64 AXPBY: <i>y</i> &larr; &alpha;<i>x</i> + &beta;<i>y</i></td>'
+            f'<td><code>{html.escape(row.get("target_external_apis", ""))}</code></td>'
             f'<td>{matched}</td><td>{lowered}</td>'
-            f'<td>{status}; unmatched sites: {unmatched}</td></tr>'
+            f'<td>{status}</td></tr>'
         )
     operator_coverage_section = (
         '<div class="section-header"><h3 class="section-title">Matched MFEM '
         'operators and library mappings</h3></div>'
-        '<div class="intro">The matcher recognizes mathematical contraction '
-        'regions inside an operator; it does <b>not</b> replace a complete MFEM '
-        'function by its name. The normalized corpus contains 128 structurally '
-        'recognized FP64 sites; all 128 are in lowered, executed, '
-        'complete-output-correct pipelines. The table also shows '
-        f'{application_only_sites} additional application-only cuBLAS sites; '
-        'they are deliberately excluded from the 128-site standalone-kernel '
-        'denominator.</div>'
-        '<table class="audit-table paper-family"><thead><tr>'
+        '<div class="intro">A site is a structurally recognized region inside '
+        'an operator, rather than a replacement selected from the MFEM function '
+        'name. The 128-site total covers the standalone contraction corpus. The '
+        f'{application_only_sites} PCG vector-update sites are reported separately '
+        'and are not included in that denominator. '
+        '<a href="mfem_section42_artifacts/mfem_library_mappings.tex">Open the '
+        'matching LaTeX table</a>.</div>'
+        '<table class="audit-table paper-family"><caption>Matched MFEM operators '
+        'and external-library mappings</caption><thead><tr>'
         '<th>MFEM operator</th><th>dimensions</th><th>recognized region</th>'
         '<th>external-library target</th><th>matched sites</th>'
         '<th>validated lowerings</th><th>status</th>'
