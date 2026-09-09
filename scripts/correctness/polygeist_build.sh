@@ -118,6 +118,10 @@
 #   POLYGEIST_HARNESS_CFLAGS="..."
 #                       Additional flags used only when compiling the native C
 #                       harness, not when cgeist translates the selected kernel.
+#   POLYGEIST_CGEIST_FLAGS="..."
+#                       Additional cgeist-only driver options. This is used by
+#                       controlled experiments such as `--no-inline` without
+#                       leaking cgeist options into the C harness compiler.
 #
 # Any unrecognized flags are passed through to all the gcc/clang invocations
 # that compile non-MLIR pieces of the build (harness, polybench utility code,
@@ -284,6 +288,10 @@ if [ -n "$SEMANTIC_MLIR" ]; then
 else
 # ─── Step 1: cgeist lifts the kernel function to affine MLIR ────────────
 echo "  [1/9] cgeist → affine MLIR"
+CGEIST_EXTRA_FLAGS=()
+if [ -n "${POLYGEIST_CGEIST_FLAGS:-}" ]; then
+  read -r -a CGEIST_EXTRA_FLAGS <<< "$POLYGEIST_CGEIST_FLAGS"
+fi
 CGEIST_FUNCTION=$FUNCTION
 [ "$WHOLE_PROGRAM" -eq 0 ] || CGEIST_FUNCTION='*'
 if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
@@ -295,6 +303,7 @@ if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
 fi
 cgeist "$INPUT" --function="$CGEIST_FUNCTION" \
   --resource-dir=/usr/lib/clang/14 \
+  "${CGEIST_EXTRA_FLAGS[@]}" \
   "${GCC_PASSTHROUGH[@]}" \
   --raise-scf-to-affine -fPIC -S \
   -o $WORK/affine.mlir 2>$WORK/cgeist.err || {
@@ -318,6 +327,7 @@ if [ "$WHOLE_PROGRAM" -eq 0 ] && \
   mv "$WORK/cgeist.err" "$WORK/cgeist_explicit_missing.err"
   cgeist "$INPUT" --function="$FUNCTION" \
     --resource-dir=/usr/lib/clang/14 \
+    "${CGEIST_EXTRA_FLAGS[@]}" \
     "${GCC_PASSTHROUGH[@]}" \
     -Dstatic= \
     --raise-scf-to-affine -fPIC -S \
@@ -559,6 +569,16 @@ if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
   fi
 fi
 
+# Target-specific backend selection remains opt-in because TF32 relaxes FP32
+# multiplication precision. It runs only after semantic matching/composition;
+# source names and benchmark identities are not selection inputs.
+if [ "${POLYGEIST_ALLOW_TF32:-0}" != "0" ]; then
+  polygeist-opt \
+    "--select-contraction-backend=allow-tf32=true target-arch=${POLYGEIST_GPU_ARCH:-sm_87}" \
+    "$SEMANTIC_INPUT" -o $WORK/semantic_backend_selected.mlir
+  SEMANTIC_INPUT=$WORK/semantic_backend_selected.mlir
+fi
+
 # Bufferize tensor semantics before translating a launch into a CUDA runtime
 # ABI.  This preserves tensor.insert/extract_slice ordering through the normal
 # MLIR destination/alias analysis instead of reconstructing it later from an
@@ -647,7 +667,7 @@ echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
 # one-shot bufferization may then select the same physical buffer for results
 # that are simultaneously live.  View lowering does not require CSE.
 ABI_CLEANUP_PASSES=(--lower-polygeist-submap --canonicalize-polygeist)
-if grep -q 'cublasDgemv_T_zero' "$SEMANTIC_INPUT"; then
+if grep -Eq 'cublas[DS]gemv_T_zero' "$SEMANTIC_INPUT"; then
   ABI_CLEANUP_PASSES=(--remove-iter-args "${ABI_CLEANUP_PASSES[@]}")
 fi
 polygeist-opt "${ABI_CLEANUP_PASSES[@]}" \
@@ -971,11 +991,21 @@ else
   cp $WORK/harness_full.o $WORK/harness.o
 fi
 if [ "$WHOLE_PROGRAM" -ne 0 ]; then
-  $NM_TOOL --defined-only $WORK/kernel.o | awk '{print $3}' | \
-    grep -qx "$FUNCTION" || {
+  if ! $NM_TOOL --defined-only $WORK/kernel.o | awk '{print $3}' | \
+      grep -qx "$FUNCTION"; then
+    # A source-local kernel can remain an internal function through MLIR and
+    # then be inlined into the retained transformed main by the final LLVM
+    # optimizer. Accept that in-place case only when pre-optimization LLVM IR
+    # contains both the internal definition and a real call from the module;
+    # this does not substitute or weaken any symbol.
+    if grep -Eq "define internal .*@${FUNCTION}\\(" "$WORK/kernel.ll" && \
+       grep -Eq "call .*@${FUNCTION}\\(" "$WORK/kernel.ll"; then
+      echo "         transformed internal $FUNCTION inlined into whole-program object"
+    else
       echo "ERROR: whole-program object does not define transformed $FUNCTION" >&2
       exit 1
-    }
+    fi
+  fi
   $NM_TOOL --defined-only $WORK/kernel.o | awk '{print $3}' | \
     grep -qx "$WHOLE_PROGRAM_ENTRY" || {
       echo "ERROR: whole-program object does not retain $WHOLE_PROGRAM_ENTRY" >&2
