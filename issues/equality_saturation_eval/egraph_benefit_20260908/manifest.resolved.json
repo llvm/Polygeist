@@ -1,0 +1,26 @@
+[
+  {
+    "input_id": "2mm",
+    "path": "/tmp/polybench_new/2mm_debuf.mlir",
+    "sha256": "f4bde9c30112c993312f8b8cd2f0a6f425986828f77170f013715f0656b7ed56",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gemm",
+    "path": "/tmp/polybench_new/gemm_debuf.mlir",
+    "sha256": "ad63d36831dc1b8165d650d9c99ab0c5e08c2313aa91c03245b1fb1b21eff7b6",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "gemver",
+    "path": "/tmp/polybench_new/gemver_debuf.mlir",
+    "sha256": "122c852ea27b98b0b4478dd079430cffd240602da80a79ad0a57eda4f502cdb6",
+    "suite": "polybench"
+  },
+  {
+    "input_id": "aten_addmm",
+    "path": "/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir",
+    "sha256": "d4ec02dd4624ae6f0e9d9206ca100cb54c2e9045f36484a7a9aeb1bd6d863e12",
+    "suite": "aten"
+  }
+]
