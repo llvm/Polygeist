@@ -5811,8 +5811,18 @@ def _mfem_application_extraction_section(stats: list[dict]) -> str:
 def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
     """Render the current four-runtime NE=1024 MFEM publication analysis."""
     rows = _read_csv(MFEM_SECTION42_DIR / "performance_20260908.csv")
+    coverage_rows = _read_csv(MFEM_SECTION42_DIR / "coverage_fixed_matcher.csv")
     checksum_rows = _read_csv(
         MFEM_SECTION42_DIR / "native_checksum_audit_20260908.csv"
+    )
+    postfix_validation_rows = _read_csv(
+        MFEM_SECTION42_DIR / "postfix_full_output_validation_20260908.csv"
+    )
+    application_library_rows = _read_csv(
+        MFEM_SECTION42_DIR / "application_library_matches.csv"
+    )
+    application_performance_rows = _read_csv(
+        MFEM_SECTION42_DIR / "application_performance_20260908.csv"
     )
     if not rows:
         return (
@@ -5837,8 +5847,159 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
     ratios = [value(row, "raised_gpu_slowdown_vs_native_mfem") for row in rows]
     ratios = [ratio for ratio in ratios if math.isfinite(ratio)]
     median_ratio = statistics.median(ratios)
-    total_sites = sum(int(row.get("validated_sites", "0") or 0) for row in rows)
     checksum_passes = sum(row.get("status") == "PASS" for row in checksum_rows)
+
+    # Aggregate the checked-in occurrence-level matcher ledger by semantic
+    # MFEM operation. Keep recognized, correctness-validated, and timed counts
+    # separate. A focused post-campaign ledger records fixes validated after
+    # the immutable four-runtime timing campaign.
+    validated_by_kernel = {
+        row.get("kernel", ""): int(row.get("validated_sites", "0") or 0)
+        for row in rows
+    }
+    for row in postfix_validation_rows:
+        if row.get("correctness", "").upper() == "PASS":
+            validated_by_kernel[row.get("kernel", "")] = int(
+                row.get("validated_sites", "0") or 0
+            )
+    total_sites = sum(validated_by_kernel.values())
+    operation_labels = {
+        "interpolate_value": "Value interpolation",
+        "integrate_value": "Value integration",
+        "interpolate_gradient": "Gradient interpolation",
+        "integrate_gradient": "Gradient integration",
+        "mass_apply": "Mass",
+        "diffusion_apply_symmetric": "Diffusion",
+        "convection_apply": "Convection",
+        "curl_curl_apply": "Curl-curl",
+        "curl_curl_apply_symmetric": "Curl-curl",
+        "div_div_apply": "Div-div",
+        "isotropic_linear_elasticity": "Elasticity quadrature",
+    }
+    operation_order = [
+        "Value interpolation", "Value integration", "Gradient interpolation",
+        "Gradient integration", "Mass", "Diffusion", "Convection",
+        "Curl-curl", "Div-div", "Elasticity quadrature",
+    ]
+    operator_coverage: dict[str, dict[str, object]] = {}
+    for row in coverage_rows:
+        label = operation_labels.get(row.get("operation", ""),
+                                     row.get("operation", "unknown"))
+        entry = operator_coverage.setdefault(
+            label, {"dimensions": set(), "recognized": 0, "validated": 0,
+                    "variants": 0, "backend": set()},
+        )
+        entry["dimensions"].add(row.get("dimension", "?"))
+        entry["recognized"] += int(row.get("external_launch_count", "0") or 0)
+        entry["validated"] += validated_by_kernel.get(row.get("semantic_id", ""), 0)
+        entry["variants"] += 1
+        if row.get("external_symbols"):
+            entry["backend"].add(row["external_symbols"])
+
+    operator_rows = []
+    for label in operation_order:
+        entry = operator_coverage.get(label)
+        if not entry:
+            continue
+        recognized = int(entry["recognized"])
+        validated = int(entry["validated"])
+        blocked = recognized - validated
+        dimensions = ", ".join(
+            f"{dimension}D" for dimension in sorted(entry["dimensions"])
+        )
+        backend = ", ".join(sorted(entry["backend"])) or "None"
+        if label == "Elasticity quadrature":
+            region = "FP64 Jacobian inverse + stress pointwise DAG"
+            status = ('<span class="none">UNMATCHED</span> — audited: no '
+                      'complete external-library primitive')
+        elif blocked:
+            region = "FP64 tensor-product contraction"
+            status = (f'<span class="partial">{blocked} BLOCKED</span> — 3D '
+                      'raising/submap failure; other sites pass correctness')
+        else:
+            region = "FP64 tensor-product contraction"
+            status = '<span class="pass">LOWERED + CORRECT</span>'
+        operator_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(label)}</b></td>'
+            f'<td>{html.escape(dimensions)}</td>'
+            f'<td>{region}</td>'
+            f'<td><code>{html.escape(backend)}</code></td>'
+            f'<td>{recognized}</td><td>{validated}</td>'
+            f'<td>{status}</td></tr>'
+        )
+    application_performance_by_id = {
+        row.get("id", ""): row for row in application_performance_rows
+    }
+    application_only_sites = 0
+    for row in application_library_rows:
+        matched = int(row.get("matching_sites", "0") or 0)
+        lowered = int(row.get("lowered_sites", "0") or 0)
+        unmatched = int(row.get("unmatched_sites", "0") or 0)
+        application_only_sites += matched
+        performance = application_performance_by_id.get(
+            row.get("application_id", ""), {}
+        )
+        correctness = performance.get("correctness", "NOT RUN")
+        correct_class = "pass" if correctness == "PASS" else "partial"
+        timing_status = (
+            "full derived-path timing available; site-isolated timing not run"
+            if performance.get("raised_gpu_us") else "performance pending"
+        )
+        status = (
+            f'<span class="{correct_class}">LOWERED + {html.escape(correctness)}'
+            f'</span> — {html.escape(timing_status)}'
+        )
+        operator_rows.append(
+            '<tr>'
+            f'<td><b>{html.escape(row.get("application_region", ""))}</b>'
+            '<br><span class="scope">application-only</span></td>'
+            '<td>2D</td>'
+            f'<td>FP64 AXPBY: <code>{html.escape(row.get("semantic_operation", ""))}</code></td>'
+            f'<td><code>{html.escape(row.get("target_external_apis", ""))}</code>'
+            f'<br><span class="scope">selector: {html.escape(row.get("internal_symbol", ""))}</span></td>'
+            f'<td>{matched}</td><td>{lowered}</td>'
+            f'<td>{status}; unmatched sites: {unmatched}</td></tr>'
+        )
+    operator_coverage_section = (
+        '<div class="section-header"><h3 class="section-title">Matched MFEM '
+        'operators and library mappings</h3></div>'
+        '<div class="intro">The matcher recognizes mathematical contraction '
+        'regions inside an operator; it does <b>not</b> replace a complete MFEM '
+        'function by its name. The normalized corpus contains 128 structurally '
+        'recognized FP64 sites; all 128 are in lowered, executed, '
+        'complete-output-correct pipelines. The table also shows '
+        f'{application_only_sites} additional application-only cuBLAS sites; '
+        'they are deliberately excluded from the 128-site standalone-kernel '
+        'denominator.</div>'
+        '<table class="audit-table paper-family"><thead><tr>'
+        '<th>MFEM operator</th><th>dimensions</th><th>recognized region</th>'
+        '<th>external-library target</th><th>matched sites</th>'
+        '<th>validated lowerings</th><th>status</th>'
+        '</tr></thead><tbody>' + ''.join(operator_rows) + '</tbody></table>'
+        '<div class="paper-notes">'
+        '<div><b>Application-only vector matches</b><span>The larger ex9p PCG '
+        'path contains two structure-driven AXPBY updates. The internal '
+        '<code>cublasDaxpby</code> selector lowers each to the actual cuBLAS '
+        'sequence <code>cublasDscal</code> + <code>cublasDaxpy</code>. These '
+        'sites are shown in the table but excluded from the 128 standalone '
+        'contractions.</span></div>'
+        '<div><b>Composite application operators</b><span>H(curl)/H(div) vector '
+        'mass, vector diffusion, nonlinear convection, pressure diffusion, '
+        'discrete divergence, and discrete gradient reuse these contraction '
+        'matches; they are not separately claimed as whole-function library '
+        'replacements.</span></div>'
+        '<div><b>Residual work</b><span>Pointwise coefficient transforms, signed '
+        'multi-component sums, nonzero output accumulation, and elasticity '
+        'quadrature algebra remain outside the matched library regions.</span></div>'
+        '<div><b>Elasticity audit</b><span>The 2D/3D stress regions use 11/19 '
+        'FP64 tensor inputs and contain determinant, inverse, divide, and '
+        'pointwise algebra but no contraction iterator. cuDNN’s configured '
+        'graph ABI is FP32/four-input, while cuTENSOR would require many '
+        'materialized fragment calls. It remains an honest fused-kernel '
+        'opportunity, not an artificial library match.</span></div>'
+        '</div>'
+    )
 
     # Log-scale absolute runtime chart. Every plotted value comes directly from
     # performance_20260908.csv; no result is hardcoded into the SVG.
@@ -5900,7 +6061,7 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         for _, label, color in implementations
     )
     runtime_chart = (
-        '<div class="paper-chart-wrap"><h4>Absolute resident call time by kernel</h4>'
+        '<div class="paper-chart-wrap"><h4>Minimum retained resident call time by kernel</h4>'
         + ''.join(svg)
         + f'<div class="mfem-chart-legend">{legend}</div>'
         '<div class="paper-legend">Log scale is required because the four '
@@ -5927,29 +6088,36 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="paper-chart-wrap"><h4>Raised GPU slowdown versus native '
         'MFEM GPU (lower is better)</h4><div class="mfem-slow-bars">'
         + ''.join(slowdown_rows)
-        + '</div><div class="paper-legend">Median across kernels: '
+        + '</div><div class="paper-legend">Median of per-kernel '
+        'retained-minimum ratios: '
         f'<b>{median_ratio:.2f}&times;</b>. The gap ranges from '
         f'{min(ratios):.2f}&times; to {max(ratios):.2f}&times;.</div></div>'
     )
 
     table_rows = []
     for row in rows:
+        def runtime_cell(prefix: str) -> str:
+            return (
+                f'{value(row, prefix + "_ms"):.6f}'
+                f'<br><span class="scope">median '
+                f'{value(row, prefix + "_median_ms"):.6f}; max '
+                f'{value(row, prefix + "_max_ms"):.6f}; IQR '
+                f'{value(row, prefix + "_iqr_ms"):.6f}</span>'
+            )
         table_rows.append(
             '<tr>'
             f'<td><b>{html.escape(row["kernel"])}</b></td>'
             f'<td>{html.escape(row["validated_sites"])}</td>'
-            f'<td>{value(row, "vanilla_cpu_ms"):.6f}</td>'
-            f'<td>{value(row, "raised_cpu_ms"):.6f}</td>'
-            f'<td>{value(row, "raised_gpu_ms"):.6f}</td>'
-            f'<td>{value(row, "native_mfem_gpu_ms"):.6f}</td>'
+            f'<td>{runtime_cell("vanilla_cpu")}</td>'
+            f'<td>{runtime_cell("raised_cpu")}</td>'
+            f'<td>{runtime_cell("raised_gpu")}</td>'
+            f'<td>{runtime_cell("native_mfem_gpu")}</td>'
             f'<td>{value(row, "raised_gpu_slowdown_vs_native_mfem"):.2f}&times;</td>'
             '<td><span class="pass">PASS</span></td>'
             '</tr>'
         )
 
-    application_data = _read_csv(
-        MFEM_SECTION42_DIR / "application_performance_20260908.csv"
-    )
+    application_data = application_performance_rows
     application_table_rows = []
     application_bars = []
     for row in application_data:
@@ -5959,12 +6127,20 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         cpu_ratio = value(row, "raised_cpu_over_vanilla")
         gpu_ratio = value(row, "raised_gpu_over_vanilla")
         complete = row.get("correctness") == "PASS"
+        def application_cell(prefix: str, headline_ms: float) -> str:
+            return (
+                f'{headline_ms:.6f}<br><span class="scope">median '
+                f'{value(row, prefix + "_median_us") / 1000.0:.6f}; max '
+                f'{value(row, prefix + "_max_us") / 1000.0:.6f}; IQR '
+                f'{value(row, prefix + "_iqr_us") / 1000.0:.6f}</span>'
+            )
         application_table_rows.append(
             '<tr>'
             f'<td><b>{html.escape(row["id"])}</b></td>'
             f'<td>{html.escape(row.get("structural_launches", ""))}</td>'
-            f'<td>{vanilla:.6f}</td><td>{raised_cpu:.6f}</td>'
-            f'<td>{raised_gpu:.6f}</td>'
+            f'<td>{application_cell("vanilla_cpu", vanilla)}</td>'
+            f'<td>{application_cell("raised_cpu", raised_cpu)}</td>'
+            f'<td>{application_cell("raised_gpu", raised_gpu)}</td>'
             f'<td>{cpu_ratio:.2f}&times;</td><td>{gpu_ratio:.2f}&times;</td>'
             f'<td>{html.escape(row.get("cpu_correct_processes", "0"))}/5 CPU; '
             f'{html.escape(row.get("gpu_correct_processes", "0"))}/5 GPU</td>'
@@ -5988,14 +6164,17 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
             'application/operator hot paths, not untouched applications. Every '
             'row was freshly rebuilt from C at NE=1024. Correctness compares all '
             'output elements against the direct extracted-C reference before '
-            'timing. Native MFEM application baselines were not rerun.</div>'
+            'timing. Native MFEM application baselines were not rerun. Displayed '
+            'headlines are minima over the retained legacy campaign samples, not '
+            'new-protocol minimum-of-five results.</div>'
             '<div class="paper-chart-wrap"><h4>Raised GPU slowdown versus '
             'vanilla CPU reference (lower is better)</h4><div class="mfem-slow-bars">'
             + ''.join(application_bars) + '</div></div>'
             '<table class="audit-table paper-family mfem-results"><thead><tr>'
             '<th>derived path</th><th>structural launches</th>'
-            '<th>vanilla CPU (ms)</th><th>raised CPU (ms)</th>'
-            '<th>raised GPU (ms)</th><th>raised CPU/vanilla</th>'
+            '<th>vanilla CPU (ms, retained min)</th>'
+            '<th>raised CPU (ms, retained min)</th>'
+            '<th>raised GPU (ms, retained min)</th><th>raised CPU/vanilla</th>'
             '<th>raised GPU/vanilla</th><th>correct processes</th>'
             '<th>correctness</th></tr></thead><tbody>'
             + ''.join(application_table_rows) + '</tbody></table>'
@@ -6010,15 +6189,19 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         'vanilla C on CPU, Polygeist-raised CPU, Polygeist-raised GPU, and exact '
         'upstream native-MFEM CUDA. All 17 raised pipelines pass complete-output '
         'elementwise validation; all 17 native timing executions pass the '
-        'vanilla checksum gate. Polygeist raised GPU is currently a median '
+        'vanilla checksum gate. Separately, all 18 matched pipelines now pass '
+        'complete-output correctness after fixing integrate-value 3D. Using '
+        'each implementation’s minimum retained '
+        'sample, Polygeist raised GPU is currently a median '
         f'<b>{median_ratio:.2f}&times;</b> slower than native MFEM CUDA.</div>'
         '<div class="audit-metrics">'
-        '<div class="audit-metric"><b>17 / 18</b><span>kernels fully validated and timed</span></div>'
+        '<div class="audit-metric"><b>18 / 18</b><span>kernels complete-output correct</span></div>'
+        '<div class="audit-metric"><b>17 / 18</b><span>kernels with four-runtime timings</span></div>'
         f'<div class="audit-metric"><b>{total_sites} / 128</b><span>static contraction sites validated</span></div>'
         '<div class="audit-metric"><b>6,800</b><span>retained timing samples</span></div>'
         '<div class="audit-metric"><b>340 / 340</b><span>fresh-process executions passed</span></div>'
         f'<div class="audit-metric"><b>{checksum_passes} / 17</b><span>native checksum gates passed</span></div>'
-        f'<div class="audit-metric paper-provisional"><b>{median_ratio:.2f}&times;</b><span>median raised/native GPU gap</span></div>'
+        f'<div class="audit-metric paper-provisional"><b>{median_ratio:.2f}&times;</b><span>median of per-kernel retained-minimum raised/native GPU gaps</span></div>'
         '</div>'
         '<div class="paper-notes">'
         '<div><b>Evaluated source</b><span>MFEM-derived extracted and manually '
@@ -6027,9 +6210,12 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         'nonconstant inputs and nonzero initial outputs.</span></div>'
         '<div><b>Hardware</b><span>Jetson AGX Orin #2, SM87, MAXN; CPU 2.2016 GHz, '
         'GPU 1.3005 GHz, EMC 3.199 GHz; CUDA 12.6; driver 615.06 unchanged.</span></div>'
-        '<div><b>Statistic</b><span>Median of five independent process medians; '
-        'each process uses five warmups followed by twenty retained samples.</span></div>'
+        '<div class="paper-provisional"><b>Legacy statistic</b><span>Headline is '
+        'the minimum over five processes × twenty retained samples. This predates '
+        'the new one-process, minimum-of-five protocol and must be rerun for final '
+        'publication. Median, maximum, IQR, and raw evidence remain retained.</span></div>'
         '</div>'
+        + operator_coverage_section
         + runtime_chart + slowdown_chart
         + '<div class="section-header"><h3 class="section-title">Complete '
         'four-runtime result table</h3></div>'
@@ -6037,24 +6223,28 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         'lower is better. GPU measurements end after '
         '<code>cudaDeviceSynchronize</code>.</div>'
         '<table class="audit-table paper-family mfem-results"><thead><tr>'
-        '<th>kernel</th><th>validated sites</th><th>vanilla CPU (ms)</th>'
-        '<th>raised CPU (ms)</th><th>raised GPU (ms)</th>'
-        '<th>native MFEM GPU (ms)</th><th>raised/native</th><th>correctness</th>'
+        '<th>kernel</th><th>validated sites</th>'
+        '<th>vanilla CPU (ms, retained min)</th>'
+        '<th>raised CPU (ms, retained min)</th>'
+        '<th>raised GPU (ms, retained min)</th>'
+        '<th>native MFEM GPU (ms, retained min)</th>'
+        '<th>raised/native</th><th>correctness</th>'
         '</tr></thead><tbody>' + ''.join(table_rows) + '</tbody></table>'
         + application_section
         +
         '<div class="section-header"><h3 class="section-title">Correctness '
         'and exclusions</h3></div>'
         '<div class="paper-notes">'
-        '<div><b>Raised correctness</b><span>17/18 kernels, 126/128 matched '
-        'sites, and 1,240,064 FP64 output elements pass independent full-output '
+        '<div><b>Raised correctness</b><span>18/18 kernels, 128/128 matched '
+        'sites, and 1,305,600 FP64 output elements pass independent full-output '
         'comparison. Worst absolute error: 5.5511e-17.</span></div>'
         '<div><b>Native correctness</b><span>17/17 timing-run full-output '
         'checksums pass against vanilla C. This is not yet an independent '
         'elementwise native-output comparison.</span></div>'
-        '<div class="paper-provisional"><b>Excluded: integrate_value_3d</b><span>'
-        'Fresh raising is incorrect before matching; matching also exposes an '
-        'incompatible submap cast. Its two sites are not included in timings.</span></div>'
+        '<div class="paper-provisional"><b>Timing pending: integrate_value_3d</b><span>'
+        'The permutation-safe submapInverse fix is host- and Orin-correct with '
+        'both cuTensorNet sites. It is not yet in the immutable four-runtime '
+        'campaign or performance graphs.</span></div>'
         '<div class="paper-provisional"><b>Composition disabled</b><span>The '
         'five-match Mass3D composed network fails correctness. All reported '
         'raised measurements use the validated pairwise cuTensorNet path.</span></div>'
@@ -6062,7 +6252,7 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         '<div class="section-header"><h3 class="section-title">Interpretation</h3></div>'
         '<div class="paper-notes">'
         '<div><b>What works</b><span>Math/structure-driven recognition recovers '
-        '128 contractions across the 18-kernel corpus; 126 are executable and '
+        '128 contractions across the 18-kernel corpus; all 128 are executable and '
         'complete-output correct at NE=1024.</span></div>'
         '<div><b>Why raised GPU is slower</b><span>Each fused MFEM element-local '
         'kernel becomes many small pairwise library calls with planning, host '
@@ -6085,6 +6275,8 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         'performance_20260908.csv</a></span></div>'
         f'<div><b>Derived-application result ledger</b><span><a href="{artifact}/application_performance_20260908.csv">'
         'application_performance_20260908.csv</a></span></div>'
+        f'<div><b>Application-only library matches</b><span><a href="{artifact}/application_library_matches.csv">'
+        'application_library_matches.csv</a></span></div>'
         f'<div><b>Detailed four-way comparison</b><span><a href="{artifact}/comparison_with_native_20260908.csv">'
         'comparison_with_native_20260908.csv</a></span></div>'
         f'<div><b>Native distribution summary</b><span><a href="{artifact}/native_summary_20260908.csv">'
@@ -6096,6 +6288,10 @@ def _mfem_latest_paper_analysis_page(stats: list[dict]) -> str:
         'slowdown SVG</a></span></div>'
         f'<div><b>Publication analysis</b><span><a href="{artifact}/MFEM_PAPER_ANALYSIS_20260908.md">'
         'MFEM_PAPER_ANALYSIS_20260908.md</a></span></div>'
+        f'<div><b>Post-campaign correctness fix</b><span><a href="{artifact}/PENDING_CASES_RESOLUTION_20260908.md">'
+        f'resolution report</a> &middot; <a href="{artifact}/postfix_full_output_validation_20260908.csv">'
+        f'validation CSV</a> &middot; <a href="{artifact}/integrate_value_3d_fixed_orin.log">'
+        'raw Orin log</a></span></div>'
         '</div>'
         '<div class="intro"><a href="mfem.html">Inspect per-kernel source and IR '
         'artifacts →</a> &middot; <a href="modified-kernels.html">Inspect source '

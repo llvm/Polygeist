@@ -1,5 +1,11 @@
 # MFEM normalized-kernel NE=1024 timing campaign — 2026-09-08
 
+> Post-campaign update: the `integrate_value_3d` tensor-permutation lowering
+> bug described below has been fixed and both of its contraction sites pass
+> complete-output validation on Orin. This historical timing campaign remains
+> a 17-kernel/126-site dataset; no timing numbers were backfilled. See
+> `../section42_campaign/PENDING_CASES_RESOLUTION_20260908.md`.
+
 ## Outcome
 
 The clean sequential campaign completed 255/255 executable runs and retained

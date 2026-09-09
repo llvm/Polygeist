@@ -16,107 +16,107 @@
 <text class="axis" x="93" y="134.17" text-anchor="end">1000 ms</text>
 <line class="grid" x1="105" y1="48.00" x2="1470" y2="48.00"/>
 <text class="axis" x="93" y="53.00" text-anchor="end">10000 ms</text>
-<circle cx="128.15" cy="410.33" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.343552 ms</title></circle>
-<circle cx="139.15" cy="205.15" r="6" fill="#8250df"><title>Polygeist raised / CPU: 115.833312 ms</title></circle>
-<circle cx="151.15" cy="312.66" r="6" fill="#d97706"><title>Polygeist raised / GPU: 5.486992 ms</title></circle>
-<circle cx="162.15" cy="480.23" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.047296 ms</title></circle>
-<polyline class="pair" points="128.15,410.33 139.15,205.15 151.15,312.66 162.15,480.23" fill="none"/>
+<circle cx="128.15" cy="410.46" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.342304 ms</title></circle>
+<circle cx="139.15" cy="206.02" r="6" fill="#8250df"><title>Polygeist raised / CPU: 113.027328 ms</title></circle>
+<circle cx="151.15" cy="324.46" r="6" fill="#d97706"><title>Polygeist raised / GPU: 3.925920 ms</title></circle>
+<circle cx="162.15" cy="481.61" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.045472 ms</title></circle>
+<polyline class="pair" points="128.15,410.46 139.15,206.02 151.15,324.46 162.15,481.61" fill="none"/>
 <text class="label" transform="translate(150.15,550) rotate(56)" text-anchor="start">convection_apply_2d</text>
-<circle cx="208.44" cy="335.95" r="6" fill="#0969da"><title>Vanilla C / CPU: 2.833616 ms</title></circle>
-<circle cx="219.44" cy="123.97" r="6" fill="#8250df"><title>Polygeist raised / CPU: 1158.955232 ms</title></circle>
-<circle cx="231.44" cy="247.53" r="6" fill="#d97706"><title>Polygeist raised / GPU: 34.807136 ms</title></circle>
-<circle cx="242.44" cy="431.87" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.186480 ms</title></circle>
-<polyline class="pair" points="208.44,335.95 219.44,123.97 231.44,247.53 242.44,431.87" fill="none"/>
+<circle cx="208.44" cy="336.76" r="6" fill="#0969da"><title>Vanilla C / CPU: 2.768992 ms</title></circle>
+<circle cx="219.44" cy="126.82" r="6" fill="#8250df"><title>Polygeist raised / CPU: 1068.762432 ms</title></circle>
+<circle cx="231.44" cy="261.92" r="6" fill="#d97706"><title>Polygeist raised / GPU: 23.145344 ms</title></circle>
+<circle cx="242.44" cy="432.40" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.183680 ms</title></circle>
+<polyline class="pair" points="208.44,336.76 219.44,126.82 231.44,261.92 242.44,432.40" fill="none"/>
 <text class="label" transform="translate(230.44,550) rotate(56)" text-anchor="start">convection_apply_3d</text>
-<circle cx="288.74" cy="410.88" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.338192 ms</title></circle>
-<circle cx="299.74" cy="212.56" r="6" fill="#8250df"><title>Polygeist raised / CPU: 93.881264 ms</title></circle>
-<circle cx="311.74" cy="316.71" r="6" fill="#d97706"><title>Polygeist raised / GPU: 4.891328 ms</title></circle>
-<circle cx="322.74" cy="440.79" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.144784 ms</title></circle>
-<polyline class="pair" points="288.74,410.88 299.74,212.56 311.74,316.71 322.74,440.79" fill="none"/>
+<circle cx="288.74" cy="411.01" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.336928 ms</title></circle>
+<circle cx="299.74" cy="213.28" r="6" fill="#8250df"><title>Polygeist raised / CPU: 91.978944 ms</title></circle>
+<circle cx="311.74" cy="325.36" r="6" fill="#d97706"><title>Polygeist raised / GPU: 3.826816 ms</title></circle>
+<circle cx="322.74" cy="441.55" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.141696 ms</title></circle>
+<polyline class="pair" points="288.74,411.01 299.74,213.28 311.74,325.36 322.74,441.55" fill="none"/>
 <text class="label" transform="translate(310.74,550) rotate(56)" text-anchor="start">curlcurl_apply_2d</text>
-<circle cx="369.03" cy="297.38" r="6" fill="#0969da"><title>Vanilla C / CPU: 8.463776 ms</title></circle>
-<circle cx="380.03" cy="95.92" r="6" fill="#8250df"><title>Polygeist raised / CPU: 2568.061008 ms</title></circle>
-<circle cx="392.03" cy="196.31" r="6" fill="#d97706"><title>Polygeist raised / GPU: 148.851792 ms</title></circle>
-<circle cx="403.03" cy="272.87" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 16.961776 ms</title></circle>
-<polyline class="pair" points="369.03,297.38 380.03,95.92 392.03,196.31 403.03,272.87" fill="none"/>
+<circle cx="369.03" cy="298.19" r="6" fill="#0969da"><title>Vanilla C / CPU: 8.270784 ms</title></circle>
+<circle cx="380.03" cy="96.87" r="6" fill="#8250df"><title>Polygeist raised / CPU: 2499.605568 ms</title></circle>
+<circle cx="392.03" cy="219.09" r="6" fill="#d97706"><title>Polygeist raised / GPU: 78.003168 ms</title></circle>
+<circle cx="403.03" cy="272.89" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 16.954112 ms</title></circle>
+<polyline class="pair" points="369.03,298.19 380.03,96.87 392.03,219.09 403.03,272.89" fill="none"/>
 <text class="label" transform="translate(391.03,550) rotate(56)" text-anchor="start">curlcurl_apply_3d</text>
-<circle cx="449.32" cy="401.74" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.438384 ms</title></circle>
-<circle cx="460.32" cy="198.45" r="6" fill="#8250df"><title>Polygeist raised / CPU: 140.091856 ms</title></circle>
-<circle cx="472.32" cy="302.30" r="6" fill="#d97706"><title>Polygeist raised / GPU: 7.362000 ms</title></circle>
-<circle cx="483.32" cy="473.28" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.057600 ms</title></circle>
-<polyline class="pair" points="449.32,401.74 460.32,198.45 472.32,302.30 483.32,473.28" fill="none"/>
+<circle cx="449.32" cy="401.88" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.436608 ms</title></circle>
+<circle cx="460.32" cy="199.27" r="6" fill="#8250df"><title>Polygeist raised / CPU: 136.880928 ms</title></circle>
+<circle cx="472.32" cy="310.35" r="6" fill="#d97706"><title>Polygeist raised / GPU: 5.858112 ms</title></circle>
+<circle cx="483.32" cy="474.92" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.054976 ms</title></circle>
+<polyline class="pair" points="449.32,401.88 460.32,199.27 472.32,310.35 483.32,474.92" fill="none"/>
 <text class="label" transform="translate(471.32,550) rotate(56)" text-anchor="start">diffusion_apply_2d</text>
-<circle cx="529.62" cy="319.31" r="6" fill="#0969da"><title>Vanilla C / CPU: 4.542864 ms</title></circle>
-<circle cx="540.62" cy="113.03" r="6" fill="#8250df"><title>Polygeist raised / CPU: 1580.748192 ms</title></circle>
-<circle cx="552.62" cy="225.14" r="6" fill="#d97706"><title>Polygeist raised / GPU: 65.700080 ms</title></circle>
-<circle cx="563.62" cy="414.36" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.306432 ms</title></circle>
-<polyline class="pair" points="529.62,319.31 540.62,113.03 552.62,225.14 563.62,414.36" fill="none"/>
+<circle cx="529.62" cy="319.84" r="6" fill="#0969da"><title>Vanilla C / CPU: 4.475680 ms</title></circle>
+<circle cx="540.62" cy="115.53" r="6" fill="#8250df"><title>Polygeist raised / CPU: 1472.296928 ms</title></circle>
+<circle cx="552.62" cy="246.11" r="6" fill="#d97706"><title>Polygeist raised / GPU: 36.243232 ms</title></circle>
+<circle cx="563.62" cy="414.69" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.303584 ms</title></circle>
+<polyline class="pair" points="529.62,319.84 540.62,115.53 552.62,246.11 563.62,414.69" fill="none"/>
 <text class="label" transform="translate(551.62,550) rotate(56)" text-anchor="start">diffusion_apply_3d</text>
-<circle cx="609.91" cy="410.92" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.337808 ms</title></circle>
-<circle cx="620.91" cy="206.74" r="6" fill="#8250df"><title>Polygeist raised / CPU: 110.725328 ms</title></circle>
-<circle cx="632.91" cy="306.11" r="6" fill="#d97706"><title>Polygeist raised / GPU: 6.607824 ms</title></circle>
-<circle cx="643.91" cy="440.84" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.144560 ms</title></circle>
-<polyline class="pair" points="609.91,410.92 620.91,206.74 632.91,306.11 643.91,440.84" fill="none"/>
+<circle cx="609.91" cy="411.05" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.336576 ms</title></circle>
+<circle cx="620.91" cy="207.27" r="6" fill="#8250df"><title>Polygeist raised / CPU: 109.069056 ms</title></circle>
+<circle cx="632.91" cy="315.66" r="6" fill="#d97706"><title>Polygeist raised / GPU: 5.038368 ms</title></circle>
+<circle cx="643.91" cy="441.73" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.140960 ms</title></circle>
+<polyline class="pair" points="609.91,411.05 620.91,207.27 632.91,315.66 643.91,441.73" fill="none"/>
 <text class="label" transform="translate(631.91,550) rotate(56)" text-anchor="start">divdiv_apply_2d</text>
-<circle cx="690.21" cy="332.02" r="6" fill="#0969da"><title>Vanilla C / CPU: 3.167824 ms</title></circle>
-<circle cx="701.21" cy="130.97" r="6" fill="#8250df"><title>Polygeist raised / CPU: 950.253440 ms</title></circle>
-<circle cx="713.21" cy="240.48" r="6" fill="#d97706"><title>Polygeist raised / GPU: 42.518912 ms</title></circle>
-<circle cx="724.21" cy="373.58" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.974512 ms</title></circle>
-<polyline class="pair" points="690.21,332.02 701.21,130.97 713.21,240.48 724.21,373.58" fill="none"/>
+<circle cx="690.21" cy="333.36" r="6" fill="#0969da"><title>Vanilla C / CPU: 3.049536 ms</title></circle>
+<circle cx="701.21" cy="133.08" r="6" fill="#8250df"><title>Polygeist raised / CPU: 894.832960 ms</title></circle>
+<circle cx="713.21" cy="252.40" r="6" fill="#d97706"><title>Polygeist raised / GPU: 30.317312 ms</title></circle>
+<circle cx="724.21" cy="374.22" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.956960 ms</title></circle>
+<polyline class="pair" points="690.21,333.36 701.21,133.08 713.21,252.40 724.21,374.22" fill="none"/>
 <text class="label" transform="translate(712.21,550) rotate(56)" text-anchor="start">divdiv_apply_3d</text>
-<circle cx="770.50" cy="445.74" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.125792 ms</title></circle>
-<circle cx="781.50" cy="212.89" r="6" fill="#8250df"><title>Polygeist raised / CPU: 93.012192 ms</title></circle>
-<circle cx="793.50" cy="316.93" r="6" fill="#d97706"><title>Polygeist raised / GPU: 4.861264 ms</title></circle>
-<circle cx="804.50" cy="482.08" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.044880 ms</title></circle>
-<polyline class="pair" points="770.50,445.74 781.50,212.89 793.50,316.93 804.50,482.08" fill="none"/>
+<circle cx="770.50" cy="446.48" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.123200 ms</title></circle>
+<circle cx="781.50" cy="213.02" r="6" fill="#8250df"><title>Polygeist raised / CPU: 92.671712 ms</title></circle>
+<circle cx="793.50" cy="332.42" r="6" fill="#d97706"><title>Polygeist raised / GPU: 3.131936 ms</title></circle>
+<circle cx="804.50" cy="484.11" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.042368 ms</title></circle>
+<polyline class="pair" points="770.50,446.48 781.50,213.02 793.50,332.42 804.50,484.11" fill="none"/>
 <text class="label" transform="translate(792.50,550) rotate(56)" text-anchor="start">integrate_grad_2d</text>
-<circle cx="850.79" cy="355.61" r="6" fill="#0969da"><title>Vanilla C / CPU: 1.622128 ms</title></circle>
-<circle cx="861.79" cy="130.98" r="6" fill="#8250df"><title>Polygeist raised / CPU: 949.767744 ms</title></circle>
-<circle cx="873.79" cy="257.67" r="6" fill="#d97706"><title>Polygeist raised / GPU: 26.112496 ms</title></circle>
-<circle cx="884.79" cy="434.28" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.174144 ms</title></circle>
-<polyline class="pair" points="850.79,355.61 861.79,130.98 873.79,257.67 884.79,434.28" fill="none"/>
+<circle cx="850.79" cy="357.38" r="6" fill="#0969da"><title>Vanilla C / CPU: 1.542688 ms</title></circle>
+<circle cx="861.79" cy="131.08" r="6" fill="#8250df"><title>Polygeist raised / CPU: 947.240832 ms</title></circle>
+<circle cx="873.79" cy="277.03" r="6" fill="#d97706"><title>Polygeist raised / GPU: 15.076800 ms</title></circle>
+<circle cx="884.79" cy="434.74" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.171872 ms</title></circle>
+<polyline class="pair" points="850.79,357.38 861.79,131.08 873.79,277.03 884.79,434.74" fill="none"/>
 <text class="label" transform="translate(872.79,550) rotate(56)" text-anchor="start">integrate_grad_3d</text>
-<circle cx="931.09" cy="468.88" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.065248 ms</title></circle>
-<circle cx="942.09" cy="256.01" r="6" fill="#8250df"><title>Polygeist raised / CPU: 27.364528 ms</title></circle>
-<circle cx="954.09" cy="379.98" r="6" fill="#d97706"><title>Polygeist raised / GPU: 0.812688 ms</title></circle>
-<circle cx="965.09" cy="489.21" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.036656 ms</title></circle>
-<polyline class="pair" points="931.09,468.88 942.09,256.01 954.09,379.98 965.09,489.21" fill="none"/>
+<circle cx="931.09" cy="468.94" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.065152 ms</title></circle>
+<circle cx="942.09" cy="257.26" r="6" fill="#8250df"><title>Polygeist raised / CPU: 26.413472 ms</title></circle>
+<circle cx="954.09" cy="387.90" r="6" fill="#d97706"><title>Polygeist raised / GPU: 0.649056 ms</title></circle>
+<circle cx="965.09" cy="491.58" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.034272 ms</title></circle>
+<polyline class="pair" points="931.09,468.94 942.09,257.26 954.09,387.90 965.09,491.58" fill="none"/>
 <text class="label" transform="translate(953.09,550) rotate(56)" text-anchor="start">integrate_value_2d</text>
-<circle cx="1011.38" cy="429.04" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.202080 ms</title></circle>
-<circle cx="1022.38" cy="209.41" r="6" fill="#8250df"><title>Polygeist raised / CPU: 102.646480 ms</title></circle>
-<circle cx="1034.38" cy="330.37" r="6" fill="#d97706"><title>Polygeist raised / GPU: 3.319504 ms</title></circle>
-<circle cx="1045.38" cy="486.25" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.039872 ms</title></circle>
-<polyline class="pair" points="1011.38,429.04 1022.38,209.41 1034.38,330.37 1045.38,486.25" fill="none"/>
+<circle cx="1011.38" cy="429.11" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.201664 ms</title></circle>
+<circle cx="1022.38" cy="211.44" r="6" fill="#8250df"><title>Polygeist raised / CPU: 96.898048 ms</title></circle>
+<circle cx="1034.38" cy="333.25" r="6" fill="#d97706"><title>Polygeist raised / GPU: 3.059392 ms</title></circle>
+<circle cx="1045.38" cy="487.96" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.037984 ms</title></circle>
+<polyline class="pair" points="1011.38,429.11 1022.38,211.44 1034.38,333.25 1045.38,487.96" fill="none"/>
 <text class="label" transform="translate(1033.38,550) rotate(56)" text-anchor="start">interp_grad_2d</text>
-<circle cx="1091.68" cy="341.75" r="6" fill="#0969da"><title>Vanilla C / CPU: 2.403520 ms</title></circle>
-<circle cx="1102.68" cy="133.97" r="6" fill="#8250df"><title>Polygeist raised / CPU: 872.550288 ms</title></circle>
-<circle cx="1114.68" cy="266.59" r="6" fill="#d97706"><title>Polygeist raised / GPU: 20.270368 ms</title></circle>
-<circle cx="1125.68" cy="444.96" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.128608 ms</title></circle>
-<polyline class="pair" points="1091.68,341.75 1102.68,133.97 1114.68,266.59 1125.68,444.96" fill="none"/>
+<circle cx="1091.68" cy="342.34" r="6" fill="#0969da"><title>Vanilla C / CPU: 2.363808 ms</title></circle>
+<circle cx="1102.68" cy="134.16" r="6" fill="#8250df"><title>Polygeist raised / CPU: 868.021024 ms</title></circle>
+<circle cx="1114.68" cy="271.35" r="6" fill="#d97706"><title>Polygeist raised / GPU: 17.710880 ms</title></circle>
+<circle cx="1125.68" cy="445.90" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.125248 ms</title></circle>
+<polyline class="pair" points="1091.68,342.34 1102.68,134.16 1114.68,271.35 1125.68,445.90" fill="none"/>
 <text class="label" transform="translate(1113.68,550) rotate(56)" text-anchor="start">interp_grad_3d</text>
-<circle cx="1171.97" cy="452.62" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.103504 ms</title></circle>
-<circle cx="1182.97" cy="235.88" r="6" fill="#8250df"><title>Polygeist raised / CPU: 48.439712 ms</title></circle>
-<circle cx="1194.97" cy="361.23" r="6" fill="#d97706"><title>Polygeist raised / GPU: 1.383392 ms</title></circle>
-<circle cx="1205.97" cy="492.45" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.033440 ms</title></circle>
-<polyline class="pair" points="1171.97,452.62 1182.97,235.88 1194.97,361.23 1205.97,492.45" fill="none"/>
+<circle cx="1171.97" cy="452.67" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.103360 ms</title></circle>
+<circle cx="1182.97" cy="236.63" r="6" fill="#8250df"><title>Polygeist raised / CPU: 47.429056 ms</title></circle>
+<circle cx="1194.97" cy="366.79" r="6" fill="#d97706"><title>Polygeist raised / GPU: 1.181536 ms</title></circle>
+<circle cx="1205.97" cy="494.53" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.031520 ms</title></circle>
+<polyline class="pair" points="1171.97,452.67 1182.97,236.63 1194.97,366.79 1205.97,494.53" fill="none"/>
 <text class="label" transform="translate(1193.97,550) rotate(56)" text-anchor="start">interp_value_2d</text>
-<circle cx="1252.26" cy="389.26" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.624624 ms</title></circle>
-<circle cx="1263.26" cy="169.00" r="6" fill="#8250df"><title>Polygeist raised / CPU: 322.990912 ms</title></circle>
-<circle cx="1275.26" cy="312.09" r="6" fill="#d97706"><title>Polygeist raised / GPU: 5.576784 ms</title></circle>
-<circle cx="1286.26" cy="468.84" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.065328 ms</title></circle>
-<polyline class="pair" points="1252.26,389.26 1263.26,169.00 1275.26,312.09 1286.26,468.84" fill="none"/>
+<circle cx="1252.26" cy="389.31" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.623584 ms</title></circle>
+<circle cx="1263.26" cy="169.66" r="6" fill="#8250df"><title>Polygeist raised / CPU: 317.071200 ms</title></circle>
+<circle cx="1275.26" cy="316.55" r="6" fill="#d97706"><title>Polygeist raised / GPU: 4.913024 ms</title></circle>
+<circle cx="1286.26" cy="470.22" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.062816 ms</title></circle>
+<polyline class="pair" points="1252.26,389.31 1263.26,169.66 1275.26,316.55 1286.26,470.22" fill="none"/>
 <text class="label" transform="translate(1274.26,550) rotate(56)" text-anchor="start">interp_value_3d</text>
-<circle cx="1332.56" cy="424.78" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.227984 ms</title></circle>
-<circle cx="1343.56" cy="220.53" r="6" fill="#8250df"><title>Polygeist raised / CPU: 74.873696 ms</title></circle>
-<circle cx="1355.56" cy="335.00" r="6" fill="#d97706"><title>Polygeist raised / GPU: 2.911520 ms</title></circle>
-<circle cx="1366.56" cy="484.11" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.042368 ms</title></circle>
-<polyline class="pair" points="1332.56,424.78 1343.56,220.53 1355.56,335.00 1366.56,484.11" fill="none"/>
+<circle cx="1332.56" cy="424.97" r="6" fill="#0969da"><title>Vanilla C / CPU: 0.226784 ms</title></circle>
+<circle cx="1343.56" cy="221.10" r="6" fill="#8250df"><title>Polygeist raised / CPU: 73.688576 ms</title></circle>
+<circle cx="1355.56" cy="343.25" r="6" fill="#d97706"><title>Polygeist raised / GPU: 2.303360 ms</title></circle>
+<circle cx="1366.56" cy="487.63" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.038336 ms</title></circle>
+<polyline class="pair" points="1332.56,424.97 1343.56,221.10 1355.56,343.25 1366.56,487.63" fill="none"/>
 <text class="label" transform="translate(1354.56,550) rotate(56)" text-anchor="start">mass_apply_2d</text>
-<circle cx="1412.85" cy="363.67" r="6" fill="#0969da"><title>Vanilla C / CPU: 1.290880 ms</title></circle>
-<circle cx="1423.85" cy="148.68" r="6" fill="#8250df"><title>Polygeist raised / CPU: 574.925824 ms</title></circle>
-<circle cx="1435.85" cy="279.22" r="6" fill="#d97706"><title>Polygeist raised / GPU: 14.167280 ms</title></circle>
-<circle cx="1446.85" cy="442.29" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.138752 ms</title></circle>
-<polyline class="pair" points="1412.85,363.67 1423.85,148.68 1435.85,279.22 1446.85,442.29" fill="none"/>
+<circle cx="1412.85" cy="363.88" r="6" fill="#0969da"><title>Vanilla C / CPU: 1.283232 ms</title></circle>
+<circle cx="1423.85" cy="149.43" r="6" fill="#8250df"><title>Polygeist raised / CPU: 562.761152 ms</title></circle>
+<circle cx="1435.85" cy="293.89" r="6" fill="#d97706"><title>Polygeist raised / GPU: 9.345504 ms</title></circle>
+<circle cx="1446.85" cy="442.87" r="6" fill="#1a7f37"><title>Native MFEM / GPU: 0.136480 ms</title></circle>
+<polyline class="pair" points="1412.85,363.88 1423.85,149.43 1435.85,293.89 1446.85,442.87" fill="none"/>
 <text class="label" transform="translate(1434.85,550) rotate(56)" text-anchor="start">mass_apply_3d</text>
 <text class="axis" x="22" y="291.5" transform="rotate(-90 22 291.5)" text-anchor="middle">runtime (ms, logarithmic scale; lower is better)</text>
 <circle cx="300" cy="734" r="6" fill="#0969da"/>

@@ -5,12 +5,16 @@
 Seventeen MFEM-derived, manually normalized FP64 operator kernels have complete
 four-way measurements on one Jetson AGX Orin: optimized vanilla C on the CPU,
 Polygeist-raised CPU, Polygeist-raised GPU, and the corresponding upstream MFEM
-CUDA kernel. The evaluated set contains 126 validated static contraction sites.
+CUDA kernel. Those timed rows contain 126 validated static contraction sites.
+After the campaign, the `integrate_value_3d` lowering bug was fixed and its two
+sites passed full-output validation on Orin, making the correctness total
+18/18 kernels and 128/128 static contraction sites. It is not yet a timing row.
 
-Across the 17 kernels, Polygeist raised GPU is a median **85.37x slower** than
-native MFEM CUDA, with per-kernel ratios from **8.78x** to **214.40x**. Raised
-GPU is a median **14.46x slower** than optimized vanilla C, and raised CPU is a
-median **363.03x slower** than optimized vanilla C.
+Using each implementation's minimum retained sample, Polygeist raised GPU is a
+median **73.92x slower** than native MFEM CUDA across the 17 kernels, with
+per-kernel ratios from **4.60x** to **141.41x**. Raised GPU is a median
+**9.96x slower** than optimized vanilla C, and raised CPU is a median
+**367.21x slower** than optimized vanilla C.
 
 These results support a recognition-and-correctness claim, not a performance
 parity claim. The main observed cost is decomposition of MFEM's fused,
@@ -20,16 +24,16 @@ traffic.
 
 ## Evaluation cohort
 
-- 17/18 normalized kernels lowered, built, executed, and passed full-output
+- 18/18 normalized kernels lowered, built, executed, and passed full-output
   validation.
-- 126/128 recovered static contraction sites are in those validated pipelines.
-- 1,240,064 output elements were independently compared for the raised paths.
+- 128/128 recovered static contraction sites are in those validated pipelines.
+- 1,305,600 output elements were independently compared for the raised paths.
 - Worst raised-path absolute error: `5.5511151231257827e-17`.
 - All 17 native MFEM timing runs pass the vanilla-C complete-output checksum
   gate; the largest native checksum difference is `3.516e-13`.
-- `integrate_value_3d` and its two sites are excluded. Fresh raising is already
-  incorrect before matching, and the first match exposes an incompatible
-  submap/memref cast.
+- `integrate_value_3d` remains excluded from timing only. Its failure was a
+  non-identity tensor permutation incorrectly lowered as `tensor.insert_slice`.
+  The corrected affine writeback passes on the host and Orin with both matches.
 - Mass3D network composition is disabled because the five-match composed path
   fails full-output validation. Reported raised results use the correct pairwise
   cuTensorNet path.
@@ -45,8 +49,12 @@ traffic.
 - Five independent processes per implementation.
 - Five untimed warmups followed by twenty retained samples per process.
 - GPU timing ends after `cudaDeviceSynchronize`.
-- Headline value: median of the five process medians.
+- Headline value in the regenerated tables: minimum over all retained samples.
 - Total retained samples: 6,800.
+
+This is a legacy five-process-by-twenty-sample campaign. Its regenerated
+minimum is useful for updating the current tables, but it is not a substitute
+for rerunning MFEM with the new one-process, minimum-of-five protocol.
 
 ## Figures
 
@@ -55,14 +63,14 @@ traffic.
 **Figure 1:** Resident operator runtime for optimized vanilla C/CPU,
 Polygeist-raised CPU, Polygeist-raised GPU, and upstream native MFEM/GPU. The
 y-axis is logarithmic because the measurements span more than five orders of
-magnitude. Each point is the median of five independent process medians; each
-process retains twenty samples after five warmups. Lower is better.
+magnitude. Each point is the minimum over the retained legacy campaign samples;
+each process retained twenty samples after five warmups. Lower is better.
 
 ![Raised GPU versus native MFEM](mfem_raised_gpu_vs_native.svg)
 
 **Figure 2:** Slowdown of the Polygeist pairwise cuTensorNet GPU path relative
 to the corresponding upstream native MFEM CUDA kernel. Lower is better. The
-median slowdown is 85.37x.
+median of the per-kernel retained-minimum slowdowns is 73.92x.
 
 ## Claim boundary
 
@@ -85,6 +93,10 @@ evidence.
 - Native correctness audit: `native_checksum_audit_20260908.csv`
 - Full raised-path validation:
   `../FULL_OUTPUT_VALIDATION_2026-09-08.md`
+- Post-campaign fix and unmatched-elasticity audit:
+  `PENDING_CASES_RESOLUTION_20260908.md`
+- Machine-readable post-campaign validation:
+  `postfix_full_output_validation_20260908.csv`
 - Complete campaign report:
   `../silicon_results/2026-09-08_ne1024_pairwise_campaign.md`
 - Build/run/summarization scripts:

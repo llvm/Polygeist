@@ -1,0 +1,2 @@
+application_id,application_region,semantic_operation,internal_symbol,target_external_apis,matching_sites,lowered_sites,unmatched_sites,evidence,notes
+ex9p_mass_convection_2d,PCG vector updates,"y = alpha*x + beta*y",cublasDaxpby,"cublasDscal + cublasDaxpy",2,2,0,../application_extractions/results/mfem_app_ex9p_mass_convection_2d.matched.mlir,"Two structure-matched updates: x = x + alpha*p and p = z + beta*p; application-level correctness and timing are in application_performance_20260908.csv"

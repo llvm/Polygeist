@@ -185,6 +185,20 @@ module {
     return %updated : tensor<?xf32>
   }
 
+  func.func @permuted_tensor_writeback(
+      %base: tensor<2x5x5x4xf64>, %view: tensor<?x?x?x?xf64>)
+      -> tensor<2x5x5x4xf64> {
+    %c2 = arith.constant 2 : index
+    %c4 = arith.constant 4 : index
+    %c5 = arith.constant 5 : index
+    %updated = polygeist.submapInverse(
+        %base, %view, %c2, %c5, %c4, %c5)
+        {map = affine_map<(d0, d1, d2, d3) -> (d0, d3, d1, d2)>} :
+        (tensor<2x5x5x4xf64>, tensor<?x?x?x?xf64>,
+         index, index, index, index) -> tensor<2x5x5x4xf64>
+    return %updated : tensor<2x5x5x4xf64>
+  }
+
   func.func @symbol_broadcast_tensor_view(
       %base: tensor<?x8xf32>, %which: index) -> tensor<?x?xf32> {
     %c4 = arith.constant 4 : index
@@ -285,6 +299,18 @@ module {
 // CHECK: tensor.cast {{.*}} : tensor<?xf32> to tensor<64xf32>
 // CHECK: tensor.insert_slice
 // CHECK-SAME: tensor<64xf32> into tensor<?xf32>
+// CHECK: return
+
+// CHECK-LABEL: func.func @permuted_tensor_writeback
+// CHECK-NOT: tensor.cast
+// CHECK-NOT: tensor.insert_slice
+// CHECK: scf.for
+// CHECK: scf.for
+// CHECK: scf.for
+// CHECK: scf.for
+// CHECK: tensor.extract
+// CHECK: tensor.insert %{{.*}} into %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}]
+// CHECK-NOT: polygeist.submapInverse
 // CHECK: return
 
 // CHECK-LABEL: func.func @symbol_broadcast_tensor_view
