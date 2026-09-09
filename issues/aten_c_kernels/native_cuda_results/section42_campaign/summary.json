@@ -1,0 +1,24 @@
+{
+  "kernel_count": 182,
+  "whole_operation_or_domain_count": 115,
+  "exact_region_count": 68,
+  "overlap_count": 1,
+  "overlap": [
+    "aten_add_clamp"
+  ],
+  "batch_size": 25,
+  "batch_count": 8,
+  "completed_three_way_median5": 0,
+  "pending_three_way_median5": 182,
+  "verified_input_alignment": 5,
+  "pending_input_alignment": 177,
+  "protocol": {
+    "processes_per_kernel_implementation": 1,
+    "warmups": 5,
+    "samples": 5,
+    "statistic": "median",
+    "gpu_timing": "synchronized resident wall time",
+    "cpu_threads": 1,
+    "cpu_affinity": "core_0"
+  }
+}

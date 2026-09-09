@@ -417,14 +417,13 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv3d_ntap_f64";
   if (libSym == "cudnnConvolution3D_ntap_f32_tensor")
     return "polygeist_cudnn_conv3d_ntap_f32";
-  if (libSym == "cudnnStencil3DSymmetric_f64_memref")
-    return "polygeist_cudnn_stencil3d_symmetric_f64";
   if (libSym == "cudnnStencil3D7pt_f32_flat_tensor")
     return "polygeist_cudnn_stencil3d_7pt_f32_flat";
   if (libSym == "cudnnConvolution3D_f32" ||
       libSym == "cudnnConvolution3D_f32_bias")
     return "polygeist_cudnn_conv3d_channels_f32";
-  if (libSym == "cudnnConvolution1D_f32_bias")
+  if (libSym == "cudnnConvolution1D_f32_bias" ||
+      libSym == "cudnnConvolution1D_f32_bias_expanded")
     return "polygeist_cudnn_conv1d_bias_f32";
   if (libSym == "cudnnConvolution2D_f32_dilated")
     return "polygeist_cudnn_conv2d_dilated_f32";
@@ -520,13 +519,15 @@ static StringRef shimSymbolFor(StringRef libSym) {
   // conv, the broadcast onto the 4D iteration domain for batchnorm, etc.)
   // — the lowering walks each submap operand back to the underlying base
   // memref before extracting the data pointer.
-  if (libSym == "cudnnConvolutionFwd_batched")
+  if (libSym == "cudnnConvolutionFwd_batched" ||
+      libSym == "cudnnConvolutionFwd_batched_expanded")
     return "polygeist_cudnn_conv2d_batched";
   if (libSym == "cudnnConvolution2DWindow_f32")
     return "polygeist_cudnn_conv2d_uniform_window_f32";
   if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
       libSym.starts_with("cudnnAveragePool_f32_") ||
       libSym == "cudnnAvgPoolWindow_f32" ||
+      libSym == "cudnnAvgPoolWindow_f32_expanded" ||
       libSym == "cudnnBilinearUpsample2x_f32_r4")
     return "polygeist_cudnn_adaptive_pool_f32";
   if (libSym == "cudnnBatchNormBackward_f32_full" ||
@@ -1092,6 +1093,7 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
   if (launch.getNumResults() <= resultIndex) return;
   Value res = launch.getResult(resultIndex);
   SmallVector<tensor::InsertSliceOp> inserts;
+  SmallVector<polygeist::SubmapInverseOp> inverses;
   SmallVector<tensor::CastOp> resultCasts;
   if (updatedBaseTensor) {
     // Dynamic library signatures commonly expose an unranked launch result,
@@ -1110,6 +1112,12 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
             inserts.push_back(insert);
           continue;
         }
+        if (auto inverse = dyn_cast<polygeist::SubmapInverseOp>(user)) {
+          if (inverse.getOperand(1) == candidate && updatedBaseTensor &&
+              inverse.getResult().getType() == updatedBaseTensor.getType())
+            inverses.push_back(inverse);
+          continue;
+        }
         if (auto cast = dyn_cast<tensor::CastOp>(user)) {
           if (cast.getSource() == candidate && seenCasts.insert(cast).second) {
             resultCasts.push_back(cast);
@@ -1122,6 +1130,10 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
   for (auto insert : inserts) {
     insert.getResult().replaceAllUsesWith(updatedBaseTensor);
     insert.erase();
+  }
+  for (auto inverse : inverses) {
+    inverse.getResult().replaceAllUsesWith(updatedBaseTensor);
+    inverse.erase();
   }
   for (tensor::CastOp cast : llvm::reverse(resultCasts))
     if (cast.getResult().use_empty())
@@ -1911,60 +1923,6 @@ static LogicalResult lowerCudnnConv3DNtapTensor(LaunchOp launch,
   return success();
 }
 
-static LogicalResult lowerCudnnStencil3DSymmetricF64(LaunchOp launch,
-                                                      ModuleOp module) {
-  if (launch.getNumOperands() != 24 || launch.getNumResults() != 0)
-    return launch.emitError(
-        "cudnnStencil3DSymmetric_f64_memref: expected three memrefs, six "
-        "f64 scalars, fifteen i32 dimensions and no result");
-  for (unsigned i = 0; i < 3; ++i) {
-    auto type = dyn_cast<MemRefType>(launch.getOperand(i).getType());
-    if (!type || !type.getElementType().isF64())
-      return launch.emitError(
-          "cudnnStencil3DSymmetric_f64_memref: operands 0..2 must be f64 "
-          "memrefs");
-  }
-  for (unsigned i = 3; i < 9; ++i)
-    if (!launch.getOperand(i).getType().isF64())
-      return launch.emitError(
-          "cudnnStencil3DSymmetric_f64_memref: operands 3..8 must be f64");
-  for (unsigned i = 9; i < 24; ++i)
-    if (!launch.getOperand(i).getType().isInteger(32))
-      return launch.emitError(
-          "cudnnStencil3DSymmetric_f64_memref: dimensions must be i32");
-
-  OpBuilder b(launch);
-  Location loc = launch.getLoc();
-  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
-  SmallVector<Value> args;
-  SmallVector<Type> types;
-  for (unsigned i = 9; i < 24; ++i) {
-    args.push_back(launch.getOperand(i));
-    types.push_back(b.getI32Type());
-  }
-  for (unsigned i = 3; i < 9; ++i) {
-    args.push_back(launch.getOperand(i));
-    types.push_back(b.getF64Type());
-  }
-  for (unsigned i = 0; i < 3; ++i) {
-    Value memref = launch.getOperand(i);
-    // MG recovers its dynamic 3-D view from an erased C pointer.  That source
-    // pointer already denotes logical element zero; keeping it avoids
-    // inventing unavailable dynamic memref metadata at the C ABI boundary.
-    if (auto fromPointer =
-            memref.getDefiningOp<polygeist::Pointer2MemrefOp>())
-      args.push_back(fromPointer.getSource());
-    else
-      args.push_back(memrefDataPtr(b, loc, memref));
-    types.push_back(ptrTy);
-  }
-  func::FuncOp shim = ensureShimDecl(
-      module, "polygeist_cudnn_stencil3d_symmetric_f64", types, b);
-  b.create<func::CallOp>(loc, shim, args);
-  launch.erase();
-  return success();
-}
-
 static LogicalResult lowerCudnnStencil3D7ptFlat(LaunchOp launch,
                                                 ModuleOp module,
                                                 StringRef shimSymbol) {
@@ -2096,7 +2054,8 @@ static LogicalResult lowerCudnnConv1DBiasF32(LaunchOp launch,
   Value input = resolveSubmapBase(launch.getOperand(0));
   Value filter = resolveSubmapBase(launch.getOperand(1));
   Value bias = launch.getOperand(2);
-  Value output = launch.getOperand(3);
+  Value outputView = launch.getOperand(3);
+  Value output = resolveSubmapBase(outputView);
   auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto filterTy = dyn_cast<RankedTensorType>(filter.getType());
   auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
@@ -2131,9 +2090,11 @@ static LogicalResult lowerCudnnConv1DBiasF32(LaunchOp launch,
   func::FuncOp shim = ensureShimDecl(
       module, "polygeist_cudnn_conv1d_bias_f32", argTypes, b);
   b.create<func::CallOp>(loc, shim, args);
-  Value updated = memrefToTensor(b, loc, outputMr, output.getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, output));
+  Value outputViewMr = valueToOutputMemrefPreservingSlice(b, loc, outputView);
+  Value updatedView =
+      memrefToTensor(b, loc, outputViewMr, launch.getResult(0).getType());
+  Value updatedBase = memrefToTensor(b, loc, outputMr, output.getType());
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
 }
@@ -4569,8 +4530,10 @@ static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
                                        argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{N, alpha, x_ptr, beta, y_ptr});
-  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  Value yBase = resolveSubmapBase(y);
+  Value yBaseMr = tensorToMemref(b, loc, yBase);
+  Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
+  rewireLaunchResult(launch, out);
   launch.erase();
   return success();
 }
@@ -4597,8 +4560,10 @@ static LogicalResult lowerSaxpby(LaunchOp launch, ModuleOp module) {
   func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_saxpby", types, b);
   b.create<func::CallOp>(loc, shim, ValueRange{
       N, alpha, memrefBasePtr(b, loc, x_mr), beta, memrefBasePtr(b, loc, y_mr)});
-  Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  Value yBase = resolveSubmapBase(y);
+  Value yBaseMr = tensorToMemref(b, loc, yBase);
+  Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
+  rewireLaunchResult(launch, out);
   launch.erase();
   return success();
 }
@@ -4620,8 +4585,10 @@ static LogicalResult lowerSscal(LaunchOp launch, ModuleOp module) {
   func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_sscal", types, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{N, scale, memrefBasePtr(b, loc, x_mr)});
-  Value out = memrefToTensor(b, loc, x_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  Value xBase = resolveSubmapBase(x);
+  Value xBaseMr = tensorToMemref(b, loc, xBase);
+  Value out = memrefToTensor(b, loc, xBaseMr, xBase.getType());
+  rewireLaunchResult(launch, out);
   launch.erase();
   return success();
 }
@@ -4822,7 +4789,12 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
   Value V_mr = valueToMemrefPreservingSlice(b, loc, V);
   Value updatedView =
       memrefToTensor(b, loc, V_mr, launch.getResult(0).getType());
-  Value updatedBase = tensorForSliceSource(b, loc, V);
+  Value VBase = resolveSubmapBase(V);
+  Value updatedBase;
+  if (isa<RankedTensorType>(VBase.getType())) {
+    Value VBaseMemref = tensorToMemref(b, loc, VBase);
+    updatedBase = memrefToTensor(b, loc, VBaseMemref, VBase.getType());
+  }
   rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
@@ -4948,8 +4920,7 @@ static LogicalResult lowerCudnnConv2dBatched(LaunchOp launch,
       ValueRange{B, IC, OC, H, W, K, A_ptr, F_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outputBase.getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, outputBase));
+  rewireTensorSliceLaunchResult(launch, updated, updated);
   launch.erase();
   return success();
 }
@@ -5093,7 +5064,8 @@ static LogicalResult lowerCudnnAvgPoolWindowF32(LaunchOp launch,
         "cudnnAvgPoolWindow_f32: expected input, output, weight, "
         "KH, KW, SH, SW, DH, DW, PH, PW and one result");
   Value input = launch.getOperand(0);
-  Value output = launch.getOperand(1);
+  Value outputView = launch.getOperand(1);
+  Value output = resolveSubmapBase(stripTensorCasts(outputView));
   auto inputType = dyn_cast<RankedTensorType>(input.getType());
   auto outputType = dyn_cast<RankedTensorType>(output.getType());
   if (!inputType || !outputType || inputType.getRank() != 4 ||
@@ -5134,10 +5106,15 @@ static LogicalResult lowerCudnnAvgPoolWindowF32(LaunchOp launch,
       module, "polygeist_cudnn_adaptive_pool_f32", argTypes, b);
   b.create<func::CallOp>(loc, shim, args);
 
-  Value updated = memrefToTensor(
-      b, loc, outputMemref, launch.getResult(0).getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, output));
+  Value updatedBase = memrefToTensor(b, loc, outputMemref, output.getType());
+  Value updatedView = updatedBase;
+  if (launch.getResult(0).getType() != output.getType()) {
+    Value outputViewMemref =
+        valueToOutputMemrefPreservingSlice(b, loc, outputView);
+    updatedView = memrefToTensor(
+        b, loc, outputViewMemref, launch.getResult(0).getType());
+  }
+  rewireTensorSliceLaunchResult(launch, updatedView, updatedBase);
   launch.erase();
   return success();
 }
@@ -5301,8 +5278,7 @@ static LogicalResult lowerCudnnMaxpoolBatched(LaunchOp launch,
       ValueRange{B, C, H, W, OH, OW, A_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outBase.getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, outBase));
+  rewireTensorSliceLaunchResult(launch, updated, updated);
   launch.erase();
   return success();
 }
@@ -5435,8 +5411,7 @@ static LogicalResult lowerCudnnAddTensorBatched(LaunchOp launch,
   b.create<func::CallOp>(loc, shim, ValueRange{B, C, H, W, A_ptr, O_ptr});
 
   Value updated = memrefToTensor(b, loc, O_mr, outBase.getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, outBase));
+  rewireTensorSliceLaunchResult(launch, updated, updated);
   launch.erase();
   return success();
 }
@@ -5958,9 +5933,15 @@ static LogicalResult lowerCubSegmentedInclusiveProduct2DF32(
         memrefToTensor(b, loc, output, launch.getResult(0).getType());
     Value finalTensor =
         memrefToTensor(b, loc, finalValues, launch.getResult(1).getType());
+    Value outputBase = resolveSubmapBase(launch.getOperand(1));
+    Value updatedOutputBase;
+    if (isa<RankedTensorType>(outputBase.getType())) {
+      Value outputBaseMemref = tensorToMemref(b, loc, outputBase);
+      updatedOutputBase =
+          memrefToTensor(b, loc, outputBaseMemref, outputBase.getType());
+    }
     rewireTensorSliceLaunchResult(
-        launch, outputTensor,
-        tensorForOutputSliceSource(b, loc, launch.getOperand(1)), 0);
+        launch, outputTensor, updatedOutputBase, 0);
     if (!launch.getResult(1).use_empty())
       launch.getResult(1).replaceAllUsesWith(finalTensor);
   }
@@ -7386,7 +7367,12 @@ static LogicalResult lowerCudaCopyF32(LaunchOp launch, ModuleOp module,
       ValueRange{rows, cols, sRowStride, sColStride,
                  oRowStride, oColStride, sPtr, oPtr});
 
-  Value updatedBase = tensorForSliceSource(b, loc, out);
+  Value outBase = resolveSubmapBase(stripTensorCasts(out));
+  Value updatedBase;
+  if (isa<RankedTensorType>(outBase.getType())) {
+    Value outBaseMemref = tensorToMemref(b, loc, outBase);
+    updatedBase = memrefToTensor(b, loc, outBaseMemref, outBase.getType());
+  }
   // Preserve an updated slice for direct consumers as well as the base tensor
   // used to bypass a terminal insert_slice.
   Value updated = memrefToTensor(
@@ -7419,8 +7405,21 @@ static bool hasKnownContiguousLayout(MemRefType type) {
 }
 
 static Value stripMemrefCasts(Value value) {
-  while (auto cast = value.getDefiningOp<memref::CastOp>())
-    value = cast.getSource();
+  while (true) {
+    if (auto cast = value.getDefiningOp<memref::CastOp>()) {
+      value = cast.getSource();
+      continue;
+    }
+    auto toMemref = value.getDefiningOp<bufferization::ToMemrefOp>();
+    if (!toMemref)
+      break;
+    auto toTensor =
+        stripTensorCasts(toMemref.getTensor())
+            .getDefiningOp<bufferization::ToTensorOp>();
+    if (!toTensor)
+      break;
+    value = toTensor.getMemref();
+  }
   return value;
 }
 
@@ -7430,6 +7429,10 @@ static Value stripMemrefCasts(Value value) {
 // the inserted slice is exactly the same subview of the copy target before
 // erasing that redundant materialization.
 static bool isRedundantInPlaceInsertCopy(memref::CopyOp copy) {
+  if (stripMemrefCasts(copy.getSource()) ==
+      stripMemrefCasts(copy.getTarget()))
+    return true;
+
   auto toMemref = copy.getSource().getDefiningOp<bufferization::ToMemrefOp>();
   if (!toMemref)
     return false;
@@ -7520,8 +7523,13 @@ static LogicalResult lowerCublasBroadcastF32(LaunchOp launch, ModuleOp module,
   b.create<func::CallOp>(loc, shim,
       ValueRange{axisValue, rows, cols, srcPtr, outPtr});
   Value updated = memrefToTensor(b, loc, outMr, launch.getResult(0).getType());
-  rewireTensorSliceLaunchResult(
-      launch, updated, tensorForOutputSliceSource(b, loc, out));
+  Value outBase = resolveSubmapBase(stripTensorCasts(out));
+  Value updatedBase;
+  if (isa<RankedTensorType>(outBase.getType())) {
+    Value outBaseMemref = tensorToMemref(b, loc, outBase);
+    updatedBase = memrefToTensor(b, loc, outBaseMemref, outBase.getType());
+  }
+  rewireTensorSliceLaunchResult(launch, updated, updatedBase);
   launch.erase();
   return success();
 }
@@ -8185,15 +8193,14 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cudnnConvolution3D_ntap_tensor" ||
                  libSym == "cudnnConvolution3D_ntap_f32_tensor") {
         r = lowerCudnnConv3DNtapTensor(launch, module, shim);
-      } else if (libSym == "cudnnStencil3DSymmetric_f64_memref") {
-        r = lowerCudnnStencil3DSymmetricF64(launch, module);
       } else if (libSym == "cudnnStencil3D7pt_f32_flat_tensor") {
         r = lowerCudnnStencil3D7ptFlat(launch, module, shim);
       } else if (libSym == "cudnnConvolution3D_f32" ||
                  libSym == "cudnnConvolution3D_f32_bias") {
         r = lowerCudnnConv3DChannelsF32(
             launch, module, libSym == "cudnnConvolution3D_f32_bias");
-      } else if (libSym == "cudnnConvolution1D_f32_bias") {
+      } else if (libSym == "cudnnConvolution1D_f32_bias" ||
+                 libSym == "cudnnConvolution1D_f32_bias_expanded") {
         r = lowerCudnnConv1DBiasF32(launch, module);
       } else if (libSym == "cudnnConvolution2D_f32_dilated") {
         r = lowerCudnnConv2DDilatedF32(launch, module);
@@ -8250,11 +8257,13 @@ struct LowerKernelLaunchToCuBLASPass
                  libSym.starts_with("cutensornetNetwork_f64")) {
         r = lowerCutensornetNetwork(
             launch, module, libSym.starts_with("cutensornetNetwork_f64"));
-      } else if (libSym == "cudnnConvolutionFwd_batched") {
+      } else if (libSym == "cudnnConvolutionFwd_batched" ||
+                 libSym == "cudnnConvolutionFwd_batched_expanded") {
         r = lowerCudnnConv2dBatched(launch, module);
       } else if (libSym == "cudnnConvolution2DWindow_f32") {
         r = lowerCudnnUniformWindowConv2DF32(launch, module);
-      } else if (libSym == "cudnnAvgPoolWindow_f32") {
+      } else if (libSym == "cudnnAvgPoolWindow_f32" ||
+                 libSym == "cudnnAvgPoolWindow_f32_expanded") {
         r = lowerCudnnAvgPoolWindowF32(launch, module);
       } else if (libSym.starts_with("cudnnAdaptivePool_f32_") ||
                  libSym == "cudnnBilinearUpsample2x_f32_r4" ||

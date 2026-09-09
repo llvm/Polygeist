@@ -317,6 +317,16 @@ module {
     kernel.yield %result : tensor<?x?x?x?xf32>
   }
 
+  // Joint debufferization may preserve the filter over the complete
+  // [N,OC,OH,OW,IC,KH,KW] domain. ABI lowering verifies its submap and
+  // recovers the ordinary OIHW storage before calling the same cuDNN API.
+  kernel.defn @cudnnConvolutionFwd_batched_expanded(
+      %windows: tensor<?x?x?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?x?x?x?xf32>,
+      %output: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?x?x?x?xf32> {
+    kernel.yield %windows : tensor<?x?x?x?x?x?x?xf32>
+  }
+
   // Uniform-weight channel-preserving fixed-window convolution.  This is the
   // generic library form for box stencils and regular adaptive-average-pool
   // specializations.  The runtime constructs a [C,1,KH,KW] filter and selects
@@ -343,6 +353,15 @@ module {
       %dh: i32, %dw: i32, %ph: i32, %pw: i32)
       -> tensor<?x?x?x?xf32> {
     kernel.yield %output : tensor<?x?x?x?xf32>
+  }
+  kernel.defn @cudnnAvgPoolWindow_f32_expanded(
+      %input: tensor<?x?x?x?xf32>,
+      %output: tensor<?x?x?x?x?x?xf32>,
+      %weight: f32,
+      %kh: i32, %kw: i32, %sh: i32, %sw: i32,
+      %dh: i32, %dw: i32, %ph: i32, %pw: i32)
+      -> tensor<?x?x?x?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?x?x?x?xf32>
   }
 
   // Rank-parameterized ATen adaptive average/max pooling. Operation is
@@ -2273,6 +2292,16 @@ module {
       %filter: tensor<?x?x?xf32>, %bias: tensor<?xf32>,
       %output: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
     kernel.yield %output : tensor<?x?x?xf32>
+  }
+  // Joint debufferization can keep the filter and destination expanded over
+  // the complete [N,OC,L,IC,K] iteration domain. Their submaps still resolve
+  // to ordinary rank-3 NCL/OIK storage; this ABI preserves those views until
+  // lowering has verified and unwrapped them.
+  kernel.defn @cudnnConvolution1D_f32_bias_expanded(
+      %windows: tensor<?x?x?x?x?xf32>,
+      %filter: tensor<?x?x?x?x?xf32>, %bias: tensor<?xf32>,
+      %output: tensor<?x?x?x?x?xf32>) -> tensor<?x?x?x?x?xf32> {
+    kernel.yield %output : tensor<?x?x?x?x?xf32>
   }
   kernel.defn @cudnnConvolution2D_f32_dilated(
       %windows: tensor<?x?x?x?x?x?xf32>,

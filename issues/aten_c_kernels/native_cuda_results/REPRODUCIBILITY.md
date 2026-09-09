@@ -9,17 +9,26 @@
   resolved ledger contains all 271 kernels classified as complete mappings to
   a genuine library/runtime definition, plus 21 retained diagnostic or
   partial-match cases from the earlier campaign.
-- GPU timings use five warmups and the best of 20 synchronized wall-clock
-  measurements. Inputs and outputs remain in `cudaMalloc` storage during the
-  timed region; allocation and transfers are excluded.
+- New ATen Section 4.2 publication runs use one process per kernel and
+  implementation, five untimed warmups, and five synchronized timed
+  iterations. Retain all five raw samples and report their median. Inputs and
+  outputs remain in `cudaMalloc` storage during the timed region; allocation,
+  transfers, and correctness checks are excluded.
+- Existing timing ledgers generated with five warmups and best-of-20 are
+  historical/provisional measurements. They must remain labelled with that
+  timing method or be rerun before being described as results from the new
+  median-of-five protocol.
 - Raised timings are publishable only when the same device-pointer invocation
   is copied back and agrees with the extracted C reference before timing.
-- CPU timings use the same shape and dtype. The viewer reports separate
-  columns for the 24-thread x86-64 host and the 12-thread Jetson AGX Orin CPU;
-  they are cross-system context and are never folded into GPU speedup ratios.
+- CPU timings use the same shape and dtype. The primary Jetson CPU result is
+  pinned to core 0 with ATen and every threading library fixed to one thread.
+  Historical 24-thread x86-64 and 12-thread Jetson measurements are secondary
+  context and are never folded into the primary same-system speedup ratio.
 - Ratios require exact operation comparability, equal shape/dtype, and the
-  strict device-output correctness gate. Proxy and extracted-stage baselines
-  remain visible but have no ratio.
+  strict device-output correctness gate. They also require a verified common
+  input recipe: independently generated random tensors do not qualify even if
+  their seeds, shapes, and distributions match. Proxy and extracted-stage
+  baselines remain visible but have no ratio.
 - A `_cpu` fixture suffix identifies the ATen source implementation or dispatch
   stub used for extraction. It does not select the benchmark device and does
   not imply that the corresponding PyTorch operation lacks CUDA dispatch.
@@ -58,10 +67,9 @@ missing native adapters remain visible without a ratio.
 - GPU: Jetson AGX Orin, SM87, CUDA 12.6.
 - GPU framework baseline: PyTorch 2.6.0+cu126.
 - CPU framework baseline: PyTorch 2.6.0+cpu in isolated `/tmp/tpy_x86`.
-- Jetson CPU context: PyTorch 2.8.0+cpu in isolated
-  `/home/nvidia/tpy-cpu-site`, using 12 intra-op and 12 inter-op threads. This
-  version differs from the x86 and CUDA framework baselines and is labelled
-  explicitly in the provenance CSV and viewer.
+- Jetson CPU: PyTorch 2.8.0+cpu in isolated
+  `/home/nvidia/tpy-cpu-site`, pinned to core 0 with one intra-op and one
+  inter-op thread. Historical 12-thread measurements remain labelled as such.
 - cuDNN headers/runtime ABI: 9.22.0.
 - cuTENSOR headers/runtime ABI: 2.0.0.
 - Companion libraries are staged under
@@ -93,7 +101,10 @@ are staged to the device:
 
 ```
 PYTHONPATH=/home/nvidia/tpy-cpu-site ATEN_BENCH_DEVICE=cpu \
-ATEN_BENCH_TIMING=sync_wall python3 bench_shaped.py resident_shape_specs.json
+ATEN_BENCH_CPU_THREADS=1 ATEN_BENCH_CPU_INTEROP_THREADS=1 \
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+ATEN_BENCH_TIMING=sync_wall taskset -c 0 \
+python3 bench_shaped.py resident_shape_specs.json
 ```
 
 Parse logs and regenerate provenance:
@@ -145,3 +156,33 @@ Finally regenerate the ATen viewer with:
 ```
 python3 scripts/correctness/build_ce_viewer.py --aten-only
 ```
+
+## Section 4.2 large-batch campaign
+
+The publication cohort is frozen by an explicit manifest: 115 verified whole
+operations or bounded benchmark domains plus 68 exact extracted regions, with
+`aten_add_clamp` in both sets, for 182 unique kernels. The default partition is
+seven batches of 25 kernels and a final batch of seven. A batch is a deployment
+and bookkeeping unit; every kernel/implementation is still a separate process.
+
+Prepare or refresh the manifest, then build and run one batch:
+
+```
+python3 scripts/correctness/prepare_aten_section42_campaign.py
+python3 scripts/correctness/run_aten_section42_batch.py --batch 1 --phase build
+python3 scripts/correctness/run_aten_section42_batch.py --batch 1 --phase cpu
+python3 scripts/correctness/run_aten_section42_batch.py --batch 1 --phase native
+python3 scripts/correctness/run_aten_section42_batch.py --batch 1 --phase raised
+python3 scripts/correctness/collect_aten_section42_campaign.py
+```
+
+All run phases resume from five-sample records already present in the campaign
+log directory. Pass `--dry-run` to validate a batch without building, staging,
+or executing it. The CPU phase pins execution to Orin core 0 and fixes ATen,
+OpenMP, and BLAS thread counts at one. The native phase uses existing ATen operations or
+the exact extracted-region ATen harness; it never substitutes a handwritten
+CUDA kernel.
+
+`manifest.csv` records input alignment independently from timing completion.
+The collector emits `COMPLETE` only when all three implementations have five
+valid samples, correctness passes, and `input_alignment` is `VERIFIED`.
