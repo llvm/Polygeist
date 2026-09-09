@@ -1,18 +1,27 @@
 # Figure generation
 
-The source SVG figures are generated from the retained five-warmup/five-sample
-CSVs by:
+The HTML viewer embeds the same PGFPlots PDFs used in the Overleaf paper. Their
+mirrored source snapshots are:
 
 ```text
-python3 issues/polybench_section42/generate_paper_analysis.py
+issues/polybench_section42/paper_analysis/polybench_cpu_native_vs_raised.tex
+issues/polybench_section42/paper_analysis/polybench_gpu_native_vs_raised.tex
+issues/polybench_section42/paper_analysis/polybench_cpu_min5.csv
+issues/polybench_section42/paper_analysis/polybench_gpu_min5.csv
 ```
 
-The LaTeX-ready PDFs were converted from those SVGs with CairoSVG 2.9.1:
+Compile the two standalone TeX sources with `pdflatex`:
 
 ```text
-/home/arjaiswal/.local/bin/uv run --with cairosvg cairosvg issues/polybench_section42/paper_analysis/polybench_cpu_runtime.svg -o issues/polybench_section42/paper_analysis/polybench_cpu_runtime.pdf -f pdf
-/home/arjaiswal/.local/bin/uv run --with cairosvg cairosvg issues/polybench_section42/paper_analysis/polybench_gpu_runtime.svg -o issues/polybench_section42/paper_analysis/polybench_gpu_runtime.pdf -f pdf
+cd issues/polybench_section42/paper_analysis
+pdflatex -interaction=nonstopmode -halt-on-error polybench_cpu_native_vs_raised.tex
+pdflatex -interaction=nonstopmode -halt-on-error polybench_gpu_native_vs_raised.tex
 ```
 
-The PDFs are presentation derivatives. The CSVs, generator, and SVGs are the
-reproducible source artifacts.
+Both comparison figures plot the native/raised runtime ratio on a base-2
+logarithmic axis. The `1x` line means equal performance; values to its right
+are raised-code speedups and values to its left are regressions. This single
+continuous scale replaces the former CPU broken-axis/cutoff presentation and
+keeps large and small ratios visible without truncation. The CPU-versus-GPU
+chart is not a paper figure and is intentionally omitted from the HTML
+analysis.

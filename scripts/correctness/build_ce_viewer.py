@@ -2098,11 +2098,17 @@ _ATEN_BENCHMARK_STATUS = _load_kernel_csv(_ATEN_BENCHMARK_STATUS_CSV)
 _ATEN_SECTION42 = _load_kernel_csv(_ATEN_SECTION42_RESULTS_CSV)
 
 
+def _aten_campaign_value(row: dict[str, str], phase: str) -> str:
+    """Return the headline minimum-of-five value, with legacy fallback."""
+    return (row.get(f"{phase}_min_us", "") or
+            row.get(f"{phase}_median_us", ""))
+
+
 def _aten_campaign_phase_ok(row: dict[str, str], phase: str) -> bool:
-    """Whether a Section 4.2 phase has an accepted median-of-five result."""
-    median = row.get(f"{phase}_median_us", "")
+    """Whether a Section 4.2 phase has an accepted five-sample result."""
+    headline = _aten_campaign_value(row, phase)
     errors = row.get(f"{phase}_errors", "")
-    if not median:
+    if not headline:
         return False
     # The one-core CPU runner records correctness in its own invocation and
     # historically leaves this collector field empty. GPU phases must carry
@@ -2118,25 +2124,25 @@ def _aten_campaign_status(kernel: str) -> dict[str, str]:
         return {}
     legacy.update({"shape": row.get("shape", ""),
                    "dtype": row.get("dtype", ""),
-                   "native_cpu_orin_us": row.get("cpu_median_us", "")})
+                   "native_cpu_orin_us": _aten_campaign_value(row, "cpu")})
     native_ok = _aten_campaign_phase_ok(row, "native_gpu")
     raised_ok = _aten_campaign_phase_ok(row, "raised")
-    legacy["native_gpu_us"] = (row.get("native_gpu_median_us", "")
+    legacy["native_gpu_us"] = (_aten_campaign_value(row, "native_gpu")
                                 if native_ok else "")
-    legacy["raised_resident_us"] = (row.get("raised_median_us", "")
+    legacy["raised_resident_us"] = (_aten_campaign_value(row, "raised")
                                      if raised_ok else "")
     if raised_ok:
         legacy["raised_status"] = "VERIFIED_RESIDENT"
         legacy["status_detail"] = (
             "current Section 4.2 resident run: five warmups, five synchronized "
-            "samples, median reported, device output passed correctness")
+            "samples, minimum reported, device output passed correctness")
     else:
         legacy["raised_status"] = "PENDING_RAISED"
         legacy["status_detail"] = (
             "current Section 4.2 raised resident measurement is pending")
     if native_ok and raised_ok:
-        native = float(row["native_gpu_median_us"])
-        raised = float(row["raised_median_us"])
+        native = float(_aten_campaign_value(row, "native_gpu"))
+        raised = float(_aten_campaign_value(row, "raised"))
         legacy["ratio_raised_over_native"] = f"{raised / native:.9f}"
     else:
         legacy["ratio_raised_over_native"] = ""
@@ -2706,7 +2712,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
             ratio = float(status.get("ratio_raised_over_native", ""))
             raised = float(status.get("raised_resident_us", ""))
             native = float(status.get("native_gpu_us", ""))
-            cpu = float(campaign.get("cpu_median_us", ""))
+            cpu = float(_aten_campaign_value(campaign, "cpu"))
         except ValueError:
             continue
         measurements.append((ratio, raised, native, cpu, kernel, status))
@@ -2768,7 +2774,7 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         'correctness-gated campaign.</b> Every row uses a correctness-gated raised call '
         'with <code>cudaMalloc</code> operands and an existing ATen CUDA operation '
         'at the same shape and dtype. Each configuration uses one process, five '
-        'untimed warmups, five synchronized samples, and reports the median in '
+        'untimed warmups, five synchronized samples, and reports the minimum in '
         'microseconds. Allocation and transfers are excluded. '
         f'The median raised/native ratio is {median_ratio:.2f}&times;; '
         f'{within_125}/{len(measurements)} are within 1.25&times; and '
@@ -2782,8 +2788,9 @@ def _aten_slowness_page(aten_stats: dict[str, dict]) -> str:
         '2–20&times;, and green are below 2&times;.'
         f'<ul>{category_items}</ul></div>'
         '<table><thead><tr><th>kernel</th><th>benchmark shape</th>'
-        '<th>raised resident (µs)</th><th>ATen native CUDA resident (µs)</th>'
-        '<th>ATen CPU, Orin 1 core (µs)</th><th>raised/native</th>'
+        '<th>raised resident (µs, min of 5)</th>'
+        '<th>ATen native CUDA resident (µs, min of 5)</th>'
+        '<th>ATen CPU, Orin 1 core (µs, min of 5)</th><th>raised/native</th>'
         '<th>dominant reason</th><th>next correction</th></tr></thead><tbody>'
         + "\n".join(rows) + '</tbody></table>'
     )
@@ -2841,7 +2848,7 @@ def _format_percent(value: float | None) -> str:
 def _percent_speedup_chart(
         title: str, categories: list[str],
         series: list[tuple[str, str, dict[str, float | None]]]) -> str:
-    """Render a grouped diverging bar chart, leaving missing results blank."""
+    """Render a grouped diverging bar chart with explicit missing-result Xs."""
     values = [value for _, _, mapping in series for value in mapping.values()
               if value is not None and math.isfinite(value)]
     if not categories or not values:
@@ -2884,9 +2891,11 @@ def _percent_speedup_chart(
     group_w = plot_w / len(categories)
     usable_w = group_w * 0.78
     bar_w = min(24.0, usable_w / max(1, len(series)))
+    rendered_bar_w = max(1.0, bar_w - 1.0)
     for category_index, category in enumerate(categories):
         center = left + (category_index + 0.5) * group_w
-        start = center - len(series) * bar_w / 2.0
+        rendered_group_w = ((len(series) - 1) * bar_w + rendered_bar_w)
+        start = center - rendered_group_w / 2.0
         for series_index, (label, color, mapping) in enumerate(series):
             x = start + series_index * bar_w
             value = mapping.get(category)
@@ -2898,7 +2907,7 @@ def _percent_speedup_chart(
             tooltip = html.escape(
                 f'{category} | {label} | {value:+.2f}% speedup')
             svg.append(
-                f'<rect x="{x:.2f}" y="{rect_y:.2f}" width="{bar_w-1:.2f}" '
+                f'<rect x="{x:.2f}" y="{rect_y:.2f}" width="{rendered_bar_w:.2f}" '
                 f'height="{rect_h:.2f}" fill="{color}"><title>{tooltip}</title></rect>')
         label_x = center
         label_y = height - bottom + 17
@@ -2921,8 +2930,97 @@ def _percent_speedup_chart(
         + ''.join(svg) + '</div>')
 
 
+def _aten_raised_win_explanation(
+        kernel: str, audit: dict[str, str], speedup: float) -> str:
+    """Explain a measured win without treating correlation as causal proof.
+
+    This is presentation-only classification from the independently produced
+    semantic-family and selected-library fields. It does not participate in
+    matching or backend selection.
+    """
+    family = audit.get("semantic_family", "")
+    match = audit.get("current_match", "")
+    library = audit.get("candidate_library", "external library")
+    if speedup < 1.10:
+        return (
+            f"Near parity through {library}; the small difference is consistent "
+            "with wrapper, dispatch, algorithm-selection, or run-to-run effects "
+            "and is not yet an established optimization advantage."
+        )
+    if family == "sparse_linear_algebra":
+        return (
+            "The fixed sparse operation reaches cuSPARSE directly, avoiding "
+            "some general sparse dispatch and representation handling."
+        )
+    if family == "data_movement":
+        if "unbind" in kernel:
+            return (
+                "The fixed extracted region becomes one regular 2-D CUDA copy; "
+                "the ATen fixture retains multi-output unbind handling."
+            )
+        return (
+            "The fixed geometry lowers to a direct CUDA copy or regular "
+            "permutation instead of general tensor construction logic."
+        )
+    if family in {"tensor_permutation", "patch_extract_scatter"}:
+        return (
+            "cuTENSOR executes the fixed affine layout transformation as one "
+            "coalesced permutation, avoiding general indexing/materialization."
+        )
+    if family == "tensor_initialization":
+        return (
+            "The all-zero result lowers to cudaMemset rather than a general "
+            "tensor-fill dispatch."
+        )
+    if family == "dense_vector_update":
+        return (
+            "The extracted scale is a direct in-place cuBLAS Scal call rather "
+            "than a general pointwise multiply."
+        )
+    if family == "normalization":
+        return (
+            "A vendor operation graph evaluates the fixed normalization/scale "
+            "formula with less general dispatch and intermediate handling."
+        )
+    if family == "pointwise_reduction_formula":
+        return (
+            "The fixed pointwise-plus-reduction formula is represented by a "
+            "vendor graph rather than separate general ATen stages."
+        )
+    if family in {"pointwise", "pointwise_formula", "pointwise_math"}:
+        if "round" in kernel:
+            return (
+                "The fixed rounding expression is executed by a vendor "
+                "pointwise graph; the measured ATen route has higher arithmetic "
+                "or dispatch cost at this shape."
+            )
+        return (
+            "The fixed expression reaches a vendor pointwise operation or graph "
+            "with less general TensorIterator/dispatch overhead."
+        )
+    if family == "convolution":
+        return (
+            "The fixed convolution maps directly to cuDNN; the modest difference "
+            "is most plausibly plan/algorithm and wrapper selection."
+        )
+    if family == "pooling":
+        return (
+            "The fixed pooling geometry maps directly to cuDNN Resample; the "
+            "small difference is effectively near parity."
+        )
+    if family == "dense_linear_algebra":
+        return (
+            "Both paths ultimately use dense-library machinery; the measured "
+            "difference is near parity rather than a distinct algorithmic win."
+        )
+    return (
+        f"The fixed region reaches {library} through {match or 'one external call'}, "
+        "reducing general framework dispatch for this benchmark shape."
+    )
+
+
 def _aten_section42_paper_page() -> str:
-    """Render the active 182-kernel median-of-five campaign."""
+    """Render the active minimum-of-five campaign."""
     rows = list(_ATEN_SECTION42.values())
     library = {
         row.get("kernel", ""): row for row in _read_csv(ATEN_CUDA_LIBRARY_AUDIT)
@@ -2942,6 +3040,10 @@ def _aten_section42_paper_page() -> str:
     raised_only = sum(_aten_campaign_phase_ok(row, "raised") and
                       not _aten_campaign_phase_ok(row, "native_gpu") for row in rows)
     neither = len(rows) - paired - native_only - raised_only
+    framework_pairs = sum(
+        row.get("comparability", "").startswith("FRAMEWORK_LEVEL") and
+        _aten_campaign_phase_ok(row, "native_gpu") and
+        _aten_campaign_phase_ok(row, "raised") for row in rows)
     static_library = sum(
         row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE" and
         row.get("counts_as_library_reuse") == "yes"
@@ -2952,20 +3054,25 @@ def _aten_section42_paper_page() -> str:
         if not (_aten_campaign_phase_ok(row, "native_gpu") and
                 _aten_campaign_phase_ok(row, "raised")):
             continue
-        native_us = float(row["native_gpu_median_us"])
-        raised_us = float(row["raised_median_us"])
+        if row.get("comparability", "").startswith("FRAMEWORK_LEVEL"):
+            continue
+        native_us = float(_aten_campaign_value(row, "native_gpu"))
+        raised_us = float(_aten_campaign_value(row, "raised"))
+        cpu_value = _aten_campaign_value(row, "cpu")
+        cpu_us = float(cpu_value) if cpu_value else None
         measurements.append({
             "kernel": row["kernel"],
             "family": library.get(row["kernel"], {}).get(
                 "semantic_family", "unclassified"),
             "shape": row.get("shape", ""),
             "dtype": row.get("dtype", ""),
-            "cpu": float(row["cpu_median_us"]),
+            "cpu": cpu_us,
             "native": native_us,
             "raised": raised_us,
             "ratio": raised_us / native_us,
-            "cpu_speedup": float(row["cpu_median_us"]) / raised_us,
+            "cpu_speedup": cpu_us / raised_us if cpu_us is not None else None,
             "aligned": row.get("input_alignment") == "VERIFIED",
+            "comparability": row.get("comparability", ""),
         })
     measurements.sort(key=lambda item: (item["ratio"], item["kernel"]))
 
@@ -2992,7 +3099,7 @@ def _aten_section42_paper_page() -> str:
         value *= 10
     ratio_svg = [
         f'<svg class="paper-chart" viewBox="0 0 {chart_width} {chart_height}" '
-        'role="img" aria-label="Raised divided by native ATen CUDA median runtime">'
+        'role="img" aria-label="Raised divided by native ATen CUDA minimum-of-five runtime">'
     ]
     for tick in ratio_ticks:
         y = y_position(tick, ratio_low, ratio_high)
@@ -3017,7 +3124,7 @@ def _aten_section42_paper_page() -> str:
     ratio_svg.append(
         f'<text class="paper-axis-label" x="{chart_width/2:.1f}" '
         f'y="{chart_height-10}" text-anchor="middle">'
-        f'{paired} kernels sorted by raised/native ratio; synchronized wall time '
+        f'{len(measurements)} legally comparable kernels sorted by raised/native ratio; synchronized wall time '
         '(dimensionless ratio)</text></svg>')
 
     # CPU/raised coverage is independent of native-CUDA availability. Do not
@@ -3028,8 +3135,8 @@ def _aten_section42_paper_page() -> str:
         if not (_aten_campaign_phase_ok(row, "cpu") and
                 _aten_campaign_phase_ok(row, "raised")):
             continue
-        cpu_us = float(row["cpu_median_us"])
-        raised_us = float(row["raised_median_us"])
+        cpu_us = float(_aten_campaign_value(row, "cpu"))
+        raised_us = float(_aten_campaign_value(row, "raised"))
         cpu_measurements.append({
             "kernel": row["kernel"],
             "cpu": cpu_us,
@@ -3052,7 +3159,7 @@ def _aten_section42_paper_page() -> str:
         value *= 10
     cpu_ratio_svg = [
         f'<svg class="paper-chart" viewBox="0 0 {chart_width} {chart_height}" '
-        'role="img" aria-label="Orin one-core CPU divided by raised GPU median runtime">'
+        'role="img" aria-label="Orin one-core CPU divided by raised GPU minimum-of-five runtime">'
     ]
     for tick in cpu_ratio_ticks:
         y = y_position(tick, cpu_ratio_low, cpu_ratio_high)
@@ -3094,7 +3201,7 @@ def _aten_section42_paper_page() -> str:
         value *= 10
     absolute_svg = [
         f'<svg class="paper-chart" viewBox="0 0 {chart_width} {chart_height}" '
-        'role="img" aria-label="ATen CUDA and raised resident median runtime in microseconds">'
+        'role="img" aria-label="ATen CUDA and raised resident minimum-of-five runtime in microseconds">'
     ]
     for tick in absolute_ticks:
         y = y_position(tick, absolute_low, absolute_high)
@@ -3119,22 +3226,82 @@ def _aten_section42_paper_page() -> str:
     absolute_svg.append(
         f'<text class="paper-axis-label" x="{chart_width/2:.1f}" '
         f'y="{chart_height-10}" text-anchor="middle">'
-        'same kernel order; median synchronized resident runtime (µs)</text></svg>')
+        'same kernel order; minimum-of-five synchronized resident runtime (µs)</text></svg>')
 
     data_rows = []
     for rank, item in enumerate(measurements, 1):
+        cpu_text = (f'{item["cpu"]:,.3f}'
+                    if item["cpu"] is not None else "—")
         gpu_percent = _percent_speedup(item["native"], item["raised"])
-        cpu_percent = _percent_speedup(item["cpu"], item["raised"])
+        cpu_percent = (_percent_speedup(item["cpu"], item["raised"])
+                       if item["cpu"] is not None else None)
         data_rows.append(
             '<tr>'
             f'<td>{rank}</td><td><code>{html.escape(item["kernel"])}</code></td>'
             f'<td>{html.escape(item["family"].replace("_", " "))}</td>'
             f'<td><code>{html.escape(item["shape"].replace("_", " "))}</code></td>'
             f'<td>{html.escape(item["dtype"])}</td>'
-            f'<td>{item["cpu"]:,.3f}</td><td>{item["native"]:,.3f}</td>'
+            f'<td>{cpu_text}</td><td>{item["native"]:,.3f}</td>'
             f'<td>{item["raised"]:,.3f}</td><td>{_format_percent(gpu_percent)}</td>'
             f'<td>{_format_percent(cpu_percent)}</td>'
             f'<td>{"verified" if item["aligned"] else "pending"}</td></tr>')
+
+    competitive_rows = []
+    competitive = sorted(
+        (item for item in measurements if item["ratio"] < 1.6),
+        key=lambda item: (item["ratio"], item["kernel"]),
+    )
+    raised_winners = sum(item["ratio"] < 1.0 for item in competitive)
+    near_parity = sum(0.9 <= item["ratio"] < 1.1 for item in competitive)
+    for item in competitive:
+        audit = library.get(item["kernel"], {})
+        native_over_raised = 1.0 / item["ratio"]
+        route = " / ".join(filter(None, (
+            audit.get("candidate_library", ""),
+            audit.get("current_match", ""),
+        ))) or "external route not recorded"
+        interpretation = (
+            "raised GPU faster"
+            if item["ratio"] < 0.9
+            else "competitive parity (within 10%)"
+            if item["ratio"] < 1.1
+            else "competitive; raised GPU within 1.6x of native"
+        )
+        evidence = ("strict input alignment verified" if item["aligned"]
+                    else "input alignment pending")
+        likely_reason = (
+            _aten_raised_win_explanation(
+                item["kernel"], audit, native_over_raised)
+            if item["ratio"] < 1.0
+            else "The fixed library mapping is competitive with native ATen; "
+                 "the remaining gap is consistent with wrapper, plan, layout, "
+                 "or synchronization overhead."
+        )
+        competitive_rows.append(
+            '<tr>'
+            f'<td><code>{html.escape(item["kernel"])}</code></td>'
+            f'<td>{item["native"]:,.3f}</td><td>{item["raised"]:,.3f}</td>'
+            f'<td><b>{item["ratio"]:.3f}&times;</b></td>'
+            f'<td><code>{html.escape(route)}</code></td>'
+            f'<td>{html.escape(likely_reason)}</td>'
+            f'<td>{html.escape(item["comparability"].replace("_", " ").lower())}</td>'
+            f'<td>{html.escape(interpretation)}; {html.escape(evidence)}</td>'
+            '</tr>'
+        )
+
+    framework_winners = []
+    for row in rows:
+        if not row.get("comparability", "").startswith("FRAMEWORK_LEVEL"):
+            continue
+        if not (_aten_campaign_phase_ok(row, "native_gpu") and
+                _aten_campaign_phase_ok(row, "raised")):
+            continue
+        native_us = float(_aten_campaign_value(row, "native_gpu"))
+        raised_us = float(_aten_campaign_value(row, "raised"))
+        if raised_us < native_us:
+            framework_winners.append(
+                f'<code>{html.escape(row["kernel"])}</code> '
+                f'({native_us / raised_us:.2f}&times; raw)')
 
     families: dict[str, list[dict[str, str]]] = {}
     for row in rows:
@@ -3161,7 +3328,7 @@ def _aten_section42_paper_page() -> str:
     return (
         '<div class="section-header"><h2 class="section-title">'
         'Paper analysis: ATen Section 4.2</h2></div>'
-        '<div class="intro"><b>Active publication cohort: 182 kernels.</b> '
+        f'<div class="intro"><b>Active publication cohort: {len(rows)} kernels.</b> '
         'These counts and the comparison table come directly from '
         '<code>section42_campaign/results.csv</code>; historical best-of-20 and '
         'mapped-host measurements are excluded.</div>'
@@ -3173,7 +3340,7 @@ def _aten_section42_paper_page() -> str:
         f'<div class="audit-metric paper-provisional"><b>{strict}</b><span>strict input-aligned three-way pairs</span></div>'
         f'<div class="audit-metric"><b>{static_library}</b><span>complete static library mappings in full corpus</span></div>'
         '</div>'
-        '<div class="section-header"><h3 class="section-title">Measured GPU coverage within the 182-kernel cohort</h3></div>'
+        f'<div class="section-header"><h3 class="section-title">Measured GPU coverage within the {len(rows)}-kernel cohort</h3></div>'
         '<div class="paper-matrix">'
         f'<div><b>{paired}</b><span>native and raised measured</span></div>'
         f'<div><b>{native_only}</b><span>native measured; raised pending</span></div>'
@@ -3185,21 +3352,50 @@ def _aten_section42_paper_page() -> str:
         'useful provisional performance data but are not yet strict paper ratios.</div>'
         '<div class="section-header"><h3 class="section-title">'
         'ATen: native and raised implementations</h3></div>'
-        '<div class="intro">ATen is presented as a table because coverage and '
-        'the selected library operation are the primary result. Runtime '
-        'comparisons use <code>(native / raised - 1) × 100</code>: positive '
-        'values favor the raised implementation and negative values are '
-        'regressions. One process per configuration uses five untimed warmups '
-        'and five synchronized timed iterations; the median is reported.</div>'
-        f'<details class="intro" open><summary><b>All {paired} measured comparisons</b></summary>'
-        '<table class="audit-table paper-plot-data"><thead><tr><th>rank</th>'
+        f'<div class="intro"><b>{len(measurements)} legally comparable, '
+        f'correctness-gated GPU pairs.</b> {framework_pairs} additional '
+        'native/raised pairs are retained as framework-level measurements and '
+        'excluded from speedup claims because the public ATen COO path performs '
+        'work outside the extracted C region. '
+        'ATen is presented as a table because coverage, library mapping, and '
+        'missing implementations are the primary result. Positive percentages '
+        'favor the raised implementation; negative percentages are regressions. '
+        f'The median raised/native ratio is {median_ratio:.3f}&times;, and the '
+        f'median CPU/raised-GPU speedup is {median_cpu_speedup:.3f}&times;.</div>'
+        '<div class="table-wrap"><table class="audit-table paper-plot-data"><thead><tr><th>rank</th>'
         '<th>kernel</th><th>family</th><th>shape</th><th>dtype</th>'
-        '<th>Orin CPU, 1 core (µs)</th><th>ATen CUDA (µs)</th>'
-        '<th>raised resident (µs)</th><th>native GPU vs raised GPU (% ↑)</th>'
+        '<th>Orin CPU, 1 core (µs, min of 5)</th>'
+        '<th>ATen CUDA (µs, min of 5)</th>'
+        '<th>raised resident (µs, min of 5)</th>'
+        '<th>native GPU vs raised GPU (% ↑)</th>'
         '<th>native CPU vs raised GPU (% ↑)</th>'
         '<th>input alignment</th></tr></thead><tbody>'
-        + "\n".join(data_rows) + '</tbody></table></details>'
-        '<div class="section-header"><h3 class="section-title">Coverage by semantic family</h3></div>'
+        + "\n".join(data_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Raised-GPU wins and competitive parity</h3></div>'
+        f'<div class="intro"><b>{len(competitive)} legally comparable rows have '
+        'raised/native CUDA below 1.6&times; in this snapshot.</b> '
+        f'{raised_winners} are raised-GPU wins and {near_parity} are within 10% '
+        'of native CUDA. Rows between 1.1&times; and 1.6&times; are retained as '
+        'competitive mappings, not reported as speedups. '
+        'The explanation '
+        'column is a hypothesis derived from the matched operation, selected '
+        'external-library route, shape, and timing boundary—not causal profiling. '
+        'Input-alignment status and '
+        'comparison scope remain visible so provisional measurements cannot be '
+        'mistaken for final paper claims.</div>'
+        '<div class="table-wrap"><table class="audit-table paper-plot-data">'
+        '<thead><tr><th>kernel</th><th>ATen CUDA (µs, min of 5)</th>'
+        '<th>raised GPU (µs, min of 5)</th><th>raised/native</th><th>selected route</th>'
+        '<th>likely reason</th><th>comparison scope</th><th>interpretation</th>'
+        '</tr></thead><tbody>' + "\n".join(competitive_rows) + '</tbody></table></div>'
+        + (f'<div class="intro paper-provisional"><b>Excluded raw wins:</b> '
+           + ', '.join(framework_winners)
+           + '. These public ATen paths perform COO/container work outside the '
+             'extracted C region, so their apparent speedups are boundary '
+             'differences rather than legal same-region claims.</div>'
+           if framework_winners else '')
+        + '<div class="section-header"><h3 class="section-title">Coverage by semantic family</h3></div>'
         '<div class="intro">Every numeric entry below is a count of kernels, '
         'not a runtime. Runtime columns above are explicitly labeled in µs.</div>'
         '<table class="audit-table paper-family"><thead><tr><th>semantic family</th>'
@@ -3210,9 +3406,10 @@ def _aten_section42_paper_page() -> str:
         '<div class="paper-notes">'
         f'<div><b>{len(rows)-raised} raised GPU cases</b><span>Build or resident '
         'execution remains to be fixed; these are the next compiler task.</span></div>'
-        f'<div><b>{len(rows)-native} native GPU case</b><span>'
-        '<code>aten_sparse_addmm_cpu</code> lacks an exact same-region ATen CUDA '
-        'baseline without extra COO-to-CSR framework work.</span></div>'
+        f'<div><b>{framework_pairs} framework-level native GPU cases</b><span>'
+        '<code>aten_hspmm_cpu</code> and <code>aten_sparse_addmm_cpu</code> '
+        'include extra ATen COO handling and are not used for exact-region '
+        'speedup claims.</span></div>'
         f'<div><b>{len(rows)-strict} alignment audits</b><span>Strict three-way '
         'completion requires proving identical values, not only matching shapes, '
         'dtypes, and recipe fingerprints.</span></div></div>'
@@ -3878,11 +4075,13 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
             _native_color = ("#137333" if
                              campaign.get("input_alignment") == "VERIFIED"
                              else "#8a6d00")
-            _native_scope = html.escape(_np.get("comparability", ""))
+            _native_scope = html.escape(
+                campaign.get("comparability") or
+                _np.get("comparability", ""))
             _native_api = html.escape(_np.get("benchmark_api", "torch"))
             native_cell = (
                 f'<td style="color:{_native_color};font-weight:600" '
-                f'title="torch native at the resident shape {_nat_shape} '
+                f'title="ATen native at the resident shape {_nat_shape} '
                 f'({_native_scope}; {_native_api}); input alignment '
                 f'{html.escape(campaign.get("input_alignment", "PENDING"))}">'
                 f'{float(native_us):.1f}</td>'
@@ -4105,9 +4304,9 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         "resident result status", "benchmark shape",
         'raised resident (<span style="text-transform:none">µs</span>)',
         "ATen native CUDA implementation",
-        'ATen CUDA resident, median of 5 (<span style="text-transform:none">µs</span>)',
+        'ATen CUDA resident, min of 5 (<span style="text-transform:none">µs</span>)',
         'PyTorch CPU x86-64, 24 threads (<span style="text-transform:none">µs</span>)',
-        'ATen CPU Jetson Orin, 1 core, median of 5 (<span style="text-transform:none">µs</span>)',
+        'ATen CPU Jetson Orin, 1 core, min of 5 (<span style="text-transform:none">µs</span>)',
         "raised / ATen CUDA", "assessment",
     ]
     header_html = "".join(
@@ -4123,8 +4322,8 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'ATen extracted C numerical kernels</h2></div>'
         '<div class="intro"><b>Current Section 4.2 campaign:</b> '
         f'{measured_cases} kernels; {campaign_cpu} have one-core Orin CPU '
-        f'medians, {campaign_native} have correctness-gated ATen CUDA medians, '
-        f'{campaign_raised} have correctness-gated raised resident medians, and '
+        f'minimum-of-five results, {campaign_native} have correctness-gated ATen CUDA minima, '
+        f'{campaign_raised} have correctness-gated raised resident minima, and '
         f'{campaign_pairs} have both GPU measurements. The table uses this '
         'campaign in preference to historical timing ledgers.</div>'
         '<div class="intro">'
@@ -4155,7 +4354,7 @@ def _aten_section(aten_stats: dict[str, dict], kernels: list[str]) -> str:
         'historical mapped-host timings are not used in this table or in the '
         'slowness page. Raised-resident, ATen CUDA, and Orin CPU use one process, '
         'five untimed warmups, five synchronized timed iterations, and the '
-        'median of those five samples. '
+        'minimum of those five samples as the headline result. '
         'PyTorch CPU baselines use the same shapes and dtypes. The x86 column '
         'uses the separate 24-thread host; the Jetson column uses one pinned CPU '
         'core on the same Orin as the GPU. Neither is folded into the raised/CUDA '
@@ -4219,12 +4418,20 @@ def _polybench_paper_analysis_page() -> str:
         return (f'<a href="{artifact_root}/{html.escape(relative)}">'
                 f'{html.escape(label)}</a>')
 
-    def ms(value: str, iqr: str = "") -> str:
+    def ms(value: str, iqr: str = "", median: str = "", maximum: str = "") -> str:
         if not value:
             return "&mdash;"
         rendered = f"{float(value):.3f} ms"
+        details = []
+        if median:
+            details.append(f"median {float(median):.3f}")
+        if maximum:
+            details.append(f"max {float(maximum):.3f}")
         if iqr:
-            rendered += f" <span class=\"scope\">(IQR {float(iqr):.3f})</span>"
+            details.append(f"IQR {float(iqr):.3f}")
+        if details:
+            rendered += (" <span class=\"scope\">(" + "; ".join(details)
+                         + ")</span>")
         return rendered
 
     def correctness(value: str) -> str:
@@ -4246,8 +4453,10 @@ def _polybench_paper_analysis_page() -> str:
                 kernel=html.escape(row["kernel"]),
                 datatype=html.escape(
                     "FP64" if row["datatype"] == "double" else row["datatype"]),
-                native=ms(row["native_ms"], row["native_iqr_ms"]),
-                raised=ms(row["raised_openblas_ms"], row["raised_iqr_ms"]),
+                native=ms(row["native_ms"], row["native_iqr_ms"],
+                          row.get("native_median_ms", ""), row["native_max_ms"]),
+                raised=ms(row["raised_openblas_ms"], row["raised_iqr_ms"],
+                          row.get("raised_median_ms", ""), row["raised_max_ms"]),
                 speedup=float(row["speedup_native_over_raised"]),
                 native_ok=correctness(row["native_correctness"]),
                 raised_ok=correctness(row["raised_correctness"]),
@@ -4273,9 +4482,13 @@ def _polybench_paper_analysis_page() -> str:
                 datatype=html.escape(
                     "FP32" if row["datatype"] == "float" else
                     "FP64" if row["datatype"] == "double" else row["datatype"]),
-                native_device=ms(row["native_device_ms"], row["native_device_iqr_ms"]),
+                native_device=ms(row["native_device_ms"], row["native_device_iqr_ms"],
+                                 row.get("native_device_median_ms", ""),
+                                 row.get("native_device_max_ms", "")),
                 native_e2e=ms(row["native_e2e_ms"]),
-                raised_device=ms(row["raised_device_ms"], row["raised_device_iqr_ms"]),
+                raised_device=ms(row["raised_device_ms"], row["raised_device_iqr_ms"],
+                                 row.get("raised_device_median_ms", ""),
+                                 row.get("raised_device_max_ms", "")),
                 wall=ms(row["raised_resident_wall_ms"]),
                 memory=ms(row["raised_memory_device_ms"]),
                 raised_e2e=ms(row["raised_e2e_ms"]), ratio=ratio,
@@ -4298,57 +4511,102 @@ def _polybench_paper_analysis_page() -> str:
     cpu_missing = ", ".join(summary["cpu_missing"])
     gpu_neither = ", ".join(summary["gpu_neither"])
     main_gpu_rows = [row for row in gpu_rows if row.get("datatype") == "double"]
-    all_kernels = sorted(
-        {row["kernel"] for row in cpu_rows}
-        | {row["kernel"] for row in main_gpu_rows}
-        | set(summary["cpu_missing"])
-        | set(summary["gpu_neither"])
-    )
-    cpu_percent = {
-        row["kernel"]: _percent_speedup(
-            float(row["native_ms"]), float(row["raised_openblas_ms"]))
-        for row in cpu_rows
-        if row.get("native_correctness") == "pass"
-        and row.get("raised_correctness") == "pass"
-    }
-    polly_percent = {
-        row["kernel"]: (float(row["polly_speedup"]) - 1.0) * 100.0
-        for row in related_rows if row.get("polly_speedup")
-    }
-    cpu_by_kernel = {row["kernel"]: row for row in cpu_rows}
-    gpu_by_kernel = {row["kernel"]: row for row in main_gpu_rows}
-    cpu_gpu_percent = {}
-    native_gpu_percent = {}
-    for kernel in all_kernels:
-        cpu_row = cpu_by_kernel.get(kernel)
-        gpu_row = gpu_by_kernel.get(kernel)
-        if (cpu_row and gpu_row and gpu_row.get("raised_resident_wall_ms")
-                and cpu_row.get("native_correctness") == "pass"
-                and gpu_row.get("raised_correctness") == "pass"):
-            cpu_gpu_percent[kernel] = _percent_speedup(
-                float(cpu_row["native_ms"]),
-                float(gpu_row["raised_resident_wall_ms"]))
-        if (gpu_row and gpu_row.get("native_device_ms")
-                and gpu_row.get("raised_device_ms")
-                and gpu_row.get("native_correctness") == "pass"
-                and gpu_row.get("raised_correctness") == "pass"):
-            native_gpu_percent[kernel] = _percent_speedup(
-                float(gpu_row["native_device_ms"]),
-                float(gpu_row["raised_device_ms"]))
+    def paper_pdf_figure(filename: str, title: str) -> str:
+        url = f"{artifact_root}/paper_analysis/{filename}"
+        return (
+            f'<div class="paper-chart-wrap"><h4>{html.escape(title)}</h4>'
+            f'<object data="{html.escape(url)}#view=FitH" '
+            'type="application/pdf" width="100%" height="650" '
+            f'aria-label="{html.escape(title)}">'
+            f'<p><a href="{html.escape(url)}">Open {html.escape(title)} PDF</a>'
+            '</p></object>'
+            f'<div class="intro"><a href="{html.escape(url)}">Open the exact '
+            'paper PDF</a></div></div>')
 
-    cpu_chart = _percent_speedup_chart(
-        "PolyBench: native CPU vs raised CPU", all_kernels,
-        [("Polygeist (Orin)", "#1a7f37", cpu_percent),
-         ("Polly (x86, self-relative)", "#8250df", polly_percent)],
+    paper_figures = (
+        paper_pdf_figure(
+            "polybench_cpu_native_vs_raised.pdf",
+            "PolyBench: native CPU vs raised CPU (log scale)")
+        + paper_pdf_figure(
+            "polybench_gpu_native_vs_raised.pdf",
+            "PolyBench: native GPU vs raised GPU (log scale)")
     )
-    cpu_gpu_chart = _percent_speedup_chart(
-        "PolyBench: native CPU vs raised GPU", all_kernels,
-        [("Polygeist (Orin)", "#1a7f37", cpu_gpu_percent)],
+    raised_only_rows = sorted(
+        (row for row in main_gpu_rows
+         if row.get("kernel") in {"cholesky", "symm", "trisolv", "trmm"}
+         if row.get("raised_device_ms")
+         and not row.get("native_device_ms")
+         and row.get("raised_correctness") == "pass"),
+        key=lambda row: float(row["raised_device_ms"]),
     )
-    native_gpu_chart = _percent_speedup_chart(
-        "PolyBench: native GPU vs raised GPU", all_kernels,
-        [("Polygeist (Orin)", "#1a7f37", native_gpu_percent)],
-    )
+    route_labels = {
+        "cholesky": "cuSOLVER/cuBLAS",
+        "symm": "cuBLAS symmetric composition",
+        "trisolv": "cuBLAS DTRSV",
+        "trmm": "cuBLAS DTRMV + DSCAL",
+    }
+    raised_only_svg = [
+        '<div class="paper-chart-wrap"><h4>Raised-only GPU results: '
+        'absolute device time and coverage</h4>',
+        '<div class="paper-series-legend">'
+        '<span><i style="background:#1a7f37"></i>raised GPU: correctness pass</span>'
+        '<span><i style="background:#8c959f"></i>native GPU: unavailable</span>'
+        '</div>',
+        '<svg class="paper-chart" viewBox="0 0 1120 390" '
+        'role="img" aria-label="Raised-only PolyBench GPU minimum-of-five device runtime">',
+        '<rect x="18" y="18" width="745" height="330" rx="8" '
+        'fill="#fafbfc" stroke="#d8dee8"/>',
+        '<rect x="783" y="18" width="319" height="330" rx="8" '
+        'fill="#fafbfc" stroke="#d8dee8"/>',
+        '<text class="paper-axis-label" x="390" y="43" text-anchor="middle">'
+        'Raised GPU device time (ms, logarithmic)</text>',
+        '<text class="paper-axis-label" x="942" y="43" text-anchor="middle">'
+        'Comparison availability</text>',
+    ]
+    log_min, log_max = -1.0, 3.0
+    axis_left, axis_right = 170.0, 720.0
+    for tick in (0.1, 1.0, 10.0, 100.0, 1000.0):
+        x = axis_left + ((math.log10(tick) - log_min) /
+                         (log_max - log_min)) * (axis_right - axis_left)
+        raised_only_svg.append(
+            f'<line class="paper-grid" x1="{x:.1f}" y1="58" '
+            f'x2="{x:.1f}" y2="310"/>'
+            f'<text class="paper-axis" x="{x:.1f}" y="331" '
+            f'text-anchor="middle">{tick:g}</text>')
+    for index, row in enumerate(raised_only_rows):
+        kernel = row["kernel"]
+        value = float(row["raised_device_ms"])
+        x = axis_left + ((math.log10(value) - log_min) /
+                         (log_max - log_min)) * (axis_right - axis_left)
+        y = 78 + index * 61
+        route = route_labels.get(kernel, "external GPU library")
+        title = html.escape(
+            f'{kernel} | raised GPU {value:.3f} ms | {route} | '
+            'correctness pass | native GPU unavailable')
+        raised_only_svg.extend((
+            f'<text class="paper-axis" x="158" y="{y+16}" '
+            f'text-anchor="end">{html.escape(kernel)}</text>',
+            f'<rect x="{axis_left:.1f}" y="{y:.1f}" '
+            f'width="{max(3.0, x-axis_left):.1f}" height="22" rx="3" '
+            f'fill="#1a7f37"><title>{title}</title></rect>',
+            f'<text class="paper-axis-label" x="{min(x+8, 726):.1f}" '
+            f'y="{y+16}" text-anchor="start">{value:.3f}</text>',
+            f'<text class="paper-axis" x="800" y="{y+13}">raised</text>',
+            f'<rect x="852" y="{y-4}" width="72" height="23" rx="11" '
+            f'fill="#dff5e5"/><text x="888" y="{y+12}" text-anchor="middle" '
+            f'font-size="11" font-weight="bold" fill="#176b35">PASS</text>',
+            f'<text class="paper-axis" x="800" y="{y+38}">native</text>',
+            f'<rect x="852" y="{y+21}" width="72" height="23" rx="11" '
+            f'fill="#e6e8eb"/><text x="888" y="{y+37}" text-anchor="middle" '
+            f'font-size="11" font-weight="bold" fill="#57606a">N/A</text>',
+            f'<text class="paper-axis" x="937" y="{y+13}">'
+            f'{html.escape(route)}</text>',
+        ))
+    raised_only_svg.append(
+        '<text class="paper-axis" x="20" y="375">Minimum of five synchronized '
+        'CUDA-event measurements. Missing native values are not plotted as zero '
+        'and do not contribute to speedup aggregates.</text></svg></div>')
+    raised_only_chart = "".join(raised_only_svg)
     return (
         '<div class="section-header"><h2 class="section-title">PolyBench Section 4.2 '
         'paper analysis</h2></div>'
@@ -4368,7 +4626,8 @@ def _polybench_paper_analysis_page() -> str:
         '<div class="paper-notes">'
         '<div><b>Common experiment</b><span>Canonical PolyBench LARGE with datatype '
         'shown per row, identical initialization formula, complete-output correctness, '
-        'one process, five warmups, five measured samples, and median reporting. The '
+        'one process, five warmups, five measured samples, and minimum-of-five '
+        'headline reporting. The '
         'main campaign is FP64; GEMM additionally includes FP32.</span></div>'
         '<div><b>CPU scope</b><span>One Jetson AGX Orin CPU core, pinned to core 0. '
         'Native C uses -O3; raised uses external OpenBLAS/CBLAS with one thread.</span></div>'
@@ -4378,11 +4637,26 @@ def _polybench_paper_analysis_page() -> str:
         '<div><b>Source status</b><span>Native PolyBenchGPU uses retained external CUDA '
         'compute with adapters that normalize FP64, LARGE sizes, inputs, ABI, and timing; '
         'those rows are explicitly modified-source.</span></div></div>'
-        + cpu_chart + cpu_gpu_chart + native_gpu_chart
+        + '<div class="section-header"><h3 class="section-title">Paper figures '
+          '(same PDFs as Overleaf)</h3></div>'
+          '<div class="intro">The HTML embeds the exact generated PDFs used by '
+          'the paper. Both use one continuous logarithmic native/raised ratio '
+          'axis: 1&times; is parity, right is a raised-code win, and left is a '
+          'regression. No values are cut off, and no CPU-versus-GPU comparison '
+          'is included.</div>'
+        + paper_figures
+        + '<div class="section-header"><h3 class="section-title">GPU results '
+          'without a native GPU baseline</h3></div>'
+          '<div class="intro">These are successful compiler-generated external-'
+          'library executions, shown using absolute raised-GPU device time. The '
+          'gray native slot is intentionally marked unavailable, so the figure '
+          'does not imply a speedup or add these kernels to GPU win/geomean counts.'
+          '</div>'
+        + raised_only_chart
         + '<div class="section-header"><h3 class="section-title">CPU measurements</h3></div>'
         '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
         '<th>datatype</th>'
-        '<th>native C -O3</th><th>raised OpenBLAS</th><th>native / raised</th>'
+        '<th>native C -O3 (min of 5)</th><th>raised OpenBLAS (min of 5)</th><th>native / raised</th>'
         '<th>correctness native / raised</th><th>raw evidence</th></tr></thead><tbody>'
         + "".join(cpu_html) + '</tbody></table></div>'
         '<div class="section-header"><h3 class="section-title">GPU measurements</h3></div>'
@@ -4392,7 +4666,7 @@ def _polybench_paper_analysis_page() -> str:
         f'<code>{html.escape(raised_only)}</code>.</div>'
         '<div class="table-wrap"><table class="audit-table"><thead><tr><th>kernel</th>'
         '<th>datatype</th>'
-        '<th>native GPU device</th><th>raised GPU device</th><th>native / raised</th>'
+        '<th>native GPU device (min of 5)</th><th>raised GPU device (min of 5)</th><th>native / raised</th>'
         '<th>correctness native / raised</th><th>modified source</th><th>raw evidence</th>'
         '</tr></thead><tbody>' + "".join(gpu_html) + '</tbody></table></div>'
         '<div class="section-header"><h3 class="section-title">Related CPU compilers '
@@ -4422,8 +4696,8 @@ def _polybench_paper_analysis_page() -> str:
             artifact("paper_analysis/paper_x86_related_work.csv", "related-work CSV"),
             artifact("paper_analysis/paper_summary.json", "summary JSON"),
             artifact("paper_analysis/PAPER_ANALYSIS.md", "analysis notes"),
-            artifact("paper_analysis/polybench_cpu_runtime.pdf", "CPU figure PDF"),
-            artifact("paper_analysis/polybench_gpu_runtime.pdf", "GPU figure PDF"),
+            artifact("paper_analysis/polybench_cpu_native_vs_raised.pdf", "CPU figure PDF"),
+            artifact("paper_analysis/polybench_gpu_native_vs_raised.pdf", "GPU figure PDF"),
             artifact("paper_analysis/FIGURE_GENERATION.md", "figure commands"),
             '<a href="polybench.html">full PolyBench pipeline tracker</a>',
         )) + '</p></div>')
@@ -7049,6 +7323,21 @@ def _llama2c_runtime_summary() -> str:
 
 
 def _llama_forward_runtime_summary() -> str:
+    protocol = {
+        row.get("run_id", ""): row for row in _read_csv(LLAMA_PROTOCOL_RESULTS)
+    }
+
+    def minimum(run_id: str) -> float:
+        try:
+            return float(protocol.get(run_id, {}).get("min_ms", "nan"))
+        except ValueError:
+            return math.nan
+
+    native = minimum("protocol_native_cpu")
+    raised_host = minimum("protocol_raised_gpu_host")
+    raised_event = minimum("protocol_raised_gpu_device")
+    expert = minimum("protocol_ggml_cuda")
+    expert_speedup = native / expert
     return (
         '<div class="intro" style="padding-top:0">'
         '<b>Section 4.2 current protocol sweep</b> &middot; '
@@ -7063,22 +7352,22 @@ def _llama_forward_runtime_summary() -> str:
         '</tr></thead><tbody>'
         '<tr>'
         '<td><b>native Orin CPU, strict -O3</b></td>'
-        '<td>272.888 ms</td><td><span class="pass">eligible reference</span></td>'
+        f'<td>{native:.3f} ms</td><td><span class="pass">eligible reference</span></td>'
         '<td>numerical reference</td>'
-        '<td>one process; median of 5 synchronized iterations after 5 warm-ups</td>'
+        '<td>one process; minimum of 5 synchronized iterations after 5 warm-ups</td>'
         '</tr>'
         '<tr>'
         '<td><b>Polygeist raised Jetson GPU</b></td>'
-        '<td>12.826 ms synchronized host<br>12.813 ms CUDA event</td>'
+        f'<td>{raised_host:.3f} ms synchronized host<br>{raised_event:.3f} ms CUDA event</td>'
         '<td><span class="none">excluded</span></td>'
         '<td>FAIL: 7,922/32,000 logits exceed atol=1e-3, rtol=1e-4</td>'
         '<td>visible diagnostic only; not used for a speedup claim</td>'
         '</tr>'
         '<tr>'
         '<td><b>ggml CUDA expert implementation</b></td>'
-        '<td>9.691 ms</td><td><span class="pass">eligible expert baseline</span></td>'
+        f'<td>{expert:.3f} ms</td><td><span class="pass">eligible expert baseline</span></td>'
         '<td>PASS: 32,000 logits at atol=1e-2, rtol=1e-4</td>'
-        '<td>28.16&times; faster than native CPU; same 1&times;5+5 protocol</td>'
+        f'<td>{expert_speedup:.2f}&times; faster than native CPU; same 1&times;5+5 protocol</td>'
         '</tr>'
         '</tbody></table>'
         '<div class="intro"><b>Headline status:</b> two of the three roles '
@@ -7110,12 +7399,13 @@ def _llama_paper_analysis_page() -> str:
     raised_gpu_host = by_id.get("protocol_raised_gpu_host", {})
     raised_gpu_event = by_id.get("protocol_raised_gpu_device", {})
     ggml = by_id.get("protocol_ggml_cuda", {})
-    native_ms = number(native, "median_ms")
-    ggml_ms = number(ggml, "median_ms")
+    native_ms = number(native, "min_ms")
+    ggml_ms = number(ggml, "min_ms")
     speedup = native_ms / ggml_ms if native_ms > 0 and ggml_ms > 0 else math.nan
 
-    # Only correctness-eligible measurements enter the charts. Missing raised
-    # results are omitted rather than rendered as failure marks.
+    # Only correctness-eligible measurements enter the charts. A red X keeps
+    # the requested comparison visible when the raised implementation is not
+    # currently claimable.
     category = ["one-layer forward"]
     expert_chart = _percent_speedup_chart(
         "Llama: native CPU vs expert GPU", category,
@@ -7153,8 +7443,9 @@ def _llama_paper_analysis_page() -> str:
             f'<td><b>{html.escape(labels.get(run_id, run_id))}</b><br>'
             f'<small><code>{html.escape(row.get("timing_scope", ""))}</code></small></td>'
             f'<td>{samples}</td>'
-            f'<td><b>{number(row, "median_ms"):.6f}</b></td>'
-            f'<td>{number(row, "min_ms"):.6f}–{number(row, "max_ms"):.6f}</td>'
+            f'<td><b>{number(row, "min_ms"):.6f}</b></td>'
+            f'<td>{number(row, "median_ms"):.6f}</td>'
+            f'<td>{number(row, "max_ms"):.6f}</td>'
             f'<td>{number(row, "q1_ms"):.6f}–{number(row, "q3_ms"):.6f}<br>'
             f'IQR {number(row, "iqr_ms"):.6f}</td>'
             f'<td>{html.escape(row.get("checksum", ""))}</td>'
@@ -7181,11 +7472,11 @@ def _llama_paper_analysis_page() -> str:
         '<div class="section-header"><h3 class="section-title">'
         'Three roles requested by Section 4.2</h3></div>'
         '<div class="paper-matrix">'
-        '<div><b>272.888 ms</b><span>vanilla CPU on Orin<br>'
+        f'<div><b>{native_ms:.3f} ms</b><span>vanilla CPU on Orin (min of 5)<br>'
         '<span class="pass">eligible numerical reference</span></span></div>'
-        '<div class="paper-provisional"><b>12.826 ms</b><span>raised Jetson GPU, synchronized host wall<br>'
+        f'<div class="paper-provisional"><b>{number(raised_gpu_host, "min_ms"):.3f} ms</b><span>raised Jetson GPU, synchronized host wall (min of 5)<br>'
         '<span class="none">slot pending: strict correctness failed</span></span></div>'
-        '<div><b>9.691 ms</b><span>expert-written ggml CUDA<br>'
+        f'<div><b>{ggml_ms:.3f} ms</b><span>expert-written ggml CUDA (min of 5)<br>'
         '<span class="pass">eligible expert baseline</span></span></div>'
         '<div><b>—</b><span>claimable Polygeist speedup<br>'
         'not reported until the raised path passes</span></div>'
@@ -7211,7 +7502,7 @@ def _llama_paper_analysis_page() -> str:
         '<div><b>idle</b><span>preflight the selected Orin; wait if another benchmark is active</span></div><i>→</i>'
         '<div><b>5</b><span>untimed warm-up invocations in one process</span></div><i>→</i>'
         '<div><b>5</b><span>synchronized timed invocations</span></div><i>→</i>'
-        '<div><b>median</b><span>retain every sample plus min, max, quartiles, and IQR</span></div>'
+        '<div><b>minimum</b><span>headline minimum of five; retain median, max, quartiles, IQR, and every sample</span></div>'
         '</div>'
         '<div class="paper-notes">'
         '<div><b>Same hardware and inputs</b><span>All displayed configurations '
@@ -7227,20 +7518,21 @@ def _llama_paper_analysis_page() -> str:
         '<div class="section-header"><h3 class="section-title">'
         'All retained measurements</h3></div>'
         '<table class="audit-table paper-exclusions"><thead><tr>'
-        '<th>implementation / scope</th><th>five samples (ms)</th><th>median</th>'
-        '<th>min–max</th><th>Q1–Q3 / IQR</th><th>checksum</th>'
+        '<th>implementation / scope</th><th>five samples (ms)</th>'
+        '<th>minimum (headline)</th><th>median</th><th>maximum</th>'
+        '<th>Q1–Q3 / IQR</th><th>checksum</th>'
         '<th>correctness</th><th>paper status</th></tr></thead><tbody>'
         + ''.join(audit_rows) + '</tbody></table>'
         '<div class="section-header"><h3 class="section-title">'
         'Why the raised rows are excluded</h3></div>'
         '<div class="paper-notes">'
-        '<div class="paper-provisional"><b>Raised CPU / NVPL</b><span>Median '
-        f'{number(raised_cpu, "median_ms"):.3f} ms; 10,456/32,000 logits fail '
+        '<div class="paper-provisional"><b>Raised CPU / NVPL</b><span>Minimum-of-five '
+        f'{number(raised_cpu, "min_ms"):.3f} ms; 10,456/32,000 logits fail '
         'atol=1e-3, rtol=1e-4 (max absolute error 0.0063534). The fresh path '
         'also retains only five dense NVPL calls versus eleven previously.</span></div>'
-        '<div class="paper-provisional"><b>Raised resident GPU</b><span>Median '
-        f'{number(raised_gpu_host, "median_ms"):.3f} ms host and '
-        f'{number(raised_gpu_event, "median_ms"):.3f} ms event; 7,922/32,000 '
+        '<div class="paper-provisional"><b>Raised resident GPU</b><span>Minimum-of-five '
+        f'{number(raised_gpu_host, "min_ms"):.3f} ms host and '
+        f'{number(raised_gpu_event, "min_ms"):.3f} ms event; 7,922/32,000 '
         'logits fail the same strict gate (max absolute error 0.0051174).</span></div>'
         '<div><b>Provenance limitation</b><span>The current GPU pipeline cannot '
         'regenerate the executable because gpu.alloc conversion fails. The '
@@ -8958,8 +9250,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
                + len(mfem_application_extraction_stats),
                "Original/normalized FEM kernels and larger application hot paths.")
         + card("mfem-paper.html", "MFEM paper analysis",
-               17,
-               "Latest NE=1024 four-runtime graphs, 126 validated matches, correctness gates, and raw evidence.")
+               18,
+               "NE=1024 analysis: 128/128 matches correctness-validated; 17 kernels have four-runtime timings.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 correctness-gated percentage charts, raw samples, and exclusions.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,

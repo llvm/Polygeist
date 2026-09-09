@@ -1,0 +1,52 @@
+\documentclass[tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\definecolor{raisedgreen}{HTML}{1A7F37}
+\definecolor{regressionred}{HTML}{CF222E}
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+  width=7.15in, height=4.15in,
+  title={PolyBench: native GPU vs raised GPU},
+  title style={font=\bfseries\normalsize},
+  xmode=log, log basis x=2, xmin=0.125, xmax=8,
+  xtick={0.125,0.25,0.5,1,2,4,8},
+  xticklabels={0.125$\times$,0.25$\times$,0.5$\times$,1$\times$,2$\times$,4$\times$,8$\times$},
+  xlabel={speedup (native runtime / raised runtime, logarithmic)},
+  ymin=-0.5, ymax=11.5,
+  ytick={0,1,2,3,4,5,6,7,8,9,10,11},
+  yticklabels={{2mm},{3mm},{atax},{bicg},{correlation},{covariance},{gemm},{gemver},{gesummv},{mvt},{syr2k},{syrk}}, y dir=reverse,
+  yticklabel style={font=\small}, xticklabel style={font=\small},
+  label style={font=\small}, grid=major,
+  major grid style={draw=gray!25}, axis lines*=left,
+  extra x ticks={1}, extra x tick labels={},
+  extra x tick style={grid=major,major grid style={draw=black,line width=0.7pt}},
+  clip=false,
+]
+\draw[draw=regressionred!85!black,line width=9pt] (axis cs:1,0) -- (axis cs:0.761364396,0);
+\draw[draw=regressionred!85!black,line width=9pt] (axis cs:1,1) -- (axis cs:0.453098429,1);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,2) -- (axis cs:4.025484614,2);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,3) -- (axis cs:3.834378489,3);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,4) -- (axis cs:1.048398949,4);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,5) -- (axis cs:2.583179865,5);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,6) -- (axis cs:1.860209045,6);
+\draw[draw=regressionred!85!black,line width=9pt] (axis cs:1,7) -- (axis cs:0.175317693,7);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,8) -- (axis cs:1.982118190,8);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,9) -- (axis cs:2.241525494,9);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,10) -- (axis cs:4.963326060,10);
+\draw[draw=raisedgreen!85!black,line width=9pt] (axis cs:1,11) -- (axis cs:3.674411696,11);
+\node[anchor=east,font=\scriptsize] at (axis cs:0.761364396,0) {0.76$\times$};
+\node[anchor=east,font=\scriptsize] at (axis cs:0.453098429,1) {0.45$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:4.025484614,2) {4.03$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:3.834378489,3) {3.83$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:1.048398949,4) {1.05$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:2.583179865,5) {2.58$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:1.860209045,6) {1.86$\times$};
+\node[anchor=east,font=\scriptsize] at (axis cs:0.175317693,7) {0.18$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:1.982118190,8) {1.98$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:2.241525494,9) {2.24$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:4.963326060,10) {4.96$\times$};
+\node[anchor=west,font=\scriptsize] at (axis cs:3.674411696,11) {3.67$\times$};
+\end{axis}
+\end{tikzpicture}
+\end{document}
