@@ -569,7 +569,7 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_addmm", "aten_blas_dot_naive_cpu", "aten_bf16_dot_cpu",
         "aten_dot", "aten_fp16_dot_cpu", "aten_mm", "aten_mv",
         "aten_blas_gemv_generic_cpu", "aten_linear_combination_cpu",
-        "aten_nested_matmul_broadcast_cpu", "aten_outer",
+        "aten_nested_bmm_cpu", "aten_nested_matmul_broadcast_cpu", "aten_outer",
         "aten_sparse_norm_cpu", "aten_joint_scaling_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
@@ -577,6 +577,10 @@ def local_backend_status(name: str, audit: dict[str, str]) -> str:
         "aten_conv2d", "aten_conv3d", "aten_slow_conv3d_forward_cpu",
         "aten_softmax", "aten_conv_transpose2d",
         "aten_depthwise_conv3x3_cpu", "aten_conv_tbc_cpu",
+        "aten_conv_tbc_backward_cpu", "aten_conv_transpose3d_backward_cpu",
+        "aten_conv_transpose3d_cpu",
+        "aten_conv_transpose3d_grad_weight_cpu",
+        "aten_dilated_convolution_cpu",
     }:
         return "SELECTED_WRAPPERS_PRESENT"
     if library == "cuDNN" and family == "normalization" and name in {

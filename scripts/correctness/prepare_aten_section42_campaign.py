@@ -57,6 +57,23 @@ CPP_WHOLE_KERNELS = {
     "aten_conv_transpose3d_cpu",
     "aten_nested_sum_backward_cpu",
     "aten_sampled_addmm_sparse_csr_cpu", "aten_sparse_csr_addmm_cpu",
+    "aten_hspmm_cpu", "aten_sparse_addmm_cpu",
+}
+FRAMEWORK_LEVEL_KERNELS = {"aten_hspmm_cpu", "aten_sparse_addmm_cpu"}
+SUPPLEMENTAL_EXACT_RECIPE_KERNELS = {
+    "aten_conv_tbc_backward_cpu",
+    "aten_conv_tbc_cpu",
+    "aten_conv_transpose3d_backward_cpu",
+    "aten_conv_transpose3d_grad_weight_cpu",
+    "aten_dilated_convolution_cpu",
+    "aten_sparse_addmv_bsr_cpu",
+}
+SUPPLEMENTAL_EXACT_CPP_KERNELS = SUPPLEMENTAL_EXACT_RECIPE_KERNELS
+EXACT_INPUT_ALIGNED_KERNELS = SUPPLEMENTAL_EXACT_RECIPE_KERNELS | {
+    "aten_conv_transpose2d",
+    "aten_conv_transpose3d_cpu",
+    "aten_nested_bmm_cpu",
+    "aten_nested_matmul_broadcast_cpu",
 }
 
 
@@ -97,44 +114,80 @@ def main() -> None:
     }
     exact_names = set(exact)
     overlap = whole & exact_names
-    cohort = whole | exact_names
-    if (len(whole), len(exact_names), len(overlap), len(cohort)) != (115, 68, 1, 182):
+    base_cohort = whole | exact_names | FRAMEWORK_LEVEL_KERNELS
+    cohort = base_cohort | SUPPLEMENTAL_EXACT_RECIPE_KERNELS
+    if (len(whole), len(exact_names), len(overlap), len(base_cohort)) != (115, 71, 1, 186):
         raise SystemExit(
-            "cohort drift: expected whole=115 exact_region=68 overlap=1 total=182; "
-            f"got {len(whole)}, {len(exact_names)}, {len(overlap)}, {len(cohort)}"
+            "cohort drift: expected whole=115 exact_region=71 overlap=1 total=186; "
+            f"got {len(whole)}, {len(exact_names)}, {len(overlap)}, "
+            f"{len(base_cohort)}"
         )
     missing_specs = sorted(cohort - set(specs))
     if missing_specs:
         raise SystemExit("missing resident specs: " + ", ".join(missing_specs))
 
     completed = set()
+    prior_results = args.output / "results.csv"
+    if prior_results.exists():
+        for row in read_csv(prior_results):
+            if row.get("three_way_status") == "COMPLETE":
+                completed.add(row["kernel"])
+            if row.get("input_alignment") == "VERIFIED":
+                aligned.add(row["kernel"])
 
     rows = []
-    for index, kernel in enumerate(sorted(cohort)):
+    ordered_kernels = sorted(base_cohort) + sorted(
+        SUPPLEMENTAL_EXACT_RECIPE_KERNELS - base_cohort)
+    for index, kernel in enumerate(ordered_kernels):
         spec = specs[kernel]
         in_exact = kernel in exact_names
         if kernel in whole and in_exact:
             basis = "WHOLE_AND_EXACT_REGION"
         elif in_exact:
             basis = "EXACT_EXTRACTED_REGION"
+        elif kernel in SUPPLEMENTAL_EXACT_RECIPE_KERNELS:
+            basis = "EXACT_EXTRACTED_REGION"
         else:
             basis = "WHOLE_OPERATION_OR_BOUNDED_DOMAIN"
+        supplemental = kernel in SUPPLEMENTAL_EXACT_RECIPE_KERNELS
         rows.append({
             "kernel": kernel,
-            "batch": str(index // args.batch_size + 1),
+            "batch": (
+                str((len(base_cohort) + args.batch_size - 1) //
+                    args.batch_size + 1)
+                if supplemental and kernel not in base_cohort
+                else str(index // args.batch_size + 1)
+            ),
             "cohort_basis": basis,
-            "comparability": status[kernel]["comparability"],
+            "comparability": (
+                "FRAMEWORK_LEVEL_ATEN_OPERATION"
+                if kernel in FRAMEWORK_LEVEL_KERNELS
+                else status[kernel]["comparability"]
+            ),
             "shape": spec["shape"],
             "dtype": spec["dtype"],
             "recipe_fingerprint": spec["recipe_fingerprint"],
-            "cpu_runner": "exact_region_harness" if in_exact else "torch_recipe",
+            "cpu_runner": (
+                "original_c_harness"
+                if kernel == "aten_sparse_addmv_bsr_cpu" else
+                "exact_region_harness"
+                if (in_exact or kernel in SUPPLEMENTAL_EXACT_CPP_KERNELS or
+                    kernel in {"aten_conv_transpose2d",
+                               "aten_conv_transpose3d_cpu"})
+                else "torch_recipe"
+            ),
             "native_gpu_runner": (
-                "exact_region_harness" if in_exact else
+                "exact_region_harness"
+                if in_exact or kernel in SUPPLEMENTAL_EXACT_CPP_KERNELS else
                 "aten_cpp_harness" if kernel in CPP_WHOLE_KERNELS else
                 "torch_recipe"
             ),
             "raised_gpu_runner": "polygeist_resident",
-            "input_alignment": "VERIFIED" if kernel in aligned else "PENDING",
+            "input_alignment": (
+                "VERIFIED"
+                if kernel in aligned or kernel in EXACT_INPUT_ALIGNED_KERNELS
+                else "PENDING"
+            ),
             "current_protocol_state": "COMPLETE" if kernel in completed else "PENDING",
         })
 
@@ -145,7 +198,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    batch_count = (len(rows) + args.batch_size - 1) // args.batch_size
+    batch_count = max(int(row["batch"]) for row in rows)
     for batch in range(1, batch_count + 1):
         batch_rows = [row for row in rows if int(row["batch"]) == batch]
         with (args.output / f"batch_{batch:02d}.csv").open("w", newline="") as stream:
@@ -156,7 +209,7 @@ def main() -> None:
     summary = {
         "kernel_count": len(rows),
         "whole_operation_or_domain_count": len(whole),
-        "exact_region_count": len(exact_names),
+        "exact_region_count": len(exact_names | SUPPLEMENTAL_EXACT_RECIPE_KERNELS),
         "overlap_count": len(overlap),
         "overlap": sorted(overlap),
         "batch_size": args.batch_size,
@@ -169,7 +222,7 @@ def main() -> None:
             "processes_per_kernel_implementation": 1,
             "warmups": 5,
             "samples": 5,
-            "statistic": "median",
+            "statistic": "minimum_of_5",
             "gpu_timing": "synchronized resident wall time",
             "cpu_threads": 1,
             "cpu_affinity": "core_0",

@@ -160,10 +160,13 @@ python3 scripts/correctness/build_ce_viewer.py --aten-only
 ## Section 4.2 large-batch campaign
 
 The publication cohort is frozen by an explicit manifest: 115 verified whole
-operations or bounded benchmark domains plus 68 exact extracted regions, with
-`aten_add_clamp` in both sets, for 182 unique kernels. The default partition is
-seven batches of 25 kernels and a final batch of seven. A batch is a deployment
-and bookkeeping unit; every kernel/implementation is still a separate process.
+operations or bounded benchmark domains, 71 original exact extracted regions,
+the separately labelled framework-level `aten_hspmm_cpu` timing, and six
+supplemental exact-region fixtures. One exact region also appears in the
+whole-operation set, for 192 unique kernels. The default partition uses eight
+base-cohort batches plus a ninth batch for the supplemental fixtures. A batch is
+a deployment and bookkeeping unit; every kernel/implementation is still a
+separate process.
 
 Prepare or refresh the manifest, then build and run one batch:
 

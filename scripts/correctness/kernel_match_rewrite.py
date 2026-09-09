@@ -17,9 +17,12 @@ ABI. That step is *not* in this script.
 from __future__ import annotations
 import argparse
 import ast
+import json
 import math
 import re
+import resource
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +33,7 @@ from kernel_match import (
     match_elementwise_semantic, enumerate_semantic_candidates,
     CompositionEntry, CompositionStep, Term,
     _AFFINE_MAP_RE, _parse_term, _term_repr, equivalent,
+    configure_matcher, matcher_telemetry,
 )
 from structured_loop_egglog import (
     analyze_residual_loops,
@@ -6253,6 +6257,7 @@ def rewrite_mlir(
     show_semantic_only: bool = False,
     max_launches: int | None = None,
     disable_pointwise_matching: bool = False,
+    disable_semantic_fallback: bool = False,
     show_structured_regions: bool = False,
     enable_structured_rewrite: bool = False,
     stencil_backend: str = "cudnn",
@@ -7001,9 +7006,9 @@ def rewrite_mlir(
                      if entry.name != "cublasDgemv_T_zero"],
                     start=i, body_forms=body_forms)
         if m is None:
-            entry = match_elementwise_semantic(
-                bodies[i], body_terms[i], body_forms[i]
-            )
+            entry = (None if disable_semantic_fallback else
+                     match_elementwise_semantic(
+                         bodies[i], body_terms[i], body_forms[i]))
             if (entry is not None and
                     (entry.name in disabled_kernels or
                      (only_kernels is not None and
@@ -10304,6 +10309,11 @@ def rewrite_mlir(
             if reinterpret_memref_form:
                 operands[2] = scalar_view["base"]
                 operand_types[2] = scalar_view["base_type"]
+                # The BLAS call overwrites the scalar result.  Keeping the
+                # lifted C initializer would leave a host affine.store ahead
+                # of the device call, which is both redundant and illegal
+                # when the public C wrapper is passed cudaMalloc storage.
+                redundant_zero_fill_span = scalar_init.span()
 
         if entry.name == "cublasDscal":
             ranks = [_tensor_rank(t) for t in operand_types[:1]]
@@ -12013,6 +12023,10 @@ def main():
     ap.add_argument("--disable-pointwise-matching", action="store_true",
                     help=("Disable the generic cuDNN scalar-expression graph "
                           "fallback while preserving named library matches."))
+    ap.add_argument("--disable-semantic-fallback", action="store_true",
+                    help=("Disable handwritten semantic-tree recognition. "
+                          "The RQ3 ablation uses this in both arms so the "
+                          "measured delta is attributable to Egglog."))
     ap.add_argument("--disable-kernel", action="append", default=[],
                     help=("Do not emit the named kernel; may be repeated. "
                           "Useful for provenance audits and backend bisection."))
@@ -12029,9 +12043,25 @@ def main():
                     default="cudnn",
                     help=("Select the external backend for compatible packed "
                           "2D weighted stencils (default: cudnn)."))
+    ap.add_argument("--matcher-mode", choices=("egglog", "syntactic"),
+                    default="egglog",
+                    help=("Scalar-expression acceptance engine. 'syntactic' "
+                          "uses exact tree unification and no algebraic "
+                          "normalization or equality saturation."))
+    ap.add_argument("--telemetry-json", type=Path,
+                    help=("Write matcher timing, proof, e-graph, RSS, and "
+                          "match-count telemetry as JSON."))
+    ap.add_argument("--collect-egraph-sizes", action="store_true",
+                    help=("Serialize completed e-graphs to count nodes and "
+                          "classes. Use for telemetry runs, not timing runs."))
     args = ap.parse_args()
 
+    configure_matcher(
+        args.matcher_mode,
+        collect_egraph_sizes=args.collect_egraph_sizes,
+    )
     text = Path(args.input).read_text()
+    matcher_started = time.perf_counter()
     rewritten, report = rewrite_mlir(
         text,
         dry_run=args.dry_run,
@@ -12040,6 +12070,7 @@ def main():
         show_semantic_only=args.show_semantic_only,
         max_launches=args.max_launches,
         disable_pointwise_matching=args.disable_pointwise_matching,
+        disable_semantic_fallback=args.disable_semantic_fallback,
         show_structured_regions=args.show_structured_regions,
         enable_structured_rewrite=args.enable_structured_rewrite,
         stencil_backend=args.stencil_backend,
@@ -12047,6 +12078,40 @@ def main():
         only_kernels=(set(args.only_kernel)
                       if args.only_kernel is not None else None),
     )
+    matcher_elapsed_ms = (time.perf_counter() - matcher_started) * 1000.0
+    if args.telemetry_json is not None:
+        telemetry = matcher_telemetry()
+        matched_body_indices: set[int] = set()
+        for kind, indices, _ in report:
+            if kind != "match":
+                continue
+            if isinstance(indices, int):
+                matched_body_indices.add(indices)
+            elif isinstance(indices, (list, tuple)):
+                matched_body_indices.update(
+                    index for index in indices if isinstance(index, int))
+        telemetry.update({
+            "input": str(Path(args.input).resolve()),
+            "input_bytes": len(text.encode()),
+            "linalg_bodies": len(parse_generics(text)),
+            "matcher_elapsed_ms": matcher_elapsed_ms,
+            "peak_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+            "selected_matches": sum(1 for k, _, _ in report if k == "match"),
+            "matched_linalg_bodies": len(matched_body_indices),
+            "candidate_matches": sum(
+                1 for k, _, _ in report if k == "kernel_candidate"),
+            "no_matches": sum(1 for k, _, _ in report if k == "no_match"),
+            "selected": [
+                {"body_indices": idx, "symbol": name}
+                for kind, idx, name in report if kind == "match"
+            ],
+            "candidates": [
+                {"body_indices": idx, "description": name}
+                for kind, idx, name in report if kind == "kernel_candidate"
+            ],
+        })
+        args.telemetry_json.write_text(
+            json.dumps(telemetry, indent=2, sort_keys=True) + "\n")
     if args.dry_run:
         print(f"== match report for {args.input} ==", file=sys.stderr)
         for kind, idx, name in report:

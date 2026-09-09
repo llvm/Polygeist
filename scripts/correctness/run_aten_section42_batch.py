@@ -95,6 +95,12 @@ exit "$rc"
 done
 exit "$rc"
 """
+    elif kind == "original":
+        body = """for kernel in "${kernels[@]}"; do
+  taskset -c 0 "$here/${kernel}_cpu_reference" || rc=1
+done
+exit "$rc"
+"""
     else:
         body = """for kernel in "${kernels[@]}"; do
   "$here/$kernel" || rc=1
@@ -113,6 +119,9 @@ def jetson_run(wrapper: Path, extras: list[Path], args: str, tag: str,
         "POLYGEIST_JETSON_RUNS": "1",
         "POLYGEIST_JETSON_RUN_ARGS": args,
         "POLYGEIST_JETSON_EXTRA_LIBS": " ".join(str(path) for path in extras),
+        # Publication resident timing warms library plans before sampling.
+        "POLYGEIST_CUDNN_PLAN_CACHE": env.get(
+            "POLYGEIST_CUDNN_PLAN_CACHE", "1"),
     })
     command = [str(RUN_JETSON)]
     if dry_run:
@@ -181,6 +190,9 @@ def main() -> int:
             return 0
         env = os.environ.copy()
         env["POLYGEIST_FORCE_RESIDENT"] = "1"
+        # Compare preserved and normalized projected-view forms and select by
+        # residual IR plus legal launch count, never by fixture name.
+        env["POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE"] = "auto"
         return subprocess.run(command, cwd=ROOT, env=env).returncode
 
     groups: list[tuple[str, list[dict[str, str]]]]
@@ -188,9 +200,13 @@ def main() -> int:
         groups = [
             ("torch", [row for row in rows if row[f"{'cpu' if args.phase == 'cpu' else 'native_gpu'}_runner"] == "torch_recipe"]),
             ("exact", [row for row in rows if row[f"{'cpu' if args.phase == 'cpu' else 'native_gpu'}_runner"] in {"exact_region_harness", "aten_cpp_harness"}]),
+            ("original", [row for row in rows
+                          if row["cpu_runner"] == "original_c_harness"]),
         ]
     elif args.phase == "native":
         groups = [
+            ("torch", [row for row in rows
+                       if row["native_gpu_runner"] == "torch_recipe"]),
             ("exact", [row for row in rows if row["native_gpu_runner"] in
                        {"exact_region_harness", "aten_cpp_harness"}]),
         ]
@@ -219,6 +235,20 @@ def main() -> int:
             extras.extend(Path(path) for path in shlex.split(
                 os.environ.get("ATEN_SECTION42_NATIVE_EXTRA_LIBS", "")))
             backend = "cpu" if args.phase == "cpu" else "cuda"
+        elif kind == "original":
+            binaries = {
+                kernel: raised_dir / kernel / f"{kernel}_cpu_reference"
+                for kernel in kernels
+            }
+            missing = [kernel for kernel, path in binaries.items()
+                       if not path.exists()]
+            if missing and not args.dry_run:
+                print("missing original-C CPU binaries: " + ", ".join(missing),
+                      file=sys.stderr)
+                result |= 1
+                continue
+            extras = [binaries[kernel] for kernel in kernels]
+            backend = "run"
         else:
             binaries = {kernel: raised_dir / kernel / kernel for kernel in kernels}
             missing = [kernel for kernel, path in binaries.items() if not path.exists()]

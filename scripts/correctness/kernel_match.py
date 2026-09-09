@@ -19,6 +19,8 @@ import math
 import os
 import re
 import sys
+import json
+import time
 from collections import Counter
 from itertools import product
 from dataclasses import dataclass
@@ -26,6 +28,44 @@ from pathlib import Path
 from typing import Optional
 
 from egglog import EGraph, Expr, StringLike, f64, f64Like, i64Like, rewrite, ruleset, vars_
+
+
+_MATCHER_MODE = "egglog"
+_COLLECT_EGRAPH_SIZES = False
+_MATCHER_TELEMETRY: dict[str, object] = {}
+
+
+def configure_matcher(mode: str = "egglog", *, collect_egraph_sizes: bool = False) -> None:
+    """Select the scalar acceptance engine and reset per-process telemetry."""
+    if mode not in {"egglog", "syntactic"}:
+        raise ValueError(f"unknown matcher mode: {mode}")
+    global _MATCHER_MODE, _COLLECT_EGRAPH_SIZES, _MATCHER_TELEMETRY
+    _MATCHER_MODE = mode
+    _COLLECT_EGRAPH_SIZES = collect_egraph_sizes
+    _MATCHER_TELEMETRY = {
+        "mode": mode,
+        "iteration_limit": 8 if mode == "egglog" else 0,
+        "proofs_attempted": 0,
+        "proofs_matched": 0,
+        "proof_elapsed_ms": 0.0,
+        "telemetry_elapsed_ms": 0.0,
+        "egraph_nodes_sum": 0,
+        "egraph_nodes_max": 0,
+        "egraph_classes_sum": 0,
+        "egraph_classes_max": 0,
+        "rule_matches": 0,
+        "proofs_over_10s": 0,
+        "template_attempts": 0,
+        "syntactic_unifications": 0,
+        "syntactic_comparisons": 0,
+    }
+
+
+def matcher_telemetry() -> dict[str, object]:
+    return dict(_MATCHER_TELEMETRY)
+
+
+configure_matcher()
 
 
 # ---------------------------------------------------------------------------
@@ -978,14 +1018,58 @@ class LibraryEntry:
 
 def equivalent(a: Term, b: Term, include_distributivity: bool = True) -> bool:
     """Are two Terms equivalent under the current algebra rules?"""
+    if _MATCHER_MODE == "syntactic":
+        started = time.perf_counter()
+        matched = _parse_term(_term_repr(a)) == _parse_term(_term_repr(b))
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
+        _MATCHER_TELEMETRY["syntactic_comparisons"] += 1
+        if matched:
+            _MATCHER_TELEMETRY["proofs_matched"] += 1
+        return matched
+
+    _MATCHER_TELEMETRY["proofs_attempted"] += 1
+    started = time.perf_counter()
     eg = EGraph()
     eg.register(a, b)
-    eg.run(algebra_rules(include_distributivity) * 8)
+    report = eg.run(algebra_rules(include_distributivity) * 8)
     try:
         eg.check(a == b)
-        return True
+        matched = True
     except Exception:
-        return False
+        matched = False
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
+    _MATCHER_TELEMETRY["rule_matches"] += sum(
+        report.num_matches_per_rule.values())
+    if elapsed_ms > 10_000.0:
+        _MATCHER_TELEMETRY["proofs_over_10s"] += 1
+    if matched:
+        _MATCHER_TELEMETRY["proofs_matched"] += 1
+
+    if _COLLECT_EGRAPH_SIZES:
+        telemetry_started = time.perf_counter()
+        function_nodes = sum(size for _, size in eg.all_function_sizes())
+        serialized = json.loads(eg._serialize(
+            split_primitive_outputs=False,
+            include_temporary_functions=True,
+        ).to_json())
+        node_count = len(serialized.get("nodes", {}))
+        class_count = len(serialized.get("class_data", {}))
+        # all_function_sizes excludes primitive leaves, whereas serialization
+        # includes them. Retain the serialized node count for a complete size
+        # and expose the function-only count as a cross-check.
+        _MATCHER_TELEMETRY.setdefault("egraph_function_nodes_sum", 0)
+        _MATCHER_TELEMETRY["egraph_function_nodes_sum"] += function_nodes
+        _MATCHER_TELEMETRY["egraph_nodes_sum"] += node_count
+        _MATCHER_TELEMETRY["egraph_nodes_max"] = max(
+            _MATCHER_TELEMETRY["egraph_nodes_max"], node_count)
+        _MATCHER_TELEMETRY["egraph_classes_sum"] += class_count
+        _MATCHER_TELEMETRY["egraph_classes_max"] = max(
+            _MATCHER_TELEMETRY["egraph_classes_max"], class_count)
+        _MATCHER_TELEMETRY["telemetry_elapsed_ms"] += (
+            time.perf_counter() - telemetry_started) * 1000.0
+    return matched
 
 
 def kernel_files(root: Path) -> list[Path]:
@@ -4615,6 +4699,17 @@ def body_matches_template(body: Term, template: Term) -> Optional[dict]:
     """
     tmpl_ast = _parse_term(_term_repr(template))
     body_ast = _parse_term(_term_repr(body))
+    _MATCHER_TELEMETRY["template_attempts"] += 1
+    if _MATCHER_MODE == "syntactic":
+        _MATCHER_TELEMETRY["syntactic_unifications"] += 1
+        started = time.perf_counter()
+        direct = _unify(body_ast, tmpl_ast, {})
+        _MATCHER_TELEMETRY["proof_elapsed_ms"] += (
+            time.perf_counter() - started) * 1000.0
+        if direct is not None:
+            _MATCHER_TELEMETRY["proofs_matched"] += 1
+        return direct
+
     direct = _unify(body_ast, tmpl_ast, {})
     if direct is not None and _egglog_accepts_binding(body_ast, tmpl_ast, direct):
         return direct

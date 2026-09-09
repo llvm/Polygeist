@@ -159,6 +159,69 @@ static int            g_pipeline_depth = 0;
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
 
+/* Opt-in steady-state cache for immutable legacy cuDNN convolution state.
+ * POLYGEIST_CUDNN_PLAN_CACHE=1 retains descriptors, the selected algorithm,
+ * and its workspace across calls. Tensor addresses are deliberately absent
+ * from the key: execution supplies the current operands to the cached plan. */
+#define POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP 64
+typedef struct {
+  int device;
+  int tensor_rank;
+  int spatial_rank;
+  int data_type;
+  int filter_format;
+  int convolution_mode;
+  int compute_type;
+  int group_count;
+  int math_type;
+  int input_dims[CUDNN_DIM_MAX];
+  int input_strides[CUDNN_DIM_MAX];
+  int filter_dims[CUDNN_DIM_MAX];
+  int output_dims[CUDNN_DIM_MAX];
+  int output_strides[CUDNN_DIM_MAX];
+  int padding[CUDNN_DIM_MAX - 2];
+  int convolution_strides[CUDNN_DIM_MAX - 2];
+  int dilation[CUDNN_DIM_MAX - 2];
+} PolygeistCudnnConvFwdKey;
+
+typedef struct {
+  int used;
+  uint64_t last_use;
+  PolygeistCudnnConvFwdKey key;
+  cudnnTensorDescriptor_t input_desc;
+  cudnnTensorDescriptor_t output_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t convolution_desc;
+  cudnnConvolutionFwdAlgo_t algorithm;
+  void *workspace;
+  size_t workspace_bytes;
+} PolygeistCudnnConvFwdPlan;
+
+static PolygeistCudnnConvFwdPlan
+    g_cudnn_conv_fwd_cache[POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP];
+static uint64_t g_cudnn_conv_fwd_cache_clock;
+
+typedef struct {
+  int used;
+  uint64_t last_use;
+  PolygeistCudnnConvFwdKey key;
+  cudnnTensorDescriptor_t gradient_desc;
+  cudnnTensorDescriptor_t output_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionDescriptor_t convolution_desc;
+  cudnnConvolutionBwdDataAlgo_t algorithm;
+  void *workspace;
+  size_t workspace_bytes;
+} PolygeistCudnnConvBwdDataPlan;
+
+static PolygeistCudnnConvBwdDataPlan
+    g_cudnn_conv_bwd_data_cache[POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP];
+static uint64_t g_cudnn_conv_bwd_data_cache_clock;
+static int g_cudnn_plan_cache_enabled = -1;
+static int g_cudnn_plan_cache_diagnostics = -1;
+static void destroy_cudnn_conv_fwd_cache(void);
+static void destroy_cudnn_conv_bwd_data_cache(void);
+
 #define POLYGEIST_GPU_TIMING_CATEGORY_COUNT 8
 #define POLYGEIST_GPU_TIMING_STACK_CAP 64
 #define POLYGEIST_GPU_TIMING_REGION_CAP 8
@@ -704,6 +767,319 @@ static void ensure_cudnn(void) {
   CUDNN_CHECK(cudnnSetStream(g_cudnn, g_stream));
 }
 
+static int environment_flag(const char *name, int default_value) {
+  const char *value = getenv(name);
+  if (!value || value[0] == '\0')
+    return default_value;
+  return strcmp(value, "0") != 0 && strcmp(value, "false") != 0 &&
+         strcmp(value, "FALSE") != 0;
+}
+
+static int cudnn_plan_cache_enabled(void) {
+  if (g_cudnn_plan_cache_enabled < 0)
+    g_cudnn_plan_cache_enabled =
+        environment_flag("POLYGEIST_CUDNN_PLAN_CACHE", 0);
+  return g_cudnn_plan_cache_enabled;
+}
+
+static int cudnn_plan_cache_diagnostics(void) {
+  if (g_cudnn_plan_cache_diagnostics < 0)
+    g_cudnn_plan_cache_diagnostics =
+        environment_flag("POLYGEIST_CUDNN_PLAN_CACHE_DIAGNOSTICS", 0);
+  return g_cudnn_plan_cache_diagnostics;
+}
+
+static void report_cudnn_plan_cache(const char *event, size_t slot,
+                                    size_t workspace_bytes) {
+  if (!cudnn_plan_cache_diagnostics())
+    return;
+  if (g_active_cuda_graph &&
+      g_active_cuda_graph->state == CUDA_GRAPH_CAPTURE)
+    return;
+  fprintf(stderr,
+          "POLYGEIST_CUDNN_PLAN_CACHE event=%s kind=convolution_forward "
+          "slot=%zu workspace_bytes=%zu\n",
+          event, slot, workspace_bytes);
+}
+
+static void release_cudnn_conv_fwd_plan(PolygeistCudnnConvFwdPlan *plan) {
+  if (!plan->used)
+    return;
+  if (plan->workspace)
+    CUDA_CHECK(cudaFree(plan->workspace));
+  if (plan->convolution_desc)
+    cudnnDestroyConvolutionDescriptor(plan->convolution_desc);
+  if (plan->filter_desc)
+    cudnnDestroyFilterDescriptor(plan->filter_desc);
+  if (plan->output_desc)
+    cudnnDestroyTensorDescriptor(plan->output_desc);
+  if (plan->input_desc)
+    cudnnDestroyTensorDescriptor(plan->input_desc);
+  memset(plan, 0, sizeof(*plan));
+}
+
+static void destroy_cudnn_conv_fwd_cache(void) {
+  for (size_t i = 0; i < POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP; ++i)
+    release_cudnn_conv_fwd_plan(&g_cudnn_conv_fwd_cache[i]);
+  g_cudnn_conv_fwd_cache_clock = 0;
+}
+
+static PolygeistCudnnConvFwdPlan *find_cudnn_conv_fwd_plan(
+    const PolygeistCudnnConvFwdKey *key) {
+  for (size_t i = 0; i < POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP; ++i) {
+    PolygeistCudnnConvFwdPlan *plan = &g_cudnn_conv_fwd_cache[i];
+    if (!plan->used || memcmp(&plan->key, key, sizeof(*key)) != 0)
+      continue;
+    plan->last_use = ++g_cudnn_conv_fwd_cache_clock;
+    report_cudnn_plan_cache("hit", i, plan->workspace_bytes);
+    return plan;
+  }
+  return NULL;
+}
+
+static PolygeistCudnnConvFwdPlan *allocate_cudnn_conv_fwd_plan(
+    const PolygeistCudnnConvFwdKey *key) {
+  size_t slot = POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP;
+  uint64_t oldest = UINT64_MAX;
+  for (size_t i = 0; i < POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP; ++i) {
+    PolygeistCudnnConvFwdPlan *plan = &g_cudnn_conv_fwd_cache[i];
+    if (!plan->used) {
+      slot = i;
+      break;
+    }
+    if (plan->last_use < oldest) {
+      oldest = plan->last_use;
+      slot = i;
+    }
+  }
+  if (slot == POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP) {
+    fprintf(stderr, "polygeist runtime: invalid cuDNN plan-cache state\n");
+    abort();
+  }
+  PolygeistCudnnConvFwdPlan *plan = &g_cudnn_conv_fwd_cache[slot];
+  if (plan->used) {
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    report_cudnn_plan_cache("evict", slot, plan->workspace_bytes);
+    release_cudnn_conv_fwd_plan(plan);
+  }
+  plan->used = 1;
+  plan->last_use = ++g_cudnn_conv_fwd_cache_clock;
+  plan->key = *key;
+  return plan;
+}
+
+static PolygeistCudnnConvFwdPlan *get_cudnn_conv_fwd_plan(
+    int tensor_rank, const int *input_dims, const int *input_strides,
+    const int *filter_dims, const int *output_dims, const int *output_strides,
+    int spatial_rank, const int *padding, const int *convolution_strides,
+    const int *dilation, cudnnDataType_t data_type,
+    cudnnTensorFormat_t filter_format, cudnnConvolutionMode_t convolution_mode,
+    cudnnDataType_t compute_type, int group_count,
+    cudnnMathType_t math_type) {
+  if (!cudnn_plan_cache_enabled())
+    return NULL;
+  if (tensor_rank < 3 || tensor_rank > CUDNN_DIM_MAX || spatial_rank < 1 ||
+      spatial_rank > CUDNN_DIM_MAX - 2) {
+    fprintf(stderr, "polygeist runtime: invalid cached convolution rank\n");
+    abort();
+  }
+
+  PolygeistCudnnConvFwdKey key;
+  memset(&key, 0, sizeof(key));
+  CUDA_CHECK(cudaGetDevice(&key.device));
+  key.tensor_rank = tensor_rank;
+  key.spatial_rank = spatial_rank;
+  key.data_type = (int)data_type;
+  key.filter_format = (int)filter_format;
+  key.convolution_mode = (int)convolution_mode;
+  key.compute_type = (int)compute_type;
+  key.group_count = group_count;
+  key.math_type = (int)math_type;
+  memcpy(key.input_dims, input_dims, tensor_rank * sizeof(int));
+  memcpy(key.input_strides, input_strides, tensor_rank * sizeof(int));
+  memcpy(key.filter_dims, filter_dims, tensor_rank * sizeof(int));
+  memcpy(key.output_dims, output_dims, tensor_rank * sizeof(int));
+  memcpy(key.output_strides, output_strides, tensor_rank * sizeof(int));
+  memcpy(key.padding, padding, spatial_rank * sizeof(int));
+  memcpy(key.convolution_strides, convolution_strides,
+         spatial_rank * sizeof(int));
+  memcpy(key.dilation, dilation, spatial_rank * sizeof(int));
+
+  PolygeistCudnnConvFwdPlan *plan = find_cudnn_conv_fwd_plan(&key);
+  if (plan)
+    return plan;
+  plan = allocate_cudnn_conv_fwd_plan(&key);
+
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->input_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->output_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&plan->filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&plan->convolution_desc));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      plan->input_desc, data_type, tensor_rank, input_dims, input_strides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      plan->filter_desc, data_type, filter_format, tensor_rank, filter_dims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      plan->convolution_desc, spatial_rank, padding, convolution_strides,
+      dilation, convolution_mode, compute_type));
+  CUDNN_CHECK(cudnnSetConvolutionGroupCount(plan->convolution_desc,
+                                             group_count));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(plan->convolution_desc, math_type));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      plan->output_desc, data_type, tensor_rank, output_dims, output_strides));
+
+  cudnnConvolutionFwdAlgoPerf_t performance;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, plan->input_desc, plan->filter_desc, plan->convolution_desc,
+      plan->output_desc, 1, &returned, &performance));
+  if (returned < 1) {
+    fprintf(stderr,
+            "polygeist runtime: no cached cuDNN forward algorithm available\n");
+    abort();
+  }
+  plan->algorithm = performance.algo;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, plan->input_desc, plan->filter_desc, plan->convolution_desc,
+      plan->output_desc, plan->algorithm, &plan->workspace_bytes));
+  if (plan->workspace_bytes)
+    CUDA_CHECK(cudaMalloc(&plan->workspace, plan->workspace_bytes));
+  report_cudnn_plan_cache("miss", (size_t)(plan - g_cudnn_conv_fwd_cache),
+                          plan->workspace_bytes);
+  return plan;
+}
+
+static void report_cudnn_bwd_data_cache(const char *event, size_t slot,
+                                        size_t workspace_bytes) {
+  if (!cudnn_plan_cache_diagnostics())
+    return;
+  fprintf(stderr,
+          "POLYGEIST_CUDNN_PLAN_CACHE event=%s kind=convolution_backward_data "
+          "slot=%zu workspace_bytes=%zu\n",
+          event, slot, workspace_bytes);
+}
+
+static void release_cudnn_conv_bwd_data_plan(
+    PolygeistCudnnConvBwdDataPlan *plan) {
+  if (!plan->used)
+    return;
+  if (plan->workspace)
+    CUDA_CHECK(cudaFree(plan->workspace));
+  if (plan->convolution_desc)
+    cudnnDestroyConvolutionDescriptor(plan->convolution_desc);
+  if (plan->filter_desc)
+    cudnnDestroyFilterDescriptor(plan->filter_desc);
+  if (plan->output_desc)
+    cudnnDestroyTensorDescriptor(plan->output_desc);
+  if (plan->gradient_desc)
+    cudnnDestroyTensorDescriptor(plan->gradient_desc);
+  memset(plan, 0, sizeof(*plan));
+}
+
+static void destroy_cudnn_conv_bwd_data_cache(void) {
+  for (size_t i = 0; i < POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP; ++i)
+    release_cudnn_conv_bwd_data_plan(&g_cudnn_conv_bwd_data_cache[i]);
+  g_cudnn_conv_bwd_data_cache_clock = 0;
+}
+
+static PolygeistCudnnConvBwdDataPlan *get_cudnn_conv_bwd_data_plan(
+    int tensor_rank, const int *gradient_dims, const int *gradient_strides,
+    const int *filter_dims, const int *output_dims, const int *output_strides,
+    int spatial_rank, const int *padding, const int *convolution_strides,
+    const int *dilation, cudnnDataType_t data_type,
+    cudnnTensorFormat_t filter_format, cudnnConvolutionMode_t convolution_mode,
+    cudnnDataType_t compute_type, int group_count,
+    cudnnMathType_t math_type) {
+  if (!cudnn_plan_cache_enabled())
+    return NULL;
+  PolygeistCudnnConvFwdKey key;
+  memset(&key, 0, sizeof(key));
+  CUDA_CHECK(cudaGetDevice(&key.device));
+  key.tensor_rank = tensor_rank;
+  key.spatial_rank = spatial_rank;
+  key.data_type = (int)data_type;
+  key.filter_format = (int)filter_format;
+  key.convolution_mode = (int)convolution_mode;
+  key.compute_type = (int)compute_type;
+  key.group_count = group_count;
+  key.math_type = (int)math_type;
+  memcpy(key.input_dims, gradient_dims, tensor_rank * sizeof(int));
+  memcpy(key.input_strides, gradient_strides, tensor_rank * sizeof(int));
+  memcpy(key.filter_dims, filter_dims, tensor_rank * sizeof(int));
+  memcpy(key.output_dims, output_dims, tensor_rank * sizeof(int));
+  memcpy(key.output_strides, output_strides, tensor_rank * sizeof(int));
+  memcpy(key.padding, padding, spatial_rank * sizeof(int));
+  memcpy(key.convolution_strides, convolution_strides,
+         spatial_rank * sizeof(int));
+  memcpy(key.dilation, dilation, spatial_rank * sizeof(int));
+
+  PolygeistCudnnConvBwdDataPlan *plan = NULL;
+  size_t slot = POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP;
+  uint64_t oldest = UINT64_MAX;
+  for (size_t i = 0; i < POLYGEIST_CUDNN_CONV_FWD_CACHE_CAP; ++i) {
+    PolygeistCudnnConvBwdDataPlan *candidate =
+        &g_cudnn_conv_bwd_data_cache[i];
+    if (candidate->used &&
+        memcmp(&candidate->key, &key, sizeof(key)) == 0) {
+      candidate->last_use = ++g_cudnn_conv_bwd_data_cache_clock;
+      report_cudnn_bwd_data_cache("hit", i, candidate->workspace_bytes);
+      return candidate;
+    }
+    if (!candidate->used) {
+      slot = i;
+      break;
+    }
+    if (candidate->last_use < oldest) {
+      oldest = candidate->last_use;
+      slot = i;
+    }
+  }
+  plan = &g_cudnn_conv_bwd_data_cache[slot];
+  if (plan->used) {
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    report_cudnn_bwd_data_cache("evict", slot, plan->workspace_bytes);
+    release_cudnn_conv_bwd_data_plan(plan);
+  }
+  plan->used = 1;
+  plan->last_use = ++g_cudnn_conv_bwd_data_cache_clock;
+  plan->key = key;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->gradient_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->output_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&plan->filter_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&plan->convolution_desc));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      plan->gradient_desc, data_type, tensor_rank, gradient_dims,
+      gradient_strides));
+  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+      plan->output_desc, data_type, tensor_rank, output_dims, output_strides));
+  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+      plan->filter_desc, data_type, filter_format, tensor_rank, filter_dims));
+  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+      plan->convolution_desc, spatial_rank, padding, convolution_strides,
+      dilation, convolution_mode, compute_type));
+  CUDNN_CHECK(cudnnSetConvolutionGroupCount(plan->convolution_desc,
+                                             group_count));
+  CUDNN_CHECK(cudnnSetConvolutionMathType(plan->convolution_desc, math_type));
+  cudnnConvolutionBwdDataAlgoPerf_t performance;
+  int returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(
+      g_cudnn, plan->filter_desc, plan->gradient_desc,
+      plan->convolution_desc, plan->output_desc, 1, &returned, &performance));
+  if (returned < 1) {
+    fprintf(stderr,
+            "polygeist runtime: no cached cuDNN backward-data algorithm available\n");
+    abort();
+  }
+  plan->algorithm = performance.algo;
+  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(
+      g_cudnn, plan->filter_desc, plan->gradient_desc,
+      plan->convolution_desc, plan->output_desc, plan->algorithm,
+      &plan->workspace_bytes));
+  if (plan->workspace_bytes)
+    CUDA_CHECK(cudaMalloc(&plan->workspace, plan->workspace_bytes));
+  report_cudnn_bwd_data_cache("miss", slot, plan->workspace_bytes);
+  return plan;
+}
+
 static void ensure_cublaslt(void) {
   if (g_lt) return;
   cublasStatus_t s = cublasLtCreate(&g_lt);
@@ -1158,6 +1534,8 @@ void polygeist_cublas_destroy(void) {
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
   destroy_cuda_graph_cache();
 #ifndef POLYGEIST_DISABLE_CUDNN_CLEANUP
+  destroy_cudnn_conv_fwd_cache();
+  destroy_cudnn_conv_bwd_data_cache();
   destroy_stencil3d_7pt_cache();
 #endif
   destroy_generated_module_cache();
@@ -4823,136 +5201,6 @@ void polygeist_cudnn_conv3d_ntap_f32(
   cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
-void polygeist_cudnn_stencil3d_symmetric_f64(
-    int32_t inD, int32_t inH, int32_t inW,
-    int32_t outD, int32_t outH, int32_t outW,
-    int32_t strideD, int32_t strideH, int32_t strideW,
-    int32_t inOffD, int32_t inOffH, int32_t inOffW,
-    int32_t outOffD, int32_t outOffH, int32_t outOffW,
-    double center, double face, double edge, double corner,
-    double alpha, double beta,
-    const double *input, const double *addend, double *output) {
-  const int32_t convD = outD - 2 * outOffD;
-  const int32_t convH = outH - 2 * outOffH;
-  const int32_t convW = outW - 2 * outOffW;
-  const int32_t usedD = (convD - 1) * strideD + 3;
-  const int32_t usedH = (convH - 1) * strideH + 3;
-  const int32_t usedW = (convW - 1) * strideW + 3;
-  if (inD <= 0 || inH <= 0 || inW <= 0 || convD <= 0 || convH <= 0 ||
-      convW <= 0 || strideD <= 0 || strideH <= 0 || strideW <= 0 ||
-      inOffD < 0 || inOffH < 0 || inOffW < 0 || outOffD < 0 ||
-      outOffH < 0 || outOffW < 0 || inOffD + usedD > inD ||
-      inOffH + usedH > inH || inOffW + usedW > inW) {
-    fprintf(stderr, "cuDNN symmetric stencil3d: invalid dimensions\n");
-    abort();
-  }
-
-  double weights[27];
-  for (int dz = 0; dz < 3; ++dz)
-    for (int dy = 0; dy < 3; ++dy)
-      for (int dx = 0; dx < 3; ++dx) {
-        const int distance = (dz != 1) + (dy != 1) + (dx != 1);
-        weights[(dz * 3 + dy) * 3 + dx] =
-            distance == 0 ? center : distance == 1 ? face
-                                : distance == 2   ? edge
-                                                  : corner;
-      }
-
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  polygeist_cublas_init();
-  ensure_cudnn();
-
-  size_t input_bytes =
-      (size_t)inD * (size_t)inH * (size_t)inW * sizeof(double);
-  size_t output_bytes =
-      (size_t)outD * (size_t)outH * (size_t)outW * sizeof(double);
-  void *hosts[3] = {(void *)input, (void *)addend, output};
-  size_t sizes[3] = {input_bytes, output_bytes, output_bytes};
-  void *devices[3];
-  register_host_operands_safe(hosts, sizes, devices, 3);
-  double *dInput = (double *)devices[0];
-  double *dAddend = (double *)devices[1];
-  double *dOutput = (double *)devices[2];
-  if (addend != output)
-    CUDA_CHECK(cudaMemcpyAsync(dOutput, dAddend, output_bytes,
-                               cudaMemcpyDeviceToDevice, g_stream));
-
-  double *dWeights = NULL;
-  DEVICE_MALLOC((void **)&dWeights, sizeof(weights));
-  CUDA_CHECK(cudaMemcpyAsync(dWeights, weights, sizeof(weights),
-                             cudaMemcpyHostToDevice, g_stream));
-
-  cudnnTensorDescriptor_t inputDesc, outputDesc;
-  cudnnFilterDescriptor_t filterDesc;
-  cudnnConvolutionDescriptor_t convDesc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
-  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
-
-  int inputDims[5] = {1, 1, usedD, usedH, usedW};
-  int inputStrides[5] = {inD * inH * inW, inD * inH * inW,
-                         inH * inW, inW, 1};
-  int outputDims[5] = {1, 1, convD, convH, convW};
-  int outputStrides[5] = {outD * outH * outW, outD * outH * outW,
-                          outH * outW, outW, 1};
-  int filterDims[5] = {1, 1, 3, 3, 3};
-  int pad[3] = {0, 0, 0};
-  int stride[3] = {strideD, strideH, strideW};
-  int dilation[3] = {1, 1, 1};
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      inputDesc, CUDNN_DATA_DOUBLE, 5, inputDims, inputStrides));
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      outputDesc, CUDNN_DATA_DOUBLE, 5, outputDims, outputStrides));
-  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
-      filterDesc, CUDNN_DATA_DOUBLE, CUDNN_TENSOR_NCHW, 5, filterDims));
-  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
-      convDesc, 3, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
-      CUDNN_DATA_DOUBLE));
-
-  cudnnConvolutionFwdAlgoPerf_t perf;
-  int returned = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
-      &perf));
-  if (returned < 1) {
-    fprintf(stderr, "cuDNN symmetric stencil3d: no algorithm available\n");
-    abort();
-  }
-  size_t workspaceSize = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
-      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, perf.algo,
-      &workspaceSize));
-  void *workspace = NULL;
-  if (workspaceSize)
-    DEVICE_MALLOC(&workspace, workspaceSize);
-
-  size_t inputOffset =
-      ((size_t)inOffD * (size_t)inH + (size_t)inOffH) * (size_t)inW +
-      (size_t)inOffW;
-  size_t outputOffset =
-      ((size_t)outOffD * (size_t)outH + (size_t)outOffH) * (size_t)outW +
-      (size_t)outOffW;
-  timing_gpu_begin();
-  CUDNN_CHECK(cudnnConvolutionForward(
-      g_cudnn, &alpha, inputDesc, dInput + inputOffset, filterDesc, dWeights,
-      convDesc, perf.algo, workspace, workspaceSize, &beta, outputDesc,
-      dOutput + outputOffset));
-  timing_gpu_end("cudnnStencil3DSymmetric_f64", convD, convH, convW,
-                 host_start_ms);
-
-  if (workspace)
-    DEVICE_FREE(workspace);
-  DEVICE_FREE(dWeights);
-  cudnnDestroyTensorDescriptor(inputDesc);
-  cudnnDestroyTensorDescriptor(outputDesc);
-  cudnnDestroyFilterDescriptor(filterDesc);
-  cudnnDestroyConvolutionDescriptor(convDesc);
-  unregister_host_safe((void *)input);
-  unregister_host_safe((void *)addend);
-  unregister_host_safe(output);
-}
-
 /* External-library implementation of a flattened 3D seven-point stencil.
  * The adapter only builds the sparse 3x3x3 filter and descriptors; cuDNN
  * performs all arithmetic. cudaMemcpy3D writes the compact valid-convolution
@@ -6511,43 +6759,73 @@ void polygeist_cudnn_conv2d_dilated_f32(
   float *dIn = (float *)register_host_safe((void *)input, inBytes);
   float *dFilter = (float *)register_host_safe((void *)filter, filterBytes);
   float *dOut = (float *)register_host_safe(output, outBytes);
-  cudnnTensorDescriptor_t inDesc, outDesc;
-  cudnnFilterDescriptor_t filterDesc;
-  cudnnConvolutionDescriptor_t convDesc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inDesc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outDesc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
-  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
-      inDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, IC, H, W));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
-      outDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, OC, OH, OW));
-  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
-      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, OC, IC, KH, KW));
-  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
-      convDesc, 0, 0, 1, 1, DH, DW,
-      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-  cudnnConvolutionFwdAlgoPerf_t perf;
-  int returned = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      g_cudnn, inDesc, filterDesc, convDesc, outDesc, 1, &returned, &perf));
-  if (returned < 1) abort();
+  int inputDims[4] = {1, IC, H, W};
+  int inputStrides[4] = {IC * H * W, H * W, W, 1};
+  int outputDims[4] = {1, OC, OH, OW};
+  int outputStrides[4] = {OC * OH * OW, OH * OW, OW, 1};
+  int filterDims[4] = {OC, IC, KH, KW};
+  int padding[2] = {0, 0};
+  int convolutionStrides[2] = {1, 1};
+  int dilation[2] = {DH, DW};
+  PolygeistCudnnConvFwdPlan *cachedPlan = get_cudnn_conv_fwd_plan(
+      4, inputDims, inputStrides, filterDims, outputDims, outputStrides, 2,
+      padding, convolutionStrides, dilation, CUDNN_DATA_FLOAT,
+      CUDNN_TENSOR_NCHW, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT, 1,
+      CUDNN_DEFAULT_MATH);
+  cudnnTensorDescriptor_t inDesc = NULL, outDesc = NULL;
+  cudnnFilterDescriptor_t filterDesc = NULL;
+  cudnnConvolutionDescriptor_t convDesc = NULL;
+  cudnnConvolutionFwdAlgo_t algorithm;
   size_t workspaceBytes = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
-      g_cudnn, inDesc, filterDesc, convDesc, outDesc, perf.algo,
-      &workspaceBytes));
   void *workspace = NULL;
-  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  if (cachedPlan) {
+    inDesc = cachedPlan->input_desc;
+    outDesc = cachedPlan->output_desc;
+    filterDesc = cachedPlan->filter_desc;
+    convDesc = cachedPlan->convolution_desc;
+    algorithm = cachedPlan->algorithm;
+    workspaceBytes = cachedPlan->workspace_bytes;
+    workspace = cachedPlan->workspace;
+  } else {
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&inDesc));
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&outDesc));
+    CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+    CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+    CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+        inDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, IC, H, W));
+    CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+        outDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, OC, OH, OW));
+    CUDNN_CHECK(cudnnSetFilter4dDescriptor(
+        filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, OC, IC, KH, KW));
+    CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+        convDesc, 0, 0, 1, 1, DH, DW,
+        CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+    cudnnConvolutionFwdAlgoPerf_t algorithmPerformance;
+    int returned = 0;
+    CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+        g_cudnn, inDesc, filterDesc, convDesc, outDesc, 1, &returned,
+        &algorithmPerformance));
+    if (returned < 1)
+      abort();
+    algorithm = algorithmPerformance.algo;
+    CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+        g_cudnn, inDesc, filterDesc, convDesc, outDesc, algorithm,
+        &workspaceBytes));
+    if (workspaceBytes)
+      DEVICE_MALLOC(&workspace, workspaceBytes);
+  }
   float one = 1.0f, zero = 0.0f;
   CUDNN_CHECK(cudnnConvolutionForward(
-      g_cudnn, &one, inDesc, dIn, filterDesc, dFilter, convDesc, perf.algo,
+      g_cudnn, &one, inDesc, dIn, filterDesc, dFilter, convDesc, algorithm,
       workspace, workspaceBytes, &zero, outDesc, dOut));
   sync_stream_if_outside_pipeline();
-  if (workspace) DEVICE_FREE(workspace);
-  cudnnDestroyTensorDescriptor(inDesc);
-  cudnnDestroyTensorDescriptor(outDesc);
-  cudnnDestroyFilterDescriptor(filterDesc);
-  cudnnDestroyConvolutionDescriptor(convDesc);
+  if (!cachedPlan && workspace) DEVICE_FREE(workspace);
+  if (!cachedPlan) {
+    cudnnDestroyTensorDescriptor(inDesc);
+    cudnnDestroyTensorDescriptor(outDesc);
+    cudnnDestroyFilterDescriptor(filterDesc);
+    cudnnDestroyConvolutionDescriptor(convDesc);
+  }
 }
 
 void polygeist_cublas_gemmex_i8_i32(
@@ -6674,45 +6952,71 @@ void polygeist_cudnn_conv_transpose2d_f32(
   float *deviceInput = (float *)register_host_safe((void *)input, inputBytes);
   float *deviceFilter = (float *)register_host_safe((void *)filter, filterBytes);
   float *deviceOutput = (float *)register_host_safe(output, outputBytes);
-  cudnnTensorDescriptor_t inputDesc, outputDesc;
-  cudnnFilterDescriptor_t filterDesc;
-  cudnnConvolutionDescriptor_t convDesc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
-  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
-      inputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, IC, H, W));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(
-      outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, B, OC, OH, OW));
-  CUDNN_CHECK(cudnnSetFilter4dDescriptor(
-      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, IC, OC, KH, KW));
-  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
-      convDesc, 0, 0, 1, 1, 1, 1,
-      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-  cudnnConvolutionBwdDataAlgoPerf_t perf;
-  int returned = 0;
-  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(
-      g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, 1, &returned,
-      &perf));
-  if (returned < 1) abort();
+  int inputDims[4] = {B, IC, H, W};
+  int inputStrides[4] = {IC * H * W, H * W, W, 1};
+  int outputDims[4] = {B, OC, OH, OW};
+  int outputStrides[4] = {OC * OH * OW, OH * OW, OW, 1};
+  int filterDims[4] = {IC, OC, KH, KW};
+  int padding[2] = {0, 0}, strides[2] = {1, 1}, dilation[2] = {1, 1};
+  PolygeistCudnnConvBwdDataPlan *cachedPlan =
+      get_cudnn_conv_bwd_data_plan(
+          4, inputDims, inputStrides, filterDims, outputDims, outputStrides,
+          2, padding, strides, dilation, CUDNN_DATA_FLOAT,
+          CUDNN_TENSOR_NCHW, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT, 1,
+          CUDNN_DEFAULT_MATH);
+  cudnnTensorDescriptor_t inputDesc = NULL, outputDesc = NULL;
+  cudnnFilterDescriptor_t filterDesc = NULL;
+  cudnnConvolutionDescriptor_t convDesc = NULL;
+  cudnnConvolutionBwdDataAlgo_t algorithm;
   size_t workspaceBytes = 0;
-  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(
-      g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, perf.algo,
-      &workspaceBytes));
   void *workspace = NULL;
-  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  if (cachedPlan) {
+    inputDesc = cachedPlan->gradient_desc;
+    outputDesc = cachedPlan->output_desc;
+    filterDesc = cachedPlan->filter_desc;
+    convDesc = cachedPlan->convolution_desc;
+    algorithm = cachedPlan->algorithm;
+    workspace = cachedPlan->workspace;
+    workspaceBytes = cachedPlan->workspace_bytes;
+  } else {
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+    CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+    CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+        inputDesc, CUDNN_DATA_FLOAT, 4, inputDims, inputStrides));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+        outputDesc, CUDNN_DATA_FLOAT, 4, outputDims, outputStrides));
+    CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+        filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 4, filterDims));
+    CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+        convDesc, 2, padding, strides, dilation, CUDNN_CROSS_CORRELATION,
+        CUDNN_DATA_FLOAT));
+    cudnnConvolutionBwdDataAlgoPerf_t perf;
+    int returned = 0;
+    CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(
+        g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, 1, &returned,
+        &perf));
+    if (returned < 1) abort();
+    algorithm = perf.algo;
+    CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(
+        g_cudnn, filterDesc, inputDesc, convDesc, outputDesc, algorithm,
+        &workspaceBytes));
+    if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  }
   float one = 1.0f, zero = 0.0f;
   CUDNN_CHECK(cudnnConvolutionBackwardData(
       g_cudnn, &one, filterDesc, deviceFilter, inputDesc, deviceInput,
-      convDesc, perf.algo, workspace, workspaceBytes, &zero,
+      convDesc, algorithm, workspace, workspaceBytes, &zero,
       outputDesc, deviceOutput));
   sync_stream_if_outside_pipeline();
-  if (workspace) DEVICE_FREE(workspace);
-  cudnnDestroyTensorDescriptor(inputDesc);
-  cudnnDestroyTensorDescriptor(outputDesc);
-  cudnnDestroyFilterDescriptor(filterDesc);
-  cudnnDestroyConvolutionDescriptor(convDesc);
+  if (!cachedPlan) {
+    if (workspace) DEVICE_FREE(workspace);
+    cudnnDestroyTensorDescriptor(inputDesc);
+    cudnnDestroyTensorDescriptor(outputDesc);
+    cudnnDestroyFilterDescriptor(filterDesc);
+    cudnnDestroyConvolutionDescriptor(convDesc);
+  }
 }
 
 void polygeist_cudnn_conv_transpose3d_f32(
@@ -6728,29 +7032,44 @@ void polygeist_cudnn_conv_transpose3d_f32(
   float *dInput=(float*)register_host_safe((void*)input,inputBytes);
   float *dFilter=(float*)register_host_safe((void*)filter,filterBytes);
   float *dOutput=(float*)register_host_safe(output,outputBytes);
-  cudnnTensorDescriptor_t dyDesc,dxDesc;cudnnFilterDescriptor_t filterDesc;
-  cudnnConvolutionDescriptor_t convDesc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&dyDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&dxDesc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
   int dyDims[5]={1,IC,D,H,W},dyStrides[5]={IC*D*H*W,D*H*W,H*W,W,1};
   int dxDims[5]={1,OC,OD,OH,OW},dxStrides[5]={OC*OD*OH*OW,OD*OH*OW,OH*OW,OW,1};
   int filterDims[5]={IC,OC,KD,KH,KW};int pad[3]={0,0,0},stride[3]={1,1,1},dilation[3]={1,1,1};
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,5,dyDims,dyStrides));
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDesc,CUDNN_DATA_FLOAT,5,dxDims,dxStrides));
-  CUDNN_CHECK(cudnnSetFilterNdDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
-  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
-  CUDNN_CHECK(cudnnSetConvolutionMathType(convDesc,CUDNN_FMA_MATH));
-  cudnnConvolutionBwdDataAlgoPerf_t perf;int returned=0;
-  CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,1,&returned,&perf));
-  if(returned<1)abort();size_t workspaceBytes=0;
-  CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,perf.algo,&workspaceBytes));
-  void *workspace=NULL;if(workspaceBytes)DEVICE_MALLOC(&workspace,workspaceBytes);
+  PolygeistCudnnConvBwdDataPlan *cachedPlan =
+      get_cudnn_conv_bwd_data_plan(
+          5, dyDims, dyStrides, filterDims, dxDims, dxStrides, 3, pad, stride,
+          dilation, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW,
+          CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT, 1, CUDNN_FMA_MATH);
+  cudnnTensorDescriptor_t dyDesc=NULL,dxDesc=NULL;
+  cudnnFilterDescriptor_t filterDesc=NULL;
+  cudnnConvolutionDescriptor_t convDesc=NULL;
+  cudnnConvolutionBwdDataAlgo_t algorithm;
+  size_t workspaceBytes=0;void *workspace=NULL;
+  if(cachedPlan){
+    dyDesc=cachedPlan->gradient_desc;dxDesc=cachedPlan->output_desc;
+    filterDesc=cachedPlan->filter_desc;convDesc=cachedPlan->convolution_desc;
+    algorithm=cachedPlan->algorithm;workspace=cachedPlan->workspace;
+    workspaceBytes=cachedPlan->workspace_bytes;
+  }else{
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&dyDesc));CUDNN_CHECK(cudnnCreateTensorDescriptor(&dxDesc));
+    CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(dyDesc,CUDNN_DATA_FLOAT,5,dyDims,dyStrides));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(dxDesc,CUDNN_DATA_FLOAT,5,dxDims,dxStrides));
+    CUDNN_CHECK(cudnnSetFilterNdDescriptor(filterDesc,CUDNN_DATA_FLOAT,CUDNN_TENSOR_NCHW,5,filterDims));
+    CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(convDesc,3,pad,stride,dilation,CUDNN_CROSS_CORRELATION,CUDNN_DATA_FLOAT));
+    CUDNN_CHECK(cudnnSetConvolutionMathType(convDesc,CUDNN_FMA_MATH));
+    cudnnConvolutionBwdDataAlgoPerf_t perf;int returned=0;
+    CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,1,&returned,&perf));
+    if(returned<1)abort();algorithm=perf.algo;
+    CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(g_cudnn,filterDesc,dyDesc,convDesc,dxDesc,algorithm,&workspaceBytes));
+    if(workspaceBytes)DEVICE_MALLOC(&workspace,workspaceBytes);
+  }
   float one=1.0f,zero=0.0f;timing_gpu_begin();
-  CUDNN_CHECK(cudnnConvolutionBackwardData(g_cudnn,&one,filterDesc,dFilter,dyDesc,dInput,convDesc,perf.algo,workspace,workspaceBytes,&zero,dxDesc,dOutput));
+  CUDNN_CHECK(cudnnConvolutionBackwardData(g_cudnn,&one,filterDesc,dFilter,dyDesc,dInput,convDesc,algorithm,workspace,workspaceBytes,&zero,dxDesc,dOutput));
   timing_gpu_end("cudnnConvolutionTranspose3D_f32",OC*OD,OH*OW,IC*KD*KH*KW,hs);
-  sync_stream_if_outside_pipeline();if(workspace)DEVICE_FREE(workspace);
+  sync_stream_if_outside_pipeline();if(!cachedPlan){if(workspace)DEVICE_FREE(workspace);
   cudnnDestroyTensorDescriptor(dyDesc);cudnnDestroyTensorDescriptor(dxDesc);
-  cudnnDestroyFilterDescriptor(filterDesc);cudnnDestroyConvolutionDescriptor(convDesc);
+  cudnnDestroyFilterDescriptor(filterDesc);cudnnDestroyConvolutionDescriptor(convDesc);}
   unregister_host_safe((void*)input);unregister_host_safe((void*)filter);unregister_host_safe(output);
 }
 
@@ -7178,13 +7497,10 @@ void polygeist_cudnn_conv3d_channels_f32(
                            (void *)bias, (size_t)OC * sizeof(float))
                       : NULL;
 
-  cudnnTensorDescriptor_t inputDesc, outputDesc, biasDesc = NULL;
-  cudnnFilterDescriptor_t filterDesc;
-  cudnnConvolutionDescriptor_t convDesc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
-  CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
-  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+  cudnnTensorDescriptor_t inputDesc = NULL, outputDesc = NULL;
+  cudnnTensorDescriptor_t biasDesc = NULL;
+  cudnnFilterDescriptor_t filterDesc = NULL;
+  cudnnConvolutionDescriptor_t convDesc = NULL;
   int inputDims[5] = {1, IC, inD, inH, inW};
   int inputStrides[5] = {IC * inD * inH * inW, inD * inH * inW,
                          inH * inW, inW, 1};
@@ -7195,37 +7511,58 @@ void polygeist_cudnn_conv3d_channels_f32(
   int pad[3] = {0, 0, 0};
   int stride[3] = {1, 1, 1};
   int dilation[3] = {1, 1, 1};
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      inputDesc, CUDNN_DATA_FLOAT, 5, inputDims, inputStrides));
-  CUDNN_CHECK(cudnnSetFilterNdDescriptor(
-      filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, filterDims));
-  CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
-      convDesc, 3, pad, stride, dilation,
-      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-  CUDNN_CHECK(cudnnSetTensorNdDescriptor(
-      outputDesc, CUDNN_DATA_FLOAT, 5, outputDims, outputStrides));
-
-  cudnnConvolutionFwdAlgoPerf_t algoPerf;
-  int returned = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc,
-      1, &returned, &algoPerf));
-  if (returned < 1) {
-    fprintf(stderr, "cuDNN channel Conv3D: no forward algorithm available\n");
-    abort();
-  }
+  PolygeistCudnnConvFwdPlan *cachedPlan = get_cudnn_conv_fwd_plan(
+      5, inputDims, inputStrides, filterDims, outputDims, outputStrides, 3,
+      pad, stride, dilation, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT, 1, CUDNN_DEFAULT_MATH);
+  cudnnConvolutionFwdAlgo_t algorithm;
   size_t workspaceBytes = 0;
-  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
-      g_cudnn, inputDesc, filterDesc, convDesc, outputDesc,
-      algoPerf.algo, &workspaceBytes));
   void *workspace = NULL;
-  if (workspaceBytes) DEVICE_MALLOC(&workspace, workspaceBytes);
+  if (cachedPlan) {
+    inputDesc = cachedPlan->input_desc;
+    outputDesc = cachedPlan->output_desc;
+    filterDesc = cachedPlan->filter_desc;
+    convDesc = cachedPlan->convolution_desc;
+    algorithm = cachedPlan->algorithm;
+    workspaceBytes = cachedPlan->workspace_bytes;
+    workspace = cachedPlan->workspace;
+  } else {
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&inputDesc));
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&outputDesc));
+    CUDNN_CHECK(cudnnCreateFilterDescriptor(&filterDesc));
+    CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&convDesc));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+        inputDesc, CUDNN_DATA_FLOAT, 5, inputDims, inputStrides));
+    CUDNN_CHECK(cudnnSetFilterNdDescriptor(
+        filterDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, filterDims));
+    CUDNN_CHECK(cudnnSetConvolutionNdDescriptor(
+        convDesc, 3, pad, stride, dilation,
+        CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+    CUDNN_CHECK(cudnnSetTensorNdDescriptor(
+        outputDesc, CUDNN_DATA_FLOAT, 5, outputDims, outputStrides));
+    cudnnConvolutionFwdAlgoPerf_t algorithmPerformance;
+    int returned = 0;
+    CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+        g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returned,
+        &algorithmPerformance));
+    if (returned < 1) {
+      fprintf(stderr,
+              "cuDNN channel Conv3D: no forward algorithm available\n");
+      abort();
+    }
+    algorithm = algorithmPerformance.algo;
+    CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+        g_cudnn, inputDesc, filterDesc, convDesc, outputDesc, algorithm,
+        &workspaceBytes));
+    if (workspaceBytes)
+      DEVICE_MALLOC(&workspace, workspaceBytes);
+  }
 
   float one = 1.0f, zero = 0.0f;
   timing_gpu_begin();
   CUDNN_CHECK(cudnnConvolutionForward(
       g_cudnn, &one, inputDesc, dInput, filterDesc, dFilter, convDesc,
-      algoPerf.algo, workspace, workspaceBytes, &zero, outputDesc, dOutput));
+      algorithm, workspace, workspaceBytes, &zero, outputDesc, dOutput));
   if (dBias) {
     CUDNN_CHECK(cudnnCreateTensorDescriptor(&biasDesc));
     int biasDims[5] = {1, OC, 1, 1, 1};
@@ -7240,12 +7577,14 @@ void polygeist_cudnn_conv3d_channels_f32(
                  host_start_ms);
   sync_stream_if_outside_pipeline();
 
-  if (workspace) DEVICE_FREE(workspace);
+  if (!cachedPlan && workspace) DEVICE_FREE(workspace);
   if (biasDesc) cudnnDestroyTensorDescriptor(biasDesc);
-  cudnnDestroyTensorDescriptor(inputDesc);
-  cudnnDestroyTensorDescriptor(outputDesc);
-  cudnnDestroyFilterDescriptor(filterDesc);
-  cudnnDestroyConvolutionDescriptor(convDesc);
+  if (!cachedPlan) {
+    cudnnDestroyTensorDescriptor(inputDesc);
+    cudnnDestroyTensorDescriptor(outputDesc);
+    cudnnDestroyFilterDescriptor(filterDesc);
+    cudnnDestroyConvolutionDescriptor(convDesc);
+  }
   unregister_host_safe((void *)input);
   unregister_host_safe((void *)filter);
   if (bias) unregister_host_safe((void *)bias);
