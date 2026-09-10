@@ -64,16 +64,94 @@ static StringRef pvaShimSymbolFor(StringRef libSym) {
     return "polygeist_pva_bilateral_3x3_i16";
   if (libSym == "pvaHistogramEqualization_i8")
     return "polygeist_pva_histeq_i8";
+  if (libSym == "pvaBoxFilter_3x3_u8")
+    return "polygeist_pva_boxfilter_3x3_u8";
+  if (libSym == "pvaBoxFilter_3x3_s8")
+    return "polygeist_pva_boxfilter_3x3_s8";
+  if (libSym == "pvaBoxFilter_3x3_u16")
+    return "polygeist_pva_boxfilter_3x3_u16";
+  if (libSym == "pvaBoxFilter_3x3_s16")
+    return "polygeist_pva_boxfilter_3x3_s16";
+  if (libSym == "pvaGaussianFilter_3x3_u8")
+    return "polygeist_pva_gaussian_3x3_u8";
+  if (libSym == "pvaGaussianFilter_3x3_s8")
+    return "polygeist_pva_gaussian_3x3_s8";
+  if (libSym == "pvaGaussianFilter_3x3_u16")
+    return "polygeist_pva_gaussian_3x3_u16";
+  if (libSym == "pvaGaussianFilter_3x3_s16")
+    return "polygeist_pva_gaussian_3x3_s16";
+  if (libSym == "pvaMorphologyDilate_3x3_u8")
+    return "polygeist_pva_morphology_dilate_3x3_u8";
+  if (libSym == "pvaMorphologyDilate_3x3_s8")
+    return "polygeist_pva_morphology_dilate_3x3_s8";
+  if (libSym == "pvaMorphologyDilate_3x3_u16")
+    return "polygeist_pva_morphology_dilate_3x3_u16";
+  if (libSym == "pvaMorphologyDilate_3x3_s16")
+    return "polygeist_pva_morphology_dilate_3x3_s16";
+  if (libSym == "pvaBilateralFilter_3x3_u8")
+    return "polygeist_pva_bilateral_3x3_u8";
+  if (libSym == "pvaImageHistogram_256_u8_u32")
+    return "polygeist_pva_histogram_256_u8_u32";
+  if (libSym == "pvaImageHistogram_256_u8_s32")
+    return "polygeist_pva_histogram_256_u8_s32";
+  if (libSym == "pvaImageHistogram_256_u16_u32")
+    return "polygeist_pva_histogram_256_u16_u32";
+  if (libSym == "pvaImageHistogram_256_u16_s32")
+    return "polygeist_pva_histogram_256_u16_s32";
+  if (libSym == "pvaHistogramEqualization_u8")
+    return "polygeist_pva_histeq_u8";
   return StringRef();
 }
 
 // Classify the launch shape so the right lowering helper is invoked.
-enum class PvaLaunchKind { Conv9tap, ImageFilter2op };
+enum class PvaLaunchKind { Conv9tap, ImageFilter2op, FlatTyped };
 static PvaLaunchKind pvaLaunchKindFor(StringRef libSym) {
   if (libSym.starts_with("cudnnConvolution2D_9tap_"))
     return PvaLaunchKind::Conv9tap;
+  if (libSym.ends_with("_u8") || libSym.ends_with("_s8") ||
+      libSym.ends_with("_u16") || libSym.ends_with("_s16") ||
+      libSym.contains("Histogram_256_"))
+    return PvaLaunchKind::FlatTyped;
   // pvaBoxFilter_*, future pvaGaussianFilter_*, pvaMedianFilter_*, etc.
   return PvaLaunchKind::ImageFilter2op;
+}
+
+// Typed semantic matches use a deliberately simple ABI-preserving launch:
+// scalar parameters remain scalar operands and flat source memrefs become raw
+// data pointers.  The first two operands are always image height/width.  This
+// avoids manufacturing rank/layout information in the matcher; the runtime
+// constructs the required single-channel HWC NVCV tensors explicitly.
+static LogicalResult lowerFlatTypedLaunch(LaunchOp launch, ModuleOp module,
+                                          StringRef shim) {
+  if (launch.getNumResults() != 0)
+    return launch.emitError("typed PVA launch must be memref-form void");
+  if (launch.getNumOperands() < 4)
+    return launch.emitError("typed PVA launch requires h, w and two buffers");
+  if (!launch.getOperand(0).getType().isInteger(32) ||
+      !launch.getOperand(1).getType().isInteger(32))
+    return launch.emitError("typed PVA launch h/w operands must be i32");
+
+  OpBuilder builder(launch);
+  SmallVector<Value> operands;
+  SmallVector<Type> types;
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
+  for (Value operand : launch.getOperands()) {
+    if (auto memref = dyn_cast<MemRefType>(operand.getType())) {
+      if (memref.getRank() != 1)
+        return launch.emitError("typed PVA buffer operands must be flat memrefs");
+      operands.push_back(memrefBasePtr(builder, launch.getLoc(), operand));
+      types.push_back(ptrType);
+    } else {
+      if (!(operand.getType().isInteger(32) || operand.getType().isF32()))
+        return launch.emitError("typed PVA scalar operands must be i32/f32");
+      operands.push_back(operand);
+      types.push_back(operand.getType());
+    }
+  }
+  func::FuncOp declaration = ensureShimDecl(module, shim, types, builder);
+  builder.create<func::CallOp>(launch.getLoc(), declaration, operands);
+  launch.erase();
+  return success();
 }
 
 struct LowerKernelLaunchToPVAPass
@@ -99,6 +177,9 @@ struct LowerKernelLaunchToPVAPass
         break;
       case PvaLaunchKind::ImageFilter2op:
         r = lowerImageFilter2Operand(launch, module, shim);
+        break;
+      case PvaLaunchKind::FlatTyped:
+        r = lowerFlatTypedLaunch(launch, module, shim);
         break;
       }
       if (failed(r))

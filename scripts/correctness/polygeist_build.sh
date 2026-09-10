@@ -165,6 +165,7 @@ WHOLE_PROGRAM=0
 GCC_PASSTHROUGH=()
 RT_CFLAGS=()
 STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
+ABI_BACKEND="${POLYGEIST_ABI_BACKEND:-cuda}"
 
 usage() {
   sed -n '3,40p' "$0" | sed 's/^# \?//'
@@ -204,6 +205,12 @@ fi
 case "$TARGET" in host|jetson-cpu|jetson) ;; *)
   echo "ERROR: --target must be 'host', 'jetson-cpu', or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
 esac
+case "$ABI_BACKEND" in cuda|pva) ;; *)
+  echo "ERROR: POLYGEIST_ABI_BACKEND must be 'cuda' or 'pva'" >&2; exit 1 ;;
+esac
+if [ "$ABI_BACKEND" = pva ] && [ "$TARGET" != jetson ]; then
+  echo "ERROR: PVA ABI lowering requires --target=jetson" >&2; exit 1
+fi
 CROSS_AARCH64=0
 if [ "$TARGET" != "host" ]; then CROSS_AARCH64=1; fi
 [ -z "$OUT" ] && OUT="$(basename "$INPUT" .c)"
@@ -623,8 +630,10 @@ if [ "$PRE_ABI_BUFFERIZE" != 0 ]; then
 fi
 
 # ─── Step 5: ABI lowering kernel.launch → func.call to runtime shim ─────
-echo "  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)"
-if [ "${POLYGEIST_DEVICE_RESIDENT_ABI:-0}" != "0" ]; then
+echo "  [5/9] polygeist-opt: lower kernel.launch → runtime func.call ($ABI_BACKEND)"
+if [ "$ABI_BACKEND" = pva ]; then
+  ABI_PASSES=(--lower-kernel-launch-to-pva)
+elif [ "${POLYGEIST_DEVICE_RESIDENT_ABI:-0}" != "0" ]; then
   ABI_PASSES=(--lower-kernel-launch-to-cublas=device-resident-cutensornet=true)
 else
   ABI_PASSES=(--lower-kernel-launch-to-cublas)
@@ -830,6 +839,30 @@ else
            -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+  if [ "$ABI_BACKEND" = pva ]; then
+    PVA_SOLUTIONS_ROOT="${PVASOL_ROOT:?set PVASOL_ROOT for PVA builds}"
+    PVA_CUPVA_ROOT="${CUPVA_SDK_ROOT:?set CUPVA_SDK_ROOT for PVA builds}"
+    PVA_STAGED_LIBS="${PVA_LIB_STAGE:?set PVA_LIB_STAGE for PVA builds}"
+    PVA_OPERATOR_INC="$PVA_SOLUTIONS_ROOT/public/src/operator/include"
+    PVA_NVCV_INC="$PVA_SOLUTIONS_ROOT/public/3rdparty/cvcuda/src/nvcv/src/include"
+    for required in "$PVA_OPERATOR_INC/OpBoxFilter.h" \
+                    "$PVA_NVCV_INC/nvcv/Tensor.h" \
+                    "$PVA_CUPVA_ROOT/include/cupva_host.h" \
+                    "$PVA_STAGED_LIBS/libpva_operator.so"; do
+      [ -e "$required" ] || {
+        echo "ERROR: required staged PVA build input missing: $required" >&2
+        exit 1
+      }
+    done
+    RT_SRC=$RT/polygeist_pva_image_rt.c
+    RT_CFLAGS+=("-I$PVA_OPERATOR_INC" "-I$PVA_NVCV_INC"
+               "-I$PVA_CUPVA_ROOT/include")
+    RT_LIBS="-L$PVA_STAGED_LIBS -L$CUDA_CROSS/lib \
+             -lpva_operator -lnvcv_types -lcupva_host -lcudart \
+             -lm -lpthread -ldl -Wl,--allow-shlib-undefined \
+             -Wl,-rpath,/home/nvidia/pva-solutions-2.9/lib:/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia"
+    echo "         + staged PVA Solutions runtime adapter"
+  fi
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
     RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
                "-DPOLYGEIST_DISABLE_CUSOLVER"
