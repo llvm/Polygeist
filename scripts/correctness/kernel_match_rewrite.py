@@ -7263,6 +7263,7 @@ def rewrite_mlir(
         suppress_composition_tail_rewire = False
         pre_launch_lines: list[str] = []
         redundant_zero_fill_span: tuple[int, int] | None = None
+        gemm_transpose: tuple[bool, bool] | None = None
 
         if (entry.name == "cudnnConvolutionFwd_batched" and n > 1 and
                 instances[i].result_ssa and outs0):
@@ -11673,7 +11674,10 @@ def rewrite_mlir(
                 # dedicated symbol so ABI lowering can unwrap the submaps and
                 # call cuBLAS SGEMM.
                 emit_name = "cublasSgemm_broadcast3d_simple"
-            elif (elem == "f32" and operand_ranks == [2, 2, 2]):
+            elif (emit_name == "cublasDsyrk_alias"):
+                pass
+            elif (elem in ("f32", "f64") and
+                  operand_ranks == [2, 2, 2]):
                 maps = bodies[i + n - 1].indexing_maps
                 if len(maps) != 3:
                     report.append(("layout_reject", i, entry.name))
@@ -11701,7 +11705,14 @@ def rewrite_mlir(
                     continue
                 layout = (("t" if a_trans else "n") +
                           ("t" if b_trans else "n"))
-                if entry.name == "cublasDgemm":
+                if elem == "f64":
+                    # The dtype-polymorphic semantic template proves the
+                    # contraction, while these attributes preserve the
+                    # physical layout facts needed by the FP64 ABI lowering.
+                    # Keeping the existing defn symbol avoids duplicating the
+                    # algebraic library specification for every layout.
+                    gemm_transpose = (a_trans, b_trans)
+                elif entry.name == "cublasDgemm":
                     emit_name = f"cublasSgemm_{layout}_alpha_beta"
                 elif entry.name == "cublasDgemm_alpha_only":
                     emit_name = f"cublasSgemm_{layout}_alpha"
@@ -11946,15 +11957,25 @@ def rewrite_mlir(
                 if sniffed:
                     weight_ty = sniffed
 
-            launch_attrs = ""
+            attribute_entries = []
             if (last.result_ssa is not None and last.result_type is not None and
                     last.result_count == len(outs0) and
                     all(output in operands for output in outs0)):
                 destinations = [operands.index(output) for output in outs0]
-                launch_attrs = (
-                    " {polygeist.result_destinations = array<i64: "
-                    + ", ".join(str(index) for index in destinations) + ">}"
+                attribute_entries.append(
+                    "polygeist.result_destinations = array<i64: "
+                    + ", ".join(str(index) for index in destinations) + ">"
                 )
+            if gemm_transpose is not None:
+                attribute_entries.extend([
+                    "polygeist.gemm_trans_a = " +
+                    ("true" if gemm_transpose[0] else "false"),
+                    "polygeist.gemm_trans_b = " +
+                    ("true" if gemm_transpose[1] else "false"),
+                ])
+            launch_attrs = (
+                " {" + ", ".join(attribute_entries) + "}"
+                if attribute_entries else "")
             launch_line = render_launch(
                 emit_name, last.result_ssa, last.result_type,
                 operands, last.indent, binds, [],

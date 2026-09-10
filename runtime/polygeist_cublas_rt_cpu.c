@@ -365,6 +365,37 @@ void polygeist_cublas_dgemm(
   }
 }
 
+void polygeist_cublas_dgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta,
+    double *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_dgemm(CblasRowMajor,
+              transA ? CblasTrans : CblasNoTrans,
+              transB ? CblasTrans : CblasNoTrans,
+              M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  return;
+#endif
+  for (int32_t i = 0; i < M; ++i) {
+    for (int32_t j = 0; j < N; ++j) {
+      double acc = 0.0;
+      for (int32_t k = 0; k < K; ++k) {
+        double av = transA ? A[(size_t)k * (size_t)lda + (size_t)i]
+                           : A[(size_t)i * (size_t)lda + (size_t)k];
+        double bv = transB ? B[(size_t)j * (size_t)ldb + (size_t)k]
+                           : B[(size_t)k * (size_t)ldb + (size_t)j];
+        acc += av * bv;
+      }
+      double *c = &C[(size_t)i * (size_t)ldc + (size_t)j];
+      *c = alpha * acc + beta * *c;
+    }
+  }
+}
+
 void polygeist_cublas_dsyrk_lower(
     int32_t N, int32_t K, double alpha,
     const double *A, int32_t lda,
