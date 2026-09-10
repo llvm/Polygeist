@@ -1,0 +1,11 @@
+{
+  "atol": 0.011,
+  "backend": "host OpenBLAS/CBLAS, one thread",
+  "candidate_rows": 10,
+  "dataset": "LARGE",
+  "dtype": "FP64",
+  "failed": 0,
+  "passed": 10,
+  "result_rows": 10,
+  "rtol": 0.0005
+}

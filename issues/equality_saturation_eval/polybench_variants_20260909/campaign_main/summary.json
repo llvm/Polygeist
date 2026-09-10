@@ -1,0 +1,206 @@
+{
+  "by_suite": [
+    {
+      "common_success_inputs": 245,
+      "egglog_matched_bodies": 349,
+      "egglog_only_match_identities": 144,
+      "egglog_selected_matches": 275,
+      "inputs": 245,
+      "suite": "polybench",
+      "syntactic_matched_bodies": 173,
+      "syntactic_only_match_identities": 4,
+      "syntactic_selected_matches": 135
+    }
+  ],
+  "completed_proofs_over_10s": 0,
+  "egglog_only_examples": [
+    {
+      "body_indices": [
+        0
+      ],
+      "input_id": "2mm::add_zero_lhs",
+      "suite": "polybench",
+      "symbol": "memset_zero_2D"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "2mm::add_zero_lhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm_alpha_only"
+    },
+    {
+      "body_indices": [
+        2,
+        3
+      ],
+      "input_id": "2mm::add_zero_lhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        0
+      ],
+      "input_id": "2mm::add_zero_rhs",
+      "suite": "polybench",
+      "symbol": "memset_zero_2D"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "2mm::add_zero_rhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm_alpha_only"
+    },
+    {
+      "body_indices": [
+        2,
+        3
+      ],
+      "input_id": "2mm::add_zero_rhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        0
+      ],
+      "input_id": "2mm::mul_one_lhs",
+      "suite": "polybench",
+      "symbol": "memset_zero_2D"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "2mm::mul_one_lhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm_alpha_only"
+    },
+    {
+      "body_indices": [
+        2,
+        3
+      ],
+      "input_id": "2mm::mul_one_lhs",
+      "suite": "polybench",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        0
+      ],
+      "input_id": "2mm::mul_one_rhs",
+      "suite": "polybench",
+      "symbol": "memset_zero_2D"
+    }
+  ],
+  "failures": [],
+  "manifest_inputs": 245,
+  "nondeterministic_match_sets": [],
+  "paired_deltas": {
+    "matcher_elapsed_ms": {
+      "median": 15.018083155155182,
+      "pairs": 1225,
+      "q1": -6.6390447318553925,
+      "q3": 68.92389804124832
+    },
+    "peak_rss_kib": {
+      "median": 316.0,
+      "pairs": 1225,
+      "q1": 4.0,
+      "q3": 4116.0
+    },
+    "process_wall_ms": {
+      "median": 18.090225756168365,
+      "pairs": 1225,
+      "q1": -12.472670525312424,
+      "q3": 85.62427386641502
+    }
+  },
+  "parameters": {
+    "binding_proposal_limit": 8,
+    "candidate_time_limit_s": 10,
+    "candidate_timeout_enforcement": "post-run classification; each fresh input process also has an outer watchdog",
+    "collect_egraph_sizes": false,
+    "cpu_affinity": 0,
+    "distributivity": false,
+    "egglog_iteration_limit": 8,
+    "egglog_version": "11.4.0",
+    "explicit_egraph_size_limit": null,
+    "explicit_memory_limit": null,
+    "handwritten_semantic_fallback": false,
+    "input_ast_node_ceiling": 32,
+    "modes": [
+      "egglog",
+      "syntactic"
+    ],
+    "outer_input_watchdog_s": 120.0,
+    "parallel_jobs": 1,
+    "python": "/usr/bin/python3",
+    "repetitions_per_mode": 5
+  },
+  "run_rows": 2450,
+  "successful_rows": 2450,
+  "timing": {
+    "egglog_matcher_elapsed_ms": {
+      "max": 1926.8337972462177,
+      "median": 413.2671393454075,
+      "min": 283.97954627871513,
+      "q1": 358.4981672465801,
+      "q3": 508.27815011143684
+    },
+    "egglog_peak_rss_kib": {
+      "max": 72828.0,
+      "median": 67356.0,
+      "min": 65904.0,
+      "q1": 66580.0,
+      "q3": 70532.0
+    },
+    "egglog_process_wall_ms": {
+      "max": 2760.3211998939514,
+      "median": 867.8702041506767,
+      "min": 696.0835680365562,
+      "q1": 808.7828084826469,
+      "q3": 974.2656238377094
+    },
+    "egglog_proof_elapsed_ms": {
+      "max": 707.7519334852695,
+      "median": 0.0,
+      "min": 0.0,
+      "q1": 0.0,
+      "q3": 71.45151123404503
+    },
+    "syntactic_matcher_elapsed_ms": {
+      "max": 1170.3284122049809,
+      "median": 396.5921700000763,
+      "min": 282.5806066393852,
+      "q1": 354.60153222084045,
+      "q3": 454.3713293969631
+    },
+    "syntactic_peak_rss_kib": {
+      "max": 68472.0,
+      "median": 66540.0,
+      "min": 65896.0,
+      "q1": 66320.0,
+      "q3": 66724.0
+    },
+    "syntactic_process_wall_ms": {
+      "max": 1956.2995098531246,
+      "median": 847.096711397171,
+      "min": 701.5255279839039,
+      "q1": 798.6304089426994,
+      "q3": 920.7814559340477
+    },
+    "syntactic_proof_elapsed_ms": {
+      "max": 0.6096847355365753,
+      "median": 0.07504969835281372,
+      "min": 0.0,
+      "q1": 0.025890767574310303,
+      "q3": 0.17746537923812866
+    }
+  }
+}

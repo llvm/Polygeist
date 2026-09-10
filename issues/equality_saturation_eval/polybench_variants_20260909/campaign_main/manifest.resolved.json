@@ -1,0 +1,1962 @@
+[
+  {
+    "input_id": "2mm::original",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/2mm/raised_debufferized.mlir",
+    "sha256": "19cb5356e454bbeea9670178fed268f3107d0c43db03f2a83533d7414ba8ed9c",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "2mm::swap_add",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir",
+    "sha256": "05a362aa95257d86e31a61f5e6638786b659c20ea7246a34cfe05e5b9b15e2ad",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "2mm::swap_mul",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir",
+    "sha256": "253a90703e590a7e880aff10c11a2905b631fd6145baea4fd75f1337dd4cf59c",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "2mm::swap_add_mul",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir",
+    "sha256": "c3181de2c7dd4aebdb2f5a759496b6e21466e8460993bd219de7b4aee93cf3a2",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "2mm::add_zero_rhs",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir",
+    "sha256": "48d2394abb85f17c15423aa3eaf0e74a16ac7800e421868798a4108e4dd8ff1d",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "2mm::add_zero_lhs",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir",
+    "sha256": "2b9045f6430d57674f82fc1ec9aa5fa683db1bb840ff87b55b79d8f2854da394",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "2mm::mul_one_rhs",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir",
+    "sha256": "a24bfe64ff2410925efa4d2fbe606b1d988f10142bd90054d3313500653d846f",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "2mm::mul_one_lhs",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir",
+    "sha256": "b208dc6a9b9c0b82a5baaafc6587516bf9b86a9983fd8f315d22142a6987adb7",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "2mm::reassociate_mul",
+    "kernel": "2mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__reassociate_mul.mlir",
+    "sha256": "9557f748224a80f20be80f8f959aa2cae02af8f7e440dd134b964c761cd4823f",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "3mm::original",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/3mm/raised_debufferized.mlir",
+    "sha256": "9a741dbe9242ee6c504d63ec52cd2d899be7ca5d82016cbae3f77d8737f42712",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "3mm::swap_add",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__swap_add.mlir",
+    "sha256": "5e4098499fae21e6e8109f6d2fdf23a964da1ebd4c701bfb4757fe206e103490",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "3mm::swap_mul",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__swap_mul.mlir",
+    "sha256": "782f17f8b9fe8e3dcbe39acb69017510cdda7ed684ee817d1790ac2d08980972",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "3mm::swap_add_mul",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__swap_add_mul.mlir",
+    "sha256": "7ae531576fcd7b72fb3b9bd0b133f3384b14e0234713c857da004581e9eb2db5",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "3mm::add_zero_rhs",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir",
+    "sha256": "42ec33da3993cffc1510dc62df38ab4213df0041cb1ebf60f4ca1a3126442ed6",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "3mm::add_zero_lhs",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir",
+    "sha256": "258600b413912651403e7dddec06fc2a2c57f22ba9201ef4cd33b18ddd56dcac",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "3mm::mul_one_rhs",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir",
+    "sha256": "7182a0aaef8e853b815686492797246ec88884925cb7d13a5a5845d09c657480",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "3mm::mul_one_lhs",
+    "kernel": "3mm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir",
+    "sha256": "ba1d363af5e8fdb71a8afdf88815c5eb5dc7bf2e0dcf5edec3a9cee6684f50fc",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "adi::original",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/adi/raised_debufferized.mlir",
+    "sha256": "40ca27ab8092bdae6dba51e7fdd01e36cc153819d475b4222fccc0eed9d0467c",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "adi::swap_add",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__swap_add.mlir",
+    "sha256": "eaf3a73b93b0329cf0b00d03cb73214809849b31a26767a353cd5300a85b4a97",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "adi::swap_mul",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__swap_mul.mlir",
+    "sha256": "e8a98bf778184c0096a17f50430e96b86bf370776fcf9628b318743169fac7cf",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "adi::swap_add_mul",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__swap_add_mul.mlir",
+    "sha256": "a8bcc4cf34ab1b238d9b60e5250d8cfc6ac0407e52426b891a7d86034f34db95",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "adi::add_zero_rhs",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir",
+    "sha256": "64cb269f052db389d8332d6e172bf8921f52b34032f7b4ce3301825a5d361390",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "adi::add_zero_lhs",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir",
+    "sha256": "b3e2cf4d4ed07a606a8f9044ce25f02fe642b29f3b011f0cbb9e04bbf010552d",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "adi::mul_one_rhs",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir",
+    "sha256": "3c0c499fa44925d8f268ba13c11a9e19f82cea7dc9b989c5498f635122315802",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "adi::mul_one_lhs",
+    "kernel": "adi",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir",
+    "sha256": "98088a3ab110f9b92a62d9411d6294df4f35a6eb1b1e564d73b6203f0a390a98",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "atax::original",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/atax/raised_debufferized.mlir",
+    "sha256": "dd0e9202c704a9eb54eacde7fd9fedba4114b3974d1ad870caaa50ef8641c700",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "atax::swap_add",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__swap_add.mlir",
+    "sha256": "0596001f216a382498b89762b6ec4825a0550ccb5debb21ae6e7d5aae69b3942",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "atax::swap_mul",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__swap_mul.mlir",
+    "sha256": "baf5791591845adc92d7888c6f589ace1f00deeac8fb8cd4ca6eb0663754b94a",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "atax::swap_add_mul",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__swap_add_mul.mlir",
+    "sha256": "57b07a98a008fe6bf111ab8f21a557fafe3ccf9efcbcc63346552069baf4de1b",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "atax::add_zero_rhs",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir",
+    "sha256": "10963eebe00f6d3ad5016cf721da7ec9c372173d08965f8f1a5ec38e4589b338",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "atax::add_zero_lhs",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir",
+    "sha256": "5a5f265c0529dbe6d4dab14c61b4ff1b7515504142639b8f090d3f6b0f98cd1c",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "atax::mul_one_rhs",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir",
+    "sha256": "cace3a94cd50a046e5bc7a6945b757decef6a64227c3dbb8905db74b1e618f01",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "atax::mul_one_lhs",
+    "kernel": "atax",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir",
+    "sha256": "6dcf4cc868259e91b355ac31b9e2e879d2fdc41583ec39f2d45e3e8f02cedc3b",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "bicg::original",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/bicg/raised_debufferized.mlir",
+    "sha256": "eeb114348f3790c4fef5f5f51c930231795b6655a4b773cd0ed65dca0fb2860a",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "bicg::swap_add",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__swap_add.mlir",
+    "sha256": "8c503358948714a26f95c172dcb7ae0f8723f658885cfef4cad6bfe2e7308c29",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "bicg::swap_mul",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__swap_mul.mlir",
+    "sha256": "2ca6a7145cc30bf679d1b3221f5c26256d34b6ca4695cda9dcb71763a1e77c0a",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "bicg::swap_add_mul",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__swap_add_mul.mlir",
+    "sha256": "c1928b324fd965ea1c16b99d9a3b58bb3ca33b7f71bb837076e8b68d8d0bfe06",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "bicg::add_zero_rhs",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir",
+    "sha256": "d427de8d75ca40de864673255e9eba401b96433f1edcee8d7646c0df8affc7e4",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "bicg::add_zero_lhs",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir",
+    "sha256": "4e8aa63305bca89f426b620e01b0f320cf1e74cd844870afad85deb1c2bda770",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "bicg::mul_one_rhs",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir",
+    "sha256": "a7e34923e09b97687b685035eb703d77b7734b1d911bc6e367c171dd74fb0a0b",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "bicg::mul_one_lhs",
+    "kernel": "bicg",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir",
+    "sha256": "f928f887d29e186fc81ab3c229ab967da0f0f54b33e899f851fea5e9edbe528f",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "cholesky::original",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/cholesky/raised_debufferized.mlir",
+    "sha256": "29a2f8429cc03311e2c9f223abcada1b128f0c4b67f62396206ce712bbce4e1e",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "cholesky::swap_mul",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__swap_mul.mlir",
+    "sha256": "0f99224a86a855a1581fbd1e0fd26319c7be9f0e35ebdff43800cb87c6382440",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "cholesky::swap_add_mul",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__swap_add_mul.mlir",
+    "sha256": "0f99224a86a855a1581fbd1e0fd26319c7be9f0e35ebdff43800cb87c6382440",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "cholesky::add_zero_rhs",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__add_zero_rhs.mlir",
+    "sha256": "512cfd8421bbbcffc817fd019733ead83acdca058a2cff9c678fd3d4d25c8abe",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "cholesky::add_zero_lhs",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__add_zero_lhs.mlir",
+    "sha256": "ba10a02fd1d7dd9c71f91c99ae600162170d18895fd7de24bb7a6b2affc38b58",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "cholesky::mul_one_rhs",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__mul_one_rhs.mlir",
+    "sha256": "93a8dfae56502e1c2271988011787963ce76eed032aac2b846f8ba6cda69e2e1",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "cholesky::mul_one_lhs",
+    "kernel": "cholesky",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/cholesky__mul_one_lhs.mlir",
+    "sha256": "425e23ecc32eae37dc05c2331d0cc445b986241d30c3d36b6e832f972260e78b",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "correlation::original",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/correlation/raised_debufferized.mlir",
+    "sha256": "21ba998d1f050e31f32e008d388d7257a06a05d5393dabf70ce9268299800b18",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "correlation::swap_add",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__swap_add.mlir",
+    "sha256": "28c1bb2fcb057bd7462cafa78ae37f95063f1533824100fe6d1740d01b5a6443",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "correlation::swap_mul",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__swap_mul.mlir",
+    "sha256": "6e746885bd4c3d516101ffee6f951e2af4c1345d8337741c0230778e1dbbd8ff",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "correlation::swap_add_mul",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__swap_add_mul.mlir",
+    "sha256": "937cfad33bf6a34cb5ad242c853dc3d3e0fb933987dfcf89a954454100b851b1",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "correlation::add_zero_rhs",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir",
+    "sha256": "62834840887c005d525e19f9c65dbf15872706f1480765afba290abfb53179b1",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "correlation::add_zero_lhs",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir",
+    "sha256": "a67309e5ad81d0dd09ebc0c35e6e5c774bf90762e0b6a13735b99f303276eebe",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "correlation::mul_one_rhs",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir",
+    "sha256": "e0c6dd0cfdc1b11b7bd74b924562627eeb41778896d3c1a22e6b754412c51add",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "correlation::mul_one_lhs",
+    "kernel": "correlation",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir",
+    "sha256": "453607fe7818917daed4aa6ff9ef264a6c6584b377740e2066203dd0cbd72d9a",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "covariance::original",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/covariance/raised_debufferized.mlir",
+    "sha256": "b04731dc990f5fc58977953bce40181ad179dd68a3cf316253e8db8b690e95f7",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "covariance::swap_add",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__swap_add.mlir",
+    "sha256": "62a5a206e678ce5609fd43c45f4f39bef7fce7f5d76e1c5d2335b7b0763f379b",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "covariance::swap_mul",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__swap_mul.mlir",
+    "sha256": "98d75e86465a84a94b0f0e6b86327712cfaea24db2fda535471925beed332f6d",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "covariance::swap_add_mul",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__swap_add_mul.mlir",
+    "sha256": "da5aac84276d8f3aa4dbbfead24c90f24785975f5a67ee66825fdb3b41016fc5",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "covariance::add_zero_rhs",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir",
+    "sha256": "8131e24330ca10ada8bb6d699301cfeb5cdd0bc187d9ad95716cbbdc45b86d16",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "covariance::add_zero_lhs",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir",
+    "sha256": "95e736e84b193b23ccc1ba2f327b026b20a08936b745ee0440979b98efe9514c",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "covariance::mul_one_rhs",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir",
+    "sha256": "0be0eb13c14337cb5015e617ffc7959f0bdaf60f9b3c036e1cb8fec36da11aa0",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "covariance::mul_one_lhs",
+    "kernel": "covariance",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir",
+    "sha256": "848841c8c206f6f80551f310f7479045360d2eeb9431abb43f4aec11f105904b",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "deriche::original",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/deriche/raised_debufferized.mlir",
+    "sha256": "a1fc8474db29816b3a55002d647c0cf2b9500163038c2513271d10753c754692",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "deriche::swap_add",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__swap_add.mlir",
+    "sha256": "100f01679d6f7ac2f74e221acafed0a970ccd5bc821e7322ea43678fd690ba3f",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "deriche::swap_mul",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__swap_mul.mlir",
+    "sha256": "8a33e525963604eb5740ff3ecdc5f1ba30d9231a5bfa17d55f29e0ce16ef5e6e",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "deriche::swap_add_mul",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__swap_add_mul.mlir",
+    "sha256": "1d19a2ab2b0bfc6114f49b9c39e53c09f9ff64d61c486c99011face61682b4bf",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "deriche::add_zero_rhs",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir",
+    "sha256": "f198499af97beea0b46471f9f62a25251613b9a4fd775036588d519a177a7231",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "deriche::add_zero_lhs",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir",
+    "sha256": "764e6566ac874dd73d5deba278848e79d5b64b50e73bbb239861e7a2fbe843ac",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "deriche::mul_one_rhs",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir",
+    "sha256": "92c706046cf42a1cb26194db529c837bb0ce6696ee0d562867ce73d6edc69534",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "deriche::mul_one_lhs",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir",
+    "sha256": "167df864c34f2a09f4c040014b71dd84e9667a86825967664581f1719c672cb9",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "deriche::reassociate_add",
+    "kernel": "deriche",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__reassociate_add.mlir",
+    "sha256": "a2ec4737d34a6b0fabd6b4a3a9ec0001ddc9a37662f7ca408c3c5de1de65bb0a",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "doitgen::original",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/doitgen/raised_debufferized.mlir",
+    "sha256": "14af4ddf273fd88f36a3566ebbc01883faf36cf3389af6faf4890950fd9e50f4",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "doitgen::swap_add",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__swap_add.mlir",
+    "sha256": "6e729050fbb1ef069f19b08ba370365c8af2e229eb1b68e377051db89ea1fdae",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "doitgen::swap_mul",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__swap_mul.mlir",
+    "sha256": "5f7f673b2e69e107a75e2a23016828fc6508caf620407ba25b131037ecd86c1d",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "doitgen::swap_add_mul",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__swap_add_mul.mlir",
+    "sha256": "1ec6d045ce917eafb2d01f805d7833aba5eee4cb0766acbd04fbd056d061003d",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "doitgen::add_zero_rhs",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir",
+    "sha256": "386e057083bbcfb73e6485e0175845bb736e431caab34e34aa3234d376f5593d",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "doitgen::add_zero_lhs",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir",
+    "sha256": "710ea274271f0a357c97b4a33a0db37368eea65337587c4d2355df40d2cf5c8a",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "doitgen::mul_one_rhs",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir",
+    "sha256": "88ee4893ffbfc11ba32b8f07382c51de1141cac6c417886a2919095d117d4cfa",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "doitgen::mul_one_lhs",
+    "kernel": "doitgen",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir",
+    "sha256": "78dbb63f80477dc48375bd519a69271ed67ea6934d8ce9be3ed37a981fad9762",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "durbin::original",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/durbin/raised_debufferized.mlir",
+    "sha256": "1fd96503dcd569f72be65cd4dabb995c271da3df5e1609af14f4867cd7ddd16b",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "durbin::swap_add",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__swap_add.mlir",
+    "sha256": "9d13cf109d09e51e0cc976b71fc20aaf5e867c138083b58ae32ea8bfaecf309c",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "durbin::swap_mul",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__swap_mul.mlir",
+    "sha256": "6096e4d28e1b9439ccd751fcf1425afae4fa466eaec0ac07f237a745af1f6a8c",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "durbin::swap_add_mul",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__swap_add_mul.mlir",
+    "sha256": "1ffd377f510ed65cec7ac4d263fa1d5c2d8db5a882ec85324f19a82942918137",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "durbin::add_zero_rhs",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__add_zero_rhs.mlir",
+    "sha256": "ac421190c1c1e2d51f7f5d40289b6b40ac4c88121b808fcc7f6cb57872fb8448",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "durbin::add_zero_lhs",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__add_zero_lhs.mlir",
+    "sha256": "331efde643a7d8886425acf8a47f1cc11117757e28b76cd3c67e18051ab626c9",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "durbin::mul_one_rhs",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__mul_one_rhs.mlir",
+    "sha256": "5a1f7bd4587d843c4bf61e74e93a93f0ec674c6faf7faf4cd465dfd1257afb00",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "durbin::mul_one_lhs",
+    "kernel": "durbin",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/durbin__mul_one_lhs.mlir",
+    "sha256": "80e279f7d37abcb5795072c5bc3a670b89a895ad86b91d41c8083248d0bc66a8",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "fdtd-2d::original",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/fdtd-2d/raised_debufferized.mlir",
+    "sha256": "46864afc3f12657e6d41681bad0513e9033bb50221208ee521a7884bd9a927af",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "fdtd-2d::swap_add",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__swap_add.mlir",
+    "sha256": "cc14661078f910ea168e275f702102b6a18d66edc23f81f7a5a621a7c9ffb296",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "fdtd-2d::swap_mul",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__swap_mul.mlir",
+    "sha256": "43cd1a690181321f32ec9b25aedb1dadee3ecf7731cb33ae16dab6776d5a5d9e",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "fdtd-2d::swap_add_mul",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__swap_add_mul.mlir",
+    "sha256": "adaca9ed1ae3f3b57b230a12cdbee3257c68efd73e954915d2cee0e3073a896d",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "fdtd-2d::add_zero_rhs",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__add_zero_rhs.mlir",
+    "sha256": "defdac433f0e59d161aa79508a87827a6c936f9d8e6c4b6dba9e7313cbaffd4d",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "fdtd-2d::add_zero_lhs",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__add_zero_lhs.mlir",
+    "sha256": "dea35d03ae2e8c1182fd15079d9758c2aeeb5644d051e125604d6d82d38dcad7",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "fdtd-2d::mul_one_rhs",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__mul_one_rhs.mlir",
+    "sha256": "5c418549add8c9d5c0082fb60b91be180a074785f3a77f42e032dc2fc7ad9b5f",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "fdtd-2d::mul_one_lhs",
+    "kernel": "fdtd-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/fdtd-2d__mul_one_lhs.mlir",
+    "sha256": "24859de1fedd6dfa72058c1c97844fc1e311e383f687768dbf61fa140ed5c709",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "floyd-warshall::original",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/floyd-warshall/raised_debufferized.mlir",
+    "sha256": "78d086a50a5ab447972c194cb453ba5b2e9ee40eafb436888540cde413bac87c",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "floyd-warshall::swap_add",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__swap_add.mlir",
+    "sha256": "040e4dc5744d3d6c3ff265db3e555a495b1721598084ff0498b2674fda8f64ec",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "floyd-warshall::swap_add_mul",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__swap_add_mul.mlir",
+    "sha256": "040e4dc5744d3d6c3ff265db3e555a495b1721598084ff0498b2674fda8f64ec",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "floyd-warshall::add_zero_rhs",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__add_zero_rhs.mlir",
+    "sha256": "18e0a18608a3739a36368ed3141f84e1fd6d0bd8f38250e027b8071425243705",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "floyd-warshall::add_zero_lhs",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__add_zero_lhs.mlir",
+    "sha256": "7ce9805b223188d4d580730cf86758252038427dd1e94d3db17b085f69609a3e",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "floyd-warshall::mul_one_rhs",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__mul_one_rhs.mlir",
+    "sha256": "c2faf4675a2530425ef891e8081e92bb74124fbab08336c64cf9211db17cee9c",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "floyd-warshall::mul_one_lhs",
+    "kernel": "floyd-warshall",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/floyd-warshall__mul_one_lhs.mlir",
+    "sha256": "e45f2d8c327cd2d42b4523e8201b4a399b4190d6fa2c2ae25c2f80fb0b5649ef",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "gemm::original",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/gemm/raised_debufferized.mlir",
+    "sha256": "af076db9751851553f96948cf291cf608044a6ade14af30ace3d57ea8a543775",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "gemm::swap_add",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir",
+    "sha256": "f49bd253863b55760fef8d72e9d80cd9878db7f45ccfd5049b7c04da7946d892",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "gemm::swap_mul",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir",
+    "sha256": "c97ebe76bbf1478ab4c88ac091abcc151e12a8767db36353517081f985de8a67",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "gemm::swap_add_mul",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir",
+    "sha256": "b955a4b33857a3ec9d96a0878d77ee7fcad954f71cd536279f1b9953c69c0e23",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "gemm::add_zero_rhs",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir",
+    "sha256": "15cea4ce1d11a3fffc306b469ee56b20a3b0d260a04cc101d4ce576bc925bef5",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "gemm::add_zero_lhs",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir",
+    "sha256": "612bcdabff368eb22a5c4774e217eb7542d1293cf0f7d0a55141da774bbc3e7b",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "gemm::mul_one_rhs",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir",
+    "sha256": "ffe0dce07671df59747891da232c122f06849fa165751271c1c477c74df977c0",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "gemm::mul_one_lhs",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir",
+    "sha256": "8f5113f083ace515d1f07256260a8e43e37106a09d302c3649269c3df247f6f0",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "gemm::reassociate_mul",
+    "kernel": "gemm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__reassociate_mul.mlir",
+    "sha256": "b3abc8aa95c2aeefcfe870523ab6490f95d5ad890f13a61f32984da659c058a1",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "gemver::original",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/gemver/raised_debufferized.mlir",
+    "sha256": "7cc035fbb315797e669715a7563db28f73f0ab250bf237ce95f5bb39f154ffbf",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "gemver::swap_add",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir",
+    "sha256": "cece0d9a9acfefb43fbd7478c924d3cd20a91a2b0a64569d3a6d40ab85c6aae4",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "gemver::swap_mul",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir",
+    "sha256": "8b89a8bdf4525932bab33a61972200191dc498a81954bde2b8d243323a8e00c9",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "gemver::swap_add_mul",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir",
+    "sha256": "6e569a0ba1d33f3839ebf547c43fa5a51cda7c842fa4cae82a47c41eed23cbde",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "gemver::add_zero_rhs",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir",
+    "sha256": "852ad3f050e2f5f5c6160cc4232136411614f8be396f5c7d18d5dbc41daaba06",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "gemver::add_zero_lhs",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir",
+    "sha256": "da4d67e37f5df01df18df4628e1c38a69c9c440fe3e848d88da09a05886cc918",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "gemver::mul_one_rhs",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir",
+    "sha256": "08d5a2a40095e23c7eee1986bb9461e1457c179ca1cad729e4a80629c3ad7de4",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "gemver::mul_one_lhs",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir",
+    "sha256": "6d3814dbd7e7676e73167d366d67e2835148a3556515d0af6cb59d653a667ffe",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "gemver::reassociate_add",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir",
+    "sha256": "95c693edc84350925cda769bb3fa48c4fba0011df678a100cef65821a0efd64a",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "gemver::reassociate_mul",
+    "kernel": "gemver",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir",
+    "sha256": "0fc0d5bdcc000e361fad1d8a6a88b7ba15940e6245f77af9d5b6b306aad59066",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "gesummv::original",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/gesummv/raised_debufferized.mlir",
+    "sha256": "5e819c20e0552449cb8e71b383b29f488daf6a627f759c8afd4a664304e752f0",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "gesummv::swap_add",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__swap_add.mlir",
+    "sha256": "5b13211185ffb110f6c5ebed2f021ab36353cd2b25c3f82e2d3e7284b30a9ab2",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "gesummv::swap_mul",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__swap_mul.mlir",
+    "sha256": "79518261c17f2f5d06d455bcb50e3e81a85df46fadab2f98d4db98cea0855569",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "gesummv::swap_add_mul",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__swap_add_mul.mlir",
+    "sha256": "6a86f65daed9f2262f3365ea2ecb63b4296b955792f4e509170a7c7202afa19c",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "gesummv::add_zero_rhs",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir",
+    "sha256": "53797e4a349d9fc819c4c792de51b5d1b4887338b5a11674355f1c136624c6d1",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "gesummv::add_zero_lhs",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir",
+    "sha256": "9b37a48e1415984cdc6debf9f7cc233994090465b7d9c2839b80d05f5e4a8109",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "gesummv::mul_one_rhs",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir",
+    "sha256": "b8f810af922f17e3d6c81dbda2c7237c304374a9dc182f6b0cda59fd9364d19d",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "gesummv::mul_one_lhs",
+    "kernel": "gesummv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir",
+    "sha256": "93b5f29a65ce5f6de5f3f74b1d22f4e8a35d2a935c80f00d50b4f00eaddfe6c2",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "gramschmidt::original",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/gramschmidt/raised_debufferized.mlir",
+    "sha256": "0f4dbb7a25af23dd8a7c5408dcea15802212c79c6b62345ccec8be61959f21e9",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "gramschmidt::swap_add",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__swap_add.mlir",
+    "sha256": "c4fb979b68b3df8dcde6a1dee51174142e1769a800933a89ae8175215e0b07f4",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "gramschmidt::swap_mul",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__swap_mul.mlir",
+    "sha256": "a6cc426b87657e0ed12a4751cc4e755058caa3abd279d92f88d9fe2ded3c36b1",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "gramschmidt::swap_add_mul",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__swap_add_mul.mlir",
+    "sha256": "f7e69f37bc55d91c92871c80ad13c5c9a3e1ec13e7cb33ad4d39b371d45a41c1",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "gramschmidt::add_zero_rhs",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__add_zero_rhs.mlir",
+    "sha256": "266a84df40aa2519df7a8ee06f01c731c90c981ec896355b9ad3b427ca2e1bbb",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "gramschmidt::add_zero_lhs",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__add_zero_lhs.mlir",
+    "sha256": "69e798f05481066d519906fb02e450695786d7f947990bb8d16ab3324f16c45f",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "gramschmidt::mul_one_rhs",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__mul_one_rhs.mlir",
+    "sha256": "bede872478bba4cacef7f3b073c2af76348081dbc1f91b396b73724c07b8aae0",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "gramschmidt::mul_one_lhs",
+    "kernel": "gramschmidt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gramschmidt__mul_one_lhs.mlir",
+    "sha256": "26c22361eecf1a69822d35f0e9f0be5ffecea92014d81018016f07d40751a622",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "heat-3d::original",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/heat-3d/raised_debufferized.mlir",
+    "sha256": "18b960ec40e5f211d486ea372bdd7184a71f93b66187f64365ac3d405705288e",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "heat-3d::swap_add",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__swap_add.mlir",
+    "sha256": "48e75a23028523c3b2611c3a28a87ec67977caf38501402dbacba988f4755ba4",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "heat-3d::swap_mul",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__swap_mul.mlir",
+    "sha256": "ebcad6cf3a1c71c3fe94752375a20cf3c9ca2fa9eb4b76e89636e1396002f9e4",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "heat-3d::swap_add_mul",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__swap_add_mul.mlir",
+    "sha256": "54e8b704c06bb07a9c1a672c65ca24bd96fef62e567c30d193054ae8de17bec6",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "heat-3d::add_zero_rhs",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__add_zero_rhs.mlir",
+    "sha256": "caa2c9f2d2f581980ebceae26814d7d8cdc14a00377c54e48933074e17cd4940",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "heat-3d::add_zero_lhs",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__add_zero_lhs.mlir",
+    "sha256": "43bab8c65ccfd161f2626b7efcd446dd4c07979e5233e6e0dd5d690bac6e9196",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "heat-3d::mul_one_rhs",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__mul_one_rhs.mlir",
+    "sha256": "49935cd330e1a3eee7f09ea0aadcbc8f5eab61d56bc217a39b1d51e1ae5ebb26",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "heat-3d::mul_one_lhs",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__mul_one_lhs.mlir",
+    "sha256": "4690f880d3978be16e82c5129ee13de7575abc7e59279ae1fbc6f9f5c311751e",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "heat-3d::reassociate_add",
+    "kernel": "heat-3d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/heat-3d__reassociate_add.mlir",
+    "sha256": "4c2b56fb0d759fb68d32f35882992d6f04572b1f6413d3dc8192e3c7a5035cc5",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "jacobi-1d::original",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/jacobi-1d/raised_debufferized.mlir",
+    "sha256": "381a73a6969587165f7b21705788fe2d46a6b8809b56aa6277c3ef1de67a528f",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "jacobi-1d::swap_add",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__swap_add.mlir",
+    "sha256": "c76f56124e87d9533ef140473edd4d7e5ecfcdf70becdee35dd30bab329a39e9",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "jacobi-1d::swap_mul",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__swap_mul.mlir",
+    "sha256": "491db1261d324841b160c89fef77d6b04c75db231c1a71fbf5270151107f6062",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "jacobi-1d::swap_add_mul",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__swap_add_mul.mlir",
+    "sha256": "a9a237d934c2344e8cd2c1140919b29a72a5e042c0f7f1754bcdc38f24f2e95d",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "jacobi-1d::add_zero_rhs",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__add_zero_rhs.mlir",
+    "sha256": "8f71ed64f2f1a358300c75908c147d1d179c057803b9a726d021ecdb4fd4d0d0",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "jacobi-1d::add_zero_lhs",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__add_zero_lhs.mlir",
+    "sha256": "3d0012e331bf3d2c7a51e18443b2b07c5c2c4b511eeffdd5987f07d91b26db41",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "jacobi-1d::mul_one_rhs",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__mul_one_rhs.mlir",
+    "sha256": "63bbec6bc7412a9e9f09d76fbe26b6306a3d2b2ffd31ce78422a76c2f1380eb6",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "jacobi-1d::mul_one_lhs",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__mul_one_lhs.mlir",
+    "sha256": "8ebeb0410773837400dffb71414d35448e48251b15c35f827382dc092d426685",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "jacobi-1d::reassociate_add",
+    "kernel": "jacobi-1d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-1d__reassociate_add.mlir",
+    "sha256": "9e1663b26b5842064123060f3384029ab114dea17991a9b4c05abf83304645bb",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "jacobi-2d::original",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/jacobi-2d/raised_debufferized.mlir",
+    "sha256": "145ec9c075c685f1575f92db511cb69cbdb42b269a445bccbca1e8b83d748ceb",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "jacobi-2d::swap_add",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__swap_add.mlir",
+    "sha256": "c4751e107afc6dcbb33c3a003d84df76057cd496035abc94a32626cbffe7abdd",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "jacobi-2d::swap_mul",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__swap_mul.mlir",
+    "sha256": "17850fd054b68ecd9aafdc83c58a765fb629c02f08e359320335aef28e133c08",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "jacobi-2d::swap_add_mul",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__swap_add_mul.mlir",
+    "sha256": "e83524369f5445683a711bc27c72f2c12457ce0dca938a2df071105e12ce1e2f",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "jacobi-2d::add_zero_rhs",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__add_zero_rhs.mlir",
+    "sha256": "950e69611c809da8dad3cb63d9918d9320c7588f110d36a978e38936cddba585",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "jacobi-2d::add_zero_lhs",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__add_zero_lhs.mlir",
+    "sha256": "79f95974548eb66cfb245da2dc68484b3d5e761d94dddc5ccb9983fd5cb6ac93",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "jacobi-2d::mul_one_rhs",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__mul_one_rhs.mlir",
+    "sha256": "1401985389da53368cda9265a17e77a5a1ab53df95910db13ef68a178eedee4a",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "jacobi-2d::mul_one_lhs",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__mul_one_lhs.mlir",
+    "sha256": "f079bf235997079953287622ba66e37b22cb0fdb9f53e1576a2e5e3955b75718",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "jacobi-2d::reassociate_add",
+    "kernel": "jacobi-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/jacobi-2d__reassociate_add.mlir",
+    "sha256": "bad75b94d84508d5ce664318a6dd53ffd97e4de678ce8074acd8a5b839fdab51",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "lu::original",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/lu/raised_debufferized.mlir",
+    "sha256": "a6ccb44884a8141306be1fb02cc862a6114f7265fb67794057866106cabd13bf",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "lu::swap_mul",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__swap_mul.mlir",
+    "sha256": "07d69b1b187d5de799b07947f72542b72ee69b3d302415da51a37ae2c4a7be30",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "lu::swap_add_mul",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__swap_add_mul.mlir",
+    "sha256": "07d69b1b187d5de799b07947f72542b72ee69b3d302415da51a37ae2c4a7be30",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "lu::add_zero_rhs",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__add_zero_rhs.mlir",
+    "sha256": "081e6cc1c78754b3c8f1947ec554edf32af4bd11093837af43bd95fe0dbf5403",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "lu::add_zero_lhs",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__add_zero_lhs.mlir",
+    "sha256": "6107ae55decc64c74f99bda57f7f5a1c2cc3a9eb8635cef46573217306006719",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "lu::mul_one_rhs",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__mul_one_rhs.mlir",
+    "sha256": "10f460c5c8349283ded30c098ceeabd63a938abc9ae5d9d3a9fbb42426078eb1",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "lu::mul_one_lhs",
+    "kernel": "lu",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/lu__mul_one_lhs.mlir",
+    "sha256": "12208f116bf1b84e967149964ddd01ecbac11557d737964ccd5c5b5562e8af7f",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "ludcmp::original",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/ludcmp/raised_debufferized.mlir",
+    "sha256": "e8de50d394d2976fbe4d6753f03e0f4ecc779e56ba76a6d9e641a6a8507c6370",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "ludcmp::swap_mul",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__swap_mul.mlir",
+    "sha256": "652f4ca3c26669fd7ca846c8cd5d280009a0923fe3cedd9aef3fcc0a5d76e81d",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "ludcmp::swap_add_mul",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__swap_add_mul.mlir",
+    "sha256": "652f4ca3c26669fd7ca846c8cd5d280009a0923fe3cedd9aef3fcc0a5d76e81d",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "ludcmp::add_zero_rhs",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__add_zero_rhs.mlir",
+    "sha256": "3df9c870106828e861b6a3a8c2086b9eb422301fb590003c22bf2f83d8a66a12",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "ludcmp::add_zero_lhs",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__add_zero_lhs.mlir",
+    "sha256": "d3d949406084d5f57f9185761d83edb53aa1a2c8d5bc3148e509c7364711621b",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "ludcmp::mul_one_rhs",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__mul_one_rhs.mlir",
+    "sha256": "5166d7123ec296d0108567fb44fc423ab565d4f5ea169671e4be6018cfd8b530",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "ludcmp::mul_one_lhs",
+    "kernel": "ludcmp",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/ludcmp__mul_one_lhs.mlir",
+    "sha256": "5491bda1a169bcd2ae966a00790620ae82f74ab47e31436a5fbc472977647dc4",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "mvt::original",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/mvt/raised_debufferized.mlir",
+    "sha256": "cf671f05b19c0d42caf38f993db1f464e0f35c7610f6416465bdf24970705eba",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "mvt::swap_add",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__swap_add.mlir",
+    "sha256": "d49e1fd995b7ea06951c89688f813d8573aefe7d13b27a0b4f3873c386d18c5a",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "mvt::swap_mul",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__swap_mul.mlir",
+    "sha256": "1c8b773b00132b19d435604330cd6f26ce73aad236cb71f88821ee192e672e19",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "mvt::swap_add_mul",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__swap_add_mul.mlir",
+    "sha256": "85c948822658e585774481d98405cf6c11783279b5c476d1cf012a95c23e492d",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "mvt::add_zero_rhs",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir",
+    "sha256": "d097fdd759f544b674b0372facc96b4b0d47a95454d1e5dedd3559ab5dbded5c",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "mvt::add_zero_lhs",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir",
+    "sha256": "723d58ee2bb588633c4e90fce9ba7f436e8d62050b53843c995c456e8614a5c5",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "mvt::mul_one_rhs",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir",
+    "sha256": "5b2e353bb07177d5056f7383e6b4be252a0c249815da0a5748e442c15ee21bac",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "mvt::mul_one_lhs",
+    "kernel": "mvt",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir",
+    "sha256": "558193fbe992ee2803310ec62d671bea88990c01e5d8318b102cc61a686aaec1",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "nussinov::original",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/nussinov/raised_debufferized.mlir",
+    "sha256": "935c4452fd3f226b790f19e1fecf8621fd4fa67e58ed79785b9b9b9f6a3d33e6",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "nussinov::swap_add",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__swap_add.mlir",
+    "sha256": "7639abec451cb4edb8442fcceb57bf93dd42594674f92daf5894ffd952673954",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "nussinov::swap_add_mul",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__swap_add_mul.mlir",
+    "sha256": "7639abec451cb4edb8442fcceb57bf93dd42594674f92daf5894ffd952673954",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "nussinov::add_zero_rhs",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__add_zero_rhs.mlir",
+    "sha256": "03c946e8fb3491fd604537749a9521d419a9a539ce36d81cd6d9a4c34ab72196",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "nussinov::add_zero_lhs",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__add_zero_lhs.mlir",
+    "sha256": "b19cab8946eb6655a143f42315d64a20d956494b6df9460bf4c44e2fab61fab7",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "nussinov::mul_one_rhs",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__mul_one_rhs.mlir",
+    "sha256": "8d68c429b0b5f18b720a332f1abd4382f425f693a4e0e33d990da996b3cb45ac",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "nussinov::mul_one_lhs",
+    "kernel": "nussinov",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/nussinov__mul_one_lhs.mlir",
+    "sha256": "0ed773ae80478a188c41474df11d29a64cd6460d3a272c4153cfb5845355c08b",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "seidel-2d::original",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/seidel-2d/raised_debufferized.mlir",
+    "sha256": "c8a9a32d3de118fad6096701e5c1df0cb5598dc3fcf77c7ea737c001bf697c32",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "seidel-2d::swap_add",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__swap_add.mlir",
+    "sha256": "45ad8675c3bc5a3c860f6cff14fe7d4ee74a9a3bcc2650191b7c14c2d43c9b38",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "seidel-2d::swap_add_mul",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__swap_add_mul.mlir",
+    "sha256": "45ad8675c3bc5a3c860f6cff14fe7d4ee74a9a3bcc2650191b7c14c2d43c9b38",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "seidel-2d::add_zero_rhs",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__add_zero_rhs.mlir",
+    "sha256": "6dceb029f820c031107a6e9057234a9aeb6d845fb8ab855e40f9b5187affd9e8",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "seidel-2d::add_zero_lhs",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__add_zero_lhs.mlir",
+    "sha256": "eb7a1419877a55ff2914e5f91c21b98a38250da2ef2d6d25fffadbd261539c49",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "seidel-2d::mul_one_rhs",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__mul_one_rhs.mlir",
+    "sha256": "5d127ddcb144e64e5e200dd773609f9f55c8825efc4db51564f28655a8d9e2dd",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "seidel-2d::mul_one_lhs",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__mul_one_lhs.mlir",
+    "sha256": "83ee2e219b1440e17664ddc77ddc0c9f27302d976173488d49ff70aadec73f86",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "seidel-2d::reassociate_add",
+    "kernel": "seidel-2d",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/seidel-2d__reassociate_add.mlir",
+    "sha256": "028ced60a3416cb0edb092e75d8ad237d0f7c1823a37eba97a36b05fba0d3477",
+    "suite": "polybench",
+    "variant": "reassociate_add"
+  },
+  {
+    "input_id": "symm::original",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/symm/raised_debufferized.mlir",
+    "sha256": "43fbcfbfe25c8ada430dafa99a4ee4c73ebda529491e7c60b6c070668ce8d318",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "symm::swap_add",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__swap_add.mlir",
+    "sha256": "6ac7a5cf0267c1aa3abe65b7230f390179d691f0346d9a43c0c1fc37c5126b22",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "symm::swap_mul",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__swap_mul.mlir",
+    "sha256": "bbbf5ca5e58afe5735ff1b0a01190dcfbbcd019d6179de6171d98772c856b36f",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "symm::swap_add_mul",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__swap_add_mul.mlir",
+    "sha256": "778587f1e4b387755fe0aa91a030891b384fca6573b91c7202aded376ac03018",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "symm::add_zero_rhs",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__add_zero_rhs.mlir",
+    "sha256": "a972918ef3ea24c1ef69bb2b42a63a20ef983ac0764bce2b91f2fd58392fb2fc",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "symm::add_zero_lhs",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__add_zero_lhs.mlir",
+    "sha256": "d6d93510ae2f67064518dd4a9f976835397b67024365e9fc799026716c6c8bb7",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "symm::mul_one_rhs",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__mul_one_rhs.mlir",
+    "sha256": "cb57167797600073732ddbed91916dffad09947079077f9dba2e8b855ce5044f",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "symm::mul_one_lhs",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__mul_one_lhs.mlir",
+    "sha256": "45393d2b5b7b10f90d4032c0879d07fefda7198f019210af48ad0f17de344a75",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "symm::reassociate_mul",
+    "kernel": "symm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/symm__reassociate_mul.mlir",
+    "sha256": "b7a21f56288916c18873c926dbd1ecf3cf445de42649580e0b2c366d60dbeafd",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "syr2k::original",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/syr2k/raised_debufferized.mlir",
+    "sha256": "8431b049eb60d90ecbb2fadf56237f5ccca765e2b15ce4c8850856bdfad59918",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "syr2k::swap_add",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__swap_add.mlir",
+    "sha256": "d274137ad1dc9dec40444f3ffe0c786eee4dc6eab4f7e54b8633fe65e65321cd",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "syr2k::swap_mul",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__swap_mul.mlir",
+    "sha256": "db1a1bbb88a9ea68ac4e668e48f4f1aee8d053fa10cf081e713ca73eb66149a8",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "syr2k::swap_add_mul",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__swap_add_mul.mlir",
+    "sha256": "26b4803760f5292a7449b9e008b774567b9b7be4cbf309dff9cf83570b25c577",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "syr2k::add_zero_rhs",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__add_zero_rhs.mlir",
+    "sha256": "86a7b664cef22196080316b1280841f0288f3d11f2d6adcac49c1d028250127a",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "syr2k::add_zero_lhs",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__add_zero_lhs.mlir",
+    "sha256": "7989d3161de6f290a857a0ce14f9db100692dc6fde40affcce45978be92673d2",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "syr2k::mul_one_rhs",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__mul_one_rhs.mlir",
+    "sha256": "0d79edd48a7c813b9e5c9e8f6da9fb6dba4065a96573894d11f16787543a8c5a",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "syr2k::mul_one_lhs",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__mul_one_lhs.mlir",
+    "sha256": "05ca9e92db3e69449cd09027323beea1210c0498d293a610b5e309cb6dabb509",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "syr2k::reassociate_mul",
+    "kernel": "syr2k",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syr2k__reassociate_mul.mlir",
+    "sha256": "4bf21e2534b18dbca4dcf5fe657ea60a9c0d5b35366f1b3741e5b84efcc3c903",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "syrk::original",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/syrk/raised_debufferized.mlir",
+    "sha256": "f34a9ac63c392dd7bff5d86de96a84cdc04064215ddcd0e7d226a00338180aa0",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "syrk::swap_add",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__swap_add.mlir",
+    "sha256": "9644f541938b2698c84387205761f75648d0cb8f89ab5b49b6c6f0badaf6ae72",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "syrk::swap_mul",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__swap_mul.mlir",
+    "sha256": "cc2c56b14c71dbdf33e39ee797801a51eda1709ec10d8440f935d5ff3546e7b7",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "syrk::swap_add_mul",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__swap_add_mul.mlir",
+    "sha256": "4ea45d1f9e5d7bcd201d3398921ff6c5deba7e008aa0bb647698c91965d22328",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "syrk::add_zero_rhs",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__add_zero_rhs.mlir",
+    "sha256": "d4fc4fed1939b62acacb49db5987df54acee0dfa2ea337cafdd0bf5b9fcf4dc0",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "syrk::add_zero_lhs",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__add_zero_lhs.mlir",
+    "sha256": "2ead5a13b1925498f91db7d7a898052dcb40ca35fda473605f830061aff0aaff",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "syrk::mul_one_rhs",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__mul_one_rhs.mlir",
+    "sha256": "b69518cd46d5046dc78683e145c3c8ee0df94b2640dc357644850f37c7a24f98",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "syrk::mul_one_lhs",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__mul_one_lhs.mlir",
+    "sha256": "6561f7e7c675aa211559cd1989fe03c9a80be250742f0baf0bb0b7bea0cdd5ba",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "syrk::reassociate_mul",
+    "kernel": "syrk",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/syrk__reassociate_mul.mlir",
+    "sha256": "d1ab676f4ce8f4740882a1d359a8aa1b6d9496df69832bf34a7f621b34c958f5",
+    "suite": "polybench",
+    "variant": "reassociate_mul"
+  },
+  {
+    "input_id": "trisolv::original",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/trisolv/raised_debufferized.mlir",
+    "sha256": "ac9f417ddcb65a11a7c25f00db584110c5ed5075489711ac7c01554f63872c09",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "trisolv::swap_mul",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__swap_mul.mlir",
+    "sha256": "1c2b24ad9676263807ee3caff309e20a4ca21d9190cabd7b3a1e0ae97208c57b",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "trisolv::swap_add_mul",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__swap_add_mul.mlir",
+    "sha256": "1c2b24ad9676263807ee3caff309e20a4ca21d9190cabd7b3a1e0ae97208c57b",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "trisolv::add_zero_rhs",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__add_zero_rhs.mlir",
+    "sha256": "f2c88f9f35084cfbe759d0efb662c95e1d77aa9a4fcdb4f36fb5b1ad25956b58",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "trisolv::add_zero_lhs",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__add_zero_lhs.mlir",
+    "sha256": "db8ca12d3d4aefcb988c7d814dfc279f5be4954b5871a97556b34c27c7cdbc77",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "trisolv::mul_one_rhs",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__mul_one_rhs.mlir",
+    "sha256": "cca8bff814ab80b54803de7e1ddce460750c64554662346bb0fde82d0f7548b5",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "trisolv::mul_one_lhs",
+    "kernel": "trisolv",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trisolv__mul_one_lhs.mlir",
+    "sha256": "baf991b0f74b4b478e37d77150b1e91a97ab8b60a05ec67031e04efa87d13679",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  },
+  {
+    "input_id": "trmm::original",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/polybench_section42/ir/trmm/raised_debufferized.mlir",
+    "sha256": "18ca44db52d5a64e8b3f16999c6712672a8eb229de7009c6f886ff25f1c9a4f0",
+    "suite": "polybench",
+    "variant": "original"
+  },
+  {
+    "input_id": "trmm::swap_add",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__swap_add.mlir",
+    "sha256": "6d09d7322b3d123184d6aba698a6fcc81321a39c5f2dfb4124d3961466b74be0",
+    "suite": "polybench",
+    "variant": "swap_add"
+  },
+  {
+    "input_id": "trmm::swap_mul",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__swap_mul.mlir",
+    "sha256": "834375644d5efcb28413d069dc435048938d51f0fcdf391c14f0efeb999a3638",
+    "suite": "polybench",
+    "variant": "swap_mul"
+  },
+  {
+    "input_id": "trmm::swap_add_mul",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__swap_add_mul.mlir",
+    "sha256": "723d2e1f133d2e78a39b8916ba1c16a3f9fe481acd4e42ffc49de045dac39c5f",
+    "suite": "polybench",
+    "variant": "swap_add_mul"
+  },
+  {
+    "input_id": "trmm::add_zero_rhs",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__add_zero_rhs.mlir",
+    "sha256": "fecc5eff9c76ac8b993bdb1968abfd924bee1796927c24ffc48d13f4795cb7b4",
+    "suite": "polybench",
+    "variant": "add_zero_rhs"
+  },
+  {
+    "input_id": "trmm::add_zero_lhs",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__add_zero_lhs.mlir",
+    "sha256": "0f8571ea535185db48f37169fb2e5b29a5ed91d109347fbfe34683c02fc19df9",
+    "suite": "polybench",
+    "variant": "add_zero_lhs"
+  },
+  {
+    "input_id": "trmm::mul_one_rhs",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__mul_one_rhs.mlir",
+    "sha256": "b94a339da9395493aaf00f5c7f795dfaaa5fb9bfc2cded4fbd9812a42b495f8b",
+    "suite": "polybench",
+    "variant": "mul_one_rhs"
+  },
+  {
+    "input_id": "trmm::mul_one_lhs",
+    "kernel": "trmm",
+    "path": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/trmm__mul_one_lhs.mlir",
+    "sha256": "236822def11a364836a1cd053db2ed14f68dc5293c425bbd257e87a878f6b4d6",
+    "suite": "polybench",
+    "variant": "mul_one_lhs"
+  }
+]

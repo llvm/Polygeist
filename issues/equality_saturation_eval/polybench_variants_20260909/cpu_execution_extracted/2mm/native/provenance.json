@@ -1,0 +1,22 @@
+{
+  "compile_command": [
+    "/home/arjaiswal/Polygeist/llvm-project/build/bin/clang",
+    "-O3",
+    "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities",
+    "-DLARGE_DATASET",
+    "-DDATA_TYPE_IS_DOUBLE",
+    "-DPOLYBENCH_USE_C99_PROTO",
+    "-DPOLYBENCH_DUMP_ARRAYS",
+    "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm",
+    "/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c",
+    "/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities/polybench.c",
+    "-lm",
+    "-o",
+    "issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/2mm/native/native"
+  ],
+  "executable_sha256": "b2a2a63322512834e410e65a48ee606f195b694d7701211d91faba7831f1ae59",
+  "output_sha256": "5036e1fc6e19e9e8a217cb667d11692eb7584fac9ddc2f7621db1bff3268d90c",
+  "run_rc": 0,
+  "source": "/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c",
+  "source_sha256": "3ead555767a84951ca6f7b2cb5dbab2f67c1dc7259ebf781447a0ab37cd63a3c"
+}
