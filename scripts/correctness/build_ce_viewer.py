@@ -9419,8 +9419,9 @@ def refresh_equality_saturation_viewer_links() -> None:
     text = index_path.read_text()
     card_href = '<a class="suite-card" href="saturation-paper.html">'
     card = (
-        card_href + '<b>Equality saturation study</b>'
-        '<span>30 PolyBench kernels</span><small>Controlled equivalent-IR '
+        card_href + '<b>Equality saturation studies</b>'
+        '<span>687 corpus inputs + 30 PolyBench kernels</span><small>The '
+        'original corpus ablation followed by controlled equivalent-IR '
         'variations: 93.7% Egglog match retention versus 44.3% for exact '
         'syntax, plus compile-time cost and CPU validation.</small></a>')
     if card_href in text:
@@ -9450,7 +9451,7 @@ def _saturation_paper_study_page() -> str:
     if not summary_path.is_file() or not variants_path.is_file():
         return (
             '<div class="section-header"><h2 class="section-title">'
-            'PolyBench equality-saturation study</h2></div>'
+            'Controlled PolyBench variation study</h2></div>'
             '<div class="intro paper-provisional"><b>Study artifacts are '
             'unavailable.</b> Run the controlled PolyBench variation campaign '
             'and rebuild the viewer.</div>')
@@ -9510,7 +9511,7 @@ def _saturation_paper_study_page() -> str:
 
     return (
         '<div class="section-header"><h2 class="section-title">'
-        'PolyBench equality-saturation study</h2></div>'
+        'Controlled PolyBench variation study</h2></div>'
         '<div class="intro"><b>Equality saturation keeps library matches '
         'stable when equivalent source expressions are written differently.</b> '
         'Across the controlled common-baseline comparison, Egglog retained '
@@ -9636,14 +9637,14 @@ def _saturation_paper_study_page() -> str:
 
 
 def _legacy_saturation_paper_study_page() -> str:
-    """Render the audited Egglog-versus-exact-syntax ablation."""
+    """Render the original audited Egglog-versus-exact-syntax ablation."""
     summary_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "summary.json"
     runs_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "runs.csv"
     graph_runs_path = EQUALITY_SATURATION_EGRAPH_DIR / "runs.csv"
     if not summary_path.is_file() or not runs_path.is_file():
         return (
             '<div class="section-header"><h2 class="section-title">'
-            'Saturation paper study</h2></div>'
+            'Original equality-saturation corpus study</h2></div>'
             '<div class="intro paper-provisional"><b>Study artifacts are '
             'unavailable.</b> Run the equality-saturation ablation and rebuild '
             'the viewer.</div>')
@@ -9762,7 +9763,7 @@ def _legacy_saturation_paper_study_page() -> str:
 
     return (
         '<div class="section-header"><h2 class="section-title">'
-        'Saturation paper study</h2></div>'
+        'Original equality-saturation corpus study</h2></div>'
         '<div class="intro"><b>Equality saturation finds a small but concrete '
         'set of larger external-library matches that exact syntax misses.</b> '
         f'On {common_inputs} common-success inputs, Egglog selects '
@@ -10407,9 +10408,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "NE=1024 analysis: 128/128 matches correctness-validated; 17 kernels have four-runtime timings.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 correctness-gated percentage charts, raw samples, and exclusions.")
-        + card("saturation-paper.html", "Equality saturation study",
-               30,
-               "Controlled PolyBench variations: 93.7% Egglog match retention versus 44.3% for exact syntax, with compile-time cost and CPU validation.")
+        + card("saturation-paper.html", "Equality saturation studies",
+               687,
+               "Original 687-input corpus study followed by the controlled 30-kernel PolyBench variation study and CPU validation.")
         + card("build-time.html", "Build time", 30,
                "Five Egglog and five exact-syntax whole builds per PolyBench kernel, with time, memory, coverage, and failures.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
@@ -10435,7 +10436,11 @@ def build_site_pages(polybench_stats: dict[str, dict],
         mfem_application_extraction_stats
     )
     llama_paper = nav() + _llama_paper_analysis_page()
-    saturation_paper = nav() + _saturation_paper_study_page()
+    saturation_paper = (
+        nav()
+        + _legacy_saturation_paper_study_page()
+        + _saturation_paper_study_page()
+    )
     build_time = nav() + _build_time_page()
     modified = nav() + modified_body
     numerical_pages = {
