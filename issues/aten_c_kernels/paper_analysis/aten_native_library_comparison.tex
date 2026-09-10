@@ -1,0 +1,26 @@
+\begin{table}[t]
+  \centering
+  \small
+  \caption{External-library use in native ATen CUDA implementations versus complete library mappings recovered by \theproject{}. CUB, Thrust, and CUTLASS are counted as template-generated library implementations. Counts are kernels, not call sites, and multi-library native paths are counted once.}
+  \label{tab:aten-library-overlap}
+  \begin{tabular}{lr}
+    \toprule
+    Classification & Kernels \\
+    \midrule
+    Fixtures in common audit universe & 598 \\
+    Native ATen paths using an external library & 52 \\
+    Native paths using linked cuBLAS/cuDNN/cuSPARSE/etc. & 28 \\
+    Native paths using CUB/Thrust/CUTLASS templates & 26 \\
+    Native paths counted in both implementation-form rows & 2 \\
+    Complete Polygeist external-library mappings & 271 \\
+    Found by both & 28 \\
+    Found only in native ATen & 24 \\
+    Found only by Polygeist & 243 \\
+    Found by neither & 303 \\
+    Same library family among common findings & 19 \\
+    Different library family among common findings & 9 \\
+    Different family: native CUTLASS $\rightarrow$ Polygeist cuBLAS & 2 \\
+    Different family: native cuBLAS $\rightarrow$ Polygeist cuDNN & 7 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

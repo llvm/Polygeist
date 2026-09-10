@@ -1,0 +1,24 @@
+\begin{table}[t]
+  \centering
+  \small
+  \caption{ATen corpus, library-mapping, execution, and raised-IR coverage. Library status and IR structure are separate classifications; the three IR rows partition all 598 fixtures.}
+  \label{tab:aten-coverage-summary}
+  \begin{tabular}{lr}
+    \toprule
+    Measurement & Kernels \\
+    \midrule
+    \multicolumn{2}{l}{\textit{Corpus and library execution}} \\
+    ATen standalone kernel fixtures & 598 \\
+    Complete library rewrites & 271 \\
+    Complete rewrites executed on GPU & 217 \\
+    Complete rewrites awaiting GPU execution & 54 \\
+    Partial library matches & 85 \\
+    No library match found & 242 \\
+    \addlinespace
+    \multicolumn{2}{l}{\textit{Raised-IR structure}} \\
+    Fully raised to Linalg & 418 \\
+    Mixed Linalg and structured loops & 107 \\
+    No Linalg operation & 73 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -1,0 +1,143 @@
+id,kernel,native_us,raised_us,raised_over_native,speedup_percent,semantic_family,raised_library,raised_call,timing_source,timing_protocol
+1,aten_avg_pool2d,22.816,49.087997,2.1514725192847126,-53.520205764354166,pooling,cuDNN Resample,cudnnAvgPoolWindow_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+2,aten_avg_pool3d,56.768,51.52002,0.9075539036076663,10.18629262954478,pooling,cuDNN Resample,cudnnAveragePool_f32_r5,historical resident sweep,raised best of 20; retained native baseline
+3,aten_adaptive_avg_pool3d,66.144,51.360352,0.7764929850024189,28.784164096071628,adaptive_pooling,cuDNN Resample,cudnnAveragePool_f32_r5,historical resident sweep,raised best of 20; retained native baseline
+4,aten_conv_transpose3d_backward_cpu,88.384,127.104004,1.438088387038378,-30.463244887234243,convolution,cuDNN,cudnnConvolution3D_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+5,aten_avg_pool2d_backward_cpu,92.64,153.375977,1.655612877806563,-39.59940675716119,pooling,cuDNN Resample,cudnnAveragePool_f32_flat2,historical resident sweep,raised best of 20; retained native baseline
+6,aten_narrow_copy_dense_cpu,93.024,86.815994,0.9332644693842449,7.150763026453388,tensor_permutation,cuTENSOR,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+7,aten_mm,103.904,8403.584,80.87834924545736,-98.76357516031256,dense_linear_algebra,cuBLAS,"cublasDgemm_simple,memset_zero_2D",historical resident sweep,raised best of 20; retained native baseline
+8,aten_sparse_norm_cpu,112.576,108.959961,0.9678791305429222,3.318686026328499,euclidean_norm,cuBLAS,cublasSnrm2_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+9,aten_int_mm_out_cpu,116.704,147.872,1.2670688236907048,-21.07768881194548,dense_linear_algebra,cuBLAS,cublasGemmEx_i8_i32_tensor,historical resident sweep,raised best of 20; retained native baseline
+10,aten_avg_pool3d_backward_cpu,120.512,212.224121,1.7610206535448751,-43.21474890217593,pooling,cuDNN Resample,cudnnAveragePool_f32_flat2,historical resident sweep,raised best of 20; retained native baseline
+11,aten_zeros_cpu,130.496,115.231995,0.8830308591834232,13.246325380377222,tensor_initialization,CUDA Runtime,memset_zero_1D_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+12,aten_addmm,134.272,8199.967773,61.06982671740944,-98.36253014990966,dense_linear_algebra,cuBLAS,cublasDgemm,historical resident sweep,raised best of 20; retained native baseline
+13,aten_or_reduce_cpu,154.848,171.040009,1.1045671174312874,-9.46679615761713,reduction,CUB,cubSegmentedLogicalOr_i32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+14,aten_dilated_convolution_cpu,175.552,193.152008,1.1002552406124682,-9.111998462889392,convolution,cuDNN,cudnnConvolution2D_f32_dilated,current Section 4.2 campaign,minimum of 5 after 5 warmups
+15,aten_erfc,215.744,637.408005,2.954464573754079,-66.15291958876482,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+16,aten_blas_copy_cpu,215.808,203.104004,0.9411328773724793,6.254921493325161,data_movement,CUDA Runtime,cudaCopy1D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+17,aten_copy_tensor_array_cpu,217.088,219.616013,1.011645107053361,-1.1511059532803847,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+18,aten_hardtanh,218.176,628.255997,2.8795834418084483,-65.27275488943721,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+19,aten_copy_cpu,218.88,203.584,0.9301169590643276,7.513360578434458,data_movement,CUDA Runtime,cudaCopy1D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+20,aten_logit,219.68,635.679993,2.8936634786962854,-65.4417313083503,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+21,aten_hardswish,221.12,629.248001,2.845730829413893,-64.85964204119897,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+22,aten_asinh,221.152,1370.912003,6.198958196172768,-83.86825707878786,pointwise_reduction_formula,cuDNN,cutensorUnary_asinh_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+23,aten_clamp_min_scalar_cpu,222.144,635.552002,2.8609910778594063,-65.04707729643813,reduction,CUB,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+24,aten_angle_real,222.432,830.080002,3.7318371547259392,-73.20354671066995,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+25,aten_cosh,222.464,1273.824005,5.725978158263809,-82.53573498954434,pointwise_reduction_formula,cuDNN,cutensorUnary_cosh_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+26,aten_acosh,222.592,1342.431992,6.030908532202415,-83.41875034813681,pointwise_reduction_formula,cuDNN,cutensorUnary_acosh_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+27,aten_hardsigmoid,222.88,631.039993,2.831299322505384,-64.68052699157532,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+28,aten_nested_squeeze_cpu,223.136,219.743988,0.9847984547540514,1.5436199328465738,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+29,aten_asin,223.296,1699.552002,7.611206658426483,-86.86147880516573,compound_or_specialized,,cutensorUnary_asin_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+30,aten_sinh,223.36,1706.783997,7.641403998030086,-86.91339968076815,pointwise_reduction_formula,cuDNN,cutensorUnary_sinh_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+31,aten_acos,223.648,1266.17601,5.661468065889254,-82.33673689647618,compound_or_specialized,,cutensorUnary_acos_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+32,aten_nested_clone_cpu,224.064,219.903992,0.9814338403313339,1.8917382818589346,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+33,aten_frac,224.16,653.728012,2.9163455210563884,-65.71051019915603,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+34,aten_atanh,225.152,1299.807999,5.773024441266346,-82.67805705356335,pointwise_reduction_formula,cuDNN,cutensorUnary_atanh_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+35,aten_clamp_max_scalar_cpu,226.464,635.007996,2.8040129821958457,-64.33682702792296,reduction,CUB,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+36,aten_im2col,227.232,171.647995,0.7553865432685538,32.38255419179232,patch_extract_scatter,cuDNN,cutensorPermute_f32_r6_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+37,aten_cat_serial_cpu,227.392,253.088013,1.1130031531452294,-10.152994879295207,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+38,aten_conv2d_columns_cpu,239.232,143.487999,0.5997859776284109,66.72613853929346,patch_extract_scatter,cuDNN,cutensorPermute_f32_r5_tensor,historical resident sweep,raised best of 20; retained native baseline
+39,aten_conv_transpose2d,239.52,232.095993,0.9690046467935871,3.1986795222268327,convolution,cuDNN,cudnnConvolutionTranspose2D_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+40,aten_stack_serial_cpu,257.632,223.807999,0.8687119573655446,15.112954474875595,data_movement,CUDA Runtime,cutensorPermute_f32_r3_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+41,aten_compressed_block_convert_cpu,297.92,209.824001,0.7042964587808808,41.98566349900077,tensor_permutation,cuTENSOR,cutensorPermute_f32_r4_tensor,historical resident sweep,raised best of 20; retained native baseline
+42,aten_hardtanh_backward,302.368,867.776001,2.869933329585141,-65.15598499479592,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+43,aten_batch_norm,306.688,262.591797,0.8562180359192404,16.79268107525842,normalization,cuDNN,cudnnBatchNormalizationForwardInference,historical resident sweep,raised best of 20; retained native baseline
+44,aten_angle_complex_scalarized,311.84,906.335999,2.906413542201129,-65.59333400151085,complex_layout,cuTENSOR,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+45,aten_logit_backward,312.704,1077.215988,3.444842368501842,-70.97109553854858,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+46,aten_blas_axpy_cpu,313.696,517.087997,1.6483729374936242,-39.334116858256905,dense_vector_update,cuBLAS,cublasSaxpby,current Section 4.2 campaign,minimum of 5 after 5 warmups
+47,aten_hardsigmoid_backward,313.728,869.919998,2.772847810842513,-63.93599403148793,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+48,aten_logaddexp2,314.048,873.184006,2.780415751732219,-64.03415570577916,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+49,aten_sparse_mul_cpu,314.176,871.936005,2.775310669815645,-63.96799785782444,sparse_indexed_elementwise,cuSPARSE,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+50,aten_sparse_intersection_apply_cpu,314.592,839.68,2.669107923914149,-62.53429878048781,sparse_indexed_elementwise,cuSPARSE,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+51,aten_sparse_intersection_launch_cpu,314.688,837.471998,2.6612771951901566,-62.42405707277152,sparse_indexed_elementwise,cuSPARSE,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+52,aten_sparse_add_values_cpu,315.872,865.983994,2.741566185036977,-63.52449904518673,sparse_indexed_elementwise,cuSPARSE,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+53,aten_logaddexp,317.376,872.127991,2.7479330226608187,-63.609011145704656,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+54,aten_glu,319.456,1064.063995,3.3308624505409195,-69.97774555843326,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+55,aten_cross_cpu_backend,319.488,47972.896,150.15554887820514,-99.33402394552124,cross_product,cuDNN,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+56,aten_cross,319.84,47992.48,150.05152576288145,-99.3335622580871,cross_product,cuDNN,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+57,aten_hypot,320.992,877.087997,2.732429459301166,-63.40253188985323,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+58,aten_cumprod_cpu,328.8,4850.496094,14.752117074209245,-93.22131193123275,scan,CUB,cubSegmentedInclusiveProduct2D_f32_tensor,historical resident sweep,raised best of 20; retained native baseline
+59,aten_repeat_compute_cpu,335.52,340.959991,1.016213611707201,-1.5954924752447086,tensor_permutation,cuTENSOR,cublasBroadcastAxis1_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+60,aten_outer,335.808,988.671875,2.94415819456356,-66.03443382062426,dense_linear_algebra,cuBLAS,cublasDgemm_outer_product,historical resident sweep,raised best of 20; retained native baseline
+61,aten_as_complex_cpu,347.872,9089.823999,26.129794864202925,-96.17295120303461,complex_layout,cuTENSOR,cudaCopy1D_f32_tensor,historical resident sweep,raised best of 20; retained native baseline
+62,aten_repeat_tensor_shape_cpu,355.008,345.087997,0.9720569592797909,2.8746299744525805,tensor_permutation,cuTENSOR,cublasBroadcastAxis1_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+63,aten_sparse_coo_to_csr_cpu,360.192,195.200001,0.5419331939632196,84.52458921862404,sparse_format,cuSPARSE,cusparseXcoo2csr_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+64,aten_convert_coo_to_csr_cpu,360.704,195.648001,0.542405964447303,84.36375437334522,sparse_format,cuSPARSE,cusparseXcoo2csr_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+65,aten_conv2d,374.848,625.472,1.6686016732115416,-40.06957945359664,convolution,cuDNN,cudnnConvolutionFwd_batched,current Section 4.2 campaign,minimum of 5 after 5 warmups
+66,aten_max_pool2d,375.392,365.023987,0.9723808365655101,2.8403648442972163,pooling,cuDNN Resample,cudnnMaxPoolFwd_batched,current Section 4.2 campaign,minimum of 5 after 5 warmups
+67,aten_sparse_addmv_csr_cpu,386.688,340.640137,0.8809172692196292,13.518037952174744,sparse_linear_algebra,cuSPARSE,cusparseSpMV_CSR_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+68,aten_nested_sum_backward_cpu,389.12,652.800003,1.6776315866570721,-40.3921571366782,tensor_broadcast,cuBLAS,cublasBroadcastAxis0_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+69,aten_complex_scalarized,400.896,407.264008,1.0158844388569603,-1.5636068680048854,complex_layout,cuTENSOR,cudaCopy1D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+70,aten_addcdiv,401.152,1138.528,2.8381461391193366,-64.76573259507012,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+71,aten_addcmul,402.72,1142.079987,2.835915740464839,-64.73802145348337,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+72,aten_nested_all_cpu,408.16,1672.672012,4.098079214033712,-75.59832429359737,reduction,CUB,cubSegmentedPrefixLogicalAnd_i32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+73,aten_adaptive_avg_pool2d,408.768,692.063965,1.6930482938977613,-40.93493944595137,adaptive_pooling,cuDNN Resample,cudnnAvgPoolWindow_f32,historical resident sweep,raised best of 20; retained native baseline
+74,aten_conj_complex_scalarized,412.768,1864.224001,4.516396622315684,-77.85845478984368,complex_layout,cuTENSOR,"cudaCopy1D_f32_tensor,cutensorUnary_neg_f32",historical resident sweep,raised best of 20; retained native baseline
+75,aten_normal_cpu,414.08,607.007999,1.465919626642195,-31.783436020255817,random_generation,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+76,aten_uniform_cpu,414.848,608.416,1.4665998148719532,-31.815073896807455,random_generation,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+77,aten_blas_scale_cpu,427.136,234.528,0.5490710218759364,82.1258016100423,dense_vector_update,cuBLAS,cublasSscal,current Section 4.2 campaign,minimum of 5 after 5 warmups
+78,aten_nansum_cpu,444.672,1835.007812,4.126654729778354,-75.76729662445709,nan_ignoring_reduction,CUB,cubSegmentedNanSum_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+79,aten_pixel_shuffle,450.816,246.048004,0.5457836545286769,83.22278281924204,tensor_permutation,cuTENSOR,cutensorPermute_f32_r6_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+80,aten_channel_shuffle_cpu,471.968,241.759995,0.512238107244559,95.22171151600165,tensor_permutation,cuTENSOR,cutensorPermute_f32_r4_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+81,aten_channel_shuffle,486.144,224.352005,0.4614929012802791,116.68805678826004,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+82,aten_batch_norm_transform_cpu,487.104,449.503906,0.9228088991262646,8.364798058061806,normalization,cuDNN,cudnnBatchNormalizationForwardInference,historical resident sweep,raised best of 20; retained native baseline
+83,aten_hardswish_backward,507.264,865.855988,1.7069139304188745,-41.41473789749895,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+84,aten_nested_sum_dim_cpu,548.512,1266.59201,2.3091418419287093,-56.69386861204029,reduction,CUB,cubSegmentedPrefixSum_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+85,aten_and_reduce_cpu,568.832,1912.447998,3.3620612026046355,-70.25634157922866,reduction,CUB,cubSegmentedLogicalAnd_i32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+86,aten_pixel_unshuffle_cpu_backend,572.896,267.23201,0.46645815296319054,114.38150317396483,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+87,aten_pixel_shuffle_cpu_backend,582.528,320.575989,0.5503185924110086,81.71292298500872,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+88,aten_log_normal_cpu,595.072,608.832001,1.0231232539927941,-2.2600653345092425,random_generation,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+89,aten_sparse_matmul_cpu,603.328,154.144043,0.25548962256019947,291.4053298835557,sparse_indexed_elementwise,cuSPARSE,cusparseSpMM_CSR_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+90,aten_transpose_copy,643.2,295.040009,0.45870648165422884,118.00433174471605,tensor_permutation,cuTENSOR,cutensorPermute_f32_r2_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+91,aten_nested_matmul_broadcast_cpu,726.848,1024.416,1.4093950867306506,-29.047574422890698,batched_matrix_multiply,cuBLAS,cublasSgemm_strided_batched_broadcast_rhs,current Section 4.2 campaign,minimum of 5 after 5 warmups
+92,aten_flatten_nd_linear_cpu,749.984,1065.632,1.420872978623544,-29.62073211014684,dense_vector_update,cuBLAS,cublasSgemm_strided_batched_broadcast_rhs,historical resident sweep,raised best of 20; retained native baseline
+93,aten_sum,766.368,3078.559998,4.017077954716272,-75.10628344102845,reduction,CUB,cubSegmentedSum_f64_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+94,aten_diff_cpu,766.464,5224.896,6.816883767535069,-85.3305405504722,adjacent_difference,CUB,cubAdjacentDifference_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+95,aten_exponential_cpu,769.216,3172.031738,4.123720434832349,-75.75005348196802,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+96,aten_argmax_cpu,776.16,3650.368164,4.703112971552257,-78.73748714843329,arg_reduction,CUB,cubSegmentedArgMax_f32_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+97,aten_argmin_cpu,777.536,3647.808105,4.691497377613384,-78.68484367545973,arg_reduction,CUB,cubSegmentedArgMin_f32_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+98,aten_bmm,782.208,848.640001,1.0849288181660122,-7.828054407253893,dense_linear_algebra,cuBLAS,cublasSgemm_strided_batched_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+99,aten_batch_norm_cpu_entry,788.928,632.736008,0.8020199663340634,24.685175179725192,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+100,aten_allany_dims_cpu,824.768,1876.448,2.275122216186855,-56.046317297361824,boolean_reduction,CUB,cubSegmentedLogicalSelect_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+101,aten_dropout_feature_noise_cpu,828.896,817.856001,0.9866810806180751,1.3498707579942204,dropout,cuDNN,cudnnFeatureMaskScale_f32_tensor,historical resident sweep,raised best of 20; retained native baseline
+102,aten_nested_bmm_cpu,866.08,859.007996,0.9918344679475337,0.8232756892754267,dense_linear_algebra,cuBLAS,cublasSgemm_strided_batched_nn_zero,current Section 4.2 campaign,minimum of 5 after 5 warmups
+103,aten_sumproduct_pair_cpu,874.88,848.896,0.9702999268471104,3.060916767189381,tensor_contraction,cuTENSOR,cublasSgemm_strided_batched_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+104,aten_geometric_cpu,877.408,3169.82373,3.6127135038659324,-72.31997502902156,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+105,aten_sparse_bmm_cpu,883.04,865.695999,0.9803587595125929,2.003474778679193,sparse_linear_algebra,cuSPARSE,cublasSgemm_strided_batched_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+106,aten_sparse_matmul_csr_to_coo_cpu,934.976,329.983999,0.3529331223475255,183.3397991518977,sparse_format,cuSPARSE,cusparseXcsr2coo_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+107,aten_convert_csr_to_coo_cpu,943.2,332.288,0.3522985581000848,183.85015408320493,sparse_format,cuSPARSE,cusparseXcsr2coo_i32_memref,historical resident sweep,raised best of 20; retained native baseline
+108,aten_polar_scalarized,950.976,1724.255997,1.8131435462093681,-44.84716876991671,complex_construction,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+109,aten_cauchy_cpu,960.32,2995.936035,3.119726794193602,-67.94591110153658,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+110,aten_cpu_blas_gemm_strided_batched_cpu,1038.08,1016.0,0.9787299630086314,2.1732283464566793,dense_linear_algebra,cuBLAS,cublasSgemm_strided_batched_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+111,aten_cpu_blas_gemm_batched_cpu,1039.584,1013.024,0.9744513189891341,2.621852986701212,dense_linear_algebra,cuBLAS,cublasSgemm_strided_batched_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+112,aten_conv_tbc_cpu,1047.328,1372.671997,1.3106419354777108,-23.70151046361004,convolution,cuDNN,cudnnConvolutionTBC_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+113,aten_kron_impl_cpu,1100.352,5961.791992,5.4180771171406965,-81.54326750284918,tensor_product,cuTENSOR,cutensorKroneckerProduct2D_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+114,aten_kron_out_cpu,1101.76,6008.960007,5.453964572139123,-81.66471404841221,tensor_product,cuTENSOR,cutensorKroneckerProduct2D_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+115,aten_upsample_bilinear2d,1125.6,5472.800003,4.862117984186212,-79.4328314686635,resampling,cuDNN Resample,cudnnBilinearUpsample2x_f32_r4,historical resident sweep,raised best of 20; retained native baseline
+116,aten_dirichlet_grad_cpu,1220.096,1156.832031,0.9481483678333508,5.468725562976751,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+117,aten_count_nonzero_impl_cpu,1222.496,5495.456009,4.495275247526372,-77.75442114361579,histogram_count,CUB,cubSegmentedCountNonzero2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+118,aten_transform_bias_rescale_qkv_cpu,1248.096,703.360352,0.5635466758967259,77.44759090429936,qkv_transform,cuDNN,cudnnTransformBiasRescaleQKV_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+119,aten_sparse_addmm_cpu,1273.248,106.304001,0.08349041270828621,1097.7423126341218,sparse_linear_algebra,cuSPARSE,cusparseSpMM_COO_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+120,aten_depthwise_conv3x3_cpu,1303.488,1603.680176,1.2302991481317818,-18.71895534362458,convolution,cuDNN,cudnnDepthwiseConvolution2D_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+121,aten_gamma_transform_cpu,1313.152,3251.135742,2.475825907434935,-59.609437925462046,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+122,aten_hspmm_cpu,1329.6,106.495605,0.08009597247292419,1148.5022269228857,sparse_linear_algebra,cuSPARSE,cusparseSpMM_COO_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+123,aten_renorm_scale_factor,1381.76,633.024002,0.4581287647637795,118.27924306731106,normalization,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+124,aten_standard_gamma_grad_cpu,1394.624,887.52002,0.6363865959570465,57.1371877335229,random_distribution,cuRAND,cudnnPointwiseGraph_f32,historical resident sweep,raised best of 20; retained native baseline
+125,aten_conv_tbc_backward_cpu,1398.112,9793.119995,7.0045318222002235,-85.72352834731093,convolution,cuDNN,cudnnConvolutionTBCBackward_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+126,aten_glu_backward,1405.312,1419.679993,1.0102240591413152,-1.0120585674831095,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+127,aten_slow_conv3d_backward_input_cpu,1543.424,1000.671875,0.6483454157768701,54.238770825851375,indexed_data_movement,CUB,cudnnConvolutionTranspose3D_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+128,aten_glu_jvp,1580.576,1814.399994,1.1479359385439232,-12.887124932386884,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32,current Section 4.2 campaign,minimum of 5 after 5 warmups
+129,aten_conv_transpose3d_cpu,1614.784,1588.832001,0.9839285012732353,1.633401075989549,convolution,cuDNN,cudnnConvolutionTranspose3D_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+130,aten_sampled_addmm_sparse_csr_cpu,1803.584,8205.024002,4.5492885288403535,-78.01854084082666,sparse_linear_algebra,cuSPARSE,cusparseSDDMM_CSR_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+131,aten_joint_scaling_cpu,2260.544,917.407999,0.40583505519025515,146.40552540026414,joint_maxabs_product,cuBLAS,cublasJointMaxAbsProduct_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+132,aten_sspaddmm_cpu,2263.808,260.959961,0.11527477639446455,767.49246563537,sparse_linear_algebra,cuSPARSE,cusparseSpMM_COO_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+133,aten_xor_sum_cpu,2642.624,168.032,0.06358528492891914,1472.690916015997,reduction,CUB,cubSegmentedBitXor_i32,historical resident sweep,raised best of 20; retained native baseline
+134,aten_conv_transpose3d_grad_weight_cpu,2718.496,3006.496002,1.1059409327804786,-9.579257774113604,convolution,cuDNN,cudnnConvolutionBackwardFilter3D_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+135,aten_slow_conv3d_backward_weight_cpu,2781.824,8587.552246,3.087022128646528,-67.60632226376559,convolution,cuDNN,cudnnConvolutionBackwardFilter3D_f32_memref,historical resident sweep,raised best of 20; retained native baseline
+136,aten_cpu_blas_gemm_cpu,3778.624,3750.080002,0.9924459279356719,0.761157041577154,dense_linear_algebra,cuBLAS,cublasSgemm_nn_zero,historical resident sweep,raised best of 20; retained native baseline
+137,aten_embedding_bag_counts_cpu,3909.408,4233.151855,1.0828114781061482,-7.64782049142908,histogram_count,CUB,cubHistogramEvenI32ShiftZero_memref,historical resident sweep,raised best of 20; retained native baseline
+138,aten_unbind_copy_cpu,3982.368,217.664001,0.054656927988573634,1729.5942285835313,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor,current Section 4.2 campaign,minimum of 5 after 5 warmups
+139,aten_sparse_addmv_bsr_cpu,4468.64,634.975998,0.1420960287693795,603.7494352660556,sparse_linear_algebra,cuSPARSE,cusparseSpMM_BSR_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+140,aten_conv1d,5172.288,4714.207993,0.9114357114298354,9.717008831179918,convolution,cuDNN,cudnnConvolution1D_f32_bias,current Section 4.2 campaign,minimum of 5 after 5 warmups
+141,aten_sparse_csr_addmm_cpu,6758.56,6848.479996,1.013304608674037,-1.3129920223541425,sparse_linear_algebra,cuSPARSE,cusparseSpMM_CSR_f32_memref,current Section 4.2 campaign,minimum of 5 after 5 warmups
+142,aten_quant_col_offsets_cpu,7274.784,2781.216,0.38230908299133004,161.56846501674087,column_reduction,CUB,cubQuantColOffsets_i8_i32_memref,historical resident sweep,raised best of 20; retained native baseline
