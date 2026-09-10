@@ -857,7 +857,10 @@ for sp in SPECS:
                 bench(k, (lambda A=A, B=B: torch.mm(A, B)), shape)
             else:
                 C = torch.rand(M, N, device=d)
-                bench(k, (lambda A=A, B=B, C=C: torch.addmm(C, A, B)), shape)
+                beta = scalar_arg(sp.get("scalar_args", {}), "beta", 1.0)
+                alpha = scalar_arg(sp.get("scalar_args", {}), "alpha", 1.0)
+                bench(k, (lambda A=A, B=B, C=C, beta=beta, alpha=alpha:
+                          torch.addmm(C, A, B, beta=beta, alpha=alpha)), shape)
         elif cat == "gemv":
             M = geti(dims, "M", default=4096); K = geti(dims, "K", default=4096)
             A = torch.rand(M, K, device=d); x = torch.rand(K, device=d)
