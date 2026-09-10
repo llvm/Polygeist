@@ -1,0 +1,43 @@
+id,kernel,native_us,raised_us,raised_over_native,speedup_percent,semantic_family,raised_library,raised_call
+1,aten_conv_transpose3d_backward_cpu,88.384,127.104004,1.438088387038378,-30.463244887234243,convolution,cuDNN,cudnnConvolution3D_f32
+2,aten_narrow_copy_dense_cpu,93.024,86.815994,0.9332644693842449,7.150763026453388,tensor_permutation,cuTENSOR,cudaCopy2D_f32_tensor
+3,aten_zeros_cpu,130.496,115.231995,0.8830308591834232,13.246325380377222,tensor_initialization,CUDA Runtime,memset_zero_1D_f32
+4,aten_or_reduce_cpu,154.848,171.040009,1.1045671174312874,-9.46679615761713,reduction,CUB,cubSegmentedLogicalOr_i32
+5,aten_dilated_convolution_cpu,175.552,193.152008,1.1002552406124682,-9.111998462889392,convolution,cuDNN,cudnnConvolution2D_f32_dilated
+6,aten_blas_copy_cpu,215.808,203.104004,0.9411328773724793,6.254921493325161,data_movement,CUDA Runtime,cudaCopy1D_f32_tensor
+7,aten_copy_tensor_array_cpu,217.088,219.616013,1.011645107053361,-1.1511059532803847,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor
+8,aten_copy_cpu,218.88,203.584,0.9301169590643276,7.513360578434458,data_movement,CUDA Runtime,cudaCopy1D_f32_tensor
+9,aten_nested_squeeze_cpu,223.136,219.743988,0.9847984547540514,1.5436199328465738,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor
+10,aten_nested_clone_cpu,224.064,219.903992,0.9814338403313339,1.8917382818589346,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor
+11,aten_im2col,227.232,171.647995,0.7553865432685538,32.38255419179232,patch_extract_scatter,cuDNN,cutensorPermute_f32_r6_tensor
+12,aten_cat_serial_cpu,227.392,253.088013,1.1130031531452294,-10.152994879295207,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor
+13,aten_conv_transpose2d,239.52,232.095993,0.9690046467935871,3.1986795222268327,convolution,cuDNN,cudnnConvolutionTranspose2D_f32_memref
+14,aten_stack_serial_cpu,257.632,223.807999,0.8687119573655446,15.112954474875595,data_movement,CUDA Runtime,cutensorPermute_f32_r3_tensor
+15,aten_add,317.408,317.344009,0.9997983951255167,0.02016455272044748,pointwise,cuDNN,cudnnAddTensor_batched
+16,aten_repeat_compute_cpu,335.52,340.959991,1.016213611707201,-1.5954924752447086,tensor_permutation,cuTENSOR,cublasBroadcastAxis1_f32
+17,aten_repeat_tensor_shape_cpu,355.008,345.087997,0.9720569592797909,2.8746299744525805,tensor_permutation,cuTENSOR,cublasBroadcastAxis1_f32
+18,aten_max_pool2d,375.392,365.023987,0.9723808365655101,2.8403648442972163,pooling,cuDNN Resample,cudnnMaxPoolFwd_batched
+19,aten_complex_scalarized,400.896,407.264008,1.0158844388569603,-1.5636068680048854,complex_layout,cuTENSOR,cudaCopy1D_f32_tensor
+20,aten_masked_scale,424.288,633.439987,1.492948155498152,-33.01843762509422,pointwise_formula,cuDNN,cudnnPointwiseGraph_f32
+21,aten_blas_scale_cpu,427.136,234.528,0.5490710218759364,82.1258016100423,dense_vector_update,cuBLAS,cublasSscal
+22,aten_pixel_shuffle,450.816,246.048004,0.5457836545286769,83.22278281924204,tensor_permutation,cuTENSOR,cutensorPermute_f32_r6_tensor
+23,aten_channel_shuffle_cpu,471.968,241.759995,0.512238107244559,95.22171151600165,tensor_permutation,cuTENSOR,cutensorPermute_f32_r4_tensor
+24,aten_channel_shuffle,486.144,224.352005,0.4614929012802791,116.68805678826004,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor
+25,aten_pixel_unshuffle_cpu_backend,572.896,267.23201,0.46645815296319054,114.38150317396483,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor
+26,aten_pixel_shuffle_cpu_backend,582.528,320.575989,0.5503185924110086,81.71292298500872,tensor_permutation,cuTENSOR,cutensorPermute_f32_r5_tensor
+27,aten_transpose_copy,643.2,295.040009,0.45870648165422884,118.00433174471605,tensor_permutation,cuTENSOR,cutensorPermute_f32_r2_tensor
+28,aten_nested_matmul_broadcast_cpu,726.848,1024.416,1.4093950867306506,-29.047574422890698,batched_matrix_multiply,cuBLAS,cublasSgemm_strided_batched_broadcast_rhs
+29,aten_batch_norm_cpu_entry,788.928,632.736008,0.8020199663340634,24.685175179725192,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32
+30,aten_nested_bmm_cpu,866.08,859.007996,0.9918344679475337,0.8232756892754267,dense_linear_algebra,cuBLAS,cublasSgemm_strided_batched_nn_zero
+31,aten_conv_tbc_cpu,1047.328,1372.671997,1.3106419354777108,-23.70151046361004,convolution,cuDNN,cudnnConvolutionTBC_f32_memref
+32,aten_renorm_scale_factor,1381.76,633.024002,0.4581287647637795,118.27924306731106,normalization,cuDNN,cudnnPointwiseGraph_f32
+33,aten_glu_backward,1405.312,1419.679993,1.0102240591413152,-1.0120585674831095,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32
+34,aten_glu_jvp,1580.576,1814.399994,1.1479359385439232,-12.887124932386884,pointwise_reduction_formula,cuDNN,cudnnPointwiseGraph_f32
+35,aten_conv_transpose3d_cpu,1614.784,1588.832001,0.9839285012732353,1.633401075989549,convolution,cuDNN,cudnnConvolutionTranspose3D_f32_memref
+36,aten_round,1747.84,635.584,0.3636396924203588,174.99748263014806,pointwise,cuDNN,cudnnPointwiseGraph_f32
+37,aten_round_decimals,2315.648,636.160004,0.2747222393040738,264.0040218561116,pointwise,cuDNN,cudnnPointwiseGraph_f32
+38,aten_conv_transpose3d_grad_weight_cpu,2718.496,3006.496002,1.1059409327804786,-9.579257774113604,convolution,cuDNN,cudnnConvolutionBackwardFilter3D_f32_memref
+39,aten_unbind_copy_cpu,3982.368,217.664001,0.054656927988573634,1729.5942285835313,data_movement,CUDA Runtime,cudaCopy2D_f32_tensor
+40,aten_sparse_addmv_bsr_cpu,4468.64,634.975998,0.1420960287693795,603.7494352660556,sparse_linear_algebra,cuSPARSE,cusparseSpMM_BSR_f32_memref
+41,aten_conv1d,5172.288,4714.207993,0.9114357114298354,9.717008831179918,convolution,cuDNN,cudnnConvolution1D_f32_bias
+42,aten_sparse_csr_addmm_cpu,6758.56,6848.479996,1.013304608674037,-1.3129920223541425,sparse_linear_algebra,cuSPARSE,cusparseSpMM_CSR_f32_memref
