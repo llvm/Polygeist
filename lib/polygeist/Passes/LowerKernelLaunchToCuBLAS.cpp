@@ -403,6 +403,7 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasSgemv_alpha_T_memref")
     return "polygeist_cublas_sgemv_T";
   if (libSym == "cublasDaxpby") return "polygeist_cublas_daxpby";
+  if (libSym == "cublasDaxpby_memref") return "polygeist_cublas_daxpby";
   if (libSym == "cublasSaxpby") return "polygeist_cublas_saxpby";
   if (libSym == "cublasSaxpby_memref") return "polygeist_cublas_saxpby";
   if (libSym == "cublasSscal") return "polygeist_cublas_sscal";
@@ -581,6 +582,7 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_softmax_forward_out_f32";
   if (libSym == "cudaCopy1D_f32_tensor" ||
       libSym == "cudaCopy1D_f32_memref" ||
+      libSym == "cudaCopy1D_f64_memref" ||
       libSym == "cudaCopy2D_f32_tensor" ||
       libSym == "cudaCopy3D_f32_tensor" ||
       libSym == "cudaCopy6D_f32_tensor")
@@ -4694,6 +4696,35 @@ static LogicalResult lowerSaxpbyMemref(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+static LogicalResult lowerDaxpbyMemref(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 0)
+    return launch.emitError(
+        "bufferized cublasDaxpby expects x, y, alpha, beta");
+  auto xType = dyn_cast<MemRefType>(launch.getOperand(0).getType());
+  auto yType = dyn_cast<MemRefType>(launch.getOperand(1).getType());
+  if (!xType || !yType || xType.getRank() != 1 || yType.getRank() != 1 ||
+      !xType.getElementType().isF64() || !yType.getElementType().isF64() ||
+      !launch.getOperand(2).getType().isF64() ||
+      !launch.getOperand(3).getType().isF64())
+    return launch.emitError(
+        "bufferized cublasDaxpby requires rank-1 f64 vectors and scalars");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(
+      module, "polygeist_cublas_daxpby",
+      {b.getI32Type(), b.getF64Type(), ptr, b.getF64Type(), ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, launch.getOperand(1), 0),
+                 launch.getOperand(2),
+                 memrefDataPtr(b, loc, launch.getOperand(0)),
+                 launch.getOperand(3),
+                 memrefDataPtr(b, loc, launch.getOperand(1))});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerSscal(LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 2 || launch.getNumResults() != 1)
     return launch.emitError("cublasSscal: expected x, scale and one result");
@@ -7634,6 +7665,31 @@ static LogicalResult lowerCudaCopy1DF32Memref(LaunchOp launch,
   return success();
 }
 
+static LogicalResult lowerCudaCopy1DF64Memref(LaunchOp launch,
+                                               ModuleOp module) {
+  if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
+    return launch.emitError("bufferized CUDA copy expects input and output");
+  auto inputType = dyn_cast<MemRefType>(launch.getOperand(0).getType());
+  auto outputType = dyn_cast<MemRefType>(launch.getOperand(1).getType());
+  if (!inputType || !outputType || inputType.getRank() != 1 ||
+      outputType.getRank() != 1 || !inputType.getElementType().isF64() ||
+      !outputType.getElementType().isF64())
+    return launch.emitError(
+        "bufferized CUDA copy requires rank-1 f64 memrefs");
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(module, "polygeist_cuda_copy_f64",
+                             {b.getI32Type(), ptr, ptr}, b);
+  b.create<func::CallOp>(
+      loc, shim,
+      ValueRange{memrefDimAsI32(b, loc, launch.getOperand(0), 0),
+                 memrefDataPtr(b, loc, launch.getOperand(0)),
+                 memrefDataPtr(b, loc, launch.getOperand(1))});
+  launch.erase();
+  return success();
+}
+
 // One-shot bufferization sometimes materializes a terminal memref.copy after
 // a destination-style library launch.  Leaving that copy to the ordinary CPU
 // lowering makes a device-resident ABI dereference GPU memory on the host.
@@ -8425,6 +8481,8 @@ struct LowerKernelLaunchToCuBLASPass
             launch, module, /*transpose=*/true);
       } else if (libSym == "cublasDaxpby") {
         r = lowerDaxpby(launch, module);
+      } else if (libSym == "cublasDaxpby_memref") {
+        r = lowerDaxpbyMemref(launch, module);
       } else if (libSym == "cublasSaxpby") {
         r = lowerSaxpby(launch, module);
       } else if (libSym == "cublasSaxpby_memref") {
@@ -8616,6 +8674,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCudaCopyF32(launch, module, /*expectedRank=*/1);
       } else if (libSym == "cudaCopy1D_f32_memref") {
         r = lowerCudaCopy1DF32Memref(launch, module);
+      } else if (libSym == "cudaCopy1D_f64_memref") {
+        r = lowerCudaCopy1DF64Memref(launch, module);
       } else if (libSym == "cudaCopy2D_f32_tensor") {
         r = lowerCudaCopyF32(launch, module, /*expectedRank=*/2);
       } else if (libSym == "cublasBroadcastAxis0_f32") {
