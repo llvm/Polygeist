@@ -38,6 +38,33 @@ using namespace mlir::polygeist::kernel;
 
 namespace {
 
+static bool areKernelOperandTypesCompatible(Type actual, Type specification) {
+  if (actual == specification)
+    return true;
+  if (isa<RankedTensorType>(actual) != isa<RankedTensorType>(specification) ||
+      isa<MemRefType>(actual) != isa<MemRefType>(specification))
+    return false;
+  auto actualShaped = dyn_cast<ShapedType>(actual);
+  auto specificationShaped = dyn_cast<ShapedType>(specification);
+  if (!actualShaped || !specificationShaped)
+    return false;
+  return actualShaped.hasRank() && specificationShaped.hasRank() &&
+         actualShaped.getRank() == specificationShaped.getRank() &&
+         actualShaped.getElementType() == specificationShaped.getElementType();
+}
+
+static bool areGenericOperandTypesCompatible(GenericOp actual,
+                                             GenericOp specification) {
+  if (actual->getNumOperands() != specification->getNumOperands())
+    return false;
+  return llvm::all_of(llvm::zip(actual->getOperandTypes(),
+                                specification->getOperandTypes()),
+                      [](auto pair) {
+                        return areKernelOperandTypesCompatible(
+                            std::get<0>(pair), std::get<1>(pair));
+                      });
+}
+
 // Structure to represent an operation node in the dependency graph
 struct OpNode {
   Operation *op;
@@ -459,6 +486,7 @@ FailureOr<KernelMatchResult> matchGenericWithDefn(
     DenseMap<Operation*, Operation*> operationMapping; // Added for findCorrespondingValue
     if (candidateOp.getNumDpsInputs() == numInputs &&
         candidateOp.getNumDpsInits() == numOutputs &&
+        areGenericOperandTypesCompatible(genericOp, candidateOp) &&
         areIndexingMapsEquivalent(candidateOp.getIndexingMapsAttr(), indexingMaps) &&
         areIteratorTypesEquivalent(candidateOp.getIteratorTypesAttr(), iteratorTypes) &&
         areRegionsEquivalent(genericOp.getRegion(), candidateOp.getRegion(), nodeMapping, operationMapping)) {

@@ -108,6 +108,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasSgemv_alpha_memref",
     "cublasSgemv_alpha_T_memref",
     "cublasDaxpby",
+    "cublasDaxpby_memref",
     "cublasDscal",
     "cublasSaxpby",
     "cublasSaxpby_memref",
@@ -241,6 +242,7 @@ ABI_LOWERABLE_KERNELS = {
     "cudnnSoftmaxForwardOut_tensor",
     "cudaCopy1D_f32_tensor",
     "cudaCopy1D_f32_memref",
+    "cudaCopy1D_f64_memref",
     "cudaCopy2D_f32_tensor",
     "cudaCopy3D_f32_tensor",
     "cudaCopy6D_f32_tensor",
@@ -10144,6 +10146,20 @@ def rewrite_mlir(
             return _cudnn_pointwise_views_legal(
                 text, all_tensor_ins + outs0, instances[i].span[0])
 
+        if entry.name in ("cudaCopy1D_f32_memref",
+                           "cudaCopy1D_f64_memref"):
+            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
+            ranks = [_tensor_rank(t) for t in operand_types[:2]]
+            forms = [t.startswith("memref<") for t in operand_types[:2]]
+            if (len(operand_types) != 2 or ranks != [1, 1] or
+                    forms != [True, True] or len(set(elems)) != 1 or
+                    elems[0] not in ("f32", "f64")):
+                report.append(("rank_dtype_or_form_reject", i, entry.name))
+                i += n
+                continue
+            emit_name = ("cudaCopy1D_f32_memref" if elems[0] == "f32"
+                         else "cudaCopy1D_f64_memref")
+
         # Tensor-form twin of the same dispatch (multi-root debufferize).
         if entry.name == "cublasDcopy_tensor" and n == 1:
             in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
@@ -10277,6 +10293,8 @@ def rewrite_mlir(
                 emit_name = ("cublasSaxpby_memref"
                              if body_forms[i] == "memref"
                              else "cublasSaxpby")
+            elif body_forms[i] == "memref":
+                emit_name = "cublasDaxpby_memref"
 
             scalar_names: list[str] = []
             scalar_lines: list[str] = []
