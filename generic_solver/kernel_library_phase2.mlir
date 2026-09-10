@@ -1494,6 +1494,19 @@ module {
     kernel.yield
   }
 
+  kernel.defn @cudaCopy1D_f64_memref(
+      %input: memref<?xf64>, %output: memref<?xf64>) {
+    linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0)>,
+                       affine_map<(d0) -> (d0)>],
+      iterator_types = ["parallel"]
+    } ins(%input : memref<?xf64>) outs(%output : memref<?xf64>) {
+    ^bb0(%in: f64, %out: f64):
+      linalg.yield %in : f64
+    }
+    kernel.yield
+  }
+
   // Overwriting outer product: C[i,j] = u[i] * v[j].  Unlike the BLAS GER
   // update primitive this operation does not consume the old contents of C.
   kernel.defn @cublasDgemm_outer_product(
@@ -1532,6 +1545,23 @@ module {
       linalg.yield %s : f64
     } -> tensor<?xf64>
     kernel.yield %result : tensor<?xf64>
+  }
+
+  kernel.defn @cublasDaxpby_memref(
+      %x: memref<?xf64>, %y: memref<?xf64>,
+      %alpha: f64, %beta: f64) {
+    linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0)>,
+                       affine_map<(d0) -> (d0)>],
+      iterator_types = ["parallel"]
+    } ins(%x : memref<?xf64>) outs(%y : memref<?xf64>) {
+    ^bb0(%xv: f64, %out: f64):
+      %ax = arith.mulf %alpha, %xv : f64
+      %by = arith.mulf %beta, %out : f64
+      %sum = arith.addf %ax, %by : f64
+      linalg.yield %sum : f64
+    }
+    kernel.yield
   }
 
   kernel.defn @cublasSaxpby(%x: tensor<?xf32>, %y: tensor<?xf32>,
