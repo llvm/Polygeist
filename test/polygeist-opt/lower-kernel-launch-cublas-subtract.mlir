@@ -53,7 +53,7 @@ module {
 // CHECK: %[[NEG_GEMV:.*]] = arith.constant -1.000000e+00 : f64
 // CHECK: call @polygeist_cublas_dgemv_T({{.*}}, %[[NEG_GEMV]],
 // CHECK: %[[NEG_GEMM:.*]] = arith.constant -1.000000e+00 : f64
-// CHECK: call @polygeist_cublas_dgemm({{.*}}, %[[NEG_GEMM]],
+// CHECK: call @polygeist_cublas_dgemm_transpose({{.*}}, %[[NEG_GEMM]],
 // CHECK-NOT: kernel.launch
 // CHECK-LABEL: func.func @batched_subtract_updates
 // CHECK: call @polygeist_cublas_dgemm_strided_batched_subtract
