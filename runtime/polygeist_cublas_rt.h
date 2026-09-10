@@ -642,6 +642,43 @@ void polygeist_pva_bilateral_3x3_i16(int32_t M, int32_t N,
 void polygeist_pva_histeq_i8(int32_t M, int32_t N,
                               const int8_t *A, int8_t *B);
 
+// Typed, flat-buffer PVA image ABI used by semantic matches. These adapters
+// construct single-channel HWC vendor tensors and invoke only PVA Solutions
+// pva*Create/pva*Submit entry points. Image-filter adapters preserve the
+// caller's one-pixel border because the matched C regions update only the
+// complete 3x3 interior.
+#define POLYGEIST_DECLARE_PVA_FILTER_TYPES(op)                               \
+  void polygeist_pva_##op##_3x3_u8(int32_t, int32_t,                        \
+                                    const uint8_t *, uint8_t *);             \
+  void polygeist_pva_##op##_3x3_s8(int32_t, int32_t,                        \
+                                    const int8_t *, int8_t *);               \
+  void polygeist_pva_##op##_3x3_u16(int32_t, int32_t,                       \
+                                     const uint16_t *, uint16_t *);          \
+  void polygeist_pva_##op##_3x3_s16(int32_t, int32_t,                       \
+                                     const int16_t *, int16_t *)
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(boxfilter);
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(morphology_dilate);
+#undef POLYGEIST_DECLARE_PVA_FILTER_TYPES
+#define POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(suffix, type)                    \
+  void polygeist_pva_gaussian_3x3_##suffix(                                 \
+      int32_t, int32_t, float, float, const type *, type *)
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u8, uint8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s8, int8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u16, uint16_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s16, int16_t);
+#undef POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE
+void polygeist_pva_bilateral_3x3_u8(int32_t, int32_t, float, float,
+                                     const uint8_t *, uint8_t *);
+void polygeist_pva_histogram_256_u8_u32(int32_t, int32_t, const uint8_t *,
+                                        uint32_t *);
+void polygeist_pva_histogram_256_u8_s32(int32_t, int32_t, const uint8_t *,
+                                        int32_t *);
+void polygeist_pva_histogram_256_u16_u32(int32_t, int32_t, const uint16_t *,
+                                         uint32_t *);
+void polygeist_pva_histogram_256_u16_s32(int32_t, int32_t, const uint16_t *,
+                                         int32_t *);
+void polygeist_pva_histeq_u8(int32_t, int32_t, const uint8_t *, uint8_t *);
+
 // ============================================================================
 // Extracted-darknet batched CNN-block primitives. All four take 4D NCHW
 // tensors (and 1D per-channel vectors for batchnorm) as raw FP32 pointers

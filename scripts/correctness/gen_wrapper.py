@@ -106,6 +106,12 @@ def parse_signature(c_text: str, kernel_name: str):
         if re.match(r"^\s*(?:const\s+)?int\b", a)
     }
     for a in args:
+        pointer_array = re.match(
+            r"^\s*(uint32_t|int32_t)\s*\(\s*\*\s*(?:restrict\s+)?"
+            r"(\w+)\s*\)\s*\[\s*256\s*\]\s*$", a)
+        if pointer_array:
+            out.append(('I1D', pointer_array.group(2), '256'))
+            continue
         cartesian = re.match(
             r"^\s*(?:const\s+)?struct\s+cartesian\s*\*\s*(\w+)\s*$", a)
         if cartesian:
@@ -181,13 +187,17 @@ def parse_signature(c_text: str, kernel_name: str):
                 size = "(nbins + 1)"
             elif {"nx", "ny", "nz"}.issubset(scalar_ints):
                 size = "(nx * ny * nz)"
+            elif {"h", "w"}.issubset(scalar_ints):
+                size = "(h * w)"
             elif "n" in scalar_ints:
                 size = "n"
             elif "N" in c_text:
                 size = "N"
             else:
                 raise ValueError(f"Couldn't infer pointer extent for arg: {a}")
-            prefix = ('I' if pointer_type == 'int' else
+            prefix = ('U' if pointer_type == 'uint8_t' else
+                      'B' if pointer_type == 'int8_t' else
+                      'I' if pointer_type in ('int', 'uint32_t', 'int32_t') else
                       'L' if pointer_type in ('long long',
                                               'unsigned long long') else '')
             out.append((f'{prefix}1D', name, size))
@@ -269,13 +279,13 @@ def _parse_plain_c_array(a: str):
 
 def _is_plain_c_pointer(a: str) -> bool:
     return re.match(
-        r"^\s*(?:const\s+)?(?:int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE)\s*\*\s*\w+\s*$", a
+        r"^\s*(?:const\s+)?(?:int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE|uint8_t|int8_t|uint16_t|int16_t|uint32_t|int32_t)\s*\*\s*(?:restrict\s+)?\w+\s*$", a
     ) is not None
 
 
 def _parse_plain_c_pointer(a: str):
     m = re.match(
-        r"^\s*(const\s+)?(int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE)\s*\*\s*(\w+)\s*$", a
+        r"^\s*(const\s+)?(int|double|float|long\s+long|unsigned\s+long\s+long|DATA_TYPE|uint8_t|int8_t|uint16_t|int16_t|uint32_t|int32_t)\s*\*\s*(?:restrict\s+)?(\w+)\s*$", a
     )
     if not m:
         raise ValueError(f"Couldn't parse pointer arg: {a!r}")

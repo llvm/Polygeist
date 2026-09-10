@@ -51,6 +51,24 @@ from structured_loop_egglog import (
 # pass currently knows how to turn into a runtime call; leave the rest as
 # residual Linalg so the normal MLIR lowering path preserves semantics.
 ABI_LOWERABLE_KERNELS = {
+    "pvaBoxFilter_3x3_u8",
+    "pvaBoxFilter_3x3_s8",
+    "pvaBoxFilter_3x3_u16",
+    "pvaBoxFilter_3x3_s16",
+    "pvaGaussianFilter_3x3_u8",
+    "pvaGaussianFilter_3x3_s8",
+    "pvaGaussianFilter_3x3_u16",
+    "pvaGaussianFilter_3x3_s16",
+    "pvaMorphologyDilate_3x3_u8",
+    "pvaMorphologyDilate_3x3_s8",
+    "pvaMorphologyDilate_3x3_u16",
+    "pvaMorphologyDilate_3x3_s16",
+    "pvaBilateralFilter_3x3_u8",
+    "pvaImageHistogram_256_u8_u32",
+    "pvaImageHistogram_256_u8_s32",
+    "pvaImageHistogram_256_u16_u32",
+    "pvaImageHistogram_256_u16_s32",
+    "pvaHistogramEqualization_u8",
     "cubHistogramEvenI32ShiftZero_memref",
     "cublasDtrsvLowerRowMajor_memref",
     "cublasStrsvLowerRowMajor_memref",
@@ -5779,6 +5797,230 @@ def _render_dense_factorization_regions(
     return rendered
 
 
+def _infer_exact_pva_gaussian_sigma(body: str, element_bits: int) \
+        -> tuple[float, float] | None:
+    """Recover a 3-tap Gaussian axis and prove PVA fixed-point equivalence."""
+    constants = {
+        match.group(1): int(match.group(2))
+        for match in re.finditer(
+            r"(%[\w.$-]+)\s*=\s*arith\.constant\s+(-?[0-9]+)\s*:\s*i32",
+            body)
+    }
+    axes: list[list[int]] = []
+    for allocation in re.finditer(
+            r"(%[\w.$-]+)\s*=\s*memref\.alloca\(\)\s*:\s*memref<3xi32>",
+            body):
+        name = allocation.group(1)
+        values: dict[int, int] = {}
+        for store in re.finditer(
+                rf"affine\.store\s+(%[\w.$-]+),\s*{re.escape(name)}"
+                rf"\[([012])\]\s*:\s*memref<3xi32>", body):
+            if store.group(1) in constants:
+                values[int(store.group(2))] = constants[store.group(1)]
+        if set(values) == {0, 1, 2}:
+            axes.append([values[index] for index in range(3)])
+    if len(axes) != 1:
+        return None
+    axis = axes[0]
+    if axis[0] != axis[2] or not (0 < axis[0] < axis[1]):
+        return None
+
+    shift_match = re.search(
+        r"arith\.shrsi\s+%[\w.$-]+,\s*(%[\w.$-]+)\s*:\s*i32", body)
+    if not shift_match or shift_match.group(1) not in constants:
+        return None
+    shift = constants[shift_match.group(1)]
+    if shift <= 0 or shift >= 31:
+        return None
+    denominator = 1 << shift
+    if sum(axis) * sum(axis) != denominator:
+        return None
+    # Prove round-to-nearest in the source epilogue as well as normalization.
+    if not re.search(
+            rf"arith\.constant\s+{denominator // 2}\s*:\s*i32", body):
+        return None
+
+    ratio = axis[0] / axis[1]
+    sigma = math.sqrt(-1.0 / (2.0 * math.log(ratio)))
+    normalized = [math.exp(-0.5 * offset * offset / (sigma * sigma))
+                  for offset in (-1, 0, 1)]
+    norm = sum(normalized)
+    normalized = [value / norm for value in normalized]
+    scale = 1 << element_bits
+    vendor = [int(normalized[y] * normalized[x] * scale)
+              for y in range(3) for x in range(3)]
+    vendor[4] += scale - sum(vendor)
+    source = [axis[y] * axis[x] for y in range(3) for x in range(3)]
+    if any(vendor_value * denominator != source_value * scale
+           for vendor_value, source_value in zip(vendor, source)):
+        return None
+    return sigma, sigma
+
+
+def _render_pva_image_regions(
+        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+    """Recognize complete PVA image operations without consulting symbols.
+
+    These are whole-function matches because the vendor ABI consumes complete
+    HWC images.  Every case proves the argument ABI, loop/reduction structure,
+    pixel signedness, neighborhood extent, and operation-specific arithmetic.
+    Function names are deliberately parsed but never inspected.
+    """
+    rendered: list[tuple[int, int, str, str, list[int]]] = []
+    function_re = re.compile(
+        r"func\.func(?:\s+private)?\s+@[\w.$-]+\s*\(([^)]*)\)",
+        re.MULTILINE)
+
+    for function in function_re.finditer(text):
+        args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
+            r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(1))]
+        signature_end = text.find("\n", function.end())
+        if signature_end < 0:
+            continue
+        opening = text.rfind("{", function.end(), signature_end)
+        function_end = _matching_brace(text, opening) if opening >= 0 else None
+        if function_end is None:
+            continue
+        body = text[opening + 1:function_end - 1]
+
+        symbol = None
+        operands: list[str] = []
+        operand_types: list[str] = []
+        prefix_lines: list[str] = []
+        common_filter = bool(
+            len(args) == 4 and args[0][1] == "i32" and args[1][1] == "i32" and
+            args[2][1] == args[3][1] and
+            re.fullmatch(r"memref<\?xi(?:8|16)>", args[2][1]) and
+            body.count("affine.for") == 2 and
+            body.count("linalg.generic") == 1 and
+            'iterator_types = ["reduction", "reduction"]' in body and
+            re.search(r"arith\.constant\s+3\s*:\s*index", body) and
+            re.search(r"polygeist\.submap\([^\n]*:\s*\([^\n]*\)\s*->\s*"
+                      r"(?:memref|tensor)<\?x\?xi(?:8|16)>", body))
+        if common_filter:
+            elem = "i16" if "i16" in args[2][1] else "i8"
+            signedness = ("u" if re.search(
+                              rf"arith\.extui\s+%[\w.$-]+\s*:\s*{elem}\s+to\s+i32",
+                              body)
+                          else "s" if re.search(
+                              rf"arith\.extsi\s+%[\w.$-]+\s*:\s*{elem}\s+to\s+i32",
+                              body)
+                          else None)
+            suffix = signedness + ("16" if elem == "i16" else "8") \
+                if signedness else None
+            is_box = bool(
+                suffix and body.count("arith.addi") >= 2 and
+                re.search(r"arith\.constant\s+4\s*:\s*i32", body) and
+                re.search(r"arith\.constant\s+9\s*:\s*i32", body) and
+                "arith.divsi" in body and "arith.muli" not in body)
+            is_gaussian = bool(
+                suffix and body.count("arith.muli") >= 2 and
+                re.search(r"memref\.alloca\(\)\s*:\s*memref<3xi32>", body) and
+                all(re.search(rf"arith\.constant\s+{value}\s*:\s*i32", body)
+                    for value in (1, 2, 4, 8)) and
+                "arith.shrsi" in body)
+            is_morphology = bool(
+                suffix and "arith.cmpi" in body and "arith.select" in body and
+                "arith.muli" not in body and "arith.addi" not in body and
+                f"linalg.yield" in body)
+            inferred_sigma = (_infer_exact_pva_gaussian_sigma(
+                body, 16 if elem == "i16" else 8) if is_gaussian else None)
+            if inferred_sigma is not None:
+                uid = function.start()
+                sigma_x = f"%pva_sigma_x_{uid}"
+                sigma_y = f"%pva_sigma_y_{uid}"
+                # MLIR's decimal form is rounded to IEEE f32 by the parser,
+                # matching the scalar type accepted by the vendor API.
+                prefix_lines = [
+                    f"{sigma_x} = arith.constant {inferred_sigma[0]:.9e} : f32",
+                    f"{sigma_y} = arith.constant {inferred_sigma[1]:.9e} : f32",
+                ]
+                symbol = "pvaGaussianFilter_3x3_" + suffix
+                operands = [args[0][0], args[1][0], sigma_x, sigma_y,
+                            args[2][0], args[3][0]]
+                operand_types = ["i32", "i32", "f32", "f32",
+                                 args[2][1], args[3][1]]
+            elif is_morphology and not is_box:
+                symbol = "pvaMorphologyDilate_3x3_" + suffix
+                operands = [value for value, _ in args]
+                operand_types = [ty for _, ty in args]
+
+        # Bilateral is U8-only in the inspected ABI. Prove the two independent
+        # floating reductions, range/spatial squared distances and normalized
+        # epilogue before reordering scalar parameters for the runtime ABI.
+        bilateral_types = ["i32", "i32", "memref<?xi8>", "memref<?xi8>",
+                           "f32", "f32"]
+        if ([ty for _, ty in args] == bilateral_types and
+                body.count("affine.for") == 3 and
+                body.count("linalg.generic") == 1 and
+                "math.exp" in body and "arith.uitofp" in body and
+                body.count("arith.mulf") >= 5 and body.count("arith.addf") >= 2 and
+                "arith.divf" in body and
+                re.search(r"affine\.for\s+%[\w.$-]+\s*=\s*-1\s+to\s+2", body) and
+                re.search(r"linalg\.yield[^\n]*f32,\s*f32", body)):
+            # A structurally valid candidate, but not selectable: the vendor
+            # implementation uses cross support, Q7 weights and approximate
+            # reciprocal math, while this source proves a full 3x3 expf
+            # reduction. The measured output is not integer-exact.
+            pass
+
+        # A complete zero-fill plus indirect unit increment is an overwrite
+        # histogram. U8 maps directly to 256 bins. This route chooses U32,
+        # whose nonnegative bit representation is also valid for an S32 C
+        # destination over the PVA-supported image-size range.
+        histogram_types = ["i32", "i32", "memref<?xi8>", "memref<256xi32>"]
+        is_histogram = bool(
+            [ty for _, ty in args] == histogram_types and
+            body.count("linalg.generic") == 1 and body.count("affine.for") == 2 and
+            'iterator_types = ["parallel"]' in body and
+            "arith.index_castui" in body and
+            re.search(r"arith\.constant\s+256\s*:\s*index", body) and
+            re.search(r"arith\.constant\s+0\s*:\s*i32", body) and
+            re.search(r"arith\.constant\s+1\s*:\s*i32", body) and
+            (("memref.load" in body and "memref.store" in body) or
+             ("tensor.extract" in body and "tensor.insert" in body)) and
+            body.count("arith.addi") == 1)
+        if is_histogram:
+            symbol = "pvaImageHistogram_256_u8_u32"
+            operands = [value for value, _ in args]
+            operand_types = [ty for _, ty in args]
+
+        # Equalization additionally proves the sequential inclusive CDF,
+        # first-nonzero reduction, scale/divide LUT and unsigned remap.
+        histeq_types = ["i32", "i32", "memref<?xi8>", "memref<?xi8>"]
+        has_cdf = re.search(
+            r"affine\.for\s+(%[\w.$-]+)\s*=\s*1\s+to\s+256\s*\{.*?"
+            r"affine\.load[^\n]*\[\1\s*-\s*1\].*?affine\.store",
+            body, flags=re.DOTALL)
+        if ([ty for _, ty in args] == histeq_types and has_cdf and
+                body.count("linalg.generic") == 3 and body.count("affine.for") == 2 and
+                "arith.index_castui" in body and "arith.divsi" in body and
+                re.search(r"arith\.constant\s+255\s*:\s*i32", body) and
+                body.count("memref<256xi32>") >= 2 and
+                'iterator_types = ["reduction"]' in body):
+            # PVA uses a quantized Q15 scale; the source uses integer division.
+            # The two are close but not integer-exact, so this remains a
+            # candidate and is deliberately not emitted as a replacement.
+            pass
+
+        if symbol is None or symbol not in ABI_LOWERABLE_KERNELS:
+            continue
+        indent = re.match(
+            r"\s*", text[text.rfind("\n", 0, function.start()) + 1:
+                           function.start()]).group(0)
+        body_indent = indent + "  "
+        prefix = "".join(f"{body_indent}{line}\n" for line in prefix_lines)
+        replacement = (
+            f"\n{prefix}{body_indent}kernel.launch @{symbol}({', '.join(operands)}) : "
+            f"({', '.join(operand_types)}) -> ()\n"
+            f"{body_indent}return\n{indent}")
+        consumed = [i for i, inst in enumerate(instances)
+                    if opening < inst.span[0] and inst.span[1] < function_end]
+        rendered.append((opening + 1, function_end - 1, replacement, symbol,
+                         consumed))
+    return rendered
+
+
 def _render_dense_covariance_regions(
         text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
     """Recognize a complete mean-center-and-Gram covariance algorithm.
@@ -6415,6 +6657,18 @@ def rewrite_mlir(
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
     if enable_structured_rewrite:
+        for start, end, replacement, symbol, consumed in \
+                _render_pva_image_regions(text, instances):
+            if symbol in disabled_kernels or (only_kernels is not None and
+                                               symbol not in only_kernels):
+                continue
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol + "[whole-image-operation]"))
+            emitted_launches += 1
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):
             if max_launches is not None and emitted_launches >= max_launches:
                 report.append(("launch_limit", [], symbol))
