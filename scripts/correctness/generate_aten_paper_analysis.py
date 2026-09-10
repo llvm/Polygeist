@@ -208,8 +208,8 @@ def write_nonpointwise_figure_tex(rows: list[dict[str, object]]) -> None:
   width=6.65in, height=5.15in,
   title={{ATen: 142 non-pointwise raised vs native GPU runtimes}},
   title style={{font=\bfseries\normalsize}},
-  xlabel={{Recorded ATen native CUDA time ($\mu$s)}},
-  ylabel={{Recorded raised resident GPU time ($\mu$s)}},
+  xlabel={{Native CUDA runtime ($\mu$s)}},
+  ylabel={{Raised GPU runtime ($\mu$s)}},
   xmin=50, xmax=10000, ymin=50, ymax=100000,
   grid=both, minor grid style={{draw=gray!12}},
   major grid style={{draw=gray!25}},
@@ -224,6 +224,9 @@ def write_nonpointwise_figure_tex(rows: list[dict[str, object]]) -> None:
 \addplot+[no marks,draw=regressionred,densely dotted,line width=1.0pt]
   coordinates {{(50,100) (10000,20000)}};
 \addlegendentry{{$2\times$ native time ($y=2x$)}}
+\addplot+[no marks,draw=regressionred,densely dotted,line width=1.0pt]
+  coordinates {{(100,50) (10000,5000)}};
+\addlegendentry{{$0.5\times$ native time ($y=0.5x$)}}
 \addplot+[only marks,mark=*,mark size=1.9pt,
   draw=raisedgreen!85!black,fill=raisedgreen]
   coordinates {{{points}}};
