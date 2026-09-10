@@ -1,0 +1,19 @@
+operation,input_dtype,output_dtype,source_semantics,vendor_numerics,contract_class,default_selection,opt_in_budget,structural_match,lowered,built,executed,comparison_elements,mismatches,max_error,correctness_status,evidence
+BoxFilter3x3,u8,u8,"symmetric (sum+4)/9","distributed Q8 coefficients summing to 256; rounded >>8",approximate,no,1,yes,yes,yes,yes,49152,13321,1,within-explicit-budget,raised_all_dtypes_20260910.log
+BoxFilter3x3,s8,s8,"signed symmetric (sum+4)/9 with C truncation","distributed signed fixed-point coefficients; rounded shift",approximate,no,2,yes,yes,yes,yes,49152,22943,2,within-explicit-budget,raised_all_dtypes_20260910.log
+BoxFilter3x3,u16,u16,"symmetric (sum+4)/9","distributed fixed-point coefficients; rounded shift",approximate,no,1,yes,yes,yes,yes,49152,4339,1,within-explicit-budget,raised_all_dtypes_20260910.log
+BoxFilter3x3,s16,s16,"signed symmetric (sum+4)/9 with C truncation","distributed signed fixed-point coefficients; rounded shift",approximate,no,2,yes,yes,yes,yes,49152,24031,2,within-explicit-budget,raised_all_dtypes_20260910.log
+GaussianFilter3x3,u8,u8,"separable [1,2,1]x[1,2,1], rounded /16","recovered sigma; PVA coefficient quantization proved equivalent",exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,raised_all_dtypes_20260910.log
+GaussianFilter3x3,s8,s8,"signed separable [1,2,1]x[1,2,1], rounded shift","recovered sigma; PVA coefficient quantization proved equivalent",exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,raised_all_dtypes_20260910.log
+GaussianFilter3x3,u16,u16,"separable [1,2,1]x[1,2,1], rounded /16","recovered sigma; PVA coefficient quantization proved equivalent",exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,raised_all_dtypes_20260910.log
+GaussianFilter3x3,s16,s16,"signed separable [1,2,1]x[1,2,1], rounded shift","recovered sigma; PVA coefficient quantization proved equivalent",exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,raised_all_dtypes_20260910.log
+MorphologyDilate3x3,u8,u8,3x3 unsigned maximum,3x3 unsigned maximum,exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,automatic_pipeline_silicon.csv
+MorphologyDilate3x3,s8,s8,3x3 signed maximum,3x3 signed maximum,exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,morphology_raised_dtype_silicon.csv
+MorphologyDilate3x3,u16,u16,3x3 unsigned maximum,3x3 unsigned maximum,exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,morphology_raised_dtype_silicon.csv
+MorphologyDilate3x3,s16,s16,3x3 signed maximum,3x3 signed maximum,exact,yes,0,yes,yes,yes,yes,49152,0,0,exact-pass,morphology_raised_dtype_silicon.csv
+BilateralFilter3x3,u8,u8,"full 3x3 float expf; sigmaRange=25; sigmaSpace=1.5","circular support; Q1.7 weights; approximate division",approximate,no,2,yes,yes,yes,yes,49152,18245,2,within-explicit-budget,raised_numerical_contracts_20260910.log
+ImageHistogram,u8,u32,"256 bins; bin=pixel; [0,256)",fixed-point binning is identical for this power-of-two configuration,exact,yes,0,yes,yes,yes,yes,256,0,0,exact-pass,raised_all_dtypes_20260910.log
+ImageHistogram,u8,s32,"256 bins; bin=pixel; [0,256)",fixed-point binning is identical; explicit signed output ABI,exact,explicit-abi,0,yes,yes,yes,yes,256,0,0,exact-pass,raised_all_dtypes_20260910.log
+ImageHistogram,u16,u32,"256 bins; bin=pixel>>8; [0,65536)",power-of-two fixed-point binning is identical,exact,yes,0,yes,yes,yes,yes,256,0,0,exact-pass,raised_all_dtypes_20260910.log
+ImageHistogram,u16,s32,"256 bins; bin=pixel>>8; [0,65536)",power-of-two binning is identical; explicit signed output ABI,exact,explicit-abi,0,yes,yes,yes,yes,256,0,0,exact-pass,raised_all_dtypes_20260910.log
+HistogramEqualization,u8,u8,"256-bin CDF; direct integer / denominator","15-bit fixed-point scale and truncating LUT",approximate,no,1,yes,yes,yes,yes,49152,23675,1,within-explicit-budget,raised_numerical_contracts_20260910.log

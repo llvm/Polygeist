@@ -8296,51 +8296,43 @@ PVA_KERNELS: list[dict] = [
                 "Q16.16 fixed-point semantics to kernel coefficients.",
     },
     {
-        "id": "boxfilter_i8",
-        "op": "OpBoxFilter",
-        "vendor_call": "pvaBoxFilterCreate / pvaBoxFilterSubmit",
-        "shim": "polygeist_pva_boxfilter_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_boxfilter_i8_256",
-        "timings": [("256×256", "40.4 ms")],
-        "note": "Uniform 1/K² 3×3 mean filter — no coefficient tensor. "
-                "Validated via hand-authored MLIR (matcher template for "
-                "uniform-weight conv is not yet written).",
-    },
-    {
-        "id": "gaussian_i8",
+        "id": "gaussian_u8_structural",
         "op": "OpGaussianFilter",
         "vendor_call": "pvaGaussianFilterCreate / pvaGaussianFilterSubmit",
-        "shim": "polygeist_pva_gaussian_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_gaussian_i8_256",
-        "timings": [("256×256", "32.6 ms")],
-        "note": "σ=1, K=3 hardcoded in shim. PVA computes the discrete "
-                "Gaussian kernel internally; matches canonical "
-                "[1,2,1;2,4,2;1,2,1]/16. Hand-authored MLIR.",
+        "shim": "polygeist_pva_gaussian_3x3_u8",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("full-output validation", "exact")],
+        "note": "Structure-derived whole-image match. The compiler recovers "
+                "the [1,2,1] coefficient axis, infers sigmaX=sigmaY="
+                "0.8493218, proves the quantized PVA coefficients and source "
+                "rounding equivalent, and carries both sigmas in the ABI.",
     },
     {
-        "id": "bilateral_i8",
-        "op": "OpBilateralFilter",
-        "vendor_call": "pvaBilateralFilterCreate / pvaBilateralFilterSubmit",
-        "shim": "polygeist_pva_bilateral_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_bilateral_i8_256",
-        "timings": [("256×256", "57.5 ms")],
-        "note": "PVA Bilateral only accepts U8; shim reinterprets i8 bytes "
-                "bitwise as U8 via make_pva_image_tensor_dtype. "
-                "sigmaRange=25, sigmaSpace=10 hardcoded.",
+        "id": "morphology_dilate_u8_structural",
+        "op": "OpMorphology",
+        "vendor_call": "pvaMorphologyCreate / pvaMorphologySubmit",
+        "shim": "polygeist_pva_morphology_dilate_3x3_u8",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("U8 full-output", "exact"),
+                    ("S8 full-output", "exact"),
+                    ("U16 full-output", "exact"),
+                    ("S16 full-output", "exact")],
+        "note": "Structure-derived 3×3 maximum reduction. All four vendor "
+                "dtypes passed complete-output comparison on PVA silicon; "
+                "signed tests exercise negative values and the full bit range.",
     },
     {
-        "id": "histeq_i8",
-        "op": "OpHistogramEqualization",
-        "vendor_call": "pvaHistogramEqualizationCreate / pvaHistogramEqualizationSubmit",
-        "shim": "polygeist_pva_histeq_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_histeq_i8_256",
-        "timings": [("256×256", "38.8 ms")],
-        "note": "Pointwise 256-bin LUT (no spatial kernel). PVA computes "
-                "the histogram + CDF + LUT internally. Hand-authored MLIR.",
+        "id": "histogram_u8_u32_structural",
+        "op": "OpImageHistogram",
+        "vendor_call": "pvaImageHistogramCreate / pvaImageHistogramSubmit",
+        "shim": "polygeist_pva_histogram_256_u8_u32",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("full-output validation", "exact")],
+        "note": "Structure-derived complete zero-fill plus indirect unit-bin "
+                "increment. The complete 256-bin output passed exactly.",
     },
 ]
 
@@ -8455,11 +8447,7 @@ def _multi_backend_story() -> str:
 
 
 def _pva_section() -> str:
-    """Polygeist → PVA Solutions kernels. Each row is a kernel we successfully
-    lowered through --lower-kernel-launch-to-pva and ran on the Jetson Orin
-    PVA accelerator. Timings are wall-clock from pva*Submit (full setup +
-    submit + sync round-trip, single-shot). No CPU comparison here — PVA-only
-    datapoints; the CPU stubs exist for separate per-op correctness validation."""
+    """Polygeist → PVA Solutions kernels retained as executable matches."""
     rows = []
     for spec in PVA_KERNELS:
         first = True
@@ -8513,6 +8501,58 @@ def _pva_section() -> str:
         + "\n".join(rows) +
         '</tbody></table>'
     )
+    contract_csv = (REPO_ROOT / "issues/pva_semantic_matchers" /
+                    "raised_c_numerical_contracts.csv")
+    contract_rows = []
+    if contract_csv.exists():
+        with contract_csv.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                exact = row["contract_class"] == "exact"
+                status_class = "pass" if exact else "partial"
+                if row["default_selection"] == "yes":
+                    policy = "automatic"
+                elif row["default_selection"] == "explicit-abi":
+                    policy = "exact; explicit output ABI"
+                else:
+                    policy = (f'opt-in only (budget '
+                              f'{html.escape(row["opt_in_budget"])})')
+                validation = (
+                    f'{html.escape(row["correctness_status"])}; '
+                    f'{html.escape(row["mismatches"])} / '
+                    f'{html.escape(row["comparison_elements"])} differ; '
+                    f'max error {html.escape(row["max_error"])}')
+                contract_rows.append(
+                    '<tr>'
+                    f'<td><b>{html.escape(row["operation"])}</b></td>'
+                    f'<td><code>{html.escape(row["input_dtype"])} &rarr; '
+                    f'{html.escape(row["output_dtype"])}</code></td>'
+                    f'<td>{html.escape(row["source_semantics"])}</td>'
+                    f'<td>{html.escape(row["vendor_numerics"])}</td>'
+                    f'<td><span class="{status_class}"><b>'
+                    f'{html.escape(row["contract_class"])}</b></span></td>'
+                    f'<td>{policy}</td>'
+                    f'<td>{validation}</td>'
+                    f'<td><code>{html.escape(row["evidence"])}</code></td>'
+                    '</tr>')
+    contract_table = (
+        '<h3 style="margin:24px 20px 8px">Raised-C numerical-contract audit</h3>'
+        '<div class="intro">'
+        'The counting unit is one raised-C operation/type route. Structural '
+        'recognition is independent of numerical legality. Exact routes select '
+        'automatically. A non-bit-exact route remains residual code unless the '
+        'user supplies an operation-specific <code>--pva-approximation-budget '
+        'OP=N</code>; the emitted <code>kernel.launch</code> records that budget. '
+        'The approximate results below are empirical full-output observations '
+        'for the retained input campaign, not proofs that the same bound holds '
+        'for every possible image. Bilateral&apos;s source budget of 2 must not '
+        'be confused with NVIDIA&apos;s tolerance of 1 against its own Q1.7 CPU '
+        'reference.</div>'
+        '<table><thead><tr><th>operation</th><th>dtype</th>'
+        '<th>raised-C semantics</th><th>PVA numerical contract</th>'
+        '<th>classification</th><th>selection</th><th>silicon validation</th>'
+        '<th>evidence</th></tr></thead><tbody>'
+        + '\n'.join(contract_rows) + '</tbody></table>'
+        if contract_rows else '')
     return (
         '<div class="section-header" id="pva" '
         'style="background:#e4f3e4; border-color:#7faf8a">'
@@ -8525,17 +8565,22 @@ def _pva_section() -> str:
         '  pass (see <code>lib/polygeist/Passes/LowerKernelLaunchToPVA.cpp</code>). '
         '  Each row is a kernel that successfully reaches PVA silicon via a '
         '  <code>func.call @polygeist_pva_*</code> emitted by the lowering pass and '
-        '  resolved at link-time against the PVA shim in '
-        '  <code>runtime/polygeist_pva_rt.c</code>, which wraps the corresponding '
+        '  resolved at link-time against the PVA shims in '
+        '  <code>runtime/polygeist_pva_rt.c</code> (integer convolution) and '
+        '  <code>runtime/polygeist_pva_image_rt.c</code> (typed image operations), '
+        '  which wrap the corresponding '
         '  <code>pva*Create</code> / <code>pva*Submit</code> entrypoint in '
         '  <code>libpva_operator.so</code>.'
         '  <br><br>'
-        '  Two kernels come through the full <em>matcher</em> pipeline today '
-        '  (Conv2d i8 and i16, lifted from extracted dtype-specific conv2d sources). '
-        '  The remaining four were validated via <em>hand-authored</em> kernel.launch '
-        '  MLIR — the lowering + shim + silicon work, but matcher templates that '
-        '  recognise their C-level patterns (uniform-weight conv, Gaussian-weighted '
-        '  conv, bilateral, histogram-eq) have not been written yet.'
+        '  The image-operation rows shown here are retained only when structural '
+        '  recognition, parameter recovery, ABI lowering, and exact full-output '
+        '  silicon validation all pass. Legacy hand-authored box, Gaussian, '
+        '  bilateral, and histogram-equalization launch ABIs were retired: they '
+        '  discarded signedness, parameters, or exact rounding semantics. Box, '
+        '  bilateral, and histogram equalization are rejected by the default '
+        '  exact-only policy. They can now be selected only through an explicit, '
+        '  operation-specific approximation budget; the numerical contract is '
+        '  retained on the emitted launch and reported separately below.'
         '  <br><br>'
         '  <b>Per-call timing floor</b>: ~30&ndash;35 ms at any image size up to '
         '  ~1024², dominated by PVA allocator + <code>CupvaMemGetHostPointer</code> '
@@ -8543,12 +8588,12 @@ def _pva_section() -> str:
         '  sub-ms at these sizes. At 10240² (105M pixels) the per-call setup '
         '  amortises and PVA compute dominates.'
         '  <br><br>'
-        '  No CPU comparison shown here; for bit-exact CPU/PVA diff validation '
-        '  see the <code>scripts/correctness/pva_*_jetson.sh</code> test scaffolds '
-        '  and the matching CPU stubs in '
-        '  <code>runtime/polygeist_cublas_rt_cpu.c</code>.'
+        '  Full-output evidence is retained under '
+        '  <code>issues/pva_semantic_matchers</code>. Direct vendor-ABI probes are '
+        '  feasibility evidence only and are not counted as compiler matches.'
         '</div>'
         + _multi_backend_story()
+        + contract_table
         + table
         + '<div style="margin-top:14px; padding:10px 14px; '
           'background:#e4f3e4; border-left:4px solid #7faf8a;">'
@@ -8558,20 +8603,18 @@ def _pva_section() -> str:
           '      (<code>lib/polygeist/Passes/LowerKernelLaunchToPVA.cpp</code>)</li>'
           '  <li>Shared 9-tap conv lowering helper extracted from the cuBLAS '
           '      pass into <code>KernelLaunchLoweringUtils.{h,cpp}</code>; '
-          '      both passes call it. Added a parallel '
-          '      <code>lowerImageFilter2Operand</code> helper for the 2-memref '
-          '      filter shape (Box/Gaussian/Bilateral/HistogramEq).</li>'
-          '  <li>PVA runtime shim <code>runtime/polygeist_pva_rt.c</code> with '
-          '      a generic <code>make_pva_image_tensor_dtype</code> backbone, '
+          '      both passes call it. Typed semantic image matches use '
+          '      <code>lowerFlatTypedLaunch</code>, which preserves scalar '
+          '      parameters and explicit signedness.</li>'
+          '  <li>PVA image runtime shim '
+          '      <code>runtime/polygeist_pva_image_rt.c</code> with '
+          '      a typed image-tensor backbone, '
           '      <code>CupvaMemGetHostPointer</code>-mediated host I/O, '
           '      and one <code>pva&lt;Op&gt;Create</code> + '
           '      <code>pva&lt;Op&gt;Submit</code> wrapper per op.</li>'
-          '  <li>Matching CPU reference stubs in '
-          '      <code>runtime/polygeist_cublas_rt_cpu.c</code>, hand-modelled '
-          '      to mirror PVA hardware semantics (centred anchor, REPLICATE '
-          '      border, Q-shift, unsigned-kernel reinterpretation) so the '
-          '      <code>conv2d_jetson</code> &harr; <code>conv2d_jetson_cpustub</code> '
-          '      diff is bit-exact.</li>'
+          '  <li>Independent full-output source references validate exactness. '
+          '      Approximate CPU substitutes and hardcoded legacy PVA entry '
+          '      points are deliberately absent.</li>'
           '  <li>Cross-compile script <code>conv2d_cudnn_jetson_dtype.sh</code> '
           '      extended with an <code>i8</code> dtype branch + PVA-library '
           '      link line (<code>libpva_operator</code>, <code>libcvcuda</code>, '

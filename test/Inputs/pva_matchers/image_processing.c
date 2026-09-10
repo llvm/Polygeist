@@ -22,12 +22,84 @@ void fixture_morphology_dilate3x3(int h, int w, const uint8_t *restrict in,
     }
 }
 
+void fixture_morphology_dilate3x3_s8(int h, int w,
+                                     const int8_t *restrict in,
+                                     int8_t *restrict out) {
+  for (int y = 1; y < h - 1; ++y)
+    for (int x = 1; x < w - 1; ++x) {
+      int8_t v = INT8_MIN;
+      for (int ky = -1; ky <= 1; ++ky)
+        for (int kx = -1; kx <= 1; ++kx) {
+          int8_t q = in[(y + ky) * w + x + kx];
+          v = q > v ? q : v;
+        }
+      out[y * w + x] = v;
+    }
+}
+
+void fixture_morphology_dilate3x3_u16(int h, int w,
+                                      const uint16_t *restrict in,
+                                      uint16_t *restrict out) {
+  for (int y = 1; y < h - 1; ++y)
+    for (int x = 1; x < w - 1; ++x) {
+      uint16_t v = 0;
+      for (int ky = -1; ky <= 1; ++ky)
+        for (int kx = -1; kx <= 1; ++kx) {
+          uint16_t q = in[(y + ky) * w + x + kx];
+          v = q > v ? q : v;
+        }
+      out[y * w + x] = v;
+    }
+}
+
+void fixture_morphology_dilate3x3_s16(int h, int w,
+                                      const int16_t *restrict in,
+                                      int16_t *restrict out) {
+  for (int y = 1; y < h - 1; ++y)
+    for (int x = 1; x < w - 1; ++x) {
+      int16_t v = INT16_MIN;
+      for (int ky = -1; ky <= 1; ++ky)
+        for (int kx = -1; kx <= 1; ++kx) {
+          int16_t q = in[(y + ky) * w + x + kx];
+          v = q > v ? q : v;
+        }
+      out[y * w + x] = v;
+    }
+}
+
 void fixture_image_histogram_u8(int h, int w, const uint8_t *restrict in,
                                 uint32_t (*restrict histogram)[256]) {
   for (int b = 0; b < 256; ++b) (*histogram)[b] = 0;
   for (int y = 0; y < h; ++y)
     for (int x = 0; x < w; ++x)
       (*histogram)[(uint32_t)in[y * w + x]]++;
+}
+
+void fixture_image_histogram_u8_s32(int h, int w,
+                                    const uint8_t *restrict in,
+                                    int32_t (*restrict histogram)[256]) {
+  for (int b = 0; b < 256; ++b) (*histogram)[b] = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x)
+      (*histogram)[(uint32_t)in[y * w + x]]++;
+}
+
+void fixture_image_histogram_u16(int h, int w,
+                                 const uint16_t *restrict in,
+                                 uint32_t (*restrict histogram)[256]) {
+  for (int b = 0; b < 256; ++b) (*histogram)[b] = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x)
+      (*histogram)[(uint32_t)in[y * w + x] >> 8]++;
+}
+
+void fixture_image_histogram_u16_s32(int h, int w,
+                                     const uint16_t *restrict in,
+                                     int32_t (*restrict histogram)[256]) {
+  for (int b = 0; b < 256; ++b) (*histogram)[b] = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x)
+      (*histogram)[(uint32_t)in[y * w + x] >> 8]++;
 }
 
 // One weighted-centroid refinement step per supplied corner.
@@ -332,9 +404,52 @@ void fixture_gaussian_filter3x3(int h,int w,const uint8_t *restrict in,uint8_t *
   }
 }
 
+void fixture_gaussian_filter3x3_s8(int h,int w,const int8_t *restrict in,int8_t *restrict out){
+  const int k[3]={1,2,1};for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=k[ky+1]*k[kx+1]*in[(y+ky)*w+x+kx];
+    out[y*w+x]=(int8_t)((sum+8)>>4);
+  }
+}
+
+void fixture_gaussian_filter3x3_u16(int h,int w,const uint16_t *restrict in,uint16_t *restrict out){
+  const int k[3]={1,2,1};for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=k[ky+1]*k[kx+1]*in[(y+ky)*w+x+kx];
+    out[y*w+x]=(uint16_t)((sum+8)>>4);
+  }
+}
+
+void fixture_gaussian_filter3x3_s16(int h,int w,const int16_t *restrict in,int16_t *restrict out){
+  const int k[3]={1,2,1};for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=k[ky+1]*k[kx+1]*in[(y+ky)*w+x+kx];
+    out[y*w+x]=(int16_t)((sum+8)>>4);
+  }
+}
+
 void fixture_box_filter3x3(int h,int w,const uint8_t *restrict in,uint8_t *restrict out){
   for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
     for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=in[(y+ky)*w+x+kx];
     out[y*w+x]=(uint8_t)((sum+4)/9);
+  }
+}
+
+
+void fixture_box_filter3x3_s8(int h,int w,const int8_t *restrict in,int8_t *restrict out){
+  for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=in[(y+ky)*w+x+kx];
+    out[y*w+x]=(int8_t)((sum+4)/9);
+  }
+}
+
+void fixture_box_filter3x3_u16(int h,int w,const uint16_t *restrict in,uint16_t *restrict out){
+  for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=in[(y+ky)*w+x+kx];
+    out[y*w+x]=(uint16_t)((sum+4)/9);
+  }
+}
+
+void fixture_box_filter3x3_s16(int h,int w,const int16_t *restrict in,int16_t *restrict out){
+  for(int y=1;y<h-1;++y)for(int x=1;x<w-1;++x){int sum=0;
+    for(int ky=-1;ky<=1;++ky)for(int kx=-1;kx<=1;++kx)sum+=in[(y+ky)*w+x+kx];
+    out[y*w+x]=(int16_t)((sum+4)/9);
   }
 }

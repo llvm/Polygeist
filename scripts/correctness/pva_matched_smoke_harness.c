@@ -11,6 +11,9 @@
 #ifndef PVA_SMOKE_OP
 #error "compile with -DPVA_SMOKE_OP=1..6"
 #endif
+#ifndef PVA_SMOKE_TOLERANCE
+#define PVA_SMOKE_TOLERANCE 0
+#endif
 
 enum { H = 192, W = 256, PIXELS = H * W };
 
@@ -137,12 +140,14 @@ int main(void) {
     mismatches += error != 0;
     if (error > max_error) max_error = error;
   }
-  printf("MATCHED_SMOKE,%d,%s,mismatches=%zu,max_error=%d,checksum=%llu\n",
-         PVA_SMOKE_OP, mismatches ? "FAIL" : "EXACT_PASS", mismatches,
-         max_error,
+  const char *status = max_error == 0 ? "EXACT_PASS" :
+                       max_error <= PVA_SMOKE_TOLERANCE ?
+                       "WITHIN_TOLERANCE" : "FAIL";
+  printf("MATCHED_SMOKE,%d,%s,mismatches=%zu,max_error=%d,tolerance=%d,checksum=%llu\n",
+         PVA_SMOKE_OP, status, mismatches, max_error, PVA_SMOKE_TOLERANCE,
          (unsigned long long)checksum_bytes(output, PIXELS));
   free(input);
   free(output);
   free(reference);
-  return 0;
+  return max_error <= PVA_SMOKE_TOLERANCE ? 0 : 1;
 }
