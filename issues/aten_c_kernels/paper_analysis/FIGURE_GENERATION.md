@@ -25,9 +25,9 @@ best-of-20 sweep. The
 per-row timing source and protocol are recorded in
 `aten_gpu_nonpointwise_142.csv`; consequently, this figure is a complete
 coverage view rather than a single-protocol performance claim. Its red dotted
-line marks twice native runtime (`y=2x`). The downward perpendicular arrow
-starts on parity and points into the region where the raised GPU implementation
-is faster.
+lines mark twice and half native runtime (`y=2x` and `y=0.5x`). The downward
+perpendicular arrow starts on parity and points into the region where the raised
+GPU implementation is faster.
 
 The library-discovery table uses the common 598-fixture audit universe.
 Counts refer to kernels, not individual call sites. Native paths include
