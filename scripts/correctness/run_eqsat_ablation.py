@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -332,6 +333,9 @@ def main():
                               "because serialization perturbs timing/RSS."))
     parser.add_argument("--limit", type=int,
                         help="Run only the first N manifest inputs (pilot use).")
+    parser.add_argument(
+        "--exclude-input-regex",
+        help="Exclude manifest input_id values matching this regular expression.")
     args = parser.parse_args()
     if args.repetitions < 1:
         raise SystemExit("--repetitions must be positive")
@@ -339,6 +343,10 @@ def main():
         raise SystemExit(f"CPU {args.cpu} is outside the allowed affinity set")
 
     manifest = load_manifest(args.manifest)
+    if args.exclude_input_regex:
+        excluded = re.compile(args.exclude_input_regex)
+        manifest = [item for item in manifest
+                    if not excluded.search(item["input_id"])]
     if args.limit is not None:
         if args.limit < 1:
             raise SystemExit("--limit must be positive")

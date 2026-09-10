@@ -1,0 +1,216 @@
+kernel,variant,expected_identities,common_baseline_identities,egglog_recovered,syntax_recovered,egglog_common_recovered,syntax_common_recovered,egglog_only_recovered,syntax_only_recovered,egglog_selected_total,syntax_selected_total,expected,egglog_selected,syntax_selected
+2mm,add_zero_lhs,3,2,3,0,2,0,3,0,3,0,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]",[]
+2mm,add_zero_rhs,3,2,3,0,2,0,3,0,3,0,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]",[]
+2mm,mul_one_lhs,3,2,3,0,2,0,3,0,3,0,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]",[]
+2mm,mul_one_rhs,3,2,3,0,2,0,3,0,3,0,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]",[]
+2mm,reassociate_mul,3,2,3,3,2,2,0,0,3,3,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]"
+2mm,swap_add,3,2,3,2,2,2,1,0,3,2,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[2, 3], ""cublasDgemm""]]"
+2mm,swap_add_mul,3,2,3,2,2,2,1,0,3,2,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[2, 3], ""cublasDgemm""]]"
+2mm,swap_mul,3,2,3,2,2,2,1,0,3,2,"[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[1], ""cublasDgemm_alpha_only""], [[2, 3], ""cublasDgemm""]]","[[[0], ""memset_zero_2D""], [[2, 3], ""cublasDgemm""]]"
+3mm,add_zero_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]",[]
+3mm,add_zero_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]",[]
+3mm,mul_one_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]",[]
+3mm,mul_one_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]",[]
+3mm,swap_add,3,3,3,3,3,3,0,0,3,3,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]"
+3mm,swap_add_mul,3,3,3,3,3,3,0,0,3,3,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]"
+3mm,swap_mul,3,3,3,3,3,3,0,0,3,3,"[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]","[[[0, 1], ""cublasDgemm_simple""], [[2, 3], ""cublasDgemm_simple""], [[4, 5], ""cublasDgemm_simple""]]"
+adi,add_zero_lhs,2,2,2,0,2,0,2,0,2,0,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]",[]
+adi,add_zero_rhs,2,2,2,0,2,0,2,0,2,0,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]",[]
+adi,mul_one_lhs,2,2,2,0,2,0,2,0,2,0,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]",[]
+adi,mul_one_rhs,2,2,2,0,2,0,2,0,2,0,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]",[]
+adi,swap_add,2,2,2,2,2,2,0,0,2,2,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]"
+adi,swap_add_mul,2,2,2,2,2,2,0,0,2,2,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]"
+adi,swap_mul,2,2,2,2,2,2,0,0,2,2,"[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]","[[[1], ""memset_zero_1D""], [[7], ""memset_zero_1D""]]"
+atax,add_zero_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]",[]
+atax,add_zero_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]",[]
+atax,mul_one_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]",[]
+atax,mul_one_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]",[]
+atax,swap_add,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]"
+atax,swap_add_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]"
+atax,swap_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]","[[[0], ""memset_zero_1D""], [[1, 2], ""cublasDgemv""], [[3], ""cublasDgemv_T""]]"
+bicg,add_zero_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]",[]
+bicg,add_zero_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]",[]
+bicg,mul_one_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]",[]
+bicg,mul_one_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]",[]
+bicg,swap_add,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]"
+bicg,swap_add_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]"
+bicg,swap_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv_T""], [[3], ""cublasDgemv""]]"
+cholesky,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+cholesky,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+cholesky,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+cholesky,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+cholesky,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+cholesky,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+correlation,add_zero_lhs,2,2,2,0,2,0,2,0,2,0,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]",[]
+correlation,add_zero_rhs,2,2,2,0,2,0,2,0,2,0,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]",[]
+correlation,mul_one_lhs,2,2,2,0,2,0,2,0,2,0,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]",[]
+correlation,mul_one_rhs,2,2,2,0,2,0,2,0,2,0,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]",[]
+correlation,swap_add,2,2,2,2,2,2,0,0,2,2,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]"
+correlation,swap_add_mul,2,2,2,2,2,2,0,0,2,2,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]"
+correlation,swap_mul,2,2,2,2,2,2,0,0,2,2,"[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]","[[[3], ""memset_zero_1D""], [[8], ""cublasDgemm_simple""]]"
+covariance,add_zero_lhs,1,1,1,0,1,0,1,0,1,0,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]",[]
+covariance,add_zero_rhs,1,1,1,0,1,0,1,0,1,0,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]",[]
+covariance,mul_one_lhs,1,1,1,0,1,0,1,0,1,0,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]",[]
+covariance,mul_one_rhs,1,1,1,0,1,0,1,0,1,0,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]",[]
+covariance,swap_add,1,1,1,1,1,1,0,0,1,1,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]"
+covariance,swap_add_mul,1,1,1,1,1,1,0,0,1,1,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]"
+covariance,swap_mul,1,1,1,1,1,1,0,0,1,1,"[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]","[[[4], ""cublasDdot""]]"
+deriche,add_zero_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]",[]
+deriche,add_zero_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]",[]
+deriche,mul_one_lhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]",[]
+deriche,mul_one_rhs,3,3,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]",[]
+deriche,reassociate_add,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]"
+deriche,swap_add,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]"
+deriche,swap_add_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]"
+deriche,swap_mul,3,3,3,3,3,3,0,0,3,3,"[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]","[[[0], ""memset_zero_1D""], [[1], ""memset_zero_1D""], [[2], ""memset_zero_1D""]]"
+doitgen,add_zero_lhs,1,1,1,0,1,0,1,0,1,0,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]",[]
+doitgen,add_zero_rhs,1,1,1,0,1,0,1,0,1,0,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]",[]
+doitgen,mul_one_lhs,1,1,1,0,1,0,1,0,1,0,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]",[]
+doitgen,mul_one_rhs,1,1,1,0,1,0,1,0,1,0,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]",[]
+doitgen,swap_add,1,1,1,1,1,1,0,0,1,1,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]"
+doitgen,swap_add_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]"
+doitgen,swap_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]","[[[0, 1, 2], ""cublasDgemv_T_zero""]]"
+durbin,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+durbin,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+fdtd-2d,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+floyd-warshall,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gemm,add_zero_lhs,1,0,1,0,0,0,1,0,1,0,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]",[]
+gemm,add_zero_rhs,1,0,1,0,0,0,1,0,1,0,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]",[]
+gemm,mul_one_lhs,1,0,1,0,0,0,1,0,1,0,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]",[]
+gemm,mul_one_rhs,1,0,1,0,0,0,1,0,1,0,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]",[]
+gemm,reassociate_mul,1,0,1,1,0,0,0,0,1,1,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]"
+gemm,swap_add,1,0,1,0,0,0,1,0,1,1,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]","[[[0], ""cublasDgeam_scale2D""]]"
+gemm,swap_add_mul,1,0,1,0,0,0,1,0,1,1,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]","[[[0], ""cublasDgeam_scale2D""]]"
+gemm,swap_mul,1,0,1,0,0,0,1,0,1,1,"[[[0, 1], ""cublasDgemm""]]","[[[0, 1], ""cublasDgemm""]]","[[[0], ""cublasDgeam_scale2D""]]"
+gemver,add_zero_lhs,4,2,4,0,2,0,4,0,4,0,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]",[]
+gemver,add_zero_rhs,4,2,4,0,2,0,4,0,4,0,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]",[]
+gemver,mul_one_lhs,4,2,4,0,2,0,4,0,4,0,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]",[]
+gemver,mul_one_rhs,4,2,4,0,2,0,4,0,4,0,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]",[]
+gemver,reassociate_add,4,2,4,1,2,1,3,0,4,1,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[2], ""cublasDaxpby""]]"
+gemver,reassociate_mul,4,2,4,3,2,2,1,0,4,3,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""]]"
+gemver,swap_add,4,2,4,2,2,2,2,0,4,2,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[2], ""cublasDaxpby""]]"
+gemver,swap_add_mul,4,2,4,2,2,2,2,0,4,2,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[2], ""cublasDaxpby""]]"
+gemver,swap_mul,4,2,4,2,2,2,2,0,4,2,"[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[1], ""cublasDgemv_alpha""], [[2], ""cublasDaxpby""], [[3], ""cublasDgemv_alpha""]]","[[[0], ""cublasDger_rank2""], [[2], ""cublasDaxpby""]]"
+gesummv,add_zero_lhs,4,4,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""]]",[]
+gesummv,add_zero_rhs,4,4,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""]]",[]
+gesummv,mul_one_lhs,4,4,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""]]",[]
+gesummv,mul_one_rhs,4,4,3,0,3,0,3,0,3,0,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""]]",[]
+gesummv,swap_add,4,4,4,4,4,4,0,0,4,4,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]"
+gesummv,swap_add_mul,4,4,4,4,4,4,0,0,4,4,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]"
+gesummv,swap_mul,4,4,4,4,4,4,0,0,4,4,"[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]","[[[0], ""memset_zero_1D""], [[2], ""cublasDgemv""], [[3], ""cublasDgemv""], [[4], ""cublasDaxpby""]]"
+gramschmidt,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+gramschmidt,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,reassociate_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+heat-3d,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,reassociate_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-1d,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,reassociate_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+jacobi-2d,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+lu,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+ludcmp,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+mvt,add_zero_lhs,2,2,2,0,2,0,2,0,2,0,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]",[]
+mvt,add_zero_rhs,2,2,2,0,2,0,2,0,2,0,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]",[]
+mvt,mul_one_lhs,2,2,2,0,2,0,2,0,2,0,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]",[]
+mvt,mul_one_rhs,2,2,2,0,2,0,2,0,2,0,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]",[]
+mvt,swap_add,2,2,2,2,2,2,0,0,2,2,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]"
+mvt,swap_add_mul,2,2,2,2,2,2,0,0,2,2,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]"
+mvt,swap_mul,2,2,2,2,2,2,0,0,2,2,"[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]","[[[0], ""cublasDgemv""], [[1], ""cublasDgemv_T""]]"
+nussinov,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+nussinov,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+nussinov,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+nussinov,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+nussinov,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+nussinov,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,reassociate_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+seidel-2d,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,reassociate_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+symm,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+syr2k,add_zero_lhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyr2k""]]",[],[]
+syr2k,add_zero_rhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyr2k""]]",[],[]
+syr2k,mul_one_lhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyr2k""]]",[],[]
+syr2k,mul_one_rhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyr2k""]]",[],[]
+syr2k,reassociate_mul,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyr2k""]]",[],[]
+syr2k,swap_add,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]"
+syr2k,swap_add_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]"
+syr2k,swap_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]","[[[0, 1], ""cublasDsyr2k""]]"
+syrk,add_zero_lhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyrk""]]",[],[]
+syrk,add_zero_rhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyrk""]]",[],[]
+syrk,mul_one_lhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyrk""]]",[],[]
+syrk,mul_one_rhs,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyrk""]]",[],[]
+syrk,reassociate_mul,1,1,0,0,0,0,0,0,0,0,"[[[0, 1], ""cublasDsyrk""]]",[],[]
+syrk,swap_add,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]"
+syrk,swap_add_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]"
+syrk,swap_mul,1,1,1,1,1,1,0,0,1,1,"[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]","[[[0, 1], ""cublasDsyrk""]]"
+trisolv,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trisolv,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trisolv,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trisolv,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trisolv,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trisolv,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,add_zero_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,add_zero_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,mul_one_lhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,mul_one_rhs,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,swap_add,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,swap_add_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
+trmm,swap_mul,0,0,0,0,0,0,0,0,0,0,[],[],[]
