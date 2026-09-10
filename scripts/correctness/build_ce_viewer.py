@@ -269,6 +269,9 @@ BUILD_TIME_RESULTS_DIR = env_path(
     "POLYGEIST_BUILD_TIME_RESULTS_DIR",
     EQUALITY_SATURATION_RESULTS_DIR / "polybench_whole_compile_20260909",
 )
+EQUALITY_SATURATION_POLYBENCH_DIR = (
+    EQUALITY_SATURATION_RESULTS_DIR / "polybench_variants_20260909"
+)
 GINSBACH_SUMMARY = env_path(
     "POLYGEIST_GINSBACH_SUMMARY",
     REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
@@ -9404,20 +9407,29 @@ def refresh_equality_saturation_viewer_links() -> None:
     for page in OUTPUT_DIR.glob("*.html"):
         text = page.read_text()
         if "saturation-paper.html" not in text and old_nav in text:
-            page.write_text(text.replace(old_nav, new_nav, 1))
+            text = text.replace(old_nav, new_nav, 1)
+        text = text.replace(
+            '<a href="saturation-paper.html">Saturation paper study</a>',
+            '<a href="saturation-paper.html">Equality saturation</a>')
+        page.write_text(text)
 
     index_path = OUTPUT_DIR / "index.html"
     if not index_path.is_file():
         return
     text = index_path.read_text()
     card_href = '<a class="suite-card" href="saturation-paper.html">'
-    if card_href in text:
-        return
     card = (
-        card_href + '<b>Saturation paper study</b>'
-        '<span>687 tracked rows</span><small>Egglog versus exact syntax: '
-        'match coverage, paired compilation/matching cost, memory, e-graph '
-        'diagnostics, and timeouts.</small></a>')
+        card_href + '<b>Equality saturation study</b>'
+        '<span>30 PolyBench kernels</span><small>Controlled equivalent-IR '
+        'variations: 93.7% Egglog match retention versus 44.3% for exact '
+        'syntax, plus compile-time cost and CPU validation.</small></a>')
+    if card_href in text:
+        updated, replacements = re.subn(
+            r'<a class="suite-card" href="saturation-paper\.html">.*?</a>',
+            card, text, count=1)
+        if replacements:
+            index_path.write_text(updated)
+        return
     marker = '</div><a name="taxonomy"></a>'
     if marker not in text:
         print("warning: could not add saturation study landing card",
@@ -9427,6 +9439,203 @@ def refresh_equality_saturation_viewer_links() -> None:
 
 
 def _saturation_paper_study_page() -> str:
+    """Render the controlled PolyBench equality-saturation experiment."""
+    analysis_dir = EQUALITY_SATURATION_POLYBENCH_DIR / "analysis"
+    summary_path = analysis_dir / "summary.json"
+    variants_path = analysis_dir / "by_variant.csv"
+    cpu_results_path = (
+        EQUALITY_SATURATION_POLYBENCH_DIR
+        / "cpu_execution_extracted" / "results.csv"
+    )
+    if not summary_path.is_file() or not variants_path.is_file():
+        return (
+            '<div class="section-header"><h2 class="section-title">'
+            'PolyBench equality-saturation study</h2></div>'
+            '<div class="intro paper-provisional"><b>Study artifacts are '
+            'unavailable.</b> Run the controlled PolyBench variation campaign '
+            'and rebuild the viewer.</div>')
+
+    summary = json.loads(summary_path.read_text())
+    variants = _read_csv(variants_path)
+    cpu_rows = _read_csv(cpu_results_path)
+    cpu = summary.get("cpu_execution_pilot", {})
+    artifact = "equality_saturation_artifacts/polybench_variants_20260909"
+    primary_variants = summary["primary_inputs"] - summary["source_kernels"]
+
+    common_egg = summary["egglog_common_baseline_recovery_pct"]
+    common_syntax = summary["syntax_common_baseline_recovery_pct"]
+    broad_egg = summary["egglog_recovery_pct"]
+    broad_syntax = summary["syntax_recovery_pct"]
+    matcher = summary["paired_matcher_delta_ms"]
+    rss_mib = summary["paired_peak_rss_delta_kib"]["median"] / 1024.0
+    egraph = summary.get("egraph_diagnostic", {})
+
+    def recovery_bar(label: str, recovered: int, total: int,
+                     percent: float, css_class: str) -> str:
+        return (
+            '<div class="eqsat-bar-row">'
+            f'<b>{html.escape(label)}</b>'
+            '<div class="eqsat-bar-track">'
+            f'<i class="{css_class}" style="width:{percent:.3f}%"></i></div>'
+            f'<span>{recovered}/{total} &nbsp; <b>{percent:.1f}%</b></span></div>'
+        )
+
+    variant_rows = []
+    for row in variants:
+        variant_rows.append(
+            '<tr>'
+            f'<td><code>{html.escape(row["variant"])}</code></td>'
+            f'<td>{int(row["inputs"])}</td>'
+            f'<td>{int(row["common_baseline_opportunities"])}</td>'
+            f'<td>{int(row["egglog_common_recovered"])}</td>'
+            f'<td>{int(row["syntax_common_recovered"])}</td>'
+            f'<td>{int(row["egglog_only_recovered"])}</td>'
+            f'<td>{float(row["matcher_delta_median_ms"]):+,.1f} ms</td>'
+            '</tr>')
+
+    execution_rows = []
+    for row in cpu_rows:
+        status = row.get("status", "unknown")
+        status_class = "pass" if status == "pass" else "fail"
+        execution_rows.append(
+            '<tr>'
+            f'<td><code>{html.escape(row["kernel"])}</code></td>'
+            f'<td><code>{html.escape(row["variant"])}</code></td>'
+            f'<td class="{status_class}"><b>{html.escape(status)}</b></td>'
+            f'<td>{html.escape(row.get("match_rc", ""))}</td>'
+            f'<td>{html.escape(row.get("build_rc", ""))}</td>'
+            f'<td>{html.escape(row.get("run_rc", ""))}</td>'
+            f'<td>{html.escape(row.get("compare_rc", ""))}</td>'
+            '</tr>')
+
+    return (
+        '<div class="section-header"><h2 class="section-title">'
+        'PolyBench equality-saturation study</h2></div>'
+        '<div class="intro"><b>Equality saturation keeps library matches '
+        'stable when equivalent source expressions are written differently.</b> '
+        'Across the controlled common-baseline comparison, Egglog retained '
+        f'<b>{summary["egglog_common_baseline_recovered"]} of '
+        f'{summary["common_baseline_recovery_opportunities"]} matches '
+        f'({common_egg:.1f}%)</b>; exact syntax retained only '
+        f'<b>{summary["syntax_common_baseline_recovered"]} '
+        f'({common_syntax:.1f}%)</b>.</div>'
+        '<div class="audit-metrics">'
+        f'<div class="audit-metric"><b>{summary["source_kernels"]}</b>'
+        '<span>PolyBench kernels</span></div>'
+        f'<div class="audit-metric"><b>{primary_variants}</b>'
+        '<span>primary IR variants</span></div>'
+        f'<div class="audit-metric"><b>{summary["primary_runs"]:,}</b>'
+        '<span>fresh matcher processes</span></div>'
+        f'<div class="audit-metric"><b>{summary["egglog_only_variant_cases"]}</b>'
+        '<span>Egglog-benefit cases</span></div>'
+        f'<div class="audit-metric"><b>{cpu.get("passed", 0)}/'
+        f'{cpu.get("result_rows", 0)}</b><span>executed variants passed</span></div>'
+        f'<div class="audit-metric"><b>+{matcher["median"]:.1f} ms</b>'
+        '<span>median matcher cost</span></div></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'What was tested</h3></div>'
+        '<div class="intro"><div class="paper-flow">'
+        '<div><b>30 raised kernels</b><span>Post-raising Linalg IR</span></div><i>→</i>'
+        '<div><b>Equivalent rewrites</b><span>swap, +0, ×1, reassociation</span></div><i>→</i>'
+        '<div><b>Two matchers</b><span>Egglog versus exact syntax</span></div><i>→</i>'
+        '<div><b>Match recovery</b><span>Same external-library identity</span></div>'
+        '</div><p>Ten name-agnostic transformations were offered to every '
+        f'kernel: {summary["generated_variants"]} combinations were applicable '
+        f'and verified, {summary["not_applicable"]} were explicitly not '
+        'applicable, and there were no verifier failures. The primary campaign '
+        f'contains {summary["source_kernels"]} originals plus {primary_variants} '
+        'variants; every input ran five times per matcher in a fresh process.</p></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Match recovery after equivalent rewrites</h3></div>'
+        '<div class="eqsat-bars">'
+        '<h4>Controlled common baseline</h4>'
+        + recovery_bar(
+            "Egglog", summary["egglog_common_baseline_recovered"],
+            summary["common_baseline_recovery_opportunities"], common_egg,
+            "eqsat-egg")
+        + recovery_bar(
+            "Exact syntax", summary["syntax_common_baseline_recovered"],
+            summary["common_baseline_recovery_opportunities"], common_syntax,
+            "eqsat-syntax")
+        + '<p>Only identities found by both matchers on the unmodified kernel '
+        'are counted here, preventing either matcher from receiving a more '
+        'favorable starting set.</p><h4>Broader original-Egglog target</h4>'
+        + recovery_bar(
+            "Egglog", summary["egglog_recovered"],
+            summary["recovery_opportunities"], broad_egg, "eqsat-egg")
+        + recovery_bar(
+            "Exact syntax", summary["syntax_recovered"],
+            summary["recovery_opportunities"], broad_syntax, "eqsat-syntax")
+        + '</div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Results by rewrite</h3></div>'
+        '<div class="table-wrap"><table class="audit-table paper-family">'
+        '<thead><tr><th>rewrite</th><th>inputs</th><th>common targets</th>'
+        '<th>Egglog retained</th><th>syntax retained</th>'
+        '<th>Egglog-only recoveries</th><th>median added match time</th>'
+        '</tr></thead><tbody>' + ''.join(variant_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Cost and proof size</h3></div>'
+        '<div class="paper-notes">'
+        f'<div><b>Matching time</b><span>+{matcher["median"]:.1f} ms median '
+        f'[Q1 {matcher["q1"]:+.1f}, Q3 {matcher["q3"]:+.1f}] over '
+        f'{matcher["n"]:,} paired repetitions. This is compile time, not '
+        'kernel runtime.</span></div>'
+        f'<div><b>Peak memory</b><span>+{rss_mib:.2f} MiB median.</span></div>'
+        f'<div><b>Proof size</b><span>Median largest proof: '
+        f'{egraph.get("largest_proof_nodes", {}).get("median", 0):.0f} nodes and '
+        f'{egraph.get("largest_proof_classes", {}).get("median", 0):.0f} classes. '
+        f'Maximum: {egraph.get("largest_proof_nodes", {}).get("max", 0):.0f} '
+        f'nodes and {egraph.get("largest_proof_classes", {}).get("max", 0):.0f} '
+        'classes.</span></div></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'CPU execution validation</h3></div>'
+        f'<div class="intro"><b>{cpu.get("passed", 0)} of '
+        f'{cpu.get("result_rows", 0)} sampled variants passed.</b> Each extracted '
+        'Egglog-matched kernel was linked as the sole kernel definition to a '
+        'source-faithful PolyBench harness. Complete LARGE FP64 output was '
+        f'compared at rtol {cpu.get("rtol", "?")} and atol '
+        f'{cpu.get("atol", "?")}; OpenBLAS/CBLAS used one thread.</div>'
+        '<div class="table-wrap"><table class="audit-table paper-family">'
+        '<thead><tr><th>kernel</th><th>rewrite</th><th>result</th>'
+        '<th>match</th><th>build</th><th>run</th><th>compare</th>'
+        '</tr></thead><tbody>' + ''.join(execution_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">'
+        'Explicit limitations</h3></div>'
+        '<div class="paper-notes">'
+        '<div><b>Expression-growth stress case</b><span>The aggressive '
+        '<code>(x + 0) * 1</code> insertion across every floating-point yield '
+        'made the <code>2mm</code> Egglog input hit the 120-second watchdog. It '
+        'is retained as stress evidence and excluded from primary aggregates.'
+        '</span></div>'
+        '<div><b>Fourteen missed recoveries</b><span>Four '
+        '<code>cublasDaxpby</code>, five <code>cublasDsyr2k</code>, and five '
+        '<code>cublasDsyrk</code> composition recoveries remain blocked by '
+        'structural checks outside scalar equality saturation.</span></div>'
+        '<div><b>Execution scope</b><span>Ten Egglog-benefit variants have '
+        'end-to-end CPU correctness evidence; the remaining benefit variants '
+        'have verified IR and deterministic match-recovery evidence only.</span>'
+        '</div></div>'
+        '<div class="section-header"><h3 class="section-title">Artifacts</h3></div>'
+        '<div class="paper-notes">'
+        f'<div><b>Readable report</b><span><a href="{artifact}/analysis/REPORT.md">'
+        'experiment report</a> &middot; '
+        f'<a href="{artifact}/README.md">reproduction notes</a></span></div>'
+        f'<div><b>Primary matcher evidence</b><span><a href="{artifact}/campaign_main/runs.csv">'
+        '2,450 raw runs</a> &middot; '
+        f'<a href="{artifact}/analysis/by_variant.csv">per-rewrite CSV</a> &middot; '
+        f'<a href="{artifact}/manifest.csv">resolved manifest</a></span></div>'
+        f'<div><b>Execution evidence</b><span><a href="{artifact}/cpu_execution_extracted/results.csv">'
+        '10-variant results</a> &middot; '
+        f'<a href="{artifact}/cpu_execution_extracted/summary.json">summary JSON</a>'
+        '</span></div>'
+        f'<div><b>Diagnostics</b><span><a href="{artifact}/egraph_diagnostic/runs.csv">'
+        'e-graph runs</a> &middot; '
+        f'<a href="{artifact}/campaign/runs.csv">retained stress rows</a>'
+        '</span></div></div>')
+
+
+def _legacy_saturation_paper_study_page() -> str:
     """Render the audited Egglog-versus-exact-syntax ablation."""
     summary_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "summary.json"
     runs_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "runs.csv"
@@ -9995,7 +10204,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
             '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
             '<a href="llama-paper.html">Llama paper analysis</a> &middot; '
-            '<a href="saturation-paper.html">Saturation paper study</a> &middot; '
+            '<a href="saturation-paper.html">Equality saturation</a> &middot; '
             '<a href="build-time.html">Build time</a>'
             '</div></div>'
         )
@@ -10025,6 +10234,16 @@ def build_site_pages(polybench_stats: dict[str, dict],
         '.audit-metric { border:1px solid #d8dee8; border-radius:7px; padding:12px; '
         'background:#fafbfc; } .audit-metric b { display:block; color:#1a7f37; '
         'font-size:22px; } .audit-metric span { color:#555; font-size:12px; } '
+        '.eqsat-bars { margin:14px 20px; max-width:900px; padding:16px 18px; '
+        'border:1px solid #d8dee8; border-radius:8px; background:#fff; } '
+        '.eqsat-bars h4 { margin:4px 0 12px; color:#1f2d3d; } '
+        '.eqsat-bars p { color:#57606a; font-size:12px; margin:10px 0 18px; } '
+        '.eqsat-bar-row { display:grid; grid-template-columns:110px minmax(280px,1fr) '
+        '150px; gap:12px; align-items:center; margin:10px 0; font-size:13px; } '
+        '.eqsat-bar-track { height:24px; background:#f0f2f5; border:1px solid #d8dee8; '
+        'border-radius:4px; overflow:hidden; } '
+        '.eqsat-bar-track i { display:block; height:100%; min-width:2px; } '
+        '.eqsat-egg { background:#1a7f37; } .eqsat-syntax { background:#8c959f; } '
         '.audit-table { font-size:12px; } .audit-table td { white-space:nowrap; } '
         '.table-wrap { overflow:auto; padding:0 20px; } '
         '.result-status { display:inline-block; border-radius:10px; padding:2px 7px; '
@@ -10188,9 +10407,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "NE=1024 analysis: 128/128 matches correctness-validated; 17 kernels have four-runtime timings.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 correctness-gated percentage charts, raw samples, and exclusions.")
-        + card("saturation-paper.html", "Saturation paper study",
-               687,
-               "Egglog versus exact syntax: match coverage, paired compilation/matching cost, memory, e-graph diagnostics, and timeouts.")
+        + card("saturation-paper.html", "Equality saturation study",
+               30,
+               "Controlled PolyBench variations: 93.7% Egglog match retention versus 44.3% for exact syntax, with compile-time cost and CPU validation.")
         + card("build-time.html", "Build time", 30,
                "Five Egglog and five exact-syntax whole builds per PolyBench kernel, with time, memory, coverage, and failures.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
@@ -10265,7 +10484,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
             "Polygeist: Llama paper analysis", llama_paper, extra_css
         ),
         "saturation-paper.html": render_html(
-            "Polygeist: saturation paper study", saturation_paper, extra_css
+            "Polygeist: PolyBench equality saturation", saturation_paper, extra_css
         ),
         "build-time.html": render_html(
             "Polygeist: build time", build_time, extra_css

@@ -1,0 +1,21 @@
+{
+  "campaign_inputs": 275,
+  "generated_variants": 245,
+  "mlir_verifier": "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+  "not_applicable": 55,
+  "source_inputs": 30,
+  "source_manifest": "/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_manifest.csv",
+  "variants": [
+    "swap_add",
+    "swap_mul",
+    "swap_add_mul",
+    "add_zero_rhs",
+    "add_zero_lhs",
+    "mul_one_rhs",
+    "mul_one_lhs",
+    "identity_pair",
+    "reassociate_add",
+    "reassociate_mul"
+  ],
+  "verifier_failures": 0
+}

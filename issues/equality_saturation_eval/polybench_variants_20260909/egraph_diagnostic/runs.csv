@@ -1,0 +1,926 @@
+suite,input_id,path,sha256,mode,repetition,status,returncode,process_wall_ms,cpu,command,stderr_tail,candidate_matches,candidates,egraph_classes_max,egraph_classes_sum,egraph_function_nodes_sum,egraph_nodes_max,egraph_nodes_sum,input,input_bytes,iteration_limit,linalg_bodies,matched_linalg_bodies,matcher_elapsed_ms,no_matches,peak_rss_kib,proof_elapsed_max_ms,proof_elapsed_ms,proofs_attempted,proofs_matched,proofs_over_10s,rule_matches,selected,selected_matches,syntactic_comparisons,syntactic_unifications,telemetry_elapsed_ms,template_attempts
+polybench,2mm::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir,05a362aa95257d86e31a61f5e6638786b659c20ea7246a34cfe05e5b9b15e2ad,egglog,1,ok,0,1074.081800878048,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_add-egglog-ladv495h.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],12,42,66,21,78,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir,4574,8,4,4,580.8105282485485,0,70860,17.844930291175842,57.60735273361206,4,16,0,146,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,1.8827542662620544,38
+polybench,2mm::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir,05a362aa95257d86e31a61f5e6638786b659c20ea7246a34cfe05e5b9b15e2ad,syntactic,1,ok,0,915.2242764830589,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_add-syntactic-4bxj2ocw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir ==
+  match          body#[0]  memset_zero_2D
+  no_match       body#1  ?
+  match          body#[2, 3]  cublasDgemm
+  total: 2 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add.mlir,4574,0,4,3,421.7057153582573,1,66244,0.020191073417663574,0.23652613162994385,0,14,0,0,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",2,0,38,0.0,38
+polybench,2mm::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir,253a90703e590a7e880aff10c11a2905b631fd6145baea4fd75f1337dd4cf59c,syntactic,1,ok,0,967.0509733259678,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_mul-syntactic-d8vgac9k.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  no_match       body#1  ?
+  match          body#[2, 3]  cublasDgemm
+  total: 2 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir,4574,0,4,3,492.985337972641,1,66480,0.02944469451904297,0.34338608384132385,0,14,0,0,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",2,0,38,0.0,38
+polybench,2mm::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir,253a90703e590a7e880aff10c11a2905b631fd6145baea4fd75f1337dd4cf59c,egglog,1,ok,0,996.2547980248928,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_mul-egglog-7_7wjud_.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],12,52,74,21,90,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_mul.mlir,4574,8,4,4,500.2617575228214,0,70600,12.648597359657288,67.50442832708359,6,16,0,154,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,1.9100867211818695,38
+polybench,2mm::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir,c3181de2c7dd4aebdb2f5a759496b6e21466e8460993bd219de7b4aee93cf3a2,egglog,1,ok,0,1007.1199722588062,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_add_mul-egglog-m9p79tzy.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],12,52,74,21,90,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir,4574,8,4,4,518.9102254807949,0,70648,15.203326940536499,77.39174365997314,6,16,0,154,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,2.3792535066604614,38
+polybench,2mm::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir,c3181de2c7dd4aebdb2f5a759496b6e21466e8460993bd219de7b4aee93cf3a2,syntactic,1,ok,0,1015.0181129574776,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::swap_add_mul-syntactic-r_olkhai.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  no_match       body#1  ?
+  match          body#[2, 3]  cublasDgemm
+  total: 2 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__swap_add_mul.mlir,4574,0,4,3,494.56125125288963,1,66344,0.022158026695251465,0.3202110528945923,0,14,0,0,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",2,0,38,0.0,38
+polybench,2mm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir,48d2394abb85f17c15423aa3eaf0e74a16ac7800e421868798a4108e4dd8ff1d,syntactic,1,ok,0,1379.5661106705666,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::add_zero_rhs-syntactic-q9xv18m4.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir,5166,0,4,0,736.2569533288479,4,66616,0.019315630197525024,0.2511553466320038,0,0,0,0,[],0,0,48,0.0,48
+polybench,2mm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir,48d2394abb85f17c15423aa3eaf0e74a16ac7800e421868798a4108e4dd8ff1d,egglog,1,ok,0,1500.7550343871117,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::add_zero_rhs-egglog-58meiw5s.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],14,84,134,30,166,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_rhs.mlir,5166,8,4,4,905.6841991841793,0,71008,17.77622103691101,252.8812550008297,16,16,0,446,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,6.6842734813690186,38
+polybench,2mm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir,2b9045f6430d57674f82fc1ec9aa5fa683db1bb840ff87b55b79d8f2854da394,egglog,1,ok,0,1110.4954443871975,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::add_zero_lhs-egglog-m8y8lrpe.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],14,84,134,30,166,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir,5166,8,4,4,665.7405830919743,0,70768,13.262998312711716,177.9300533235073,16,16,0,446,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,4.720401018857956,38
+polybench,2mm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir,2b9045f6430d57674f82fc1ec9aa5fa683db1bb840ff87b55b79d8f2854da394,syntactic,1,ok,0,1151.6859233379364,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::add_zero_lhs-syntactic-d4v61hm2.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__add_zero_lhs.mlir,5166,0,4,0,629.6819038689137,4,66588,0.013653188943862915,0.2666935324668884,0,0,0,0,[],0,0,48,0.0,48
+polybench,2mm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir,a24bfe64ff2410925efa4d2fbe606b1d988f10142bd90054d3313500653d846f,syntactic,1,ok,0,1028.9822816848755,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::mul_one_rhs-syntactic-lphqcfig.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir,5158,0,4,0,499.2309771478176,4,66252,0.019043684005737305,0.20517781376838684,0,0,0,0,[],0,0,48,0.0,48
+polybench,2mm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir,a24bfe64ff2410925efa4d2fbe606b1d988f10142bd90054d3313500653d846f,egglog,1,ok,0,1266.2929259240627,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::mul_one_rhs-egglog-i2rhduci.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],14,100,152,26,192,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_rhs.mlir,5158,8,4,4,724.8967178165913,0,71004,13.845991343259811,200.7908672094345,16,16,0,542,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,5.884937942028046,38
+polybench,2mm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir,b208dc6a9b9c0b82a5baaafc6587516bf9b86a9983fd8f315d22142a6987adb7,egglog,1,ok,0,1288.107518106699,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::mul_one_lhs-egglog-fmaf0jmd.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+",0,[],14,100,152,26,192,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir,5158,8,4,4,763.0343176424503,0,70916,16.821589320898056,215.0040753185749,16,16,0,542,"[{""body_indices"": [0], ""symbol"": ""memset_zero_2D""}, {""body_indices"": [1], ""symbol"": ""cublasDgemm_alpha_only""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm""}]",3,0,0,6.435200572013855,38
+polybench,2mm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir,b208dc6a9b9c0b82a5baaafc6587516bf9b86a9983fd8f315d22142a6987adb7,syntactic,1,ok,0,1078.2209038734436,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-2mm::mul_one_lhs-syntactic-mblv1l4n.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__mul_one_lhs.mlir,5158,0,4,0,572.1587650477886,4,66540,0.02100318670272827,0.22999942302703857,0,0,0,0,[],0,0,48,0.0,48
+polybench,3mm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir,42ec33da3993cffc1510dc62df38ab4213df0041cb1ebf60f4ca1a3126442ed6,syntactic,1,ok,0,1168.5992702841759,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::add_zero_rhs-syntactic-93e978a7.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  total: 0 matched / 6 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir,6745,0,6,0,639.6067142486572,6,66716,0.016033649444580078,0.3568306565284729,0,0,0,0,[],0,0,74,0.0,74
+polybench,3mm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir,42ec33da3993cffc1510dc62df38ab4213df0041cb1ebf60f4ca1a3126442ed6,egglog,1,ok,0,1439.5283684134483,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::add_zero_rhs-egglog-ckbq21e1.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir ==
+  match          body#[0, 1]  cublasDgemm_simple
+  match          body#[2, 3]  cublasDgemm_simple
+  match          body#[4, 5]  cublasDgemm_simple
+  total: 3 matched / 3 bodies
+",0,[],9,166,250,18,312,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_rhs.mlir,6745,8,6,6,947.808962315321,0,71024,13.167675584554672,393.9098119735718,34,34,0,832,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [4, 5], ""symbol"": ""cublasDgemm_simple""}]",3,0,0,11.108729988336563,40
+polybench,3mm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir,258600b413912651403e7dddec06fc2a2c57f22ba9201ef4cd33b18ddd56dcac,egglog,1,ok,0,1499.004054814577,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::add_zero_lhs-egglog-wd8dme96.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir ==
+  match          body#[0, 1]  cublasDgemm_simple
+  match          body#[2, 3]  cublasDgemm_simple
+  match          body#[4, 5]  cublasDgemm_simple
+  total: 3 matched / 3 bodies
+",0,[],9,166,250,18,312,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir,6745,8,6,6,995.3397214412689,0,70884,18.25355738401413,434.61695685982704,34,34,0,832,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [4, 5], ""symbol"": ""cublasDgemm_simple""}]",3,0,0,11.499959975481033,40
+polybench,3mm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir,258600b413912651403e7dddec06fc2a2c57f22ba9201ef4cd33b18ddd56dcac,syntactic,1,ok,0,1122.6898171007633,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::add_zero_lhs-syntactic-y5un2kg0.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  total: 0 matched / 6 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__add_zero_lhs.mlir,6745,0,6,0,637.6928128302097,6,66640,0.015635043382644653,0.3634430468082428,0,0,0,0,[],0,0,74,0.0,74
+polybench,3mm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir,7182a0aaef8e853b815686492797246ec88884925cb7d13a5a5845d09c657480,syntactic,1,ok,0,1237.445205450058,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::mul_one_rhs-syntactic-nj6xxthf.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  total: 0 matched / 6 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir,6733,0,6,0,679.9572631716728,6,66728,0.0131167471408844,0.31903013586997986,0,0,0,0,[],0,0,74,0.0,74
+polybench,3mm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir,7182a0aaef8e853b815686492797246ec88884925cb7d13a5a5845d09c657480,egglog,1,ok,0,1656.6332392394543,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::mul_one_rhs-egglog-os1w6cox.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir ==
+  match          body#[0, 1]  cublasDgemm_simple
+  match          body#[2, 3]  cublasDgemm_simple
+  match          body#[4, 5]  cublasDgemm_simple
+  total: 3 matched / 3 bodies
+",0,[],9,206,254,14,336,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_rhs.mlir,6733,8,6,6,1062.1778406202793,0,70844,17.796199768781662,476.7665006220341,34,34,0,816,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [4, 5], ""symbol"": ""cublasDgemm_simple""}]",3,0,0,13.737615197896957,40
+polybench,3mm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir,ba1d363af5e8fdb71a8afdf88815c5eb5dc7bf2e0dcf5edec3a9cee6684f50fc,egglog,1,ok,0,1491.3905337452888,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::mul_one_lhs-egglog-zg2yj4bc.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir ==
+  match          body#[0, 1]  cublasDgemm_simple
+  match          body#[2, 3]  cublasDgemm_simple
+  match          body#[4, 5]  cublasDgemm_simple
+  total: 3 matched / 3 bodies
+",0,[],9,206,254,14,336,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir,6733,8,6,6,971.5285114943981,0,70852,21.02918177843094,438.7473687529564,34,34,0,816,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [2, 3], ""symbol"": ""cublasDgemm_simple""}, {""body_indices"": [4, 5], ""symbol"": ""cublasDgemm_simple""}]",3,0,0,12.3419389128685,40
+polybench,3mm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir,ba1d363af5e8fdb71a8afdf88815c5eb5dc7bf2e0dcf5edec3a9cee6684f50fc,syntactic,1,ok,0,1229.23094779253,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-3mm::mul_one_lhs-syntactic-r8kbgw2p.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  total: 0 matched / 6 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir,6733,0,6,0,618.8524812459946,6,66804,0.01222267746925354,0.353742390871048,0,0,0,0,[],0,0,74,0.0,74
+polybench,adi::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir,64cb269f052db389d8332d6e172bf8921f52b34032f7b4ce3301825a5d361390,syntactic,1,ok,0,1999.5885826647282,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::add_zero_rhs-syntactic-c3lajn_w.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 0 matched / 12 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir,17517,0,12,0,1237.261138856411,12,68408,0.020951032638549805,0.5805976688861847,0,0,0,0,[],0,0,146,0.0,146
+polybench,adi::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir,64cb269f052db389d8332d6e172bf8921f52b34032f7b4ce3301825a5d361390,egglog,1,ok,0,2339.4301161170006,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::add_zero_rhs-egglog-bs7gz89u.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  match          body#[1]  memset_zero_1D
+  unsupported_abi_reject body#[2]  cublasDcopy_tensor
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  match          body#[7]  memset_zero_1D
+  unsupported_abi_reject body#[8]  cublasDcopy_tensor
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 2 matched / 12 bodies
+",0,[],4,144,164,7,236,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_rhs.mlir,17517,8,12,2,1645.171269774437,8,72544,16.607869416475296,617.5008676946163,52,52,0,704,"[{""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [7], ""symbol"": ""memset_zero_1D""}]",2,0,0,14.11207765340805,138
+polybench,adi::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir,b3e2cf4d4ed07a606a8f9044ce25f02fe642b29f3b011f0cbb9e04bbf010552d,egglog,1,ok,0,2423.186268657446,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::add_zero_lhs-egglog-2fkfaobs.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  match          body#[1]  memset_zero_1D
+  unsupported_abi_reject body#[2]  cublasDcopy_tensor
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  match          body#[7]  memset_zero_1D
+  unsupported_abi_reject body#[8]  cublasDcopy_tensor
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 2 matched / 12 bodies
+",0,[],4,144,164,7,236,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir,17517,8,12,2,1716.5335714817047,8,72488,19.145503640174866,635.7887871563435,52,52,0,704,"[{""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [7], ""symbol"": ""memset_zero_1D""}]",2,0,0,14.716777950525284,138
+polybench,adi::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir,b3e2cf4d4ed07a606a8f9044ce25f02fe642b29f3b011f0cbb9e04bbf010552d,syntactic,1,ok,0,1682.3181882500648,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::add_zero_lhs-syntactic-a4kyjs_8.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 0 matched / 12 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__add_zero_lhs.mlir,17517,0,12,0,987.4578677117825,12,68124,0.023439526557922363,0.42797625064849854,0,0,0,0,[],0,0,146,0.0,146
+polybench,adi::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir,3c0c499fa44925d8f268ba13c11a9e19f82cea7dc9b989c5498f635122315802,syntactic,1,ok,0,1627.9054880142212,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::mul_one_rhs-syntactic-uuplaj7c.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 0 matched / 12 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir,17497,0,12,0,970.7291051745415,12,68168,0.012725591659545898,0.39733201265335083,0,0,0,0,[],0,0,146,0.0,146
+polybench,adi::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir,3c0c499fa44925d8f268ba13c11a9e19f82cea7dc9b989c5498f635122315802,egglog,1,ok,0,2226.3708859682083,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::mul_one_rhs-egglog-sjlb8bde.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  match          body#[1]  memset_zero_1D
+  unsupported_abi_reject body#[2]  cublasDcopy_tensor
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  match          body#[7]  memset_zero_1D
+  unsupported_abi_reject body#[8]  cublasDcopy_tensor
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 2 matched / 12 bodies
+",0,[],4,176,212,7,300,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_rhs.mlir,17497,8,12,2,1582.937814295292,8,72584,36.40665486454964,630.425289273262,52,52,0,976,"[{""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [7], ""symbol"": ""memset_zero_1D""}]",2,0,0,14.147430658340454,138
+polybench,adi::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir,98088a3ab110f9b92a62d9411d6294df4f35a6eb1b1e564d73b6203f0a390a98,egglog,1,ok,0,2356.771197170019,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::mul_one_lhs-egglog-8r1etxzn.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  match          body#[1]  memset_zero_1D
+  unsupported_abi_reject body#[2]  cublasDcopy_tensor
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  match          body#[7]  memset_zero_1D
+  unsupported_abi_reject body#[8]  cublasDcopy_tensor
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 2 matched / 12 bodies
+",0,[],4,176,212,7,300,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir,17497,8,12,2,1726.0639555752277,8,72616,46.26220837235451,699.1213336586952,52,52,0,976,"[{""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [7], ""symbol"": ""memset_zero_1D""}]",2,0,0,15.106528997421265,138
+polybench,adi::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir,98088a3ab110f9b92a62d9411d6294df4f35a6eb1b1e564d73b6203f0a390a98,syntactic,1,ok,0,1526.712417602539,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-adi::mul_one_lhs-syntactic-nm5s43e3.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  no_match       body#10  ?
+  no_match       body#11  ?
+  total: 0 matched / 12 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/adi__mul_one_lhs.mlir,17497,0,12,0,911.459181457758,12,68292,0.014215707778930664,0.41642412543296814,0,0,0,0,[],0,0,146,0.0,146
+polybench,atax::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir,10963eebe00f6d3ad5016cf721da7ec9c372173d08965f8f1a5ec38e4589b338,syntactic,1,ok,0,941.8586529791355,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::add_zero_rhs-syntactic-uii4uj14.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir,4654,0,4,0,498.0594702064991,4,66500,0.007618218660354614,0.18594786524772644,0,0,0,0,[],0,0,60,0.0,60
+polybench,atax::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir,10963eebe00f6d3ad5016cf721da7ec9c372173d08965f8f1a5ec38e4589b338,egglog,1,ok,0,1207.1248441934586,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::add_zero_rhs-egglog-dge3643j.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1, 2]  cublasDgemv
+  match          body#[3]  cublasDgemv_T
+  total: 3 matched / 3 bodies
+",0,[],9,102,138,18,180,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_rhs.mlir,4654,8,4,4,766.1944814026356,0,70796,13.543840497732162,320.03458216786385,30,30,0,480,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1, 2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_T""}]",3,0,0,7.738333195447922,36
+polybench,atax::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir,5a5f265c0529dbe6d4dab14c61b4ff1b7515504142639b8f090d3f6b0f98cd1c,egglog,1,ok,0,1210.4344740509987,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::add_zero_lhs-egglog-qk31jvck.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1, 2]  cublasDgemv
+  match          body#[3]  cublasDgemv_T
+  total: 3 matched / 3 bodies
+",0,[],9,102,138,18,180,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir,4654,8,4,4,767.9082192480564,0,71012,15.261966735124588,340.47530218958855,30,30,0,480,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1, 2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_T""}]",3,0,0,8.149541914463043,36
+polybench,atax::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir,5a5f265c0529dbe6d4dab14c61b4ff1b7515504142639b8f090d3f6b0f98cd1c,syntactic,1,ok,0,1069.03513148427,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::add_zero_lhs-syntactic-fcr_3xtw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__add_zero_lhs.mlir,4654,0,4,0,527.9045179486275,4,66608,0.025063753128051758,0.24924427270889282,0,0,0,0,[],0,0,60,0.0,60
+polybench,atax::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir,cace3a94cd50a046e5bc7a6945b757decef6a64227c3dbb8905db74b1e618f01,syntactic,1,ok,0,932.162057608366,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::mul_one_rhs-syntactic-4apra_rg.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir,4646,0,4,0,476.40174627304077,4,66556,0.011965632438659668,0.16644969582557678,0,0,0,0,[],0,0,60,0.0,60
+polybench,atax::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir,cace3a94cd50a046e5bc7a6945b757decef6a64227c3dbb8905db74b1e618f01,egglog,1,ok,0,1213.1189368665218,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::mul_one_rhs-egglog-niq1clne.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1, 2]  cublasDgemv
+  match          body#[3]  cublasDgemv_T
+  total: 3 matched / 3 bodies
+",0,[],9,150,186,14,252,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_rhs.mlir,4646,8,4,4,774.6467925608158,0,71108,17.328981310129166,350.59725120663643,30,30,0,720,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1, 2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_T""}]",3,0,0,8.661806583404541,36
+polybench,atax::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir,6dcf4cc868259e91b355ac31b9e2e879d2fdc41583ec39f2d45e3e8f02cedc3b,egglog,1,ok,0,1286.672942340374,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::mul_one_lhs-egglog-xhzmiu96.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1, 2]  cublasDgemv
+  match          body#[3]  cublasDgemv_T
+  total: 3 matched / 3 bodies
+",0,[],9,150,186,14,252,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir,4646,8,4,4,820.9508657455444,0,70860,18.10476928949356,357.2925329208374,30,30,0,720,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1, 2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_T""}]",3,0,0,8.875571191310883,36
+polybench,atax::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir,6dcf4cc868259e91b355ac31b9e2e879d2fdc41583ec39f2d45e3e8f02cedc3b,syntactic,1,ok,0,936.9295462965965,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-atax::mul_one_lhs-syntactic-lnqjatzy.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/atax__mul_one_lhs.mlir,4646,0,4,0,509.08904522657394,4,66392,0.013843178749084473,0.1794174313545227,0,0,0,0,[],0,0,60,0.0,60
+polybench,bicg::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir,d427de8d75ca40de864673255e9eba401b96433f1edcee8d7646c0df8affc7e4,syntactic,1,ok,0,880.2300281822681,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::add_zero_rhs-syntactic-po_8ydeh.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir,4852,0,4,0,451.4121077954769,4,66476,0.008203089237213135,0.1904889941215515,0,0,0,0,[],0,0,60,0.0,60
+polybench,bicg::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir,d427de8d75ca40de864673255e9eba401b96433f1edcee8d7646c0df8affc7e4,egglog,1,ok,0,1246.6765232384205,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::add_zero_rhs-egglog-z89r84sf.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv_T
+  match          body#[3]  cublasDgemv
+  total: 3 matched / 4 bodies
+",0,[],9,120,168,18,216,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_rhs.mlir,4852,8,4,3,822.555910795927,0,70964,13.96988332271576,366.5344528853893,32,32,0,576,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv_T""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,8.843127638101578,38
+polybench,bicg::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir,4e8aa63305bca89f426b620e01b0f320cf1e74cd844870afad85deb1c2bda770,egglog,1,ok,0,1258.6989514529705,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::add_zero_lhs-egglog-03_r54e9.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv_T
+  match          body#[3]  cublasDgemv
+  total: 3 matched / 4 bodies
+",0,[],9,120,168,18,216,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir,4852,8,4,3,811.8402995169163,0,70888,14.553304761648178,354.5504994690418,32,32,0,576,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv_T""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,8.584551513195038,38
+polybench,bicg::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir,4e8aa63305bca89f426b620e01b0f320cf1e74cd844870afad85deb1c2bda770,syntactic,1,ok,0,950.7672861218452,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::add_zero_lhs-syntactic-rv0774et.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__add_zero_lhs.mlir,4852,0,4,0,486.37424036860466,4,66664,0.008970499038696289,0.214308500289917,0,0,0,0,[],0,0,60,0.0,60
+polybench,bicg::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir,a7e34923e09b97687b685035eb703d77b7734b1d911bc6e367c171dd74fb0a0b,syntactic,1,ok,0,1043.41771453619,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::mul_one_rhs-syntactic-a8escvjf.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir,4844,0,4,0,598.1705896556377,4,66532,0.017561018466949463,0.17581507563591003,0,0,0,0,[],0,0,60,0.0,60
+polybench,bicg::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir,a7e34923e09b97687b685035eb703d77b7734b1d911bc6e367c171dd74fb0a0b,egglog,1,ok,0,1297.2694598138332,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::mul_one_rhs-egglog-6psw3oaw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv_T
+  match          body#[3]  cublasDgemv
+  total: 3 matched / 4 bodies
+",0,[],9,168,208,14,280,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_rhs.mlir,4844,8,4,3,826.4171704649925,0,71076,14.764063060283661,358.25860500335693,32,32,0,768,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv_T""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,8.651670068502426,38
+polybench,bicg::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir,f928f887d29e186fc81ab3c229ab967da0f0f54b33e899f851fea5e9edbe528f,egglog,1,ok,0,1252.8648264706135,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::mul_one_lhs-egglog-fbwc8nkj.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv_T
+  match          body#[3]  cublasDgemv
+  total: 3 matched / 4 bodies
+",0,[],9,168,208,14,280,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir,4844,8,4,3,807.0695511996746,0,70828,12.32491061091423,355.4820865392685,32,32,0,768,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv_T""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,9.139042347669601,38
+polybench,bicg::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir,f928f887d29e186fc81ab3c229ab967da0f0f54b33e899f851fea5e9edbe528f,syntactic,1,ok,0,916.4474681019783,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-bicg::mul_one_lhs-syntactic-h_p8nuug.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/bicg__mul_one_lhs.mlir,4844,0,4,0,463.56816962361336,4,66708,0.012896955013275146,0.15595555305480957,0,0,0,0,[],0,0,60,0.0,60
+polybench,correlation::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir,62834840887c005d525e19f9c65dbf15872706f1480765afba290abfb53179b1,syntactic,1,ok,0,1426.9089624285698,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::add_zero_rhs-syntactic-kepz8u6b.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  total: 0 matched / 10 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir,9753,0,10,0,951.6972154378891,10,67672,0.0093802809715271,0.4070661962032318,0,0,0,0,[],0,0,146,0.0,146
+polybench,correlation::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir,62834840887c005d525e19f9c65dbf15872706f1480765afba290abfb53179b1,egglog,1,ok,0,1727.8719879686832,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::add_zero_rhs-egglog-e1h65csx.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  match          body#[3]  memset_zero_1D
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  match          body#[8]  cublasDgemm_simple
+  no_match       body#9  ?
+  total: 2 matched / 9 bodies
+",0,[],9,86,114,18,152,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_rhs.mlir,9753,8,10,2,1230.7509295642376,6,71808,14.767173677682877,306.3163757324219,28,28,0,440,"[{""body_indices"": [3], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [8], ""symbol"": ""cublasDgemm_simple""}]",2,0,0,7.043633610010147,132
+polybench,correlation::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir,a67309e5ad81d0dd09ebc0c35e6e5c774bf90762e0b6a13735b99f303276eebe,egglog,1,ok,0,1737.596295773983,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::add_zero_lhs-egglog-a79b9k10.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  match          body#[3]  memset_zero_1D
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  match          body#[8]  cublasDgemm_simple
+  no_match       body#9  ?
+  total: 2 matched / 9 bodies
+",0,[],9,86,114,18,152,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir,9753,8,10,2,1257.9777352511883,6,72304,16.53517410159111,318.1452937424183,28,28,0,440,"[{""body_indices"": [3], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [8], ""symbol"": ""cublasDgemm_simple""}]",2,0,0,7.12580606341362,132
+polybench,correlation::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir,a67309e5ad81d0dd09ebc0c35e6e5c774bf90762e0b6a13735b99f303276eebe,syntactic,1,ok,0,1446.4501105248928,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::add_zero_lhs-syntactic-nl1h8h4q.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  total: 0 matched / 10 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__add_zero_lhs.mlir,9753,0,10,0,914.1271039843559,10,67724,0.016391277313232422,0.42052939534187317,0,0,0,0,[],0,0,146,0.0,146
+polybench,correlation::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir,e0c6dd0cfdc1b11b7bd74b924562627eeb41778896d3c1a22e6b754412c51add,syntactic,1,ok,0,1412.6166962087154,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::mul_one_rhs-syntactic-4g8c3l51.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  total: 0 matched / 10 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir,9733,0,10,0,928.4265711903572,10,67564,0.015389174222946167,0.4383884370326996,0,0,0,0,[],0,0,146,0.0,146
+polybench,correlation::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir,e0c6dd0cfdc1b11b7bd74b924562627eeb41778896d3c1a22e6b754412c51add,egglog,1,ok,0,1708.2304172217846,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::mul_one_rhs-egglog-ivaapdpv.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  match          body#[3]  memset_zero_1D
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  match          body#[8]  cublasDgemm_simple
+  no_match       body#9  ?
+  total: 2 matched / 9 bodies
+",0,[],9,118,146,14,200,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_rhs.mlir,9733,8,10,2,1229.126200079918,6,72360,16.038060188293457,317.7298717200756,28,28,0,604,"[{""body_indices"": [3], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [8], ""symbol"": ""cublasDgemm_simple""}]",2,0,0,7.663149386644363,132
+polybench,correlation::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir,453607fe7818917daed4aa6ff9ef264a6c6584b377740e2066203dd0cbd72d9a,egglog,1,ok,0,1768.4855088591576,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::mul_one_lhs-egglog-7uqmknzc.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  match          body#[3]  memset_zero_1D
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  match          body#[8]  cublasDgemm_simple
+  no_match       body#9  ?
+  total: 2 matched / 9 bodies
+",0,[],9,118,146,14,200,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir,9733,8,10,2,1277.5163911283016,6,72204,15.697918832302094,330.43910562992096,28,28,0,604,"[{""body_indices"": [3], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [8], ""symbol"": ""cublasDgemm_simple""}]",2,0,0,7.779214531183243,132
+polybench,correlation::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir,453607fe7818917daed4aa6ff9ef264a6c6584b377740e2066203dd0cbd72d9a,syntactic,1,ok,0,1394.639067351818,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-correlation::mul_one_lhs-syntactic-xkbqq4dm.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  no_match       body#5  ?
+  no_match       body#6  ?
+  no_match       body#7  ?
+  no_match       body#8  ?
+  no_match       body#9  ?
+  total: 0 matched / 10 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/correlation__mul_one_lhs.mlir,9733,0,10,0,913.7204624712467,10,67592,0.009547919034957886,0.4112757742404938,0,0,0,0,[],0,0,146,0.0,146
+polybench,covariance::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir,8131e24330ca10ada8bb6d699301cfeb5cdd0bc187d9ad95716cbbdc45b86d16,syntactic,1,ok,0,897.0031552016735,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::add_zero_rhs-syntactic-m96uddvh.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir,6093,0,5,0,460.62517166137695,5,66316,0.014293938875198364,0.13395026326179504,0,0,0,0,[],0,0,50,0.0,50
+polybench,covariance::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir,8131e24330ca10ada8bb6d699301cfeb5cdd0bc187d9ad95716cbbdc45b86d16,egglog,1,ok,0,946.1525231599808,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::add_zero_rhs-egglog-0hcc91ht.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  no_match       body#3  ?
+  match          body#[4]  cublasDdot
+  total: 1 matched / 4 bodies
+",0,[],9,38,62,18,76,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_rhs.mlir,6093,8,5,1,508.6911804974079,2,70772,12.318931519985199,88.42683210968971,8,8,0,220,"[{""body_indices"": [4], ""symbol"": ""cublasDdot""}]",1,0,0,2.3348070681095123,36
+polybench,covariance::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir,95e736e84b193b23ccc1ba2f327b026b20a08936b745ee0440979b98efe9514c,egglog,1,ok,0,1006.7165344953537,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::add_zero_lhs-egglog-a927brqh.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  no_match       body#3  ?
+  match          body#[4]  cublasDdot
+  total: 1 matched / 4 bodies
+",0,[],9,38,62,18,76,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir,6093,8,5,1,549.7203022241592,2,71272,13.464871793985367,96.39570489525795,8,8,0,220,"[{""body_indices"": [4], ""symbol"": ""cublasDdot""}]",1,0,0,2.402849495410919,36
+polybench,covariance::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir,95e736e84b193b23ccc1ba2f327b026b20a08936b745ee0440979b98efe9514c,syntactic,1,ok,0,900.3940112888813,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::add_zero_lhs-syntactic-ajv1m3es.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__add_zero_lhs.mlir,6093,0,5,0,451.88723132014275,5,66576,0.006835907697677612,0.12521818280220032,0,0,0,0,[],0,0,50,0.0,50
+polybench,covariance::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir,0be0eb13c14337cb5015e617ffc7959f0bdaf60f9b3c036e1cb8fec36da11aa0,syntactic,1,ok,0,946.1549781262875,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::mul_one_rhs-syntactic-cur9v93q.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir,6083,0,5,0,496.3483214378357,5,66396,0.010229647159576416,0.14526396989822388,0,0,0,0,[],0,0,50,0.0,50
+polybench,covariance::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir,0be0eb13c14337cb5015e617ffc7959f0bdaf60f9b3c036e1cb8fec36da11aa0,egglog,1,ok,0,986.5569844841957,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::mul_one_rhs-egglog-g64z6xe7.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  no_match       body#3  ?
+  match          body#[4]  cublasDdot
+  total: 1 matched / 4 bodies
+",0,[],9,46,58,14,76,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_rhs.mlir,6083,8,5,1,542.5012484192848,2,70808,19.525591284036636,105.61686381697655,8,8,0,188,"[{""body_indices"": [4], ""symbol"": ""cublasDdot""}]",1,0,0,2.594292163848877,36
+polybench,covariance::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir,848841c8c206f6f80551f310f7479045360d2eeb9431abb43f4aec11f105904b,egglog,1,ok,0,989.6293766796589,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::mul_one_lhs-egglog-yygsxf82.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir ==
+  aten_segmented_sum_region_reject body#[0, 1]  atenSegmentedSum
+  no_match       body#2  ?
+  no_match       body#3  ?
+  match          body#[4]  cublasDdot
+  total: 1 matched / 4 bodies
+",0,[],9,46,58,14,76,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir,6083,8,5,1,526.8346145749092,2,70984,13.540275394916534,96.92775458097458,8,8,0,188,"[{""body_indices"": [4], ""symbol"": ""cublasDdot""}]",1,0,0,2.558313310146332,36
+polybench,covariance::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir,848841c8c206f6f80551f310f7479045360d2eeb9431abb43f4aec11f105904b,syntactic,1,ok,0,917.3163436353207,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-covariance::mul_one_lhs-syntactic-f40cld5r.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/covariance__mul_one_lhs.mlir,6083,0,5,0,461.4039659500122,5,66496,0.009227544069290161,0.13175234198570251,0,0,0,0,[],0,0,50,0.0,50
+polybench,deriche::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir,f198499af97beea0b46471f9f62a25251613b9a4fd775036588d519a177a7231,syntactic,1,ok,0,1015.928603708744,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::add_zero_rhs-syntactic-yp01_c60.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir,5395,0,4,0,537.4581143260002,4,66892,0.0066533684730529785,0.1813061535358429,0,0,0,0,[],0,0,64,0.0,64
+polybench,deriche::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir,f198499af97beea0b46471f9f62a25251613b9a4fd775036588d519a177a7231,egglog,1,ok,0,1486.818764358759,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::add_zero_rhs-egglog-nh8hlgaa.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1]  memset_zero_1D
+  match          body#[2]  memset_zero_1D
+  no_match       body#3  ?
+  total: 3 matched / 4 bodies
+",0,[],2,92,92,3,138,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_rhs.mlir,5395,8,4,3,1021.135151386261,1,71384,12.252528220415115,495.53626775741577,46,46,0,368,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""memset_zero_1D""}]",3,0,0,11.36968657374382,64
+polybench,deriche::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir,764e6566ac874dd73d5deba278848e79d5b64b50e73bbb239861e7a2fbe843ac,egglog,1,ok,0,1457.9141028225422,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::add_zero_lhs-egglog-rtpgabp8.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1]  memset_zero_1D
+  match          body#[2]  memset_zero_1D
+  no_match       body#3  ?
+  total: 3 matched / 4 bodies
+",0,[],2,92,92,3,138,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir,5395,8,4,3,1003.1019225716591,1,71528,18.591754138469696,490.6521812081337,46,46,0,368,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""memset_zero_1D""}]",3,0,0,11.00773736834526,64
+polybench,deriche::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir,764e6566ac874dd73d5deba278848e79d5b64b50e73bbb239861e7a2fbe843ac,syntactic,1,ok,0,940.0472976267338,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::add_zero_lhs-syntactic-qjqj2j8n.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__add_zero_lhs.mlir,5395,0,4,0,473.723154515028,4,66940,0.004291534423828125,0.1501627266407013,0,0,0,0,[],0,0,64,0.0,64
+polybench,deriche::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir,92c706046cf42a1cb26194db529c837bb0ce6696ee0d562867ce73d6edc69534,syntactic,1,ok,0,911.8657261133194,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::mul_one_rhs-syntactic-tiupgaea.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir,5389,0,4,0,466.7099714279175,4,66752,0.012025237083435059,0.17034634947776794,0,0,0,0,[],0,0,64,0.0,64
+polybench,deriche::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir,92c706046cf42a1cb26194db529c837bb0ce6696ee0d562867ce73d6edc69534,egglog,1,ok,0,1478.6862470209599,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::mul_one_rhs-egglog-p32uv6k3.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1]  memset_zero_1D
+  match          body#[2]  memset_zero_1D
+  no_match       body#3  ?
+  total: 3 matched / 4 bodies
+",0,[],4,184,230,7,322,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_rhs.mlir,5389,8,4,3,1026.3305939733982,1,71224,14.416847378015518,499.8260661959648,46,46,0,1104,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""memset_zero_1D""}]",3,0,0,11.801064014434814,64
+polybench,deriche::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir,167df864c34f2a09f4c040014b71dd84e9667a86825967664581f1719c672cb9,egglog,1,ok,0,1515.7349407672882,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::mul_one_lhs-egglog-_3qs_fy1.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  match          body#[1]  memset_zero_1D
+  match          body#[2]  memset_zero_1D
+  no_match       body#3  ?
+  total: 3 matched / 4 bodies
+",0,[],4,184,230,7,322,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir,5389,8,4,3,1061.679434031248,1,71444,17.31196790933609,532.0054888725281,46,46,0,1104,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [1], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""memset_zero_1D""}]",3,0,0,12.537557631731033,64
+polybench,deriche::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir,167df864c34f2a09f4c040014b71dd84e9667a86825967664581f1719c672cb9,syntactic,1,ok,0,907.9741649329662,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-deriche::mul_one_lhs-syntactic-05jfghie.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/deriche__mul_one_lhs.mlir,5389,0,4,0,451.3935223221779,4,66844,0.020507723093032837,0.1746751368045807,0,0,0,0,[],0,0,64,0.0,64
+polybench,doitgen::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir,386e057083bbcfb73e6485e0175845bb736e431caab34e34aa3234d376f5593d,syntactic,1,ok,0,827.315304428339,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::add_zero_rhs-syntactic-bq87a8pj.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  total: 0 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir,4628,0,3,0,409.81676056981087,3,66496,0.012058764696121216,0.1553744077682495,0,0,0,0,[],0,0,38,0.0,38
+polybench,doitgen::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir,386e057083bbcfb73e6485e0175845bb736e431caab34e34aa3234d376f5593d,egglog,1,ok,0,912.1896028518677,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::add_zero_rhs-egglog-38u3q9t2.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir ==
+  match          body#[0, 1, 2]  cublasDgemv_T_zero
+  total: 1 matched / 1 bodies
+",0,[],9,38,52,18,68,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_rhs.mlir,4628,8,3,3,435.75774133205414,0,70828,18.97476613521576,114.49752748012543,10,10,0,184,"[{""body_indices"": [0, 1, 2], ""symbol"": ""cublasDgemv_T_zero""}]",1,0,0,2.7936697006225586,10
+polybench,doitgen::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir,710ea274271f0a357c97b4a33a0db37368eea65337587c4d2355df40d2cf5c8a,egglog,1,ok,0,874.8153299093246,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::add_zero_lhs-egglog-6b4ypjr3.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir ==
+  match          body#[0, 1, 2]  cublasDgemv_T_zero
+  total: 1 matched / 1 bodies
+",0,[],9,38,52,18,68,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir,4628,8,3,3,440.7455623149872,0,70556,11.94857433438301,108.34012553095818,10,10,0,184,"[{""body_indices"": [0, 1, 2], ""symbol"": ""cublasDgemv_T_zero""}]",1,0,0,2.533845603466034,10
+polybench,doitgen::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir,710ea274271f0a357c97b4a33a0db37368eea65337587c4d2355df40d2cf5c8a,syntactic,1,ok,0,889.9432718753815,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::add_zero_lhs-syntactic-e211lqe4.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  total: 0 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__add_zero_lhs.mlir,4628,0,3,0,411.0101982951164,3,66496,0.009804964065551758,0.15492364764213562,0,0,0,0,[],0,0,38,0.0,38
+polybench,doitgen::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir,88ee4893ffbfc11ba32b8f07382c51de1141cac6c417886a2919095d117d4cfa,syntactic,1,ok,0,887.1114403009415,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::mul_one_rhs-syntactic-mt54r3jq.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  total: 0 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir,4622,0,3,0,429.9308471381664,3,66592,0.009112060070037842,0.10570883750915527,0,0,0,0,[],0,0,38,0.0,38
+polybench,doitgen::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir,88ee4893ffbfc11ba32b8f07382c51de1141cac6c417886a2919095d117d4cfa,egglog,1,ok,0,945.7699507474899,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::mul_one_rhs-egglog-5b8x5xjv.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir ==
+  match          body#[0, 1, 2]  cublasDgemv_T_zero
+  total: 1 matched / 1 bodies
+",0,[],9,50,62,14,84,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_rhs.mlir,4622,8,3,3,484.9273972213268,0,70784,20.717062056064606,150.9905345737934,10,10,0,232,"[{""body_indices"": [0, 1, 2], ""symbol"": ""cublasDgemv_T_zero""}]",1,0,0,3.823179751634598,10
+polybench,doitgen::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir,78dbb63f80477dc48375bd519a69271ed67ea6934d8ce9be3ed37a981fad9762,egglog,1,ok,0,929.4676296412945,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::mul_one_lhs-egglog-3qt2zk00.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir ==
+  match          body#[0, 1, 2]  cublasDgemv_T_zero
+  total: 1 matched / 1 bodies
+",0,[],9,50,62,14,84,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir,4622,8,3,3,455.15718683600426,0,70488,14.774128794670105,119.03252825140953,10,10,0,232,"[{""body_indices"": [0, 1, 2], ""symbol"": ""cublasDgemv_T_zero""}]",1,0,0,2.976801246404648,10
+polybench,doitgen::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir,78dbb63f80477dc48375bd519a69271ed67ea6934d8ce9be3ed37a981fad9762,syntactic,1,ok,0,883.4654241800308,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-doitgen::mul_one_lhs-syntactic-_5e_ct5z.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  total: 0 matched / 3 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/doitgen__mul_one_lhs.mlir,4622,0,3,0,406.0169830918312,3,66560,0.009860843420028687,0.10339543223381042,0,0,0,0,[],0,0,38,0.0,38
+polybench,gemm::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir,f49bd253863b55760fef8d72e9d80cd9878db7f45ccfd5049b7c04da7946d892,syntactic,1,ok,0,837.965190410614,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_add-syntactic-0r052oxm.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir ==
+  match          body#[0]  cublasDgeam_scale2D
+  no_match       body#1  ?
+  total: 1 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir,3149,0,2,1,395.48154175281525,1,66036,0.021960586309432983,0.19256025552749634,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDgeam_scale2D""}]",1,0,18,0.0,18
+polybench,gemm::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir,f49bd253863b55760fef8d72e9d80cd9878db7f45ccfd5049b7c04da7946d892,egglog,1,ok,0,762.6190334558487,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_add-egglog-k6_0sjlt.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],12,24,36,21,42,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add.mlir,3149,8,2,2,330.8160938322544,0,70424,13.035804033279419,24.729419499635696,2,4,0,48,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,0.7500872015953064,6
+polybench,gemm::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir,c97ebe76bbf1478ab4c88ac091abcc151e12a8767db36353517081f985de8a67,egglog,1,ok,0,796.7383302748203,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_mul-egglog-5bszlacl.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],12,34,44,21,54,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir,3149,8,2,2,355.87451606988907,0,70412,12.49314472079277,45.58307304978371,4,4,0,54,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.3219751417636871,6
+polybench,gemm::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir,c97ebe76bbf1478ab4c88ac091abcc151e12a8767db36353517081f985de8a67,syntactic,1,ok,0,780.872281640768,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_mul-syntactic-16rbvwag.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir ==
+  match          body#[0]  cublasDgeam_scale2D
+  no_match       body#1  ?
+  total: 1 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_mul.mlir,3149,0,2,1,344.33016553521156,1,66028,0.023189932107925415,0.15487521886825562,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDgeam_scale2D""}]",1,0,18,0.0,18
+polybench,gemm::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir,b955a4b33857a3ec9d96a0878d77ee7fcad954f71cd536279f1b9953c69c0e23,syntactic,1,ok,0,791.7110808193684,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_add_mul-syntactic-91_udflm.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir ==
+  match          body#[0]  cublasDgeam_scale2D
+  no_match       body#1  ?
+  total: 1 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir,3149,0,2,1,364.41458761692047,1,66236,0.013791024684906006,0.12581795454025269,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDgeam_scale2D""}]",1,0,18,0.0,18
+polybench,gemm::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir,b955a4b33857a3ec9d96a0878d77ee7fcad954f71cd536279f1b9953c69c0e23,egglog,1,ok,0,803.7172704935074,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::swap_add_mul-egglog-6sjlcvrq.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],12,34,44,21,54,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__swap_add_mul.mlir,3149,8,2,2,352.5278978049755,0,70220,11.384714394807816,43.115973472595215,4,4,0,54,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.225396990776062,6
+polybench,gemm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir,15cea4ce1d11a3fffc306b469ee56b20a3b0d260a04cc101d4ce576bc925bef5,egglog,1,ok,0,814.5218715071678,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::add_zero_rhs-egglog-96_pdve3.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],14,42,68,30,82,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir,3445,8,2,2,371.39326333999634,0,70444,12.621358036994934,49.04117435216904,4,4,0,180,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.474909484386444,6
+polybench,gemm::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir,15cea4ce1d11a3fffc306b469ee56b20a3b0d260a04cc101d4ce576bc925bef5,syntactic,1,ok,0,821.2664052844048,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::add_zero_rhs-syntactic-xzd6y9o2.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_rhs.mlir,3445,0,2,0,378.4510903060436,2,66452,0.008124858140945435,0.07782131433486938,0,0,0,0,[],0,0,22,0.0,22
+polybench,gemm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir,612bcdabff368eb22a5c4774e217eb7542d1293cf0f7d0a55141da774bbc3e7b,syntactic,1,ok,0,876.6076751053333,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::add_zero_lhs-syntactic-k02wguu9.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir,3445,0,2,0,392.0915722846985,2,66504,0.00903010368347168,0.08509308099746704,0,0,0,0,[],0,0,22,0.0,22
+polybench,gemm::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir,612bcdabff368eb22a5c4774e217eb7542d1293cf0f7d0a55141da774bbc3e7b,egglog,1,ok,0,845.1681770384312,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::add_zero_lhs-egglog-79ykhdie.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],14,42,68,30,82,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__add_zero_lhs.mlir,3445,8,2,2,402.48508378863335,0,70556,12.904573231935501,48.47079515457153,4,4,0,180,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.4300979673862457,6
+polybench,gemm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir,ffe0dce07671df59747891da232c122f06849fa165751271c1c477c74df977c0,egglog,1,ok,0,847.5034609436989,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::mul_one_rhs-egglog-voj96s5d.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],14,42,68,26,82,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir,3441,8,2,2,371.96023762226105,0,70372,15.86349681019783,50.86531490087509,4,4,0,180,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.514378935098648,6
+polybench,gemm::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir,ffe0dce07671df59747891da232c122f06849fa165751271c1c477c74df977c0,syntactic,1,ok,0,837.620060890913,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::mul_one_rhs-syntactic-w9i8eu8m.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_rhs.mlir,3441,0,2,0,385.1957321166992,2,66256,0.00813603401184082,0.07238611578941345,0,0,0,0,[],0,0,22,0.0,22
+polybench,gemm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir,8f5113f083ace515d1f07256260a8e43e37106a09d302c3649269c3df247f6f0,syntactic,1,ok,0,947.168730199337,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::mul_one_lhs-syntactic-0wd8u013.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir,3441,0,2,0,385.89465618133545,2,66492,0.011526048183441162,0.09093433618545532,0,0,0,0,[],0,0,22,0.0,22
+polybench,gemm::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir,8f5113f083ace515d1f07256260a8e43e37106a09d302c3649269c3df247f6f0,egglog,1,ok,0,1008.5704922676086,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemm::mul_one_lhs-egglog-rxf6ti49.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir ==
+  match          body#[0, 1]  cublasDgemm
+  total: 1 matched / 1 bodies
+",0,[],14,42,68,26,82,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemm__mul_one_lhs.mlir,3441,8,2,2,495.5126382410526,0,70328,13.488713651895523,49.84211176633835,4,4,0,180,"[{""body_indices"": [0, 1], ""symbol"": ""cublasDgemm""}]",1,0,0,1.6810335218906403,6
+polybench,gemver::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir,cece0d9a9acfefb43fbd7478c924d3cd20a91a2b0a64569d3a6d40ab85c6aae4,egglog,1,ok,0,1019.6338556706905,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_add-egglog-id5kzpye.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],15,90,134,25,158,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir,5642,8,4,4,481.826726347208,0,70620,17.20128208398819,99.8845063149929,8,8,0,220,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.245905041694641,16
+polybench,gemver::swap_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir,cece0d9a9acfefb43fbd7478c924d3cd20a91a2b0a64569d3a6d40ab85c6aae4,syntactic,1,ok,0,858.6966618895531,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_add-syntactic-ypmzw448.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir ==
+  match          body#[0]  cublasDger_rank2
+  no_match       body#1  ?
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 2 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add.mlir,5642,0,4,2,412.3292453587055,2,66384,0.01769140362739563,0.2291165292263031,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",2,0,20,0.0,20
+polybench,gemver::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir,8b89a8bdf4525932bab33a61972200191dc498a81954bde2b8d243323a8e00c9,syntactic,1,ok,0,865.9711480140686,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_mul-syntactic-zdavt9kr.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  no_match       body#1  ?
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 2 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir,5642,0,4,2,413.7760177254677,2,66336,0.017367303371429443,0.237341970205307,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",2,0,20,0.0,20
+polybench,gemver::swap_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir,8b89a8bdf4525932bab33a61972200191dc498a81954bde2b8d243323a8e00c9,egglog,1,ok,0,968.0862911045551,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_mul-egglog-5xgzw371.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],15,90,134,25,158,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_mul.mlir,5642,8,4,4,510.73795557022095,0,70548,16.56586304306984,111.34407296776772,8,8,0,220,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.4061484038829803,16
+polybench,gemver::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir,6e569a0ba1d33f3839ebf547c43fa5a51cda7c842fa4cae82a47c41eed23cbde,egglog,1,ok,0,1056.1732091009617,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_add_mul-egglog-ai031c9m.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],15,90,134,25,158,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir,5642,8,4,4,565.3104595839977,0,70608,18.10353249311447,109.03288424015045,8,8,0,224,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.7042051553726196,16
+polybench,gemver::swap_add_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir,6e569a0ba1d33f3839ebf547c43fa5a51cda7c842fa4cae82a47c41eed23cbde,syntactic,1,ok,0,935.5745315551758,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::swap_add_mul-syntactic-42muvgqf.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  no_match       body#1  ?
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 2 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__swap_add_mul.mlir,5642,0,4,2,425.2414107322693,2,66636,0.0215284526348114,0.26497989892959595,0,4,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",2,0,20,0.0,20
+polybench,gemver::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir,852ad3f050e2f5f5c6160cc4232136411614f8be396f5c7d18d5dbc41daaba06,syntactic,1,ok,0,1001.3486593961716,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::add_zero_rhs-syntactic-jldur6mp.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir,6234,0,4,0,511.97105646133423,4,66680,0.014010816812515259,0.27531757950782776,0,0,0,0,[],0,0,34,0.0,34
+polybench,gemver::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir,852ad3f050e2f5f5c6160cc4232136411614f8be396f5c7d18d5dbc41daaba06,egglog,1,ok,0,967.6388688385487,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::add_zero_rhs-egglog-r5o4db1u.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],17,106,214,42,246,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_rhs.mlir,6234,8,4,4,508.16911831498146,0,71216,13.825532048940659,98.26609492301941,8,8,0,690,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.3344700932502747,16
+polybench,gemver::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir,da4d67e37f5df01df18df4628e1c38a69c9c440fe3e848d88da09a05886cc918,egglog,1,ok,0,954.4654972851276,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::add_zero_lhs-egglog-ygxopnkw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],17,106,214,42,246,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir,6234,8,4,4,511.63678243756294,0,71120,16.26795157790184,97.66862913966179,8,8,0,676,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.332272171974182,16
+polybench,gemver::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir,da4d67e37f5df01df18df4628e1c38a69c9c440fe3e848d88da09a05886cc918,syntactic,1,ok,0,1031.995479017496,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::add_zero_lhs-syntactic-n2856do7.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__add_zero_lhs.mlir,6234,0,4,0,572.899304330349,4,66776,0.01757591962814331,0.2978183329105377,0,0,0,0,[],0,0,34,0.0,34
+polybench,gemver::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir,08d5a2a40095e23c7eee1986bb9461e1457c179ca1cad729e4a80629c3ad7de4,syntactic,1,ok,0,1008.412953466177,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::mul_one_rhs-syntactic-hhxr2iv2.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir,6226,0,4,0,506.2098167836666,4,66704,0.004608184099197388,0.0927858054637909,0,0,0,0,[],0,0,34,0.0,34
+polybench,gemver::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir,08d5a2a40095e23c7eee1986bb9461e1457c179ca1cad729e4a80629c3ad7de4,egglog,1,ok,0,1007.4051879346371,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::mul_one_rhs-egglog-_a1usaml.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],17,102,162,30,192,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_rhs.mlir,6226,8,4,4,520.9992304444313,0,70888,16.520418226718903,96.55478969216347,8,8,0,354,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,2.9761679470539093,16
+polybench,gemver::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir,6d3814dbd7e7676e73167d366d67e2835148a3556515d0af6cb59d653a667ffe,egglog,1,ok,0,1038.2934622466564,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::mul_one_lhs-egglog-c2b_pwrm.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],17,102,162,30,192,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir,6226,8,4,4,561.9287714362144,0,71004,13.222817331552505,100.26761144399643,8,8,0,354,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.169715404510498,16
+polybench,gemver::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir,6d3814dbd7e7676e73167d366d67e2835148a3556515d0af6cb59d653a667ffe,syntactic,1,ok,0,913.8141870498657,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::mul_one_lhs-syntactic-96apxynd.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  total: 0 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__mul_one_lhs.mlir,6226,0,4,0,481.7332625389099,4,66732,0.0037141144275665283,0.07939711213111877,0,0,0,0,[],0,0,34,0.0,34
+polybench,gemver::reassociate_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir,95c693edc84350925cda769bb3fa48c4fba0011df678a100cef65821a0efd64a,syntactic,1,ok,0,947.3971910774708,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::reassociate_add-syntactic-r1kdp3yt.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 1 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir,5717,0,4,1,483.85467752814293,3,66904,0.023845583200454712,0.3368780016899109,0,2,0,0,"[{""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",1,0,28,0.0,28
+polybench,gemver::reassociate_add,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir,95c693edc84350925cda769bb3fa48c4fba0011df678a100cef65821a0efd64a,egglog,1,ok,0,1030.2784517407417,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::reassociate_add-egglog-thxfaspw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],15,90,134,25,158,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_add.mlir,5717,8,4,4,523.7724334001541,0,70668,14.053907245397568,100.12610629200935,8,8,0,216,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,3.1834766268730164,16
+polybench,gemver::reassociate_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir,0fc0d5bdcc000e361fad1d8a6a88b7ba15940e6245f77af9d5b6b306aad59066,egglog,1,ok,0,1026.8487520515919,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::reassociate_mul-egglog-mka5vdmw.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  match          body#[3]  cublasDgemv_alpha
+  total: 4 matched / 4 bodies
+",0,[],12,36,56,21,66,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir,5718,8,4,4,476.11482441425323,0,70544,12.416470795869827,45.606404542922974,4,8,0,118,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv_alpha""}]",4,0,0,1.3841837644577026,16
+polybench,gemver::reassociate_mul,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir,0fc0d5bdcc000e361fad1d8a6a88b7ba15940e6245f77af9d5b6b306aad59066,syntactic,1,ok,0,836.0871858894825,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gemver::reassociate_mul-syntactic-8dvdjbsu.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir ==
+  match          body#[0]  cublasDger_rank2
+  match          body#[1]  cublasDgemv_alpha
+  match          body#[2]  cublasDaxpby
+  no_match       body#3  ?
+  total: 3 matched / 4 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gemver__reassociate_mul.mlir,5718,0,4,3,389.19347897171974,1,66740,0.01685693860054016,0.21066144108772278,0,6,0,0,"[{""body_indices"": [0], ""symbol"": ""cublasDger_rank2""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_alpha""}, {""body_indices"": [2], ""symbol"": ""cublasDaxpby""}]",3,0,18,0.0,18
+polybench,gesummv::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir,53797e4a349d9fc819c4c792de51b5d1b4887338b5a11674355f1c136624c6d1,syntactic,1,ok,0,1001.0315887629986,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::add_zero_rhs-syntactic-s7cct0xz.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir,5353,0,5,0,541.3079038262367,5,66944,0.020753592252731323,0.2875588834285736,0,0,0,0,[],0,0,68,0.0,68
+polybench,gesummv::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir,53797e4a349d9fc819c4c792de51b5d1b4887338b5a11674355f1c136624c6d1,egglog,1,ok,0,1400.0111296772957,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::add_zero_rhs-egglog-yo4afbn0.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv
+  match          body#[3]  cublasDgemv
+  no_match       body#4  ?
+  total: 3 matched / 5 bodies
+",0,[],9,120,168,18,216,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_rhs.mlir,5353,8,5,3,928.4843541681767,1,71496,17.595823854207993,384.5403976738453,32,32,0,584,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,10.375887155532837,46
+polybench,gesummv::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir,9b37a48e1415984cdc6debf9f7cc233994090465b7d9c2839b80d05f5e4a8109,egglog,1,ok,0,1390.8277712762356,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::add_zero_lhs-egglog-3vyyejr3.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv
+  match          body#[3]  cublasDgemv
+  no_match       body#4  ?
+  total: 3 matched / 5 bodies
+",0,[],9,120,168,18,216,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir,5353,8,5,3,922.5562699139118,1,71548,14.704015105962753,378.4332945942879,32,32,0,584,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,10.496623814105988,46
+polybench,gesummv::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir,9b37a48e1415984cdc6debf9f7cc233994090465b7d9c2839b80d05f5e4a8109,syntactic,1,ok,0,1018.5521580278873,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::add_zero_lhs-syntactic-va9xq0jf.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__add_zero_lhs.mlir,5353,0,5,0,545.3148409724236,5,66924,0.013306736946105957,0.30320510268211365,0,0,0,0,[],0,0,68,0.0,68
+polybench,gesummv::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir,b8f810af922f17e3d6c81dbda2c7237c304374a9dc182f6b0cda59fd9364d19d,syntactic,1,ok,0,1142.4703858792782,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::mul_one_rhs-syntactic-wvyj7xs6.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir,5343,0,5,0,583.8322043418884,5,66912,0.01465529203414917,0.2283826470375061,0,0,0,0,[],0,0,68,0.0,68
+polybench,gesummv::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir,b8f810af922f17e3d6c81dbda2c7237c304374a9dc182f6b0cda59fd9364d19d,egglog,1,ok,0,1291.1673001945019,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::mul_one_rhs-egglog-wy3ra3v6.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv
+  match          body#[3]  cublasDgemv
+  no_match       body#4  ?
+  total: 3 matched / 5 bodies
+",0,[],9,168,208,14,280,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_rhs.mlir,5343,8,5,3,835.6862664222717,1,71420,11.374570429325104,339.5693339407444,32,32,0,776,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,8.73178243637085,46
+polybench,gesummv::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir,93b5f29a65ce5f6de5f3f74b1d22f4e8a35d2a935c80f00d50b4f00eaddfe6c2,egglog,1,ok,0,1300.145260989666,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::mul_one_lhs-egglog-5wnf0gjm.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir ==
+  match          body#[0]  memset_zero_1D
+  contraction_init_provenance_reject body#1  cutensornetContraction2_f64
+  match          body#[2]  cublasDgemv
+  match          body#[3]  cublasDgemv
+  no_match       body#4  ?
+  total: 3 matched / 5 bodies
+",0,[],9,168,208,14,280,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir,5343,8,5,3,862.5223077833652,1,71384,15.92404767870903,365.7847084105015,32,32,0,776,"[{""body_indices"": [0], ""symbol"": ""memset_zero_1D""}, {""body_indices"": [2], ""symbol"": ""cublasDgemv""}, {""body_indices"": [3], ""symbol"": ""cublasDgemv""}]",3,0,0,9.550817310810089,46
+polybench,gesummv::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir,93b5f29a65ce5f6de5f3f74b1d22f4e8a35d2a935c80f00d50b4f00eaddfe6c2,syntactic,1,ok,0,957.4507139623165,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-gesummv::mul_one_lhs-syntactic-id46ih51.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  no_match       body#2  ?
+  no_match       body#3  ?
+  no_match       body#4  ?
+  total: 0 matched / 5 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/gesummv__mul_one_lhs.mlir,5343,0,5,0,527.5978893041611,5,66824,0.009227544069290161,0.1603551208972931,0,0,0,0,[],0,0,68,0.0,68
+polybench,mvt::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir,d097fdd759f544b674b0372facc96b4b0d47a95454d1e5dedd3559ab5dbded5c,syntactic,1,ok,0,798.1199845671654,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::add_zero_rhs-syntactic-ytsjfpq8.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir,4032,0,2,0,356.3130125403404,2,66260,0.011630356311798096,0.10810419917106628,0,0,0,0,[],0,0,16,0.0,16
+polybench,mvt::add_zero_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir,d097fdd759f544b674b0372facc96b4b0d47a95454d1e5dedd3559ab5dbded5c,egglog,1,ok,0,806.6461347043514,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::add_zero_rhs-egglog-c49ow568.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir ==
+  match          body#[0]  cublasDgemv
+  match          body#[1]  cublasDgemv_T
+  total: 2 matched / 2 bodies
+",0,[],9,36,60,18,72,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_rhs.mlir,4032,8,2,2,353.39799895882607,0,70508,12.462016195058823,45.39439454674721,4,4,0,192,"[{""body_indices"": [0], ""symbol"": ""cublasDgemv""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_T""}]",2,0,0,1.3154447078704834,4
+polybench,mvt::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir,723d58ee2bb588633c4e90fce9ba7f436e8d62050b53843c995c456e8614a5c5,egglog,1,ok,0,820.2478513121605,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::add_zero_lhs-egglog-qwmbqs63.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir ==
+  match          body#[0]  cublasDgemv
+  match          body#[1]  cublasDgemv_T
+  total: 2 matched / 2 bodies
+",0,[],9,36,60,18,72,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir,4032,8,2,2,366.981141269207,0,70272,12.429926544427872,46.81316390633583,4,4,0,192,"[{""body_indices"": [0], ""symbol"": ""cublasDgemv""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_T""}]",2,0,0,1.4296136796474457,4
+polybench,mvt::add_zero_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir,723d58ee2bb588633c4e90fce9ba7f436e8d62050b53843c995c456e8614a5c5,syntactic,1,ok,0,810.2677054703236,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::add_zero_lhs-syntactic-zj8za25h.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__add_zero_lhs.mlir,4032,0,2,0,360.3750392794609,2,66488,0.01253560185432434,0.11430308222770691,0,0,0,0,[],0,0,16,0.0,16
+polybench,mvt::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir,5b2e353bb07177d5056f7383e6b4be252a0c249815da0a5748e442c15ee21bac,syntactic,1,ok,0,958.8812775909901,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::mul_one_rhs-syntactic-8xcpq_92.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir,4028,0,2,0,513.8193070888519,2,66424,0.004038214683532715,0.04938989877700806,0,0,0,0,[],0,0,16,0.0,16
+polybench,mvt::mul_one_rhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir,5b2e353bb07177d5056f7383e6b4be252a0c249815da0a5748e442c15ee21bac,egglog,1,ok,0,845.1128304004669,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::mul_one_rhs-egglog-12739nqd.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir ==
+  match          body#[0]  cublasDgemv
+  match          body#[1]  cublasDgemv_T
+  total: 2 matched / 2 bodies
+",0,[],9,36,44,14,56,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_rhs.mlir,4028,8,2,2,365.1113696396351,0,70344,13.021018356084824,49.27123337984085,4,4,0,96,"[{""body_indices"": [0], ""symbol"": ""cublasDgemv""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_T""}]",2,0,0,1.3295076787471771,4
+polybench,mvt::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir,558193fbe992ee2803310ec62d671bea88990c01e5d8318b102cc61a686aaec1,egglog,1,ok,0,1120.88318541646,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""egglog"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::mul_one_lhs-egglog-l67uyf3i.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir ==
+  match          body#[0]  cublasDgemv
+  match          body#[1]  cublasDgemv_T
+  total: 2 matched / 2 bodies
+",0,[],9,36,44,14,56,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir,4028,8,2,2,496.4836575090885,0,70480,19.660990685224533,68.99747624993324,4,4,0,96,"[{""body_indices"": [0], ""symbol"": ""cublasDgemv""}, {""body_indices"": [1], ""symbol"": ""cublasDgemv_T""}]",2,0,0,2.038676291704178,4
+polybench,mvt::mul_one_lhs,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir,558193fbe992ee2803310ec62d671bea88990c01e5d8318b102cc61a686aaec1,syntactic,1,ok,0,813.4356290102005,0,"[""/usr/bin/python3"", ""/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir"", ""--dry-run"", ""--matcher-mode"", ""syntactic"", ""--telemetry-json"", ""/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/egraph_diagnostic/polybench-mvt::mul_one_lhs-syntactic-679h73qr.json"", ""--disable-semantic-fallback"", ""--collect-egraph-sizes""]","== match report for /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir ==
+  no_match       body#0  ?
+  no_match       body#1  ?
+  total: 0 matched / 2 bodies
+",0,[],0,0,,0,0,/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/mvt__mul_one_lhs.mlir,4028,0,2,0,369.83947455883026,2,66504,0.012703239917755127,0.04746392369270325,0,0,0,0,[],0,0,16,0.0,16
