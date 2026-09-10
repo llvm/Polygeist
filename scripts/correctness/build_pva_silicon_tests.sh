@@ -9,6 +9,7 @@ OUT_DIR="${1:?usage: build_pva_silicon_tests.sh OUT_DIR}"
 : "${CUPVA_SDK_ROOT:?set CUPVA_SDK_ROOT to the build-time CUPVA headers}"
 : "${PVA_LIB_STAGE:?set PVA_LIB_STAGE to staged AArch64 PVA libraries}"
 CUDA_CROSS="${POLYGEIST_CUDA_CROSS_ROOT:-/usr/local/cuda-12.6/targets/sbsa-linux}"
+PVA_TARGET_RPATH="${POLYGEIST_PVA_TARGET_RPATH:-/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia}"
 mkdir -p "$OUT_DIR"
 
 OPERATOR_INC="$PVASOL_ROOT/public/src/operator/include"
@@ -25,7 +26,7 @@ aarch64-linux-gnu-gcc -O2 -std=gnu11 -Wall -Wextra -Werror \
 aarch64-linux-gnu-gcc "$OUT_DIR/dtype_matrix.o" "$OUT_DIR/pva_rt.o" \
   -L"$PVA_LIB_STAGE" -L"$CUDA_CROSS/lib" -Wl,--allow-shlib-undefined \
   -lpva_operator -lnvcv_types -lcupva_host -lcudart -lm -lpthread -ldl \
-  -Wl,-rpath,/home/nvidia/pva-solutions-2.9/lib:/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia \
+  "-Wl,-rpath,$PVA_TARGET_RPATH" \
   -o "$OUT_DIR/pva_dtype_matrix"
 
 export POLYGEIST_ABI_BACKEND=pva

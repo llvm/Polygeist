@@ -48,24 +48,24 @@ module {
       %a8: memref<?xi8>, %b8: memref<?xi8>,
       %a16: memref<?xi16>, %b16: memref<?xi16>,
       %hist: memref<256xi32>) {
-    kernel.launch @pvaBoxFilter_3x3_u8(%h, %w, %a8, %b8) : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaBoxFilter_3x3_s8(%h, %w, %a8, %b8) : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaBoxFilter_3x3_u16(%h, %w, %a16, %b16) : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaBoxFilter_3x3_s16(%h, %w, %a16, %b16) : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaGaussianFilter_3x3_u8(%h, %w, %sr, %ss, %a8, %b8) : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaGaussianFilter_3x3_s8(%h, %w, %sr, %ss, %a8, %b8) : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaGaussianFilter_3x3_u16(%h, %w, %sr, %ss, %a16, %b16) : (i32, i32, f32, f32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaGaussianFilter_3x3_s16(%h, %w, %sr, %ss, %a16, %b16) : (i32, i32, f32, f32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaMorphologyDilate_3x3_u8(%h, %w, %a8, %b8) : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaMorphologyDilate_3x3_s8(%h, %w, %a8, %b8) : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaMorphologyDilate_3x3_u16(%h, %w, %a16, %b16) : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaMorphologyDilate_3x3_s16(%h, %w, %a16, %b16) : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
-    kernel.launch @pvaBilateralFilter_3x3_u8(%h, %w, %sr, %ss, %a8, %b8) : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
-    kernel.launch @pvaImageHistogram_256_u8_u32(%h, %w, %a8, %hist) : (i32, i32, memref<?xi8>, memref<256xi32>) -> ()
-    kernel.launch @pvaImageHistogram_256_u8_s32(%h, %w, %a8, %hist) : (i32, i32, memref<?xi8>, memref<256xi32>) -> ()
-    kernel.launch @pvaImageHistogram_256_u16_u32(%h, %w, %a16, %hist) : (i32, i32, memref<?xi16>, memref<256xi32>) -> ()
-    kernel.launch @pvaImageHistogram_256_u16_s32(%h, %w, %a16, %hist) : (i32, i32, memref<?xi16>, memref<256xi32>) -> ()
-    kernel.launch @pvaHistogramEqualization_u8(%h, %w, %a8, %b8) : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaBoxFilter_3x3_u8(%h, %w, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaBoxFilter_3x3_s8(%h, %w, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaBoxFilter_3x3_u16(%h, %w, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaBoxFilter_3x3_s16(%h, %w, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaGaussianFilter_3x3_u8(%h, %w, %sr, %ss, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaGaussianFilter_3x3_s8(%h, %w, %sr, %ss, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaGaussianFilter_3x3_u16(%h, %w, %sr, %ss, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, f32, f32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaGaussianFilter_3x3_s16(%h, %w, %sr, %ss, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, f32, f32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaMorphologyDilate_3x3_u8(%h, %w, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaMorphologyDilate_3x3_s8(%h, %w, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaMorphologyDilate_3x3_u16(%h, %w, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaMorphologyDilate_3x3_s16(%h, %w, %a16, %b16) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<?xi16>) -> ()
+    kernel.launch @pvaBilateralFilter_3x3_u8(%h, %w, %sr, %ss, %a8, %b8) {polygeist.numerical_contract = "approximate", polygeist.max_abs_error_budget = 1 : i64} : (i32, i32, f32, f32, memref<?xi8>, memref<?xi8>) -> ()
+    kernel.launch @pvaImageHistogram_256_u8_u32(%h, %w, %a8, %hist) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<256xi32>) -> ()
+    kernel.launch @pvaImageHistogram_256_u8_s32(%h, %w, %a8, %hist) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<256xi32>) -> ()
+    kernel.launch @pvaImageHistogram_256_u16_u32(%h, %w, %a16, %hist) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<256xi32>) -> ()
+    kernel.launch @pvaImageHistogram_256_u16_s32(%h, %w, %a16, %hist) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi16>, memref<256xi32>) -> ()
+    kernel.launch @pvaHistogramEqualization_u8(%h, %w, %a8, %b8) {polygeist.numerical_contract = "exact"} : (i32, i32, memref<?xi8>, memref<?xi8>) -> ()
     return
   }
 }
@@ -89,3 +89,6 @@ module {
 // CHECK-DAG: call @polygeist_pva_histogram_256_u16_u32
 // CHECK-DAG: call @polygeist_pva_histogram_256_u16_s32
 // CHECK-DAG: call @polygeist_pva_histeq_u8
+// CHECK-DAG: polygeist.numerical_contract = "exact"
+// CHECK-DAG: polygeist.max_abs_error_budget = 1 : i64
+// CHECK-DAG: polygeist.numerical_contract = "approximate"

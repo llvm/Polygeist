@@ -79,6 +79,14 @@
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
 #                       correctness from matcher/ABI/runtime correctness.
+#   POLYGEIST_PVA_APPROXIMATION_BUDGETS="box-filter=1,..."
+#                       Explicitly permit selected non-bit-exact PVA image
+#                       substitutions. The default is exact-only. Each entry
+#                       is recorded as numerical-contract metadata in MLIR.
+#   POLYGEIST_PVA_HISTOGRAM_OUTPUT_TYPE=u32|s32
+#                       Choose the PVA histogram result ABI after C integer
+#                       signedness has been erased to MLIR i32. Counts must be
+#                       proven nonnegative and in range; default is u32.
 #   POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE=0|1|auto
 #                       Compatibility path for flat, complete library calls.
 #                       Lower views before debufferization; this removes the
@@ -429,6 +437,19 @@ case "$STENCIL_BACKEND" in
     ;;
 esac
 MATCHER_ARGS+=(--stencil-backend "$STENCIL_BACKEND")
+if [ -n "${POLYGEIST_PVA_HISTOGRAM_OUTPUT_TYPE:-}" ]; then
+  MATCHER_ARGS+=(--pva-histogram-output-type \
+    "$POLYGEIST_PVA_HISTOGRAM_OUTPUT_TYPE")
+  echo "         PVA histogram output ABI: ${POLYGEIST_PVA_HISTOGRAM_OUTPUT_TYPE}"
+fi
+if [ -n "${POLYGEIST_PVA_APPROXIMATION_BUDGETS:-}" ]; then
+  IFS=',' read -r -a PVA_APPROXIMATION_LIST <<< \
+    "$POLYGEIST_PVA_APPROXIMATION_BUDGETS"
+  for pva_approximation in "${PVA_APPROXIMATION_LIST[@]}"; do
+    MATCHER_ARGS+=(--pva-approximation-budget "$pva_approximation")
+  done
+  echo "         PVA approximation budgets: ${POLYGEIST_PVA_APPROXIMATION_BUDGETS}"
+fi
 if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
   MATCHER_ARGS+=(--disable-pointwise-matching)
   echo "         generic pointwise matching disabled"
@@ -843,6 +864,7 @@ else
     PVA_SOLUTIONS_ROOT="${PVASOL_ROOT:?set PVASOL_ROOT for PVA builds}"
     PVA_CUPVA_ROOT="${CUPVA_SDK_ROOT:?set CUPVA_SDK_ROOT for PVA builds}"
     PVA_STAGED_LIBS="${PVA_LIB_STAGE:?set PVA_LIB_STAGE for PVA builds}"
+    PVA_TARGET_RPATH="${POLYGEIST_PVA_TARGET_RPATH:-/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia}"
     PVA_OPERATOR_INC="$PVA_SOLUTIONS_ROOT/public/src/operator/include"
     PVA_NVCV_INC="$PVA_SOLUTIONS_ROOT/public/3rdparty/cvcuda/src/nvcv/src/include"
     for required in "$PVA_OPERATOR_INC/OpBoxFilter.h" \
@@ -860,7 +882,7 @@ else
     RT_LIBS="-L$PVA_STAGED_LIBS -L$CUDA_CROSS/lib \
              -lpva_operator -lnvcv_types -lcupva_host -lcudart \
              -lm -lpthread -ldl -Wl,--allow-shlib-undefined \
-             -Wl,-rpath,/home/nvidia/pva-solutions-2.9/lib:/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia"
+             -Wl,-rpath,$PVA_TARGET_RPATH"
     echo "         + staged PVA Solutions runtime adapter"
   fi
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then

@@ -1,0 +1,13 @@
+family,dtype,status,mismatches,max_error,tolerance_or_total
+box,u8,WITHIN_TOLERANCE,13321,1,1
+box,s8,WITHIN_TOLERANCE,22943,2,2
+box,u16,WITHIN_TOLERANCE,4339,1,1
+box,s16,WITHIN_TOLERANCE,24031,2,2
+gaussian,u8,EXACT_PASS,0,0,0
+gaussian,s8,EXACT_PASS,0,0,0
+gaussian,u16,EXACT_PASS,0,0,0
+gaussian,s16,EXACT_PASS,0,0,0
+histogram,u8_u32,EXACT_PASS,0,0,49152
+histogram,u8_s32,EXACT_PASS,0,0,49152
+histogram,u16_u32,EXACT_PASS,0,0,49152
+histogram,u16_s32,EXACT_PASS,0,0,49152

@@ -5857,8 +5857,26 @@ def _infer_exact_pva_gaussian_sigma(body: str, element_bits: int) \
     return sigma, sigma
 
 
+@dataclass(frozen=True)
+class PVAImageRegion:
+    """A structurally recognized whole-image operation and its numeric policy."""
+
+    start: int
+    end: int
+    replacement: str
+    symbol: str
+    consumed: list[int]
+    numerical_contract: str
+    approximation_key: str | None = None
+    approximation_budget: int | None = None
+    selected: bool = True
+
+
 def _render_pva_image_regions(
-        text: str, instances) -> list[tuple[int, int, str, str, list[int]]]:
+        text: str, instances,
+        approximation_budgets: dict[str, int] | None = None,
+        histogram_output_type: str = "u32",
+        ) -> list[PVAImageRegion]:
     """Recognize complete PVA image operations without consulting symbols.
 
     These are whole-function matches because the vendor ABI consumes complete
@@ -5866,7 +5884,8 @@ def _render_pva_image_regions(
     pixel signedness, neighborhood extent, and operation-specific arithmetic.
     Function names are deliberately parsed but never inspected.
     """
-    rendered: list[tuple[int, int, str, str, list[int]]] = []
+    rendered: list[PVAImageRegion] = []
+    approximation_budgets = approximation_budgets or {}
     function_re = re.compile(
         r"func\.func(?:\s+private)?\s+@[\w.$-]+\s*\(([^)]*)\)",
         re.MULTILINE)
@@ -5884,6 +5903,10 @@ def _render_pva_image_regions(
         body = text[opening + 1:function_end - 1]
 
         symbol = None
+        numerical_contract = "exact"
+        approximation_key = None
+        approximation_budget = None
+        selected = True
         operands: list[str] = []
         operand_types: list[str] = []
         prefix_lines: list[str] = []
@@ -5944,6 +5967,19 @@ def _render_pva_image_regions(
                 symbol = "pvaMorphologyDilate_3x3_" + suffix
                 operands = [value for value, _ in args]
                 operand_types = [ty for _, ty in args]
+            elif is_box:
+                # The raised source computes the symmetric rounded average
+                # (sum+4)/9. PVA instead uses distributed Q8 coefficients.
+                # Keep recognition visible, but require an explicit numeric
+                # budget before emitting this non-bit-exact replacement.
+                symbol = "pvaBoxFilter_3x3_" + suffix
+                operands = [value for value, _ in args]
+                operand_types = [ty for _, ty in args]
+                numerical_contract = "approximate"
+                approximation_key = "box-filter"
+                approximation_budget = approximation_budgets.get(
+                    approximation_key)
+                selected = approximation_budget is not None
 
         # Bilateral is U8-only in the inspected ABI. Prove the two independent
         # floating reductions, range/spatial squared distances and normalized
@@ -5958,17 +5994,28 @@ def _render_pva_image_regions(
                 "arith.divf" in body and
                 re.search(r"affine\.for\s+%[\w.$-]+\s*=\s*-1\s+to\s+2", body) and
                 re.search(r"linalg\.yield[^\n]*f32,\s*f32", body)):
-            # A structurally valid candidate, but not selectable: the vendor
-            # implementation uses cross support, Q7 weights and approximate
-            # reciprocal math, while this source proves a full 3x3 expf
-            # reduction. The measured output is not integer-exact.
-            pass
+            symbol = "pvaBilateralFilter_3x3_u8"
+            operands = [args[0][0], args[1][0], args[4][0], args[5][0],
+                        args[2][0], args[3][0]]
+            operand_types = ["i32", "i32", "f32", "f32",
+                             "memref<?xi8>", "memref<?xi8>"]
+            numerical_contract = "approximate"
+            approximation_key = "bilateral-filter"
+            approximation_budget = approximation_budgets.get(
+                approximation_key)
+            selected = approximation_budget is not None
 
         # A complete zero-fill plus indirect unit increment is an overwrite
         # histogram. U8 maps directly to 256 bins. This route chooses U32,
         # whose nonnegative bit representation is also valid for an S32 C
         # destination over the PVA-supported image-size range.
-        histogram_types = ["i32", "i32", "memref<?xi8>", "memref<256xi32>"]
+        histogram_input = (
+            "u8" if len(args) == 4 and args[2][1] == "memref<?xi8>" else
+            "u16" if len(args) == 4 and args[2][1] == "memref<?xi16>" else
+            None)
+        histogram_types = ["i32", "i32",
+                           f"memref<?xi{'8' if histogram_input == 'u8' else '16'}>",
+                           "memref<256xi32>"] if histogram_input else []
         is_histogram = bool(
             [ty for _, ty in args] == histogram_types and
             body.count("linalg.generic") == 1 and body.count("affine.for") == 2 and
@@ -5977,11 +6024,15 @@ def _render_pva_image_regions(
             re.search(r"arith\.constant\s+256\s*:\s*index", body) and
             re.search(r"arith\.constant\s+0\s*:\s*i32", body) and
             re.search(r"arith\.constant\s+1\s*:\s*i32", body) and
+            (histogram_input == "u8" or
+             (re.search(r"arith\.shr(?:u|s)i", body) and
+              re.search(r"arith\.constant\s+8\s*:\s*i32", body))) and
             (("memref.load" in body and "memref.store" in body) or
              ("tensor.extract" in body and "tensor.insert" in body)) and
             body.count("arith.addi") == 1)
         if is_histogram:
-            symbol = "pvaImageHistogram_256_u8_u32"
+            symbol = (f"pvaImageHistogram_256_{histogram_input}_"
+                      f"{histogram_output_type}")
             operands = [value for value, _ in args]
             operand_types = [ty for _, ty in args]
 
@@ -5999,9 +6050,14 @@ def _render_pva_image_regions(
                 body.count("memref<256xi32>") >= 2 and
                 'iterator_types = ["reduction"]' in body):
             # PVA uses a quantized Q15 scale; the source uses integer division.
-            # The two are close but not integer-exact, so this remains a
-            # candidate and is deliberately not emitted as a replacement.
-            pass
+            symbol = "pvaHistogramEqualization_u8"
+            operands = [value for value, _ in args]
+            operand_types = [ty for _, ty in args]
+            numerical_contract = "approximate"
+            approximation_key = "histogram-equalization"
+            approximation_budget = approximation_budgets.get(
+                approximation_key)
+            selected = approximation_budget is not None
 
         if symbol is None or symbol not in ABI_LOWERABLE_KERNELS:
             continue
@@ -6010,14 +6066,23 @@ def _render_pva_image_regions(
                            function.start()]).group(0)
         body_indent = indent + "  "
         prefix = "".join(f"{body_indent}{line}\n" for line in prefix_lines)
+        contract_attrs = (
+            ' {polygeist.numerical_contract = "exact"}'
+            if numerical_contract == "exact" else
+            ' {polygeist.numerical_contract = "approximate", '
+            f'polygeist.max_abs_error_budget = {approximation_budget} : i64}}'
+            if selected else "")
         replacement = (
-            f"\n{prefix}{body_indent}kernel.launch @{symbol}({', '.join(operands)}) : "
+            f"\n{prefix}{body_indent}kernel.launch @{symbol}({', '.join(operands)})"
+            f"{contract_attrs} : "
             f"({', '.join(operand_types)}) -> ()\n"
             f"{body_indent}return\n{indent}")
         consumed = [i for i, inst in enumerate(instances)
                     if opening < inst.span[0] and inst.span[1] < function_end]
-        rendered.append((opening + 1, function_end - 1, replacement, symbol,
-                         consumed))
+        rendered.append(PVAImageRegion(
+            opening + 1, function_end - 1, replacement, symbol, consumed,
+            numerical_contract, approximation_key, approximation_budget,
+            selected))
     return rendered
 
 
@@ -6542,6 +6607,8 @@ def rewrite_mlir(
     show_structured_regions: bool = False,
     enable_structured_rewrite: bool = False,
     stencil_backend: str = "cudnn",
+    pva_approximation_budgets: dict[str, int] | None = None,
+    pva_histogram_output_type: str = "u32",
     disabled_kernels: set[str] | None = None,
     only_kernels: set[str] | None = None,
 ) -> tuple[str, list[tuple]]:
@@ -6657,17 +6724,33 @@ def rewrite_mlir(
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
     if enable_structured_rewrite:
-        for start, end, replacement, symbol, consumed in \
-                _render_pva_image_regions(text, instances):
+        for pva_region in _render_pva_image_regions(
+                text, instances, pva_approximation_budgets,
+                pva_histogram_output_type):
+            symbol = pva_region.symbol
+            consumed = pva_region.consumed
+            contract_detail = (
+                f"numerics=exact"
+                if pva_region.numerical_contract == "exact" else
+                f"numerics=approximate,budget={pva_region.approximation_budget}"
+            )
+            if not pva_region.selected:
+                report.append((
+                    "pva_approx_reject", consumed,
+                    f"{symbol}[requires --pva-approximation-budget "
+                    f"{pva_region.approximation_key}=N]"))
+                continue
             if symbol in disabled_kernels or (only_kernels is not None and
                                                symbol not in only_kernels):
                 continue
             if max_launches is not None and emitted_launches >= max_launches:
                 report.append(("launch_limit", consumed, symbol))
                 continue
-            edits.append((start, end, replacement))
+            edits.append((pva_region.start, pva_region.end,
+                          pva_region.replacement))
             consumed_structured_bodies.update(consumed)
-            report.append(("match", consumed, symbol + "[whole-image-operation]"))
+            report.append(("match", consumed, symbol +
+                           f"[whole-image-operation,{contract_detail}]"))
             emitted_launches += 1
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):
             if max_launches is not None and emitted_launches >= max_launches:
@@ -12433,6 +12516,20 @@ def main():
                     default="cudnn",
                     help=("Select the external backend for compatible packed "
                           "2D weighted stencils (default: cudnn)."))
+    ap.add_argument(
+        "--pva-approximation-budget", action="append", default=[],
+        metavar="OP=MAX_ABS_ERROR",
+        help=("Explicitly authorize a structurally recognized, non-bit-exact "
+              "PVA image replacement. OP is box-filter, bilateral-filter, "
+              "or histogram-equalization. The budget is recorded in the "
+              "kernel.launch IR; it is not inferred from function names. "
+              "May be repeated. Exact matching remains the default."))
+    ap.add_argument(
+        "--pva-histogram-output-type", choices=("u32", "s32"),
+        default="u32",
+        help=("Select the PVA ImageHistogram output ABI when raised MLIR has "
+              "lost C signedness. Both represent the same proven nonnegative "
+              "counts; the default is u32."))
     ap.add_argument("--matcher-mode", choices=("egglog", "syntactic"),
                     default="egglog",
                     help=("Scalar-expression acceptance engine. 'syntactic' "
@@ -12445,6 +12542,22 @@ def main():
                     help=("Serialize completed e-graphs to count nodes and "
                           "classes. Use for telemetry runs, not timing runs."))
     args = ap.parse_args()
+
+    valid_pva_approximation_keys = {
+        "box-filter", "bilateral-filter", "histogram-equalization"
+    }
+    pva_approximation_budgets: dict[str, int] = {}
+    for specification in args.pva_approximation_budget:
+        try:
+            operation, raw_budget = specification.split("=", 1)
+            budget = int(raw_budget)
+        except ValueError:
+            ap.error("--pva-approximation-budget requires OP=MAX_ABS_ERROR")
+        if operation not in valid_pva_approximation_keys:
+            ap.error(f"unknown PVA approximate operation: {operation}")
+        if budget < 0:
+            ap.error("PVA max-absolute-error budgets must be nonnegative")
+        pva_approximation_budgets[operation] = budget
 
     configure_matcher(
         args.matcher_mode,
@@ -12464,6 +12577,8 @@ def main():
         show_structured_regions=args.show_structured_regions,
         enable_structured_rewrite=args.enable_structured_rewrite,
         stencil_backend=args.stencil_backend,
+        pva_approximation_budgets=pva_approximation_budgets,
+        pva_histogram_output_type=args.pva_histogram_output_type,
         disabled_kernels=set(args.disable_kernel),
         only_kernels=(set(args.only_kernel)
                       if args.only_kernel is not None else None),
@@ -12490,6 +12605,8 @@ def main():
             "matched_linalg_bodies": len(matched_body_indices),
             "candidate_matches": sum(
                 1 for k, _, _ in report if k == "kernel_candidate"),
+            "pva_approximate_rejections": sum(
+                1 for k, _, _ in report if k == "pva_approx_reject"),
             "no_matches": sum(1 for k, _, _ in report if k == "no_match"),
             "selected": [
                 {"body_indices": idx, "symbol": name}
@@ -12517,7 +12634,7 @@ def main():
             1 for k, _, _ in report
             if k not in ("kernel_candidate", "semantic_debug",
                          "structured_fusion", "structured_reject",
-                         "residual_idiom_candidate")
+                         "residual_idiom_candidate", "pva_approx_reject")
         )
         print(f"  total: {matched} matched / {total} bodies", file=sys.stderr)
         if candidates:
