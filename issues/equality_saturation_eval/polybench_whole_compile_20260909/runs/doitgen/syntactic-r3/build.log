@@ -1,0 +1,14 @@
+[polygeist] input=/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen/doitgen.c  function=kernel_doitgen  target=jetson  output=/home/arjaiswal/Polygeist-polybench-compile-study/issues/equality_saturation_eval/polybench_whole_compile_20260909/runs/doitgen/syntactic-r3/doitgen.aarch64
+[polygeist] harness=/home/arjaiswal/Polygeist-polybench-compile-study/issues/equality_saturation_eval/polybench_whole_compile_20260909/runs/doitgen/syntactic-r3/link_harness.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen -Dstatic=__attribute__((noipa)) -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + lower-submap + debufferize
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 2 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+ERROR: cuTensorNet network composition failed; see /tmp/tmp.P0jBQIsots/compose_cutensornet.err
+/tmp/tmp.P0jBQIsots/with_defns.mlir:2656:9: error: 'kernel.launch' op incorrect number of operands for kernel
+        kernel.launch @cublasSgemv_alpha_memref(%subview_0, %subview, %reinterpret_cast) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?xf64, strided<[1], offset: ?>>, memref<?xf64>) -> ()
+        ^
+/tmp/tmp.P0jBQIsots/with_defns.mlir:2656:9: note: see current operation: "kernel.launch"(%5, %4, %6) <{kernel = @cublasSgemv_alpha_memref}> : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?xf64, strided<[1], offset: ?>>, memref<?xf64>) -> ()

@@ -1,0 +1,51 @@
+{
+  "candidate_matches": 0,
+  "candidates": [],
+  "egraph_classes_max": 0,
+  "egraph_classes_sum": 0,
+  "egraph_nodes_max": 0,
+  "egraph_nodes_sum": 0,
+  "input": "/tmp/tmp.3TIiSRBKQ7/linalg.mlir",
+  "input_bytes": 5794,
+  "iteration_limit": 0,
+  "linalg_bodies": 6,
+  "matched_linalg_bodies": 6,
+  "matcher_elapsed_ms": 541.2472561001778,
+  "mode": "syntactic",
+  "no_matches": 0,
+  "peak_rss_kib": 71272,
+  "proof_elapsed_max_ms": 0.013634562492370605,
+  "proof_elapsed_ms": 0.22328272461891174,
+  "proofs_attempted": 0,
+  "proofs_matched": 34,
+  "proofs_over_10s": 0,
+  "rule_matches": 0,
+  "selected": [
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "symbol": "cublasDgemm_simple"
+    },
+    {
+      "body_indices": [
+        2,
+        3
+      ],
+      "symbol": "cublasDgemm_simple"
+    },
+    {
+      "body_indices": [
+        4,
+        5
+      ],
+      "symbol": "cublasDgemm_simple"
+    }
+  ],
+  "selected_matches": 3,
+  "syntactic_comparisons": 0,
+  "syntactic_unifications": 40,
+  "telemetry_elapsed_ms": 0.0,
+  "template_attempts": 40
+}

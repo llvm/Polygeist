@@ -264,6 +264,10 @@ EQUALITY_SATURATION_CAMPAIGN_DIR = (
 EQUALITY_SATURATION_EGRAPH_DIR = (
     EQUALITY_SATURATION_RESULTS_DIR / "egraph_benefit_20260908"
 )
+BUILD_TIME_RESULTS_DIR = env_path(
+    "POLYGEIST_BUILD_TIME_RESULTS_DIR",
+    EQUALITY_SATURATION_RESULTS_DIR / "polybench_whole_compile_20260909",
+)
 GINSBACH_SUMMARY = env_path(
     "POLYGEIST_GINSBACH_SUMMARY",
     REPO_ROOT / "issues/ginsbach_asplos18/program_summary_2026-09-05.csv",
@@ -9230,6 +9234,187 @@ def _saturation_paper_study_page() -> str:
         'summary</a></span></div></div>')
 
 
+def write_build_time_artifact_link() -> None:
+    """Expose raw whole-compilation measurements from the viewer."""
+    artifact_link = OUTPUT_DIR / "build_time_artifacts"
+    if artifact_link.is_symlink():
+        if artifact_link.resolve() != BUILD_TIME_RESULTS_DIR.resolve():
+            artifact_link.unlink()
+            artifact_link.symlink_to(
+                BUILD_TIME_RESULTS_DIR, target_is_directory=True)
+    elif not artifact_link.exists():
+        artifact_link.symlink_to(
+            BUILD_TIME_RESULTS_DIR, target_is_directory=True)
+
+
+def refresh_build_time_viewer_links() -> None:
+    """Add Build Time navigation to an existing generated viewer."""
+    old_nav = '<a href="saturation-paper.html">Saturation paper study</a>'
+    new_nav = old_nav + ' &middot; <a href="build-time.html">Build time</a>'
+    for page in OUTPUT_DIR.glob("*.html"):
+        text = page.read_text()
+        if "build-time.html" not in text and old_nav in text:
+            page.write_text(text.replace(old_nav, new_nav, 1))
+
+    index_path = OUTPUT_DIR / "index.html"
+    if not index_path.is_file():
+        return
+    text = index_path.read_text()
+    card_href = '<a class="suite-card" href="build-time.html">'
+    if card_href in text:
+        return
+    card = (
+        card_href + '<b>Build time</b><span>30 PolyBench kernels</span>'
+        '<small>Five Egglog and five exact-syntax source-to-AArch64 builds: '
+        'whole compilation time, matcher cost, peak memory, coverage, and '
+        'failures.</small></a>')
+    marker = '</div><a name="taxonomy"></a>'
+    if marker not in text:
+        print("warning: could not add build-time landing card", file=sys.stderr)
+        return
+    index_path.write_text(text.replace(marker, card + marker, 1))
+
+
+def _build_time_page() -> str:
+    """Render the PolyBench whole-compilation cost campaign."""
+    summary_path = BUILD_TIME_RESULTS_DIR / "summary.json"
+    kernels_path = BUILD_TIME_RESULTS_DIR / "per_kernel.csv"
+    metadata_path = BUILD_TIME_RESULTS_DIR / "metadata.json"
+    if not summary_path.is_file() or not kernels_path.is_file():
+        return (
+            '<div class="section-header"><h2 class="section-title">'
+            'Build time</h2></div>'
+            '<div class="intro paper-provisional"><b>Build-time artifacts '
+            'are unavailable.</b> Run the PolyBench compilation-cost campaign '
+            'and regenerate this page.</div>')
+
+    summary = json.loads(summary_path.read_text())
+    metadata = (json.loads(metadata_path.read_text())
+                if metadata_path.is_file() else {})
+    rows = _read_csv(kernels_path)
+    egg = summary["mode_summary"]["egglog"]
+    syntax = summary["mode_summary"]["syntactic"]
+    delta = summary["paired_egglog_minus_syntactic"]
+    artifacts = "build_time_artifacts"
+
+    metrics = "".join((
+        '<div class="audit-metric"><b>300</b><span>sequential build attempts</span></div>',
+        f'<div class="audit-metric"><b>{summary["successful_kernels_both_modes"]}/30</b>'
+        '<span>kernels linked in both modes</span></div>',
+        f'<div class="audit-metric"><b>{egg["wall_median_seconds"]:.2f} s</b>'
+        '<span>Egglog median whole build</span></div>',
+        f'<div class="audit-metric"><b>{syntax["wall_median_seconds"]:.2f} s</b>'
+        '<span>syntax median whole build</span></div>',
+        f'<div class="audit-metric"><b>{delta["matcher_median_ms"]:+.1f} ms</b>'
+        '<span>paired Egglog matcher overhead</span></div>',
+        f'<div class="audit-metric"><b>{egg["peak_rss_median_kib"] / 1024:.1f} MiB</b>'
+        '<span>median build peak RSS</span></div>',
+    ))
+
+    def number(row: dict, key: str):
+        value = row.get(key, "")
+        return None if value in ("", None, "None") else float(value)
+
+    def cell(value, suffix="", digits=2):
+        if value is None:
+            return '<td data-sort="inf"><span class="none">failed</span></td>'
+        return (f'<td data-sort="{value}">{value:,.{digits}f}'
+                f'{html.escape(suffix)}</td>')
+
+    table_rows = []
+    for row in rows:
+        egg_ok = int(row["egglog_ok"])
+        syntax_ok = int(row["syntactic_ok"])
+        failed = egg_ok != 5 or syntax_ok != 5
+        status = (f'<span class="result-status fail">failed {egg_ok}/5, '
+                  f'{syntax_ok}/5</span>' if failed else
+                  '<span class="result-status pass">5/5 both</span>')
+        egg_matches = number(row, "egglog_selected_matches_median")
+        syntax_matches = number(row, "syntactic_selected_matches_median")
+        table_rows.append(
+            f'<tr class="{"build-failed" if failed else ""}">'
+            f'<td data-sort="{html.escape(row["kernel"])}"><code>'
+            f'{html.escape(row["kernel"])}</code></td>'
+            f'<td data-sort="{0 if failed else 1}">{status}</td>'
+            + cell(number(row, "egglog_wall_median_seconds"), " s")
+            + cell(number(row, "syntactic_wall_median_seconds"), " s")
+            + cell(number(row, "paired_wall_delta_seconds"), " s", 3)
+            + cell((number(row, "egglog_peak_rss_median_kib") or 0) / 1024
+                   if number(row, "egglog_peak_rss_median_kib") is not None else None,
+                   " MiB", 1)
+            + cell((number(row, "syntactic_peak_rss_median_kib") or 0) / 1024
+                   if number(row, "syntactic_peak_rss_median_kib") is not None else None,
+                   " MiB", 1)
+            + cell(number(row, "egglog_matcher_median_ms"), " ms", 1)
+            + cell(number(row, "syntactic_matcher_median_ms"), " ms", 1)
+            + cell(egg_matches, "", 0)
+            + cell(syntax_matches, "", 0)
+            + '</tr>')
+
+    load = metadata.get("load_average_at_campaign_start", [])
+    load_text = ", ".join(f"{float(value):.2f}" for value in load) or "unavailable"
+    failed_names = ", ".join(summary["failed_kernels_both_modes"])
+    return (
+        '<div class="section-header"><h2 class="section-title">Build time</h2></div>'
+        '<div class="intro"><b>Whole source-to-executable compilation is '
+        'effectively unchanged by equality saturation at suite scale.</b> '
+        'Across 115 successful same-kernel, same-repetition pairs, the median '
+        f'Egglog minus syntax delta is {delta["total_wall_median_seconds"]:+.3f} s '
+        f'and the mean is {delta["total_wall_mean_seconds"]:+.3f} s. '
+        'The matcher itself costs tens of milliseconds more, but compiling the '
+        'runtime shim and completing the downstream toolchain dominate the '
+        'roughly eight-second build.</div>'
+        f'<div class="audit-metrics">{metrics}</div>'
+        '<div class="intro paper-provisional"><b>Measurement boundary.</b> '
+        'LARGE/FP64 PolyBench/C, five fresh Egglog and five exact-syntax builds '
+        'per kernel, alternating arm order, one build process at a time. Both '
+        'arms disable the handwritten semantic fallback. Total time covers '
+        'cgeist through final AArch64 linking. The generic link harness retains '
+        'the transformed symbol but does not execute it, so this page makes no '
+        'runtime-correctness claim.</div>'
+        '<div class="section-header"><h3 class="section-title">Per-kernel results</h3></div>'
+        '<div class="intro">Click a column heading to sort. Wall time and peak '
+        'RSS are medians of the five successful builds. Delta is Egglog minus '
+        'syntax; positive values mean Egglog took longer.</div>'
+        '<div class="table-wrap"><table id="build-time-table" '
+        'class="audit-table paper-family"><thead><tr>'
+        '<th>kernel</th><th>build status</th><th>Egglog wall</th>'
+        '<th>syntax wall</th><th>wall delta</th><th>Egglog RSS</th>'
+        '<th>syntax RSS</th><th>Egglog matcher</th><th>syntax matcher</th>'
+        '<th>Egglog launches</th><th>syntax launches</th>'
+        '</tr></thead><tbody>' + ''.join(table_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Coverage and failures</h3></div>'
+        '<div class="intro">Egglog selected 32 launches per complete suite '
+        'versus 29 for exact syntax: one additional <code>2mm</code> launch and '
+        'two additional <code>gemver</code> launches. Seven kernels failed in '
+        f'both modes after matching: <code>{html.escape(failed_names)}</code>. '
+        'These are retained downstream ABI/IR validation failures, not timeouts, '
+        'and are excluded from successful whole-build timing comparisons.</div>'
+        '<div class="section-header"><h3 class="section-title">Environment and artifacts</h3></div>'
+        f'<div class="intro">Pinned worktree commit: <code>{html.escape(metadata.get("git_head", "unknown"))}</code>. '
+        f'Host: <code>{html.escape(metadata.get("host", "unknown"))}</code>, '
+        f'{metadata.get("logical_cpu_count", "?")} logical CPUs; campaign-start '
+        f'load averages: {html.escape(load_text)}. Because the host was not idle, '
+        'these should be labelled loaded-host measurements. No individual '
+        'Egglog proof exceeded 23 ms.</div>'
+        '<div class="paper-notes">'
+        f'<div><b>Report</b><span><a href="{artifacts}/SUMMARY.md">method and interpretation</a></span></div>'
+        f'<div><b>Tables</b><span><a href="{artifacts}/runs.csv">300 raw runs</a> &middot; '
+        f'<a href="{artifacts}/per_kernel.csv">per-kernel CSV</a> &middot; '
+        f'<a href="{artifacts}/summary.json">summary JSON</a></span></div>'
+        f'<div><b>Provenance</b><span><a href="{artifacts}/metadata.json">compiler, source, '
+        'manifest, parameters, and hashes</a></span></div></div>'
+        '<script>(function(){const t=document.getElementById("build-time-table");'
+        'if(!t)return;let col=-1,asc=true;[...t.tHead.rows[0].cells].forEach((h,i)=>{'
+        'h.tabIndex=0;h.addEventListener("click",()=>{asc=col===i?!asc:true;col=i;'
+        'const rows=[...t.tBodies[0].rows];rows.sort((a,b)=>{let x=a.cells[i].dataset.sort||'
+        'a.cells[i].textContent.trim(),y=b.cells[i].dataset.sort||b.cells[i].textContent.trim();'
+        'const nx=Number(x),ny=Number(y);let c=Number.isNaN(nx)||Number.isNaN(ny)?'
+        'x.localeCompare(y):nx-ny;return asc?c:-c;});rows.forEach(r=>t.tBodies[0].appendChild(r));'
+        '});h.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();h.click();}});'
+        '});})();</script>')
+
+
 def build_site_pages(polybench_stats: dict[str, dict],
                      aten_stats: dict[str, dict],
                      mfem_stats: list[dict],
@@ -9416,7 +9601,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
             '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
             '<a href="llama-paper.html">Llama paper analysis</a> &middot; '
-            '<a href="saturation-paper.html">Saturation paper study</a>'
+            '<a href="saturation-paper.html">Saturation paper study</a> &middot; '
+            '<a href="build-time.html">Build time</a>'
             '</div></div>'
         )
 
@@ -9451,6 +9637,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'font-size:10px; font-weight:bold; text-transform:uppercase; background:#eee; } '
         '.result-status.pass { background:#dff5e5; color:#176b35; } '
         '.result-status.fail,.result-status.partial { background:#ffe2e2; color:#8a1c1c; } '
+        '.build-failed { background:#fff7f7; } '
         '.result-status.blocked { background:#fff0c2; color:#745600; } '
         '.scope { font-size:10px; color:#666; } '
         '.paper-matrix { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); '
@@ -9608,6 +9795,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
         + card("saturation-paper.html", "Saturation paper study",
                687,
                "Egglog versus exact syntax: match coverage, paired compilation/matching cost, memory, e-graph diagnostics, and timeouts.")
+        + card("build-time.html", "Build time", 30,
+               "Five Egglog and five exact-syntax whole builds per PolyBench kernel, with time, memory, coverage, and failures.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
                "103/103 units raised; CG currently emits 8 external-library calls, with scope-labelled silicon evidence.")
         + card("ai.html", "AI kernels",
@@ -9631,6 +9820,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
     )
     llama_paper = nav() + _llama_paper_analysis_page()
     saturation_paper = nav() + _saturation_paper_study_page()
+    build_time = nav() + _build_time_page()
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -9677,6 +9867,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "saturation-paper.html": render_html(
             "Polygeist: saturation paper study", saturation_paper, extra_css
         ),
+        "build-time.html": render_html(
+            "Polygeist: build time", build_time, extra_css
+        ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
         ),
@@ -9703,6 +9896,7 @@ def main():
     ginsbach_only = "--ginsbach-only" in sys.argv[1:]
     pva_only = "--pva-only" in sys.argv[1:]
     saturation_only = "--saturation-only" in sys.argv[1:]
+    build_time_only = "--build-time-only" in sys.argv[1:]
     unknown_args = [
         arg for arg in sys.argv[1:]
         if arg not in (
@@ -9712,15 +9906,26 @@ def main():
             "--ginsbach-only",
             "--pva-only",
             "--saturation-only",
+            "--build-time-only",
         )
     ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
     if sum((paper_analysis_only, mfem_only, aten_only, polybench_only,
             polybench_results_only, ginsbach_only, pva_only,
-            saturation_only)) > 1:
+            saturation_only, build_time_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if build_time_only:
+        pages = build_site_pages(
+            {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("build-time.html").write_text(
+            pages["build-time.html"])
+        write_build_time_artifact_link()
+        refresh_build_time_viewer_links()
+        print(f"Done. Open {OUTPUT_DIR}/build-time.html.")
+        return
     if saturation_only:
         pages = build_site_pages(
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
@@ -9736,15 +9941,18 @@ def main():
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
         write_equality_saturation_artifact_link()
+        write_build_time_artifact_link()
         for page in ("polybench-paper.html", "aten-paper.html",
-                     "llama-paper.html", "saturation-paper.html"):
+                     "llama-paper.html", "saturation-paper.html",
+                     "build-time.html"):
             OUTPUT_DIR.joinpath(page).write_text(pages[page])
         print(
             "Done. Open "
             f"{OUTPUT_DIR}/polybench-paper.html, "
             f"{OUTPUT_DIR}/aten-paper.html, or "
             f"{OUTPUT_DIR}/llama-paper.html, or "
-            f"{OUTPUT_DIR}/saturation-paper.html."
+            f"{OUTPUT_DIR}/saturation-paper.html, or "
+            f"{OUTPUT_DIR}/build-time.html."
         )
         return
     if pva_only:
@@ -10138,6 +10346,7 @@ def main():
     write_mfem_artifact_link()
     write_polybench_results_page()
     write_equality_saturation_artifact_link()
+    write_build_time_artifact_link()
     for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
         OUTPUT_DIR.joinpath(obsolete).unlink(missing_ok=True)
     print(f"\nWrote {len(pages)} explorer pages.")
