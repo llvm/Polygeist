@@ -8,8 +8,9 @@
 // for validation, cuBLAS-backed for hardware) to produce an executable.
 //
 // SUPPORTED LIBRARY SYMBOLS (extend by adding to `kLowerings`):
-//   @cublasDgemm  →  polygeist_cublas_dgemm(M, N, K, alpha, A, lda, B, ldb,
-//                                              beta, C, ldc)
+//   @cublasDgemm  →  polygeist_cublas_dgemm_transpose(
+//                           M, N, K, transA, transB, alpha, A, lda, B, ldb,
+//                           beta, C, ldc)
 //
 // EXPECTED INPUT IR:
 //   `kernel.launch` ops live in TENSOR form (the matcher emits them in
@@ -1033,6 +1034,24 @@ static Value dimForTensorOrMemrefAsI32(OpBuilder &b, Location loc, Value v,
   return memrefDimAsI32(b, loc, mr, axis);
 }
 
+// Return the physical row stride used as a row-major BLAS leading dimension.
+// tensor.extract_slice preserves its parent's physical strides, so deriving
+// lda/ldb/ldc from logical dimensions is incorrect for an interior slice.
+// BLAS cannot represent a non-unit innermost stride; reject such layouts.
+static FailureOr<Value> rowMajorLeadingDim(OpBuilder &b, Location loc,
+                                           Value memref) {
+  auto type = dyn_cast<MemRefType>(memref.getType());
+  if (!type || type.getRank() != 2)
+    return failure();
+  int64_t offset;
+  SmallVector<int64_t> staticStrides;
+  if (failed(getStridesAndOffset(type, staticStrides, offset)) ||
+      staticStrides.size() != 2 || staticStrides[1] != 1)
+    return failure();
+  auto metadata = b.create<memref::ExtractStridedMetadataOp>(loc, memref);
+  return valueAsI32(b, loc, metadata.getStrides()[0]);
+}
+
 // Bufferize a tensor value, preserving extract_slice views as memref.subview.
 // This avoids handing dynamic tensor.extract_slice / tensor.insert_slice to
 // one-shot-bufferize after the launch has already been lowered to a call.
@@ -1393,9 +1412,9 @@ static LogicalResult lowerSyrk(LaunchOp launch, ModuleOp module,
 //   %B_mr = bufferization.to_memref %B
 //   %C_mr = bufferization.to_memref %C
 //   %M, %N, %K, %lda, %ldb, %ldc = ... (i32 dim queries)
-//   func.call @polygeist_cublas_dgemm(%M, %N, %K, %alpha,
-//                                        %A_mr, %lda, %B_mr, %ldb,
-//                                        %beta, %C_mr, %ldc)
+//   func.call @polygeist_cublas_dgemm_transpose(
+//       %M, %N, %K, %transA, %transB, %alpha,
+//       %A_ptr, %lda, %B_ptr, %ldb, %beta, %C_ptr, %ldc)
 //   %out = bufferization.to_tensor %C_mr restrict writable
 //   replaceAllUsesWith(launch.getResult(0), %out)
 static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
@@ -1437,44 +1456,55 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
 
   // Bufferize tensors → memrefs (whose ABI carries the data pointer when
   // lowered to LLVM). Do this BEFORE dim queries so we can use memref.dim.
-  Value A_mr = tensorToMemref(b, loc, A);
-  Value B_mr = tensorToMemref(b, loc, B);
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value B_mr = valueToMemrefPreservingSlice(b, loc, B);
   Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
 
-  // Materialise dim queries on the memrefs (static shape → arith.constant,
-  // dynamic shape → memref.dim).
-  Value M = memrefDimAsI32(b, loc, A_mr, 0);
-  Value K = memrefDimAsI32(b, loc, A_mr, 1);
-  Value N = memrefDimAsI32(b, loc, B_mr, 1);
-  // Row-major leading dims: lda = K, ldb = N, ldc = N.
-  Value lda = K;
-  Value ldb = N;
-  Value ldc = N;
+  auto transAAttr = launch->getAttrOfType<BoolAttr>("polygeist.gemm_trans_a");
+  auto transBAttr = launch->getAttrOfType<BoolAttr>("polygeist.gemm_trans_b");
+  if (static_cast<bool>(transAAttr) != static_cast<bool>(transBAttr))
+    return launch.emitError(
+        "cublasDgemm lowering: transpose attributes must appear together");
+  bool transA = transAAttr && transAAttr.getValue();
+  bool transB = transBAttr && transBAttr.getValue();
+  Value M = memrefDimAsI32(b, loc, C_mr, 0);
+  Value N = memrefDimAsI32(b, loc, C_mr, 1);
+  Value K = memrefDimAsI32(b, loc, A_mr, transA ? 0 : 1);
+  FailureOr<Value> lda = rowMajorLeadingDim(b, loc, A_mr);
+  FailureOr<Value> ldb = rowMajorLeadingDim(b, loc, B_mr);
+  FailureOr<Value> ldc = rowMajorLeadingDim(b, loc, C_mr);
+  if (failed(lda) || failed(ldb) || failed(ldc))
+    return launch.emitError(
+        "cublasDgemm lowering: matrices must have unit innermost stride");
+  Value transAVal = b.create<arith::ConstantIntOp>(loc, transA, 32);
+  Value transBVal = b.create<arith::ConstantIntOp>(loc, transB, 32);
 
   // CRITICAL: do NOT pass memrefs to the C shim — MLIR's --convert-func-to-llvm
   // would expand each memref into 7 LLVM args (alloc-ptr, aligned-ptr, offset,
   // sizes×2, strides×2), but the C shim signature is (M,N,K,alpha,A*,lda,...)
   // with one pointer per matrix. The reg/stack layouts would not match and the
   // shim would read garbage. Extract raw `!llvm.ptr` and pass those.
-  Value A_ptr = memrefBasePtr(b, loc, A_mr);
-  Value B_ptr = memrefBasePtr(b, loc, B_mr);
-  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+  Value A_ptr = memrefDataPtr(b, loc, A_mr);
+  Value B_ptr = memrefDataPtr(b, loc, B_mr);
+  Value C_ptr = memrefDataPtr(b, loc, C_mr);
 
   // Forward-declare the shim function with raw-pointer arg types.
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(), b.getI32Type(),  // M, N, K
+      b.getI32Type(), b.getI32Type(),                  // transA, transB
       b.getF64Type(),                                   // alpha
       ptrTy, b.getI32Type(),                            // A*, lda
       ptrTy, b.getI32Type(),                            // B*, ldb
       b.getF64Type(),                                   // beta
       ptrTy, b.getI32Type(),                            // C*, ldc
   };
-  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemm",
-                                       argTypes, b);
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_dgemm_transpose", argTypes, b);
 
-  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, lda, B_ptr, ldb,
-                                     beta, C_ptr, ldc};
+  SmallVector<Value> callOperands = {M, N, K, transAVal, transBVal, alpha,
+                                     A_ptr, *lda, B_ptr, *ldb, beta, C_ptr,
+                                     *ldc};
   b.create<func::CallOp>(loc, shim, callOperands);
 
   // Recover the result tensor SSA from C_mr (C was updated in place).
@@ -1542,35 +1572,52 @@ static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
     return launch.emitError(variant)
            << " lowering: only f64 supported";
 
-  Value A_mr = tensorToMemref(b, loc, A);
-  Value B_mr = tensorToMemref(b, loc, B);
-  Value C_mr = tensorToMemref(b, loc, C);
-  Value M = memrefDimAsI32(b, loc, A_mr, 0);
-  Value K = memrefDimAsI32(b, loc, A_mr, 1);
-  Value N = memrefDimAsI32(b, loc, B_mr, 1);
-  Value A_ptr = memrefBasePtr(b, loc, A_mr);
-  Value B_ptr = memrefBasePtr(b, loc, B_mr);
-  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value B_mr = valueToMemrefPreservingSlice(b, loc, B);
+  Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
+  auto transAAttr = launch->getAttrOfType<BoolAttr>("polygeist.gemm_trans_a");
+  auto transBAttr = launch->getAttrOfType<BoolAttr>("polygeist.gemm_trans_b");
+  if (static_cast<bool>(transAAttr) != static_cast<bool>(transBAttr))
+    return launch.emitError(variant)
+           << " lowering: transpose attributes must appear together";
+  bool transA = transAAttr && transAAttr.getValue();
+  bool transB = transBAttr && transBAttr.getValue();
+  Value M = memrefDimAsI32(b, loc, C_mr, 0);
+  Value N = memrefDimAsI32(b, loc, C_mr, 1);
+  Value K = memrefDimAsI32(b, loc, A_mr, transA ? 0 : 1);
+  FailureOr<Value> lda = rowMajorLeadingDim(b, loc, A_mr);
+  FailureOr<Value> ldb = rowMajorLeadingDim(b, loc, B_mr);
+  FailureOr<Value> ldc = rowMajorLeadingDim(b, loc, C_mr);
+  if (failed(lda) || failed(ldb) || failed(ldc))
+    return launch.emitError(variant)
+           << " lowering: matrices must have unit innermost stride";
+  Value transAVal = b.create<arith::ConstantIntOp>(loc, transA, 32);
+  Value transBVal = b.create<arith::ConstantIntOp>(loc, transB, 32);
+  Value A_ptr = memrefDataPtr(b, loc, A_mr);
+  Value B_ptr = memrefDataPtr(b, loc, B_mr);
+  Value C_ptr = memrefDataPtr(b, loc, C_mr);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getI32Type(), b.getI32Type(),
       b.getF64Type(),
       ptrTy, b.getI32Type(),
       ptrTy, b.getI32Type(),
       b.getF64Type(),
       ptrTy, b.getI32Type(),
   };
-  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemm",
-                                       argTypes, b);
-  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, K /*lda*/,
-                                     B_ptr, N /*ldb*/, beta, C_ptr,
-                                     N /*ldc*/};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cublas_dgemm_transpose", argTypes, b);
+  SmallVector<Value> callOperands = {M, N, K, transAVal, transBVal, alpha,
+                                     A_ptr, *lda, B_ptr, *ldb, beta, C_ptr,
+                                     *ldc};
   b.create<func::CallOp>(loc, shim, callOperands);
 
   Value resultTensor = memrefToTensor(b, loc, C_mr,
                                        launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(resultTensor);
+  rewireTensorSliceLaunchResult(
+      launch, resultTensor, tensorForOutputSliceSource(b, loc, C));
   launch.erase();
   return success();
 }
@@ -1610,15 +1657,18 @@ static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
-  Value A_mr = tensorToMemref(b, loc, A);
-  Value B_mr = tensorToMemref(b, loc, B);
-  Value C_mr = tensorToMemref(b, loc, C);
+  Value A_mr = valueToMemrefPreservingSlice(b, loc, A);
+  Value B_mr = valueToMemrefPreservingSlice(b, loc, B);
+  Value C_mr = valueToOutputMemrefPreservingSlice(b, loc, C);
   Value M = memrefDimAsI32(b, loc, C_mr, 0);
   Value N = memrefDimAsI32(b, loc, C_mr, 1);
   Value K = memrefDimAsI32(b, loc, A_mr, transA ? 0 : 1);
-  Value lda = memrefDimAsI32(b, loc, A_mr, 1);
-  Value ldb = memrefDimAsI32(b, loc, B_mr, 1);
-  Value ldc = memrefDimAsI32(b, loc, C_mr, 1);
+  FailureOr<Value> lda = rowMajorLeadingDim(b, loc, A_mr);
+  FailureOr<Value> ldb = rowMajorLeadingDim(b, loc, B_mr);
+  FailureOr<Value> ldc = rowMajorLeadingDim(b, loc, C_mr);
+  if (failed(lda) || failed(ldb) || failed(ldc))
+    return launch.emitError(variant)
+           << ": matrices must have unit innermost stride";
   Value transAVal = b.create<arith::ConstantIntOp>(loc, transA, 32);
   Value transBVal = b.create<arith::ConstantIntOp>(loc, transB, 32);
   Value one = b.create<arith::ConstantOp>(loc, b.getF32Type(),
@@ -1651,10 +1701,11 @@ static LogicalResult lowerSgemmTranspose(LaunchOp launch, ModuleOp module,
   func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{
       M, N, K, transAVal, transBVal, alpha,
-      memrefBasePtr(b, loc, A_mr), lda, memrefBasePtr(b, loc, B_mr), ldb,
-      beta, memrefBasePtr(b, loc, C_mr), ldc});
+      memrefDataPtr(b, loc, A_mr), *lda, memrefDataPtr(b, loc, B_mr), *ldb,
+      beta, memrefDataPtr(b, loc, C_mr), *ldc});
   Value out = memrefToTensor(b, loc, C_mr, launch.getResult(0).getType());
-  launch.getResult(0).replaceAllUsesWith(out);
+  rewireTensorSliceLaunchResult(
+      launch, out, tensorForOutputSliceSource(b, loc, C));
   launch.erase();
   return success();
 }

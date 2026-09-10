@@ -2679,6 +2679,51 @@ void polygeist_cublas_dgemm(
   unregister_host_safe(C);
 }
 
+void polygeist_cublas_dgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta,
+    double *C, int32_t ldc) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+
+  int32_t aRows = transA ? K : M;
+  int32_t aCols = transA ? M : K;
+  int32_t bRows = transB ? N : K;
+  int32_t bCols = transB ? K : N;
+  size_t elements_A = aRows > 0 && aCols > 0
+      ? (size_t)(aRows - 1) * (size_t)lda + (size_t)aCols : 0;
+  size_t elements_B = bRows > 0 && bCols > 0
+      ? (size_t)(bRows - 1) * (size_t)ldb + (size_t)bCols : 0;
+  size_t elements_C = M > 0 && N > 0
+      ? (size_t)(M - 1) * (size_t)ldc + (size_t)N : 0;
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {elements_A * sizeof(double),
+                     elements_B * sizeof(double),
+                     elements_C * sizeof(double)};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  double *dA = (double *)devices[0];
+  double *dB = (double *)devices[1];
+  double *dC = (double *)devices[2];
+
+  timing_gpu_begin();
+  // Row-major C=op(A)op(B) becomes column-major C^T=op(B)^T op(A)^T.
+  CUBLAS_CHECK(cublasDgemm(
+      g_handle,
+      transB ? CUBLAS_OP_T : CUBLAS_OP_N,
+      transA ? CUBLAS_OP_T : CUBLAS_OP_N,
+      N, M, K, &alpha, dB, ldb, dA, lda, &beta, dC, ldc));
+  timing_gpu_end("cublasDgemm", M, N, K, host_start_ms);
+
+  unregister_host_safe((void *)A);
+  unregister_host_safe((void *)B);
+  unregister_host_safe(C);
+}
+
 void polygeist_cublas_dsyrk_lower(
     int32_t N, int32_t K, double alpha,
     const double *A, int32_t lda,
@@ -2868,13 +2913,24 @@ void polygeist_cublas_sgemm_transpose(
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
   int32_t aRows = transA ? K : M;
+  int32_t aCols = transA ? M : K;
   int32_t bRows = transB ? N : K;
-  size_t bytes_A = (size_t)aRows * (size_t)lda * sizeof(float);
-  size_t bytes_B = (size_t)bRows * (size_t)ldb * sizeof(float);
-  size_t bytes_C = (size_t)M * (size_t)ldc * sizeof(float);
-  float *dA = (float *)register_host_safe((void *)A, bytes_A);
-  float *dB = (float *)register_host_safe((void *)B, bytes_B);
-  float *dC = (float *)register_host_safe(C, bytes_C);
+  int32_t bCols = transB ? K : N;
+  size_t elements_A = aRows > 0 && aCols > 0
+      ? (size_t)(aRows - 1) * (size_t)lda + (size_t)aCols : 0;
+  size_t elements_B = bRows > 0 && bCols > 0
+      ? (size_t)(bRows - 1) * (size_t)ldb + (size_t)bCols : 0;
+  size_t elements_C = M > 0 && N > 0
+      ? (size_t)(M - 1) * (size_t)ldc + (size_t)N : 0;
+  void *hosts[3] = {(void *)A, (void *)B, C};
+  size_t sizes[3] = {elements_A * sizeof(float),
+                     elements_B * sizeof(float),
+                     elements_C * sizeof(float)};
+  void *devices[3];
+  register_host_operands_safe(hosts, sizes, devices, 3);
+  float *dA = (float *)devices[0];
+  float *dB = (float *)devices[1];
+  float *dC = (float *)devices[2];
   timing_gpu_begin();
   // Row-major C=op(A)op(B) becomes column-major C^T=op(B)^T op(A)^T.
   // PEDANTIC makes this the strict-FP32 control for the explicit FAST_TF32

@@ -160,6 +160,18 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc);
 
+// Row-major DGEMM with independently transposed inputs. transA/transB are
+// boolean integers; lda/ldb/ldc are physical row strides and may exceed the
+// logical widths when an operand is a slice of a larger allocation.
+void polygeist_cublas_dgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta,
+    double *C, int32_t ldc);
+
 // FP64 symmetric rank-k updates of the lower triangle, row-major:
 //   SYRK:  C = alpha * A * A^T + beta * C
 //   SYR2K: C = alpha * (A * B^T + B * A^T) + beta * C
