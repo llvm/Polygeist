@@ -1,0 +1,36 @@
+Traceback (most recent call last):
+  File "/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py", line 12336, in <module>
+    main()
+  File "/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py", line 12254, in main
+    text = Path(args.input).read_text()
+  File "/usr/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/usr/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: 'issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__reassociate_add.mlir'
+Command exited with non-zero status 1
+variant=reassociate_add mode=egglog wall=0.60 rss=66312
+Traceback (most recent call last):
+  File "/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py", line 12336, in <module>
+    main()
+  File "/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py", line 12254, in main
+    text = Path(args.input).read_text()
+  File "/usr/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/usr/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: 'issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__reassociate_add.mlir'
+Command exited with non-zero status 1
+variant=reassociate_add mode=syntactic wall=0.52 rss=66760
+== match report for issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__reassociate_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+variant=reassociate_mul mode=egglog wall=0.91 rss=71172
+== match report for issues/equality_saturation_eval/polybench_variants_20260909/inputs/2mm__reassociate_mul.mlir ==
+  match          body#[0]  memset_zero_2D
+  match          body#[1]  cublasDgemm_alpha_only
+  match          body#[2, 3]  cublasDgemm
+  total: 3 matched / 3 bodies
+variant=reassociate_mul mode=syntactic wall=0.94 rss=66416
