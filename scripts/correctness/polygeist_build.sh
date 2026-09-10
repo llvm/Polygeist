@@ -79,6 +79,14 @@
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
 #                       correctness from matcher/ABI/runtime correctness.
+#   POLYGEIST_MATCHER_MODE=egglog|syntactic
+#                       Select the scalar-expression acceptance engine.
+#   POLYGEIST_MATCHER_DISABLE_SEMANTIC_FALLBACK=1
+#                       Disable the handwritten semantic-tree fallback in both
+#                       ablation arms so their difference is attributable to
+#                       equality saturation.
+#   POLYGEIST_MATCHER_TELEMETRY_JSON=/path/to/file.json
+#                       Retain matcher timing and resource telemetry.
 #   POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE=0|1|auto
 #                       Compatibility path for flat, complete library calls.
 #                       Lower views before debufferization; this removes the
@@ -414,6 +422,21 @@ echo "  [3/9] matcher: linalg.generic → kernel.launch"
 # loop-carried idioms such as the source-faithful Parboil SGEMM, MG stencils,
 # histograms, and sparse matrix-vector products before ABI lowering.
 MATCHER_ARGS=(--enable-structured-rewrite)
+MATCHER_MODE=${POLYGEIST_MATCHER_MODE:-egglog}
+case "$MATCHER_MODE" in
+  egglog|syntactic) ;;
+  *)
+    echo "ERROR: POLYGEIST_MATCHER_MODE must be egglog or syntactic" >&2
+    exit 1
+    ;;
+esac
+MATCHER_ARGS+=(--matcher-mode "$MATCHER_MODE")
+if [ "${POLYGEIST_MATCHER_DISABLE_SEMANTIC_FALLBACK:-0}" != "0" ]; then
+  MATCHER_ARGS+=(--disable-semantic-fallback)
+fi
+if [ -n "${POLYGEIST_MATCHER_TELEMETRY_JSON:-}" ]; then
+  MATCHER_ARGS+=(--telemetry-json "$POLYGEIST_MATCHER_TELEMETRY_JSON")
+fi
 case "$STENCIL_BACKEND" in
   cudnn|custen) ;;
   *)

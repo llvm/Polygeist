@@ -1,0 +1,51 @@
+{
+  "all_attempts_wall_sum_seconds": 1987.9000000000003,
+  "failed_kernels_both_modes": [
+    "adi",
+    "atax",
+    "bicg",
+    "doitgen",
+    "gemver",
+    "gesummv",
+    "mvt"
+  ],
+  "mode_summary": {
+    "egglog": {
+      "failed_full_builds": 35,
+      "matcher_median_ms": 454.98957484960556,
+      "peak_rss_max_kib": 158000,
+      "peak_rss_median_kib": 157808,
+      "runs": 150,
+      "selected_matches_sum": 160,
+      "successful_full_builds": 115,
+      "wall_median_seconds": 8.22,
+      "wall_sum_seconds": 950.3599999999994
+    },
+    "syntactic": {
+      "failed_full_builds": 35,
+      "matcher_median_ms": 424.32890087366104,
+      "peak_rss_max_kib": 157964,
+      "peak_rss_median_kib": 157800,
+      "runs": 150,
+      "selected_matches_sum": 145,
+      "successful_full_builds": 115,
+      "wall_median_seconds": 8.22,
+      "wall_sum_seconds": 949.2899999999998
+    }
+  },
+  "paired_egglog_minus_syntactic": {
+    "matcher_median_ms": 26.820529252290726,
+    "peak_rss_median_kib": 16,
+    "total_wall_mean_seconds": 0.009304347826086998,
+    "total_wall_median_seconds": -0.009999999999999787
+  },
+  "scheduled_runs": 300,
+  "schema": 1,
+  "status_counts": {
+    "error": 70,
+    "ok": 230
+  },
+  "successful_kernel_mode_pairs": 115,
+  "successful_kernels_both_modes": 23,
+  "unique_run_identities": 300
+}
