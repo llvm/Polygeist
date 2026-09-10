@@ -3306,7 +3306,7 @@ def _aten_section42_paper_page() -> str:
         )
 
     paper_artifacts = "aten_paper_analysis_artifacts"
-    figure_name = "aten_gpu_native_vs_raised_42.pdf"
+    figure_name = "aten_gpu_native_vs_raised_44.pdf"
     figure_url = f"{paper_artifacts}/{figure_name}"
     competitive_figure = (
         '<div class="paper-chart-wrap"><h4>'
@@ -3318,28 +3318,58 @@ def _aten_section42_paper_page() -> str:
         '</object><div class="intro">Logarithmic axes; synchronized resident '
         'wall time in µs; minimum of five samples after five warmups. The solid '
         'line is parity and the dashed line is the 1.6× competitive boundary. '
-        f'<a href="{paper_artifacts}/aten_gpu_competitive_42.csv">Source CSV</a> '
-        f'· <a href="{paper_artifacts}/aten_gpu_native_vs_raised_42.tex">'
+        f'<a href="{paper_artifacts}/aten_gpu_competitive_44.csv">Source CSV</a> '
+        f'· <a href="{paper_artifacts}/aten_gpu_native_vs_raised_44.tex">'
         'PGFPlots source</a></div></div>'
     )
-    nonpointwise_name = "aten_gpu_native_vs_raised_nonpointwise_142.pdf"
+    nonpointwise_name = "aten_gpu_native_vs_raised_nonpointwise_115.pdf"
     nonpointwise_url = f"{paper_artifacts}/{nonpointwise_name}"
     nonpointwise_figure = (
         '<div class="paper-chart-wrap"><h4>'
         'ATen non-pointwise kernels: raised GPU vs native GPU runtime</h4>'
         f'<object data="{nonpointwise_url}#view=FitH" type="application/pdf" '
         'width="100%" height="720" '
-        'aria-label="142 non-pointwise ATen raised versus native GPU runtimes">'
-        f'<p><a href="{nonpointwise_url}">Open the exact 142-kernel PDF</a></p>'
+        'aria-label="115 non-pointwise ATen raised versus native GPU runtimes">'
+        f'<p><a href="{nonpointwise_url}">Open the exact 115-kernel PDF</a></p>'
         '</object><div class="intro">Logarithmic axes; synchronized resident '
-        'wall time in µs. This coverage view prefers the current campaign: 82 '
-        'minimum-of-five measurements and 60 historical raised best-of-20 '
+        'wall time in µs. This coverage view prefers the current campaign: 58 '
+        'minimum-of-five measurements and 57 historical raised best-of-20 '
         'fallback measurements. The solid line is parity and the red dotted '
-        'line marks 2× native runtime. The arrow starts on parity and points '
+        'lines mark 2× and 0.5× native runtime. The arrow starts on parity and points '
         'into the region where the raised GPU is faster. '
-        f'<a href="{paper_artifacts}/aten_gpu_nonpointwise_142.csv">Source CSV</a> '
-        f'· <a href="{paper_artifacts}/aten_gpu_native_vs_raised_nonpointwise_142.tex">'
+        f'<a href="{paper_artifacts}/aten_gpu_nonpointwise_115.csv">Source CSV</a> '
+        f'· <a href="{paper_artifacts}/aten_gpu_native_vs_raised_nonpointwise_115.tex">'
         'PGFPlots source</a></div></div>'
+    )
+    nonpointwise_data = _read_csv(
+        ATEN_PAPER_ANALYSIS_DIR / "aten_gpu_nonpointwise_115.csv")
+    nonpointwise_table_rows = []
+    for row in nonpointwise_data:
+        source = ("current minimum of five"
+                  if row.get("timing_source") == "current Section 4.2 campaign"
+                  else "historical fallback")
+        nonpointwise_table_rows.append(
+            '<tr>'
+            f'<td>{html.escape(row.get("id", ""))}</td>'
+            f'<td><code>{html.escape(row.get("kernel", ""))}</code></td>'
+            f'<td>{html.escape(row.get("semantic_family", "").replace("_", " "))}</td>'
+            f'<td>{float(row.get("native_us", 0)):,.3f}</td>'
+            f'<td>{float(row.get("raised_us", 0)):,.3f}</td>'
+            f'<td>{float(row.get("raised_over_native", 0)):.3f}&times;</td>'
+            f'<td><code>{html.escape(row.get("raised_call", ""))}</code></td>'
+            f'<td>{source}</td>'
+            '</tr>')
+    nonpointwise_table = (
+        '<div class="intro"><b>Exact 115-kernel plot data.</b> The table and '
+        'figure are generated from the same CSV. '
+        f'<a href="{paper_artifacts}/aten_gpu_nonpointwise_115_table.tex">'
+        'LaTeX longtable</a></div>'
+        '<div class="table-wrap"><table class="audit-table paper-plot-data">'
+        '<thead><tr><th>rank</th><th>kernel</th><th>semantic family</th>'
+        '<th>Native CUDA (µs)</th><th>Raised GPU (µs)</th>'
+        '<th>raised/native</th><th>selected call</th><th>timing source</th>'
+        '</tr></thead><tbody>' + "\n".join(nonpointwise_table_rows)
+        + '</tbody></table></div>'
     )
     library_summary = _read_csv(
         ATEN_PAPER_ANALYSIS_DIR / "aten_native_library_comparison.csv")
@@ -3455,7 +3485,7 @@ def _aten_section42_paper_page() -> str:
         + "\n".join(data_rows) + '</tbody></table></div>'
         '<div class="section-header"><h3 class="section-title">'
         'Raised-GPU wins and competitive parity</h3></div>'
-        + nonpointwise_figure +
+        + nonpointwise_figure + nonpointwise_table +
         f'<div class="intro"><b>{len(competitive)} legally comparable rows have '
         'raised/native CUDA below 1.6&times; in this snapshot.</b> '
         f'{raised_winners} are raised-GPU wins and {near_parity} are within 10% '

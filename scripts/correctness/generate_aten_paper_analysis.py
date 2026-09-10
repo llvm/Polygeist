@@ -76,13 +76,13 @@ def competitive_rows() -> list[dict[str, object]]:
     rows.sort(key=lambda item: (float(item["native_us"]), str(item["kernel"])))
     for index, row in enumerate(rows, 1):
         row["id"] = index
-    if len(rows) != 42:
-        raise SystemExit(f"competitive cohort drift: expected 42, got {len(rows)}")
+    if len(rows) != 44:
+        raise SystemExit(f"competitive cohort drift: expected 44, got {len(rows)}")
     return rows
 
 
 def write_competitive_csv(rows: list[dict[str, object]]) -> None:
-    path = OUTPUT / "aten_gpu_competitive_42.csv"
+    path = OUTPUT / "aten_gpu_competitive_44.csv"
     fields = list(rows[0])
     with path.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
@@ -95,12 +95,25 @@ def nonpointwise_rows() -> list[dict[str, object]]:
     status = {row["kernel"]: row for row in read_csv(BENCHMARK_STATUS)}
     campaign = {row["kernel"]: row for row in read_csv(CAMPAIGN)}
     pure_pointwise = {"pointwise", "pointwise_formula", "pointwise_math"}
+
+    def is_pure_pointwise(route: dict[str, str]) -> bool:
+        family = route.get("semantic_family", "")
+        match = route.get("current_match", "")
+        if family in pure_pointwise:
+            return True
+        # Some formulas predate the pointwise-family split in the audit.  Only
+        # exclude these broader labels when the selected implementation itself
+        # proves that this is an elementwise graph or unary transform.
+        return (family in {"pointwise_reduction_formula",
+                           "compound_or_specialized"}
+                and (match.startswith("cudnnPointwiseGraph_")
+                     or match.startswith("cutensorUnary_")))
     rows = []
     for kernel, route in audit.items():
         if not (route.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
                 and route.get("counts_as_library_reuse") == "yes"):
             continue
-        if route.get("semantic_family") in pure_pointwise:
+        if is_pure_pointwise(route):
             continue
         current = campaign.get(kernel, {})
         if phase_ok(current, "native_gpu") and phase_ok(current, "raised"):
@@ -134,18 +147,45 @@ def nonpointwise_rows() -> list[dict[str, object]]:
     rows.sort(key=lambda item: (float(item["native_us"]), str(item["kernel"])))
     for index, row in enumerate(rows, 1):
         row["id"] = index
-    if len(rows) != 142:
-        raise SystemExit(f"non-pointwise cohort drift: expected 142, got {len(rows)}")
+    if len(rows) != 115:
+        raise SystemExit(f"non-pointwise cohort drift: expected 115, got {len(rows)}")
     return rows
 
 
 def write_nonpointwise_csv(rows: list[dict[str, object]]) -> None:
-    path = OUTPUT / "aten_gpu_nonpointwise_142.csv"
+    path = OUTPUT / "aten_gpu_nonpointwise_115.csv"
     with path.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]),
                                 lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_nonpointwise_table_tex(rows: list[dict[str, object]]) -> None:
+    lines = [
+        r"\begin{longtable}{lrrrl}",
+        r"  \caption{Per-kernel timing data for the 115 non-pointwise ATen "
+        r"kernels in Figure~\ref{fig:aten-gpu-runtime}. Times are in "
+        r"microseconds.}\label{tab:aten-nonpointwise-timings} \\",
+        r"  \toprule",
+        r"  Kernel & Native CUDA & Raised GPU & Raised/native & Source \\",
+        r"  \midrule",
+        r"  \endfirsthead",
+        r"  \toprule",
+        r"  Kernel & Native CUDA & Raised GPU & Raised/native & Source \\",
+        r"  \midrule",
+        r"  \endhead",
+    ]
+    for row in rows:
+        source = ("current min-of-five" if row["timing_source"] ==
+                  "current Section 4.2 campaign" else "historical fallback")
+        lines.append(
+            f"  {latex_escape(str(row['kernel']))} & "
+            f"{float(row['native_us']):.3f} & {float(row['raised_us']):.3f} & "
+            f'{float(row["raised_over_native"]):.3f}$\\times$ & {source} \\\\')
+    lines.extend([r"  \bottomrule", r"\end{longtable}", ""])
+    (OUTPUT / "aten_gpu_nonpointwise_115_table.tex").write_text(
+        "\n".join(lines))
 
 
 def coordinates(rows: list[dict[str, object]]) -> str:
@@ -168,8 +208,8 @@ def write_figure_tex(rows: list[dict[str, object]]) -> None:
   width=6.65in, height=5.15in,
   title={{ATen: raised GPU vs native GPU runtime}},
   title style={{font=\bfseries\normalsize}},
-  xlabel={{ATen native CUDA time ($\mu$s, min of 5)}},
-  ylabel={{Raised resident GPU time ($\mu$s, min of 5)}},
+  xlabel={{Native CUDA runtime ($\mu$s)}},
+  ylabel={{Raised GPU runtime ($\mu$s)}},
   xmin=70, xmax=10000, ymin=70, ymax=10000,
   grid=both, minor grid style={{draw=gray!12}},
   major grid style={{draw=gray!25}},
@@ -192,7 +232,7 @@ def write_figure_tex(rows: list[dict[str, object]]) -> None:
 \end{{tikzpicture}}
 \end{{document}}
 """
-    (OUTPUT / "aten_gpu_native_vs_raised_42.tex").write_text(tex)
+    (OUTPUT / "aten_gpu_native_vs_raised_44.tex").write_text(tex)
 
 
 def write_nonpointwise_figure_tex(rows: list[dict[str, object]]) -> None:
@@ -206,7 +246,7 @@ def write_nonpointwise_figure_tex(rows: list[dict[str, object]]) -> None:
 \begin{{tikzpicture}}
 \begin{{loglogaxis}}[
   width=6.65in, height=5.15in,
-  title={{ATen: 142 non-pointwise raised vs native GPU runtimes}},
+  title={{ATen: 115 non-pointwise raised vs native GPU runtimes}},
   title style={{font=\bfseries\normalsize}},
   xlabel={{Native CUDA runtime ($\mu$s)}},
   ylabel={{Raised GPU runtime ($\mu$s)}},
@@ -239,7 +279,7 @@ def write_nonpointwise_figure_tex(rows: list[dict[str, object]]) -> None:
 \end{{tikzpicture}}
 \end{{document}}
 """
-    (OUTPUT / "aten_gpu_native_vs_raised_nonpointwise_142.tex").write_text(tex)
+    (OUTPUT / "aten_gpu_native_vs_raised_nonpointwise_115.tex").write_text(tex)
 
 
 def normalized_raised_library(row: dict[str, str]) -> str:
@@ -438,6 +478,7 @@ def main() -> None:
     write_figure_tex(rows)
     nonpointwise = nonpointwise_rows()
     write_nonpointwise_csv(nonpointwise)
+    write_nonpointwise_table_tex(nonpointwise)
     write_nonpointwise_figure_tex(nonpointwise)
     write_library_tables()
     write_coverage_table()
