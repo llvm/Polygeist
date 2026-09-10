@@ -1,0 +1,15 @@
+metric,kernel_count
+Fixtures in common audit universe,598
+Native ATen paths using an external library,52
+Native paths using linked cuBLAS/cuDNN/cuSPARSE/etc.,28
+Native paths using CUB/Thrust/CUTLASS templates,26
+Native paths counted in both implementation-form rows,2
+Complete Polygeist external-library mappings,271
+Found by both,28
+Found only in native ATen,24
+Found only by Polygeist,243
+Found by neither,303
+Same library family among common findings,19
+Different library family among common findings,9
+Different family: native CUTLASS to Polygeist cuBLAS,2
+Different family: native cuBLAS to Polygeist cuDNN,7
