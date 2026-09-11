@@ -1,0 +1,8 @@
+kernel=aten_log correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_log iterations=5 raised_gpu_us=1876.486372
+kernel=aten_log correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_log iterations=5 raised_gpu_us=1510.611223
+kernel=aten_log correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_log iterations=5 raised_gpu_us=1508.672023
+kernel=aten_log correctness=PASS max_abs=5.9604644775390625e-08 max_rel=5.9604644775390625e-08
+kernel=aten_log iterations=5 raised_gpu_us=1503.654430

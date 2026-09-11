@@ -1,0 +1,15 @@
+hardware=Jetson Orin sm87 CUDA 12.6 cuDNN 9.22
+route=pva-general -> nvidia@192.168.58.1
+measurement=three independent processes; each reports mean of 10 warm calls
+
+RESULT kernel=aten_blas_sum_cpu problem=N=8388608 warm_us=245.507201 correctness=PASS
+RESULT kernel=aten_blas_sum_cpu problem=N=8388608 warm_us=246.425602 correctness=PASS
+RESULT kernel=aten_blas_sum_cpu problem=N=8388608 warm_us=248.783990 correctness=PASS
+MEDIAN kernel=aten_blas_sum_cpu problem=N=8388608 warm_us=246.425602 correctness=PASS implementation=cudnnReduceSum_f32
+
+RESULT kernel=aten_trace_cpu problem=N=4096_matrix diagonal=4096 warm_us=68.409601 correctness=PASS
+RESULT kernel=aten_trace_cpu problem=N=4096_matrix diagonal=4096 warm_us=55.897608 correctness=PASS
+RESULT kernel=aten_trace_cpu problem=N=4096_matrix diagonal=4096 warm_us=58.339210 correctness=PASS
+MEDIAN kernel=aten_trace_cpu problem=N=4096_matrix diagonal=4096 warm_us=58.339210 correctness=PASS implementation=cudnnReduceTrace_f32
+
+notes=cuDNN reduction reassociates floating-point addition; correctness uses a size-scaled rounding tolerance for the cancellation-heavy large sum. Trace is represented as a strided tensor descriptor and does not materialize a diagonal copy.

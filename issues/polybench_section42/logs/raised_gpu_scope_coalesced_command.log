@@ -1,0 +1,24 @@
+timestamp=2026-09-07T11:07:41-07:00
+host_commit=d398dc6307239cdb671362e3e9b0e3be404ce0f0
+device=nvidia@192.168.57.1 via pva-general
+gpu=Jetson Orin sm_87
+cuda=12.6.85 (/home/nvidia/cuda-12.6 on device; /usr/local/cuda-12.6 host cross toolkit)
+common_environment=POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_MINIMAL_RUNTIME=0
+
+doitgen_input=/tmp/polybench-resident/doitgen/abi-clean.mlir
+doitgen_input_sha256=e653116dd8ee14cfdc5a12bb59cf067ab0b6bb80ba15b5c18c40098f37678ba2
+doitgen_build=POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_doitgen POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_doitgen POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_doitgen POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-coalesced-20260907/doitgen/work scripts/correctness/build_jetson.sh /tmp/polybench-resident/doitgen/abi-clean.mlir /tmp/polybench-coalesced-20260907/doitgen/doitgen-coalesced /tmp/polybench-resident/doitgen/export/wrapper.o /tmp/polybench-resident/doitgen/export/harness.o /tmp/polybench-resident/doitgen/polybench.o
+doitgen_binary_sha256=efb0698e451fbc5f29b4b3dca99445e6bfcb226f006a15c2fda658212b349bc2
+
+gemver_input=/tmp/polybench-resident/gemver/export/abi.mlir
+gemver_input_sha256=d696d07cfbb6d11f4c3ad52bbe3fd005a448f0b69468ae9d6db25e568792d754
+gemver_build=POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_gemver POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_gemver POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_gemver POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-coalesced-20260907/gemver/work scripts/correctness/build_jetson.sh /tmp/polybench-resident/gemver/export/abi.mlir /tmp/polybench-coalesced-20260907/gemver/gemver-coalesced /tmp/polybench-resident/gemver/export/wrapper.o /tmp/polybench-resident/gemver/export/harness.o /tmp/polybench-resident/gemver/polybench.o
+gemver_binary_sha256=900c3c14d014f5760612b6f7d690afaeae9f8bc23392facaff8fe8f92949f653
+
+deploy=scp host binaries to pva-general:/tmp; from pva-general scp to nvidia@192.168.57.1:/tmp
+run=LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu /tmp/<kernel>-coalesced
+sampling=one correctness run followed by six timing runs; first timing run discarded as warmup and reported statistic is median of the remaining five
+correctness=scripts/correctness/compare_polybench_dumps.py <native_reference.out> <candidate.out> --rtol 5e-4 --atol 1.1e-2
+
+rejected_experiment=compiler-proven device-pointer scope bypassing cudaPointerGetAttributes
+rejected_reason=correctness passed but timings were unchanged; profiling showed the long gemver delay remained inside first cuBLAS DGEMV submission rather than pointer classification

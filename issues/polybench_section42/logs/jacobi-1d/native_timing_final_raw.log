@@ -1,0 +1,5 @@
+jacobi-1d,native_clang18_noinline,1,0,0.001977
+jacobi-1d,native_clang18_noinline,2,0,0.000681
+jacobi-1d,native_clang18_noinline,3,0,0.000734
+jacobi-1d,native_clang18_noinline,4,0,0.000660
+jacobi-1d,native_clang18_noinline,5,0,0.000667

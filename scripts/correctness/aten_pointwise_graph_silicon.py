@@ -1,0 +1,1176 @@
+#!/usr/bin/env python3
+"""Build large, correctness-gated ATen cuDNN pointwise-graph benchmarks.
+
+These are host-pointer end-to-end runs.  The generic graph runtime presently
+owns the H2D/D2H transfers, so no device-resident number is claimed here.
+"""
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import csv
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+ATEN = ROOT / "issues/aten_c_kernels"
+BUILDER = ROOT / "scripts/correctness/polygeist_build.sh"
+RESIDENT_RESULTS = ATEN / "native_cuda_results" / "resident_silicon.csv"
+
+
+def _known_resident_kernels() -> set[str]:
+    """Kernels whose device-pointer path already passed on Orin silicon."""
+    if not RESIDENT_RESULTS.exists():
+        return set()
+    import csv
+    with RESIDENT_RESULTS.open(newline="") as stream:
+        return {row["kernel"] for row in csv.DictReader(stream)
+                if row.get("resident_us") and row.get("errors") == "0"}
+
+
+KNOWN_RESIDENT_KERNELS = _known_resident_kernels()
+
+
+def ptr(name: str, size: str, output: bool = False, init: str = "normal") -> tuple:
+    return (name, "ptr", size, output, init)
+
+
+def dptr(name: str, size: str, output: bool = False,
+         init: str = "normal") -> tuple:
+    return (name, "dptr", size, output, init)
+
+
+def iptr(name: str, size: str, output: bool = False,
+         init: str = "index") -> tuple:
+    return (name, "iptr", size, output, init)
+
+
+def bptr(name: str, size: str, output: bool = False) -> tuple:
+    return (name, "bptr", size, output, "")
+
+
+def scalar(name: str, value: float) -> tuple:
+    return (name, "scalar", repr(value), False, "")
+
+
+def dscalar(name: str, value: float) -> tuple:
+    return (name, "dscalar", repr(value), False, "")
+
+
+def iscalar(name: str, value: int) -> tuple:
+    return (name, "iscalar", str(value), False, "")
+
+
+def spec(dims: dict[str, int], args: list[tuple], coverage: str = "full graph",
+         rtol: float = 2e-3) -> dict:
+    return {"dims": dims, "args": args, "coverage": coverage, "rtol": rtol}
+
+
+N = 4_194_304
+CASES = {
+    "aten_addmm": spec(
+        {"M": 512, "N": 512, "K": 512},
+        [dptr("A", "M*K"), dptr("B", "K*N"),
+         dptr("C", "M*N", True), dscalar("beta", 0.5),
+         dscalar("alpha", 0.75)], "full FP64 GEMM with alpha and beta"),
+    "aten_conv2d": spec(
+        {"B": 4, "IC": 16, "OC": 32, "H": 128, "W": 128,
+         "KH": 3, "KW": 3},
+        [ptr("input", "B*IC*H*W"), ptr("filter", "OC*IC*KH*KW"),
+         ptr("output", "B*OC*(H-KH+1)*(W-KW+1)", True)],
+        "full valid NCHW 2d convolution through cuDNN"),
+    "aten_dot": spec(
+        {"N": 4_194_304},
+        [dptr("x", "N"), dptr("y", "N"), dptr("out", "1", True)],
+        "full FP64 dot product through cuBLAS"),
+    "aten_im2col": spec(
+        {"B": 4, "C": 8, "H": 128, "W": 128, "KH": 3, "KW": 3},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*KH*KW*(H-KH+1)*(W-KW+1)", True)],
+        "full im2col tensor transformation"),
+    "aten_max_pool2d": spec(
+        {"B": 16, "C": 32, "H": 128, "W": 128, "K": 2, "S": 2},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*((H-K)/S+1)*((W-K)/S+1)", True)],
+        "full 2x2 stride-2 max pooling through cuDNN"),
+    "aten_mean": spec(
+        {"N": 4_194_304},
+        [dptr("x", "N"), dptr("out", "1", True)],
+        "full FP64 mean reduction"),
+    "aten_mm": spec(
+        {"M": 512, "N": 512, "K": 512},
+        [dptr("A", "M*K"), dptr("B", "K*N"),
+         dptr("C", "M*N", True)], "full FP64 matrix multiplication"),
+    "aten_mv": spec(
+        {"M": 4096, "K": 1024},
+        [dptr("A", "M*K"), dptr("x", "K"), dptr("y", "M", True)],
+        "full FP64 GEMV accumulation"),
+    "aten_outer": spec(
+        {"M": 2048, "N": 2048},
+        [dptr("x", "M"), dptr("y", "N"),
+         dptr("out", "M*N", True)], "full FP64 outer product"),
+    "aten_split_copy_cpu": spec(
+        {"N": 4_194_304, "S": 4},
+        [ptr("x", "N"), ptr("out", "N", True)],
+        "full contiguous split-copy reshape"),
+    "aten_sum": spec(
+        {"M": 65_536, "N": 64},
+        [dptr("x", "M*N"), dptr("out", "M", True)],
+        "full segmented CUB f64 sum reduction", rtol=1e-11),
+    "aten_mul": spec(
+        {"N": N}, [ptr("a", "N"), ptr("b", "N"),
+                    ptr("out", "N", True)], "generic graph multiply"),
+    "aten_clamp": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True),
+                    scalar("lo", -0.5), scalar("hi", 0.75)],
+        "comparison plus ternary-select graph"),
+    "aten_erf": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True)],
+        "cuDNN ERF pointwise node"),
+    "aten_exp2": spec(
+        {"N": N}, [ptr("x", "N", init="small"),
+                    ptr("out", "N", True)],
+        "exp2 expanded to multiply plus exp"),
+    "aten_pow": spec(
+        {"N": N}, [ptr("a", "N", init="positive"),
+                    ptr("b", "N", init="positive"),
+                    ptr("out", "N", True)], "cuDNN POW pointwise node"),
+    "aten_round": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True)],
+        "round expanded to compare/select/floor/ceil"),
+    "aten_logical_and": spec(
+        {"N": N}, [ptr("a", "N"), ptr("b", "N"),
+                    ptr("out", "N", True)],
+        "boolean comparisons and select with f32 materialization"),
+    "aten_gelu_backward_cpu_exact": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("x", "N"),
+                    ptr("out", "N", True)],
+        "sixteen-node exact GELU backward graph"),
+    "aten_gelu_backward_cpu_tanh": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("x", "N"),
+                    ptr("out", "N", True)],
+        "twenty-four-node-capable tanh GELU backward graph"),
+    "aten_elu_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("output", "N", init="wide"),
+                    scalar("alpha", 1.25), scalar("scale", 0.75),
+                    ptr("out", "N", True)],
+        "ordered select through cuDNN ReLU-backward mask"),
+    "aten_softplus_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("self", "N", init="wide"),
+                    scalar("beta", 1.1), scalar("threshold", 0.7),
+                    ptr("out", "N", True)],
+        "softplus derivative and threshold mask graph"),
+    "aten_threshold_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("self", "N", init="wide"),
+                    scalar("threshold", 0.35), ptr("out", "N", True)],
+        "cuDNN ReLU-backward numeric mask"),
+    "aten_hardswish_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("self", "N", init="wide"),
+                    ptr("out", "N", True)],
+        "nested ordered-select graph"),
+    "aten_hardtanh_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("self", "N", init="wide"),
+                    scalar("minval", -0.7), scalar("maxval", 0.8),
+                    ptr("out", "N", True)],
+        "compound predicate through two numeric masks"),
+    "aten_hardshrink": spec(
+        {"N": N}, [ptr("self", "N", init="wide"), scalar("lambd", 0.35),
+                    ptr("out", "N", True)],
+        "compound predicate through two numeric masks"),
+    "aten_huber_backward": spec(
+        {"N": N}, [ptr("input", "N", init="wide"),
+                    ptr("target", "N", init="wide_shift"),
+                    scalar("norm", 0.75), scalar("delta", 0.6),
+                    ptr("out", "N", True)],
+        "piecewise Huber derivative graph"),
+    "aten_huber_elementwise": spec(
+        {"N": N}, [ptr("a", "N", init="wide"),
+                    ptr("b", "N", init="wide_shift"),
+                    scalar("delta", 0.6), ptr("out", "N", True)],
+        "piecewise Huber loss graph"),
+    "aten_shrink_backward": spec(
+        {"N": N}, [ptr("grad", "N"), ptr("self", "N", init="wide"),
+                    scalar("lambd", 0.35), ptr("out", "N", True)],
+        "compound predicate through two numeric masks"),
+    "aten_smooth_l1_backward": spec(
+        {"N": N}, [ptr("input", "N", init="wide"),
+                    ptr("target", "N", init="wide_shift"),
+                    scalar("norm", 0.75), scalar("beta", 0.6),
+                    ptr("out", "N", True)],
+        "piecewise smooth-L1 derivative graph"),
+    "aten_smooth_l1_elementwise": spec(
+        {"N": N}, [ptr("a", "N", init="wide"),
+                    ptr("b", "N", init="wide_shift"),
+                    scalar("beta", 0.6), ptr("out", "N", True)],
+        "piecewise smooth-L1 loss graph"),
+    "aten_softshrink": spec(
+        {"N": N}, [ptr("self", "N", init="wide"), scalar("lambd", 0.35),
+                    ptr("out", "N", True)],
+        "nested ordered-select graph"),
+    "aten_erfc": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True)],
+        "erfc expanded to one minus erf"),
+    "aten_hypot": spec(
+        {"N": N}, [ptr("a", "N"), ptr("b", "N"),
+                    ptr("out", "N", True)],
+        "hypot expanded to squares add and sqrt"),
+    "aten_logaddexp": spec(
+        {"N": N}, [ptr("a", "N", init="small"),
+                    ptr("b", "N", init="small"),
+                    ptr("out", "N", True)],
+        "stable max plus log1p-exp graph"),
+    "aten_logaddexp2": spec(
+        {"N": N}, [ptr("a", "N", init="small"),
+                    ptr("b", "N", init="small"),
+                    ptr("out", "N", True)],
+        "stable base-two logaddexp graph"),
+    "aten_leaky_relu": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True),
+                    scalar("slope", 0.1)],
+        "leaky ReLU rewritten through min-max arithmetic"),
+    "aten_elu": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True),
+                    scalar("alpha", 1.25), scalar("scale", 0.75)],
+        "ELU rewritten through min-max-exp arithmetic"),
+    "aten_frac": spec(
+        {"N": N}, [ptr("x", "N"), ptr("out", "N", True)],
+        "x minus trunc x rewritten to modulo one"),
+    "aten_conv1d": spec(
+        {"B": 32, "IC": 64, "OC": 128, "W": 4096, "K": 3},
+        [ptr("input", "B*IC*W"), ptr("weight", "OC*IC*K"),
+         ptr("bias", "OC"), ptr("output", "B*OC*(W-K+1)", True)],
+        "full bias plus valid 1d convolution through cuDNN"),
+    "aten_dilated_convolution_cpu": spec(
+        {"C": 16, "O": 32, "H": 128, "W": 128, "K": 3, "D": 2},
+        [ptr("x", "C*H*W"), ptr("w", "O*C*K*K"),
+         ptr("out", "O*(H-2*D)*(W-2*D)", True)],
+        "full constant-dilation 2d convolution through cuDNN"),
+    "aten_batch_norm_transform_cpu": spec(
+        {"N": 32, "C": 64, "H": 64, "W": 64},
+        [ptr("x", "N*C*H*W"), ptr("mean", "C"),
+         ptr("invstd", "C", init="positive"),
+         ptr("weight", "C"), ptr("bias", "C"),
+         ptr("out", "N*C*H*W", True)],
+        "full inference batch normalization through cuDNN"),
+    "aten_int_mm_out_cpu": spec(
+        {"M": 512, "N": 512, "K": 1024},
+        [bptr("a", "M*K"), bptr("b", "K*N"),
+         iptr("out", "M*N", True)],
+        "full i8 by i8 to i32 matrix multiplication through cuBLAS GemmEx"),
+    "aten_quant_col_offsets_cpu": spec(
+        {"K": 1_048_576, "N": 48},
+        [bptr("w", "K*N"), iscalar("zero", 3),
+         iptr("out", "N", True)],
+        "full signed-int8 column reduction and zero-point offset via CUB"),
+    "aten_diff_cpu": spec(
+        {"N": 16_777_216},
+        [ptr("x", "N"), ptr("out", "N-1", True)],
+        "full forward adjacent difference via CUB"),
+    "aten_embedding_bag_counts_cpu": spec(
+        {"N": 16_777_216, "E": 65_536},
+        [iptr("index", "N", init="index65536"),
+         iptr("out", "E", True)],
+        "full bounded embedding-index histogram via CUB"),
+    "aten_compressed_block_convert_cpu": spec(
+        {"R": 2048, "C": 2048, "BR": 4, "BC": 4},
+        [ptr("x", "R*C"), ptr("out", "R*C", True)],
+        "full dense-to-block-major layout conversion via cuTENSOR permutation"),
+    "aten_sparse_norm_cpu": spec(
+        {"N": 2_097_152},
+        [ptr("value", "N"), ptr("out", "1", True)],
+        "full Euclidean norm through cuBLAS Snrm2"),
+    "aten_joint_scaling_cpu": spec(
+        {"N": 16_777_216},
+        [ptr("a", "N", init="wide"), ptr("b", "N", init="wide_shift"),
+         ptr("out", "1", True)],
+        "two max-absolute reductions through cuBLAS Isamax"),
+    "aten_dropout_feature_noise_cpu": spec(
+        {"B": 32, "C": 64, "H": 64, "W": 64},
+        [ptr("x", "B*C*H*W"), ptr("mask", "B*C", init="unit"),
+         scalar("scale", 1.25), ptr("out", "B*C*H*W", True)],
+        "feature-wise broadcast multiply through cuDNN OpTensor"),
+    "aten_conv_transpose2d": spec(
+        {"B": 2, "IC": 16, "OC": 32, "H": 128, "W": 128, "K": 3},
+        [ptr("input", "B*IC*H*W"), ptr("weight", "IC*OC*K*K"),
+         ptr("output", "B*OC*(H+K-1)*(W+K-1)", True)],
+        "full overlap-add transposed convolution through cuDNN backward-data"),
+    "aten_depthwise_conv3x3_cpu": spec(
+        {"B": 2, "C": 64, "H": 256, "W": 256},
+        [ptr("x", "B*C*H*W"), ptr("weight", "C*3*3"),
+         ptr("bias", "C"), ptr("out", "B*C*H*W", True)],
+        "bias plus same-padding depthwise convolution through grouped cuDNN"),
+    "aten_kron_impl_cpu": spec(
+        {"A": 256, "B": 128, "C": 32, "D": 32},
+        [ptr("x", "A*B"), ptr("y", "C*D"),
+         ptr("out", "A*C*B*D", True)],
+        "full Kronecker product through mode-based cuTENSOR multiply"),
+    "aten_kron_out_cpu": spec(
+        {"A": 256, "B": 128, "C": 32, "D": 32},
+        [ptr("x", "A*B"), ptr("y", "C*D"),
+         ptr("out", "A*C*B*D", True)],
+        "full Kronecker product through mode-based cuTENSOR multiply"),
+    "aten_binary_cross_entropy": spec(
+        {"N": 8_388_608},
+        [ptr("input", "N", init="unit"), ptr("target", "N", init="unit"),
+         ptr("out", "1", True)],
+        "cuDNN pointwise loss graph followed by cuDNN mean reduction"),
+    "aten_conv_tbc_cpu": spec(
+        {"T": 4096, "B": 16, "I": 32, "O": 64, "K": 3},
+        [ptr("x", "T*B*I"), ptr("w", "K*I*O"),
+         ptr("out", "(T-K+1)*B*O", True)],
+        "full TBC convolution through cuDNN transform plus convolution"),
+    "aten_conv_tbc_backward_cpu": spec(
+        {"T": 4094, "B": 16, "I": 32, "O": 64, "K": 3},
+        [ptr("g", "T*B*O"), ptr("w", "K*I*O"),
+         ptr("out", "(T+K-1)*B*I", True)],
+        "full TBC input-gradient convolution through cuDNN backward-data"),
+    "aten_conv_transpose3d_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*D*H*W"), ptr("w", "C*O*K*K*K"),
+         ptr("out", "O*(D+2)*(H+2)*(W+2)", True)],
+        "full 3d transposed convolution through cuDNN backward-data"),
+    "aten_conv_transpose3d_backward_cpu": spec(
+        {"C": 4, "O": 4, "D": 16, "H": 16, "W": 16, "K": 3},
+        [ptr("g", "O*(D+K-1)*(H+K-1)*(W+K-1)", init="unit"),
+         ptr("w", "C*O*K*K*K", init="unit"),
+         ptr("out", "C*D*H*W", True)],
+        "full transposed-conv3d input gradient through cuDNN convolution"),
+    "aten_slow_conv3d_backward_input_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("g", "O*D*H*W"), ptr("w", "O*C*K*K*K"),
+         ptr("out", "C*(D+2)*(H+2)*(W+2)", True)],
+        "full slow-conv3d input gradient through cuDNN backward-data"),
+    "aten_conv_transpose3d_grad_weight_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*D*H*W"), ptr("g", "O*(D+2)*(H+2)*(W+2)"),
+         ptr("out", "C*O*K*K*K", True)],
+        "full transposed-conv3d filter gradient through cuDNN backward-filter"),
+    "aten_slow_conv3d_backward_weight_cpu": spec(
+        {"C": 8, "O": 16, "D": 32, "H": 32, "W": 32, "K": 3},
+        [ptr("x", "C*(D+2)*(H+2)*(W+2)"), ptr("g", "O*D*H*W"),
+         ptr("out", "O*C*K*K*K", True)],
+        "full slow-conv3d filter gradient through cuDNN backward-filter"),
+    "aten_transform_bias_rescale_qkv_cpu": spec(
+        {"B": 8, "S": 512, "H": 16, "D": 64},
+        [ptr("qkv", "B*S*3*H*D"), ptr("bias", "3*H*D"),
+         scalar("scale", 0.125), ptr("q", "B*H*S*D", True),
+         ptr("k", "B*H*S*D", True), ptr("v", "B*H*S*D", True)],
+        "three full QKV slice-bias-permute stages through cuDNN OpTensor"),
+    "aten_addr_elementwise": spec(
+        {"N": 8_388_608},
+        [ptr("self", "N"), ptr("x", "N"), ptr("y", "N"),
+         scalar("beta", 0.0), scalar("alpha", 0.75),
+         ptr("out", "N", True)],
+        "full beta-zero addr graph through cuDNN pointwise operations"),
+    "aten_log_sigmoid_cpu": spec(
+        {"N": 8_388_608},
+        [ptr("x", "N"), ptr("out", "N", True),
+         ptr("buffer", "N", True)],
+        "full stable log-sigmoid and saved buffer through two cuDNN graphs"),
+    "aten_softplus": spec(
+        {"N": 8_388_608},
+        [ptr("x", "N"), ptr("out", "N", True),
+         scalar("beta", 1.25), scalar("threshold", 0.5)],
+        "full thresholded softplus through a cached cuDNN pointwise graph"),
+    "aten_count_nonzero_cpu": spec(
+        {"N": 8_388_608},
+        [ptr("x", "N"), iptr("out", "1", True)],
+        "full CUB transformed count-nonzero reduction"),
+    "aten_count_nonzero_impl_cpu": spec(
+        {"R": 131_072, "C": 64},
+        [ptr("x", "R*C"), iptr("out", "R", True)],
+        "full segmented CUB transformed count-nonzero reduction"),
+    "aten_equal_cpu": spec(
+        {"N": 8_388_608},
+        [ptr("a", "N"), ptr("b", "N", init="mismatch"),
+         iptr("out", "1", True)],
+        "full CUB transformed equality-and reduction"),
+    "aten_allany_dims_cpu": spec(
+        {"R": 131_072, "C": 64},
+        [iptr("x", "R*C", init="bool"), iscalar("all", 1),
+         iptr("out", "R", True)],
+        "full dynamic CUB segmented all-or-any reduction"),
+    "aten_nansum_cpu": spec(
+        {"R": 131_072, "K": 64},
+        [ptr("x", "R*K", init="nanmix"), ptr("out", "R", True)],
+        "full NaN-filtered row reduction through CUB transform plus segmented sum"),
+    "aten_and_reduce_cpu": spec(
+        {"R": 131_072, "K": 64},
+        [iptr("x", "R*K", init="bool"), iptr("out", "R", True)],
+        "full CUB segmented logical-and reduction"),
+    "aten_bf16_dot_cpu": spec(
+        {"K": 4_194_304},
+        [ptr("a", "K"), ptr("b", "K"), ptr("out", "1", True)],
+        "full scalarized-f32 dot product through the bufferized cuBLAS Sdot route",
+        rtol=1e-2),
+    "aten_argmax_cpu": spec(
+        {"R": 131_072, "K": 64},
+        [ptr("x", "R*K", init="argreduce"), iptr("out", "R", True)],
+        "full row-wise first-index argmax through CUB segmented reduction"),
+    "aten_argmin_cpu": spec(
+        {"R": 131_072, "K": 64},
+        [ptr("x", "R*K", init="argreduce"), iptr("out", "R", True)],
+        "full row-wise first-index argmin through CUB segmented reduction"),
+    "aten_bf16_gemv_trans_cpu": spec(
+        {"M": 4096, "K": 8192},
+        [ptr("matrix", "M*K"), ptr("vector", "M"),
+         ptr("out", "K", True)],
+        "full scalarized-f32 transposed GEMV through bufferized cuBLAS Sgemv"),
+    "aten_sinc": spec(
+        {"N": 8_388_608},
+        [ptr("x", "N"), ptr("out", "N", True)],
+        "full normalized sinc through a cached cuDNN pointwise graph"),
+    "aten_avg_pool2d": spec(
+        {"B": 2, "C": 4, "H": 16, "W": 16},
+        [ptr("input", "B*C*H*W"), ptr("output", "B*C*(H/2)*(W/2)", True)],
+        "full fixed average pool 2d forward"),
+    "aten_avg_pool2d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "I1": 7},
+        [ptr("input", "B*C*I0*I1"), ptr("output", "B*C*(I0/2)*(I1/2)", True)],
+        "full fixed average pool 2d forward"),
+    "aten_avg_pool2d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "I1": 7},
+        [ptr("grad_output", "B*C*(I0/2)*(I1/2)"),
+         ptr("grad_input", "B*C*I0*I1", True)],
+        "full fixed average pool 2d backward"),
+    "aten_avg_pool3d": spec(
+        {"B": 2, "C": 3, "D": 8, "H": 8, "W": 8},
+        [ptr("input", "B*C*D*H*W"),
+         ptr("output", "B*C*(D/2)*(H/2)*(W/2)", True)],
+        "full fixed average pool 3d forward"),
+    "aten_avg_pool3d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "I1": 7, "I2": 8},
+        [ptr("input", "B*C*I0*I1*I2"),
+         ptr("output", "B*C*(I0/2)*(I1/2)*(I2/2)", True)],
+        "full fixed average pool 3d forward"),
+    "aten_avg_pool3d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "I1": 7, "I2": 8},
+        [ptr("grad_output", "B*C*(I0/2)*(I1/2)*(I2/2)"),
+         ptr("grad_input", "B*C*I0*I1*I2", True)],
+        "full fixed average pool 3d backward"),
+    "aten_batch_norm_backward_cpu": spec(
+        {"B": 4, "C": 8, "S": 32},
+        [ptr("grad", "B*C*S"), ptr("x", "B*C*S"),
+         ptr("mean", "C"), ptr("invstd", "C", init="positive"),
+         ptr("weight", "C"), ptr("dx", "B*C*S", True),
+         ptr("dweight", "C", True), ptr("dbias", "C", True)],
+        "full cuDNN batch normalization backward"),
+    "aten_batch_norm_backward_template_cpu": spec(
+        {"N": 8, "C": 16, "H": 16, "W": 16},
+        [ptr("grad", "N*C*H*W"), ptr("x", "N*C*H*W"),
+         ptr("mean", "C"), ptr("invstd", "C", init="positive"),
+         ptr("out", "N*C*H*W", True)],
+        "full cuDNN batch normalization input gradient"),
+    "aten_adaptive_avg_pool2d": spec(
+        {"B": 4, "C": 32, "H": 256, "W": 256, "OH": 128, "OW": 128},
+        [ptr("input", "B*C*H*W"), ptr("output", "B*C*OH*OW", True)],
+        "full regular 2x2 uniform-window convolution"),
+    "aten_adaptive_avg_pool2d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3},
+        [ptr("input", "B*C*I0*I1"), ptr("output", "B*C*O0*O1", True)],
+        "full fractional adaptive average forward"),
+    "aten_adaptive_avg_pool2d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3},
+        [ptr("grad_output", "B*C*O0*O1"),
+         ptr("grad_input", "B*C*I0*I1", True)],
+        "full fractional adaptive average backward"),
+    "aten_upsample_bilinear2d": spec(
+        {"B": 4096, "C": 3, "H": 4, "W": 4},
+        [ptr("input", "B*C*H*W"),
+         ptr("output", "B*C*(2*H)*(2*W)", True)],
+        "full cuDNN bilinear 2x resample"),
+    "aten_adaptive_avg_pool3d": spec(
+        {"B": 2, "C": 3, "D": 8, "H": 8, "W": 8},
+        [ptr("input", "B*C*D*H*W"), ptr("output", "B*C*4*4*4", True)],
+        "full regular adaptive average 3d forward"),
+    "aten_adaptive_avg_pool3d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3,
+         "I2": 8, "O2": 3},
+        [ptr("input", "B*C*I0*I1*I2"),
+         ptr("output", "B*C*O0*O1*O2", True)],
+        "full fractional adaptive average 3d forward"),
+    "aten_adaptive_avg_pool3d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3,
+         "I2": 8, "O2": 3},
+        [ptr("grad_output", "B*C*O0*O1*O2"),
+         ptr("grad_input", "B*C*I0*I1*I2", True)],
+        "full fractional adaptive average 3d backward"),
+    "aten_adaptive_max_pool1d_cpu": spec(
+        {"C": 4, "I": 32, "O": 7},
+        [ptr("x", "C*I"), ptr("out", "C*O", True),
+         iptr("index", "C*O", True)],
+        "full fractional adaptive max 1d forward"),
+    "aten_adaptive_max_pool2d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3},
+        [ptr("input", "B*C*I0*I1"), ptr("output", "B*C*O0*O1", True),
+         iptr("indices", "B*C*O0*O1", True)],
+        "full fractional adaptive max 2d forward"),
+    "aten_adaptive_max_pool2d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3},
+        [ptr("grad_output", "B*C*O0*O1"),
+         iptr("indices", "B*C*O0*O1", init="index42"),
+         ptr("grad_input", "B*C*I0*I1", True)],
+        "full saved-index adaptive max 2d backward"),
+    "aten_adaptive_max_pool3d_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3,
+         "I2": 8, "O2": 3},
+        [ptr("input", "B*C*I0*I1*I2"),
+         ptr("output", "B*C*O0*O1*O2", True),
+         iptr("indices", "B*C*O0*O1*O2", True)],
+        "full fractional adaptive max 3d forward"),
+    "aten_adaptive_max_pool3d_backward_cpu": spec(
+        {"B": 1, "C": 2, "I0": 6, "O0": 3, "I1": 7, "O1": 3,
+         "I2": 8, "O2": 3},
+        [ptr("grad_output", "B*C*O0*O1*O2"),
+         iptr("indices", "B*C*O0*O1*O2", init="index336"),
+         ptr("grad_input", "B*C*I0*I1*I2", True)],
+        "full saved-index adaptive max 3d backward"),
+    "aten_adaptive_max_pool3d_legacy_cpu": spec(
+        {"C": 2, "ID": 8, "IH": 9, "IW": 10, "OD": 3, "OH": 4, "OW": 5},
+        [ptr("x", "C*ID*IH*IW"), ptr("out", "C*OD*OH*OW", True),
+         iptr("idx", "C*OD*OH*OW", True)],
+        "full fractional adaptive max 3d legacy forward"),
+    "aten_adaptive_max_pool3d_legacy_backward_cpu": spec(
+        {"C": 2, "ID": 8, "IH": 9, "IW": 10, "OD": 3, "OH": 4, "OW": 5},
+        [ptr("g", "C*OD*OH*OW"),
+         iptr("idx", "C*OD*OH*OW", init="index720"),
+         ptr("out", "C*ID*IH*IW", True)],
+        "full saved-index adaptive max 3d legacy backward"),
+    "aten_addcdiv": spec({"N": N}, [ptr("self", "N"), ptr("x", "N"), ptr("y", "N", init="positive"), scalar("value", .75), ptr("out", "N", True)]),
+    "aten_addcmul": spec({"N": N}, [ptr("self", "N"), ptr("x", "N"), ptr("y", "N"), scalar("value", .75), ptr("out", "N", True)]),
+    "aten_batch_norm_cpu_entry": spec({"N": N}, [ptr("x", "N"), scalar("scale", 1.25), scalar("bias", -.2), ptr("out", "N", True)]),
+    "aten_cross": spec({"N": N // 3}, [ptr("a", "N*3"), ptr("b", "N*3"), ptr("out", "N*3", True)], "three graph stages"),
+    "aten_cross_cpu_backend": spec({"V": N // 3}, [ptr("a", "V*3"), ptr("b", "V*3"), ptr("out", "V*3", True)], "three graph stages"),
+    "aten_dirichlet_transform_cpu": spec({"R": 65_536, "C": 64}, [ptr("gamma", "R*C", init="positive"), ptr("out", "R*C", True)], "partial graph epilogue"),
+    "aten_div": spec({"N": N}, [ptr("a", "N"), ptr("b", "N", init="positive"), ptr("out", "N", True)]),
+    "aten_glu": spec({"N": N}, [ptr("a", "N"), ptr("b", "N"), ptr("out", "N", True)]),
+    "aten_glu_backward": spec({"N": N}, [ptr("sigmoid_b", "N", init="unit"), ptr("grad", "N"), ptr("a", "N"), ptr("out", "N", True)]),
+    "aten_gradient_cpu": spec({"N": N}, [ptr("x", "N"), scalar("h", .125), ptr("out", "N", True)], "partial graph interior"),
+    "aten_gradient_float_cpu": spec({"N": N}, [ptr("x", "N"), ptr("coord", "N", init="coord"), ptr("out", "N", True)], "partial graph interior"),
+    "aten_grid_sampler_2d_backward_cpu": spec({"B": 2, "C": 16, "IH": 128, "IW": 128, "OH": 96, "OW": 96}, [ptr("x", "B*C*IH*IW"), ptr("grid", "B*OH*OW*2", init="grid"), ptr("grad", "B*C*OH*OW"), ptr("dx", "B*C*IH*IW", True), ptr("dgrid", "B*OH*OW*2", True)], "partial graph stages"),
+    "aten_host_softmax_backward_cpu": spec({"R": 65_536, "K": 64}, [ptr("grad", "R*K"), ptr("output", "R*K", init="unit"), ptr("out", "R*K", True)], "partial graph epilogue"),
+    "aten_layer_norm": spec({"N": N}, [ptr("x", "N"), ptr("weight", "N"), ptr("bias", "N"), ptr("out", "N", True), scalar("eps", 1e-5)], "partial graph epilogue"),
+    "aten_lerp": spec({"N": N}, [ptr("a", "N"), ptr("b", "N"), ptr("weight", "N", init="unit"), ptr("out", "N", True)]),
+    "aten_lerp_scalar": spec({"N": N}, [ptr("self", "N"), ptr("end", "N"), scalar("weight", .3), ptr("out", "N", True)]),
+    "aten_lerp_scalar_cpu": spec({"N": N}, [ptr("self", "N"), ptr("end", "N"), scalar("weight", .3), ptr("out", "N", True)]),
+    "aten_lerp_tensor_cpu": spec({"N": N}, [ptr("self", "N"), ptr("end", "N"), ptr("weight", "N", init="unit"), ptr("out", "N", True)]),
+    "aten_log_normal_cpu": spec({"N": N}, [ptr("standard_normal", "N", init="small"), scalar("mean", .1), scalar("std", .25), ptr("out", "N", True)]),
+    "aten_mse_backward": spec({"N": N}, [ptr("input", "N"), ptr("target", "N"), scalar("value", .5), ptr("out", "N", True)]),
+    "aten_mse_elementwise": spec({"N": N}, [ptr("a", "N"), ptr("b", "N"), ptr("out", "N", True)]),
+    "aten_mse_loss": spec({"N": N}, [ptr("input", "N"), ptr("target", "N"), ptr("scratch", "N", True), ptr("out", "1", True)], "partial graph plus reduction"),
+    "aten_nested_softmax_backward_cpu": spec({"B": 65_536, "N": 64}, [ptr("grad", "B*N"), ptr("y", "B*N", init="unit"), ptr("out", "B*N", True)], "partial graph epilogue"),
+    "aten_normal_cpu": spec({"N": N}, [ptr("standard_normal", "N"), scalar("mean", .1), scalar("std", .75), ptr("out", "N", True)]),
+    "aten_rsqrt": spec({"N": N}, [ptr("x", "N", init="positive"), ptr("out", "N", True)]),
+    "aten_sigmoid_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
+    "aten_sparse_coo_softmax_backward_cpu": spec({"R": 524_288, "K": 8}, [ptr("grad", "R*K"), ptr("y", "R*K", init="unit"), ptr("out", "R*K", True)], "partial graph epilogue"),
+    "aten_sparse_addmv_csr_cpu": spec(
+        {"R": 65_536, "C": 65_536, "N": 4_194_304},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col"), ptr("val", "N"),
+         ptr("x", "C"), ptr("out", "R", True)],
+        "full structured-loop CSR SpMV via cuSPARSE"),
+    "aten_sparse_csr_addmm_cpu": spec(
+        {"R": 65_536, "K": 65_536, "C": 64, "N": 4_194_304},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col_k"), ptr("val", "N"),
+         ptr("b", "K*C"), ptr("out", "R*C", True)],
+        "full structured-loop CSR SpMM via cuSPARSE"),
+    "aten_sparse_addmv_bsr_cpu": spec(
+        {"R": 4_096, "C": 4_096, "BR": 4, "BC": 4, "N": 262_144},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N", init="csr_col"), ptr("val", "N*BR*BC"),
+         ptr("x", "C*BC"), ptr("out", "R*BR", True)],
+        "full structured-loop square-BSR SpMV via cuSPARSE SpMM"),
+    "aten_sampled_addmm_sparse_csr_cpu": spec(
+        {"R": 4_096, "K": 512, "C": 4_096,
+         "NNZ": 262_144, "N": 262_144},
+        [iptr("crow", "R+1", init="csr_rowptr"),
+         iptr("col", "NNZ", init="csr_col"), ptr("self", "NNZ"),
+         ptr("a", "R*K"), ptr("b", "K*C"),
+         scalar("alpha", .75), scalar("beta", -.25),
+         ptr("out", "NNZ", True)],
+        "full CSR sampled dense product via cuSPARSE SDDMM"),
+    "aten_convert_coo_to_csr_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("row", "N", init="coo_row"), iptr("out", "R+1", True)],
+        "full COO-to-CSR index conversion via cuSPARSE"),
+    "aten_sparse_coo_to_csr_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("row", "N", init="coo_row"), iptr("out", "R+1", True)],
+        "full COO-to-CSR index conversion via cuSPARSE"),
+    "aten_convert_csr_to_coo_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("ptr", "R+1", init="csr_rowptr"),
+         iptr("col", "N"), iptr("row", "N", True)],
+        "full CSR-to-COO row-index conversion via cuSPARSE"),
+    "aten_sparse_matmul_csr_to_coo_cpu": spec(
+        {"N": 4_194_304, "R": 65_536},
+        [iptr("ptr", "R+1", init="csr_rowptr"), iptr("row", "N", True)],
+        "full CSR-to-COO row-index conversion via cuSPARSE"),
+    "aten_sparse_addmm_cpu": spec(
+        {"R": 64, "C": 4_096, "N": 4_096},
+        [iptr("row", "N", init="coo_row"),
+         iptr("col", "N", init="coo_col_dense"), ptr("value", "N"),
+         ptr("dense", "R*C"), ptr("out", "R*C", True)],
+        "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE"),
+    "aten_hspmm_cpu": spec(
+        {"R": 64, "C": 4_096, "N": 4_096},
+        [iptr("row", "N", init="coo_row"),
+         iptr("col", "N", init="coo_col_dense"), ptr("value", "N"),
+         ptr("dense", "R*C"), ptr("out", "R*C", True)],
+        "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE"),
+    "aten_square": spec({"N": N}, [ptr("x", "N"), ptr("out", "N", True)]),
+    "aten_tanh_backward": spec({"N": N}, [ptr("grad", "N"), ptr("output", "N", init="unit"), ptr("out", "N", True)]),
+    "aten_uniform_cpu": spec({"N": N}, [ptr("uniform01", "N", init="unit"), scalar("from", -2.), scalar("to", 3.), ptr("out", "N", True)]),
+}
+
+
+_POSITIVE = ("log", "sqrt", "rsqrt", "acosh", "reciprocal", "digamma", "lgamma",
+             # domain-sensitive: non-zero divisor for div/mod, positive base
+             # for pow(., frac) — otherwise inf/nan breaks the correctness check
+             "pow", "fmod", "remainder", "div_floor", "div_trunc",
+             "floor_divide")
+_UNIT = ("acos", "asin", "atanh")
+
+
+def _auto_init(kernel: str, name: str) -> str:
+    base = kernel[5:] if kernel.startswith("aten_") else kernel
+    if name in {"inv_std", "invstd"}:
+        return "positive"
+    if base in {"cauchy_cpu", "exponential_cpu", "geometric_cpu"} and name == "uniform":
+        return "unit"
+    if base == "gamma_transform_cpu" and name == "alpha":
+        return "alpha_domain"
+    if base in {"standard_gamma_grad_cpu", "dirichlet_grad_cpu"}:
+        return "positive"
+    if "acosh" in base:
+        return "acosh_domain"
+    if any(t in base for t in _POSITIVE):
+        return "positive"
+    if any(t in base for t in _UNIT):
+        return "unit"
+    return "normal"
+
+
+def auto_spec(kernel: str) -> dict | None:
+    """Synthesize a harness spec from a kernel's extracted C signature.
+    Handles float/int/signed-char array params + scalar params; skips doubles
+    (harness is f32) and anything it can't parse cleanly. Output params are the
+    ones written in the body; dims are scaled to ~4M total elements."""
+    f = ATEN / f"{kernel}.c"
+    if not f.exists():
+        return None
+    txt = f.read_text()
+    sig = re.search(rf"void\s+{re.escape(kernel)}\s*\(([^)]*)\)", txt)
+    if not sig:
+        return None
+    body = txt[sig.end():]
+    defined = {k: int(v) for k, v in
+               re.findall(r"#\s*define\s+(\w+)\s+(\d+)", txt)}
+    args, used_dims = [], set()
+    for p in (x.strip() for x in sig.group(1).split(",") if x.strip()):
+        # array dims may be arithmetic expressions (e.g. [B*N], [A*B], [R+M]).
+        marr = re.fullmatch(
+            r"(float|double|int|signed char)\s+(\w+)\s*((?:\[[\w*+ \-]+\])+)", p)
+        msc = re.fullmatch(r"(float|double|int)\s+(\w+)", p)
+        if marr:
+            typ, nm, dimspec = marr.group(1), marr.group(2), marr.group(3)
+            if typ == "double":
+                return None  # harness is f32-only
+            exprs = [e.strip() for e in re.findall(r"\[([\w*+ \-]+)\]", dimspec)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", " ".join(exprs))):
+                if ident not in defined:
+                    return None
+                used_dims.add(ident)
+            size = "*".join(f"({e})" for e in exprs)
+            # output = written in the body (handles multi-dim out[a][b][c] = ...)
+            is_out = bool(re.search(
+                rf"\b{re.escape(nm)}\s*(?:\[[^\]]*\])+\s*[-+*/]?=(?!=)", body))
+            if typ == "float":
+                args.append(ptr(nm, size, is_out, _auto_init(kernel, nm)))
+            elif typ == "int":
+                args.append(iptr(nm, size, is_out))
+            else:
+                args.append(bptr(nm, size, is_out))
+        elif msc:
+            typ, nm = msc.group(1), msc.group(2)
+            if typ == "double":
+                return None
+            args.append(scalar(nm, 0.5) if typ == "float" else iscalar(nm, 2))
+        else:
+            return None
+    if not used_dims or not any(a[3] for a in args if a[1] in
+                                ("ptr", "iptr", "bptr")):
+        return None  # need at least one dim and one output
+    base = {d: defined[d] for d in sorted(used_dims)}  # deterministic order
+    arrays = [a[2] for a in args if a[1] in ("ptr", "iptr", "bptr")]
+
+    def footprint(dd):  # largest array's true element count at these dims
+        best = 0
+        for expr in arrays:
+            try:
+                best = max(best, eval(expr, {"__builtins__": {}}, dd))
+            except Exception:
+                pass
+        return best
+
+    # Numerically binary-search a uniform dim factor so the largest array is
+    # ~4M elements. Robust for ANY size expression (products, sums, nesting) —
+    # no fragile analytical rank (footprint is monotonic in the factor).
+    dims = dict(base)
+    if footprint(base) > 0:
+        lo, hi = 1e-4, 1e7
+        for _ in range(50):
+            mid = (lo * hi) ** 0.5
+            dd = {d: max(2, round(v * mid)) for d, v in base.items()}
+            if footprint(dd) < 4_194_304:
+                lo = mid
+            else:
+                hi = mid
+        f = (lo * hi) ** 0.5
+        dims = {d: max(2, round(v * f)) for d, v in base.items()}
+    return spec(dims, args, f"auto: {kernel}")
+
+
+def scaled_source(kernel: str, cfg: dict, out: Path) -> None:
+    text = (ATEN / f"{kernel}.c").read_text()
+    for name, value in cfg["dims"].items():
+        pattern = rf"(^\s*#\s*define\s+{re.escape(name)}\s+)[^\n]+"
+        text, count = re.subn(pattern, rf"\g<1>{value}", text, flags=re.MULTILINE)
+        if not count:
+            text = f"#define {name} {value}\n" + text
+    out.write_text(text)
+
+
+def harness_text(kernel: str, cfg: dict) -> str:
+    decls, call_ref, call_got, allocations, init, comparisons, frees = [], [], [], [], [], [], []
+    reset_ref = []
+    # Device-resident path: cudaMalloc buffers, copy in/out OUTSIDE the timed
+    # region so timing reflects the op on device DRAM (torch's methodology).
+    call_dev, dev_alloc, dev_h2d, dev_d2h, dev_free = [], [], [], [], []
+    for name, kind, value, output, init_kind in cfg["args"]:
+        if kind in ("scalar", "dscalar", "iscalar"):
+            decls.append((f"float {name} = {value}f;" if kind == "scalar"
+                          else f"double {name} = {value};" if kind == "dscalar"
+                          else f"int {name} = {value};"))
+            call_ref.append(name); call_got.append(name); call_dev.append(name)
+            continue
+        allocations.append(f"size_t {name}_n = (size_t)({value});")
+        ctype = ("int" if kind == "iptr" else
+                 "signed char" if kind == "bptr" else
+                 "double" if kind == "dptr" else "float")
+        allocations.append(f"{ctype} *{name}_ref = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
+        allocations.append(f"{ctype} *{name}_got = aligned_alloc(64, (({name}_n*sizeof({ctype})+63)/64)*64);")
+        allocations.append(f"{ctype} *{name}_dev = 0;")
+        reset_ref.append(
+            f"memcpy({name}_ref,{name}_got,{name}_n*sizeof({ctype}));")
+        dev_alloc.append(f"cudaMalloc((void**)&{name}_dev, {name}_n*sizeof({ctype}));")
+        dev_h2d.append(f"cudaMemcpy({name}_dev, {name}_got, {name}_n*sizeof({ctype}), 1);")
+        call_dev.append(f"{name}_dev")
+        dev_free.append(f"cudaFree({name}_dev);")
+        if output:
+            dev_d2h.append(f"cudaMemcpy({name}_got, {name}_dev, {name}_n*sizeof({ctype}), 2);")
+        if kind == "bptr":
+            init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]=(signed char)((int)(i%13)-6);")
+            init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(signed char));")
+            call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
+            if output:
+                comparisons.append(f"CHECK_BARRAY({name});")
+            frees.extend([f"free({name}_ref);", f"free({name}_got);"])
+            continue
+        if kind == "iptr":
+            modulus = re.fullmatch(r"index(\d+)", init_kind)
+            expr = (f"(int)(i%{modulus.group(1)})" if modulus else
+                    "(int)((i%7)!=0)" if init_kind == "bool" else
+                    "(int)(i*(N/R))" if init_kind == "csr_rowptr" else
+                    "(int)(((i*17)+(i/(N/R))*13)%C)"
+                    if init_kind == "csr_col" else
+                    "(int)(((i*17)+(i/(N/R))*13)%K)"
+                    if init_kind == "csr_col_k" else
+                    "(int)(i/(N/R))" if init_kind == "coo_row" else
+                    "(int)(((i*17)+(i/(N/R))*13)%R)"
+                    if init_kind == "coo_col_dense" else "0")
+            init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
+            init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(int));")
+            call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
+            if output:
+                comparisons.append(f"CHECK_IARRAY({name});")
+            frees.extend([f"free({name}_ref);", f"free({name}_got);"])
+            continue
+        if kind == "dptr":
+            expr = "((double)(i%101)-50.0)/37.0"
+            init.append(
+                f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
+            init.append(
+                f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(double));")
+            call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
+            if output:
+                comparisons.append(f"CHECK_DARRAY({name});")
+            frees.extend([f"free({name}_ref);", f"free({name}_got);"])
+            continue
+        if init_kind == "coord":
+            expr = "0.01f*(float)i"
+        elif init_kind == "grid":
+            expr = "-0.8f + 1.6f*(float)(i%97)/96.0f"
+        elif init_kind == "positive":
+            expr = "0.25f + (float)(i%101)/101.0f"
+        elif init_kind == "acosh_domain":
+            expr = "1.25f + (float)(i%101)/101.0f"
+        elif init_kind == "alpha_domain":
+            expr = "0.75f + (float)(i%101)/101.0f"
+        elif init_kind == "unit":
+            expr = "0.05f + 0.9f*(float)(i%101)/101.0f"
+        elif init_kind == "small":
+            expr = "((float)(i%101)-50.0f)/100.0f"
+        elif init_kind == "wide":
+            expr = "(float)((int)(i%11)-5)"
+        elif init_kind == "wide_shift":
+            expr = "(float)((int)(i%13)-6)"
+        elif init_kind == "mismatch":
+            expr = "i == 12345 ? 99.0f : ((float)(i%101)-50.0f)/37.0f"
+        elif init_kind == "argreduce":
+            expr = ("(((i/K)%4==0 && i%K==0) || "
+                    "((i/K)%4==1 && (i%K==7 || i%K==19))) ? NAN : "
+                    "(float)((int)((i%K)%11)-5)")
+        elif init_kind == "nanmix":
+            expr = ("((i/K)%4==0 || i%K==7 || i%K==19) ? NAN : "
+                    "((float)((int)(i%101)-50))/37.0f")
+        else:
+            expr = "((float)(i%101)-50.0f)/37.0f"
+        init.append(f"for(size_t i=0;i<{name}_n;++i) {name}_ref[i]={expr};")
+        init.append(f"memcpy({name}_got,{name}_ref,{name}_n*sizeof(float));")
+        call_ref.append(f"{name}_ref"); call_got.append(f"{name}_got")
+        if output:
+            comparisons.append(f"CHECK_ARRAY({name});")
+        frees.extend([f"free({name}_ref);", f"free({name}_got);"])
+    types = [
+        "float" if a[1] == "scalar" else
+        "double" if a[1] == "dscalar" else
+        "int" if a[1] == "iscalar" else
+        "int *" if a[1] == "iptr" else
+        "signed char *" if a[1] == "bptr" else
+        "double *" if a[1] == "dptr" else "float *"
+        for a in cfg["args"]
+    ]
+    signature = ", ".join(types)
+    ref_args = ", ".join(call_ref); got_args = ", ".join(call_got)
+    dev_args = ", ".join(call_dev)
+    shape_str = "_".join(f"{k}={v}" for k, v in cfg["dims"].items())
+    dimension_defines = "\n".join(f"#define {k} {v}" for k, v in cfg["dims"].items())
+    return f'''#define _POSIX_C_SOURCE 200809L
+{dimension_defines}
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+extern void {kernel}({signature});
+extern void {kernel}_reference({signature});
+extern int cudaMalloc(void**, unsigned long);
+extern int cudaMemcpy(void*, const void*, unsigned long, int);
+extern int cudaFree(void*);
+extern int cudaDeviceSynchronize(void);
+static double now_us(void) {{ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return 1e6*t.tv_sec+1e-3*t.tv_nsec; }}
+#define CHECK_ARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ float r=name##_ref[i], g=name##_got[i]; float e=fabsf(r-g); if(!((isnan(r)&&isnan(g)) || (isinf(r)&&r==g)) && (!isfinite(g)||e>{cfg.get('rtol', 2e-3):.9g}f*(1.0f+fabsf(r)))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%g got=%g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
+#define CHECK_IARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=name##_ref[i], g=name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
+#define CHECK_BARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ int r=(int)name##_ref[i], g=(int)name##_got[i]; if(r!=g) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%d got=%d\\n",i,r,g); }} }} }} while(0)
+#define CHECK_DARRAY(name) do {{ for(size_t i=0;i<name##_n;++i) {{ double r=name##_ref[i], g=name##_got[i]; double e=fabs(r-g); if(!((isnan(r)&&isnan(g)) || (isinf(r)&&r==g)) && (!isfinite(g)||e>{cfg.get('rtol', 2e-3):.17g}*(1.0+fabs(r)))) {{ if(errors++<8) fprintf(stderr,"mismatch " #name "[%zu]: ref=%.17g got=%.17g err=%g\\n",i,r,g,e); }} if(e>max_error) max_error=e; }} }} while(0)
+int main(void) {{
+  {' '.join(decls)}
+  {' '.join(allocations)}
+  {' '.join(init)}
+#ifdef BENCH_CPU_REFERENCE
+  /* Original extracted C computation on CPU. Restore every array before each
+     invocation so mutating kernels see the same logical input state. */
+  {' '.join(reset_ref)}
+  {kernel}_reference({ref_args});
+  for(int i=0;i<5;++i) {{ {' '.join(reset_ref)} {kernel}_reference({ref_args}); }}
+  double cpu_sample[5], cpu_sorted[5];
+  for(int i=0;i<5;++i) {{
+    {' '.join(reset_ref)}
+    double t=now_us(); {kernel}_reference({ref_args});
+    cpu_sample[i]=now_us()-t; cpu_sorted[i]=cpu_sample[i];
+  }}
+  for(int i=1;i<5;++i) {{
+    double v=cpu_sorted[i]; int j=i-1;
+    while(j>=0 && cpu_sorted[j]>v) {{ cpu_sorted[j+1]=cpu_sorted[j]; --j; }}
+    cpu_sorted[j+1]=v;
+  }}
+  double cpu_us=cpu_sorted[2];
+  printf("SAMPLES kernel={kernel} cpu_original_c_wall_us="
+         "%.6f,%.6f,%.6f,%.6f,%.6f median_us=%.6f\\n",
+         cpu_sample[0],cpu_sample[1],cpu_sample[2],cpu_sample[3],cpu_sample[4],cpu_us);
+  printf("CPU_RESULT kernel={kernel} cpu_original_c_us=%.6f errors=0 shape={shape_str}\\n",cpu_us);
+  fflush(stdout);
+  {' '.join(frees)}
+  return 0;
+#else
+#ifndef BENCH_MAPPED_ONLY
+  /* Preserve the original inputs on device before host correctness/timing can
+     mutate any in-place operands. */
+  {' '.join(dev_alloc)}
+  {' '.join(dev_h2d)}
+  cudaDeviceSynchronize();
+#endif
+  {kernel}_reference({ref_args});
+#ifndef BENCH_RESIDENT_ONLY
+  /* Correctness on a SINGLE run, BEFORE the timing loops mutate the buffers.
+     In-place ops (e.g. out+=src) would otherwise accumulate over ~36 calls. */
+  {kernel}({got_args});
+  int errors=0; float max_error=0; {' '.join(comparisons)}
+  for(int i=0;i<3;++i) {kernel}({got_args});
+  double total=0; for(int i=0;i<10;++i) {{ double t=now_us(); {kernel}({got_args}); total += now_us()-t; }}
+#else
+  int errors=0; float max_error=0; double total=0;
+#endif
+  /* Device-resident timing: operands in cudaMalloc'd device DRAM, copy in/out
+     ONCE outside the timed loop, so only the op is measured (matches torch). */
+  double resident_us = -1.0;
+#ifndef BENCH_MAPPED_ONLY
+  /* Correctness-gate the device-pointer path itself from the original input
+     state.  Host-pointer correctness above does not prove that residual CPU
+     code or a malformed ABI can legally consume cudaMalloc pointers. */
+  {kernel}({dev_args});
+  cudaDeviceSynchronize();
+  {' '.join(dev_d2h)}
+  {' '.join(comparisons)}
+  /* Correctness is outside the benchmark protocol.  Perform five additional
+     untimed warmups before collecting the five publication samples. */
+  for(int i=0;i<5;++i) {kernel}({dev_args});
+  cudaDeviceSynchronize();
+  /* ATen Section 4.2 protocol: one process, five synchronized resident wall
+     samples, median-of-five.  Allocations and transfers stay outside. */
+  {{ double sample[5], sorted[5];
+     for(int i=0;i<5;++i) {{
+       double t=now_us(); {kernel}({dev_args}); cudaDeviceSynchronize();
+       sample[i]=now_us()-t; sorted[i]=sample[i];
+     }}
+     for(int i=1;i<5;++i) {{
+       double v=sorted[i]; int j=i-1;
+       while(j>=0 && sorted[j]>v) {{ sorted[j+1]=sorted[j]; --j; }}
+       sorted[j+1]=v;
+     }}
+     resident_us=sorted[2];
+     printf("SAMPLES kernel={kernel} raised_resident_wall_us="
+            "%.6f,%.6f,%.6f,%.6f,%.6f median_us=%.6f\\n",
+            sample[0],sample[1],sample[2],sample[3],sample[4],resident_us);
+  }}
+  {' '.join(dev_free)}
+#endif
+  printf("RESULT kernel={kernel} warm_us=%.6f resident_us=%.6f errors=%d max_error=%g shape={shape_str} coverage={cfg['coverage'].replace(' ', '_')}\\n",total/10.0,resident_us,errors,max_error);
+  fflush(stdout);
+  {' '.join(frees)}
+  return errors ? 1 : 0;
+#endif
+}}
+'''
+
+
+def run(cmd: list[str], log: Path, env: dict[str, str] | None = None) -> None:
+    with log.open("w") as stream:
+        proc = subprocess.run(cmd, cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT, text=True)
+    if proc.returncode:
+        raise RuntimeError(f"command failed ({proc.returncode}); see {log}")
+
+
+def build_one(kernel: str, cfg: dict, output: Path) -> dict:
+    work = output / kernel; work.mkdir(parents=True, exist_ok=True)
+    source = work / f"{kernel}_large.c"; scaled_source(kernel, cfg, source)
+    harness = work / "harness.c"; harness.write_text(harness_text(kernel, cfg))
+    reference = work / "reference.o"
+    run(["aarch64-linux-gnu-gcc", "-O3", f"-D{kernel}={kernel}_reference", "-c", str(source), "-o", str(reference)], work / "reference.build.log")
+    cpu_exe = work / f"{kernel}_cpu_reference"
+    run(["aarch64-linux-gnu-gcc", "-O3", "-DBENCH_CPU_REFERENCE",
+         str(harness), str(reference), "-lm", "-o", str(cpu_exe)],
+        work / "cpu_reference.build.log")
+    exe = work / kernel
+    env = os.environ.copy()
+    artifacts = work / "artifacts"
+    env.update({"PYTHON": "/usr/bin/python3",
+                "POLYGEIST_CUSTOM_CUDA_OBJ": str(reference),
+                "POLYGEIST_EXPORT_OBJECT_DIR": str(artifacts)})
+    # Let the compiler compare preserved-submap and normalized-submap raising
+    # using residual IR and legal launch counts.  This is deliberately
+    # independent of the corpus/function name.
+    env.setdefault("POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE", "auto")
+    # The cuDNN-only link mode deliberately compiles out cuSPARSE/cuSOLVER.
+    # Keep the full fixed-library runtime for sparse linear-algebra cases.
+    supports_resident = (os.environ.get("POLYGEIST_FORCE_RESIDENT", "0") not in
+                         {"", "0", "false", "FALSE"} or
+                         kernel in KNOWN_RESIDENT_KERNELS or
+                         "via cuSPARSE" in cfg["coverage"] or
+                         kernel in {"aten_quant_col_offsets_cpu",
+                                    "aten_diff_cpu",
+                                    "aten_embedding_bag_counts_cpu",
+                                    "aten_allany_dims_cpu",
+                                    "aten_nansum_cpu",
+                                    "aten_sum",
+                                    "aten_argmax_cpu",
+                                    "aten_argmin_cpu",
+                                    "aten_sparse_norm_cpu",
+                                    "aten_joint_scaling_cpu",
+                                    "aten_compressed_block_convert_cpu",
+                                    "aten_upsample_bilinear2d"})
+    if ("via cuSPARSE" not in cfg["coverage"] and
+            "sparse" not in kernel and "sspaddmm" not in kernel):
+        env["POLYGEIST_MINIMAL_CUDNN_RUNTIME"] = "1"
+    elif "sparse" in kernel or "sspaddmm" in kernel:
+        env["POLYGEIST_MINIMAL_CUSPARSE_RUNTIME"] = "1"
+    _ct = "/home/arjaiswal/cutensor_sbsa"
+    if (os.path.isdir(_ct) and "sparse" not in kernel and
+            "sspaddmm" not in kernel):  # enable cutensorUnary when needed
+        env["POLYGEIST_CUTENSOR_ROOT"] = _ct
+    build_command = [str(BUILDER), "--target=jetson", f"--function={kernel}",
+                     f"--harness={harness}", "-o", str(exe), str(source)]
+    if supports_resident:
+        build_command.append("-DBENCH_RESIDENT_ONLY")
+    if not supports_resident:
+        build_command.append("-DBENCH_MAPPED_ONLY")
+    run(build_command, work / "raised.build.log", env)
+
+    def inspect_artifacts():
+        matched = (artifacts / "matched.mlir").read_text()
+        abi = (artifacts / "abi_canon.mlir").read_text()
+        unsafe = _device_unsafe_residuals(abi)
+        calls = sorted(set(re.findall(
+            r"call\s+@(polygeist_(?!(?:cublas_pipeline_(?:begin|end)))[\w]+)",
+            abi)))
+        return matched, abi, unsafe, calls, bool(calls) and not unsafe
+
+    matched_text, abi_text, residual, library_calls, resident_safe = \
+        inspect_artifacts()
+    # One-shot pre-ABI bufferization can materialize a tensor result through a
+    # host memref.alloc/memref.copy shell.  That shell is illegal when the C
+    # harness supplies cudaMalloc operands.  The legacy tensor ABI lowers the
+    # same pointwise graph directly into its destination pointer, so rebuild
+    # that family when artifact inspection finds a device-unsafe shell.
+    if (supports_resident and residual and
+            "polygeist_cudnn_pointwise_graph_f32" in library_calls):
+        legacy_env = env.copy()
+        legacy_env["POLYGEIST_BUFFERIZE_BEFORE_ABI"] = "0"
+        run(build_command, work / "raised.resident_tensor_abi_rebuild.log",
+            legacy_env)
+        matched_text, abi_text, residual, library_calls, resident_safe = \
+            inspect_artifacts()
+    # Auto-discovered compositions may become fully device-safe as matcher and
+    # ABI lowering coverage grows. The first build intentionally suppresses
+    # its resident harness until the emitted ABI has been inspected. Rebuild
+    # once without BENCH_MAPPED_ONLY when that inspection proves it safe.
+    if resident_safe and not supports_resident:
+        resident_command = build_command[:-1] + ["-DBENCH_RESIDENT_ONLY"]
+        run(resident_command, work / "raised.resident_rebuild.log", env)
+        matched_text, abi_text, residual, library_calls, resident_safe = \
+            inspect_artifacts()
+    return {"kernel": kernel,
+            "problem": " ".join(f"{k}={v}" for k,v in cfg["dims"].items()),
+            "coverage": cfg["coverage"], "executable": str(exe),
+            "cpu_reference_executable": str(cpu_exe),
+            "launches": len(re.findall(r"kernel\.launch\s+@", matched_text)),
+            "library_calls": library_calls, "residual_device_unsafe": residual,
+            "resident_safe": resident_safe}
+
+
+def _matched_kernels() -> list[str]:
+    """Every kernel whose matched.mlir emits a library kernel.launch."""
+    out = []
+    for mm in sorted((ATEN / "results").glob("*/matched.mlir")):
+        try:
+            if "kernel.launch @" in mm.read_text():
+                out.append(mm.parent.name)
+        except OSError:
+            pass
+    return out
+
+
+def _cfg_for(kernel: str) -> dict | None:
+    return CASES.get(kernel) or auto_spec(kernel)
+
+
+def _device_unsafe_residuals(abi_text: str) -> list[str]:
+    """Find host operations that would dereference resident tensor storage.
+
+    cuTENSOR lowering builds small rank/extent/stride/mode arrays in host
+    stack allocas. Stores into those i32/i64 metadata arrays are descriptor
+    setup, not accesses to cudaMalloc tensor operands.
+    """
+    patterns = {
+        "linalg": r"\blinalg\.",
+        "scf_loop": r"\bscf\.(?:for|while)\b",
+        "affine_loop": r"\baffine\.(?:for|parallel)\b",
+        "affine_access": r"\baffine\.(?:load|store)\b",
+        "memref_copy": r"\bmemref\.copy\b",
+    }
+    residual = [name for name, pattern in patterns.items()
+                if re.search(pattern, abi_text)]
+    metadata_allocas = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*memref\.alloca\(\)\s*:\s*"
+        r"memref<\d+x(?:i32|i64)>", abi_text))
+    access_buffers = re.findall(
+        r"\bmemref\.(?:load|store)\b[^\n]*?(%[\w.$-]+)\s*\[", abi_text)
+    if any(buffer not in metadata_allocas for buffer in access_buffers):
+        residual.append("memref_access")
+    direct_memref_tensors = set(re.findall(
+        r"(?m)^\s*(%[\w.$-]+)\s*=\s*bufferization\.to_tensor\s+%", abi_text))
+    materialized_tensors = re.findall(
+        r"bufferization\.to_memref\s+(%[\w.$-]+)", abi_text)
+    if any(tensor not in direct_memref_tensors for tensor in materialized_tensors):
+        residual.append("host_materialization")
+    return residual
+
+
+def _complete_library_missing() -> list[str]:
+    """Complete genuine-library matches without a passing resident result."""
+    audit = ATEN / "cuda_library_audit.csv"
+    if not audit.exists():
+        return []
+    with audit.open(newline="") as stream:
+        return sorted(
+            row["kernel"] for row in csv.DictReader(stream)
+            if row.get("current_match_scope") == "COMPLETE_REWRITE_CANDIDATE"
+            and row.get("counts_as_library_reuse") == "yes"
+            and row.get("kernel") not in KNOWN_RESIDENT_KERNELS
+            and _cfg_for(row.get("kernel", "")) is not None)
+
+
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument("--output", type=Path, default=Path("/tmp/aten_pointwise_graph_large"))
+    p.add_argument("--jobs", type=int, default=4)
+    p.add_argument("--kernel", action="append",
+                   help="kernel to build (repeatable; accepts explicit or auto specs)")
+    p.add_argument("--all-matched", action="store_true",
+                   help="build every matched kernel: CASES specs, else auto_spec")
+    p.add_argument("--complete-library-missing", action="store_true",
+                   help="build complete library matches lacking resident results")
+    args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
+    if args.complete_library_missing:
+        selected = _complete_library_missing()
+        print(f"[complete-library-missing] {len(selected)} kernels have a usable spec",
+              flush=True)
+    elif args.all_matched:
+        selected = [k for k in _matched_kernels() if _cfg_for(k)]
+        print(f"[all-matched] {len(selected)} kernels have a usable spec", flush=True)
+    else:
+        selected = args.kernel or sorted(CASES)
+    unknown = [k for k in selected if _cfg_for(k) is None]
+    if unknown:
+        p.error("no benchmark specification for: " + ", ".join(unknown))
+    rows=[]; failures=[]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        jobs={pool.submit(build_one,k,_cfg_for(k),args.output):k for k in selected}
+        for future in concurrent.futures.as_completed(jobs):
+            k=jobs[future]
+            try: rows.append(future.result()); print(f"[BUILT] {k}", flush=True)
+            except Exception as exc: failures.append({"kernel":k,"error":str(exc)}); print(f"[FAIL] {k}: {exc}",file=sys.stderr,flush=True)
+    manifest={"cases":sorted(rows,key=lambda x:x["kernel"]),"failures":failures}
+    (args.output/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+    print(f"built={len(rows)} failed={len(failures)} output={args.output}")
+    return bool(failures)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

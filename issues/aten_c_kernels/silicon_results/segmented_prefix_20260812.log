@@ -1,0 +1,33 @@
+Hardware: NVIDIA Jetson at 192.168.58.1 through pva-general
+Power mode: MAXN (nvpmodel mode 0)
+Problem size: B=65536, N=256 (16,777,216 padded elements)
+Timing: warm mean over 10 calls per process; three independent processes
+Backend: CUB DeviceSegmentedReduce with per-row begin/end offsets
+
+aten_nested_sum_dim_cpu
+13954.156800 us PASS
+13985.270401 us PASS
+13920.940808 us PASS
+median: 13954.156800 us
+
+aten_nested_all_cpu
+14026.489598 us PASS
+14003.843185 us PASS
+13994.489610 us PASS
+median: 14003.843185 us
+
+aten_nested_sum_backward_cpu
+Backend: cuBLAS SGER outer product (row gradient x vector of ones)
+Problem size: B=65536, N=256 (16,777,216 outputs)
+9137.344011 us PASS
+9195.516794 us PASS
+9152.822406 us PASS
+median: 9152.822406 us
+
+aten_atan2
+Backend: one-node cuDNN Backend ATAN2 pointwise graph
+Problem size: N=8388608
+12756.147189 us PASS
+12718.240009 us PASS
+12715.753587 us PASS
+median: 12718.240009 us

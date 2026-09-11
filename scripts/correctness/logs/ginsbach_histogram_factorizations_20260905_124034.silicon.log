@@ -1,0 +1,26 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_histogram_factorizations_20260905_124034/histogram_factorization_silicon run 1 ...
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=6	n=0	k=0	host_ms=2.940492	device_ms=2.879872
+POLYGEIST_RT_TIMING	op=cublasDtrsvLowerRowMajor	m=3	n=1	k=0	host_ms=12.857185	device_ms=12.655808
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=3	n=3	k=0	host_ms=1.402613	device_ms=1.338240
+PASS
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_histogram_factorizations_20260905_124034/histogram_factorization_silicon run 2 ...
+[jetson] elapsed_s 0.247
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=6	n=0	k=0	host_ms=2.890956	device_ms=2.829248
+POLYGEIST_RT_TIMING	op=cublasDtrsvLowerRowMajor	m=3	n=1	k=0	host_ms=2.293251	device_ms=2.108864
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=3	n=3	k=0	host_ms=1.141393	device_ms=1.083936
+PASS
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_histogram_factorizations_20260905_124034/histogram_factorization_silicon run 3 ...
+[jetson] elapsed_s 0.241
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=6	n=0	k=0	host_ms=2.838987	device_ms=2.779296
+POLYGEIST_RT_TIMING	op=cublasDtrsvLowerRowMajor	m=3	n=1	k=0	host_ms=2.312899	device_ms=2.114624
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=3	n=3	k=0	host_ms=1.144914	device_ms=1.083552
+PASS
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.238

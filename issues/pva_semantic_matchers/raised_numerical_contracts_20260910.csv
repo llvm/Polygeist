@@ -1,0 +1,4 @@
+operation,status,mismatches,max_error,tolerance,checksum
+box-u8,WITHIN_TOLERANCE,15875,1,1,13457283809969870832
+bilateral-u8,WITHIN_TOLERANCE,18245,2,2,5994759095415600212
+histogram-equalization-u8,WITHIN_TOLERANCE,23675,1,1,9509715653168268106

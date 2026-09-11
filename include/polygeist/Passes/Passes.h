@@ -22,6 +22,7 @@ class PatternRewriter;
 class RewritePatternSet;
 class DominanceInfo;
 namespace polygeist {
+std::unique_ptr<Pass> createSelectFuncPass();
 std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createPolygeistMem2RegPass();
 std::unique_ptr<Pass> createLoopRestructurePass();
@@ -32,6 +33,21 @@ std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRaiseAffineToLinalgPass();
+std::unique_ptr<Pass> createRaiseAffineToLinalgPipelinePass();
+std::unique_ptr<Pass> createLinalgDebufferizePass();
+std::unique_ptr<Pass> createLowerPolygeistSubmapPass();
+std::unique_ptr<Pass> createLowerKernelLaunchPass();
+std::unique_ptr<Pass> createSelectContractionBackendPass();
+std::unique_ptr<Pass> createWrapKernelLaunchPipelinePass();
+std::unique_ptr<Pass> createPlanPersistentGpuWorkspacePass();
+std::unique_ptr<Pass> createPrepareGpuResidualPipelinePass();
+std::unique_ptr<Pass> createPlanGpuDataResidencyPass();
+std::unique_ptr<Pass> createInstrumentGpuRegionTimingPass();
+std::unique_ptr<Pass> createPropagateKernelLibraryConstantsPass();
+std::unique_ptr<Pass> createLowerKernelLaunchToCuBLASPass();
+std::unique_ptr<Pass> createLowerKernelLaunchToPVAPass();
+std::unique_ptr<Pass> createRemoveIterArgsPass();
+std::unique_ptr<Pass> createFoldSCFIfPass();
 std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
@@ -71,6 +87,10 @@ createGpuSerializeToHsacoPass(StringRef arch, StringRef features,
                               int llvmOptLevel, int hsaOptLevel,
                               std::string rocmPath, bool outputIntermediate);
 
+std::unique_ptr<Pass> createLinalgToKernelPass();
+std::unique_ptr<Pass> createLinalgToKernelPass(const std::string& kernelLibraryPath);
+std::unique_ptr<Pass> createComposeCutensornetNetworksPass();
+
 void registerGpuSerializeToCubinPass();
 void registerGpuSerializeToHsacoPass();
 
@@ -96,6 +116,11 @@ namespace omp {
 class OpenMPDialect;
 } // end namespace omp
 
+namespace polygeist {
+namespace kernel {
+class KernelDialect;
+} // end namespace kernel
+}
 namespace polygeist {
 class PolygeistDialect;
 } // end namespace polygeist
@@ -126,6 +151,18 @@ class AffineDialect;
 
 namespace linalg {
 class LinalgDialect;
+}
+
+namespace tensor {
+class TensorDialect;
+}
+
+namespace bufferization {
+class BufferizationDialect;
+}
+
+namespace Tensor {
+class TensorDialect;
 }
 
 namespace LLVM {

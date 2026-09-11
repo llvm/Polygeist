@@ -1,0 +1,26 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/cublas_batched_gemm_gemv_subtract_20260905_221620/cublas_batched_subtract_jetson_v2 run 1 ...
+POLYGEIST_RT_TIMING	op=cublasDgemmStridedBatched_subtract	m=4	n=2	k=3	host_ms=39.588256	device_ms=39.425282
+POLYGEIST_RT_TIMING	op=cublasDgemvStridedBatched_subtract	m=4	n=1	k=3	host_ms=14.787232	device_ms=14.755680
+PASS cublasDgemmStridedBatched subtract
+PASS cublasDgemvStridedBatched subtract
+[jetson] running /tmp/polygeist_jetson_runs/cublas_batched_gemm_gemv_subtract_20260905_221620/cublas_batched_subtract_jetson_v2 run 2 ...
+[jetson] elapsed_s 0.249
+POLYGEIST_RT_TIMING	op=cublasDgemmStridedBatched_subtract	m=4	n=2	k=3	host_ms=39.855712	device_ms=39.692001
+POLYGEIST_RT_TIMING	op=cublasDgemvStridedBatched_subtract	m=4	n=1	k=3	host_ms=3.604064	device_ms=3.572512
+PASS cublasDgemmStridedBatched subtract
+PASS cublasDgemvStridedBatched subtract
+[jetson] running /tmp/polygeist_jetson_runs/cublas_batched_gemm_gemv_subtract_20260905_221620/cublas_batched_subtract_jetson_v2 run 3 ...
+[jetson] elapsed_s 0.247
+POLYGEIST_RT_TIMING	op=cublasDgemmStridedBatched_subtract	m=4	n=2	k=3	host_ms=39.481376	device_ms=39.322208
+POLYGEIST_RT_TIMING	op=cublasDgemvStridedBatched_subtract	m=4	n=1	k=3	host_ms=3.547200	device_ms=3.511232
+PASS cublasDgemmStridedBatched subtract
+PASS cublasDgemvStridedBatched subtract
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.239

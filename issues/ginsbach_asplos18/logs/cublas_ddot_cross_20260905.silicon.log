@@ -1,0 +1,8 @@
+timestamp=2026-09-05 PDT
+route=arpitj-dev -> pva-general -> nvidia@192.168.57.1
+build=x86 host cross-compile with aarch64-linux-gnu-gcc; AArch64 executable copied to board
+backend=cuBLAS cublasDdot
+input=x=[1,2,3,4], y=[5,6,7,8]
+expected=70
+policy=no project-authored computational CUDA or CPU kernel
+result=PASS cublasDdot

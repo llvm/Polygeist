@@ -1,0 +1,14 @@
+hardware=Jetson Orin sm87 MAXN CUDA 12.6 cuDNN
+route=pva-general -> nvidia@192.168.58.1
+problem=N=4194304
+measurement=3 warmups then mean of 10 calls; three independent processes
+
+RESULT kernel=aten_gradient_cpu warm_us=6614.473560 errors=0 max_error=0 coverage=partial_graph_interior
+RESULT kernel=aten_gradient_cpu warm_us=6528.492847 errors=0 max_error=0 coverage=partial_graph_interior
+RESULT kernel=aten_gradient_cpu warm_us=6524.540747 errors=0 max_error=0 coverage=partial_graph_interior
+MEDIAN kernel=aten_gradient_cpu warm_us=6528.492847 correctness=PASS
+
+RESULT kernel=aten_gradient_float_cpu warm_us=10418.310376 errors=0 max_error=1.52588e-05 coverage=partial_graph_interior
+RESULT kernel=aten_gradient_float_cpu warm_us=10329.289575 errors=0 max_error=1.52588e-05 coverage=partial_graph_interior
+RESULT kernel=aten_gradient_float_cpu warm_us=10366.361597 errors=0 max_error=1.52588e-05 coverage=partial_graph_interior
+MEDIAN kernel=aten_gradient_float_cpu warm_us=10366.361597 correctness=PASS

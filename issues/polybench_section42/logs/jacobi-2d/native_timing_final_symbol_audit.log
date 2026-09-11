@@ -1,0 +1,3 @@
+00000000000011c0 0000000000000592 T kernel_jacobi_2d
+0000000000001760 0000000000000083 T main
+    179e:	e8 1d fa ff ff       	call   11c0 <kernel_jacobi_2d>

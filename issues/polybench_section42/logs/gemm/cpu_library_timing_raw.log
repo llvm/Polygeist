@@ -1,0 +1,5 @@
+gemm,openblas_cblas_1t,1,0,0.052347
+gemm,openblas_cblas_1t,2,0,0.050437
+gemm,openblas_cblas_1t,3,0,0.050047
+gemm,openblas_cblas_1t,4,0,0.051065
+gemm,openblas_cblas_1t,5,0,0.049612

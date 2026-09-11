@@ -1,0 +1,30 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/cholesky-raised-openblas-timing_20260908_115452/raised-openblas-timing run 1 ...
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=0 total=10
+POLYGEIST_RAISED_CPU_MS 173.495296001
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=1 total=10
+POLYGEIST_RAISED_CPU_MS 173.550016001
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=2 total=10
+POLYGEIST_RAISED_CPU_MS 173.544448003
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=3 total=10
+POLYGEIST_RAISED_CPU_MS 173.536032006
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=4 total=10
+POLYGEIST_RAISED_CPU_MS 173.583072007
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=0 total=10
+POLYGEIST_RAISED_CPU_MS 173.625632003
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=1 total=10
+POLYGEIST_RAISED_CPU_MS 173.781535998
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=2 total=10
+POLYGEIST_RAISED_CPU_MS 173.131136000
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=3 total=10
+POLYGEIST_RAISED_CPU_MS 173.487583995
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=4 total=10
+POLYGEIST_RAISED_CPU_MS 173.534495994
+
+[jetson] exit code: 0
+[jetson] elapsed_s 358.690

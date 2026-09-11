@@ -1,0 +1,23 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/aten_argmax_cpu_cub_20260906_044333/aten_argmax_cpu run 1 ...
+RESULT kernel=aten_argmax_cpu warm_us=24790.774401 resident_us=14039.456001 errors=0 max_error=0 shape=R=131072_K=64 coverage=full_row-wise_first-index_argmax_through_CUB_segmented_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_argmax_cpu_cub_20260906_044333/aten_argmax_cpu run 2 ...
+[jetson] elapsed_s 0.949
+RESULT kernel=aten_argmax_cpu warm_us=24494.352000 resident_us=14085.503998 errors=0 max_error=0 shape=R=131072_K=64 coverage=full_row-wise_first-index_argmax_through_CUB_segmented_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_argmax_cpu_cub_20260906_044333/aten_argmax_cpu run 3 ...
+[jetson] elapsed_s 0.956
+RESULT kernel=aten_argmax_cpu warm_us=24603.929601 resident_us=14074.175999 errors=0 max_error=0 shape=R=131072_K=64 coverage=full_row-wise_first-index_argmax_through_CUB_segmented_reduction
+[jetson] elapsed_s 0.953
+[jetson] running /tmp/polygeist_jetson_runs/aten_argmax_cpu_cub_20260906_044333/aten_argmax_cpu run 4 ...
+RESULT kernel=aten_argmax_cpu warm_us=24559.094400 resident_us=14155.231998 errors=0 max_error=0 shape=R=131072_K=64 coverage=full_row-wise_first-index_argmax_through_CUB_segmented_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_argmax_cpu_cub_20260906_044333/aten_argmax_cpu run 5 ...
+[jetson] elapsed_s 0.948
+RESULT kernel=aten_argmax_cpu warm_us=24363.574401 resident_us=14120.000000 errors=0 max_error=0 shape=R=131072_K=64 coverage=full_row-wise_first-index_argmax_through_CUB_segmented_reduction
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.943

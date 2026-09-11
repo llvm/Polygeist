@@ -1,0 +1,8 @@
+kernel=aten_gemm_transa_cpu correctness=PASS max_abs=6.67572021484375e-06 max_rel=1.4332168940154738e-06
+kernel=aten_gemm_transa_cpu iterations=5 raised_gpu_us=1958.918385
+kernel=aten_gemm_transa_cpu correctness=PASS max_abs=6.67572021484375e-06 max_rel=1.4332168940154738e-06
+kernel=aten_gemm_transa_cpu iterations=5 raised_gpu_us=1961.798407
+kernel=aten_gemm_transa_cpu correctness=PASS max_abs=6.67572021484375e-06 max_rel=1.4332168940154738e-06
+kernel=aten_gemm_transa_cpu iterations=5 raised_gpu_us=1954.553602
+kernel=aten_gemm_transa_cpu correctness=PASS max_abs=6.67572021484375e-06 max_rel=1.4332168940154738e-06
+kernel=aten_gemm_transa_cpu iterations=5 raised_gpu_us=2010.841621

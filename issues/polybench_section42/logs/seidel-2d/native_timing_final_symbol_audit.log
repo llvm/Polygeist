@@ -1,0 +1,3 @@
+00000000000011c0 00000000000000de T kernel_seidel_2d
+00000000000012a0 0000000000000064 T main
+    12cd:	e8 ee fe ff ff       	call   11c0 <kernel_seidel_2d>

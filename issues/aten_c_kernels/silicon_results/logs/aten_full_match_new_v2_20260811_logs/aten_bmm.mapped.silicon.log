@@ -1,0 +1,8 @@
+kernel=aten_bmm correctness=PASS max_abs=0 max_rel=0
+kernel=aten_bmm iterations=5 raised_gpu_us=5892.454367
+kernel=aten_bmm correctness=PASS max_abs=0 max_rel=0
+kernel=aten_bmm iterations=5 raised_gpu_us=5835.859198
+kernel=aten_bmm correctness=PASS max_abs=0 max_rel=0
+kernel=aten_bmm iterations=5 raised_gpu_us=5969.145615
+kernel=aten_bmm correctness=PASS max_abs=0 max_rel=0
+kernel=aten_bmm iterations=5 raised_gpu_us=5929.100839

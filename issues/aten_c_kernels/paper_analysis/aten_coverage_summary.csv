@@ -1,0 +1,10 @@
+section,metric,kernel_count,definition
+Corpus and library execution,ATen standalone kernel fixtures,598,complete audited fixture corpus
+Corpus and library execution,Complete library rewrites,271,complete whole-fixture static library mapping
+Corpus and library execution,Complete rewrites executed on GPU,217,recorded raised resident GPU runtime
+Corpus and library execution,Complete rewrites awaiting GPU execution,54,complete static mapping without a resident timing
+Corpus and library execution,Partial library matches,85,library stage found with residual computation
+Corpus and library execution,No library match found,242,no current complete or partial library match
+Raised-IR structure,Fully raised to Linalg,418,one or more Linalg operations and no residual affine/SCF loops
+Raised-IR structure,Mixed Linalg and structured loops,107,Linalg plus residual affine/SCF loops
+Raised-IR structure,No Linalg operation,73,loop-only or scalar/control-flow raised IR

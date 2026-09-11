@@ -1,0 +1,19 @@
+[polygeist] keeping workdir: /tmp/tmp.A6dQBAqVFt
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=host  output=/tmp/polybench-section42-gemm-openblas-multiroot
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Dstatic= -DPOLYBENCH_USE_C99_PROTO
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 0 kernel.launch op(s)
+         no ABI-lowerable matches; continuing with residual Linalg
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 0 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+ERROR: mlir-opt lowering failed; see /tmp/tmp.A6dQBAqVFt/mlir.err
+/tmp/tmp.A6dQBAqVFt/abi_canon.mlir:32:11: error: Dialect `polygeist' not found for custom op 'polygeist.submapInverse' 
+    %10 = polygeist.submapInverse(%inserted_slice, %9, %5, %4, %3) {map = #map1} : (tensor<?x?xf64>, tensor<?x?x?xf64>, index, index, index) -> tensor<?x?xf64>
+          ^
+/tmp/tmp.A6dQBAqVFt/abi_canon.mlir:32:11: note: Registered dialects: acc, affine, amdgpu, amx, arith, arm_neon, arm_sme, arm_sve, async, bufferization, builtin, cf, complex, dlti, emitc, func, gpu, index, irdl, linalg, llvm, math, memref, ml_program, nvgpu, nvvm, omp, pdl, pdl_interp, quant, rocdl, scf, shape, sparse_tensor, spirv, tensor, test, test_dyn, tosa, transform, ub, vector, x86vector ; for more info on dialect registration see https://mlir.llvm.org/getting_started/Faq/#registered-loaded-dependent-whats-up-with-dialects-management

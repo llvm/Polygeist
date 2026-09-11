@@ -1,0 +1,3 @@
+kernel,native_aten_resident_us,min_us,max_us,iqr_us,errors,max_error,shape,recipe,samples,device,protocol,comparison_scope
+aten_hspmm_cpu,2095.008000,2094.720000,2107.296000,7.360000,0,6.67572e-06,R=64_C=4096_N=4096,259b92fa65811255,"2095.008000,2094.816000,2094.720000,2096.960000,2107.296000",Jetson_AGX_Orin_sm87,one_process_5_warmups_median_of_5_sync_wall,FRAMEWORK_LEVEL_ATEN_COO_PATH
+aten_sparse_addmm_cpu,1289.952000,1273.248000,1306.560000,22.400000,0,4.76837e-06,R=64_C=4096_N=4096,af6a5bc645cf7bab,"1273.248000,1279.584000,1289.952000,1306.560000,1291.072000",Jetson_AGX_Orin_sm87,one_process_5_warmups_median_of_5_sync_wall,FRAMEWORK_LEVEL_ATEN_COO_PATH

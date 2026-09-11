@@ -1,0 +1,20 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_parboil_sgemm_alpha_beta_cross_20260904_215100/parboil_sgemm_source_faithful_aarch64 run 1 ...
+POLYGEIST_RT_TIMING	op=cublasSgemm_transpose	m=2	n=2	k=3	host_ms=16.619707	device_ms=0.000000
+parboil-source-faithful-sgemm: PASS
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_parboil_sgemm_alpha_beta_cross_20260904_215100/parboil_sgemm_source_faithful_aarch64 run 2 ...
+[jetson] elapsed_s 0.228
+POLYGEIST_RT_TIMING	op=cublasSgemm_transpose	m=2	n=2	k=3	host_ms=15.875023	device_ms=0.000000
+parboil-source-faithful-sgemm: PASS
+[jetson] running /tmp/polygeist_jetson_runs/ginsbach_parboil_sgemm_alpha_beta_cross_20260904_215100/parboil_sgemm_source_faithful_aarch64 run 3 ...
+[jetson] elapsed_s 0.220
+POLYGEIST_RT_TIMING	op=cublasSgemm_transpose	m=2	n=2	k=3	host_ms=16.844030	device_ms=0.000000
+parboil-source-faithful-sgemm: PASS
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.228

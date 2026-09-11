@@ -1,0 +1,127 @@
+\begin{longtable}{lrrrl}
+  \caption{Per-kernel timing data for the 115 non-pointwise ATen kernels in Figure~\ref{fig:aten-gpu-runtime}. Times are in microseconds.}\label{tab:aten-nonpointwise-timings} \\
+  \toprule
+  Kernel & Native CUDA & Raised GPU & Raised/native & Source \\
+  \midrule
+  \endfirsthead
+  \toprule
+  Kernel & Native CUDA & Raised GPU & Raised/native & Source \\
+  \midrule
+  \endhead
+  aten\_avg\_pool2d & 22.816 & 49.088 & 2.151$\times$ & current min-of-five \\
+  aten\_avg\_pool3d & 56.768 & 51.520 & 0.908$\times$ & historical fallback \\
+  aten\_adaptive\_avg\_pool3d & 66.144 & 51.360 & 0.776$\times$ & historical fallback \\
+  aten\_conv\_transpose3d\_backward\_cpu & 88.384 & 127.104 & 1.438$\times$ & current min-of-five \\
+  aten\_avg\_pool2d\_backward\_cpu & 92.640 & 153.376 & 1.656$\times$ & historical fallback \\
+  aten\_narrow\_copy\_dense\_cpu & 93.024 & 86.816 & 0.933$\times$ & current min-of-five \\
+  aten\_sparse\_norm\_cpu & 112.576 & 108.960 & 0.968$\times$ & historical fallback \\
+  aten\_int\_mm\_out\_cpu & 116.704 & 147.872 & 1.267$\times$ & historical fallback \\
+  aten\_avg\_pool3d\_backward\_cpu & 120.512 & 212.224 & 1.761$\times$ & historical fallback \\
+  aten\_zeros\_cpu & 130.496 & 115.232 & 0.883$\times$ & current min-of-five \\
+  aten\_or\_reduce\_cpu & 154.848 & 171.040 & 1.105$\times$ & current min-of-five \\
+  aten\_dilated\_convolution\_cpu & 175.552 & 193.152 & 1.100$\times$ & current min-of-five \\
+  aten\_blas\_copy\_cpu & 215.808 & 203.104 & 0.941$\times$ & current min-of-five \\
+  aten\_copy\_tensor\_array\_cpu & 217.088 & 219.616 & 1.012$\times$ & current min-of-five \\
+  aten\_copy\_cpu & 218.880 & 203.584 & 0.930$\times$ & current min-of-five \\
+  aten\_clamp\_min\_scalar\_cpu & 222.144 & 635.552 & 2.861$\times$ & current min-of-five \\
+  aten\_nested\_squeeze\_cpu & 223.136 & 219.744 & 0.985$\times$ & current min-of-five \\
+  aten\_nested\_clone\_cpu & 224.064 & 219.904 & 0.981$\times$ & current min-of-five \\
+  aten\_clamp\_max\_scalar\_cpu & 226.464 & 635.008 & 2.804$\times$ & current min-of-five \\
+  aten\_im2col & 227.232 & 171.648 & 0.755$\times$ & current min-of-five \\
+  aten\_cat\_serial\_cpu & 227.392 & 253.088 & 1.113$\times$ & current min-of-five \\
+  aten\_conv2d\_columns\_cpu & 239.232 & 143.488 & 0.600$\times$ & historical fallback \\
+  aten\_conv\_transpose2d & 239.520 & 232.096 & 0.969$\times$ & current min-of-five \\
+  aten\_stack\_serial\_cpu & 257.632 & 223.808 & 0.869$\times$ & current min-of-five \\
+  aten\_compressed\_block\_convert\_cpu & 297.920 & 209.824 & 0.704$\times$ & historical fallback \\
+  aten\_batch\_norm & 306.688 & 262.592 & 0.856$\times$ & historical fallback \\
+  aten\_outer & 307.264 & 1008.032 & 3.281$\times$ & current min-of-five \\
+  aten\_angle\_complex\_scalarized & 311.840 & 906.336 & 2.906$\times$ & current min-of-five \\
+  aten\_blas\_axpy\_cpu & 313.696 & 517.088 & 1.648$\times$ & current min-of-five \\
+  aten\_sparse\_mul\_cpu & 314.176 & 871.936 & 2.775$\times$ & current min-of-five \\
+  aten\_sparse\_intersection\_apply\_cpu & 314.592 & 839.680 & 2.669$\times$ & historical fallback \\
+  aten\_sparse\_intersection\_launch\_cpu & 314.688 & 837.472 & 2.661$\times$ & historical fallback \\
+  aten\_sparse\_add\_values\_cpu & 315.872 & 865.984 & 2.742$\times$ & current min-of-five \\
+  aten\_cross\_cpu\_backend & 319.488 & 47972.896 & 150.156$\times$ & historical fallback \\
+  aten\_cross & 319.840 & 47992.480 & 150.052$\times$ & historical fallback \\
+  aten\_cumprod\_cpu & 328.800 & 4850.496 & 14.752$\times$ & historical fallback \\
+  aten\_repeat\_compute\_cpu & 335.520 & 340.960 & 1.016$\times$ & current min-of-five \\
+  aten\_as\_complex\_cpu & 347.872 & 9089.824 & 26.130$\times$ & historical fallback \\
+  aten\_repeat\_tensor\_shape\_cpu & 355.008 & 345.088 & 0.972$\times$ & current min-of-five \\
+  aten\_sparse\_coo\_to\_csr\_cpu & 360.192 & 195.200 & 0.542$\times$ & historical fallback \\
+  aten\_convert\_coo\_to\_csr\_cpu & 360.704 & 195.648 & 0.542$\times$ & historical fallback \\
+  aten\_conv2d & 374.848 & 625.472 & 1.669$\times$ & current min-of-five \\
+  aten\_max\_pool2d & 375.392 & 365.024 & 0.972$\times$ & current min-of-five \\
+  aten\_sparse\_addmv\_csr\_cpu & 386.688 & 340.640 & 0.881$\times$ & historical fallback \\
+  aten\_nested\_sum\_backward\_cpu & 389.120 & 652.800 & 1.678$\times$ & current min-of-five \\
+  aten\_complex\_scalarized & 400.896 & 407.264 & 1.016$\times$ & current min-of-five \\
+  aten\_nested\_all\_cpu & 408.160 & 1672.672 & 4.098$\times$ & current min-of-five \\
+  aten\_adaptive\_avg\_pool2d & 408.768 & 692.064 & 1.693$\times$ & historical fallback \\
+  aten\_conj\_complex\_scalarized & 412.768 & 1864.224 & 4.516$\times$ & historical fallback \\
+  aten\_normal\_cpu & 414.080 & 607.008 & 1.466$\times$ & historical fallback \\
+  aten\_uniform\_cpu & 414.848 & 608.416 & 1.467$\times$ & historical fallback \\
+  aten\_blas\_scale\_cpu & 427.136 & 234.528 & 0.549$\times$ & current min-of-five \\
+  aten\_nansum\_cpu & 444.672 & 1835.008 & 4.127$\times$ & historical fallback \\
+  aten\_pixel\_shuffle & 450.816 & 246.048 & 0.546$\times$ & current min-of-five \\
+  aten\_channel\_shuffle\_cpu & 471.968 & 241.760 & 0.512$\times$ & current min-of-five \\
+  aten\_channel\_shuffle & 486.144 & 224.352 & 0.461$\times$ & current min-of-five \\
+  aten\_batch\_norm\_transform\_cpu & 487.104 & 449.504 & 0.923$\times$ & historical fallback \\
+  aten\_nested\_sum\_dim\_cpu & 548.512 & 1266.592 & 2.309$\times$ & current min-of-five \\
+  aten\_and\_reduce\_cpu & 568.832 & 1912.448 & 3.362$\times$ & current min-of-five \\
+  aten\_pixel\_unshuffle\_cpu\_backend & 572.896 & 267.232 & 0.466$\times$ & current min-of-five \\
+  aten\_pixel\_shuffle\_cpu\_backend & 582.528 & 320.576 & 0.550$\times$ & current min-of-five \\
+  aten\_log\_normal\_cpu & 595.072 & 608.832 & 1.023$\times$ & historical fallback \\
+  aten\_sparse\_matmul\_cpu & 603.328 & 154.144 & 0.255$\times$ & historical fallback \\
+  aten\_transpose\_copy & 643.200 & 295.040 & 0.459$\times$ & current min-of-five \\
+  aten\_nested\_matmul\_broadcast\_cpu & 726.848 & 1024.416 & 1.409$\times$ & current min-of-five \\
+  aten\_flatten\_nd\_linear\_cpu & 749.984 & 1065.632 & 1.421$\times$ & historical fallback \\
+  aten\_sum & 766.368 & 3078.560 & 4.017$\times$ & current min-of-five \\
+  aten\_diff\_cpu & 766.464 & 5224.896 & 6.817$\times$ & historical fallback \\
+  aten\_exponential\_cpu & 769.216 & 3172.032 & 4.124$\times$ & historical fallback \\
+  aten\_argmax\_cpu & 776.160 & 3650.368 & 4.703$\times$ & historical fallback \\
+  aten\_argmin\_cpu & 777.536 & 3647.808 & 4.691$\times$ & historical fallback \\
+  aten\_bmm & 782.208 & 848.640 & 1.085$\times$ & historical fallback \\
+  aten\_allany\_dims\_cpu & 824.768 & 1876.448 & 2.275$\times$ & historical fallback \\
+  aten\_dropout\_feature\_noise\_cpu & 828.896 & 817.856 & 0.987$\times$ & historical fallback \\
+  aten\_nested\_bmm\_cpu & 866.080 & 859.008 & 0.992$\times$ & current min-of-five \\
+  aten\_sumproduct\_pair\_cpu & 874.880 & 848.896 & 0.970$\times$ & historical fallback \\
+  aten\_geometric\_cpu & 877.408 & 3169.824 & 3.613$\times$ & historical fallback \\
+  aten\_sparse\_bmm\_cpu & 883.040 & 865.696 & 0.980$\times$ & historical fallback \\
+  aten\_sparse\_matmul\_csr\_to\_coo\_cpu & 934.976 & 329.984 & 0.353$\times$ & historical fallback \\
+  aten\_convert\_csr\_to\_coo\_cpu & 943.200 & 332.288 & 0.352$\times$ & historical fallback \\
+  aten\_polar\_scalarized & 950.976 & 1724.256 & 1.813$\times$ & current min-of-five \\
+  aten\_cauchy\_cpu & 960.320 & 2995.936 & 3.120$\times$ & historical fallback \\
+  aten\_cpu\_blas\_gemm\_strided\_batched\_cpu & 1038.080 & 1016.000 & 0.979$\times$ & historical fallback \\
+  aten\_cpu\_blas\_gemm\_batched\_cpu & 1039.584 & 1013.024 & 0.974$\times$ & historical fallback \\
+  aten\_conv\_tbc\_cpu & 1047.328 & 1372.672 & 1.311$\times$ & current min-of-five \\
+  aten\_kron\_impl\_cpu & 1100.352 & 5961.792 & 5.418$\times$ & current min-of-five \\
+  aten\_kron\_out\_cpu & 1101.760 & 6008.960 & 5.454$\times$ & current min-of-five \\
+  aten\_upsample\_bilinear2d & 1125.600 & 5472.800 & 4.862$\times$ & historical fallback \\
+  aten\_dirichlet\_grad\_cpu & 1220.096 & 1156.832 & 0.948$\times$ & historical fallback \\
+  aten\_count\_nonzero\_impl\_cpu & 1222.496 & 5495.456 & 4.495$\times$ & current min-of-five \\
+  aten\_transform\_bias\_rescale\_qkv\_cpu & 1248.096 & 703.360 & 0.564$\times$ & historical fallback \\
+  aten\_sparse\_addmm\_cpu & 1273.248 & 106.304 & 0.083$\times$ & current min-of-five \\
+  aten\_depthwise\_conv3x3\_cpu & 1303.488 & 1603.680 & 1.230$\times$ & historical fallback \\
+  aten\_gamma\_transform\_cpu & 1313.152 & 3251.136 & 2.476$\times$ & historical fallback \\
+  aten\_hspmm\_cpu & 1329.600 & 106.496 & 0.080$\times$ & historical fallback \\
+  aten\_renorm\_scale\_factor & 1381.760 & 633.024 & 0.458$\times$ & current min-of-five \\
+  aten\_standard\_gamma\_grad\_cpu & 1394.624 & 887.520 & 0.636$\times$ & historical fallback \\
+  aten\_conv\_tbc\_backward\_cpu & 1398.112 & 9793.120 & 7.005$\times$ & current min-of-five \\
+  aten\_slow\_conv3d\_backward\_input\_cpu & 1543.424 & 1000.672 & 0.648$\times$ & historical fallback \\
+  aten\_conv\_transpose3d\_cpu & 1614.784 & 1588.832 & 0.984$\times$ & current min-of-five \\
+  aten\_sampled\_addmm\_sparse\_csr\_cpu & 1803.584 & 8205.024 & 4.549$\times$ & current min-of-five \\
+  aten\_joint\_scaling\_cpu & 2260.544 & 917.408 & 0.406$\times$ & historical fallback \\
+  aten\_sspaddmm\_cpu & 2263.808 & 260.960 & 0.115$\times$ & historical fallback \\
+  aten\_xor\_sum\_cpu & 2642.624 & 168.032 & 0.064$\times$ & historical fallback \\
+  aten\_conv\_transpose3d\_grad\_weight\_cpu & 2718.496 & 3006.496 & 1.106$\times$ & current min-of-five \\
+  aten\_slow\_conv3d\_backward\_weight\_cpu & 2781.824 & 8587.552 & 3.087$\times$ & historical fallback \\
+  aten\_cpu\_blas\_gemm\_cpu & 3778.624 & 3750.080 & 0.992$\times$ & historical fallback \\
+  aten\_embedding\_bag\_counts\_cpu & 3909.408 & 4233.152 & 1.083$\times$ & historical fallback \\
+  aten\_mm & 3975.584 & 4102.784 & 1.032$\times$ & current min-of-five \\
+  aten\_unbind\_copy\_cpu & 3982.368 & 217.664 & 0.055$\times$ & current min-of-five \\
+  aten\_addmm & 3989.920 & 3868.864 & 0.970$\times$ & current min-of-five \\
+  aten\_sparse\_addmv\_bsr\_cpu & 4468.640 & 634.976 & 0.142$\times$ & current min-of-five \\
+  aten\_conv1d & 5172.288 & 4714.208 & 0.911$\times$ & current min-of-five \\
+  aten\_sparse\_csr\_addmm\_cpu & 6758.560 & 6848.480 & 1.013$\times$ & current min-of-five \\
+  aten\_quant\_col\_offsets\_cpu & 7274.784 & 2781.216 & 0.382$\times$ & historical fallback \\
+  \bottomrule
+\end{longtable}

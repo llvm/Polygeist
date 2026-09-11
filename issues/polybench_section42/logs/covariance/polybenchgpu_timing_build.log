@@ -1,0 +1,7 @@
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/datamining/covariance/covariance.c:33:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~

@@ -1,0 +1,3 @@
+00000000000011c0 000000000000044c T kernel_gemm
+0000000000001610 00000000000000c7 T main
+    1688:	e8 33 fb ff ff       	call   11c0 <kernel_gemm>

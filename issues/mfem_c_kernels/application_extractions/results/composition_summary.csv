@@ -1,0 +1,12 @@
+id,composition_ok,matcher_launches,composed_launches,network_launches,matcher_symbols,composed_symbols,network_symbols,error
+mfem_app_mtop_iso_elasticity_dfem_2d,true,4,4,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_dfem_minimal_surface_2d,true,2,2,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_ex35p_h1_3d,true,3,3,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_ex35p_hcurl_3d,true,5,5,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_ex35p_hdiv_3d,true,3,3,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_ex9p_mass_convection_2d,true,5,5,0,"cublasDaxpby,cutensornetContraction2_f64","cublasDaxpby,cutensornetContraction2_f64",,
+mfem_app_grad_div_3d,true,3,3,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_abs_l1_mass_3d,true,1,1,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_abs_l1_diffusion_3d,true,2,2,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_abs_l1_curlcurl_3d,true,5,5,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,
+mfem_app_navier_tgv_pa_operators_3d,true,4,4,0,cutensornetContraction2_f64,cutensornetContraction2_f64,,

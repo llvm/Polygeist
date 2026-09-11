@@ -1,0 +1,60 @@
+-- Testing: 3 of 177 tests, 3 workers --
+PASS: polygeist :: polygeist-opt/raise-hoist-index-only.mlir (1 of 3)
+FAIL: polygeist :: scripts/kernel-match-composition-root-rewire.mlir (2 of 3)
+******************** TEST 'polygeist :: scripts/kernel-match-composition-root-rewire.mlir' FAILED ********************
+Exit Code: 1
+
+Command Output (stderr):
+--
+RUN: at line 1: /usr/bin/python3 /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir
++ /usr/bin/python3 /home/arjaiswal/Polygeist-section42/test/scripts/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir
+/home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir:36:11: error: CHECK: expected string not found in input
+// CHECK: tensor.insert_slice %[[RESULT]] into %C
+          ^
+<stdin>:18:81: note: scanning from here
+// CHECK: %[[RESULT:.+]] = kernel.launch @cublasDgemm(%A, %B, %C, %beta, %alpha)
+                                                                                ^
+<stdin>:18:81: note: with "RESULT" equal to "\\[\\[RESULT:\\.\\+\\]\\]"
+// CHECK: %[[RESULT:.+]] = kernel.launch @cublasDgemm(%A, %B, %C, %beta, %alpha)
+                                                                                ^
+<stdin>:19:11: note: possible intended match here
+// CHECK: tensor.insert_slice %[[RESULT]] into %C
+          ^
+
+Input file: <stdin>
+Check file: /home/arjaiswal/Polygeist-section42/test/scripts/kernel-match-composition-root-rewire.mlir
+
+-dump-input=help explains the following input dump.
+
+Input was:
+<<<<<<
+            .
+            .
+            .
+           13:  : tensor<?x?xf64> into tensor<?x?xf64> 
+           14:  return %updated : tensor<?x?xf64> 
+           15:  } 
+           16: } 
+           17:  
+           18: // CHECK: %[[RESULT:.+]] = kernel.launch @cublasDgemm(%A, %B, %C, %beta, %alpha) 
+check:36'0                                                                                     X error: no match found
+check:36'1                                                                                       with "RESULT" equal to "\\[\\[RESULT:\\.\\+\\]\\]"
+           19: // CHECK: tensor.insert_slice %[[RESULT]] into %C 
+check:36'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+check:36'2               ?                                        possible intended match
+>>>>>>
+
+--
+
+********************
+PASS: polygeist :: runtime/cblas-runtime-compiles.c (3 of 3)
+********************
+Failed Tests (1):
+  polygeist :: scripts/kernel-match-composition-root-rewire.mlir
+
+
+Testing Time: 2.55s
+  Excluded: 174
+  Passed  :   2
+  Failed  :   1

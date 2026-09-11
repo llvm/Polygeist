@@ -1,0 +1,40 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/publication_correlation_native_timing_5x5_20260908_121750/native-timing-5x5 run 1 ...
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=0 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=322.007843018
+0.384003
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=1 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=322.011749268
+0.328609
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=2 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=320.394348145
+0.325707
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=3 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=322.436126709
+0.327753
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=4 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=320.951385498
+0.326278
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=0 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=321.200988770
+0.326502
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=1 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=322.846252441
+0.328183
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=2 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=321.237823486
+0.326549
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=3 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=322.186340332
+0.327541
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=4 total=10
+POLYBENCH_NATIVE_GPU_TIMING device_ms=321.203857422
+0.326491
+
+[jetson] exit code: 0
+[jetson] elapsed_s 3.447

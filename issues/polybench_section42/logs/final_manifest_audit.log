@@ -1,0 +1,20 @@
+manifest_rows 30
+missing_or_pending 0
+native_cpu_status {'pass': 30}
+raise_status {'partial': 5, 'pass': 25}
+matcher_status {'no_match': 12, 'pass': 12, 'unavailable': 6}
+residual_cpu_status {'fail': 1, 'pass': 24, 'unavailable': 5}
+cpu_library_status {'fail': 1, 'pass': 8, 'unavailable': 21}
+raised_gpu_status {'pass': 9, 'unavailable': 21}
+polybenchgpu_status {'pass': 5, 'unavailable': 25}
+kernelfarer_status {'not_applicable': 26, 'unavailable': 4}
+polly_status {'not_applicable': 26, 'pass': 4}
+overall_status {'fail': 6, 'partial': 24}
+performance_cpu.csv records 65 unique_keys 65 correctness {'pass': 65}
+performance_gpu.csv records 14 unique_keys 14 correctness {'pass': 14}
+four_headers True
+manifest_kernels_present 30
+obsolete_split_pages [('polybenchgpu.html', False), ('polybench-section42.html', False)]
+raised_gpu_pass_cells 30
+filter_counts {'passed': 4, 'failed': 7, 'unavailable': 14, 'modified': 5}
+PASS: consolidated four-runtime content audit

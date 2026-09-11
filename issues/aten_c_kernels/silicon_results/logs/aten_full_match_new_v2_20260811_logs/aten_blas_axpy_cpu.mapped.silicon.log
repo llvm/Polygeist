@@ -1,0 +1,8 @@
+kernel=aten_blas_axpy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_axpy_cpu iterations=5 raised_gpu_us=1928.595221
+kernel=aten_blas_axpy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_axpy_cpu iterations=5 raised_gpu_us=1924.499217
+kernel=aten_blas_axpy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_axpy_cpu iterations=5 raised_gpu_us=1926.988782
+kernel=aten_blas_axpy_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_blas_axpy_cpu iterations=5 raised_gpu_us=1917.619212

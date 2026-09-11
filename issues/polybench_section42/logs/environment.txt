@@ -1,0 +1,51 @@
+HOST
+2026-09-05T13:22:08-07:00
+Linux arpitj-dev 5.15.0-151-generic #161-Ubuntu SMP Tue Jul 22 14:25:40 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           46 bits physical, 48 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  24
+On-line CPU(s) list:                     0-23
+Vendor ID:                               GenuineIntel
+Model name:                              Intel Xeon Processor (Cascadelake)
+CPU family:                              6
+Model:                                   85
+Thread(s) per core:                      1
+Core(s) per socket:                      24
+Socket(s):                               1
+Stepping:                                6
+BogoMIPS:                                4788.68
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault invpcid_single ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid avx512f avx512dq rdseed adx smap clflushopt clwb avx512cd avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves arat umip pku ospke avx512_vnni md_clear flush_l1d arch_capabilities
+Virtualization:                          VT-x
+Hypervisor vendor:                       KVM
+Virtualization type:                     full
+L1d cache:                               768 KiB (24 instances)
+L1i cache:                               768 KiB (24 instances)
+L2 cache:                                96 MiB (24 instances)
+L3 cache:                                16 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-23
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Indirect target selection: Mitigation; Aligned branch/return thunks
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+GIT
+c4dda7f5e83192e11ecc2a041e08e895c45dd317
+-26eb4285b56edd8c897642078d91f16ff0fd3472 llvm-project
+TOOLS
+aarch64-linux-gnu-gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+Ubuntu clang version 14.0.0-1ubuntu1.1
+LLVM (http://llvm.org/):
+  LLVM version 18.0.0git
+  Optimized build with assertions.
+LLVM (http://llvm.org/):
+  LLVM version 18.0.0git
+  Optimized build with assertions.
+egglog unknown
+LIBS
+libopenblas-dev:amd64	0.3.20+ds-1
+libopenblas0:amd64	0.3.20+ds-1
+08388b9a6e44b60639b9b1482bf650aa78fddf7fe82002231c526548b72cc25c  tools/cgeist/Test/polybench/utilities/polybench.c

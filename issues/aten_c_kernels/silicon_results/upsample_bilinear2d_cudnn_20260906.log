@@ -1,0 +1,7 @@
+[jetson] hardware: pva-compiler-orin-1.nvidia.com; Jetson Orin sm87; CUDA 12.6
+RESULT kernel=aten_upsample_bilinear2d warm_us=6388.454400 resident_us=5472.800003 errors=0 max_error=1.19209e-07 shape=B=4096_C=3_H=4_W=4 coverage=full_cuDNN_bilinear_2x_resample
+RESULT kernel=aten_upsample_bilinear2d warm_us=6302.902400 resident_us=5471.776001 errors=0 max_error=1.19209e-07 shape=B=4096_C=3_H=4_W=4 coverage=full_cuDNN_bilinear_2x_resample
+RESULT kernel=aten_upsample_bilinear2d warm_us=6456.550399 resident_us=5476.928001 errors=0 max_error=1.19209e-07 shape=B=4096_C=3_H=4_W=4 coverage=full_cuDNN_bilinear_2x_resample
+RESULT kernel=aten_upsample_bilinear2d warm_us=6394.374400 resident_us=5473.663998 errors=0 max_error=1.19209e-07 shape=B=4096_C=3_H=4_W=4 coverage=full_cuDNN_bilinear_2x_resample
+RESULT kernel=aten_upsample_bilinear2d warm_us=6333.503999 resident_us=5459.936001 errors=0 max_error=1.19209e-07 shape=B=4096_C=3_H=4_W=4 coverage=full_cuDNN_bilinear_2x_resample
+MEDIAN warm_us=6388.454400 resident_us=5472.800003 raised_over_resident=1.167310 errors=0 max_error=1.19209e-07

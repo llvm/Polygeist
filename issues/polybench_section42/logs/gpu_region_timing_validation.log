@@ -1,0 +1,77 @@
+GPU region timing implementation validation
+Date: 2026-09-07 America/Los_Angeles
+Polygeist HEAD before uncommitted implementation: ae59a057c88efd9f7e3777e9eac9aeb93ad93e25
+polygeist-opt: LLVM 18.0.0git
+cross compiler: aarch64-linux-gnu-gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+CUDA cross headers/libraries: /usr/local/cuda-12.6/targets/sbsa-linux
+Jetson route: pva-general -> nvidia@192.168.57.1
+Jetson CUDA library path: /home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu
+
+Compiler build:
+  cmake --build build --target polygeist-opt -j4
+Result: PASS
+
+Focused regression:
+  llvm-project/build/bin/llvm-lit -sv --filter='instrument-gpu-region-timing' build/test
+Result:
+  -- Testing: 1 of 241 tests, 1 workers --
+  Passed: 1
+
+Final focused regression rerun (timing plus residency):
+  llvm-project/build/bin/llvm-lit -sv --filter='(instrument-gpu-region-timing|plan-gpu-data-residency)' build/test
+Result:
+  -- Testing: 2 of 241 tests, 2 workers --
+  Passed: 2
+
+Runtime compile checks:
+  cc -std=gnu11 -Iruntime -c runtime/polygeist_cublas_rt_cpu.c -o /tmp/polygeist_cublas_rt_cpu.o
+  aarch64-linux-gnu-gcc -O3 -w -I/usr/local/cuda-12.6/targets/sbsa-linux/include -I/usr/include/aarch64-linux-gnu -c runtime/polygeist_cublas_rt_cuda.c -o /tmp/polygeist_cublas_rt_cuda.o
+Result: PASS
+
+GEMM cross-build environment:
+  POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_gemm
+  POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_gemm
+  POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1
+  POLYGEIST_GPU_REGION_TIMING=1
+  POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_gemm
+  POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-region-timing-final/gemm-work
+  POLYGEIST_MINIMAL_RUNTIME=0
+Command:
+  scripts/correctness/build_jetson.sh /tmp/polybench-resident/gemm/export/abi.mlir /tmp/polybench-region-timing-final/gemm /tmp/polybench-resident/gemm/export/wrapper.o /tmp/polybench-resident/gemm/export/harness.o /tmp/polybench-resident/gemm/polybench.o
+Binary SHA-256: d51351a3f2a9aae042fa30c9d73a5114933e333e90417f803ca06da1cf11dda4
+Jetson exit: 0
+Raw timing:
+  POLYGEIST_GPU_REGION_TIMING region=7556491731004402243 compute_device_ms=244.258972 memory_device_ms=23.873888 e2e_host_ms=268.837824 compute_wall_ms=85.426528 memory_wall_ms=23.446496 host_device_ms=0.614112 host_wall_ms=159.234688 alloc_device_ms=1.357152 alloc_wall_ms=1.485440 free_device_ms=1.972352 free_wall_ms=1.910464 h2d_device_ms=5.379520 h2d_wall_ms=5.038528 d2h_device_ms=15.164864 d2h_wall_ms=15.012064 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=28
+Correctness:
+  PASS values=1100000 failures=0 max_abs=0.01 max_rel=4.46388715e-05 rtol=0.0005 atol=0.011
+
+Doitgen cross-build environment:
+  POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_doitgen
+  POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_doitgen
+  POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1
+  POLYGEIST_GPU_REGION_TIMING=1
+  POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_doitgen
+  POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-region-timing-final/doitgen-work
+  POLYGEIST_MINIMAL_RUNTIME=0
+Command:
+  scripts/correctness/build_jetson.sh /tmp/polybench-resident/doitgen/abi-clean.mlir /tmp/polybench-region-timing-final/doitgen /tmp/polybench-resident/doitgen/export/wrapper.o /tmp/polybench-resident/doitgen/export/harness.o /tmp/polybench-resident/doitgen/polybench.o
+Binary SHA-256: f39e13024598ee65fbef515dd7696eaefb9633c1eb9fc914d679b7b13c75514e
+Jetson exit: 0
+Raw timing:
+  POLYGEIST_GPU_REGION_TIMING region=12473179153129242121 compute_device_ms=1388.433960 memory_device_ms=17.287168 e2e_host_ms=1405.875744 compute_wall_ms=1388.405984 memory_wall_ms=17.110528 host_device_ms=0.093696 host_wall_ms=0.042272 alloc_device_ms=0.884064 alloc_wall_ms=0.896544 free_device_ms=0.881120 free_wall_ms=1.390176 h2d_device_ms=5.689568 h2d_wall_ms=5.600224 d2h_device_ms=9.832416 d2h_wall_ms=9.223584 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=28
+Correctness:
+  PASS values=3360000 failures=0 max_abs=0.01 max_rel=0.000337495781 rtol=0.0005 atol=0.011
+
+Rejected experiment:
+An initial implementation intercepted every cudaMemcpy/cudaMemcpyAsync inside
+runtime adapters. Doitgen then emitted 42,030 events for its repeated library
+calls, perturbing the measured program. This design was removed. Its rejected
+diagnostic was:
+  POLYGEIST_GPU_REGION_TIMING region=12473179153129242121 compute_device_ms=1373.509409 memory_device_ms=456.611808 e2e_host_ms=1856.072000 compute_wall_ms=1196.931648 memory_wall_ms=262.548128 host_device_ms=0.079744 host_wall_ms=0.018560 alloc_device_ms=1.122848 alloc_wall_ms=1.128160 free_device_ms=0.938688 free_wall_ms=0.906304 h2d_device_ms=4.677920 h2d_wall_ms=4.583904 d2h_device_ms=9.246816 d2h_wall_ms=9.187552 d2d_device_ms=440.625536 d2d_wall_ms=246.742208 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=42030
+
+Measurement boundary:
+The accepted implementation classifies compiler-visible GPU memory operations
+at arbitrary structured positions, including inside a compute loop. Work hidden
+inside an opaque external CUDA library remains charged to the surrounding
+compute region. Exact internal attribution would require a separate CUPTI
+activity-tracing mode; adding per-call CUDA events is intentionally rejected.

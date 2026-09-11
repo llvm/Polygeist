@@ -1,0 +1,8 @@
+kernel=aten_floor correctness=PASS max_abs=0 max_rel=0
+kernel=aten_floor iterations=5 raised_gpu_us=1494.355174
+kernel=aten_floor correctness=PASS max_abs=0 max_rel=0
+kernel=aten_floor iterations=5 raised_gpu_us=1493.542409
+kernel=aten_floor correctness=PASS max_abs=0 max_rel=0
+kernel=aten_floor iterations=5 raised_gpu_us=1494.860789
+kernel=aten_floor correctness=PASS max_abs=0 max_rel=0
+kernel=aten_floor iterations=5 raised_gpu_us=1470.278390

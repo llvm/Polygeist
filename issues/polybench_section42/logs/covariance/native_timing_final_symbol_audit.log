@@ -1,0 +1,3 @@
+0000000000001350 000000000000028f t kernel_covariance
+00000000000011c0 00000000000000aa T main
+    121b:	e8 30 01 00 00       	call   1350 <kernel_covariance>

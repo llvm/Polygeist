@@ -1,0 +1,8 @@
+kernel=aten_cpu_blas_gemm_strided_batched_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_cpu_blas_gemm_strided_batched_cpu iterations=5 raised_gpu_us=5797.785567
+kernel=aten_cpu_blas_gemm_strided_batched_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_cpu_blas_gemm_strided_batched_cpu iterations=5 raised_gpu_us=5973.241618
+kernel=aten_cpu_blas_gemm_strided_batched_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_cpu_blas_gemm_strided_batched_cpu iterations=5 raised_gpu_us=5881.587183
+kernel=aten_cpu_blas_gemm_strided_batched_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_cpu_blas_gemm_strided_batched_cpu iterations=5 raised_gpu_us=5893.747229

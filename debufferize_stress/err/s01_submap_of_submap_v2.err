@@ -1,0 +1,54 @@
+polygeist-opt: /home/arjaiswal/Polygeist/llvm-project/mlir/lib/IR/PatternMatch.cpp:307: virtual void mlir::RewriterBase::eraseOp(mlir::Operation*): Assertion `op->use_empty() && "expected 'op' to have no uses"' failed.
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.	Program arguments: polygeist-opt --linalg-debufferize=use-recursive=true inputs/s01_submap_of_submap.mlir -o after/s01_submap_of_submap_v2.mlir
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  polygeist-opt 0x000055a8dcc2156a
+1  polygeist-opt 0x000055a8dcc21986
+2  polygeist-opt 0x000055a8dcc1edd3
+3  polygeist-opt 0x000055a8dcc20e02
+4  libc.so.6     0x00007f71c7f17520
+5  libc.so.6     0x00007f71c7f6b9fc pthread_kill + 300
+6  libc.so.6     0x00007f71c7f17476 raise + 22
+7  libc.so.6     0x00007f71c7efd7f3 abort + 211
+8  libc.so.6     0x00007f71c7efd71b
+9  libc.so.6     0x00007f71c7f0ee96
+10 polygeist-opt 0x000055a8dca491b1
+11 polygeist-opt 0x000055a8d92307af
+12 polygeist-opt 0x000055a8d9239d02
+13 polygeist-opt 0x000055a8d924b8b0
+14 polygeist-opt 0x000055a8dc6074ca
+15 polygeist-opt 0x000055a8dc607e8f
+16 polygeist-opt 0x000055a8db985a1a
+17 polygeist-opt 0x000055a8dc60b237
+18 polygeist-opt 0x000055a8dc607c3c
+19 polygeist-opt 0x000055a8dc42303e
+20 polygeist-opt 0x000055a8dc42429c
+21 polygeist-opt 0x000055a8dc42542d
+22 polygeist-opt 0x000055a8db985a1a
+23 polygeist-opt 0x000055a8dc4251b9
+24 polygeist-opt 0x000055a8dc42450e
+25 polygeist-opt 0x000055a8dc42464b
+26 polygeist-opt 0x000055a8d75a86c3
+27 polygeist-opt 0x000055a8d9230a65
+28 polygeist-opt 0x000055a8dc6ee0d1
+29 polygeist-opt 0x000055a8dc6f1dae
+30 polygeist-opt 0x000055a8db985a1a
+31 polygeist-opt 0x000055a8dc6f7b2f
+32 polygeist-opt 0x000055a8dc6ee4f3
+33 polygeist-opt 0x000055a8dc6ee7ce
+34 polygeist-opt 0x000055a8dc6f06f4
+35 polygeist-opt 0x000055a8dc6f054c
+36 polygeist-opt 0x000055a8d98798d1
+37 polygeist-opt 0x000055a8d9879ea5
+38 polygeist-opt 0x000055a8d9879fdf
+39 polygeist-opt 0x000055a8d987b11e
+40 polygeist-opt 0x000055a8dca98805
+41 polygeist-opt 0x000055a8dca980cf
+42 polygeist-opt 0x000055a8d987a194
+43 polygeist-opt 0x000055a8d987a751
+44 polygeist-opt 0x000055a8d7443d8e
+45 libc.so.6     0x00007f71c7efed90
+46 libc.so.6     0x00007f71c7efee40 __libc_start_main + 128
+47 polygeist-opt 0x000055a8d7443765
+timeout: the monitored command dumped core

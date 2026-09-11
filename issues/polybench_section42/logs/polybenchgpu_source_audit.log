@@ -1,0 +1,27 @@
+PolyBenchGPU native baseline source audit
+Date: 2026-09-05
+Repository: /home/arjaiswal/Polygeist/third_party/polybenchGpu
+Commit: 5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c
+Discovery command: find CUDA -type f -name '*.cu'
+
+Comparable after protocol normalization; cross-compiled and executed:
+  2mm 3mm atax bicg correlation covariance doitgen fdtd-2d gemm gemver
+  gesummv gramschmidt mvt
+
+Same-named but not algorithmically equivalent; rejected before measurement:
+  adi: older, non-equivalent ADI formulation
+  jacobi-1d: replaces the canonical second stencil with a copy
+  jacobi-2d: replaces the canonical second stencil with a copy
+  lu: produces a different factor layout
+  syr2k: updates the full matrix, not the canonical lower triangle
+  syrk: updates the full matrix, not the canonical lower triangle
+
+No same-named CUDA source in this revision:
+  cholesky deriche durbin floyd-warshall heat-3d ludcmp nussinov seidel-2d
+  symm trisolv trmm
+
+Acceptance outcome for the 13 comparable programs:
+  pass (12): 2mm 3mm atax bicg correlation covariance doitgen fdtd-2d gemm
+             gemver gesummv mvt
+  fail (1):  gramschmidt -- 428561/2640000 values fail the FP64 comparator;
+             no timing accepted

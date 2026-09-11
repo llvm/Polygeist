@@ -1,0 +1,10 @@
+[polygeist] keeping workdir: /tmp/tmp.7L42hoecI7
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=host  output=/tmp/polybench-section42-gemm-openblas
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Dstatic= -DPOLYBENCH_USE_C99_PROTO
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/gemm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+ERROR: ABI lowering failed; see /tmp/tmp.7L42hoecI7/abi.err
+/tmp/tmp.7L42hoecI7/with_defns_composed.mlir:20:47: error: use of undeclared SSA value name
+    %extracted_slice_1 = tensor.extract_slice %6[0, 0] [%5, %3] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
+                                              ^

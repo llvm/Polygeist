@@ -1,0 +1,50 @@
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.	Program arguments: polygeist-opt --linalg-debufferize inputs/s03_sibling_ifs.mlir -o after/s03_sibling_ifs.mlir
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  polygeist-opt 0x0000555bcd25ec6a
+1  polygeist-opt 0x0000555bcd25f086
+2  polygeist-opt 0x0000555bcd25c4d3
+3  polygeist-opt 0x0000555bcd25e502
+4  libc.so.6     0x00007f2d3adae520
+5  polygeist-opt 0x0000555bcd089fae
+6  polygeist-opt 0x0000555bcd08a034
+7  polygeist-opt 0x0000555bc7c8948d
+8  polygeist-opt 0x0000555bc986ebd1
+9  polygeist-opt 0x0000555bc9878a7a
+10 polygeist-opt 0x0000555bc987965a
+11 polygeist-opt 0x0000555bc9888fdc
+12 polygeist-opt 0x0000555bccc44bf6
+13 polygeist-opt 0x0000555bccc455bb
+14 polygeist-opt 0x0000555bcbfc3146
+15 polygeist-opt 0x0000555bccc48963
+16 polygeist-opt 0x0000555bccc45368
+17 polygeist-opt 0x0000555bcca6076a
+18 polygeist-opt 0x0000555bcca619c8
+19 polygeist-opt 0x0000555bcca62b59
+20 polygeist-opt 0x0000555bcbfc3146
+21 polygeist-opt 0x0000555bcca628e5
+22 polygeist-opt 0x0000555bcca61c3a
+23 polygeist-opt 0x0000555bcca61d77
+24 polygeist-opt 0x0000555bc7beb243
+25 polygeist-opt 0x0000555bc9870e51
+26 polygeist-opt 0x0000555bccd2b7fd
+27 polygeist-opt 0x0000555bccd2f4da
+28 polygeist-opt 0x0000555bcbfc3146
+29 polygeist-opt 0x0000555bccd3525b
+30 polygeist-opt 0x0000555bccd2bc1f
+31 polygeist-opt 0x0000555bccd2befa
+32 polygeist-opt 0x0000555bccd2de20
+33 polygeist-opt 0x0000555bccd2dc78
+34 polygeist-opt 0x0000555bc9eb6ffd
+35 polygeist-opt 0x0000555bc9eb75d1
+36 polygeist-opt 0x0000555bc9eb770b
+37 polygeist-opt 0x0000555bc9eb884a
+38 polygeist-opt 0x0000555bcd0d5f31
+39 polygeist-opt 0x0000555bcd0d57fb
+40 polygeist-opt 0x0000555bc9eb78c0
+41 polygeist-opt 0x0000555bc9eb7e7d
+42 polygeist-opt 0x0000555bc7a8690e
+43 libc.so.6     0x00007f2d3ad95d90
+44 libc.so.6     0x00007f2d3ad95e40 __libc_start_main + 128
+45 polygeist-opt 0x0000555bc7a862e5

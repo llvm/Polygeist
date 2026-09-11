@@ -1,0 +1,8 @@
+kernel=aten_silu_cpu correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_silu_cpu iterations=5 raised_gpu_us=1500.761602
+kernel=aten_silu_cpu correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_silu_cpu iterations=5 raised_gpu_us=1522.694388
+kernel=aten_silu_cpu correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_silu_cpu iterations=5 raised_gpu_us=1535.871997
+kernel=aten_silu_cpu correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_silu_cpu iterations=5 raised_gpu_us=1537.587214

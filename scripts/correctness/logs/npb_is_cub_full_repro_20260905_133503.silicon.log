@@ -1,0 +1,179 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/npb_is_cub_full_repro_20260905_133503/npb_is_cub_repro run 1 ...
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=3.123224	device_ms=3.062368
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.358022	device_ms=0.339584
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.262885	device_ms=0.248608
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.217508	device_ms=0.202496
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.236261	device_ms=0.223392
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.220324	device_ms=0.204768
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.241476	device_ms=0.227936
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.221891	device_ms=0.206848
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.227908	device_ms=0.213952
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215684	device_ms=0.200352
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.226852	device_ms=0.213856
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.222404	device_ms=0.207712
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.243684	device_ms=0.231104
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.213859	device_ms=0.199008
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.242980	device_ms=0.230208
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.209892	device_ms=0.195104
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.238276	device_ms=0.225728
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.219876	device_ms=0.203904
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.235364	device_ms=0.222080
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.216356	device_ms=0.202016
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.240805	device_ms=0.227584
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.225924	device_ms=0.212256
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  65536  (class S)
+ Iterations:   10
+
+
+ IS Benchmark Completed
+ Class           =                        S
+ Size            =                    65536
+ Iterations      =                       10
+ Time in seconds =                     0.01
+ Mop/s total     =                   110.00
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              05 Sep 2026
+
+ Compile options:
+    CC           = aarch64-linux-gnu-gcc
+    CLINK        = aarch64-linux-gnu-gcc
+    C_LIB        = -lm
+    C_INC        = -I../common
+    CFLAGS       = -O2
+    CLINKFLAGS   = -O2
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+[jetson] elapsed_s 0.250
+[jetson] running /tmp/polygeist_jetson_runs/npb_is_cub_full_repro_20260905_133503/npb_is_cub_repro run 2 ...
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=3.011926	device_ms=2.954528
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.344935	device_ms=0.327040
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.244932	device_ms=0.230912
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.221092	device_ms=0.206752
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.239172	device_ms=0.224480
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.232869	device_ms=0.216928
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.233156	device_ms=0.217632
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.219172	device_ms=0.204096
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.244293	device_ms=0.229664
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.226180	device_ms=0.209536
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.247685	device_ms=0.233152
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.224900	device_ms=0.209408
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.245381	device_ms=0.231008
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215876	device_ms=0.200384
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.241732	device_ms=0.227968
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215331	device_ms=0.200896
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.237572	device_ms=0.223648
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.216708	device_ms=0.202208
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.246789	device_ms=0.232160
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.222980	device_ms=0.205664
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.248997	device_ms=0.233632
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.232676	device_ms=0.217856
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  65536  (class S)
+ Iterations:   10
+
+
+ IS Benchmark Completed
+ Class           =                        S
+ Size            =                    65536
+ Iterations      =                       10
+ Time in seconds =                     0.01
+ Mop/s total     =                   108.50
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              05 Sep 2026
+
+ Compile options:
+    CC           = aarch64-linux-gnu-gcc
+    CLINK        = aarch64-linux-gnu-gcc
+    C_LIB        = -lm
+    C_INC        = -I../common
+    CFLAGS       = -O2
+    CLINKFLAGS   = -O2
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+[jetson] running /tmp/polygeist_jetson_runs/npb_is_cub_full_repro_20260905_133503/npb_is_cub_repro run 3 ...
+[jetson] elapsed_s 0.245
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=2.974645	device_ms=2.916064
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.341702	device_ms=0.324032
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.248260	device_ms=0.234272
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.226308	device_ms=0.212288
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.234116	device_ms=0.220992
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215556	device_ms=0.201696
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.229284	device_ms=0.216064
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.211044	device_ms=0.196896
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.221764	device_ms=0.209312
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.219044	device_ms=0.205024
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.233829	device_ms=0.220576
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215780	device_ms=0.201568
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.230052	device_ms=0.217792
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.203748	device_ms=0.190560
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.236196	device_ms=0.224192
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.215044	device_ms=0.199712
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.231781	device_ms=0.219168
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.203491	device_ms=0.189984
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.234020	device_ms=0.220992
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.206916	device_ms=0.192736
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.237092	device_ms=0.224768
+POLYGEIST_RT_TIMING	op=cubHistogramEvenI32ShiftZero	m=65536	n=0	k=0	host_ms=0.210436	device_ms=0.196128
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  65536  (class S)
+ Iterations:   10
+
+
+ IS Benchmark Completed
+ Class           =                        S
+ Size            =                    65536
+ Iterations      =                       10
+ Time in seconds =                     0.01
+ Mop/s total     =                   113.33
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              05 Sep 2026
+
+ Compile options:
+    CC           = aarch64-linux-gnu-gcc
+    CLINK        = aarch64-linux-gnu-gcc
+    C_LIB        = -lm
+    C_INC        = -I../common
+    CFLAGS       = -O2
+    CLINKFLAGS   = -O2
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.244

@@ -1,0 +1,5 @@
+COMMAND: aarch64-linux-gnu-gcc canonical GEMM harness
+COMMAND: nvcc -arch=sm_87 cross-compile verbatim external PolyBenchGPU GEMM kernel adapter
+COMMAND: aarch64-linux-gnu-g++ link
+/tmp/polybench-native-gpu-gemm-prototype/gemm: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=fdd2f218d8e00b7ad2204f90132cd02dd075ecb9, for GNU/Linux 3.7.0, not stripped
+0000000000001a20 T kernel_gemm

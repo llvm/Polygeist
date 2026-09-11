@@ -1,0 +1,12 @@
+0000000000002220 T cblas_dgemm
+0000000000008610 T dgemm_small_kernel_b0_nn
+00000000000086e0 T dgemm_small_kernel_b0_nt
+00000000000087a0 T dgemm_small_kernel_b0_tn
+0000000000008850 T dgemm_small_kernel_b0_tt
+00000000000082d0 T dgemm_small_kernel_nn
+00000000000083a0 T dgemm_small_kernel_nt
+0000000000008470 T dgemm_small_kernel_tn
+0000000000008530 T dgemm_small_kernel_tt
+000000000001bad0 d gemm_small_kernel_b0
+0000000000001b40 T kernel_2mm
+0000000000001a54 T kernel_2mm_impl

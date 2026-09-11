@@ -1,0 +1,2 @@
+FAIL values=2640000 failures=428561 max_abs=80.99 max_rel=602 rtol=0.0005 atol=0.011
+first_failure index=604104 reference=-1.18 candidate=0.95

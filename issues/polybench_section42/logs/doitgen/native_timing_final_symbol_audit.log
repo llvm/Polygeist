@@ -1,0 +1,3 @@
+00000000000011c0 000000000000032f T kernel_doitgen
+00000000000014f0 00000000000000a9 T main
+    154e:	e8 6d fc ff ff       	call   11c0 <kernel_doitgen>

@@ -1,0 +1,30 @@
+/home/arjaiswal/Polygeist/polybench_results/trmm.mlir:3:3: warning: Distribute+Raising didn't converge, continuing anyway
+  func.func @kernel_trmm(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<?x20xf64>, %arg4: memref<?x30xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/home/arjaiswal/Polygeist/polybench_results/trmm.mlir:3:3: note: see current operation: 
+func.func @kernel_trmm(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<?x20xf64>, %arg4: memref<?x30xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  %0 = arith.index_cast %arg1 : i32 to index
+  %1 = arith.index_cast %arg0 : i32 to index
+  affine.for %arg5 = 0 to %1 {
+    %2 = polygeist.submap(%arg3, %arg5, %1, %0) {map = affine_map<(d0, d1)[s0] -> (d0, s0)>} : (memref<?x20xf64>, index, index, index) -> memref<?x?xf64>
+    %3 = polygeist.submap(%arg4, %1, %0) {map = affine_map<(d0, d1) -> (d0, d1)>} : (memref<?x30xf64>, index, index) -> memref<?x?xf64>
+    %4 = polygeist.submap(%arg4, %arg5, %1, %0) {map = affine_map<(d0, d1)[s0] -> (s0, d1)>} : (memref<?x30xf64>, index, index, index) -> memref<?x?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "reduction"]} ins(%2, %3 : memref<?x?xf64>, memref<?x?xf64>) outs(%4 : memref<?x?xf64>) {
+    ^bb0(%in: f64, %in_0: f64, %out: f64):
+      %6 = arith.mulf %in, %in_0 : f64
+      %7 = arith.addf %out, %6 : f64
+      %8 = linalg.index 1 : index
+      %9 = affine.apply affine_map<(d0) -> (d0 + 1)>(%arg5)
+      %10 = arith.cmpi sge, %8, %9 : index
+      %11 = arith.select %10, %7, %out : f64
+      linalg.yield %11 : f64
+    }
+    %5 = polygeist.submap(%arg4, %arg5, %0) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x30xf64>, index, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%5 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      %6 = arith.mulf %arg2, %out : f64
+      linalg.yield %6 : f64
+    }
+  }
+  return
+}

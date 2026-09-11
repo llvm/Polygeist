@@ -1,0 +1,11 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/cholesky-publication-correctness_20260908_093639/polybench_cholesky_publication_correctness run 1 ...
+POLYBENCH_CHOLESKY_PASS n=2000 max_abs=1.921796055626146e-13 max_rel=1.921796055626146e-13
+
+[jetson] exit code: 0
+[jetson] elapsed_s 27.179

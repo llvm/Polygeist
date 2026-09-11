@@ -1,0 +1,8 @@
+kernel=aten_reciprocal correctness=PASS max_abs=0 max_rel=0
+kernel=aten_reciprocal iterations=5 raised_gpu_us=1877.356833
+kernel=aten_reciprocal correctness=PASS max_abs=0 max_rel=0
+kernel=aten_reciprocal iterations=5 raised_gpu_us=1506.041596
+kernel=aten_reciprocal correctness=PASS max_abs=0 max_rel=0
+kernel=aten_reciprocal iterations=5 raised_gpu_us=1482.035173
+kernel=aten_reciprocal correctness=PASS max_abs=0 max_rel=0
+kernel=aten_reciprocal iterations=5 raised_gpu_us=1491.999999

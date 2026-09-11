@@ -1,0 +1,5405 @@
+[
+{
+"kernel": "aten_abs",
+"op": "abs",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6f2fbd84283a7177"
+},
+{
+"kernel": "aten_acos",
+"op": "acos",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "85bb3f1c3c6b8549"
+},
+{
+"kernel": "aten_acosh",
+"op": "acosh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ed8691f0d04228f3"
+},
+{
+"kernel": "aten_adaptive_avg_pool2d",
+"op": "adaptive_avg_pool2d",
+"cat": "adaptavg2d",
+"dims": {
+"B": 4,
+"C": 32,
+"H": 256,
+"W": 256,
+"OH": 128,
+"OW": 128
+},
+"n": 137438953472,
+"shape": "B=4_C=32_H=256_W=256_OH=128_OW=128",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full regular 2x2 uniform-window convolution",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1a91e610dab8183b"
+},
+{
+"kernel": "aten_adaptive_avg_pool2d_backward_cpu",
+"op": "adaptive_avg_pool2d",
+"cat": "adaptavg2d_backward",
+"dims": {
+"B": 1,
+"C": 2,
+"I0": 6,
+"O0": 3,
+"I1": 7,
+"O1": 3
+},
+"n": 756,
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fractional adaptive average backward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "89333b9eaee2c52c"
+},
+{
+"kernel": "aten_adaptive_avg_pool3d",
+"op": "adaptive_avg_pool3d",
+"cat": "adaptavg3d",
+"dims": {
+"B": 2,
+"C": 3,
+"D": 8,
+"H": 8,
+"W": 8
+},
+"n": 3072,
+"shape": "B=2_C=3_D=8_H=8_W=8",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full regular adaptive average 3d forward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b3c8e383067677ef"
+},
+{
+"kernel": "aten_adaptive_avg_pool3d_backward_cpu",
+"op": "adaptive_avg_pool3d",
+"cat": "adaptavg3d_backward",
+"dims": {
+"B": 1,
+"C": 2,
+"I0": 6,
+"O0": 3,
+"I1": 7,
+"O1": 3,
+"I2": 8,
+"O2": 3
+},
+"n": 18144,
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3_I2=8_O2=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fractional adaptive average 3d backward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d43f964a57156ad4"
+},
+{
+"kernel": "aten_adaptive_max_pool2d_backward_cpu",
+"op": "adaptive_max_pool2d",
+"cat": "adaptmax2d_backward",
+"dims": {
+"B": 1,
+"C": 2,
+"I0": 6,
+"O0": 3,
+"I1": 7,
+"O1": 3
+},
+"n": 756,
+"shape": "B=1_C=2_I0=6_O0=3_I1=7_O1=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full saved-index adaptive max 2d backward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "39fcc708e001d3b6"
+},
+{
+"kernel": "aten_add",
+"op": "add",
+"cat": "binary",
+"dims": {
+"B": 11,
+"C": 46,
+"H": 92,
+"W": 92
+},
+"n": 4282784,
+"shape": "B=11_C=46_H=92_W=92",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3f848f6bbc668548"
+},
+{
+"kernel": "aten_add_clamp",
+"op": "add",
+"cat": "add_clamp",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"alpha": "0.5",
+"minval": "0.5",
+"maxval": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e6061ef1e74be3cd"
+},
+{
+"kernel": "aten_addcdiv",
+"op": "addcdiv",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"value": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "edb482d5b31abdc6"
+},
+{
+"kernel": "aten_addcmul",
+"op": "addcmul",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"value": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "28105c017f81cc7d"
+},
+{
+"kernel": "aten_addmm",
+"op": "addmm",
+"cat": "addmm",
+"dims": {
+"M": 512,
+"N": 512,
+"K": 512
+},
+"n": 134217728,
+"shape": "M=512_N=512_K=512",
+"dtype": "f64",
+"scalar_args": {
+"beta": "0.5",
+"alpha": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 GEMM with alpha and beta",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ffd39b2736a01291"
+},
+{
+"kernel": "aten_addr_elementwise",
+"op": "addr_elementwise",
+"cat": "native_fixture",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {
+"beta": "0.0",
+"alpha": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full beta-zero addr graph through cuDNN pointwise operations",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "7a7a9623bd97ca37"
+},
+{
+"kernel": "aten_allany_dims_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 131072,
+"C": 64
+},
+"n": 8388608,
+"shape": "R=131072_C=64",
+"dtype": "i32",
+"scalar_args": {
+"all": "1"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full dynamic CUB segmented all-or-any reduction",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "35a61ce54804f951"
+},
+{
+"kernel": "aten_aminmax_allreduce_cpu",
+"op": "aminmax_allreduce",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bcf3f003725b80a9"
+},
+{
+"kernel": "aten_aminmax_cpu",
+"op": "aminmax",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "aecc587e74e29772"
+},
+{
+"kernel": "aten_and_reduce_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CUB segmented logical-and reduction",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0926a61c1f3908b6"
+},
+{
+"kernel": "aten_angle_complex_scalarized",
+"op": "angle",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "dea8f1b7b7cfa157"
+},
+{
+"kernel": "aten_angle_real",
+"op": "angle",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9f7716be3c155ab8"
+},
+{
+"kernel": "aten_argmax_cpu",
+"op": "argmax",
+"cat": "reduce_arg",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full row-wise first-index argmax through CUB segmented reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8b87dc0870be83c0"
+},
+{
+"kernel": "aten_argmin_cpu",
+"op": "argmin",
+"cat": "reduce_arg",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full row-wise first-index argmin through CUB segmented reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "927e47c252552e8f"
+},
+{
+"kernel": "aten_as_complex_cpu",
+"op": "complex",
+"cat": "native_fixture",
+"dims": {
+"N": 2097151
+},
+"n": 2097151,
+"shape": "N=2097151",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "95d705a24393ccd9"
+},
+{
+"kernel": "aten_asin",
+"op": "asin",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4a903a7e272d7c75"
+},
+{
+"kernel": "aten_asinh",
+"op": "asinh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "44b2f1000e079033"
+},
+{
+"kernel": "aten_atan",
+"op": "atan",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "66b99564041cb6eb"
+},
+{
+"kernel": "aten_atan2",
+"op": "atan2",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8397dd293ff562c5"
+},
+{
+"kernel": "aten_atanh",
+"op": "atanh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "51c661d010e4b6de"
+},
+{
+"kernel": "aten_avg_pool2d",
+"op": "avg_pool2d",
+"cat": "avgpool2d",
+"dims": {
+"B": 2,
+"C": 4,
+"H": 16,
+"W": 16
+},
+"n": 2048,
+"shape": "B=2_C=4_H=16_W=16",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fixed average pool 2d forward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f8994b10d0786ea2"
+},
+{
+"kernel": "aten_avg_pool2d_backward_cpu",
+"op": "avg_pool2d",
+"cat": "avgpool2d_backward",
+"dims": {
+"B": 1,
+"C": 2,
+"I0": 6,
+"I1": 7
+},
+"n": 84,
+"shape": "B=1_C=2_I0=6_I1=7",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fixed average pool 2d backward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "871518045875f207"
+},
+{
+"kernel": "aten_avg_pool3d",
+"op": "avg_pool3d",
+"cat": "avgpool3d",
+"dims": {
+"B": 2,
+"C": 3,
+"D": 8,
+"H": 8,
+"W": 8
+},
+"n": 3072,
+"shape": "B=2_C=3_D=8_H=8_W=8",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fixed average pool 3d forward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "64727eb4df598924"
+},
+{
+"kernel": "aten_avg_pool3d_backward_cpu",
+"op": "avg_pool3d",
+"cat": "avgpool3d_backward",
+"dims": {
+"B": 1,
+"C": 2,
+"I0": 6,
+"I1": 7,
+"I2": 8
+},
+"n": 672,
+"shape": "B=1_C=2_I0=6_I1=7_I2=8",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full fixed average pool 3d backward",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5be05477d0f38b1d"
+},
+{
+"kernel": "aten_batch_norm",
+"op": "batch_norm",
+"cat": "batchnorm",
+"dims": {
+"B": 11,
+"C": 46,
+"H": 92,
+"W": 92
+},
+"n": 4282784,
+"shape": "B=11_C=46_H=92_W=92",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "7293a8afa214b89c"
+},
+{
+"kernel": "aten_batch_norm_cpu_entry",
+"op": "batch_norm_cpu_entry",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"scale": "1.25",
+"bias": "-0.2"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "dfec3f0041ccf405"
+},
+{
+"kernel": "aten_batch_norm_transform_cpu",
+"op": "batch_norm",
+"cat": "batchnorm",
+"dims": {
+"N": 32,
+"C": 64,
+"H": 64,
+"W": 64
+},
+"n": 8388608,
+"shape": "N=32_C=64_H=64_W=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full inference batch normalization through cuDNN",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "eb541b0999f1f551"
+},
+{
+"kernel": "aten_bf16_dot_cpu",
+"op": "bf16_dot",
+"cat": "native_fixture",
+"dims": {
+"K": 4194304
+},
+"n": 4194304,
+"shape": "K=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full scalarized-f32 dot product through the bufferized cuBLAS Sdot route",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1b0de289c2444987"
+},
+{
+"kernel": "aten_bf16_gemv_trans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"M": 4096,
+"K": 8192
+},
+"n": 33554432,
+"shape": "M=4096_K=8192",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full scalarized-f32 transposed GEMV through bufferized cuBLAS Sgemv",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "329c1d537815c8c4"
+},
+{
+"kernel": "aten_bilinear_cpu",
+"op": "bilinear",
+"cat": "native_fixture",
+"dims": {
+"B": 65,
+"I": 131,
+"J": 163,
+"O": 196
+},
+"n": 272037220,
+"shape": "B=65_I=131_J=163_O=196",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e4dc3d520d633c96"
+},
+{
+"kernel": "aten_binary_cross_entropy",
+"op": "binary_cross_entropy",
+"cat": "loss_bce",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "cuDNN pointwise loss graph followed by cuDNN mean reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "53ff0e0ce1eaedbf"
+},
+{
+"kernel": "aten_blas_axpy_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"a": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6052b858c06bd41d"
+},
+{
+"kernel": "aten_blas_copy_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "360a1fed35fdcb46"
+},
+{
+"kernel": "aten_blas_dot_naive_cpu",
+"op": "blas_dot",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "fbe9fc8f31413f5d"
+},
+{
+"kernel": "aten_blas_gemv_generic_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "276e7def918217fb"
+},
+{
+"kernel": "aten_blas_scale_cpu",
+"op": "blas_scale",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"a": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "cf3d9e50f32fba45"
+},
+{
+"kernel": "aten_blas_sum_cpu",
+"op": "blas_sum",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d5b5a66ab0b7ea1d"
+},
+{
+"kernel": "aten_block_diag_cpu",
+"op": "diag",
+"cat": "native_fixture",
+"dims": {
+"B": 23,
+"N": 90
+},
+"n": 2070,
+"shape": "B=23_N=90",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "cd6b4c70f3853c33"
+},
+{
+"kernel": "aten_bmm",
+"op": "bmm",
+"cat": "bmm",
+"dims": {
+"BATCH": 70,
+"K": 282,
+"M": 141,
+"N": 211
+},
+"n": 587284740,
+"shape": "BATCH=70_K=282_M=141_N=211",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c132d6acaaae7ca9"
+},
+{
+"kernel": "aten_cartesian_prod_cpu",
+"op": "prod",
+"cat": "native_fixture",
+"dims": {
+"A": 1673,
+"B": 1254
+},
+"n": 2097942,
+"shape": "A=1673_B=1254",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "be221a6776781f52"
+},
+{
+"kernel": "aten_cat_serial_cpu",
+"op": "cat",
+"cat": "cat_serial",
+"dims": {
+"K": 3096,
+"M": 581,
+"R": 774
+},
+"n": 1392252624,
+"shape": "K=3096_M=581_R=774",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8969bf611c743094"
+},
+{
+"kernel": "aten_cat_sparse_cpu",
+"op": "cat",
+"cat": "cat_sparse_values",
+"dims": {
+"B": 256,
+"N": 16383
+},
+"n": 4194048,
+"shape": "B=256_N=16383",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5d0c09d16bc4c22a"
+},
+{
+"kernel": "aten_cauchy_cpu",
+"op": "cauchy",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"median": "0.5",
+"sigma": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "06523ec9a7d45565"
+},
+{
+"kernel": "aten_ceil",
+"op": "ceil",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "99973374875367c6"
+},
+{
+"kernel": "aten_channel_shuffle",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 14,
+"CPG": 28,
+"G": 14,
+"H": 28,
+"W": 28
+},
+"n": 4302592,
+"shape": "B=14_CPG=28_G=14_H=28_W=28",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f199c08db2dbc190"
+},
+{
+"kernel": "aten_channel_shuffle_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 17,
+"CPG": 26,
+"G": 34,
+"S": 276
+},
+"n": 4147728,
+"shape": "B=17_CPG=26_G=34_S=276",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9c0f4efa20ff5874"
+},
+{
+"kernel": "aten_clamp",
+"op": "clamp",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lo": "-0.5",
+"hi": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "comparison plus ternary-select graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "732ae21a30b24a68"
+},
+{
+"kernel": "aten_clamp_cpu",
+"op": "clamp",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3cd8e32878aada7c"
+},
+{
+"kernel": "aten_clamp_max_scalar_cpu",
+"op": "clamp_max_scalar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"maxval": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "20afe51bff9319b3"
+},
+{
+"kernel": "aten_clamp_min_scalar_cpu",
+"op": "clamp_min_scalar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"minval": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "79cad4471d373dda"
+},
+{
+"kernel": "aten_clamp_scalar_cpu",
+"op": "clamp_scalar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"minval": "0.5",
+"maxval": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a5b7d49626a84340"
+},
+{
+"kernel": "aten_complex_scalarized",
+"op": "complex",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "4aae25a1eecb3239"
+},
+{
+"kernel": "aten_compressed_block_convert_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"R": 2048,
+"C": 2048,
+"BR": 4,
+"BC": 4
+},
+"n": 67108864,
+"shape": "R=2048_C=2048_BR=4_BC=4",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full dense-to-block-major layout conversion via cuTENSOR permutation",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5d2934fd76b7e9c2"
+},
+{
+"kernel": "aten_conj_complex_scalarized",
+"op": "conj_complex",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "cc9eb5896e00ae5b"
+},
+{
+"kernel": "aten_conv1d",
+"op": "conv1d",
+"cat": "native_fixture",
+"dims": {
+"B": 32,
+"IC": 64,
+"OC": 128,
+"W": 4096,
+"K": 3
+},
+"n": 3221225472,
+"shape": "B=32_IC=64_OC=128_W=4096_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full bias plus valid 1d convolution through cuDNN",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a345c29492c9ca0c"
+},
+{
+"kernel": "aten_conv2d",
+"op": "conv2d",
+"cat": "conv2d",
+"dims": {
+"B": 4,
+"IC": 16,
+"OC": 32,
+"H": 128,
+"W": 128,
+"KH": 3,
+"KW": 3
+},
+"n": 301989888,
+"shape": "B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full valid NCHW 2d convolution through cuDNN",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3b3bcbef73116a11"
+},
+{
+"kernel": "aten_conv2d_columns_cpu",
+"op": "conv2d",
+"cat": "unfold2d",
+"dims": {
+"C": 11,
+"H": 59,
+"K": 11,
+"W": 59
+},
+"n": 421201,
+"shape": "C=11_H=59_K=11_W=59",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8e27c2648231bcd4"
+},
+{
+"kernel": "aten_conv3d",
+"op": "conv3d",
+"cat": "conv3d",
+"dims": {
+"B": 6,
+"D": 37,
+"H": 37,
+"IC": 12,
+"K": 19,
+"OC": 19,
+"W": 37
+},
+"n": 1316572776,
+"shape": "B=6_D=37_H=37_IC=12_K=19_OC=19_W=37",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "455868f2e82816fa"
+},
+{
+"kernel": "aten_conv_tbc_backward_cpu",
+"op": "conv_tbc",
+"cat": "native_fixture",
+"dims": {
+"T": 4094,
+"B": 16,
+"I": 32,
+"O": 64,
+"K": 3
+},
+"n": 402456576,
+"shape": "T=4094_B=16_I=32_O=64_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full TBC input-gradient convolution through cuDNN backward-data",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f6e9bcda5af283f9"
+},
+{
+"kernel": "aten_conv_tbc_cpu",
+"op": "conv_tbc",
+"cat": "native_fixture",
+"dims": {
+"T": 4096,
+"B": 16,
+"I": 32,
+"O": 64,
+"K": 3
+},
+"n": 402653184,
+"shape": "T=4096_B=16_I=32_O=64_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full TBC convolution through cuDNN transform plus convolution",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a18bfcf1a32ece09"
+},
+{
+"kernel": "aten_conv_transpose2d",
+"op": "conv_transpose2d",
+"cat": "convT2d",
+"dims": {
+"B": 2,
+"IC": 16,
+"OC": 32,
+"H": 128,
+"W": 128,
+"K": 3
+},
+"n": 50331648,
+"shape": "B=2_IC=16_OC=32_H=128_W=128_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full overlap-add transposed convolution through cuDNN backward-data",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c294507cdb3f054e"
+},
+{
+"kernel": "aten_conv_transpose3d_backward_cpu",
+"op": "conv_transpose3d",
+"cat": "native_fixture",
+"dims": {
+"C": 4,
+"D": 16,
+"H": 16,
+"K": 3,
+"O": 4,
+"W": 16
+},
+"n": 1769472,
+"shape": "C=4_O=4_D=16_H=16_W=16_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "bounded full transposed-conv3d input-gradient convolution; avoids an intractable scalar reference while preserving all reduction and layout dimensions",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "conv3d-backward-k3-simple-v1"
+},
+{
+"kernel": "aten_conv_transpose3d_cpu",
+"op": "conv_transpose3d",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full 3d transposed convolution through cuDNN backward-data",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "cb3ec4a1c6f08eb8"
+},
+{
+"kernel": "aten_conv_transpose3d_grad_weight_cpu",
+"op": "conv_transpose3d_grad_weight",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full transposed-conv3d filter gradient through cuDNN backward-filter",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1b77db7d015c2eee"
+},
+{
+"kernel": "aten_convert_coo_to_csr_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full COO-to-CSR index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "88b6f49f4ce53c69"
+},
+{
+"kernel": "aten_convert_csr_to_coo_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CSR-to-COO row-index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0d00042f447ff6a2"
+},
+{
+"kernel": "aten_copy_cpu",
+"op": "copy",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bfde07a5167fb20d"
+},
+{
+"kernel": "aten_copy_tensor_array_cpu",
+"op": "copy_tensor_array",
+"cat": "native_fixture",
+"dims": {
+"B": 512,
+"N": 8192
+},
+"n": 4194304,
+"shape": "B=512_N=8192",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "763d2776dbad0967"
+},
+{
+"kernel": "aten_cos",
+"op": "cos",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bb94742dcdc246da"
+},
+{
+"kernel": "aten_cosh",
+"op": "cosh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d7e37dcedb3b0e48"
+},
+{
+"kernel": "aten_count_nonzero_cpu",
+"op": "count_nonzero",
+"cat": "reduce",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CUB transformed count-nonzero reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a90b19368639082e"
+},
+{
+"kernel": "aten_count_nonzero_impl_cpu",
+"op": "count_nonzero",
+"cat": "reduce",
+"dims": {
+"R": 131072,
+"C": 64
+},
+"n": 8388608,
+"shape": "R=131072_C=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full segmented CUB transformed count-nonzero reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c958ea502e1138a8"
+},
+{
+"kernel": "aten_cpu_blas_gemm_batched_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 52,
+"K": 311,
+"M": 208,
+"N": 259
+},
+"n": 871217984,
+"shape": "B=52_K=311_M=208_N=259",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "57f08d687ae9d16b"
+},
+{
+"kernel": "aten_cpu_blas_gemm_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2290,
+"M": 1374,
+"N": 1832
+},
+"n": 5764314720,
+"shape": "K=2290_M=1374_N=1832",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "acf1ac1e761ae7e6"
+},
+{
+"kernel": "aten_cpu_blas_gemm_strided_batched_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 52,
+"K": 311,
+"M": 208,
+"N": 259
+},
+"n": 871217984,
+"shape": "B=52_K=311_M=208_N=259",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "eb3e1fa75831476a"
+},
+{
+"kernel": "aten_cross",
+"op": "cross",
+"cat": "native_fixture",
+"dims": {
+"N": 1398101
+},
+"n": 1398101,
+"shape": "N=1398101",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "three graph stages",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b42870c4d04b959c"
+},
+{
+"kernel": "aten_cross_cpu_backend",
+"op": "cross",
+"cat": "native_fixture",
+"dims": {
+"V": 1398101
+},
+"n": 1398101,
+"shape": "V=1398101",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "three graph stages",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9291ba8d1ebe364f"
+},
+{
+"kernel": "aten_cumprod_backward_cpu",
+"op": "cumprod",
+"cat": "cumprod_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a083602d1c94c10b"
+},
+{
+"kernel": "aten_cumprod_cpu",
+"op": "cumprod",
+"cat": "cum",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8c78205482ac384d"
+},
+{
+"kernel": "aten_cumsum",
+"op": "cumsum",
+"cat": "cum",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "484e5f6c8512ace9"
+},
+{
+"kernel": "aten_dense_sparse_add_cpu",
+"op": "add",
+"cat": "dense_sparse_add",
+"dims": {
+"C": 2047,
+"N": 16380,
+"R": 2047
+},
+"n": 68635623420,
+"shape": "C=2047_N=16380_R=2047",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6cf4609b82aff26d"
+},
+{
+"kernel": "aten_depthwise_conv3x3_cpu",
+"op": "depthwise_conv3x3",
+"cat": "native_fixture",
+"dims": {
+"B": 2,
+"C": 64,
+"H": 256,
+"W": 256
+},
+"n": 8388608,
+"shape": "B=2_C=64_H=256_W=256",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "bias plus same-padding depthwise convolution through grouped cuDNN",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "54680f0482adafca"
+},
+{
+"kernel": "aten_diff_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 16777216
+},
+"n": 16777216,
+"shape": "N=16777216",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full forward adjacent difference via CUB",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "58729da87b52269a"
+},
+{
+"kernel": "aten_dilated_convolution_cpu",
+"op": "dilated_convolution",
+"cat": "native_fixture",
+"dims": {
+"C": 16,
+"O": 32,
+"H": 128,
+"W": 128,
+"K": 3,
+"D": 2
+},
+"n": 50331648,
+"shape": "C=16_O=32_H=128_W=128_K=3_D=2",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full constant-dilation 2d convolution through cuDNN",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "150518b7cd72cf01"
+},
+{
+"kernel": "aten_dirichlet_grad_cpu",
+"op": "dirichlet_grad",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "da3f5b26d6de3d29"
+},
+{
+"kernel": "aten_div",
+"op": "div",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3a958dcfd03cdc81"
+},
+{
+"kernel": "aten_div_floor",
+"op": "floor",
+"cat": "div_floor",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f3c518d4f8da9781"
+},
+{
+"kernel": "aten_div_trunc",
+"op": "trunc",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "426a68638268b895"
+},
+{
+"kernel": "aten_dot",
+"op": "dot",
+"cat": "dot",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 dot product through cuBLAS",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8c6fe94db11fec1a"
+},
+{
+"kernel": "aten_dropout_feature_noise_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 32,
+"C": 64,
+"H": 64,
+"W": 64
+},
+"n": 8388608,
+"shape": "B=32_C=64_H=64_W=64",
+"dtype": "f32",
+"scalar_args": {
+"scale": "1.25"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "feature-wise broadcast multiply through cuDNN OpTensor",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bdd5f8a7dcb35084"
+},
+{
+"kernel": "aten_elu",
+"op": "elu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"alpha": "1.25",
+"scale": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "ELU rewritten through min-max-exp arithmetic",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d81584f45f031a1c"
+},
+{
+"kernel": "aten_elu_backward",
+"op": "elu",
+"cat": "elu_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"alpha": "1.25",
+"scale": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "ordered select through cuDNN ReLU-backward mask",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "905088a00ae3d786"
+},
+{
+"kernel": "aten_embedding_bag_counts_cpu",
+"op": "embedding_bag_counts",
+"cat": "native_fixture",
+"dims": {
+"N": 16777216,
+"E": 65536
+},
+"n": 1099511627776,
+"shape": "N=16777216_E=65536",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full bounded embedding-index histogram via CUB",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "476b49cbfd2ea4c9"
+},
+{
+"kernel": "aten_equal_cpu",
+"op": "equal",
+"cat": "native_fixture",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CUB transformed equality-and reduction",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "31ad8a80aa93c774"
+},
+{
+"kernel": "aten_erf",
+"op": "erf",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "cuDNN ERF pointwise node",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0dd4b2733f8227cd"
+},
+{
+"kernel": "aten_erfc",
+"op": "erfc",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "erfc expanded to one minus erf",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "93a3de32a1e78949"
+},
+{
+"kernel": "aten_exp",
+"op": "exp",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5b828abb80778add"
+},
+{
+"kernel": "aten_exp2",
+"op": "exp2",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "exp2 expanded to multiply plus exp",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a512ae97ce832704"
+},
+{
+"kernel": "aten_expm1",
+"op": "expm1",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b76cfa17275d9f7a"
+},
+{
+"kernel": "aten_exponential_cpu",
+"op": "exponential",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lambda": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d9049720b153acf8"
+},
+{
+"kernel": "aten_fast_cat_dim0_cpu",
+"op": "fast_cat_dim0",
+"cat": "native_fixture",
+"dims": {
+"B": 256,
+"N": 16383
+},
+"n": 4194048,
+"shape": "B=256_N=16383",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "117e56345e3472bc"
+},
+{
+"kernel": "aten_flatten_nd_linear_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 80,
+"K": 322,
+"M": 161,
+"N": 241
+},
+"n": 999513760,
+"shape": "B=80_K=322_M=161_N=241",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0b73d0504d7a7d38"
+},
+{
+"kernel": "aten_flip_tensor_transform_cpu",
+"op": "flip",
+"cat": "native_fixture",
+"dims": {
+"C": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "C=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "7b156bc3275866e3"
+},
+{
+"kernel": "aten_floor",
+"op": "floor",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ee994c992feabd3f"
+},
+{
+"kernel": "aten_fmax",
+"op": "fmax",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "01b6a5c5d48be296"
+},
+{
+"kernel": "aten_fmin",
+"op": "fmin",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "cae427b65388ace8"
+},
+{
+"kernel": "aten_fmod",
+"op": "fmod",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ebf144712f447640"
+},
+{
+"kernel": "aten_fp16_dot_cpu",
+"op": "fp16_dot",
+"cat": "native_fixture",
+"dims": {
+"K": 4194304
+},
+"n": 4194304,
+"shape": "K=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "80324191d46fec17"
+},
+{
+"kernel": "aten_fp16_gemv_f16arith_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "05355c20cc176a9e"
+},
+{
+"kernel": "aten_fp16_gemv_f32arith_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "fc568ec30fd13a9b"
+},
+{
+"kernel": "aten_fp16_gemv_notrans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2509,
+"M": 1672
+},
+"n": 4195048,
+"shape": "K=2509_M=1672",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d39f7f4593415a61"
+},
+{
+"kernel": "aten_fp16_gemv_trans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"M": 1448
+},
+"n": 4194856,
+"shape": "K=2897_M=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "42db21de7a9d730b"
+},
+{
+"kernel": "aten_frac",
+"op": "frac",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "x minus trunc x rewritten to modulo one",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "257b2d03a81cc271"
+},
+{
+"kernel": "aten_fractional_max_pool2d_cpu",
+"op": "max_pool2d",
+"cat": "fractional_maxpool2d",
+"dims": {
+"B": 19,
+"C": 28,
+"IH": 84,
+"IW": 93,
+"OH": 37,
+"OW": 47
+},
+"n": 7227256176,
+"shape": "B=19_C=28_IH=84_IW=93_OH=37_OW=47",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d542cdff6a5e70f4"
+},
+{
+"kernel": "aten_fractional_max_pool3d_cpu",
+"op": "max_pool3d",
+"cat": "fractional_maxpool3d",
+"dims": {
+"B": 5,
+"C": 10,
+"ID": 39,
+"IH": 44,
+"IW": 49,
+"OD": 15,
+"OH": 19,
+"OW": 24
+},
+"n": 28756728000,
+"shape": "B=5_C=10_ID=39_IH=44_IW=49_OD=15_OH=19_OW=24",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9d19a0b89b02c36a"
+},
+{
+"kernel": "aten_gamma_transform_cpu",
+"op": "gamma",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "34b5c13f042ca274"
+},
+{
+"kernel": "aten_gelu",
+"op": "gelu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f457f641f8eed3db"
+},
+{
+"kernel": "aten_gelu_backward_cpu_exact",
+"op": "gelu_backward_cpu_exact",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "sixteen-node exact GELU backward graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "71eee55ef62813bd"
+},
+{
+"kernel": "aten_gelu_backward_cpu_tanh",
+"op": "gelu_backward_cpu_tanh",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "twenty-four-node-capable tanh GELU backward graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "df5b1482f040c411"
+},
+{
+"kernel": "aten_gelu_cpu_exact",
+"op": "gelu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5b48840c70c886ab"
+},
+{
+"kernel": "aten_gelu_cpu_tanh",
+"op": "gelu_cpu_tanh",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ddbb97ad9ec4d06e"
+},
+{
+"kernel": "aten_gemm_notrans_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ab05c0f503c88a4f"
+},
+{
+"kernel": "aten_gemm_transa_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f70c4623cd1bb7ef"
+},
+{
+"kernel": "aten_gemm_transab_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0a4de036b7ce5779"
+},
+{
+"kernel": "aten_gemm_transb_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1869,
+"M": 1496,
+"N": 2243
+},
+"n": 6271481832,
+"shape": "K=1869_M=1496_N=2243",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4e6fa11cb80126eb"
+},
+{
+"kernel": "aten_geometric_cpu",
+"op": "geometric",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"probability": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "92885ae4cc3b4ba8"
+},
+{
+"kernel": "aten_glu",
+"op": "glu",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "02a7dcceff8d5d61"
+},
+{
+"kernel": "aten_glu_backward",
+"op": "glu",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "eef22b792f3a0e64"
+},
+{
+"kernel": "aten_glu_jvp",
+"op": "glu_jvp",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b9b515bd3789a6a2"
+},
+{
+"kernel": "aten_gradient_cpu",
+"op": "gradient",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"h": "0.125"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph interior",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "188c08c1431c9f4d"
+},
+{
+"kernel": "aten_gradient_float_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph interior",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "08c36cab2c53ce68"
+},
+{
+"kernel": "aten_hardshrink",
+"op": "hardshrink",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lambd": "0.35"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "compound predicate through two numeric masks",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6b84be6ffbc2f9cd"
+},
+{
+"kernel": "aten_hardsigmoid",
+"op": "hardsigmoid",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "edda58d945a51022"
+},
+{
+"kernel": "aten_hardsigmoid_backward",
+"op": "hardsigmoid",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4c76ee8a69d656ec"
+},
+{
+"kernel": "aten_hardswish",
+"op": "hardswish",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a69c9eae5e6108ed"
+},
+{
+"kernel": "aten_hardswish_backward",
+"op": "hardswish",
+"cat": "hardswish_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "nested ordered-select graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6d9d2fe503529507"
+},
+{
+"kernel": "aten_hardtanh",
+"op": "hardtanh",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lo": "0.5",
+"hi": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "83fe1f5a9c14ac29"
+},
+{
+"kernel": "aten_hardtanh_backward",
+"op": "hardtanh",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"minval": "-0.7",
+"maxval": "0.8"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "compound predicate through two numeric masks",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6488125976d74959"
+},
+{
+"kernel": "aten_histogram_select_outer_bin_edges_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "50f2a52b7cb2af10"
+},
+{
+"kernel": "aten_host_softmax_backward_cpu",
+"op": "softmax",
+"cat": "softmax_backward",
+"dims": {
+"R": 65536,
+"K": 64
+},
+"n": 4194304,
+"shape": "R=65536_K=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph epilogue",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1d034986394740d8"
+},
+{
+"kernel": "aten_host_softmax_cpu",
+"op": "softmax",
+"cat": "softmax",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d2c1d23d13eb590a"
+},
+{
+"kernel": "aten_hspmm_cpu",
+"op": "hspmm",
+"cat": "native_fixture",
+"dims": {
+"R": 64,
+"C": 4096,
+"N": 4096
+},
+"n": 1073741824,
+"shape": "R=64_C=4096_N=4096",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "259b92fa65811255"
+},
+{
+"kernel": "aten_huber_backward",
+"op": "huber",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"norm": "0.75",
+"delta": "0.6"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "piecewise Huber derivative graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b003b17441ada95b"
+},
+{
+"kernel": "aten_huber_elementwise",
+"op": "huber_elementwise",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"delta": "0.6"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "piecewise Huber loss graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "40458531c0ed998a"
+},
+{
+"kernel": "aten_hypot",
+"op": "hypot",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "hypot expanded to squares add and sqrt",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "360eac1f010bdb44"
+},
+{
+"kernel": "aten_im2col",
+"op": "im2col",
+"cat": "unfold2d",
+"dims": {
+"B": 4,
+"C": 8,
+"H": 128,
+"W": 128,
+"KH": 3,
+"KW": 3
+},
+"n": 4718592,
+"shape": "B=4_C=8_H=128_W=128_KH=3_KW=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full im2col tensor transformation",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a4c2fa550faa122e"
+},
+{
+"kernel": "aten_int_mm_out_cpu",
+"op": "int_mm",
+"cat": "native_fixture",
+"dims": {
+"M": 512,
+"N": 512,
+"K": 1024
+},
+"n": 268435456,
+"shape": "M=512_N=512_K=1024",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full i8 by i8 to i32 matrix multiplication through cuBLAS GemmEx",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "2ee5f09162f73db9"
+},
+{
+"kernel": "aten_joint_scaling_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 16777216
+},
+"n": 16777216,
+"shape": "N=16777216",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "two max-absolute reductions through cuBLAS Isamax",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0f1d1b10e91e7c68"
+},
+{
+"kernel": "aten_kron_impl_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"A": 256,
+"B": 128,
+"C": 32,
+"D": 32
+},
+"n": 33554432,
+"shape": "A=256_B=128_C=32_D=32",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Kronecker product through mode-based cuTENSOR multiply",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "71b58bc9f4730368"
+},
+{
+"kernel": "aten_kron_out_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"A": 256,
+"B": 128,
+"C": 32,
+"D": 32
+},
+"n": 33554432,
+"shape": "A=256_B=128_C=32_D=32",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Kronecker product through mode-based cuTENSOR multiply",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "7607a09d96787dbe"
+},
+{
+"kernel": "aten_layer_norm",
+"op": "layer_norm",
+"cat": "layernorm",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"eps": "1e-05"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph epilogue",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ee29410e4d6b41b7"
+},
+{
+"kernel": "aten_layer_norm_backward_cpu",
+"op": "layer_norm",
+"cat": "layernorm_backward",
+"dims": {
+"B": 1024,
+"D": 4095
+},
+"n": 4193280,
+"shape": "B=1024_D=4095",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "15c9a3b0ddcdcc80"
+},
+{
+"kernel": "aten_layer_norm_cpu_backend",
+"op": "norm",
+"cat": "layernorm_native",
+"dims": {
+"B": 1024,
+"D": 4095
+},
+"n": 4193280,
+"shape": "B=1024_D=4095",
+"dtype": "f32",
+"scalar_args": {
+"eps": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8d1b41fe23056c78"
+},
+{
+"kernel": "aten_leaky_relu",
+"op": "leaky_relu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"slope": "0.1"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "leaky ReLU rewritten through min-max arithmetic",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f81c45745cd970f2"
+},
+{
+"kernel": "aten_lerp",
+"op": "lerp",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4e802a140a827300"
+},
+{
+"kernel": "aten_lerp_scalar",
+"op": "lerp_scalar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"weight": "0.3"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3ed458b205f9ff3d"
+},
+{
+"kernel": "aten_lerp_scalar_cpu",
+"op": "lerp_scalar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"weight": "0.3"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "78031c8798b7cb9a"
+},
+{
+"kernel": "aten_lerp_tensor_cpu",
+"op": "lerp_tensor",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1cfee9a904ffc548"
+},
+{
+"kernel": "aten_linear_combination_cpu",
+"op": "linear_combination",
+"cat": "native_fixture",
+"dims": {
+"N": 1048575
+},
+"n": 1048575,
+"shape": "N=1048575",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "847a87e082419ef0"
+},
+{
+"kernel": "aten_log",
+"op": "log",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3de8004fa500429e"
+},
+{
+"kernel": "aten_log10",
+"op": "log10",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "16be5501c4b754a0"
+},
+{
+"kernel": "aten_log1p",
+"op": "log1p",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e84c88cd8e52d9d7"
+},
+{
+"kernel": "aten_log2",
+"op": "log2",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bb9bfb2fc1e8317e"
+},
+{
+"kernel": "aten_log_normal_cpu",
+"op": "log_normal",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"mean": "0.1",
+"std": "0.25"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d4eb4b9a2ee86ce7"
+},
+{
+"kernel": "aten_log_sigmoid_backward_cpu",
+"op": "log_sigmoid",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "aab50d8328c1a843"
+},
+{
+"kernel": "aten_log_sigmoid_cpu",
+"op": "log_sigmoid",
+"cat": "native_fixture",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full stable log-sigmoid and saved buffer through two cuDNN graphs",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f5856fc92edb07f6"
+},
+{
+"kernel": "aten_logaddexp",
+"op": "logaddexp",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "stable max plus log1p-exp graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f8780f262412130a"
+},
+{
+"kernel": "aten_logaddexp2",
+"op": "logaddexp2",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "stable base-two logaddexp graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "42ce8060fb0f98d2"
+},
+{
+"kernel": "aten_logit",
+"op": "logit",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"eps": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8d961159ef398d33"
+},
+{
+"kernel": "aten_logit_backward",
+"op": "logit",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"eps": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9d4fddc2f83a2bdf"
+},
+{
+"kernel": "aten_masked_scale",
+"op": "masked_scale",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"inv_scale": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f023c7dce84c90d0"
+},
+{
+"kernel": "aten_max_all_cpu",
+"op": "max_all",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f8dc70d1772f00aa"
+},
+{
+"kernel": "aten_max_pool2d",
+"op": "max_pool2d",
+"cat": "maxpool2d",
+"dims": {
+"B": 16,
+"C": 32,
+"H": 128,
+"W": 128,
+"K": 2,
+"S": 2
+},
+"n": 33554432,
+"shape": "B=16_C=32_H=128_W=128_K=2_S=2",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full 2x2 stride-2 max pooling through cuDNN",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a2ade0d34a8c60b6"
+},
+{
+"kernel": "aten_max_reduce_cpu",
+"op": "max_reduce",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f640ad1f377ca030"
+},
+{
+"kernel": "aten_max_values_cpu",
+"op": "max_values",
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bb114323f74047bb"
+},
+{
+"kernel": "aten_maximum",
+"op": "maximum",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "20b4059e81d20c1b"
+},
+{
+"kernel": "aten_mean",
+"op": "mean",
+"cat": "mean",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 mean reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "2a5afc39f535c695"
+},
+{
+"kernel": "aten_min_all_cpu",
+"op": "min_all",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "81f6bfb9031dfe95"
+},
+{
+"kernel": "aten_min_reduce_cpu",
+"op": "min_reduce",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "621c2bfc5b031aed"
+},
+{
+"kernel": "aten_min_values_cpu",
+"op": "min_values",
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "730db657e6d89481"
+},
+{
+"kernel": "aten_minimum",
+"op": "minimum",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3f5f73c24f2d1d36"
+},
+{
+"kernel": "aten_mish",
+"op": "mish",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ed7cd796ed121579"
+},
+{
+"kernel": "aten_mish_backward",
+"op": "mish",
+"cat": "mish_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "70bf6cbf89d9ad97"
+},
+{
+"kernel": "aten_mm",
+"op": "mm",
+"cat": "mm",
+"dims": {
+"M": 512,
+"N": 512,
+"K": 512
+},
+"n": 134217728,
+"shape": "M=512_N=512_K=512",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 matrix multiplication",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "cd8356bf8629a037"
+},
+{
+"kernel": "aten_mse_backward",
+"op": "mse",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"value": "0.5"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3848b837a6d2bcb9"
+},
+{
+"kernel": "aten_mse_elementwise",
+"op": "mse",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4fddb01a5fe09064"
+},
+{
+"kernel": "aten_mse_loss",
+"op": "mse_loss",
+"cat": "loss",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph plus reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3b695fa3a223f3b4"
+},
+{
+"kernel": "aten_mul",
+"op": "mul",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "generic graph multiply",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9d7b8aeafb805ec3"
+},
+{
+"kernel": "aten_mv",
+"op": "mv",
+"cat": "gemv",
+"dims": {
+"M": 4096,
+"K": 1024
+},
+"n": 4194304,
+"shape": "M=4096_K=1024",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 GEMV accumulation",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a7b8e7e8f889ccc4"
+},
+{
+"kernel": "aten_nansum_cpu",
+"op": "nansum",
+"cat": "native_fixture",
+"dims": {
+"R": 131072,
+"K": 64
+},
+"n": 8388608,
+"shape": "R=131072_K=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full NaN-filtered row reduction through CUB transform plus segmented sum",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0085284cb82ca0db"
+},
+{
+"kernel": "aten_narrow_copy_dense_cpu",
+"op": "narrow_copy_dense",
+"cat": "native_fixture",
+"dims": {
+"C": 2897,
+"L": 724,
+"R": 1448
+},
+"n": 3037075744,
+"shape": "C=2897_L=724_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "031841e44ca18076"
+},
+{
+"kernel": "aten_neg",
+"op": "neg",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e1c9b3016ab44715"
+},
+{
+"kernel": "aten_nested_all_cpu",
+"op": "nested_all",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "39273232cbbc40e2"
+},
+{
+"kernel": "aten_nested_batch_offsets_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 4194302
+},
+"n": 4194302,
+"shape": "B=4194302",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e074e69cce6dae1c"
+},
+{
+"kernel": "aten_nested_bmm_cpu",
+"op": "nested_bmm",
+"cat": "native_fixture",
+"dims": {
+"B": 83,
+"K": 248,
+"M": 165,
+"N": 206
+},
+"n": 699650160,
+"shape": "B=83_K=248_M=165_N=206",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "052a884874109c4d"
+},
+{
+"kernel": "aten_nested_clone_cpu",
+"op": "nested_clone",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "fe71788a5bee6f5d"
+},
+{
+"kernel": "aten_nested_matmul_broadcast_cpu",
+"op": "nested_matmul_broadcast",
+"cat": "native_fixture",
+"dims": {
+"B": 89,
+"K": 266,
+"M": 178,
+"N": 222
+},
+"n": 935501784,
+"shape": "B=89_K=266_M=178_N=222",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "7a9f8d11436e5a37"
+},
+{
+"kernel": "aten_nested_softmax_backward_cpu",
+"op": "softmax",
+"cat": "softmax_backward",
+"dims": {
+"B": 65536,
+"N": 64
+},
+"n": 4194304,
+"shape": "B=65536_N=64",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph epilogue",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "34f8ac3fe2d1c2ef"
+},
+{
+"kernel": "aten_nested_squeeze_cpu",
+"op": "nested_squeeze",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "f6aafb8065321582"
+},
+{
+"kernel": "aten_nested_sum_backward_cpu",
+"op": "sum",
+"cat": "sum_backward",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ac753cd95b469a53"
+},
+{
+"kernel": "aten_nested_sum_dim_cpu",
+"op": "nested_sum_dim",
+"cat": "native_fixture",
+"dims": {
+"B": 724,
+"N": 5793
+},
+"n": 4194132,
+"shape": "B=724_N=5793",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "132e688af89d8697"
+},
+{
+"kernel": "aten_norm_cpu",
+"op": "norm",
+"cat": "norm",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "991c983b7926e7f4"
+},
+{
+"kernel": "aten_normal_cpu",
+"op": "log_normal",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"mean": "0.1",
+"std": "0.75"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4e2166c8e95ad7bf"
+},
+{
+"kernel": "aten_or_reduce_cpu",
+"op": "or_reduce",
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "bb8a8744433bfaf3"
+},
+{
+"kernel": "aten_outer",
+"op": "outer",
+"cat": "outer",
+"dims": {
+"M": 2048,
+"N": 2048
+},
+"n": 4194304,
+"shape": "M=2048_N=2048",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full FP64 outer product",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "090827df12946d14"
+},
+{
+"kernel": "aten_pixel_shuffle",
+"op": "pixel_shuffle",
+"cat": "native_fixture",
+"dims": {
+"B": 9,
+"C": 14,
+"H": 19,
+"R": 9,
+"W": 19
+},
+"n": 409374,
+"shape": "B=9_C=14_H=19_R=9_W=19",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "387681cd9544c530"
+},
+{
+"kernel": "aten_pixel_shuffle_cpu_backend",
+"op": "pixel_shuffle_cpu_backend",
+"cat": "native_fixture",
+"dims": {
+"B": 4,
+"C": 13,
+"H": 34,
+"RATIO": 9,
+"W": 34
+},
+"n": 541008,
+"shape": "B=4_C=13_H=34_RATIO=9_W=34",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "72310b3d9814d0ad"
+},
+{
+"kernel": "aten_pixel_unshuffle_cpu_backend",
+"op": "pixel_unshuffle_cpu_backend",
+"cat": "native_fixture",
+"dims": {
+"B": 4,
+"C": 13,
+"H": 34,
+"RATIO": 9,
+"W": 34
+},
+"n": 541008,
+"shape": "B=4_C=13_H=34_RATIO=9_W=34",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "30ac9ab652691610"
+},
+{
+"kernel": "aten_polar_scalarized",
+"op": "polar",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "42696ee2f414f4f7"
+},
+{
+"kernel": "aten_pow",
+"op": "pow",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "cuDNN POW pointwise node",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d841f8307bd2c5d4"
+},
+{
+"kernel": "aten_pow_tensor_scalar",
+"op": "pow",
+"cat": "pow_scalar",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"exponent": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "23ca8e68b86e3edf"
+},
+{
+"kernel": "aten_prod",
+"op": "prod",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9a5093b9a5b6147d"
+},
+{
+"kernel": "aten_quant_col_offsets_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"K": 1048576,
+"N": 48
+},
+"n": 50331648,
+"shape": "K=1048576_N=48",
+"dtype": "f32",
+"scalar_args": {
+"zero": "3"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full signed-int8 column reduction and zero-point offset via CUB",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "631a6e71f23a4e5e"
+},
+{
+"kernel": "aten_reciprocal",
+"op": "reciprocal",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "21e034c59660aef0"
+},
+{
+"kernel": "aten_relu",
+"op": "relu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "2b98a38943814af4"
+},
+{
+"kernel": "aten_renorm_scale_factor",
+"op": "renorm_scale_factor",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"maxnorm": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "e42601bd48d63c94"
+},
+{
+"kernel": "aten_repeat_compute_cpu",
+"op": "repeat_compute",
+"cat": "native_fixture",
+"dims": {
+"N": 8192,
+"R": 512
+},
+"n": 4194304,
+"shape": "N=8192_R=512",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8de495d9b009aa55"
+},
+{
+"kernel": "aten_repeat_tensor_shape_cpu",
+"op": "repeat_tensor_shape",
+"cat": "native_fixture",
+"dims": {
+"N": 8192,
+"R": 512
+},
+"n": 4194304,
+"shape": "N=8192_R=512",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c950974bab2c20a2"
+},
+{
+"kernel": "aten_rms_norm",
+"op": "rms_norm",
+"cat": "rmsnorm",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"eps": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "90930f153fa1de53"
+},
+{
+"kernel": "aten_round",
+"op": "round",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "round expanded to compare/select/floor/ceil",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "fc33c00aba68ebf8"
+},
+{
+"kernel": "aten_round_decimals",
+"op": "round",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"scale": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "6a4dc87767ea2f0d"
+},
+{
+"kernel": "aten_rsqrt",
+"op": "rsqrt",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "698b8433ba6b0c53"
+},
+{
+"kernel": "aten_sampled_addmm_sparse_csr_cpu",
+"op": "addmm",
+"cat": "sparse_sampled_addmm",
+"dims": {
+"R": 4096,
+"K": 512,
+"C": 4096,
+"NNZ": 262144,
+"N": 262144
+},
+"n": 590295810358705651712,
+"shape": "R=4096_K=512_C=4096_NNZ=262144_N=262144",
+"dtype": "f32",
+"scalar_args": {
+"alpha": "0.75",
+"beta": "-0.25"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CSR sampled dense product via cuSPARSE SDDMM",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3c077624966ff30d"
+},
+{
+"kernel": "aten_shrink_backward",
+"op": "shrink",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lambd": "0.35"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "compound predicate through two numeric masks",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0685394b0abd4c38"
+},
+{
+"kernel": "aten_sigmoid",
+"op": "sigmoid",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3aa4c7f67607ce07"
+},
+{
+"kernel": "aten_sigmoid_backward",
+"op": "sigmoid",
+"cat": "sigmoid_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1ea31fde0432d020"
+},
+{
+"kernel": "aten_silu",
+"op": "silu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "71d6c728c03d169b"
+},
+{
+"kernel": "aten_silu_backward",
+"op": "silu",
+"cat": "silu_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0f3ebf276e2d7c0b"
+},
+{
+"kernel": "aten_silu_cpu",
+"op": "silu",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1fff634b60e4f382"
+},
+{
+"kernel": "aten_sin",
+"op": "sin",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c33c39c26b3496c2"
+},
+{
+"kernel": "aten_sinh",
+"op": "sinh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4314829041c59873"
+},
+{
+"kernel": "aten_slow_conv3d_backward_input_cpu",
+"op": "slow_conv3d_backward_input",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full slow-conv3d input gradient through cuDNN backward-data",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4d639b53fac7f809"
+},
+{
+"kernel": "aten_slow_conv3d_backward_weight_cpu",
+"op": "slow_conv3d_backward_weight",
+"cat": "native_fixture",
+"dims": {
+"C": 8,
+"O": 16,
+"D": 32,
+"H": 32,
+"W": 32,
+"K": 3
+},
+"n": 12582912,
+"shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full slow-conv3d filter gradient through cuDNN backward-filter",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "db2258fecb148026"
+},
+{
+"kernel": "aten_slow_conv3d_forward_cpu",
+"op": "slow_conv3d",
+"cat": "native_fixture",
+"dims": {
+"C": 14,
+"D": 55,
+"H": 62,
+"K": 21,
+"O": 21,
+"W": 68
+},
+"n": 1431627120,
+"shape": "C=14_D=55_H=62_K=21_O=21_W=68",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3d2cfd4dccb3badb"
+},
+{
+"kernel": "aten_smooth_l1_backward",
+"op": "smooth_l1",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"norm": "0.75",
+"beta": "0.6"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "piecewise smooth-L1 derivative graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "50c63ccf860d2434"
+},
+{
+"kernel": "aten_smooth_l1_elementwise",
+"op": "smooth_l1",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"beta": "0.6"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "piecewise smooth-L1 loss graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "be81f2aea77eb181"
+},
+{
+"kernel": "aten_softmax",
+"op": "softmax",
+"cat": "softmax",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "921b6470848400ca"
+},
+{
+"kernel": "aten_softplus",
+"op": "softplus",
+"cat": "unary",
+"dims": {
+"N": 8388608
+},
+"n": 8388608,
+"shape": "N=8388608",
+"dtype": "f32",
+"scalar_args": {
+"beta": "1.25",
+"threshold": "0.5"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full thresholded softplus through a cached cuDNN pointwise graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "57b1e51c04e2b589"
+},
+{
+"kernel": "aten_softplus_backward",
+"op": "softplus",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"beta": "1.1",
+"threshold": "0.7"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "softplus derivative and threshold mask graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "77ddf49c10f48c36"
+},
+{
+"kernel": "aten_softshrink",
+"op": "softshrink",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"lambd": "0.35"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "nested ordered-select graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "586089c4ed5789f9"
+},
+{
+"kernel": "aten_sort_cpu",
+"op": "sort",
+"cat": "sort",
+"dims": {
+"K": 4095,
+"R": 1024
+},
+"n": 4193280,
+"shape": "K=4095_R=1024",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0e8897b67dfc0c89"
+},
+{
+"kernel": "aten_sparse_add_values_cpu",
+"op": "add",
+"cat": "add_alpha",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"alpha": "0.5"
+},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "292b2dfa977dd624"
+},
+{
+"kernel": "aten_sparse_addmm_cpu",
+"op": "addmm",
+"cat": "sparse_coo_mm",
+"dims": {
+"R": 64,
+"C": 4096,
+"N": 4096
+},
+"n": 1073741824,
+"shape": "R=64_C=4096_N=4096",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Linalg-fill plus structured-loop COO SpMM via cuSPARSE",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "af6a5bc645cf7bab"
+},
+{
+"kernel": "aten_sparse_addmv_bsr_cpu",
+"op": "sparse_addmv_bsr",
+"cat": "native_fixture",
+"dims": {
+"R": 4096,
+"C": 4096,
+"BR": 4,
+"BC": 4,
+"N": 262144
+},
+"n": 70368744177664,
+"shape": "R=4096_C=4096_BR=4_BC=4_N=262144",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full structured-loop square-BSR SpMV via cuSPARSE SpMM",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f38e82d0726094a7"
+},
+{
+"kernel": "aten_sparse_addmv_csr_cpu",
+"op": "sparse_addmv_csr",
+"cat": "native_fixture",
+"dims": {
+"R": 65536,
+"C": 65536,
+"N": 4194304
+},
+"n": 18014398509481984,
+"shape": "R=65536_C=65536_N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full structured-loop CSR SpMV via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "29b9ab46cce946f3"
+},
+{
+"kernel": "aten_sparse_bmm_cpu",
+"op": "sparse_bmm",
+"cat": "native_fixture",
+"dims": {
+"B": 37,
+"K": 375,
+"M": 300,
+"N": 225
+},
+"n": 936562500,
+"shape": "B=37_K=375_M=300_N=225",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "aad760bb7051755a"
+},
+{
+"kernel": "aten_sparse_coo_softmax_backward_cpu",
+"op": "softmax",
+"cat": "sparse_softmax_backward",
+"dims": {
+"R": 524288,
+"K": 8
+},
+"n": 4194304,
+"shape": "R=524288_K=8",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "partial graph epilogue",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "a03bd7a70f27455c"
+},
+{
+"kernel": "aten_sparse_coo_to_csr_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full COO-to-CSR index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4cda79027c69d4df"
+},
+{
+"kernel": "aten_sparse_csr_addmm_cpu",
+"op": "addmm",
+"cat": "sparse_csr_mm",
+"dims": {
+"R": 65536,
+"K": 65536,
+"C": 64,
+"N": 4194304
+},
+"n": 1152921504606846976,
+"shape": "R=65536_K=65536_C=64_N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full structured-loop CSR SpMM via cuSPARSE",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ceb60fb7c03704d8"
+},
+{
+"kernel": "aten_sparse_csr_reduce_all_cpu",
+"op": "sum",
+"cat": "reduce",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "ddba82d246ac2b47"
+},
+{
+"kernel": "aten_sparse_intersection_apply_cpu",
+"op": "sparse_intersection_apply",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "89f3237065efa7c1"
+},
+{
+"kernel": "aten_sparse_intersection_launch_cpu",
+"op": "sparse_intersection_launch",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "64bc2211b27d81d9"
+},
+{
+"kernel": "aten_sparse_matmul_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"C": 2047,
+"N": 16380,
+"R": 2047
+},
+"n": 68635623420,
+"shape": "C=2047_N=16380_R=2047",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "2d2accc210a10238"
+},
+{
+"kernel": "aten_sparse_matmul_csr_to_coo_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"N": 4194304,
+"R": 65536
+},
+"n": 274877906944,
+"shape": "N=4194304_R=65536",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full CSR-to-COO row-index conversion via cuSPARSE",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "52305022b28e724d"
+},
+{
+"kernel": "aten_sparse_mul_cpu",
+"op": "mul",
+"cat": "binary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "cc84c109e16c002e"
+},
+{
+"kernel": "aten_sparse_norm_cpu",
+"op": "sparse_norm",
+"cat": "native_fixture",
+"dims": {
+"N": 2097152
+},
+"n": 2097152,
+"shape": "N=2097152",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full Euclidean norm through cuBLAS Snrm2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "2ed1a182be1a2c6b"
+},
+{
+"kernel": "aten_sparse_sum_cpu",
+"op": "sum",
+"cat": "reduce",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "3c00d76b2ec31603"
+},
+{
+"kernel": "aten_split_copy_cpu",
+"op": "split_copy",
+"cat": "split_copy",
+"dims": {
+"N": 4194304,
+"S": 4
+},
+"n": 16777216,
+"shape": "N=4194304_S=4",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full contiguous split-copy reshape",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "08724e4704e1aca6"
+},
+{
+"kernel": "aten_sqrt",
+"op": "sqrt",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0cede42120fd1ffe"
+},
+{
+"kernel": "aten_square",
+"op": "square",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "d6e39dc56b180446"
+},
+{
+"kernel": "aten_sspaddmm_cpu",
+"op": "sspaddmm",
+"cat": "native_fixture",
+"dims": {
+"C": 1774,
+"K": 2365,
+"N": 18917,
+"R": 2365
+},
+"n": 187701684214550,
+"shape": "C=1774_K=2365_N=18917_R=2365",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "68d23c3c19429b5c"
+},
+{
+"kernel": "aten_stack_serial_cpu",
+"op": "stack_serial",
+"cat": "native_fixture",
+"dims": {
+"K": 405,
+"R": 203,
+"T": 51
+},
+"n": 4192965,
+"shape": "K=405_R=203_T=51",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b4586baaae66626e"
+},
+{
+"kernel": "aten_standard_gamma_grad_cpu",
+"op": "standard_gamma_grad",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "573bd945902d8ca4"
+},
+{
+"kernel": "aten_sum",
+"op": "sum",
+"cat": "reduce",
+"dims": {
+"M": 65536,
+"N": 64
+},
+"n": 4194304,
+"shape": "M=65536_N=64",
+"dtype": "f64",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full segmented CUB f64 sum reduction",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8323a8b552b16506"
+},
+{
+"kernel": "aten_sum_cpu_backend",
+"op": "sum_cpu_backend",
+"cat": "native_fixture",
+"dims": {
+"K": 4095,
+"R": 1024
+},
+"n": 4193280,
+"shape": "K=4095_R=1024",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "2e866cae1039e61c"
+},
+{
+"kernel": "aten_sumproduct_pair_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 70,
+"K": 282,
+"M": 141,
+"N": 211
+},
+"n": 587284740,
+"shape": "B=70_K=282_M=141_N=211",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "b1d208ea182a8abc"
+},
+{
+"kernel": "aten_tan",
+"op": "tan",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "1ea007f2c8d24860"
+},
+{
+"kernel": "aten_tanh",
+"op": "tanh",
+"cat": "unary",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4d4284953d7c9011"
+},
+{
+"kernel": "aten_tanh_backward",
+"op": "tanh",
+"cat": "tanh_backward",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4a722ac00ff4eeac"
+},
+{
+"kernel": "aten_threshold_backward",
+"op": "threshold",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"threshold": "0.35"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "cuDNN ReLU-backward numeric mask",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c488a87f05701220"
+},
+{
+"kernel": "aten_topk_cpu",
+"op": "topk",
+"cat": "topk",
+"dims": {
+"K": 4095,
+"R": 1024,
+"TOP": 512
+},
+"n": 2146959360,
+"shape": "K=4095_R=1024_TOP=512",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "9c362050606c21d0"
+},
+{
+"kernel": "aten_trace_cpu",
+"op": "trace",
+"cat": "native_fixture",
+"dims": {
+"N": 2047
+},
+"n": 2047,
+"shape": "N=2047",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "c89b14f8b71c1d02"
+},
+{
+"kernel": "aten_transform_bias_rescale_qkv_cpu",
+"op": null,
+"cat": "native_fixture",
+"dims": {
+"B": 8,
+"S": 512,
+"H": 16,
+"D": 64
+},
+"n": 4194304,
+"shape": "B=8_S=512_H=16_D=64",
+"dtype": "f32",
+"scalar_args": {
+"scale": "0.125"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "three full QKV slice-bias-permute stages through cuDNN OpTensor",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "85dffc2ee1e0bb1f"
+},
+{
+"kernel": "aten_transpose_copy",
+"op": "transpose_copy",
+"cat": "native_fixture",
+"dims": {
+"M": 2365,
+"N": 1774
+},
+"n": 4195510,
+"shape": "M=2365_N=1774",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "5d0809aea12f7880"
+},
+{
+"kernel": "aten_trilinear_cpu",
+"op": "trilinear",
+"cat": "native_fixture",
+"dims": {
+"B": 65,
+"I": 131,
+"J": 163,
+"K": 196
+},
+"n": 272037220,
+"shape": "B=65_I=131_J=163_K=196",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "35ced2e11faf6b46"
+},
+{
+"kernel": "aten_trunc",
+"op": "trunc",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "f7864fefa35b9eb9"
+},
+{
+"kernel": "aten_unbind_copy_cpu",
+"op": "unbind_copy",
+"cat": "native_fixture",
+"dims": {
+"B": 512,
+"N": 8192
+},
+"n": 4194304,
+"shape": "B=512_N=8192",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v4",
+"recipe_fingerprint": "8eb65b902214f090"
+},
+{
+"kernel": "aten_unfolded2d_copy_cpu",
+"op": "unfolded2d_copy",
+"cat": "native_fixture",
+"dims": {
+"C": 11,
+"H": 46,
+"KH": 17,
+"KW": 17,
+"OH": 34,
+"OW": 34,
+"W": 46
+},
+"n": 7776139184,
+"shape": "C=11_H=46_KH=17_KW=17_OH=34_OW=34_W=46",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "0e17d50f1590c5c9"
+},
+{
+"kernel": "aten_uniform_cpu",
+"op": "uniform",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {
+"from": "-2.0",
+"to": "3.0"
+},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full graph",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "58b2b03dd6dd4cd3"
+},
+{
+"kernel": "aten_upsample_bilinear2d",
+"op": "upsample_bilinear2d",
+"cat": "native_fixture",
+"dims": {
+"B": 4096,
+"C": 3,
+"H": 4,
+"W": 4
+},
+"n": 196608,
+"shape": "B=4096_C=3_H=4_W=4",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "EXPLICIT_STRUCTURED_SHAPE",
+"shape_selection_note": "full cuDNN bilinear 2x resample",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "750b2c42ff4d936c"
+},
+{
+"kernel": "aten_vector_norm_out_cpu",
+"op": "norm",
+"cat": "norm",
+"dims": {
+"C": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "C=2897_R=1448",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "65b28a1c9d181232"
+},
+{
+"kernel": "aten_weight_norm_backward_cpu",
+"op": "norm",
+"cat": "weight_norm_backward",
+"dims": {
+"C": 1024,
+"S": 4095
+},
+"n": 4193280,
+"shape": "C=1024_S=4095",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "WHOLE_OR_EXPLICITLY_ADJUDICATED",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "aa3c043e3e08724a"
+},
+{
+"kernel": "aten_xor_sum_cpu",
+"op": "xor_sum",
+"cat": "native_fixture",
+"dims": {
+"K": 2897,
+"R": 1448
+},
+"n": 4194856,
+"shape": "K=2897_R=1448",
+"dtype": "i32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "4b1d238a23a58eb4"
+},
+{
+"kernel": "aten_zeros_cpu",
+"op": "zeros",
+"cat": "native_fixture",
+"dims": {
+"N": 4194304
+},
+"n": 4194304,
+"shape": "N=4194304",
+"dtype": "f32",
+"scalar_args": {},
+"shape_selection": "AUTO_SCALE_LARGEST_ARRAY_APPROX_4194304",
+"shape_selection_note": "uniformly scale extracted dimensions; preserve ratios; minimum dimension 2",
+"comparison_scope": "REQUIRES_EXPLICIT_NATIVE_FIXTURE_ADAPTER",
+"recipe_version": "2026-09-08-v3",
+"recipe_fingerprint": "8396a59034c783b2"
+}
+]

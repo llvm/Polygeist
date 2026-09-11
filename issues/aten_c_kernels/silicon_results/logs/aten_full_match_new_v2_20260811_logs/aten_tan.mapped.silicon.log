@@ -1,0 +1,8 @@
+kernel=aten_tan correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_tan iterations=5 raised_gpu_us=1585.945580
+kernel=aten_tan correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_tan iterations=5 raised_gpu_us=1594.515191
+kernel=aten_tan correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_tan iterations=5 raised_gpu_us=1596.230408
+kernel=aten_tan correctness=PASS max_abs=7.4505805969238281e-09 max_rel=7.4505805969238281e-09
+kernel=aten_tan iterations=5 raised_gpu_us=1610.630425

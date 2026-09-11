@@ -1,0 +1,5 @@
+cholesky,openblas_cblas_1t,1,0,0.068531
+cholesky,openblas_cblas_1t,2,0,0.060894
+cholesky,openblas_cblas_1t,3,0,0.065014
+cholesky,openblas_cblas_1t,4,0,0.062975
+cholesky,openblas_cblas_1t,5,0,0.064021

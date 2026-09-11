@@ -1,0 +1,30 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/2mm-native-cpu-timing_20260908_104718/native-cpu-timing run 1 ...
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=0 total=10
+4.986737
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=1 total=10
+5.227715
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=2 total=10
+5.152678
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=3 total=10
+5.255675
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=4 total=10
+5.004906
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=0 total=10
+5.260104
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=1 total=10
+5.335334
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=2 total=10
+5.219103
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=3 total=10
+5.320526
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=4 total=10
+5.202969
+
+[jetson] exit code: 0
+[jetson] elapsed_s 52.190

@@ -1,0 +1,3 @@
+kernel,ne,d1d,q1d,iterations,runtime_us,hardware,measurement_statistic
+hcurl_mass_apply_3d,1024,4,5,20,9002.161600,Jetson_Orin_sm87_MAXN_CUDA12.6,median_of_process_runs_2_to_4
+hdiv_mass_apply_3d,1024,4,5,20,396.065600,Jetson_Orin_sm87_MAXN_CUDA12.6,median_of_process_runs_2_to_4

@@ -1,0 +1,13 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/gemm_direct_large_fp32_fp64_probe_20260908_145736/direct-large-fp32-fp64 run 1 ...
+VERSIONS runtime=12060 driver=13030 cublas=120601 shape=1000x1100x1200
+LARGE_FP32 call=0 sync=0 copy=0 samples=6 max_rel=1.33662066e-06 PASS
+LARGE_FP64 call=0 sync=0 copy=0 samples=6 max_rel=1.6597674231768936e-15 PASS
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.285

@@ -1,0 +1,6 @@
+timestamp=2026-09-05 08:38 PDT
+route=arpitj-dev -> pva-general -> nvidia@192.168.57.1
+build=x86 host cross-compile with aarch64-linux-gnu-gcc; AArch64 executable copied to board
+backend=cuBLAS cublasDscal followed by cublasDaxpy
+policy=no project-authored computational CUDA or CPU kernel
+result=PASS cublasDaxpby

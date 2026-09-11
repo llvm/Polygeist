@@ -1,0 +1,40 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/publication_gesummv_raised_timing_5x5_20260908_091227/raised-timing run 1 ...
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=0 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=34.216351 memory_device_ms=16.703296 e2e_host_ms=117.082304 compute_wall_ms=34.200896 memory_wall_ms=16.537152 host_device_ms=0.090208 host_wall_ms=65.942592 alloc_device_ms=0.984288 alloc_wall_ms=1.296864 free_device_ms=1.862016 free_wall_ms=1.784864 h2d_device_ms=4.076864 h2d_wall_ms=3.769472 d2h_device_ms=9.780128 d2h_wall_ms=9.685952 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 117.146303996
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=1 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.449664 memory_device_ms=14.455680 e2e_host_ms=15.486112 compute_wall_ms=0.442528 memory_wall_ms=14.237888 host_device_ms=0.106080 host_wall_ms=0.375392 alloc_device_ms=1.486624 alloc_wall_ms=1.388576 free_device_ms=1.912768 free_wall_ms=1.763328 h2d_device_ms=3.343936 h2d_wall_ms=3.392384 d2h_device_ms=7.712352 d2h_wall_ms=7.693600 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 15.550336003
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=2 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.447008 memory_device_ms=12.786944 e2e_host_ms=13.805024 compute_wall_ms=0.439040 memory_wall_ms=12.595232 host_device_ms=0.104096 host_wall_ms=0.383296 alloc_device_ms=1.436448 alloc_wall_ms=1.373568 free_device_ms=1.041056 free_wall_ms=1.729248 h2d_device_ms=3.290912 h2d_wall_ms=3.325856 d2h_device_ms=7.018528 d2h_wall_ms=6.166560 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.874623999
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=3 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.443328 memory_device_ms=12.469760 e2e_host_ms=13.467008 compute_wall_ms=0.435872 memory_wall_ms=12.270304 host_device_ms=0.105184 host_wall_ms=0.387584 alloc_device_ms=0.952480 alloc_wall_ms=1.347552 free_device_ms=1.021408 free_wall_ms=1.745824 h2d_device_ms=3.493568 h2d_wall_ms=3.060032 d2h_device_ms=7.002304 d2h_wall_ms=6.116896 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.536352009
+POLYGEIST_BENCHMARK_ITERATION phase=warmup index=4 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.451584 memory_device_ms=12.463680 e2e_host_ms=13.471552 compute_wall_ms=0.443776 memory_wall_ms=12.232416 host_device_ms=0.104800 host_wall_ms=0.420384 alloc_device_ms=0.994016 alloc_wall_ms=1.384928 free_device_ms=1.049760 free_wall_ms=1.739904 h2d_device_ms=3.507840 h2d_wall_ms=3.047136 d2h_device_ms=6.912064 d2h_wall_ms=6.060448 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.540927991
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=0 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.442880 memory_device_ms=12.624160 e2e_host_ms=13.615808 compute_wall_ms=0.435744 memory_wall_ms=12.421824 host_device_ms=0.104736 host_wall_ms=0.370976 alloc_device_ms=1.006144 alloc_wall_ms=1.389600 free_device_ms=1.039040 free_wall_ms=1.789376 h2d_device_ms=3.485888 h2d_wall_ms=3.068640 d2h_device_ms=7.093088 d2h_wall_ms=6.174208 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.684384003
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=1 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.448512 memory_device_ms=12.289088 e2e_host_ms=13.341824 compute_wall_ms=0.440480 memory_wall_ms=12.138080 host_device_ms=0.107552 host_wall_ms=0.377888 alloc_device_ms=0.945696 alloc_wall_ms=1.377728 free_device_ms=1.017024 free_wall_ms=1.696544 h2d_device_ms=3.476576 h2d_wall_ms=3.054720 d2h_device_ms=6.849792 d2h_wall_ms=6.009088 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.410528004
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=2 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.448288 memory_device_ms=12.308928 e2e_host_ms=13.283392 compute_wall_ms=0.440096 memory_wall_ms=12.122752 host_device_ms=0.100608 host_wall_ms=0.391008 alloc_device_ms=1.002400 alloc_wall_ms=1.384832 free_device_ms=0.959104 free_wall_ms=1.669472 h2d_device_ms=3.496992 h2d_wall_ms=3.053376 d2h_device_ms=6.850432 d2h_wall_ms=6.015072 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.352415994
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=3 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.440224 memory_device_ms=12.267360 e2e_host_ms=13.251008 compute_wall_ms=0.433088 memory_wall_ms=12.092352 host_device_ms=0.102176 host_wall_ms=0.392704 alloc_device_ms=0.928320 alloc_wall_ms=1.325824 free_device_ms=0.937888 free_wall_ms=1.651680 h2d_device_ms=3.508064 h2d_wall_ms=3.055456 d2h_device_ms=6.893088 d2h_wall_ms=6.059392 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.318240002
+POLYGEIST_BENCHMARK_ITERATION phase=sample index=4 total=10
+POLYGEIST_GPU_REGION_TIMING region=486721723013172567 compute_device_ms=0.445472 memory_device_ms=12.132416 e2e_host_ms=13.152288 compute_wall_ms=0.437952 memory_wall_ms=12.020704 host_device_ms=0.102368 host_wall_ms=0.373728 alloc_device_ms=0.907136 alloc_wall_ms=1.333184 free_device_ms=0.964864 free_wall_ms=1.654656 h2d_device_ms=3.448192 h2d_wall_ms=3.029024 d2h_device_ms=6.812224 d2h_wall_ms=6.003840 d2d_device_ms=0.000000 d2d_wall_ms=0.000000 h2h_device_ms=0.000000 h2h_wall_ms=0.000000 markers=44
+POLYGEIST_RAISED_GPU_E2E_MS 13.218592003
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.411

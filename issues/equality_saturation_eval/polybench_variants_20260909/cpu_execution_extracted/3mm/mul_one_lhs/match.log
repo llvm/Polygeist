@@ -1,0 +1,1 @@
+COMMAND: /usr/bin/python3 /home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/inputs/3mm__mul_one_lhs.mlir --matcher-mode egglog --disable-semantic-fallback

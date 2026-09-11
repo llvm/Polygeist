@@ -1,0 +1,5 @@
+gemm,native_clang18_noinline,1,0,0.639030
+gemm,native_clang18_noinline,2,0,0.601648
+gemm,native_clang18_noinline,3,0,0.632936
+gemm,native_clang18_noinline,4,0,0.593240
+gemm,native_clang18_noinline,5,0,0.634318

@@ -1,0 +1,87 @@
+COMMAND: /home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh --target=host --whole-program --function=kernel_2mm --semantic-mlir=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot_v2/2mm/add_zero_lhs/matched.mlir -o issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot_v2/2mm/add_zero_lhs/raised-openblas /home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c -O3 -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm
+[polygeist] input=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c  function=kernel_2mm  target=host  output=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot_v2/2mm/add_zero_lhs/raised-openblas
+[polygeist] integration=whole-program-in-place
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm
+  [1-4/9] reuse stored semantic MLIR: issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot_v2/2mm/add_zero_lhs/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 3 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+ERROR: Polygeist C-ABI lowering failed; see /tmp/tmp.NXTclt2JBd/mlir.err
+/tmp/tmp.NXTclt2JBd/pre_llvm.mlir:2:3: error: failed to legalize operation 'func.func' that was explicitly marked illegal
+  func.func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/tmp/tmp.NXTclt2JBd/pre_llvm.mlir:2:3: note: see current operation: 
+"func.func"() <{function_type = (i32, i32, i32, i32, f64, f64, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) -> (), sym_name = "kernel_2mm"}> ({
+^bb0(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>):
+  %0 = "arith.constant"() <{value = 1.000000e+00 : f64}> : () -> f64
+  %1 = "arith.constant"() <{value = 1 : index}> : () -> index
+  %2 = "arith.constant"() <{value = 0 : index}> : () -> index
+  %3 = "memref.dim"(%arg6, %2) : (memref<?x?xf64>, index) -> index
+  %4 = "arith.index_cast"(%3) : (index) -> i32
+  %5 = "memref.dim"(%arg6, %1) : (memref<?x?xf64>, index) -> index
+  %6 = "arith.index_cast"(%5) : (index) -> i32
+  %7 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %8 = "arith.index_cast"(%7) : (index) -> i64
+  %9 = "llvm.inttoptr"(%8) : (i64) -> !llvm.ptr
+  "func.call"(%4, %6, %9, %6) <{callee = @polygeist_cublas_memset_zero_2d}> : (i32, i32, !llvm.ptr, i32) -> ()
+  %10 = "memref.extract_aligned_pointer_as_index"(%arg7) : (memref<?x?xf64>) -> index
+  %11 = "arith.index_cast"(%10) : (index) -> i64
+  %12 = "llvm.inttoptr"(%11) : (i64) -> !llvm.ptr
+  %13 = "memref.extract_aligned_pointer_as_index"(%arg8) : (memref<?x?xf64>) -> index
+  %14 = "arith.index_cast"(%13) : (index) -> i64
+  %15 = "llvm.inttoptr"(%14) : (i64) -> !llvm.ptr
+  %16 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %17 = "arith.index_cast"(%16) : (index) -> i64
+  %18 = "llvm.inttoptr"(%17) : (i64) -> !llvm.ptr
+  "func.call"(%arg0, %arg1, %arg2, %arg4, %12, %arg2, %15, %arg1, %0, %18, %arg1) <{callee = @polygeist_cublas_dgemm}> : (i32, i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, f64, !llvm.ptr, i32) -> ()
+  %19 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %20 = "arith.index_cast"(%19) : (index) -> i64
+  %21 = "llvm.inttoptr"(%20) : (i64) -> !llvm.ptr
+  %22 = "memref.extract_aligned_pointer_as_index"(%arg9) : (memref<?x?xf64>) -> index
+  %23 = "arith.index_cast"(%22) : (index) -> i64
+  %24 = "llvm.inttoptr"(%23) : (i64) -> !llvm.ptr
+  %25 = "memref.extract_aligned_pointer_as_index"(%arg10) : (memref<?x?xf64>) -> index
+  %26 = "arith.index_cast"(%25) : (index) -> i64
+  %27 = "llvm.inttoptr"(%26) : (i64) -> !llvm.ptr
+  "func.call"(%arg0, %arg3, %arg1, %0, %21, %arg1, %24, %arg3, %arg5, %27, %arg3) <{callee = @polygeist_cublas_dgemm}> : (i32, i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, f64, !llvm.ptr, i32) -> ()
+  "func.return"() : () -> ()
+}) {llvm.linkage = #llvm.linkage<external>} : () -> ()
+/tmp/tmp.NXTclt2JBd/pre_llvm.mlir:2:3: error: failed to legalize operation 'func.func' that was explicitly marked illegal
+  func.func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/tmp/tmp.NXTclt2JBd/pre_llvm.mlir:2:3: note: see current operation: 
+"func.func"() <{function_type = (i32, i32, i32, i32, f64, f64, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) -> (), sym_name = "kernel_2mm"}> ({
+^bb0(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>):
+  %0 = "arith.constant"() <{value = 1.000000e+00 : f64}> : () -> f64
+  %1 = "arith.constant"() <{value = 1 : index}> : () -> index
+  %2 = "arith.constant"() <{value = 0 : index}> : () -> index
+  %3 = "memref.dim"(%arg6, %2) : (memref<?x?xf64>, index) -> index
+  %4 = "arith.index_cast"(%3) : (index) -> i32
+  %5 = "memref.dim"(%arg6, %1) : (memref<?x?xf64>, index) -> index
+  %6 = "arith.index_cast"(%5) : (index) -> i32
+  %7 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %8 = "arith.index_cast"(%7) : (index) -> i64
+  %9 = "llvm.inttoptr"(%8) : (i64) -> !llvm.ptr
+  "func.call"(%4, %6, %9, %6) <{callee = @polygeist_cublas_memset_zero_2d}> : (i32, i32, !llvm.ptr, i32) -> ()
+  %10 = "memref.extract_aligned_pointer_as_index"(%arg7) : (memref<?x?xf64>) -> index
+  %11 = "arith.index_cast"(%10) : (index) -> i64
+  %12 = "llvm.inttoptr"(%11) : (i64) -> !llvm.ptr
+  %13 = "memref.extract_aligned_pointer_as_index"(%arg8) : (memref<?x?xf64>) -> index
+  %14 = "arith.index_cast"(%13) : (index) -> i64
+  %15 = "llvm.inttoptr"(%14) : (i64) -> !llvm.ptr
+  %16 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %17 = "arith.index_cast"(%16) : (index) -> i64
+  %18 = "llvm.inttoptr"(%17) : (i64) -> !llvm.ptr
+  "func.call"(%arg0, %arg1, %arg2, %arg4, %12, %arg2, %15, %arg1, %0, %18, %arg1) <{callee = @polygeist_cublas_dgemm}> : (i32, i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, f64, !llvm.ptr, i32) -> ()
+  %19 = "memref.extract_aligned_pointer_as_index"(%arg6) : (memref<?x?xf64>) -> index
+  %20 = "arith.index_cast"(%19) : (index) -> i64
+  %21 = "llvm.inttoptr"(%20) : (i64) -> !llvm.ptr
+  %22 = "memref.extract_aligned_pointer_as_index"(%arg9) : (memref<?x?xf64>) -> index
+  %23 = "arith.index_cast"(%22) : (index) -> i64
+  %24 = "llvm.inttoptr"(%23) : (i64) -> !llvm.ptr
+  %25 = "memref.extract_aligned_pointer_as_index"(%arg10) : (memref<?x?xf64>) -> index
+  %26 = "arith.index_cast"(%25) : (index) -> i64
+  %27 = "llvm.inttoptr"(%26) : (i64) -> !llvm.ptr
+  "func.call"(%arg0, %arg3, %arg1, %0, %21, %arg1, %24, %arg3, %arg5, %27, %arg3) <{callee = @polygeist_cublas_dgemm}> : (i32, i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, f64, !llvm.ptr, i32) -> ()
+  "func.return"() : () -> ()
+}) {llvm.linkage = #llvm.linkage<external>} : () -> ()

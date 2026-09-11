@@ -1,0 +1,70 @@
+PolyBench Section 4.2 external-library gap audit
+Date: 2026-09-07 PDT
+Host branch: raisetolinalg
+Compiler commit used for candidate builds: d9cf7268
+Build policy: Jetson binaries cross-compiled on x86 only
+Device route: pva-general -> nvidia@192.168.57.1
+Device library path: /home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu
+
+Installed host OpenBLAS audit:
+  library=/lib/x86_64-linux-gnu/libopenblas.so.0
+  exported=cblas_dtrsv
+  exported=cblas_dsymm
+  exported=cblas_dtrmm
+  exported=cblas_dsyrk
+  exported=cblas_dsyr2k
+  exported=dgetrf_
+  exported=dpotrf_
+  exported=dgeqrf_
+  exported=dgtsv_
+
+Installed CUDA 12.6 SBSA cross-header audit:
+  declared=cublasDtrsv
+  declared=cublasDsymm
+  declared=cublasDtrmm
+  declared=cublasDsyrk
+  declared=cublasDsyr2k
+  declared=cusolverDnDpotrf
+  declared=cusolverDnDgetrf
+  declared=cusolverDnDgeqrf
+  declared=cusparseDgtsv2_nopivot
+  declared=cusparseDgtsv2StridedBatch
+  unavailable_in_cross_root=cuSOLVERDx
+  unavailable_on_host=GraphBLAS,MAGMA,Intel_IPP,oneDNN
+
+LARGE candidate build commands:
+  POLYGEIST_SOLVER_DATASET=LARGE POLYGEIST_KEEP_WORK=1 scripts/correctness/build_polybench_solver_jetson.sh cholesky /tmp/polybench_cholesky_large_candidate
+  POLYGEIST_SOLVER_DATASET=LARGE POLYGEIST_KEEP_WORK=1 scripts/correctness/build_polybench_solver_jetson.sh trisolv /tmp/polybench_trisolv_large_candidate
+
+Cholesky artifact:
+  binary_sha256=87a88a6292632b3bec7b5d509c9e8781afe732b93cce7a10d79559997ffd3d8a
+  abi_sha256=dd311f8bcd11f35e8f429d24420e869fa60af3c6c832a33901332c050b0d5a50
+  validation_harness_sha256=42fae103a7f2219c16be16eba1676f8541794ec0c7e9336db5e7a59fc58ab07c
+  final_external_call_count=1
+  final_external_call=polygeist_cusolver_dpotrf_lower_row_major
+
+Trisolv artifact:
+  binary_sha256=c7cd9bf661cdaf8a13495d309684c6194ff9062a572db03898388eea0c7a2a16
+  abi_sha256=be7dcc832cc2d689020c837f3dfdbc9f917b2f268282ec7232bb58002559b734
+  final_external_call_count=1
+  final_external_call=polygeist_cublas_dtrsv_lower_row_major
+
+Deployment and run command:
+  scp -o BatchMode=yes /tmp/polybench_cholesky_large_candidate /tmp/polybench_trisolv_large_candidate pva-general:/tmp/
+  ssh pva-general "scp -o BatchMode=yes /tmp/polybench_cholesky_large_candidate /tmp/polybench_trisolv_large_candidate nvidia@192.168.57.1:/tmp/"
+  ssh pva-general "ssh nvidia@192.168.57.1 'export LD_LIBRARY_PATH=/home/nvidia/cuda-12.6/lib64:/usr/lib/aarch64-linux-gnu; timeout 900s /tmp/polybench_cholesky_large_candidate; timeout 900s /tmp/polybench_trisolv_large_candidate'"
+
+Raw correctness output:
+  POLYBENCH_CHOLESKY_FAIL n=2000 max_abs=654.86538399998142 max_rel=654.86538399998142
+  POLYBENCH_TRISOLV_PASS n=2000 max_abs=4.5058401454411978e-12 max_rel=4.5058401454411978e-12
+
+Cholesky input-protocol correction:
+  The first diagnostic harness accumulated the positive-semidefinite input in
+  r,s,t order. That diagnostic was rejected because canonical PolyBench/C uses
+  t,r,s order. scripts/correctness/polybench_cholesky_validation.c was changed
+  to exactly match t,r,s, the binary was rebuilt on x86, and it was redeployed.
+  The corrected run produced the same failure line shown above.
+
+Disposition:
+  cholesky=FAIL; do not time or publish as an accepted LARGE result
+  trisolv=PASS; eligible for controlled device/E2E timing after integration into the canonical Section 4.2 harness

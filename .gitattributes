@@ -1,0 +1,2 @@
+issues/polybench_section42/ir/** whitespace=-blank-at-eof,-trailing-space
+issues/polybench_section42/logs/** whitespace=-blank-at-eof,-trailing-space

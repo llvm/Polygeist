@@ -1,0 +1,4 @@
+Correctness: aarch64-linux-gnu-gcc -O3, LARGE_DATASET, FP64, complete dump
+/tmp/polybench-publication-orin-cpu/atax/native-cpu-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=cc171755186dca1fc2cd007be369cd6f5889ebfd, for GNU/Linux 3.7.0, not stripped
+f31f15b65b19e7d779c21ea9ad5c017fbb51278a333d9b541b5fa34705525e9b  tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c
+0ff5a2b52383eec076b4777968f594a715cde33b0dad74bce0e8f6f2f64ddbd8  /tmp/polybench-publication-orin-cpu/atax/native-cpu-correctness

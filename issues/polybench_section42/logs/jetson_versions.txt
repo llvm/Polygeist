@@ -1,0 +1,21 @@
+Captured through: ssh pva-general -> ssh nvidia@192.168.57.1
+Captured: 2026-09-05
+
+$ uname -a
+Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun  9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+
+$ /home/nvidia/cuda-12.6/bin/nvcc --version
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Wed_Oct_30_00:08:18_PDT_2024
+Cuda compilation tools, release 12.6, V12.6.85
+Build cuda_12.6.r12.6/compiler.35059454_0
+
+$ nvidia-smi --query-gpu=name,compute_cap,driver_version --format=csv,noheader
+Orin (nvgpu), 8.7, 615.06
+
+$ readlink -f /home/nvidia/cuda-12.6/lib64/libcublas.so
+/home/nvidia/cuda-12.6/targets/sbsa-linux/lib/libcublas.so.12.6.4.1
+
+All Jetson executables in this evaluation were cross-compiled on the x86 host;
+the device was used only for version queries and execution.

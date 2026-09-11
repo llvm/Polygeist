@@ -1,0 +1,13 @@
+[1/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/DataAnalysis.cpp.o
+[2/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o
+FAILED: passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o 
+/usr/bin/c++ -DGTEST_HAS_RTTI=0 -I/home/arjaiswal/Polygeist/llvm-project/llvm/include -I/home/arjaiswal/Polygeist/llvm-project/build/include -I/tmp/polybench-section42-kernelfarer/include -I/tmp/polybench-section42-kernelfarer/passes/include -O3 -DNDEBUG -fPIC   -D_GNU_SOURCE -D_DEBUG -D_GLIBCXX_ASSERTIONS -D_LIBCPP_ENABLE_HARDENED_MODE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -funwind-tables -fno-rtti -MD -MT passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o -MF passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o.d -o passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o -c /tmp/polybench-section42-kernelfarer/passes/source/Matcher.cpp
+/tmp/polybench-section42-kernelfarer/passes/source/Matcher.cpp: In function ‘bool {anonymous}::matchLoopUpperBound(llvm::LoopInfo&, llvm::PHINode*, llvm::Value*&)’:
+/tmp/polybench-section42-kernelfarer/passes/source/Matcher.cpp:470:13: error: ‘CmpPredicate’ was not declared in this scope
+  470 |             CmpPredicate CmpPred;
+      |             ^~~~~~~~~~~~
+/tmp/polybench-section42-kernelfarer/passes/source/Matcher.cpp:473:28: error: ‘CmpPred’ was not declared in this scope
+  473 |                            CmpPred,
+      |                            ^~~~~~~
+[3/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/ReplacerPass.cpp.o
+ninja: build stopped: subcommand failed.

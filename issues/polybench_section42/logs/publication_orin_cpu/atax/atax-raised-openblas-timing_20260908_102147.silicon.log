@@ -1,0 +1,20 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/atax-raised-openblas-timing_20260908_102147/raised-openblas-timing run 1 ...
+CPU_SAMPLE phase=warmup index=0 runtime_ms=5.127200
+CPU_SAMPLE phase=warmup index=1 runtime_ms=4.865728
+CPU_SAMPLE phase=warmup index=2 runtime_ms=4.810752
+CPU_SAMPLE phase=warmup index=3 runtime_ms=4.852000
+CPU_SAMPLE phase=warmup index=4 runtime_ms=4.837408
+CPU_SAMPLE phase=sample index=0 runtime_ms=4.883040
+CPU_SAMPLE phase=sample index=1 runtime_ms=4.820800
+CPU_SAMPLE phase=sample index=2 runtime_ms=4.851840
+CPU_SAMPLE phase=sample index=3 runtime_ms=4.856864
+CPU_SAMPLE phase=sample index=4 runtime_ms=4.953024
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.062

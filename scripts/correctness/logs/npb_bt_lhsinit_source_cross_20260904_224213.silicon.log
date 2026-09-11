@@ -1,0 +1,17 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/npb_bt_lhsinit_source_cross_20260904_224213/npb_bt_lhsinit_aarch64 run 1 ...
+npb-bt-lhsinit-source: PASS
+[jetson] running /tmp/polygeist_jetson_runs/npb_bt_lhsinit_source_cross_20260904_224213/npb_bt_lhsinit_aarch64 run 2 ...
+[jetson] elapsed_s 0.204
+npb-bt-lhsinit-source: PASS
+[jetson] running /tmp/polygeist_jetson_runs/npb_bt_lhsinit_source_cross_20260904_224213/npb_bt_lhsinit_aarch64 run 3 ...
+[jetson] elapsed_s 0.200
+npb-bt-lhsinit-source: PASS
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.209

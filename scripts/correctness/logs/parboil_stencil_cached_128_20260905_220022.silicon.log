@@ -1,0 +1,47 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/parboil_stencil_cached_128_20260905_220022/parboil_stencil_full_app_gpu_cached run 1 ...
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=82.229888	device_ms=49.754177
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.354016	device_ms=19.387808
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.279264	device_ms=19.328735
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.302176	device_ms=19.337503
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.349536	device_ms=19.393408
+CPU-based 7 points stencil codes****
+Original version by Li-Wen Chang <lchang20@illinois.edu> and I-Jui Sung<sung10@illinois.edu>
+This version maintained by Chris Rodrigues  ***********
+IO        : 0.005841
+Compute   : 0.289735
+Timer Wall Time: 0.295578
+[jetson] running /tmp/polygeist_jetson_runs/parboil_stencil_cached_128_20260905_220022/parboil_stencil_full_app_gpu_cached run 2 ...
+[jetson] elapsed_s 0.450
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=80.757888	device_ms=48.199455
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.506688	device_ms=19.536192
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.489088	device_ms=19.517729
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.503808	device_ms=19.545280
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.543232	device_ms=19.581633
+CPU-based 7 points stencil codes****
+Original version by Li-Wen Chang <lchang20@illinois.edu> and I-Jui Sung<sung10@illinois.edu>
+This version maintained by Chris Rodrigues  ***********
+IO        : 0.009273
+Compute   : 0.289322
+Timer Wall Time: 0.298597
+[jetson] running /tmp/polygeist_jetson_runs/parboil_stencil_cached_128_20260905_220022/parboil_stencil_full_app_gpu_cached run 3 ...
+[jetson] elapsed_s 0.452
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=78.499488	device_ms=46.108032
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=23.477888	device_ms=22.503904
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.637504	device_ms=19.660929
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.656320	device_ms=19.677889
+POLYGEIST_RT_TIMING	op=cudnnStencil3D7pt_f32_flat	m=126	n=15876	k=27	host_ms=20.514880	device_ms=19.549215
+CPU-based 7 points stencil codes****
+Original version by Li-Wen Chang <lchang20@illinois.edu> and I-Jui Sung<sung10@illinois.edu>
+This version maintained by Chris Rodrigues  ***********
+IO        : 0.009112
+Compute   : 0.289765
+Timer Wall Time: 0.298879
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.454

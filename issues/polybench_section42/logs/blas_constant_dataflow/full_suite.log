@@ -1,0 +1,414 @@
+-- Testing: 244 tests, 24 workers --
+Testing: 
+UNRESOLVED: polygeist :: runtime/cudnn-pointwise-generic.c (1 of 244)
+******************** TEST 'polygeist :: runtime/cudnn-pointwise-generic.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cudnn-reduction-reference.c (2 of 244)
+******************** TEST 'polygeist :: runtime/cudnn-reduction-reference.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: polygeist-opt/debufferize.mlir (3 of 244)
+******************** TEST 'polygeist :: polygeist-opt/debufferize.mlir' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cudnn-pointwise-affine-relu.c (4 of 244)
+******************** TEST 'polygeist :: runtime/cudnn-pointwise-affine-relu.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: polygeist-opt/raised_with_submap.mlir (5 of 244)
+******************** TEST 'polygeist :: polygeist-opt/raised_with_submap.mlir' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cutensornet-network-reference.c (6 of 244)
+******************** TEST 'polygeist :: runtime/cutensornet-network-reference.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/custen-conv2d-smoke.c (7 of 244)
+******************** TEST 'polygeist :: runtime/custen-conv2d-smoke.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cusparse-csr-smoke.c (8 of 244)
+******************** TEST 'polygeist :: runtime/cusparse-csr-smoke.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cublas-f32-reference.c (9 of 244)
+******************** TEST 'polygeist :: runtime/cublas-f32-reference.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cublas-daxpby-smoke.c (10 of 244)
+******************** TEST 'polygeist :: runtime/cublas-daxpby-smoke.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cub-segmented-reference.c (11 of 244)
+******************** TEST 'polygeist :: runtime/cub-segmented-reference.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cudnn-pointwise-affine-relu-harness.c (12 of 244)
+******************** TEST 'polygeist :: runtime/cudnn-pointwise-affine-relu-harness.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cublas-ddot-smoke.c (13 of 244)
+******************** TEST 'polygeist :: runtime/cublas-ddot-smoke.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+UNRESOLVED: polygeist :: runtime/cudnn-pointwise-generic-harness.c (14 of 244)
+******************** TEST 'polygeist :: runtime/cudnn-pointwise-generic-harness.c' FAILED ********************
+Test has no 'RUN:' line
+********************
+Testing: 
+FAIL: polygeist :: polygeist-opt/lower-llm-kernel-launches.mlir (15 of 244)
+******************** TEST 'polygeist :: polygeist-opt/lower-llm-kernel-launches.mlir' FAILED ********************
+Exit Code: 1
+
+Command Output (stderr):
+--
+RUN: at line 1: /home/arjaiswal/Polygeist/build/bin/polygeist-opt --lower-kernel-launch-to-cublas --split-input-file /home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir
++ /home/arjaiswal/Polygeist/build/bin/polygeist-opt --lower-kernel-launch-to-cublas --split-input-file /home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir
+/home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir:116:11: error: CHECK: expected string not found in input
+// CHECK: memref.extract_aligned_pointer_as_index %arg2
+          ^
+<stdin>:158:59: note: scanning from here
+ %intptr_3 = memref.extract_aligned_pointer_as_index %arg1 : memref<?xf32> -> index
+                                                          ^
+<stdin>:171:15: note: possible intended match here
+ %intptr_10 = memref.extract_aligned_pointer_as_index %subview : memref<?xf32, strided<[1]>> -> index
+              ^
+
+Input file: <stdin>
+Check file: /home/arjaiswal/Polygeist/test/polygeist-opt/lower-llm-kernel-launches.mlir
+
+-dump-input=help explains the following input dump.
+
+Input was:
+<<<<<<
+             .
+             .
+             .
+           153:  %13 = arith.addi %10, %12 : i64 
+           154:  %c4_i64 = arith.constant 4 : i64 
+           155:  %14 = arith.muli %13, %c4_i64 : i64 
+           156:  %15 = arith.addi %6, %14 : i64 
+           157:  %16 = llvm.inttoptr %15 : i64 to !llvm.ptr 
+           158:  %intptr_3 = memref.extract_aligned_pointer_as_index %arg1 : memref<?xf32> -> index 
+check:116'0                                                               X~~~~~~~~~~~~~~~~~~~~~~~~~ error: no match found
+           159:  %17 = arith.index_cast %intptr_3 : index to i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           160:  %base_buffer_4, %offset_5, %sizes_6, %strides_7 = memref.extract_strided_metadata %arg1 : memref<?xf32> -> memref<f32>, index, index, index 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           161:  %18 = arith.index_cast %offset_5 : index to i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           162:  %c0_i64_8 = arith.constant 0 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           163:  %19 = arith.index_cast %strides_7 : index to i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+             .
+             .
+             .
+           166:  %c4_i64_9 = arith.constant 4 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           167:  %22 = arith.muli %21, %c4_i64_9 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           168:  %23 = arith.addi %17, %22 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           169:  %24 = llvm.inttoptr %23 : i64 to !llvm.ptr 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           170:  %subview = memref.subview %arg2[0] [%c4] [1] : memref<?xf32> to memref<?xf32, strided<[1]>> 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           171:  %intptr_10 = memref.extract_aligned_pointer_as_index %subview : memref<?xf32, strided<[1]>> -> index 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+check:116'1                   ?                                                                                        possible intended match
+           172:  %25 = arith.index_cast %intptr_10 : index to i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           173:  %base_buffer_11, %offset_12, %sizes_13, %strides_14 = memref.extract_strided_metadata %subview : memref<?xf32, strided<[1]>> -> memref<f32>, index, index, index 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           174:  %26 = arith.index_cast %offset_12 : index to i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           175:  %c4_i64_15 = arith.constant 4 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           176:  %27 = arith.muli %26, %c4_i64_15 : i64 
+check:116'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+             .
+             .
+             .
+>>>>>>
+
+--
+
+********************
+Testing: 
+FAIL: polygeist :: scripts/polybench-e2e-config.c (16 of 244)
+******************** TEST 'polygeist :: scripts/polybench-e2e-config.c' FAILED ********************
+Exit Code: 1
+
+Command Output (stdout):
+--
+DATASET="-D${POLYBENCH_DATASET:-MINI}_DATASET"
+CFLAGS="${POLYBENCH_COMPILE_OPT:--O1} -I$UTIL -I$KERNEL_DIR -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS $DATASET"
+OUT="${POLYBENCH_E2E_OUTPUT_ROOT:-/tmp}/e2e_${TAG}"
+MLIR_OPT="${MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt}"
+
+--
+Command Output (stderr):
+--
+RUN: at line 1: env POLYBENCH_DATASET=SMALL POLYBENCH_COMPILE_OPT=-O3 POLYBENCH_E2E_OUTPUT_ROOT=/tmp/polybench-config-test bash -n /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
++ env POLYBENCH_DATASET=SMALL POLYBENCH_COMPILE_OPT=-O3 POLYBENCH_E2E_OUTPUT_ROOT=/tmp/polybench-config-test bash -n /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
+RUN: at line 2: grep -F 'POLYBENCH_DATASET:-MINI' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
++ grep -F POLYBENCH_DATASET:-MINI /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
+RUN: at line 3: grep -F 'POLYBENCH_COMPILE_OPT:--O1' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
++ grep -F POLYBENCH_COMPILE_OPT:--O1 /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
+RUN: at line 4: grep -F 'POLYBENCH_E2E_OUTPUT_ROOT:-/tmp' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
++ grep -F POLYBENCH_E2E_OUTPUT_ROOT:-/tmp /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/run_kernel_e2e.sh
+RUN: at line 5: grep -F 'MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/polygeist_build.sh
++ grep -F 'MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/polygeist_build.sh
+RUN: at line 6: grep -F '[ "$arg" = "-Dstatic=" ] || POLYBENCH_CFLAGS+=' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/polygeist_build.sh
++ grep -F '[ "$arg" = "-Dstatic=" ] || POLYBENCH_CFLAGS+=' /home/arjaiswal/Polygeist/test/scripts/../../scripts/correctness/polygeist_build.sh
+
+--
+
+********************
+Testing: 
+FAIL: polygeist :: polygeist-opt/linalg_debufferize_tile_fusion.mlir (17 of 244)
+******************** TEST 'polygeist :: polygeist-opt/linalg_debufferize_tile_fusion.mlir' FAILED ********************
+Exit Code: 2
+
+Command Output (stderr):
+--
+RUN: at line 1: mlir-opt /home/arjaiswal/Polygeist/test/polygeist-opt/linalg_debufferize_tile_fusion.mlir -test-transform-dialect-interpreter --one-shot-bufferize="bufferize-function-boundaries" --func-bufferize --tensor-bufferize  --finalizing-bufferize --convert-linalg-to-affine-loops --raise-scf-to-affine -split-input-file -verify-diagnostics | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/linalg_debufferize_tile_fusion.mlir
++ mlir-opt /home/arjaiswal/Polygeist/test/polygeist-opt/linalg_debufferize_tile_fusion.mlir -test-transform-dialect-interpreter --one-shot-bufferize=bufferize-function-boundaries --func-bufferize --tensor-bufferize --finalizing-bufferize --convert-linalg-to-affine-loops --raise-scf-to-affine -split-input-file -verify-diagnostics
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/linalg_debufferize_tile_fusion.mlir
+error: no check strings found with prefix 'CHECK:'
+mlir-opt: Unknown command line argument '--raise-scf-to-affine'.  Try: 'mlir-opt --help'
+mlir-opt: Did you mean '--lift-cf-to-scf'?
+
+--
+
+********************
+Testing: 
+FAIL: polygeist :: polygeist-opt/submapcanonicalize.mlir (18 of 244)
+******************** TEST 'polygeist :: polygeist-opt/submapcanonicalize.mlir' FAILED ********************
+Exit Code: 2
+
+Command Output (stderr):
+--
+RUN: at line 1: /home/arjaiswal/Polygeist/build/bin/polygeist-opt -canonicalize /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir
++ /home/arjaiswal/Polygeist/build/bin/polygeist-opt -canonicalize /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir
+polygeist-opt: /home/arjaiswal/Polygeist/llvm-project/llvm/include/llvm/ADT/STLExtras.h:1314: DerivedT llvm::detail::indexed_accessor_range_base<DerivedT, BaseT, T, PointerT, ReferenceT>::slice(size_t, size_t) const [with DerivedT = mlir::OperandRange; BaseT = mlir::OpOperand*; T = mlir::Value; PointerT = mlir::Value; ReferenceT = mlir::Value; size_t = long unsigned int]: Assertion `n + m <= size() && "invalid size specifiers"' failed.
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.	Program arguments: /home/arjaiswal/Polygeist/build/bin/polygeist-opt -canonicalize /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir
+ #0 0x0000559bb9321df0 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x2102df0)
+ #1 0x0000559bb931f28f llvm::sys::RunSignalHandlers() (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x210028f)
+ #2 0x0000559bb931f3e5 SignalHandler(int) Signals.cpp:0:0
+ #3 0x00007f66a1292520 (/lib/x86_64-linux-gnu/libc.so.6+0x42520)
+ #4 0x00007f66a12e69bc __pthread_kill_implementation ./nptl/pthread_kill.c:44:76
+ #5 0x00007f66a12e69bc __pthread_kill_internal ./nptl/pthread_kill.c:78:10
+ #6 0x00007f66a12e69bc pthread_kill ./nptl/pthread_kill.c:89:10
+ #7 0x00007f66a1292476 gsignal ./signal/../sysdeps/posix/raise.c:27:6
+ #8 0x00007f66a12787f3 abort ./stdlib/abort.c:81:7
+ #9 0x00007f66a127871b _nl_load_domain ./intl/loadmsgcat.c:1177:9
+#10 0x00007f66a1289e96 (/lib/x86_64-linux-gnu/libc.so.6+0x39e96)
+#11 0x0000559bb87cd199 mlir::polygeist::SubmapOp::getSizes() Ops.cpp:0:0
+#12 0x0000559bb87cd4eb SubmapToSubviewOp::matchAndRewrite(mlir::polygeist::SubmapOp, mlir::PatternRewriter&) const Ops.cpp:0:0
+#13 0x0000559bb9022e58 mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::Pattern const&)>, llvm::function_ref<void (mlir::Pattern const&)>, llvm::function_ref<mlir::LogicalResult (mlir::Pattern const&)>) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x1e03e58)
+#14 0x0000559bb8f28a94 (anonymous namespace)::GreedyPatternRewriteDriver::processWorklist() GreedyPatternRewriteDriver.cpp:0:0
+#15 0x0000559bb8f2d9ee mlir::applyPatternsAndFoldGreedily(mlir::Region&, mlir::FrozenRewritePatternSet const&, mlir::GreedyRewriteConfig, bool*) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x1d0e9ee)
+#16 0x0000559bb8ede8ca (anonymous namespace)::Canonicalizer::runOnOperation() Canonicalizer.cpp:0:0
+#17 0x0000559bb90af4a9 mlir::detail::OpToOpPassAdaptor::run(mlir::Pass*, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x1e904a9)
+#18 0x0000559bb90af971 mlir::detail::OpToOpPassAdaptor::runPipeline(mlir::OpPassManager&, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int, mlir::PassInstrumentor*, mlir::PassInstrumentation::PipelineParentInfo const*) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x1e90971)
+#19 0x0000559bb90b01d5 mlir::PassManager::run(mlir::Operation*) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x1e911d5)
+#20 0x0000559bb8bd82da performActions(llvm::raw_ostream&, std::shared_ptr<llvm::SourceMgr> const&, mlir::MLIRContext*, mlir::MlirOptMainConfig const&) MlirOptMain.cpp:0:0
+#21 0x0000559bb8bd944c processBuffer(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::MlirOptMainConfig const&, mlir::DialectRegistry&, llvm::ThreadPool*) MlirOptMain.cpp:0:0
+#22 0x0000559bb8bd95ad mlir::LogicalResult llvm::function_ref<mlir::LogicalResult (std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>::callback_fn<mlir::MlirOptMain(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::DialectRegistry&, mlir::MlirOptMainConfig const&)::'lambda'(std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>(long, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&) MlirOptMain.cpp:0:0
+#23 0x0000559bb929ec84 mlir::splitAndProcessBuffer(std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::function_ref<mlir::LogicalResult (std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>, llvm::raw_ostream&, bool, bool) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x207fc84)
+#24 0x0000559bb8bd2c94 mlir::MlirOptMain(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::DialectRegistry&, mlir::MlirOptMainConfig const&) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x19b3c94)
+#25 0x0000559bb8bd9936 mlir::MlirOptMain(int, char**, llvm::StringRef, mlir::DialectRegistry&) (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x19ba936)
+#26 0x0000559bb7bde30b main (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x9bf30b)
+#27 0x00007f66a1279d90 __libc_start_call_main ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#28 0x00007f66a1279e40 call_init ./csu/../csu/libc-start.c:128:20
+#29 0x00007f66a1279e40 __libc_start_main ./csu/../csu/libc-start.c:379:5
+#30 0x0000559bb7bd5415 _start (/home/arjaiswal/Polygeist/build/bin/polygeist-opt+0x9b6415)
+FileCheck error: '<stdin>' is empty.
+FileCheck command line:  /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/submapcanonicalize.mlir
+
+--
+
+********************
+Testing: 
+FAIL: polygeist :: polygeist-opt/kernel-match-structured-idiom-families.mlir (19 of 244)
+******************** TEST 'polygeist :: polygeist-opt/kernel-match-structured-idiom-families.mlir' FAILED ********************
+Exit Code: 1
+
+Command Output (stderr):
+--
+RUN: at line 1: /usr/bin/python3 /home/arjaiswal/Polygeist/test/polygeist-opt/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir --dry-run --show-structured-regions 2>&1 | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir
++ /usr/bin/python3 /home/arjaiswal/Polygeist/test/polygeist-opt/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir --dry-run --show-structured-regions
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir
+/home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir:115:16: error: CHECK-SAME: expected string not found in input
+// CHECK-SAME: lowering_blocker=cuSPARSE route available after i32-index and f32/f64 operand validation
+               ^
+<stdin>:5:48: note: scanning from here
+ residual_idiom_candidate body#[] kind=csr_spmv loop=scf.for:%p:%lo to %hi step %c1 iter_args(%acc = %zero) -> f32 evidence=['row bounds loaded from %rowptr', 'column-indexed gather', 'multiply-add row reduction'] lowering_blocker=cuSPARSE route available after CSR index, dense-layout, dtype, shape, and operand validation
+                                               ^
+<stdin>:5:215: note: possible intended match here
+ residual_idiom_candidate body#[] kind=csr_spmv loop=scf.for:%p:%lo to %hi step %c1 iter_args(%acc = %zero) -> f32 evidence=['row bounds loaded from %rowptr', 'column-indexed gather', 'multiply-add row reduction'] lowering_blocker=cuSPARSE route available after CSR index, dense-layout, dtype, shape, and operand validation
+                                                                                                                                                                                                                      ^
+
+Input file: <stdin>
+Check file: /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir
+
+-dump-input=help explains the following input dump.
+
+Input was:
+<<<<<<
+            1: == match report for /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-structured-idiom-families.mlir == 
+            2:  structured_fusion body#[0] fused bodies=[0] parent_loops=0 lifted_parallel_dims=0 temporary_roots=[] egglog_ms=31.151 nodes=7 extracted=scalar_sum_reduction 
+            3:  structured_fusion body#[1] fused bodies=[1] parent_loops=0 lifted_parallel_dims=1 temporary_roots=[] egglog_ms=35.484 nodes=17 extracted=affine_stencil 
+            4:  structured_fusion body#[2] fused bodies=[2] parent_loops=0 lifted_parallel_dims=2 temporary_roots=[] egglog_ms=42.718 nodes=10 extracted=dense_gemm 
+            5:  residual_idiom_candidate body#[] kind=csr_spmv loop=scf.for:%p:%lo to %hi step %c1 iter_args(%acc = %zero) -> f32 evidence=['row bounds loaded from %rowptr', 'column-indexed gather', 'multiply-add row reduction'] lowering_blocker=cuSPARSE route available after CSR index, dense-layout, dtype, shape, and operand validation 
+same:115'0                                                    X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ error: no match found
+same:115'1                                                                                                                                                                                                                           ?                                                                                                              possible intended match
+            6:  residual_idiom_candidate body#[] kind=indirect_histogram loop=affine.for:%i:0 to 1024 iter_args(%hist = %hist0) -> tensor<?xf32> evidence=['data-dependent bin index', 'read-combine-write update'] lowering_blocker=needs bin-range proof and atomic/collision-safe GPU lowering 
+same:115'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            7:  no_match body#0 ? 
+same:115'0     ~~~~~~~~~~~~~~~~~~~
+            8:  no_match body#1 ? 
+same:115'0     ~~~~~~~~~~~~~~~~~~~
+            9:  no_match body#2 ? 
+same:115'0     ~~~~~~~~~~~~~~~~~~~
+           10:  total: 0 matched / 3 bodies 
+same:115'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           11:  structured regions: 3 proved / 0 rejected 
+same:115'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+>>>>>>
+
+--
+
+********************
+Testing: 
+FAIL: polygeist :: polygeist-opt/kernel-match-parboil-sgemm.mlir (20 of 244)
+******************** TEST 'polygeist :: polygeist-opt/kernel-match-parboil-sgemm.mlir' FAILED ********************
+Exit Code: 1
+
+Command Output (stderr):
+--
+RUN: at line 1: /usr/bin/python3 /home/arjaiswal/Polygeist/test/polygeist-opt/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir > /home/arjaiswal/Polygeist/build/test/polygeist-opt/Output/kernel-match-parboil-sgemm.mlir.tmp.matched
++ /usr/bin/python3 /home/arjaiswal/Polygeist/test/polygeist-opt/../../scripts/correctness/kernel_match_rewrite.py /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir
+RUN: at line 2: /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir --check-prefix=MATCH < /home/arjaiswal/Polygeist/build/test/polygeist-opt/Output/kernel-match-parboil-sgemm.mlir.tmp.matched
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir --check-prefix=MATCH
+RUN: at line 3: /home/arjaiswal/Polygeist/build/bin/polygeist-opt --lower-kernel-launch-to-cublas /home/arjaiswal/Polygeist/build/test/polygeist-opt/Output/kernel-match-parboil-sgemm.mlir.tmp.matched | /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir --check-prefix=LOWER
++ /home/arjaiswal/Polygeist/llvm-project/build/bin/FileCheck /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir --check-prefix=LOWER
++ /home/arjaiswal/Polygeist/build/bin/polygeist-opt --lower-kernel-launch-to-cublas /home/arjaiswal/Polygeist/build/test/polygeist-opt/Output/kernel-match-parboil-sgemm.mlir.tmp.matched
+/home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir:69:11: error: LOWER: expected string not found in input
+// LOWER: call @polygeist_cublas_sgemm_transpose
+          ^
+<stdin>:8:20: note: scanning from here
+ func.func @parboil(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index, %arg6: index, %arg7: index, %arg8: index, %arg9: f32, %arg10: f32) {
+                   ^
+<stdin>:18:2: note: possible intended match here
+ %5 = polygeist.submapInverse(%2, %4, %arg8, %arg3, %arg4) {map = #map} : (tensor<?xf32>, tensor<?x?xf32>, index, index, index) -> tensor<?xf32>
+ ^
+
+Input file: <stdin>
+Check file: /home/arjaiswal/Polygeist/test/polygeist-opt/kernel-match-parboil-sgemm.mlir
+
+-dump-input=help explains the following input dump.
+
+Input was:
+<<<<<<
+            1: #map = affine_map<(d0, d1)[s0] -> (d1 * s0 + d0)> 
+            2: #map1 = affine_map<(d0, d1) -> (d0, d1)> 
+            3: #map2 = affine_map<(d0, d1, d2)[s0] -> (d2 * s0 + d0)> 
+            4: #map3 = affine_map<(d0, d1, d2)[s0] -> (d2 * s0 + d1)> 
+            5: #map4 = affine_map<(d0, d1, d2)[s0] -> (d1 * s0 + d0)> 
+            6: #map5 = affine_map<(d0, d1, d2) -> (d0, d1, d2)> 
+            7: module { 
+            8:  func.func @parboil(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index, %arg6: index, %arg7: index, %arg8: index, %arg9: f32, %arg10: f32) { 
+check:69'0                        X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ error: no match found
+            9:  %0 = bufferization.to_tensor %arg0 : memref<?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           10:  %1 = bufferization.to_tensor %arg1 : memref<?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           11:  %2 = bufferization.to_tensor %arg2 : memref<?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           12:  %3 = polygeist.submap(%2, %arg8, %arg3, %arg4) {map = #map} : (tensor<?xf32>, index, index, index) -> tensor<?x?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           13:  %4 = linalg.generic {indexing_maps = [#map1], iterator_types = ["parallel", "parallel"]} outs(%3 : tensor<?x?xf32>) { 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           14:  ^bb0(%out: f32): 
+check:69'0     ~~~~~~~~~~~~~~~~~~
+           15:  %12 = arith.mulf %arg9, %out : f32 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           16:  linalg.yield %12 : f32 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~
+           17:  } -> tensor<?x?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~
+           18:  %5 = polygeist.submapInverse(%2, %4, %arg8, %arg3, %arg4) {map = #map} : (tensor<?xf32>, tensor<?x?xf32>, index, index, index) -> tensor<?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+check:69'1      ?                                                                                                                                                possible intended match
+           19:  %6 = polygeist.submap(%0, %arg6, %arg3, %arg4, %arg5) {map = #map2} : (tensor<?xf32>, index, index, index, index) -> tensor<?x?x?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           20:  %7 = polygeist.submap(%1, %arg7, %arg3, %arg4, %arg5) {map = #map3} : (tensor<?xf32>, index, index, index, index) -> tensor<?x?x?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           21:  %8 = polygeist.submap(%5, %arg8, %arg3, %arg4, %arg5) {map = #map4} : (tensor<?xf32>, index, index, index, index) -> tensor<?x?x?xf32> 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           22:  %9 = linalg.generic {indexing_maps = [#map5, #map5, #map5], iterator_types = ["parallel", "parallel", "reduction"]} ins(%6, %7 : tensor<?x?x?xf32>, tensor<?x?x?xf32>) outs(%8 : tensor<?x?x?xf32>) { 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           23:  ^bb0(%in: f32, %in_0: f32, %out: f32): 
+check:69'0     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            .
+            .
+            .
+>>>>>>
+
+--
+
+********************
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90.. 
+********************
+Unresolved Tests (14):
+  polygeist :: polygeist-opt/debufferize.mlir
+  polygeist :: polygeist-opt/raised_with_submap.mlir
+  polygeist :: runtime/cub-segmented-reference.c
+  polygeist :: runtime/cublas-daxpby-smoke.c
+  polygeist :: runtime/cublas-ddot-smoke.c
+  polygeist :: runtime/cublas-f32-reference.c
+  polygeist :: runtime/cudnn-pointwise-affine-relu-harness.c
+  polygeist :: runtime/cudnn-pointwise-affine-relu.c
+  polygeist :: runtime/cudnn-pointwise-generic-harness.c
+  polygeist :: runtime/cudnn-pointwise-generic.c
+  polygeist :: runtime/cudnn-reduction-reference.c
+  polygeist :: runtime/cusparse-csr-smoke.c
+  polygeist :: runtime/custen-conv2d-smoke.c
+  polygeist :: runtime/cutensornet-network-reference.c
+
+********************
+Failed Tests (6):
+  polygeist :: polygeist-opt/kernel-match-parboil-sgemm.mlir
+  polygeist :: polygeist-opt/kernel-match-structured-idiom-families.mlir
+  polygeist :: polygeist-opt/linalg_debufferize_tile_fusion.mlir
+  polygeist :: polygeist-opt/lower-llm-kernel-launches.mlir
+  polygeist :: polygeist-opt/submapcanonicalize.mlir
+  polygeist :: scripts/polybench-e2e-config.c
+
+
+Testing Time: 16.07s
+  Passed           : 222
+  Expectedly Failed:   2
+  Unresolved       :  14
+  Failed           :   6

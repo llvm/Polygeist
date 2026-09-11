@@ -1,0 +1,11 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/custen_conv2d_smoke_20260905_010717/custen-conv2d-smoke run 1 ...
+cuSten 2D stencil: PASS
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.174

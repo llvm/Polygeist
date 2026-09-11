@@ -1,0 +1,16 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/mfem_iv3_fixed_correctness_20260908_202557/iv3_fixed_matched_jetson run 1 ...
+POLYGEIST_RT_TIMING\top=cutensornetContraction2_f64\tm=1024\tn=5\tk=5\thost_ms=265.265824\tdevice_ms=0.000000
+POLYGEIST_RT_TIMING\top=cudaCopy_f64\tm=102400\tn=1\tk=0\thost_ms=0.403168\tdevice_ms=0.000000
+POLYGEIST_RT_TIMING\top=cutensornetContraction2_f64\tm=1024\tn=4\tk=5\thost_ms=1.153504\tdevice_ms=0.000000
+POLYGEIST_RT_TIMING\top=cudaCopy_f64\tm=81920\tn=1\tk=0\thost_ms=0.462496\tdevice_ms=0.000000
+POLYGEIST_RT_TIMING\top=cudaCopy_f64\tm=65536\tn=1\tk=0\thost_ms=0.616352\tdevice_ms=0.000000
+kernel=integrate_value_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=5.5511151231257827e-17 max_rel=5.5511151231257827e-17 worst=35 actual=-0.15517108238598679 expected=-0.15517108238598684
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.471

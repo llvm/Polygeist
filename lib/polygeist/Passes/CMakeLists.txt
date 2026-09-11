@@ -1,5 +1,6 @@
 add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertToOpaquePtr.cpp
+  SelectFunc.cpp
   AffineCFG.cpp
   AffineReduction.cpp
   CanonicalizeFor.cpp
@@ -11,7 +12,24 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   OpenMPOpt.cpp
   BarrierRemovalContinuation.cpp
   RaiseToAffine.cpp
+  RemoveIterArgs.cpp
+  FoldSCFIf.cpp
   RaiseToLinalg.cpp
+  LinalgDebufferize.cpp
+  LowerPolygeistSubmap.cpp
+  LowerKernelLaunch.cpp
+  ComposeCutensornetNetworks.cpp
+  SelectContractionBackend.cpp
+  WrapKernelLaunchPipeline.cpp
+  PlanPersistentGpuWorkspace.cpp
+  PrepareGpuResidualPipeline.cpp
+  PlanGpuDataResidency.cpp
+  InstrumentGpuRegionTiming.cpp
+  KernelLibraryConstantPropagation.cpp
+  LowerKernelLaunchToCuBLAS.cpp
+  LowerKernelLaunchToPVA.cpp
+  KernelLaunchLoweringUtils.cpp
+  LinalgToKernel.cpp
   ParallelLower.cpp
   TrivialUse.cpp
   ConvertPolygeistToLLVM.cpp
@@ -43,15 +61,18 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRGPUToNVVMTransforms
   MLIRIR
   MLIRLLVMDialect
+  MLIRLinalgDialect
   MLIRMathDialect
   MLIRMathToLLVM
   MLIRMemRefDialect
   MLIRNVVMDialect
   MLIRPass
   MLIRPolygeist
+  MLIRPolygeistKernel
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
   MLIRTargetLLVMIRImport
+  MLIRTensorDialect
   MLIRTransformUtils
   MLIRGPUToROCDLTransforms
   MLIRControlFlowToLLVM

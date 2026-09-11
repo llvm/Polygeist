@@ -1,0 +1,7 @@
+kernel=3mm
+function=kernel_3mm
+input=/tmp/polybench-resident/3mm/export/abi.mlir
+output=/tmp/polybench-gpu-region-sweep-20260907/3mm/3mm-region-timed
+environment: POLYGEIST_GPU_RESIDUAL_FUNCTION=kernel_3mm POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION=kernel_3mm POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 POLYGEIST_GPU_REGION_TIMING=1 POLYGEIST_GPU_REGION_TIMING_FUNCTION=kernel_3mm POLYGEIST_BUILD_WORK_DIR=/tmp/polybench-gpu-region-sweep-20260907/3mm/work POLYGEIST_MINIMAL_RUNTIME=0
+command: scripts/correctness/build_jetson.sh /tmp/polybench-resident/3mm/export/abi.mlir /tmp/polybench-gpu-region-sweep-20260907/3mm/3mm-region-timed /tmp/polybench-resident/3mm/export/wrapper.o /tmp/polybench-resident/3mm/export/harness.o /tmp/polybench-resident/3mm/polybench.o
+64ff027549eb2c6a3aeae81e395bd0506dc50705158fc57dfe932b7a430f4ed5  /tmp/polybench-gpu-region-sweep-20260907/3mm/3mm-region-timed

@@ -1,0 +1,33 @@
+hardware: Jetson Orin, sm87, MAXN, CUDA 12.6
+runtime: cuTENSOR generic permutation, host-pointer ABI
+statistic: median of process runs 2-4; process 1 excluded
+problem size: 8388608 f32 output elements in every case
+
+aten_channel_shuffle B=1 G=8 CPG=128 H=64 W=128
+  host_ms: 279.652832 271.283776 273.276928 273.489536
+  device_ms: 3.093280 2.571296 2.539168 2.556960
+  correctness: PASS
+aten_channel_shuffle_cpu B=1 G=8 CPG=128 S=8192
+  host_ms: 271.879552 272.934368 274.431456 274.472128
+  device_ms: 2.580064 2.528416 2.545280 2.564960
+  correctness: PASS
+aten_pixel_shuffle B=1 C=128 R=2 H=128 W=128
+  host_ms: 275.002912 274.212160 275.525376 274.178432
+  device_ms: 2.859040 2.881376 2.929184 2.897024
+  correctness: PASS
+aten_pixel_shuffle_cpu_backend B=1 C=128 H=128 W=128 R=2
+  host_ms: 276.486976 273.913248 275.883296 275.972672
+  device_ms: 2.908416 2.909504 2.915808 2.887520
+  correctness: PASS
+aten_pixel_unshuffle_cpu_backend B=1 C=128 H=128 W=128 R=2
+  host_ms: 275.749312 272.693344 275.532864 272.673984
+  device_ms: 2.520544 2.500608 2.495168 2.520864
+  correctness: PASS
+aten_transpose_copy M=2048 N=4096
+  host_ms: 272.440096 276.597792 274.933888 274.439584
+  device_ms: 2.568608 2.519680 2.538240 2.529920
+  correctness: PASS
+aten_stack_serial_cpu T=8 R=128 K=8192
+  host_ms: 274.322272 275.912128 274.432032 274.474688
+  device_ms: 2.553408 2.526080 2.523200 2.558560
+  correctness: PASS

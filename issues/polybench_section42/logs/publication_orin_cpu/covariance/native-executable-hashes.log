@@ -1,0 +1,3 @@
+cb87cdbc44548b7108e1e31830e8ec454f57672bfb711eb4f9bf1fdbe914dc60  tools/cgeist/Test/polybench/datamining/covariance/covariance.c
+6111c6c232253567bfacbc664e165949b8e00738445aa1add4af5c0fb7b69db0  /tmp/polybench-publication-orin-cpu/covariance/native-cpu-correctness
+324d9d8e6e29347fb32714e472a597acaaf4ea69e3a8b5533a8a6230ec322567  /tmp/polybench-publication-orin-cpu/covariance/native-cpu-timing

@@ -1,0 +1,6 @@
+timestamp=2026-09-05 08:31 PDT
+route=arpitj-dev -> pva-general -> nvidia@192.168.57.1
+build=x86 host cross-compile with aarch64-linux-gnu-gcc; AArch64 executable copied to board
+backend=cuDNN cudnnConvolutionForward, sparse 3x3x3 filter for a seven-point stencil
+policy=no project-authored computational CUDA kernel
+result=PASS cudnnStencil3D7pt_f32_flat

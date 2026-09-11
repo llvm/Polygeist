@@ -1,0 +1,246 @@
+/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot/2mm/whole_program_base/work/pre_llvm.mlir:2:3: error: failed to legalize operation 'func.func' that was explicitly marked illegal
+  func.func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot/2mm/whole_program_base/work/pre_llvm.mlir:2:3: note: see current operation: 
+"func.func"() <{function_type = (i32, i32, i32, i32, f64, f64, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) -> (), sym_name = "kernel_2mm"}> ({
+^bb0(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>):
+  %0 = "arith.constant"() <{value = 0 : index}> : () -> index
+  %1 = "arith.constant"() <{value = 1 : index}> : () -> index
+  %2 = "arith.constant"() <{value = 0.000000e+00 : f64}> : () -> f64
+  %3 = "arith.index_cast"(%arg2) : (i32) -> index
+  %4 = "arith.index_cast"(%arg3) : (i32) -> index
+  %5 = "arith.index_cast"(%arg1) : (i32) -> index
+  %6 = "arith.index_cast"(%arg0) : (i32) -> index
+  %7 = "memref.dim"(%arg6, %0) : (memref<?x?xf64>, index) -> index
+  %8 = "memref.dim"(%arg6, %1) : (memref<?x?xf64>, index) -> index
+  %9 = "memref.alloc"(%7, %8) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "cf.br"(%0)[^bb1] : (index) -> ()
+^bb1(%10: index):  // 2 preds: ^bb0, ^bb4
+  %11 = "arith.cmpi"(%10, %7) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%11, %0)[^bb2, ^bb5] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb2(%12: index):  // 2 preds: ^bb1, ^bb3
+  %13 = "arith.cmpi"(%12, %8) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%13)[^bb3, ^bb4] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb3:  // pred: ^bb2
+  "memref.store"(%2, %9, %10, %12) : (f64, memref<?x?xf64>, index, index) -> ()
+  %14 = "arith.addi"(%12, %1) : (index, index) -> index
+  "cf.br"(%14)[^bb2] : (index) -> ()
+^bb4:  // pred: ^bb2
+  %15 = "arith.addi"(%10, %1) : (index, index) -> index
+  "cf.br"(%15)[^bb1] : (index) -> ()
+^bb5:  // pred: ^bb1
+  %16:6 = "memref.extract_strided_metadata"(%arg7) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %17 = "memref.reinterpret_cast"(%16#0, %6, %3, %16#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %18:6 = "memref.extract_strided_metadata"(%arg8) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %19 = "memref.reinterpret_cast"(%18#0, %3, %5, %18#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %20 = "memref.reinterpret_cast"(%9, %6, %5, %8) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %21 = "memref.alloc"(%6, %5) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "memref.copy"(%20, %21) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?x?xf64>) -> ()
+  "cf.br"(%0)[^bb6] : (index) -> ()
+^bb6(%22: index):  // 2 preds: ^bb5, ^bb11
+  %23 = "arith.cmpi"(%22, %6) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%23, %0)[^bb7, ^bb12] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb7(%24: index):  // 2 preds: ^bb6, ^bb10
+  %25 = "arith.cmpi"(%24, %5) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%25, %0)[^bb8, ^bb11] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb8(%26: index):  // 2 preds: ^bb7, ^bb9
+  %27 = "arith.cmpi"(%26, %3) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%27)[^bb9, ^bb10] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb9:  // pred: ^bb8
+  %28 = "memref.load"(%17, %22, %26) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %29 = "memref.load"(%19, %26, %24) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %30 = "memref.load"(%21, %22, %24) : (memref<?x?xf64>, index, index) -> f64
+  %31 = "arith.mulf"(%arg4, %28) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %32 = "arith.mulf"(%31, %29) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %33 = "arith.addf"(%30, %32) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%33, %21, %22, %24) : (f64, memref<?x?xf64>, index, index) -> ()
+  %34 = "arith.addi"(%26, %1) : (index, index) -> index
+  "cf.br"(%34)[^bb8] : (index) -> ()
+^bb10:  // pred: ^bb8
+  %35 = "arith.addi"(%24, %1) : (index, index) -> index
+  "cf.br"(%35)[^bb7] : (index) -> ()
+^bb11:  // pred: ^bb7
+  %36 = "arith.addi"(%22, %1) : (index, index) -> index
+  "cf.br"(%36)[^bb6] : (index) -> ()
+^bb12:  // pred: ^bb6
+  %37 = "memref.reinterpret_cast"(%9, %6, %5, %8) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "memref.copy"(%21, %37) : (memref<?x?xf64>, memref<?x?xf64, strided<[?, 1], offset: ?>>) -> ()
+  "memref.copy"(%9, %arg6) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  %38 = "memref.dim"(%arg10, %0) : (memref<?x?xf64>, index) -> index
+  %39 = "memref.dim"(%arg10, %1) : (memref<?x?xf64>, index) -> index
+  %40 = "memref.alloc"(%38, %39) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "memref.copy"(%arg10, %40) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  "cf.br"(%0)[^bb13] : (index) -> ()
+^bb13(%41: index):  // 2 preds: ^bb12, ^bb16
+  %42 = "arith.cmpi"(%41, %38) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%42, %0)[^bb14, ^bb17] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb14(%43: index):  // 2 preds: ^bb13, ^bb15
+  %44 = "arith.cmpi"(%43, %39) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%44)[^bb15, ^bb16] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb15:  // pred: ^bb14
+  %45 = "memref.load"(%40, %41, %43) : (memref<?x?xf64>, index, index) -> f64
+  %46 = "arith.mulf"(%45, %arg5) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%46, %40, %41, %43) : (f64, memref<?x?xf64>, index, index) -> ()
+  %47 = "arith.addi"(%43, %1) : (index, index) -> index
+  "cf.br"(%47)[^bb14] : (index) -> ()
+^bb16:  // pred: ^bb14
+  %48 = "arith.addi"(%41, %1) : (index, index) -> index
+  "cf.br"(%48)[^bb13] : (index) -> ()
+^bb17:  // pred: ^bb13
+  %49:6 = "memref.extract_strided_metadata"(%arg9) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %50 = "memref.reinterpret_cast"(%49#0, %5, %4, %49#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %51 = "memref.reinterpret_cast"(%40, %6, %4, %39) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "cf.br"(%0)[^bb18] : (index) -> ()
+^bb18(%52: index):  // 2 preds: ^bb17, ^bb23
+  %53 = "arith.cmpi"(%52, %6) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%53, %0)[^bb19, ^bb24] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb19(%54: index):  // 2 preds: ^bb18, ^bb22
+  %55 = "arith.cmpi"(%54, %4) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%55, %0)[^bb20, ^bb23] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb20(%56: index):  // 2 preds: ^bb19, ^bb21
+  %57 = "arith.cmpi"(%56, %5) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%57)[^bb21, ^bb22] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb21:  // pred: ^bb20
+  %58 = "memref.load"(%21, %52, %56) : (memref<?x?xf64>, index, index) -> f64
+  %59 = "memref.load"(%50, %56, %54) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %60 = "memref.load"(%51, %52, %54) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %61 = "arith.mulf"(%58, %59) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %62 = "arith.addf"(%60, %61) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%62, %51, %52, %54) : (f64, memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> ()
+  %63 = "arith.addi"(%56, %1) : (index, index) -> index
+  "cf.br"(%63)[^bb20] : (index) -> ()
+^bb22:  // pred: ^bb20
+  %64 = "arith.addi"(%54, %1) : (index, index) -> index
+  "cf.br"(%64)[^bb19] : (index) -> ()
+^bb23:  // pred: ^bb19
+  %65 = "arith.addi"(%52, %1) : (index, index) -> index
+  "cf.br"(%65)[^bb18] : (index) -> ()
+^bb24:  // pred: ^bb18
+  %66 = "memref.reinterpret_cast"(%40, %6, %4, %39) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "memref.copy"(%51, %66) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?x?xf64, strided<[?, 1], offset: ?>>) -> ()
+  "memref.copy"(%40, %arg10) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  "func.return"() : () -> ()
+}) {llvm.linkage = #llvm.linkage<external>} : () -> ()
+/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot/2mm/whole_program_base/work/pre_llvm.mlir:2:3: error: failed to legalize operation 'func.func' that was explicitly marked illegal
+  func.func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/home/arjaiswal/Polygeist/issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_pilot/2mm/whole_program_base/work/pre_llvm.mlir:2:3: note: see current operation: 
+"func.func"() <{function_type = (i32, i32, i32, i32, f64, f64, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) -> (), sym_name = "kernel_2mm"}> ({
+^bb0(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x?xf64>, %arg7: memref<?x?xf64>, %arg8: memref<?x?xf64>, %arg9: memref<?x?xf64>, %arg10: memref<?x?xf64>):
+  %0 = "arith.constant"() <{value = 0 : index}> : () -> index
+  %1 = "arith.constant"() <{value = 1 : index}> : () -> index
+  %2 = "arith.constant"() <{value = 0.000000e+00 : f64}> : () -> f64
+  %3 = "arith.index_cast"(%arg2) : (i32) -> index
+  %4 = "arith.index_cast"(%arg3) : (i32) -> index
+  %5 = "arith.index_cast"(%arg1) : (i32) -> index
+  %6 = "arith.index_cast"(%arg0) : (i32) -> index
+  %7 = "memref.dim"(%arg6, %0) : (memref<?x?xf64>, index) -> index
+  %8 = "memref.dim"(%arg6, %1) : (memref<?x?xf64>, index) -> index
+  %9 = "memref.alloc"(%7, %8) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "cf.br"(%0)[^bb1] : (index) -> ()
+^bb1(%10: index):  // 2 preds: ^bb0, ^bb4
+  %11 = "arith.cmpi"(%10, %7) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%11, %0)[^bb2, ^bb5] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb2(%12: index):  // 2 preds: ^bb1, ^bb3
+  %13 = "arith.cmpi"(%12, %8) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%13)[^bb3, ^bb4] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb3:  // pred: ^bb2
+  "memref.store"(%2, %9, %10, %12) : (f64, memref<?x?xf64>, index, index) -> ()
+  %14 = "arith.addi"(%12, %1) : (index, index) -> index
+  "cf.br"(%14)[^bb2] : (index) -> ()
+^bb4:  // pred: ^bb2
+  %15 = "arith.addi"(%10, %1) : (index, index) -> index
+  "cf.br"(%15)[^bb1] : (index) -> ()
+^bb5:  // pred: ^bb1
+  %16:6 = "memref.extract_strided_metadata"(%arg7) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %17 = "memref.reinterpret_cast"(%16#0, %6, %3, %16#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %18:6 = "memref.extract_strided_metadata"(%arg8) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %19 = "memref.reinterpret_cast"(%18#0, %3, %5, %18#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %20 = "memref.reinterpret_cast"(%9, %6, %5, %8) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %21 = "memref.alloc"(%6, %5) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "memref.copy"(%20, %21) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?x?xf64>) -> ()
+  "cf.br"(%0)[^bb6] : (index) -> ()
+^bb6(%22: index):  // 2 preds: ^bb5, ^bb11
+  %23 = "arith.cmpi"(%22, %6) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%23, %0)[^bb7, ^bb12] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb7(%24: index):  // 2 preds: ^bb6, ^bb10
+  %25 = "arith.cmpi"(%24, %5) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%25, %0)[^bb8, ^bb11] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb8(%26: index):  // 2 preds: ^bb7, ^bb9
+  %27 = "arith.cmpi"(%26, %3) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%27)[^bb9, ^bb10] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb9:  // pred: ^bb8
+  %28 = "memref.load"(%17, %22, %26) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %29 = "memref.load"(%19, %26, %24) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %30 = "memref.load"(%21, %22, %24) : (memref<?x?xf64>, index, index) -> f64
+  %31 = "arith.mulf"(%arg4, %28) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %32 = "arith.mulf"(%31, %29) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %33 = "arith.addf"(%30, %32) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%33, %21, %22, %24) : (f64, memref<?x?xf64>, index, index) -> ()
+  %34 = "arith.addi"(%26, %1) : (index, index) -> index
+  "cf.br"(%34)[^bb8] : (index) -> ()
+^bb10:  // pred: ^bb8
+  %35 = "arith.addi"(%24, %1) : (index, index) -> index
+  "cf.br"(%35)[^bb7] : (index) -> ()
+^bb11:  // pred: ^bb7
+  %36 = "arith.addi"(%22, %1) : (index, index) -> index
+  "cf.br"(%36)[^bb6] : (index) -> ()
+^bb12:  // pred: ^bb6
+  %37 = "memref.reinterpret_cast"(%9, %6, %5, %8) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "memref.copy"(%21, %37) : (memref<?x?xf64>, memref<?x?xf64, strided<[?, 1], offset: ?>>) -> ()
+  "memref.copy"(%9, %arg6) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  %38 = "memref.dim"(%arg10, %0) : (memref<?x?xf64>, index) -> index
+  %39 = "memref.dim"(%arg10, %1) : (memref<?x?xf64>, index) -> index
+  %40 = "memref.alloc"(%38, %39) <{alignment = 64 : i64, operandSegmentSizes = array<i32: 2, 0>}> : (index, index) -> memref<?x?xf64>
+  "memref.copy"(%arg10, %40) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  "cf.br"(%0)[^bb13] : (index) -> ()
+^bb13(%41: index):  // 2 preds: ^bb12, ^bb16
+  %42 = "arith.cmpi"(%41, %38) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%42, %0)[^bb14, ^bb17] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb14(%43: index):  // 2 preds: ^bb13, ^bb15
+  %44 = "arith.cmpi"(%43, %39) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%44)[^bb15, ^bb16] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb15:  // pred: ^bb14
+  %45 = "memref.load"(%40, %41, %43) : (memref<?x?xf64>, index, index) -> f64
+  %46 = "arith.mulf"(%45, %arg5) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%46, %40, %41, %43) : (f64, memref<?x?xf64>, index, index) -> ()
+  %47 = "arith.addi"(%43, %1) : (index, index) -> index
+  "cf.br"(%47)[^bb14] : (index) -> ()
+^bb16:  // pred: ^bb14
+  %48 = "arith.addi"(%41, %1) : (index, index) -> index
+  "cf.br"(%48)[^bb13] : (index) -> ()
+^bb17:  // pred: ^bb13
+  %49:6 = "memref.extract_strided_metadata"(%arg9) : (memref<?x?xf64>) -> (memref<f64>, index, index, index, index, index)
+  %50 = "memref.reinterpret_cast"(%49#0, %5, %4, %49#4) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<f64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  %51 = "memref.reinterpret_cast"(%40, %6, %4, %39) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "cf.br"(%0)[^bb18] : (index) -> ()
+^bb18(%52: index):  // 2 preds: ^bb17, ^bb23
+  %53 = "arith.cmpi"(%52, %6) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%53, %0)[^bb19, ^bb24] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb19(%54: index):  // 2 preds: ^bb18, ^bb22
+  %55 = "arith.cmpi"(%54, %4) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%55, %0)[^bb20, ^bb23] <{operandSegmentSizes = array<i32: 1, 1, 0>}> : (i1, index) -> ()
+^bb20(%56: index):  // 2 preds: ^bb19, ^bb21
+  %57 = "arith.cmpi"(%56, %5) <{predicate = 2 : i64}> : (index, index) -> i1
+  "cf.cond_br"(%57)[^bb21, ^bb22] <{operandSegmentSizes = array<i32: 1, 0, 0>}> : (i1) -> ()
+^bb21:  // pred: ^bb20
+  %58 = "memref.load"(%21, %52, %56) : (memref<?x?xf64>, index, index) -> f64
+  %59 = "memref.load"(%50, %56, %54) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %60 = "memref.load"(%51, %52, %54) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> f64
+  %61 = "arith.mulf"(%58, %59) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  %62 = "arith.addf"(%60, %61) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+  "memref.store"(%62, %51, %52, %54) : (f64, memref<?x?xf64, strided<[?, 1], offset: ?>>, index, index) -> ()
+  %63 = "arith.addi"(%56, %1) : (index, index) -> index
+  "cf.br"(%63)[^bb20] : (index) -> ()
+^bb22:  // pred: ^bb20
+  %64 = "arith.addi"(%54, %1) : (index, index) -> index
+  "cf.br"(%64)[^bb19] : (index) -> ()
+^bb23:  // pred: ^bb19
+  %65 = "arith.addi"(%52, %1) : (index, index) -> index
+  "cf.br"(%65)[^bb18] : (index) -> ()
+^bb24:  // pred: ^bb18
+  %66 = "memref.reinterpret_cast"(%40, %6, %4, %39) <{operandSegmentSizes = array<i32: 1, 0, 2, 1>, static_offsets = array<i64: 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: -9223372036854775808, 1>}> : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64, strided<[?, 1], offset: ?>>
+  "memref.copy"(%51, %66) : (memref<?x?xf64, strided<[?, 1], offset: ?>>, memref<?x?xf64, strided<[?, 1], offset: ?>>) -> ()
+  "memref.copy"(%40, %arg10) : (memref<?x?xf64>, memref<?x?xf64>) -> ()
+  "func.return"() : () -> ()
+}) {llvm.linkage = #llvm.linkage<external>} : () -> ()

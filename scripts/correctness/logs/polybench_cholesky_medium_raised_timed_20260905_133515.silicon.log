@@ -1,0 +1,20 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/polybench_cholesky_medium_raised_timed_20260905_133515/polybench_cholesky_validation_jetson run 1 ...
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=400	n=400	k=0	host_ms=13.736693	device_ms=13.123680
+POLYBENCH_CHOLESKY_PASS n=400 max_abs=2.7422508708241367e-14 max_rel=2.7422508708241367e-14
+[jetson] running /tmp/polygeist_jetson_runs/polybench_cholesky_medium_raised_timed_20260905_133515/polybench_cholesky_validation_jetson run 2 ...
+[jetson] elapsed_s 0.620
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=400	n=400	k=0	host_ms=13.643828	device_ms=13.041536
+POLYBENCH_CHOLESKY_PASS n=400 max_abs=2.7422508708241367e-14 max_rel=2.7422508708241367e-14
+[jetson] running /tmp/polygeist_jetson_runs/polybench_cholesky_medium_raised_timed_20260905_133515/polybench_cholesky_validation_jetson run 3 ...
+[jetson] elapsed_s 0.619
+POLYGEIST_RT_TIMING	op=cusolverDnDpotrfLowerRowMajor	m=400	n=400	k=0	host_ms=13.752726	device_ms=13.147424
+POLYBENCH_CHOLESKY_PASS n=400 max_abs=2.7422508708241367e-14 max_rel=2.7422508708241367e-14
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.620

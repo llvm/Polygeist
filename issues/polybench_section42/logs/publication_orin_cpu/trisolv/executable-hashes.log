@@ -1,0 +1,4 @@
+7ca262da64fc5669f0fd10748e780fb887c795f80b9c76f6f922173010907269  /tmp/polybench-publication-orin-cpu/trisolv/native-cpu-correctness
+2c76f3d281fe65bb876158d07147d310182091d0f694613a66701c74f4537644  /tmp/polybench-publication-orin-cpu/trisolv/native-cpu-timing
+b11483a67450581e756a426f2b19c5db43a4d26797427dd44b1cd69ff936db09  /tmp/polybench-publication-orin-cpu/trisolv/raised-openblas-correctness
+e023b05e42098e88fde77b68dd16ad56b48a1a2f63805153e9ee3585a1644ed8  /tmp/polybench-publication-orin-cpu/trisolv/raised-openblas-timing

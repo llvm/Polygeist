@@ -1,0 +1,23 @@
+[polygeist] keeping workdir: /tmp/polybench-publication-orin/correlation/raised-timing-export-work
+[polygeist] input=tools/cgeist/Test/polybench/datamining/correlation/correlation.c  function=kernel_correlation  target=jetson  output=/tmp/polybench-publication-orin/correlation/unused
+[polygeist] harness=/tmp/polybench-publication-orin/correlation/raised_harness.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/datamining/correlation -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/correlation/raised_gpu/correlation_fresh_matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 3 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_correlation
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + minimal cuBLAS/CUDA runtime linkage
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c: In function ‘polygeist_cudnn_batchnorm_inference’:
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:7259:34: warning: passing argument 1 of ‘pointer_is_device_resident’ discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 7259 |   if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+      |                                  ^~~~~~~
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:851:45: note: expected ‘void *’ but argument is of type ‘const float *’
+  851 | static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+      |                                       ~~~~~~^~~
+         exported link objects to /tmp/polybench-publication-orin/correlation/raised-timing-export
+
+═══ object build complete (link skipped) ═══

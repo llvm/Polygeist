@@ -1,0 +1,1000 @@
+// polygeist_cublas_rt.h — runtime shim ABI for the
+// `--lower-kernel-launch-to-cublas` pass.
+//
+// The pass emits `func.call` ops targeting these C functions. The functions
+// are implemented in two flavours:
+//   * polygeist_cublas_rt_cpu.c   — CPU implementation (no CUDA). Reference
+//                                    loops by default, or optimized CBLAS for
+//                                    BLAS-like symbols when compiled with
+//                                    POLYGEIST_CPU_USE_CBLAS.
+//   * polygeist_cublas_rt_cuda.c  — real cuBLAS implementation. Used on
+//                                    Jetson / x86 + NVIDIA GPU.
+// Link exactly one of them into the executable.
+//
+// All matrices are ROW-MAJOR f64. Leading dimensions are in elements
+// (not bytes). The CUDA backend internally does the row↔col-major dance
+// (compute Cᵀ = BᵀAᵀ via operand swap) so callers can stay row-major.
+//
+// Sizes are passed as int32_t because that matches cuBLAS's signature.
+
+#ifndef POLYGEIST_CUBLAS_RT_H
+#define POLYGEIST_CUBLAS_RT_H
+
+#include <stdint.h>
+#include "polygeist_cuda_graph_rt.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Lifecycle. Call init() once before any kernel calls; destroy() at exit.
+// On CPU these are no-ops; on CUDA they create a cublasHandle_t + stream.
+void polygeist_cublas_init(void);
+void polygeist_cublas_destroy(void);
+
+// Whole-algorithm operations recovered from imperative C loop nests.
+void polygeist_cub_histogram_even_i32_shift_zero(
+    int32_t count, int32_t num_bins, const int32_t *samples,
+    int32_t *histogram, int32_t right_shift);
+void polygeist_cublas_dtrsv_lower_row_major(
+    int32_t n, const double *A, const double *b, double *x);
+void polygeist_cublas_strsv_lower_row_major(
+    int32_t n, const float *A, const float *b, float *x);
+void polygeist_cublas_dsymm_left_lower_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    const double *B, int32_t ldb, double beta, double *C, int32_t ldc);
+void polygeist_cublas_ssymm_left_lower_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc);
+void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
+    double *B, int32_t ldb);
+void polygeist_cublas_strmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    float *B, int32_t ldb);
+void polygeist_cusolver_dpotrf_lower_row_major(int32_t n, double *A);
+void polygeist_cublas_dgramschmidt_mgs_row_major(
+    int32_t m, int32_t n, double *A, int32_t lda,
+    double *R, int32_t ldr, double *Q, int32_t ldq);
+void polygeist_cublas_dcovariance_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *cov, int32_t ldc, double *mean);
+void polygeist_cublas_scovariance_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *cov, int32_t ldc, float *mean);
+void polygeist_cublas_dcorrelation_row_major(
+    int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
+    double *corr, int32_t ldc, double *mean, double *stddev);
+
+// NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
+// derived from the MLIR memref descriptors; row_offsets[rows] supplies nnz.
+void polygeist_cusparse_spmv_csr_f32_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
+void polygeist_cusparse_spmv_csr_f64_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const double *values,
+    int32_t x_count, const double *x, int32_t y_count, double *y);
+void polygeist_cusparse_spmm_csr_f32_sized(
+    int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t b_rows, int32_t b_cols, const float *b,
+    int32_t c_rows, int32_t c_cols, float *c);
+void polygeist_cusparse_spmm_coo_f32_sized(
+    int32_t rows, int32_t nnz,
+    int32_t row_index_count, const int32_t *row_indices,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t b_rows, int32_t b_cols, const float *b,
+    int32_t c_rows, int32_t c_cols, float *c);
+void polygeist_cusparse_spmm_bsr_f32_sized(
+    int32_t block_rows, int32_t block_dim,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_block_count, int32_t value_block_rows,
+    int32_t value_block_cols, const float *values,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
+void polygeist_cusparse_sddmm_csr_f32_sized(
+    int32_t rows,
+    int32_t row_offset_count, const int32_t *row_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t self_value_count, const float *self_values,
+    int32_t a_rows, int32_t a_cols, const float *a,
+    int32_t b_rows, int32_t b_cols, const float *b,
+    float alpha, float beta,
+    int32_t out_value_count, float *out_values);
+void polygeist_cusparse_coo2csr_i32_sized(
+    int32_t rows, int32_t coo_count, const int32_t *coo_rows,
+    int32_t csr_count, int32_t *csr_row_offsets);
+void polygeist_cusparse_csr2coo_i32_sized(
+    int32_t rows, int32_t csr_count, const int32_t *csr_row_offsets,
+    int32_t coo_capacity, int32_t *coo_rows);
+void polygeist_cusparse_spmv_jds_f32_sized(
+    int32_t rows, int32_t repetitions,
+    int32_t row_count_capacity, const int32_t *row_counts,
+    int32_t diagonal_count, const int32_t *diagonal_offsets,
+    int32_t column_index_count, const int32_t *column_indices,
+    int32_t value_count, const float *values,
+    int32_t permutation_count, const int32_t *row_permutation,
+    int32_t x_count, const float *x, int32_t y_count, float *y);
+
+// External cuSten 2D XY non-periodic weighted stencil. K is an odd square
+// filter width; A/B are full row-major MxN allocations and W has K*K values.
+void polygeist_custen_stencil2d_xy_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B);
+
+// Pipeline scope. The compiler inserts these around a group/function containing
+// lowered library calls. They are currently conservative hooks: CPU is a no-op,
+// CUDA initializes the backend on begin and synchronizes at outermost end.
+// Future runtime cache/device-residency policies should hang off this scope
+// instead of changing every per-kernel shim ABI.
+void polygeist_cublas_pipeline_begin(void);
+void polygeist_cublas_pipeline_end(void);
+
+// Optional CUDA Graph scope. The compiler only emits these calls around shims
+// marked `polygeist.cuda_graph_safe`. begin returns nonzero when the enclosed
+// calls must execute (warmup/capture), and zero after it has replayed a cached
+// graph. Replay is enabled by POLYGEIST_CUDA_GRAPH=1 and assumes that device
+// pointer values, tensor shapes, and scalar launch parameters remain stable
+// for the lifetime of a graph id. Buffer contents may change between replays.
+// GEMM (cublasDgemm equivalent, row-major):
+//   C = alpha * A * B + beta * C
+// where A is MxK, B is KxN, C is MxN.
+//
+// For non-transposed inputs at row-major:
+//   lda = K, ldb = N, ldc = N.
+//
+// On CUDA: copies A/B/C H→D, calls cublasDgemm with operand swap to handle
+// the row→col-major transpose, copies C D→H, frees device buffers. Each call
+// is fully synchronous; device-residency hoisting is a follow-up.
+void polygeist_cublas_dgemm(
+    int32_t M, int32_t N, int32_t K,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta,
+    double *C, int32_t ldc);
+
+// Row-major DGEMM with independently transposed inputs. transA/transB are
+// boolean integers; lda/ldb/ldc are physical row strides and may exceed the
+// logical widths when an operand is a slice of a larger allocation.
+void polygeist_cublas_dgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta,
+    double *C, int32_t ldc);
+
+// FP64 symmetric rank-k updates of the lower triangle, row-major:
+//   SYRK:  C = alpha * A * A^T + beta * C
+//   SYR2K: C = alpha * (A * B^T + B * A^T) + beta * C
+// The upper triangle is deliberately left untouched, matching BLAS UPLO=L.
+void polygeist_cublas_dsyrk_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    double beta, double *C, int32_t ldc);
+
+void polygeist_cublas_dsyr2k_lower(
+    int32_t N, int32_t K, double alpha,
+    const double *A, int32_t lda,
+    const double *B, int32_t ldb,
+    double beta, double *C, int32_t ldc);
+
+void polygeist_cublas_ssyrk_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyr2k_lower(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyrk_lower_tf32(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_ssyr2k_lower_tf32(
+    int32_t N, int32_t K, float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta, float *C, int32_t ldc);
+
+void polygeist_cublas_sgemm(
+    int32_t M, int32_t N, int32_t K,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
+// Row-major SGEMM with independently transposed inputs. transA/transB are
+// boolean integers; lda/ldb describe the physical (pre-transpose) matrices.
+void polygeist_cublas_sgemm_transpose(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
+// Same row-major contract as polygeist_cublas_sgemm_transpose, with an
+// explicit relaxed-precision contract. The CUDA implementation uses
+// cublasGemmEx + CUBLAS_COMPUTE_32F_FAST_TF32; the CPU implementation is a
+// numerical reference only.
+void polygeist_cublas_sgemm_transpose_tf32(
+    int32_t M, int32_t N, int32_t K,
+    int32_t transA, int32_t transB,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *B, int32_t ldb,
+    float beta,
+    float *C, int32_t ldc);
+
+// C[batch,M,N] = A[batch,M,K] * B[K,N].  B is broadcast across batches;
+// the CUDA implementation uses a zero RHS batch stride and beta=0.
+void polygeist_cublas_sgemm_strided_batched_broadcast_rhs(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C);
+
+void polygeist_cublas_sgemm_strided_batched(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, float *C);
+
+// Contiguous row-major FP64 batches: C[b] -= A[b] * B[b].
+void polygeist_cublas_dgemm_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t N, int32_t K,
+    const double *A, const double *B, double *C);
+
+// Contiguous row-major FP64 batches: Y[b] -= A[b] * X[b].
+void polygeist_cublas_dgemv_strided_batched_subtract(
+    int32_t batch, int32_t M, int32_t K,
+    const double *A, const double *X, double *Y);
+
+// Overwriting outer product C[M,N] = u[M] * v[N].
+void polygeist_cublas_dgemm_outer_product(
+    int32_t M, int32_t N,
+    const double *u, const double *v, double *C);
+
+// Single-batch, multi-channel valid Conv3D in contiguous NCDHW/OIDHW layout.
+// bias may be NULL; otherwise it contains one value per output channel.
+void polygeist_cudnn_conv3d_channels_f32(
+    int32_t IC, int32_t inD, int32_t inH, int32_t inW,
+    int32_t OC, int32_t kD, int32_t kH, int32_t kW,
+    const float *input, const float *filter, const float *bias, float *output);
+
+void polygeist_cublas_dgemv(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y);
+
+void polygeist_cublas_dgemv_T(
+    int32_t M, int32_t N,
+    double alpha,
+    const double *A, int32_t lda,
+    const double *x,
+    double beta,
+    double *y);
+
+void polygeist_cublas_sgemv(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y);
+
+void polygeist_cublas_sgemv_T(
+    int32_t M, int32_t N,
+    float alpha,
+    const float *A, int32_t lda,
+    const float *x,
+    float beta,
+    float *y);
+
+// FP32 variant of memset_zero_2d.
+void polygeist_cublas_memset_zero_2d_f32(
+    int32_t M, int32_t N, float *A, int32_t lda);
+
+void polygeist_cublas_memset_zero_1d_f32(int32_t N, float *v);
+void polygeist_cublas_memset_zero_1d(int32_t N, double *v);
+void polygeist_cublas_daxpy_unit(
+    int32_t N, const double *x, double *y);
+
+// memset a 2D row-major MxN block to zero. Used by matcher's
+// @memset_zero_2D op. Trivial host-side memset; data is host-resident
+// between launches in the current no-hoisting model.
+void polygeist_cublas_memset_zero_2d(
+    int32_t M, int32_t N, double *A, int32_t lda);
+
+// In-place 2D scale: A = scale * A, row-major MxN with leading dim lda.
+// Used by matcher's @cublasDgeam_scale2D op (the diagonal/scale-only
+// variant of geam where the second operand is zero so the add collapses
+// to a scale). CUDA backend uses cublasDscal on the flattened buffer
+// when contiguous (lda==N), else loops row-wise.
+void polygeist_cublas_dscal_2d(
+    int32_t M, int32_t N, double scale, double *A, int32_t lda);
+
+// Contiguous vector primitives composed from cuBLAS scal + axpy.
+void polygeist_cublas_daxpby(
+    int32_t N, double alpha, const double *x, double beta, double *y);
+void polygeist_cublas_saxpby(
+    int32_t N, float alpha, const float *x, float beta, float *y);
+void polygeist_cublas_sscal(int32_t N, float scale, float *x);
+void polygeist_cublas_sger_rank2(
+    int32_t M, int32_t N, const float *u1, const float *v1,
+    const float *u2, const float *v2, float *A, int32_t lda);
+
+// cuDNN 9-tap conv2d (3x3 stencil) with PolyBench's hardcoded weights.
+// Input A is MxN row-major f64; output B is MxN row-major f64; the
+// interior B[1..M-2][1..N-2] is filled with the convolved result,
+// border rows/cols are untouched. CUDA backend calls cudnnConvolutionForward
+// with a 1×1×M×N input descriptor and a 1×1×3×3 filter descriptor.
+// CPU stub does the same math in a 3-loop reference for validation.
+//
+// Weights baked in (matches polybenchGpu/OpenMP/stencils/convolution-2d/):
+//   [[ 0.2, 0.5, -0.8],
+//    [-0.3, 0.6, -0.9],
+//    [ 0.4, 0.7,  0.1]]
+//
+// Generalising the weights to arbitrary filter coefficients is a TODO
+// once the matcher surfaces the 9 scalar weights as launch operands.
+void polygeist_cudnn_conv2d_polybench9tap(
+    int32_t M, int32_t N, const double *A, double *B);
+
+// Generic 3x3 conv2d shim — takes the 9 filter weights at runtime so a
+// single shim handles any 3x3 weighted conv (polybench, Sobel, Gaussian,
+// custom filters). Same I/O contract as the polybench9tap variant:
+//   * A is MxN row-major f64, input
+//   * B is MxN row-major f64, output; interior B[1..M-2][1..N-2] written
+//   * Weights laid out row-major in the 3x3 filter:
+//       w[0] w[1] w[2]      <- top row, applied to A[i-1][j-1..j+1]
+//       w[3] w[4] w[5]      <- middle row, applied to A[i][j-1..j+1]
+//       w[6] w[7] w[8]      <- bottom row, applied to A[i+1][j-1..j+1]
+//
+// Used by Lit-surfaced @cudnnConvolution2D_9tap match: the matcher pulls
+// the 9 weight values out of the linalg.generic body and passes them as
+// launch operands, the lowering pass forwards them here.
+void polygeist_cudnn_conv2d_3x3_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2,
+    double w3, double w4, double w5,
+    double w6, double w7, double w8,
+    const double *A, double *B);
+
+// FP32 variant of polygeist_cudnn_conv2d_3x3 — same I/O contract but with
+// float matrices + float weights. cuDNN's convolution path picks tensor-core
+// kernels for FP32 on Ampere+ GPUs (including Jetson Orin), so this is the
+// dtype to use for actual perf measurement (FP64 on Orin uses a generic
+// non-tensor-core path).
+void polygeist_cudnn_conv2d_3x3_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2,
+    float w3, float w4, float w5,
+    float w6, float w7, float w8,
+    const float *A, float *B);
+
+// Generic 5x5 conv2d shim. The lowering passes a pointer to the top-left
+// input subview and a pointer to the output interior subview B[2][2], so the
+// shim writes a dense (M-4)x(N-4) block relative to B with row stride N.
+void polygeist_cudnn_conv2d_5x5_f64(
+    int32_t M, int32_t N,
+    double w0, double w1, double w2, double w3, double w4,
+    double w5, double w6, double w7, double w8, double w9,
+    double w10, double w11, double w12, double w13, double w14,
+    double w15, double w16, double w17, double w18, double w19,
+    double w20, double w21, double w22, double w23, double w24,
+    const double *A, double *B);
+
+void polygeist_cudnn_conv2d_5x5_f32(
+    int32_t M, int32_t N,
+    float w0, float w1, float w2, float w3, float w4,
+    float w5, float w6, float w7, float w8, float w9,
+    float w10, float w11, float w12, float w13, float w14,
+    float w15, float w16, float w17, float w18, float w19,
+    float w20, float w21, float w22, float w23, float w24,
+    const float *A, float *B);
+
+// Generalized packed-weight odd-square Conv2D stencil. K is the filter width;
+// W has K*K row-major weights. A points at the top-left input subview and B
+// points at the output interior subview.
+void polygeist_cudnn_conv2d_ntap_f64(
+    int32_t M, int32_t N, int32_t K,
+    const double *W, const double *A, double *B);
+
+void polygeist_cudnn_conv2d_ntap_f32(
+    int32_t M, int32_t N, int32_t K,
+    const float *W, const float *A, float *B);
+
+// Uniform-weight channel-preserving fixed-window convolution. Supports
+// rectangular windows, independent strides/dilations, and padding. The
+// implementation uses a [C,1,KH,KW] filter with cuDNN group count C.
+void polygeist_cudnn_conv2d_uniform_window_f32(
+    int32_t N, int32_t C, int32_t H, int32_t W,
+    int32_t OH, int32_t OW, float weight,
+    int32_t KH, int32_t KW, int32_t SH, int32_t SW,
+    int32_t DH, int32_t DW, int32_t PH, int32_t PW,
+    const float *input, float *output);
+
+// Exact ATen pooling/resampling through cuDNN Backend Resample. operation is
+// 0=adaptive-average forward, 1=adaptive-average backward, 2=max forward,
+// 3=max backward, 4=fixed-average forward, 5=fixed-average backward, and
+// 6=the supported FP32 bilinear 2x forward subset.
+void polygeist_cudnn_adaptive_pool_f32(
+    int32_t operation, int32_t rank, int32_t N, int32_t C,
+    int32_t I0, int32_t I1, int32_t I2,
+    int32_t O0, int32_t O1, int32_t O2,
+    const void *ptr0, void *ptr1, void *ptr2);
+
+void polygeist_cudnn_batchnorm_backward_f32(
+    int32_t N, int32_t C, int32_t spatial, int32_t full_outputs,
+    const float *grad, const float *x, const float *mean,
+    const float *invstd, const float *weight, float *dx,
+    float *dweight, float *dbias);
+
+// Generalized packed-weight Conv3D stencil. A is dense input with dimensions
+// inD x inH x inW, B is dense output with dimensions outD x outH x outW, and
+// W is a row-major K x K x K cross-correlation filter.
+void polygeist_cudnn_conv3d_ntap_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const double *W, const double *A, double *B);
+
+void polygeist_cudnn_conv3d_ntap_f32(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t K,
+    const float *W, const float *A, float *B);
+
+void polygeist_cudnn_stencil3d_symmetric_f64(
+    int32_t inD, int32_t inH, int32_t inW,
+    int32_t outD, int32_t outH, int32_t outW,
+    int32_t strideD, int32_t strideH, int32_t strideW,
+    int32_t inOffD, int32_t inOffH, int32_t inOffW,
+    int32_t outOffD, int32_t outOffH, int32_t outOffW,
+    double center, double face, double edge, double corner,
+    double alpha, double beta,
+    const double *input, const double *addend, double *output);
+
+void polygeist_cudnn_stencil3d_7pt_f32_flat(
+    const float *A, float *B, float center_scale, float neighbor_scale,
+    int32_t ny, int32_t nx, int32_t out_x, int32_t out_y, int32_t out_z);
+
+// Basic 1D complex-to-complex FFT shims. Complex values are represented as
+// interleaved real/imag pairs: A[2*i+0], A[2*i+1]. `inverse != 0` selects the
+// inverse transform. Like cuFFT, the inverse is not normalized by N.
+void polygeist_cufft_z2z_1d(
+    int32_t N, int32_t inverse, const double *A, double *B);
+
+void polygeist_cufft_c2c_1d(
+    int32_t N, int32_t inverse, const float *A, float *B);
+
+// Separable 3D tensor product, expressed to cuTensorNet as
+// ai,bj,ck,ijk->abc. psi is row-major [KQ,KP], u is [KP,KP,KP], and out is
+// [KQ,KQ,KQ].
+void polygeist_cutensornet_tensor_product_3d_f32(
+    int32_t KQ, int32_t KP, const float *psi, const float *u, float *out);
+
+void polygeist_cutensornet_tensor_product_3d_f64(
+    int32_t KQ, int32_t KP, const double *psi, const double *u, double *out);
+
+// General two-input FP64 Einstein contraction used by normalized MFEM stages.
+// `metadata` contains three ranks followed by extent/stride/mode arrays for
+// A, B, and C; see LowerKernelLaunchToCuBLAS.cpp for the fixed 579-element
+// layout (64 modes per tensor). Broadcast modes are omitted before this ABI
+// is called.
+void polygeist_cutensornet_contraction2_f64(
+    const double *A, const double *B, double *C, const int64_t *metadata);
+
+// Device-resident form of the same contraction. A/B/C must be CUDA device
+// pointers; no host registration or mapping is performed. This entry point is
+// legal only for compiler regions with no residual host dereferences.
+void polygeist_cutensornet_contraction2_f64_device(
+    const double *A, const double *B, double *C, const int64_t *metadata);
+
+// Generic dense tensor-network contraction ABI. `pointers` contains one
+// address per input followed by the output address. `metadata` is versioned
+// and describes a variable number of tensor ranks, extents, physical strides,
+// and Einstein modes; see LowerKernelLaunchToCuBLAS.cpp. The device variants
+// require every address to already be a CUDA device pointer.
+void polygeist_cutensornet_network_f32(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f32_device(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f64(
+    const int64_t *pointers, const int64_t *metadata);
+void polygeist_cutensornet_network_f64_device(
+    const int64_t *pointers, const int64_t *metadata);
+
+// FP16 / BF16 variants. The shim args use compiler-provided half-precision
+// types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
+// `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI
+// on both x86-64 (XMM) and aarch64 (V regs). Passing them via uint16_t would
+// route through GP regs and corrupt the call.
+//   * f16  → CUDNN_DATA_HALF      (cuDNN tensor-core path on Ampere+)
+//   * bf16 → CUDNN_DATA_BFLOAT16  (tensor-core path on Ampere+)
+// Guarded on compiler-defined feature macros: __FLT16_MAX__ for `_Float16`
+// and __BFLT16_MAX__ for `__bf16`. Both are defined unconditionally on
+// aarch64 (Jetson) and on x86-64 when the appropriate -m flags are set
+// (-mavx512fp16 / -mavx512bf16). If a build target lacks the macro the
+// declaration is skipped — callers can't accidentally link to a missing
+// symbol because the shim implementation file is guarded the same way.
+#if defined(__FLT16_MAX__)
+void polygeist_cudnn_conv2d_3x3_f16(
+    int32_t M, int32_t N,
+    _Float16 w0, _Float16 w1, _Float16 w2,
+    _Float16 w3, _Float16 w4, _Float16 w5,
+    _Float16 w6, _Float16 w7, _Float16 w8,
+    const _Float16 *A, _Float16 *B);
+#endif
+
+#if defined(__BFLT16_MAX__) || defined(__ARM_FEATURE_BF16) || \
+    defined(__ARM_FEATURE_BF16_SCALAR_ARITHMETIC) || defined(__BF16__)
+void polygeist_cudnn_conv2d_3x3_bf16(
+    int32_t M, int32_t N,
+    __bf16 w0, __bf16 w1, __bf16 w2,
+    __bf16 w3, __bf16 w4, __bf16 w5,
+    __bf16 w6, __bf16 w7, __bf16 w8,
+    const __bf16 *A, __bf16 *B);
+#endif
+
+// INT32 / INT16 variants.
+//
+// IMPORTANT: cuDNN does NOT support a standalone INT32 forward convolution
+// (`cudnnSetTensor4dDescriptor` with CUDNN_DATA_INT32 returns BAD_PARAM on
+// Orin/Ampere). CUDNN_DATA_INT32 is only exposed as the accumulator type
+// for INT8 inputs via the bias+activation API — a different operand
+// layout. Consequently the CUDA backend's i32 / i16 shims intentionally
+// fail at the cuDNN descriptor call: they exist so the matcher /
+// rewriter / ABI-lowering pipeline can be exercised end-to-end (the
+// `func.call @polygeist_cudnn_conv2d_3x3_i32` will land), but the GPU
+// side is "not implemented" until a custom CUDA kernel is added.
+//
+// The CPU backend's i32 / i16 implementations are real reference loops;
+// use the CPU stub for correctness validation of int conv stencils.
+void polygeist_cudnn_conv2d_3x3_i32(
+    int32_t M, int32_t N,
+    int32_t w0, int32_t w1, int32_t w2,
+    int32_t w3, int32_t w4, int32_t w5,
+    int32_t w6, int32_t w7, int32_t w8,
+    const int32_t *A, int32_t *B);
+
+void polygeist_cudnn_conv2d_3x3_i16(
+    int32_t M, int32_t N,
+    int16_t w0, int16_t w1, int16_t w2,
+    int16_t w3, int16_t w4, int16_t w5,
+    int16_t w6, int16_t w7, int16_t w8,
+    const int16_t *A, int16_t *B);
+
+// PVA-routed INT8 / INT16 conv (NEW path; replaces the failing-cuDNN i8/i16
+// shims for the lowering). Same I/O contract as the cuDNN 3x3 shims:
+//   - A, B are MxN row-major buffers of int8_t / int16_t
+//   - Interior B[1..M-2][1..N-2] gets the convolved result; borders left untouched
+// Routes via PVA Solutions' pvaConv2d through libpva_operator.so on the Jetson.
+// PVA's conv supports kernel 3x3/5x5/7x7, single-channel, integer 8/16-bit,
+// with an internal wider accumulator + output narrowing. CPU stub does a
+// reference loop with int32 accumulator and narrowing-with-wrap on
+// store (matches PVA's behaviour for our polybench-scaled weights since
+// the per-pixel sum stays in narrow-int range).
+void polygeist_pva_conv2d_3x3_i8(
+    int32_t M, int32_t N,
+    int8_t w0, int8_t w1, int8_t w2,
+    int8_t w3, int8_t w4, int8_t w5,
+    int8_t w6, int8_t w7, int8_t w8,
+    const int8_t *A, int8_t *B);
+
+void polygeist_pva_conv2d_3x3_i16(
+    int32_t M, int32_t N,
+    int16_t w0, int16_t w1, int16_t w2,
+    int16_t w3, int16_t w4, int16_t w5,
+    int16_t w6, int16_t w7, int16_t w8,
+    const int16_t *A, int16_t *B);
+
+// Typed, flat-buffer PVA image ABI used by semantic matches. These adapters
+// construct single-channel HWC vendor tensors and invoke only PVA Solutions
+// pva*Create/pva*Submit entry points. Image-filter adapters preserve the
+// caller's one-pixel border because the matched C regions update only the
+// complete 3x3 interior.
+#define POLYGEIST_DECLARE_PVA_FILTER_TYPES(op)                               \
+  void polygeist_pva_##op##_3x3_u8(int32_t, int32_t,                        \
+                                    const uint8_t *, uint8_t *);             \
+  void polygeist_pva_##op##_3x3_s8(int32_t, int32_t,                        \
+                                    const int8_t *, int8_t *);               \
+  void polygeist_pva_##op##_3x3_u16(int32_t, int32_t,                       \
+                                     const uint16_t *, uint16_t *);          \
+  void polygeist_pva_##op##_3x3_s16(int32_t, int32_t,                       \
+                                     const int16_t *, int16_t *)
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(boxfilter);
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(morphology_dilate);
+#undef POLYGEIST_DECLARE_PVA_FILTER_TYPES
+#define POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(suffix, type)                    \
+  void polygeist_pva_gaussian_3x3_##suffix(                                 \
+      int32_t, int32_t, float, float, const type *, type *)
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u8, uint8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s8, int8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u16, uint16_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s16, int16_t);
+#undef POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE
+void polygeist_pva_bilateral_3x3_u8(int32_t, int32_t, float, float,
+                                     const uint8_t *, uint8_t *);
+void polygeist_pva_histogram_256_u8_u32(int32_t, int32_t, const uint8_t *,
+                                        uint32_t *);
+void polygeist_pva_histogram_256_u8_s32(int32_t, int32_t, const uint8_t *,
+                                        int32_t *);
+void polygeist_pva_histogram_256_u16_u32(int32_t, int32_t, const uint16_t *,
+                                         uint32_t *);
+void polygeist_pva_histogram_256_u16_s32(int32_t, int32_t, const uint16_t *,
+                                         int32_t *);
+void polygeist_pva_histeq_u8(int32_t, int32_t, const uint8_t *, uint8_t *);
+
+// ============================================================================
+// Extracted-darknet batched CNN-block primitives. All four take 4D NCHW
+// tensors (and 1D per-channel vectors for batchnorm) as raw FP32 pointers
+// plus the shape parameters. The CUDA backend wires each to its
+// corresponding cuDNN forward call; the CPU stub runs a reference loop
+// for correctness validation.
+//
+// These cover every primitive in a ResNet residual block except ReLU:
+//   conv + bn + (relu) + conv + bn + add.
+// ============================================================================
+
+// Batched multi-channel 2D convolution (forward, NCHW, FP32):
+//   Out[b,oc,oh,ow] = sum_{ic,kh,kw} A[b,ic,oh+kh,ow+kw] * F[oc,ic,kh,kw]
+// No padding, stride 1, no dilation, no activation. K is the (square)
+// filter size, OH = H - K + 1, OW = W - K + 1.
+void polygeist_cudnn_conv2d_batched(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F, float *Out);
+void polygeist_cudnn_conv1d_bias_f32(
+    int32_t B, int32_t IC, int32_t OC, int32_t L, int32_t K,
+    const float *input, const float *filter, const float *bias, float *output);
+void polygeist_cudnn_conv2d_dilated_f32(
+    int32_t IC, int32_t OC, int32_t H, int32_t W, int32_t KH, int32_t KW,
+    int32_t DH, int32_t DW, const float *input, const float *filter,
+    float *output);
+void polygeist_cublas_gemmex_i8_i32(
+    int32_t M, int32_t N, int32_t K, const int8_t *A, const int8_t *B,
+    int32_t *C);
+void polygeist_cublas_snrm2_f32(int32_t N, const float *input, float *output);
+void polygeist_cublas_joint_maxabs_product_f32(
+    int32_t NA, int32_t NB, const float *a, const float *b, float *output);
+void polygeist_cudnn_feature_mask_scale_f32(
+    int32_t N, int32_t C, int32_t H, int32_t W, float scale,
+    const float *input, const float *mask, float *output);
+void polygeist_cudnn_conv_transpose2d_f32(
+    int32_t B, int32_t IC, int32_t OC, int32_t H, int32_t W,
+    int32_t KH, int32_t KW, const float *input, const float *filter,
+    float *output);
+void polygeist_cudnn_conv_transpose3d_f32(
+    int32_t IC, int32_t OC, int32_t D, int32_t H, int32_t W,
+    int32_t KD, int32_t KH, int32_t KW, const float *input,
+    const float *filter, float *output);
+void polygeist_cudnn_conv_backward_filter3d_f32(
+    int32_t IC, int32_t OC,
+    int32_t ID, int32_t IH, int32_t IW,
+    int32_t OD, int32_t OH, int32_t OW,
+    int32_t KD, int32_t KH, int32_t KW,
+    const float *input, const float *grad_output, float *grad_filter);
+void polygeist_cudnn_depthwise_conv2d_f32(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t KH, int32_t KW,
+    const float *input, const float *filter, const float *bias, float *output);
+void polygeist_cutensor_kronecker_product2d_f32(
+    int32_t A, int32_t B, int32_t C, int32_t D,
+    const float *x, const float *y, float *output);
+void polygeist_cudnn_binary_cross_entropy_mean_f32(
+    int32_t N, const float *input, const float *target, float *output);
+void polygeist_cudnn_conv_tbc_f32(
+    int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+    const float *input, const float *filter, float *output);
+void polygeist_cudnn_conv_tbc_backward_f32(
+    int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+    const float *grad, const float *filter, float *output);
+void polygeist_cudnn_transform_bias_rescale_qkv_f32(
+    int32_t B, int32_t S, int32_t H, int32_t D, float scale,
+    const float *qkv, const float *bias, float *q, float *k, float *v);
+void polygeist_cudnn_addr_elementwise_f32(
+    int32_t N, float beta, float alpha, const float *self,
+    const float *x, const float *y, float *output);
+void polygeist_cudnn_log_sigmoid_f32(
+    int32_t N, const float *x, float *output, float *buffer);
+
+// Darknet-style explicit im2col + GEMM fused to one convolution. Single
+// batch, NCHW, FP32. Supports caller-supplied square kernel, stride, and pad.
+void polygeist_cudnn_conv2d_im2col_gemm_f32(
+    int32_t IC, int32_t H, int32_t W, int32_t OC,
+    int32_t K, int32_t S, int32_t P,
+    const float *A, const float *F, float *Out);
+
+// Batched multi-channel 2D max pooling (forward, NCHW, FP32).
+// Window size K and stride S are derived from H/OH (assumed K == stride
+// for the common ResNet shapes; tweak the shim if needed). OH and OW are
+// the output spatial dims after pooling.
+void polygeist_cudnn_maxpool_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W, int32_t OH, int32_t OW,
+    const float *A, float *Out);
+
+// Batched per-channel batch normalization (INFERENCE mode, NCHW, FP32):
+//   Out[b,c,h,w] = scale[c] * (A[b,c,h,w] - mean[c]) * inv_std[c] + bias[c]
+// where inv_std[c] = 1/sqrt(var[c] + eps) is pre-computed by the caller.
+// The CUDA backend uses cudnnBatchNormalizationForwardInference (which
+// expects mean + variance, not inv_std). The shim recovers variance via
+//   var = 1/inv_std² - eps_assumed (eps_assumed = 1e-5).
+// This is an inversion of the kernel's pre-baked inv_std; the caller
+// must use the same eps when building inv_std for bit-exact output.
+void polygeist_cudnn_batchnorm_inference(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out);
+
+// Batched 4D elementwise tensor add (ResNet residual shortcut, FP32):
+//   Out[b,c,h,w] += A[b,c,h,w]
+// The CUDA backend uses cudnnAddTensor with α=β=1.
+void polygeist_cudnn_add_tensor_batched(
+    int32_t B, int32_t C, int32_t H, int32_t W,
+    const float *A, float *Out);
+
+// 1×1 conv via batched gemm. Mathematically:
+//   C[b, oc, h, w] = sum_ic A[b, ic, h, w] * F[oc, ic, 0, 0]
+//
+// Since NCHW packs IC-contiguous H*W planes, A[b] is naturally a 2D
+// matrix of shape (IC, H*W) (row-major). Per batch:
+//   C[b] (OC, H*W) = F (OC, IC) × A[b] (IC, H*W)
+// → cublasSgemmStridedBatched with batchCount=B, F shared (stride 0),
+// A and C strided by IC*H*W and OC*H*W respectively. Hits tensor cores
+// on Orin for IC, OC, H*W aligned to 8.
+//
+// The signature takes M = B*H*W (flattened parallel dims), N = OC,
+// K = IC. The harness/lowering passes B*H*W as M; the shim recovers
+// B and H*W via the assumption that A is contiguous NCHW (which the
+// row-major layout guarantees for a single 1×1 conv).
+void polygeist_cublas_sgemm_1x1conv(
+    int32_t B, int32_t IC, int32_t OC, int32_t HW,
+    const float *A, const float *F, float *C);
+
+// Symmetric rank-K update — AᵀA or A·Aᵀ. FP32, row-major.
+//   C[N,N] = Aᵀ·A   where A is K×N (so AᵀA is N×N, symmetric)
+// Only the upper triangle of C is computed; the lower is mirrored on
+// host before returning so the caller can treat C as fully populated.
+// Routes to cublasSsyrk_v2 — half the flops of the equivalent gemm.
+void polygeist_cublas_dsyrk(
+    int32_t N, int32_t K, const float *A, float *C);
+
+// Fused matmul + bias + relu, FP32. Computes:
+//   C[m,n] = relu(sum_k A[m,k] * B[k,n] + bias[n])
+// A is MxK, B is KxN, C is MxN, bias is length N (broadcast over rows).
+// Routes to cublasLt's CUBLASLT_EPILOGUE_RELU_BIAS — needs -lcublasLt at link.
+void polygeist_cublaslt_matmul_bias_relu(
+    int32_t M, int32_t N, int32_t K,
+    const float *A, const float *B, const float *bias,
+    float *C);
+
+// Fused conv + bias + residual-add + relu, FP32 NCHW. Computes:
+//   Out[b,oc,oh,ow] = relu(conv(A,F)[b,oc,oh,ow] + bias[oc] + Z[b,oc,oh,ow])
+//
+// Bias is per-output-channel (length OC); Z has the same shape as Out
+// and is the ResNet skip-connection input. The CUDA backend issues one
+// cudnnConvolutionBiasActivationForward with α₁=1, α₂=1, activation=RELU.
+void polygeist_cudnn_conv_bias_relu_add_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *bias, const float *Z,
+    float *Out);
+
+// Fused conv + bn (inference) + relu, FP32 NCHW. Computes:
+//   Out[b,oc,oh,ow] = relu(
+//       scale[oc] * (conv(A, F)[b,oc,oh,ow] - mean[oc]) * inv_std[oc]
+//       + bias[oc])
+//
+// This is the canonical ResNet inner pattern. The CUDA backend uses the
+// standard BN-folding trick — pre-compute a scaled filter and an
+// effective bias on the host, then issue a single
+// cudnnConvolutionBiasActivationForward call with CUDNN_ACTIVATION_RELU.
+// Folded filter / bias are:
+//   F'[oc,ic,kh,kw] = F[oc,ic,kh,kw] * scale[oc] * inv_std[oc]
+//   b'[oc]         = bias[oc] - scale[oc] * mean[oc] * inv_std[oc]
+// With those substitutions, conv + bn-inference + relu = act(conv(F') + b'),
+// which cudnnConvolutionBiasActivationForward computes natively in one
+// kernel — the bandwidth-bound bn and relu ride the compute-bound conv
+// instead of paying their own per-call setup.
+void polygeist_cudnn_conv_bn_relu_fused(
+    int32_t B, int32_t IC, int32_t OC,
+    int32_t H, int32_t W, int32_t K,
+    const float *A, const float *F,
+    const float *scale, const float *mean,
+    const float *inv_std, const float *bias,
+    float *Out);
+
+// llama2.c RMSNorm, FP32:
+//   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
+void polygeist_rmsnorm_f32(
+    int32_t N, const float *X, const float *Weight, float *Out);
+// cuDNN backend operation graph: Out = relu(alpha * X + Bias).
+void polygeist_cudnn_pointwise_affine_relu_f32(
+    int32_t N, float alpha, const float *X, const float *Bias, float *Out);
+void polygeist_cudnn_pointwise_graph_f32(
+    int32_t N,
+    int64_t graph0, int64_t graph1, int64_t graph2, int64_t graph3,
+    int64_t graph4, int64_t graph5, int64_t graph6, int64_t graph7,
+    int64_t graph8, int64_t graph9, int64_t graph10, int64_t graph11,
+    int32_t num_nodes,
+    float s0, float s1, float s2, float s3,
+    float s4, float s5, float s6, float s7,
+    int32_t stride0, int32_t stride1, int32_t stride2, int32_t stride3,
+    int32_t out_stride,
+    const float *In0, const float *In1, const float *In2, const float *In3,
+    float *Out);
+void polygeist_cub_inclusive_sum1d_f32(
+    int32_t n, const float *input, float *final_value, float *output);
+void polygeist_cub_segmented_inclusive_product2d_f32(
+    int32_t rows, int32_t cols, const float *input,
+    float *final_values, float *output);
+void polygeist_cub_exclusive_sum1d_i32(
+    int32_t n, const int32_t *input, int32_t *output);
+void polygeist_cublas_dot_f32(
+    int32_t N, const float *X, const float *Y, float *Out);
+void polygeist_cublas_dot_f64(
+    int32_t N, const double *X, const double *Y, double *Out);
+void polygeist_whisper_exp_shift_sum_f32(
+    int32_t N, const float *X, float max_val, float *Out, float *Sum);
+
+// llama2.c row softmax, FP32, in-place:
+//   X[i] = exp(X[i] - max(X)) / sum_j exp(X[j] - max(X))
+// CUDA backend routes this through cudnnSoftmaxForward.
+void polygeist_cudnn_softmax_forward_f32(int32_t N, float *X);
+void polygeist_cudnn_softmax_forward_out_f32(
+    int32_t N, const float *X, float *Out);
+
+// Llama standalone FP32 helpers. The CUDA backend implements these with
+// CUDA-runtime copies plus cuBLAS/cuDNN tensor ops; the CPU backend is a
+// reference implementation for host correctness runs.
+void polygeist_cuda_copy_f32(int32_t N, const float *X, float *Out);
+void polygeist_cuda_copy_f64(int32_t N, const double *X, double *Out);
+void polygeist_cuda_copy_i32(int32_t N, const int32_t *X, int32_t *Out);
+void polygeist_cuda_copy_strided_2d_f32(
+    int32_t rows, int32_t cols,
+    int32_t src_row_stride, int32_t src_col_stride,
+    int32_t dst_row_stride, int32_t dst_col_stride,
+    const float *X, float *Out);
+void polygeist_cublas_broadcast_1d_to_2d_f32(
+    int32_t axis, int32_t rows, int32_t cols,
+    const float *X, float *Out);
+void polygeist_cuda_add_f32(
+    int32_t N, const float *X, const float *Y, float *Out);
+void polygeist_cuda_mask_select_f32(
+    int32_t N, int32_t pos, const float *Scores, float *Out);
+void polygeist_cuda_swiglu_f32(
+    int32_t N, const float *Gate, const float *Up, float *Out);
+void polygeist_cuda_rope_mulmul_f32(
+    int32_t M, int32_t N, const float *A, const float *B,
+    const float *C, const float *D, float *Out, int32_t add);
+
+// Generic cuTENSOR unary permutation ABI. The compiler flattens a proven
+// contiguous, identity-layout tensor to N elements and passes one stable
+// operation id instead of requiring one runtime function per math operator.
+enum polygeist_cutensor_unary_op {
+  POLYGEIST_CUTENSOR_UNARY_ABS = 0,
+  POLYGEIST_CUTENSOR_UNARY_ACOS,
+  POLYGEIST_CUTENSOR_UNARY_ACOSH,
+  POLYGEIST_CUTENSOR_UNARY_ASIN,
+  POLYGEIST_CUTENSOR_UNARY_ASINH,
+  POLYGEIST_CUTENSOR_UNARY_ATAN,
+  POLYGEIST_CUTENSOR_UNARY_ATANH,
+  POLYGEIST_CUTENSOR_UNARY_CEIL,
+  POLYGEIST_CUTENSOR_UNARY_COS,
+  POLYGEIST_CUTENSOR_UNARY_COSH,
+  POLYGEIST_CUTENSOR_UNARY_EXP,
+  POLYGEIST_CUTENSOR_UNARY_FLOOR,
+  POLYGEIST_CUTENSOR_UNARY_LOG,
+  POLYGEIST_CUTENSOR_UNARY_MISH,
+  POLYGEIST_CUTENSOR_UNARY_NEG,
+  POLYGEIST_CUTENSOR_UNARY_RECIPROCAL,
+  POLYGEIST_CUTENSOR_UNARY_RELU,
+  POLYGEIST_CUTENSOR_UNARY_SIGMOID,
+  POLYGEIST_CUTENSOR_UNARY_SILU,
+  POLYGEIST_CUTENSOR_UNARY_SIN,
+  POLYGEIST_CUTENSOR_UNARY_SINH,
+  POLYGEIST_CUTENSOR_UNARY_SQRT,
+  POLYGEIST_CUTENSOR_UNARY_TAN,
+  POLYGEIST_CUTENSOR_UNARY_TANH,
+};
+
+void polygeist_cutensor_unary_f32(
+    int32_t op, int32_t n, const float *x, float *out);
+
+// Contiguous scalar reductions. `op` uses cuDNN's stable reduction ids:
+// 0=sum, 1=product, 2=min, 3=max. The incoming *out value is the linalg
+// reduction seed and is combined with the library result.
+void polygeist_cudnn_reduce_f32(
+    int32_t op, int32_t n, const float *x, float *out);
+void polygeist_cudnn_reduce_f64(
+    int32_t op, int32_t n, const double *x, double *out);
+void polygeist_cudnn_reduce_diagonal_f32(
+    int32_t rows, int32_t cols, int32_t row_stride, int32_t col_stride,
+    const float *x, float *out);
+void polygeist_cub_segmented_reduce_i32(
+    int32_t op, int32_t rows, int32_t cols,
+    const int32_t *x, int32_t *out);
+void polygeist_cub_segmented_argreduce_f32(
+    int32_t op, int32_t rows, int32_t cols,
+    const float *x, int32_t *out);
+void polygeist_cub_quant_col_offsets_i8_i32(
+    int32_t rows, int32_t cols, int32_t offset,
+    const int8_t *weights, int32_t *out);
+void polygeist_cub_adjacent_difference_f32(
+    int32_t count, const float *input, float *out);
+void polygeist_cudnn_sinc_f32(
+    int32_t n, const float *x, float *out);
+void polygeist_cub_segmented_sort_descending_f32_i32(
+    int32_t rows, int32_t cols, int32_t top, const float *input,
+    float *values, int32_t *indices);
+void polygeist_cub_segment_reduce_lengths_f32(
+    int32_t n, int32_t segments, int32_t op, const float *input,
+    const int32_t *lengths, float *output);
+void polygeist_cub_segmented_prefix_sum_f32(
+    int32_t rows, int32_t cols, const float *x,
+    const int32_t *lengths, float *out);
+void polygeist_cub_segmented_prefix_logical_and_i32(
+    int32_t rows, int32_t cols, const int32_t *x,
+    const int32_t *lengths, int32_t *out);
+void polygeist_cub_segmented_reduce_f32(
+    int32_t op, int32_t rows, int32_t cols, const float *x, float *out);
+void polygeist_cub_segmented_reduce_f64(
+    int32_t op, int32_t rows, int32_t cols, const double *x, double *out);
+void polygeist_cub_count_nonzero1d_f32(
+    int32_t n, const float *input, int32_t *out);
+void polygeist_cub_segmented_count_nonzero2d_f32(
+    int32_t rows, int32_t cols, const float *input, int32_t *out);
+void polygeist_cub_equal_all1d_f32(
+    int32_t n, const float *lhs, const float *rhs, int32_t *out);
+void polygeist_cutensor_permute_f32(
+    int32_t rank, const int64_t *input_extents, const int64_t *input_strides,
+    const int32_t *input_modes, const int64_t *output_extents,
+    const int64_t *output_strides, const int32_t *output_modes,
+    const float *input, float *output);
+
+// Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
+// Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
+// a sequence of kernel calls.
+void  polygeist_cublas_time_begin(void);
+double polygeist_cublas_time_end_ms(void);  // returns ms since last begin
+
+// Aggregate timing for a compiler-selected GPU region. Category changes only
+// enqueue CUDA events; end() performs the region's sole synchronization.
+enum polygeist_gpu_timing_category {
+  POLYGEIST_GPU_TIMING_HOST = 0,
+  POLYGEIST_GPU_TIMING_COMPUTE = 1,
+  POLYGEIST_GPU_TIMING_ALLOC = 2,
+  POLYGEIST_GPU_TIMING_FREE = 3,
+  POLYGEIST_GPU_TIMING_H2D = 4,
+  POLYGEIST_GPU_TIMING_D2H = 5,
+  POLYGEIST_GPU_TIMING_D2D = 6,
+  POLYGEIST_GPU_TIMING_H2H = 7,
+};
+void polygeist_gpu_region_timing_begin(int64_t region_id);
+void polygeist_gpu_region_timing_enter(int32_t category);
+void polygeist_gpu_region_timing_leave(void);
+void polygeist_gpu_region_timing_end(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // POLYGEIST_CUBLAS_RT_H

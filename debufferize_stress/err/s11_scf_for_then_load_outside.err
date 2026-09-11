@@ -1,0 +1,56 @@
+polygeist-opt: /home/arjaiswal/Polygeist/llvm-project/mlir/lib/IR/PatternMatch.cpp:326: mlir::RewriterBase::eraseOp(mlir::Operation*)::<lambda(mlir::Operation*)>: Assertion `mayBeGraphRegion(*op->getParentRegion()) && "expected that op has no uses"' failed.
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.	Program arguments: polygeist-opt --linalg-debufferize inputs/s11_scf_for_then_load_outside.mlir -o after/s11_scf_for_then_load_outside.mlir
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  polygeist-opt 0x0000559fed05fc6a
+1  polygeist-opt 0x0000559fed060086
+2  polygeist-opt 0x0000559fed05d4d3
+3  polygeist-opt 0x0000559fed05f502
+4  libc.so.6     0x00007fbdaf4eb520
+5  libc.so.6     0x00007fbdaf53f9fc pthread_kill + 300
+6  libc.so.6     0x00007fbdaf4eb476 raise + 22
+7  libc.so.6     0x00007fbdaf4d17f3 abort + 211
+8  libc.so.6     0x00007fbdaf4d171b
+9  libc.so.6     0x00007fbdaf4e2e96
+10 polygeist-opt 0x0000559fece873d3
+11 polygeist-opt 0x0000559fece8786b
+12 polygeist-opt 0x0000559fece889ce
+13 polygeist-opt 0x0000559fece887dd
+14 polygeist-opt 0x0000559fece8861e
+15 polygeist-opt 0x0000559fe7a91c99
+16 polygeist-opt 0x0000559fece87638
+17 polygeist-opt 0x0000559fece889ce
+18 polygeist-opt 0x0000559fece887dd
+19 polygeist-opt 0x0000559fece8861e
+20 polygeist-opt 0x0000559fe7a91c99
+21 polygeist-opt 0x0000559fece87946
+22 polygeist-opt 0x0000559fec861566
+23 polygeist-opt 0x0000559fec8629c8
+24 polygeist-opt 0x0000559fec863b59
+25 polygeist-opt 0x0000559febdc4146
+26 polygeist-opt 0x0000559fec8638e5
+27 polygeist-opt 0x0000559fec862c3a
+28 polygeist-opt 0x0000559fec862d77
+29 polygeist-opt 0x0000559fe79ec243
+30 polygeist-opt 0x0000559fe9671e51
+31 polygeist-opt 0x0000559fecb2c7fd
+32 polygeist-opt 0x0000559fecb304da
+33 polygeist-opt 0x0000559febdc4146
+34 polygeist-opt 0x0000559fecb3625b
+35 polygeist-opt 0x0000559fecb2cc1f
+36 polygeist-opt 0x0000559fecb2cefa
+37 polygeist-opt 0x0000559fecb2ee20
+38 polygeist-opt 0x0000559fecb2ec78
+39 polygeist-opt 0x0000559fe9cb7ffd
+40 polygeist-opt 0x0000559fe9cb85d1
+41 polygeist-opt 0x0000559fe9cb870b
+42 polygeist-opt 0x0000559fe9cb984a
+43 polygeist-opt 0x0000559feced6f31
+44 polygeist-opt 0x0000559feced67fb
+45 polygeist-opt 0x0000559fe9cb88c0
+46 polygeist-opt 0x0000559fe9cb8e7d
+47 polygeist-opt 0x0000559fe788790e
+48 libc.so.6     0x00007fbdaf4d2d90
+49 libc.so.6     0x00007fbdaf4d2e40 __libc_start_main + 128
+50 polygeist-opt 0x0000559fe78872e5

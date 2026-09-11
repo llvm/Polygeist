@@ -1,0 +1,420 @@
+
+****************************************
+*** RaiseAffineToLinalgPipeline START ***
+****************************************
+
+Running pipeline...
+
+****************************************
+*** RaiseAffineToLinalg START ***
+****************************************
+
+### Step 1: Applying AffineParallelFission ###
+### Step 1 Complete ###
+
+### Step 2: Applying AffineParallelToFor ###
+### Step 2 Complete ###
+
+### Step 3: Applying AffineForOpRaising ###
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg2 = 0 to %0 {
+  affine.for %arg3 = 0 to %0 {
+    affine.for %arg4 = 0 to %0 {
+      %1 = affine.load %arg1[%arg3, %arg4] : memref<?x60xi32>
+      %2 = affine.load %arg1[%arg3, %arg2] : memref<?x60xi32>
+      %3 = affine.load %arg1[%arg2, %arg4] : memref<?x60xi32>
+      %4 = arith.addi %2, %3 : i32
+      %5 = arith.cmpi slt, %1, %4 : i32
+      %6 = arith.select %5, %1, %4 : i32
+      affine.store %6, %arg1[%arg3, %arg4] : memref<?x60xi32>
+    }
+  }
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg3 = 0 to %0 {
+  affine.for %arg4 = 0 to %0 {
+    %1 = affine.load %arg1[%arg3, %arg4] : memref<?x60xi32>
+    %2 = affine.load %arg1[%arg3, %arg2] : memref<?x60xi32>
+    %3 = affine.load %arg1[%arg2, %arg4] : memref<?x60xi32>
+    %4 = arith.addi %2, %3 : i32
+    %5 = arith.cmpi slt, %1, %4 : i32
+    %6 = arith.select %5, %1, %4 : i32
+    affine.store %6, %arg1[%arg3, %arg4] : memref<?x60xi32>
+  }
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg4 = 0 to %0 {
+  %1 = affine.load %arg1[%arg3, %arg4] : memref<?x60xi32>
+  %2 = affine.load %arg1[%arg3, %arg2] : memref<?x60xi32>
+  %3 = affine.load %arg1[%arg2, %arg4] : memref<?x60xi32>
+  %4 = arith.addi %2, %3 : i32
+  %5 = arith.cmpi slt, %1, %4 : i32
+  %6 = arith.select %5, %1, %4 : i32
+  affine.store %6, %arg1[%arg3, %arg4] : memref<?x60xi32>
+}
+
+Pattern recognition complete:
+  Loads: 3
+  Stores: 1
+  LinalgGenerics: 0
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+
+--- Processing Loads ---
+Processing load: %4 = affine.load %arg1[%arg3, %arg4] : memref<?x60xi32>
+Processing load: %5 = affine.load %arg1[%arg3, %arg2] : memref<?x60xi32>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d0, d1)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0, s1] -> (s0, s1)
+  validDims: 0, validSims: 2
+  Created SubmapOp with type: memref<?xi32>
+=== remap_in_affine_dim END ===
+
+Processing load: %7 = affine.load %arg1[%arg2, %arg4] : memref<?x60xi32>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d0, d1)
+  firstNDims: 0
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0] -> (s0, d0)
+  validDims: 1, validSims: 1
+  Created SubmapOp with type: memref<?xi32>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Stores ---
+Processing store: affine.store %11, %arg1[%arg3, %arg4] : memref<?x60xi32>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d0, d1)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0)[s0] -> (s0, d0)
+  validDims: 1, validSims: 1
+  Created SubmapOp with type: memref<?xi32>
+=== remap_in_affine_dim END ===
+
+
+--- Creating linalg.generic ---
+Iterator type for this loop: parallel
+Total iterator types: 1
+Total inputs: 2
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg2 = 0 to %0 {
+  affine.for %arg3 = 0 to %0 {
+    %1 = affine.apply affine_map<()[s0] -> (s0)>()[%0]
+    %2 = polygeist.submap(%arg1, %arg3, %arg2, %1) {map = affine_map<(d0)[s0, s1] -> (s0, s1)>} : (memref<?x60xi32>, index, index, index) -> memref<?xi32>
+    %3 = polygeist.submap(%arg1, %arg2, %1) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x60xi32>, index, index) -> memref<?xi32>
+    %4 = polygeist.submap(%arg1, %arg3, %1) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x60xi32>, index, index) -> memref<?xi32>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%2, %3 : memref<?xi32>, memref<?xi32>) outs(%4 : memref<?xi32>) {
+    ^bb0(%in: i32, %in_0: i32, %out: i32):
+      %5 = arith.addi %in, %in_0 : i32
+      %6 = arith.cmpi slt, %out, %5 : i32
+      %7 = arith.select %6, %out, %5 : i32
+      linalg.yield %7 : i32
+    }
+  }
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg3 = 0 to %0 {
+  %1 = affine.apply affine_map<()[s0] -> (s0)>()[%0]
+  %2 = polygeist.submap(%arg1, %arg3, %arg2, %1) {map = affine_map<(d0)[s0, s1] -> (s0, s1)>} : (memref<?x60xi32>, index, index, index) -> memref<?xi32>
+  %3 = polygeist.submap(%arg1, %arg2, %1) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x60xi32>, index, index) -> memref<?xi32>
+  %4 = polygeist.submap(%arg1, %arg3, %1) {map = affine_map<(d0)[s0] -> (s0, d0)>} : (memref<?x60xi32>, index, index) -> memref<?xi32>
+  linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%2, %3 : memref<?xi32>, memref<?xi32>) outs(%4 : memref<?xi32>) {
+  ^bb0(%in: i32, %in_0: i32, %out: i32):
+    %5 = arith.addi %in, %in_0 : i32
+    %6 = arith.cmpi slt, %out, %5 : i32
+    %7 = arith.select %6, %out, %5 : i32
+    linalg.yield %7 : i32
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 0
+  LinalgGenerics: 1
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%5, %6 : memref<?xi32>, memref<?xi32>) outs(%7 : memref<?xi32>) {
+^bb0(%in: i32, %in_0: i32, %out: i32):
+  %8 = arith.addi %in, %in_0 : i32
+  %9 = arith.cmpi slt, %out, %8 : i32
+  %10 = arith.select %9, %out, %8 : i32
+  linalg.yield %10 : i32
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0, s1] -> (s0, s1)
+  Composed map: (d0)[s0, s1] -> (s0, s1)
+  Final lgMap: (d0)[s0, s1] -> (s0, s1)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0, s1] -> (s0, s1)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1)[s0] -> (d1, s0)
+  validDims: 2, validSims: 1
+  Created SubmapOp with type: memref<?x?xi32>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0) -> (d0)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 0
+  new map (map2): (d0, d1)[s0] -> (s0, d0)
+  validDims: 1, validSims: 1
+  Created SubmapOp with type: memref<?x?xi32>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0) -> (d0)
+  Found SubmapOp with map: (d0)[s0] -> (s0, d0)
+  Composed map: (d0)[s0] -> (s0, d0)
+  Final lgMap: (d0)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0)[s0] -> (s0, d0)
+  firstNDims: 1
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 1
+  check_reduction (output): 0
+  new map (map2): (d0, d1) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?xi32>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+
+--- Creating linalg.generic ---
+Iterator type for this loop: parallel
+Extending iterator types from nested linalg.generic
+Total iterator types: 2
+Total inputs: 2
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg2 = 0 to %0 {
+  %1 = affine.apply affine_map<()[s0] -> (s0)>()[%0]
+  %2 = polygeist.submap(%arg1, %arg2, %0, %1) {map = affine_map<(d0, d1)[s0] -> (d1, s0)>} : (memref<?x60xi32>, index, index, index) -> memref<?x?xi32>
+  %3 = polygeist.submap(%arg1, %arg2, %0, %1) {map = affine_map<(d0, d1)[s0] -> (s0, d0)>} : (memref<?x60xi32>, index, index, index) -> memref<?x?xi32>
+  %4 = polygeist.submap(%arg1, %0, %1) {map = affine_map<(d0, d1) -> (d1, d0)>} : (memref<?x60xi32>, index, index) -> memref<?x?xi32>
+  linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%2, %3 : memref<?x?xi32>, memref<?x?xi32>) outs(%4 : memref<?x?xi32>) {
+  ^bb0(%in: i32, %in_0: i32, %out: i32):
+    %5 = affine.apply affine_map<()[s0] -> (s0)>()[%0]
+    %6 = arith.addi %in, %in_0 : i32
+    %7 = arith.cmpi slt, %out, %6 : i32
+    %8 = arith.select %7, %out, %6 : i32
+    linalg.yield %8 : i32
+  }
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 0
+  LinalgGenerics: 1
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+Processing linalg.generic:
+linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%5, %6 : memref<?x?xi32>, memref<?x?xi32>) outs(%7 : memref<?x?xi32>) {
+^bb0(%in: i32, %in_0: i32, %out: i32):
+  %8 = affine.apply affine_map<()[s0] -> (s0)>()[%0]
+  %9 = arith.addi %in, %in_0 : i32
+  %10 = arith.cmpi slt, %out, %9 : i32
+  %11 = arith.select %10, %out, %9 : i32
+  linalg.yield %11 : i32
+}
+  Processing 2 inputs
+  Input 0 indexing map: (d0, d1) -> (d0, d1)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0, d1) -> (d0, d1)
+  Found SubmapOp with map: (d0, d1)[s0] -> (d1, s0)
+  Composed map: (d0, d1)[s0] -> (d1, s0)
+  Final lgMap: (d0, d1)[s0] -> (d1, s0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1)[s0] -> (d1, s0)
+  firstNDims: 2
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 2
+  check_reduction (output): 0
+  new map (map2): (d0, d1, d2) -> (d1, d2)
+  validDims: 3, validSims: 0
+  Created SubmapOp with type: memref<?x?x?xi32>
+=== remap_in_affine_dim END ===
+
+  Input 1 indexing map: (d0, d1) -> (d0, d1)
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0, d1) -> (d0, d1)
+  Found SubmapOp with map: (d0, d1)[s0] -> (s0, d0)
+  Composed map: (d0, d1)[s0] -> (s0, d0)
+  Final lgMap: (d0, d1)[s0] -> (s0, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for input 1
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1)[s0] -> (s0, d0)
+  firstNDims: 2
+  check_reduction (input): 0
+  lower_bound_val: 0
+  dimidx: 2
+  check_reduction (output): 0
+  new map (map2): (d0, d1, d2) -> (d2, d0)
+  validDims: 3, validSims: 0
+  Created SubmapOp with type: memref<?x?x?xi32>
+=== remap_in_affine_dim END ===
+
+  Processing 1 outputs
+
+=== getLinalgArgMap ===
+  Initial lgMap: (d0, d1) -> (d0, d1)
+  Found SubmapOp with map: (d0, d1) -> (d1, d0)
+  Composed map: (d0, d1) -> (d1, d0)
+  Final lgMap: (d0, d1) -> (d1, d0)
+=== getLinalgArgMap END ===
+
+  Calling remap_in_affine_dim for output 0
+
+=== remap_in_affine_dim ===
+  oldmap: (d0, d1) -> (d1, d0)
+  firstNDims: 2
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: -1
+  check_reduction (output): 1
+  new map (map2): (d0, d1, d2) -> (d1, d0)
+  validDims: 2, validSims: 0
+  Created SubmapOp with type: memref<?x?x?xi32>
+=== remap_in_affine_dim END ===
+
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+
+--- Creating linalg.generic ---
+Iterator type for this loop: reduction
+Extending iterator types from nested linalg.generic
+Total iterator types: 3
+Total inputs: 2
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+### Step 3 Complete ###
+
+****************************************
+*** RaiseAffineToLinalg END ***
+****************************************
+
+
+****************************************
+*** RaiseAffineToLinalgPipeline END ***
+****************************************
+

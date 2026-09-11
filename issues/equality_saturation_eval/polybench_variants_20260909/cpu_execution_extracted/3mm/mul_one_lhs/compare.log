@@ -1,0 +1,2 @@
+COMMAND: /usr/bin/python3 /home/arjaiswal/Polygeist/scripts/correctness/compare_polybench_dumps.py issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/native/output.txt issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/mul_one_lhs/output.txt --rtol 5e-4 --atol 1.1e-2
+PASS values=880000 failures=0 max_abs=0 max_rel=0 rtol=0.0005 atol=0.011

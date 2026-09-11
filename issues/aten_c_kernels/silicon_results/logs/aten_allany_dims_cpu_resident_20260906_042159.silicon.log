@@ -1,0 +1,23 @@
+[jetson] uname -a: Linux pva-compiler-orin-1.nvidia.com 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running /tmp/polygeist_jetson_runs/aten_allany_dims_cpu_resident_20260906_042159/aten_allany_dims_cpu run 1 ...
+RESULT kernel=aten_allany_dims_cpu warm_us=16174.080000 resident_us=7193.184002 errors=0 max_error=0 shape=R=131072_C=64 coverage=full_dynamic_CUB_segmented_all-or-any_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_allany_dims_cpu_resident_20260906_042159/aten_allany_dims_cpu run 2 ...
+[jetson] elapsed_s 0.660
+RESULT kernel=aten_allany_dims_cpu warm_us=16238.579200 resident_us=7175.136002 errors=0 max_error=0 shape=R=131072_C=64 coverage=full_dynamic_CUB_segmented_all-or-any_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_allany_dims_cpu_resident_20260906_042159/aten_allany_dims_cpu run 3 ...
+[jetson] elapsed_s 0.667
+RESULT kernel=aten_allany_dims_cpu warm_us=15929.894399 resident_us=7182.464001 errors=0 max_error=0 shape=R=131072_C=64 coverage=full_dynamic_CUB_segmented_all-or-any_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_allany_dims_cpu_resident_20260906_042159/aten_allany_dims_cpu run 4 ...
+[jetson] elapsed_s 0.662
+RESULT kernel=aten_allany_dims_cpu warm_us=16462.671999 resident_us=7198.976002 errors=0 max_error=0 shape=R=131072_C=64 coverage=full_dynamic_CUB_segmented_all-or-any_reduction
+[jetson] running /tmp/polygeist_jetson_runs/aten_allany_dims_cpu_resident_20260906_042159/aten_allany_dims_cpu run 5 ...
+[jetson] elapsed_s 0.669
+RESULT kernel=aten_allany_dims_cpu warm_us=16139.276800 resident_us=7176.767998 errors=0 max_error=0 shape=R=131072_C=64 coverage=full_dynamic_CUB_segmented_all-or-any_reduction
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.662

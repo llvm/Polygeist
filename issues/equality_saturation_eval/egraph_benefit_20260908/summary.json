@@ -1,0 +1,176 @@
+{
+  "by_suite": [
+    {
+      "common_success_inputs": 1,
+      "egglog_matched_bodies": 2,
+      "egglog_only_match_identities": 1,
+      "egglog_selected_matches": 1,
+      "inputs": 1,
+      "suite": "aten",
+      "syntactic_matched_bodies": 1,
+      "syntactic_only_match_identities": 1,
+      "syntactic_selected_matches": 1
+    },
+    {
+      "common_success_inputs": 3,
+      "egglog_matched_bodies": 10,
+      "egglog_only_match_identities": 4,
+      "egglog_selected_matches": 8,
+      "inputs": 3,
+      "suite": "polybench",
+      "syntactic_matched_bodies": 6,
+      "syntactic_only_match_identities": 1,
+      "syntactic_selected_matches": 5
+    }
+  ],
+  "completed_proofs_over_10s": 0,
+  "egglog_only_examples": [
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "input_id": "aten_addmm",
+      "suite": "aten",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "2mm",
+      "suite": "polybench",
+      "symbol": "cublasDgemm_alpha_only"
+    },
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "input_id": "gemm",
+      "suite": "polybench",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "gemver",
+      "suite": "polybench",
+      "symbol": "cublasDgemv_alpha"
+    },
+    {
+      "body_indices": [
+        3
+      ],
+      "input_id": "gemver",
+      "suite": "polybench",
+      "symbol": "cublasDgemv_alpha"
+    }
+  ],
+  "failures": [],
+  "manifest_inputs": 4,
+  "nondeterministic_match_sets": [],
+  "paired_deltas": {
+    "matcher_elapsed_ms": {
+      "median": 247.3539188504219,
+      "pairs": 4,
+      "q1": 89.62173853069544,
+      "q3": 415.3198944404721
+    },
+    "peak_rss_kib": {
+      "median": 4150.0,
+      "pairs": 4,
+      "q1": 4041.0,
+      "q3": 5565.0
+    },
+    "process_wall_ms": {
+      "median": 409.23174284398556,
+      "pairs": 4,
+      "q1": 224.1814946755767,
+      "q3": 553.6382962018251
+    }
+  },
+  "parameters": {
+    "binding_proposal_limit": 8,
+    "candidate_time_limit_s": 10,
+    "candidate_timeout_enforcement": "post-run classification; each fresh input process also has an outer watchdog",
+    "collect_egraph_sizes": true,
+    "cpu_affinity": 0,
+    "distributivity": false,
+    "egglog_iteration_limit": 8,
+    "egglog_version": "11.4.0",
+    "explicit_egraph_size_limit": null,
+    "explicit_memory_limit": null,
+    "handwritten_semantic_fallback": false,
+    "input_ast_node_ceiling": 32,
+    "modes": [
+      "egglog",
+      "syntactic"
+    ],
+    "outer_input_watchdog_s": 120.0,
+    "parallel_jobs": 1,
+    "python": "/usr/bin/python3",
+    "repetitions_per_mode": 1
+  },
+  "run_rows": 8,
+  "successful_rows": 8,
+  "timing": {
+    "egglog_matcher_elapsed_ms": {
+      "max": 907.7550880610943,
+      "median": 649.5601013302803,
+      "min": 401.58042311668396,
+      "q1": 471.242168918252,
+      "q3": 830.431860871613
+    },
+    "egglog_peak_rss_kib": {
+      "max": 75592.0,
+      "median": 70038.0,
+      "min": 69776.0,
+      "q1": 69839.0,
+      "q3": 71560.0
+    },
+    "egglog_process_wall_ms": {
+      "max": 1571.1255185306072,
+      "median": 1363.4865544736385,
+      "min": 939.5212344825268,
+      "q1": 1215.3772450983524,
+      "q3": 1457.5142748653889
+    },
+    "egglog_proof_elapsed_ms": {
+      "max": 257.5451172888279,
+      "median": 102.58977860212326,
+      "min": 52.76237800717354,
+      "q1": 87.19028532505035,
+      "q3": 144.2712564021349
+    },
+    "syntactic_matcher_elapsed_ms": {
+      "max": 431.5287061035633,
+      "median": 390.3572019189596,
+      "min": 365.8617474138737,
+      "q1": 371.12818099558353,
+      "q3": 413.75523526221514
+    },
+    "syntactic_peak_rss_kib": {
+      "max": 66100.0,
+      "median": 65888.0,
+      "min": 65744.0,
+      "q1": 65798.0,
+      "q3": 65995.0
+    },
+    "syntactic_process_wall_ms": {
+      "max": 1097.107294946909,
+      "median": 927.37902328372,
+      "min": 811.402328312397,
+      "q1": 836.1154031008482,
+      "q3": 1032.0805376395583
+    },
+    "syntactic_proof_elapsed_ms": {
+      "max": 0.27682259678840637,
+      "median": 0.1848749816417694,
+      "min": 0.1585148274898529,
+      "q1": 0.1779664307832718,
+      "q3": 0.20818039774894714
+    }
+  }
+}

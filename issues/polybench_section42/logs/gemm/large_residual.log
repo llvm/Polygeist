@@ -1,0 +1,2 @@
+gemm_debuf: PASS
+wall_seconds=6.59 maxrss_kb=102748

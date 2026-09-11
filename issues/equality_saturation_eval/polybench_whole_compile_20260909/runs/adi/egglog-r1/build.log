@@ -1,0 +1,15 @@
+[polygeist] input=/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/stencils/adi/adi.c  function=kernel_adi  target=jetson  output=/home/arjaiswal/Polygeist-polybench-compile-study/issues/equality_saturation_eval/polybench_whole_compile_20260909/runs/adi/egglog-r1/adi.aarch64
+[polygeist] harness=/home/arjaiswal/Polygeist-polybench-compile-study/issues/equality_saturation_eval/polybench_whole_compile_20260909/runs/adi/egglog-r1/link_harness.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-polybench-compile-study/tools/cgeist/Test/polybench/stencils/adi -Dstatic=__attribute__((noipa)) -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + lower-submap + debufferize
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 2 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+ERROR: ABI lowering failed; see /tmp/tmp.R7RsDt5lt0/abi.err
+/tmp/tmp.R7RsDt5lt0/with_defns_composed.mlir:1350:28: error: expected 1 offset values, got 2
+      %extracted_slice_7 = tensor.extract_slice %inserted_slice_3[1, 0] [%46, %28] [1, 1] : tensor<?x?xf64> to tensor<?x?xf64>
+                           ^
+/tmp/tmp.R7RsDt5lt0/with_defns_composed.mlir:1350:28: note: see current operation: %180 = "tensor.extract_slice"(%172, %179, %32) <{operandSegmentSizes = array<i32: 1, 0, 2, 0>, static_offsets = array<i64: 1, 0>, static_sizes = array<i64: -9223372036854775808, -9223372036854775808>, static_strides = array<i64: 1, 1>}> : (tensor<?xf64>, index, index) -> tensor<?x?xf64>

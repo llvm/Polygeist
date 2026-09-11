@@ -1,0 +1,33 @@
+PolyBenchGPU source audit
+repository: /home/arjaiswal/Polygeist/third_party/polybenchGpu
+commit: 5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c
+audited source family: CUDA/*.cu
+
+The available CUDA suite is not an equivalent baseline for this protocol.
+Its sources are independent PolyBenchGPU programs, generally select float via
+DATA_TYPE, define their own fixed dimensions, initialization, comparison
+thresholds, and CUDA timing scopes.  The canonical evaluation uses the exact
+PolyBench/C sources listed in manifest.csv, LARGE_DATASET, FP64, and their
+checked-in initialization.  Running the unmodified programs would therefore
+violate the identical-source/dimensions/datatype/input rule.  Porting the CUDA
+kernels into canonical harnesses would be a modified-source experiment, but no
+such port was made or timed because the Jetson CUDA device became unavailable.
+
+Commands used for this audit:
+  git -C /home/arjaiswal/Polygeist/third_party/polybenchGpu rev-parse HEAD
+  rg --files /home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA
+  rg -n 'DATA_TYPE|#define (NI|NJ|NK|NL|N|M)' /home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA
+
+Result for every manifest row: unavailable (no equivalent unmodified source).
+Result for a potentially modified canonical port: blocked by unavailable CUDA
+device before implementation; no value is present in performance_gpu.csv.
+
+2026-09-05 recovery addendum
+---------------------------
+The device recovered. Canonical modified-source adapters were subsequently
+created for GEMM, 2MM, 3MM, GESUMMV, and GEMVER. They retain the computational
+CUDA kernels from commit 5584aaa7 while using the PolyBench/C LARGE/FP64
+harness, initialization, dimensions, and outputs. All five pass correctness
+and now have device-only and end-to-end medians in performance_gpu.csv. The
+original unmodified-source rejection above remains valid for every raw suite
+binary and for the other 25 manifest rows.

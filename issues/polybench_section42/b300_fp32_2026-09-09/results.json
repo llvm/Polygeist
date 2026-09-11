@@ -1,0 +1,897 @@
+[
+  {
+    "kernel": "2mm",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c",
+    "source_sha256": "3ead555767a84951ca6f7b2cb5dbab2f67c1dc7259ebf781447a0ab37cd63a3c",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "83c9e20a6d4d5d5a9ab68120e13cbdc47e6104c8ff0aaef45dab6eaa35728d35",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "12ef07c093b69a5d24f7ed7e7a670322e9845b35366ee2e12c4988eed72aea86",
+    "correctness_build_returncode": 0,
+    "match_count": 3,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/2mm/timing/matched.mlir",
+    "matched_mlir_sha256": "756cae647aa7fa84ec06efa47523318a91a9f3c0b4aea260b4b6bef93a8aa238",
+    "matched_calls": [
+      "cublasSgemm_nn_alpha",
+      "cublasSgemm_nn_alpha_beta",
+      "memset_zero_2D_f32"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=960000 failures=0 max_abs=0.41 max_rel=3.2876352e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "5f27f5d1712e0621670387acf7ade2cb48a5b75e962138a20a28eb5a6172d465",
+    "correctness_executable_sha256": "4a35081fa231e919a2110511b978429d7df96284fb111b50580180af8ee0ea62",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 10.072640002,
+      "median": 10.077151,
+      "max": 10.08740899,
+      "iqr": 0.004334031999999155,
+      "raw": [
+        10.08740899,
+        10.077695012,
+        10.077151,
+        10.07336098,
+        10.072640002
+      ]
+    },
+    "device_ms": {
+      "min": 10.054304,
+      "median": 10.05888,
+      "max": 10.069216,
+      "iqr": 0.004416000000000864,
+      "raw": [
+        10.069216,
+        10.059744,
+        10.05888,
+        10.055328,
+        10.054304
+      ]
+    }
+  },
+  {
+    "kernel": "3mm",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c",
+    "source_sha256": "5525bcbb6669580d7973c347920ee6962055bedb8d64527502041aa61787ec83",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "304fcfdbc9e5adbd17eb4a4b36da3b2debbdeb85f09157a0d3195edaeb1c706b",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "cffb1cc6cef05b5bad10073dcba2b75ed0d9d5f56319bc0b029292c2470a9fb5",
+    "correctness_build_returncode": 0,
+    "match_count": 3,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/3mm/timing/matched.mlir",
+    "matched_mlir_sha256": "8ee3b60792725e6a58819da96824a0c1be4491856d03b11234753093a494f37e",
+    "matched_calls": [
+      "cublasSgemm_nn"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=880000 failures=0 max_abs=0.06 max_rel=3.80792811e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "48e38753befcad8dae845d4f856371ea1b49389c8b10d33f1010f757fa07b1c1",
+    "correctness_executable_sha256": "ff2db57064fb33277de8770c324d9b6b80955e362bd9f1cdaa2f472c08680d32",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 12.735794008,
+      "median": 12.739046991,
+      "max": 12.747396022,
+      "iqr": 0.005469977000000625,
+      "raw": [
+        12.739046991,
+        12.738641024,
+        12.735794008,
+        12.744111001,
+        12.747396022
+      ]
+    },
+    "device_ms": {
+      "min": 12.71728,
+      "median": 12.720608,
+      "max": 12.72896,
+      "iqr": 0.004991999999999663,
+      "raw": [
+        12.720416,
+        12.720608,
+        12.71728,
+        12.725408,
+        12.72896
+      ]
+    }
+  },
+  {
+    "kernel": "atax",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/atax/atax.c",
+    "source_sha256": "f31f15b65b19e7d779c21ea9ad5c017fbb51278a333d9b541b5fa34705525e9b",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "91ae018d7dbae0b656f443790238982ea84dabde19e7df7dc691436ebc74fe39",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "cb145fc4072609ff93e81e7461eed6ab7acc78c5a3c7d437ed3d1baf4014509c",
+    "correctness_build_returncode": 0,
+    "match_count": 3,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-preserved2/atax/timing/matched.mlir",
+    "matched_mlir_sha256": "df5a44e671b72755b8e26d0d5d943d896579e31b406a474bfff7b89b9bf1b0c6",
+    "matched_calls": [
+      "cublasSgemv_broadcast2d_zero",
+      "memset_zero_1D_f32"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=2100 failures=0 max_abs=0.19 max_rel=2.53728744e-06 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "34c336218220b301090f6fd4d866c1da42e0c561951130b66369e71dc1d4ce76",
+    "correctness_executable_sha256": "dde2803e8615a1c9ea8a60e1d90e4ebb33e1581695afe9adfc1a4ec2d82545c6",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 1.356378,
+      "median": 1.362921,
+      "max": 1.368263,
+      "iqr": 0.004348999999999936,
+      "raw": [
+        1.368263,
+        1.362921,
+        1.364973,
+        1.360624,
+        1.356378
+      ]
+    },
+    "device_ms": {
+      "min": 1.345504,
+      "median": 1.352096,
+      "max": 1.357568,
+      "iqr": 0.0036800000000001276,
+      "raw": [
+        1.357568,
+        1.352096,
+        1.353312,
+        1.349632,
+        1.345504
+      ]
+    }
+  },
+  {
+    "kernel": "bicg",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/bicg/bicg.c",
+    "source_sha256": "6aaa2ce6e5eac66feaedbf79f2b6d08c8d7ae92b998a71eed96969a0f75fd611",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "54fc85d1312cac984adb6be029ea80f55bb7cccd3b3a63f774f56f57d46c8bcd",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "10768414e26551c370e85fbba50ab152226c5c4683799f240ec020b1d96e201f",
+    "correctness_build_returncode": 0,
+    "match_count": 3,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-preserved2/bicg/timing/matched.mlir",
+    "matched_mlir_sha256": "f8a01e0ae2f1b30124feb58412a77b91f255c021f73fa21cee3356a557efb5aa",
+    "matched_calls": [
+      "cublasSgemv_broadcast2d_zero",
+      "memset_zero_1D_f32"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=4000 failures=0 max_abs=0.01 max_rel=2.16708202e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "9d083038a0c862517b3f475af0ba75c49a36a8406dd90da65411bf1ac0c5fe31",
+    "correctness_executable_sha256": "3e1426f914b12e7286a054e919bde89ca1bc079329ed6bd9ee087691ec429875",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 1.556808,
+      "median": 1.570174,
+      "max": 1.584366,
+      "iqr": 0.019482,
+      "raw": [
+        1.584366,
+        1.559919,
+        1.579401,
+        1.570174,
+        1.556808
+      ]
+    },
+    "device_ms": {
+      "min": 1.546624,
+      "median": 1.559168,
+      "max": 1.5712,
+      "iqr": 0.01910400000000001,
+      "raw": [
+        1.5712,
+        1.549312,
+        1.568416,
+        1.559168,
+        1.546624
+      ]
+    }
+  },
+  {
+    "kernel": "covariance",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/datamining/covariance/covariance.c",
+    "source_sha256": "cb87cdbc44548b7108e1e31830e8ec454f57672bfb711eb4f9bf1fdbe914dc60",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "ca29d92865155e14e9458f9e14b719f8c5590dacf3fb34d8249054f3ba17f43d",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "9a3b566397d29240596358b5d968a1aa4fd6c4a7eb28ab01fd7ff54f02d0f796",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-preserved/covariance/timing/matched.mlir",
+    "matched_mlir_sha256": "cbd30b81103511a56631521b186a3898bd59f290fcd52eb81d6d8f806d95bb2c",
+    "matched_calls": [
+      "cublasScovarianceRowMajor_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1440000 failures=0 max_abs=1.12 max_rel=0.000203956761 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "1f6342a5dfb0da1158c0cc9d009c567e8e4e6186c9af3a1ae74fa632178723d7",
+    "correctness_executable_sha256": "ee362315902e3bd7c261e858b5cd75d09abada7e01ab1181fb62187a764bcab0",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 1529.142307013,
+      "median": 1537.715792984,
+      "max": 1553.359609991,
+      "iqr": 20.787393004000023,
+      "raw": [
+        1529.429008007,
+        1550.216401011,
+        1553.359609991,
+        1529.142307013,
+        1537.715792984
+      ]
+    },
+    "device_ms": {
+      "min": 1529.113159,
+      "median": 1537.429565,
+      "max": 1553.323975,
+      "iqr": 13.46557699999994,
+      "raw": [
+        1529.403564,
+        1542.869141,
+        1553.323975,
+        1529.113159,
+        1537.429565
+      ]
+    }
+  },
+  {
+    "kernel": "doitgen",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/doitgen/doitgen.c",
+    "source_sha256": "1bec9dd1f67ac9f4ec68235d93eb9e5c91c74745a83f9cae665a5ff905cd3efb",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "0f0977d9ac96a1268437eefc57680156df50c6fbc29c45cc2f5b12366e07b639",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "bc9e5d2eeb8a5f6ec5ffb8316d48cdb66c18840e565ea440d3be3ad2079ea018",
+    "correctness_build_returncode": 0,
+    "match_count": 2,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-doitgen-offset/doitgen/timing/matched.mlir",
+    "matched_mlir_sha256": "7f97d748ac90b7452b2b5f21468b84a9d4c8d303949bfd8fd04665000ee14042",
+    "matched_calls": [
+      "cublasSgemvTZero_memref",
+      "cudaCopy1D_f32_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=3360000 failures=0 max_abs=0.01 max_rel=0.000337609723 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "21a52d815499f4ca836bd58e921e8efa9abc89988082f8b201667c54b7a3e347",
+    "correctness_executable_sha256": "33eed60f438fee72a535d6f445892d6159431828910b68be680f073f88e0ce19",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 942.133244008,
+      "median": 943.124808013,
+      "max": 952.426907003,
+      "iqr": 7.888936997000087,
+      "raw": [
+        942.914256006,
+        952.426907003,
+        942.133244008,
+        950.803193003,
+        943.124808013
+      ]
+    },
+    "device_ms": {
+      "min": 942.107544,
+      "median": 943.102905,
+      "max": 952.401794,
+      "iqr": 7.892822000000024,
+      "raw": [
+        942.888733,
+        952.401794,
+        942.107544,
+        950.781555,
+        943.102905
+      ]
+    }
+  },
+  {
+    "kernel": "gemm",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c",
+    "source_sha256": "1a3b5a3190c8267deb3ef8b821359309596dcf7321ec9943e82ba64db4a8c75f",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "b0651d94d1b19d45a69785b25079308740f5368298fbb44d154aae7f0395e66d",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "f328c7f754af0c00811cc2bed807d6667c05ecbc84acb2ee580a035488d47298",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/gemm/timing/matched.mlir",
+    "matched_mlir_sha256": "c5aebb1122b0b9e6e88671e2bb5a475b9916ea21078621b20c6a1862b10bee41",
+    "matched_calls": [
+      "cublasSgemm_nn_alpha_beta"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1100000 failures=0 max_abs=0.01 max_rel=4.45434298e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "68975fbbe9c07d8b263b303edcaa154d7b6d20972c7811997634e3df3b364ac1",
+    "correctness_executable_sha256": "a98bbd8e49fc0231c590379e8b677ee59f2514cf30832e33808edc037028d6c9",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 4.484483004,
+      "median": 4.496163994,
+      "max": 4.500981987,
+      "iqr": 0.008210004000000382,
+      "raw": [
+        4.500981987,
+        4.484483004,
+        4.496163994,
+        4.488175988,
+        4.496385992
+      ]
+    },
+    "device_ms": {
+      "min": 4.466688,
+      "median": 4.477952,
+      "max": 4.482912,
+      "iqr": 0.008671999999999791,
+      "raw": [
+        4.482912,
+        4.466688,
+        4.478432,
+        4.46976,
+        4.477952
+      ]
+    }
+  },
+  {
+    "kernel": "gemver",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/gemver/gemver.c",
+    "source_sha256": "e7e367cdd0bf698f4c706d93d16fa1c0c5568cd1e7e64aaee5698f133cbfb11a",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "0db58b55e241a9c6f4363968feb5a096575959cf5275c3eb39a4aac846f55f1a",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "e7e558627fa10fb9bf878f8e023f8977c07ab824a4d752f2d445e65ee3d01e80",
+    "correctness_build_returncode": 0,
+    "match_count": 4,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/gemver/timing/matched.mlir",
+    "matched_mlir_sha256": "519c54b942ca1c917d00986ae051518b9be5aae5631820a695583a7e5499ca4c",
+    "matched_calls": [
+      "cublasSaxpby_memref",
+      "cublasSgemv_alpha_T_memref",
+      "cublasSgemv_alpha_memref",
+      "cublasSger_rank2_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=2000 failures=0 max_abs=28672 max_rel=1.84897252e-06 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "66e06697ab6c95c142e8214b428a946874b0f6d44249ba9f2ae3745202c051f4",
+    "correctness_executable_sha256": "981ae63b8169c30f4ee82dc8452afb22f22fdbe594bc82b0ea21c8db21aa45c6",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 3.304111004,
+      "median": 3.320742995,
+      "max": 3.328691989,
+      "iqr": 0.0151090319999998,
+      "raw": [
+        3.321985006,
+        3.306875974,
+        3.304111004,
+        3.320742995,
+        3.328691989
+      ]
+    },
+    "device_ms": {
+      "min": 3.288288,
+      "median": 3.301632,
+      "max": 3.312672,
+      "iqr": 0.015039999999999942,
+      "raw": [
+        3.303424,
+        3.288384,
+        3.288288,
+        3.301632,
+        3.312672
+      ]
+    }
+  },
+  {
+    "kernel": "gesummv",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/gesummv/gesummv.c",
+    "source_sha256": "46493c405f7d8382ebc08d11bb44747b2c7cb7d89139973d19e4e7605d90b7e2",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "c67a6742d0fe3f40f0fd77a5e8a2909cf138e7e75d0afb6081a7c0a1cb2c5b62",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "c52c43b8941fc07d7b4223aba1015010189ebee7ef88b80ec7474350aaf08394",
+    "correctness_build_returncode": 0,
+    "match_count": 4,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-preserved2/gesummv/timing/matched.mlir",
+    "matched_mlir_sha256": "a83c121ad87f05c316aa4ba5ab00153bffcfdccff8fc3dcd80cdc3a6c05848c6",
+    "matched_calls": [
+      "cublasSaxpby",
+      "cublasSgemv_broadcast2d_zero",
+      "memset_zero_1D_f32"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1300 failures=0 max_abs=0.01 max_rel=1.15380178e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "43fd6822ae5d0dcf2a59bf519f7132004534aeca150b33c76e9238fbeb5fac8b",
+    "correctness_executable_sha256": "89b0a9c75be6ad15f0f7e3d9eba181a64a930da23a7eb8b84ab96b6ba3ade217",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 0.922452,
+      "median": 0.951038,
+      "max": 0.960183,
+      "iqr": 0.01833600000000002,
+      "raw": [
+        0.960183,
+        0.938146,
+        0.951038,
+        0.956482,
+        0.922452
+      ]
+    },
+    "device_ms": {
+      "min": 0.910944,
+      "median": 0.939904,
+      "max": 0.94928,
+      "iqr": 0.018112000000000017,
+      "raw": [
+        0.94928,
+        0.92784,
+        0.939904,
+        0.945952,
+        0.910944
+      ]
+    }
+  },
+  {
+    "kernel": "mvt",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/mvt/mvt.c",
+    "source_sha256": "ee5d97f3e6acfcd655a3caa25bf58e382a38c4e5a259c743e373358407607a0e",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "c4813f37ce8bc1105d7b98046d49143f1813b610d8c3628872fd1343f76b67c7",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "caf570f1f56253b17d4247d043e9e9b4ac8232b191c0ece6de2141513012e448",
+    "correctness_build_returncode": 0,
+    "match_count": 2,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-preserved2/mvt/timing/matched.mlir",
+    "matched_mlir_sha256": "63874d69acf41e1c65e7679fb0cf15cd73f753b01378855f10fd80cd384abd47",
+    "matched_calls": [
+      "cublasSgemv_broadcast2d"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=4000 failures=0 max_abs=0.01 max_rel=2.1360675e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "c79a17a5527c7bccda5fc891d6684f881f922aa1f1257f281dfbed76bc0af7fe",
+    "correctness_executable_sha256": "a7c6f1f382fe9495b71d38baf36cb3c2211762da3f752139c93bfeb04dde960c",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 1.30963999,
+      "median": 1.320586979,
+      "max": 1.333153993,
+      "iqr": 0.008010983999999999,
+      "raw": [
+        1.30963999,
+        1.333153993,
+        1.315620005,
+        1.323630989,
+        1.320586979
+      ]
+    },
+    "device_ms": {
+      "min": 1.284192,
+      "median": 1.301472,
+      "max": 1.31152,
+      "iqr": 0.009439999999999893,
+      "raw": [
+        1.284192,
+        1.31152,
+        1.294016,
+        1.303456,
+        1.301472
+      ]
+    }
+  },
+  {
+    "kernel": "symm",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/symm/symm.c",
+    "source_sha256": "f76b5f905d3d97d01aebf4ff63a4dcee3ddf34df6d49d9d9e054678a8f058cf3",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "d6832d99b045a61d9a17bd325620d352aff24ce2a5e514bca24f49cfd8f124fd",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "1d4b4aca05d575c9327c654214caedb543065da21844cfd1acc3dd52d4956986",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/symm/timing/matched.mlir",
+    "matched_mlir_sha256": "bd5d824abd3e63e0cc1a5fd2863c9e562af9cb4d858cf220e52a080bb5c94aff",
+    "matched_calls": [
+      "cublasSsymmLeftLowerRowMajor_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1200000 failures=0 max_abs=0.01 max_rel=0.00318471338 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "96aaf2c80d80d59249fbf070a4a0acdca09312f1df6f41e9b6536cef2b821043",
+    "correctness_executable_sha256": "5c91e891c8501429536b25aaf44ea1a64882e49eb7b741a4e4607885864f7516",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 222.610114008,
+      "median": 223.021620989,
+      "max": 223.680442005,
+      "iqr": 0.4354589879999935,
+      "raw": [
+        223.279626995,
+        223.021620989,
+        222.610114008,
+        222.844168007,
+        223.680442005
+      ]
+    },
+    "device_ms": {
+      "min": 222.593338,
+      "median": 223.005508,
+      "max": 223.663269,
+      "iqr": 0.4341890000000035,
+      "raw": [
+        223.260742,
+        223.005508,
+        222.593338,
+        222.826553,
+        223.663269
+      ]
+    }
+  },
+  {
+    "kernel": "syr2k",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/syr2k/syr2k.c",
+    "source_sha256": "ec6c0f2cafc8000445be94b28e182e1671097e4105a92e2396155408d0cdcee1",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "1c00fcdb2b45d4f605c32edf33baee559392a7a3f27c896d8da6b103dc9e401f",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "a14963542d025b6b14f3e893b80b8a23be9e174770d9518ae1fdf9e40c2d136f",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/syr2k/timing/matched.mlir",
+    "matched_mlir_sha256": "3b43a990ebf6f53c82acea26cc337cd6e8ebc3e9cafb46c65e4fd49992705c7b",
+    "matched_calls": [
+      "cublasSsyr2k"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1440000 failures=0 max_abs=0.01 max_rel=3.29066439e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "012537b3d871ef1507bd501066d2b9f6a49582867bb24b2d9565382ed6ca73e0",
+    "correctness_executable_sha256": "18f05d0e36c052c29b44d964ca359d040b608f8fe50e247bf5a6b5ca5d360109",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 18.916381001,
+      "median": 18.985657007,
+      "max": 21.99000901,
+      "iqr": 0.07482904200000107,
+      "raw": [
+        19.019882023,
+        18.916381001,
+        21.99000901,
+        18.945052981,
+        18.985657007
+      ]
+    },
+    "device_ms": {
+      "min": 18.896128,
+      "median": 18.968,
+      "max": 21.96624,
+      "iqr": 0.07891300000000001,
+      "raw": [
+        19.001856,
+        18.896128,
+        21.96624,
+        18.922943,
+        18.968
+      ]
+    }
+  },
+  {
+    "kernel": "syrk",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/syrk/syrk.c",
+    "source_sha256": "756e0f2b3d78bffdafd5e3bf984f712eb680afa0d5eeb032e0b84d41dad2cf96",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "ab459a149eeaf4dd1438f121550b2fc9148ba5823d539f69d679cae272cd58a9",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "c3ea74a90f70b2a590f14cb2acab23f9ce31a90835cc347c721e326377b0db8c",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/syrk/timing/matched.mlir",
+    "matched_mlir_sha256": "537f959c19b4bd1c111b6d5fedafc4f414e68293ec783b70edc29e6f0b9547e2",
+    "matched_calls": [
+      "cublasSsyrk"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1440000 failures=0 max_abs=0.01 max_rel=5.34302201e-05 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "764ce78deaddddfe091bb86ba6ab49bf936456dd35ee0697c5b5b8542229bda5",
+    "correctness_executable_sha256": "eb470e7f1c13e4366d9cebe3f0d9e46c1890ad74cb9ba2834e48069834176c01",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 14.974075019,
+      "median": 15.034868002,
+      "max": 15.05843702,
+      "iqr": 0.04545798899999909,
+      "raw": [
+        15.05843702,
+        15.034868002,
+        15.039902985,
+        14.994444996,
+        14.974075019
+      ]
+    },
+    "device_ms": {
+      "min": 14.954144,
+      "median": 15.017088,
+      "max": 15.040192,
+      "iqr": 0.04687999999999981,
+      "raw": [
+        15.040192,
+        15.017088,
+        15.021696,
+        14.974816,
+        14.954144
+      ]
+    }
+  },
+  {
+    "kernel": "trisolv",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c",
+    "source_sha256": "b633a2e59fa37cdc02819ac0d070fc152b7aba9f47586cf452530942c0c7a683",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "b776ef0ad5e59b48505f14b1c53bfa6e4204e21be1f262623f154fea12158c09",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "3047da48800019ed662ae2f0ef8e9d0b6177070988ab87e641e55b939fe4d667",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/trisolv/timing/matched.mlir",
+    "matched_mlir_sha256": "dc03a8bb1117a87ba4a742e67c200bb469f566f1ba6565acaf9b24f7535b3b68",
+    "matched_calls": [
+      "cublasStrsvLowerRowMajor_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1999 failures=0 max_abs=0.01 max_rel=0.0555555556 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "a684f7ed071ff01a31518fbf88b057f95fc269b100be355469863efe4d97c27b",
+    "correctness_executable_sha256": "ab8408db69e6aa55de90c0422f033f72071feaed7b63906c7a1888b1af3391fd",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 8.004933,
+      "median": 8.254438013,
+      "max": 9.216398001,
+      "iqr": 1.1781639760000004,
+      "raw": [
+        8.004933,
+        8.254438013,
+        9.204997987,
+        9.216398001,
+        8.026834011
+      ]
+    },
+    "device_ms": {
+      "min": 7.988896,
+      "median": 8.236768,
+      "max": 9.19984,
+      "iqr": 1.177536,
+      "raw": [
+        7.988896,
+        8.236768,
+        9.18928,
+        9.19984,
+        8.011744
+      ]
+    }
+  },
+  {
+    "kernel": "trmm",
+    "dtype": "fp32",
+    "dataset": "LARGE",
+    "source": "tools/cgeist/Test/polybench/linear-algebra/blas/trmm/trmm.c",
+    "source_sha256": "8fffe7daaa8911e0d9ad200cd17f6950c8ee9b3c01a65c4ae56688f909184576",
+    "scope": "focused raised function; harness-owned host inputs; includes runtime staging",
+    "protocol": "correctness executable plus timing executable; 5 same-process warmups + 5 synchronized measurements",
+    "physical_gpu": 2,
+    "gpu_arch": "sm_103",
+    "harness_sha256": "70b7b9fb35aeb3540302d52d760fa9ac3d6370b8cf5966e3b199cfa6409e928e",
+    "reference_build_returncode": 0,
+    "reference_returncode": 0,
+    "reference_sha256": "78e5940a4105620a1ca75499ac3135f66c3270b84011bdde65a2452da5d69e4b",
+    "correctness_build_returncode": 0,
+    "match_count": 1,
+    "matched_mlir": "/mnt/forge1/arpitj/work/polygeist-polybench-large-fp32-normalized/trmm/timing/matched.mlir",
+    "matched_mlir_sha256": "b8d860e828d751e8d842599d08844f17e1b8f61d26876b950eead557fcf31787",
+    "matched_calls": [
+      "cublasStrmmLeftLowerTransUnitRowMajor_memref"
+    ],
+    "correctness_returncode": 0,
+    "compare_returncode": 0,
+    "compare_summary": "PASS values=1200000 failures=0 max_abs=0.01 max_rel=0.00234741784 rtol=0.0005 atol=0.011",
+    "correctness": "pass",
+    "timing_build_returncode": 0,
+    "timing_executable_sha256": "63df9f4e2290310bd140abed296b9f455e041419da807cad47fe9dc6dd1ab614",
+    "correctness_executable_sha256": "c2be8819b5e4adb3c5099ebdd0ddd94aa26cc16ae7dcb67307682a0acf3cd909",
+    "status": "pass",
+    "run_returncode": 0,
+    "timing_values_seen": 10,
+    "device_values_seen": 10,
+    "e2e_ms": {
+      "min": 377.488142997,
+      "median": 379.225810021,
+      "max": 385.326025993,
+      "iqr": 3.7940869930000076,
+      "raw": [
+        381.539011002,
+        377.488142997,
+        385.326025993,
+        379.225810021,
+        377.744924009
+      ]
+    },
+    "device_ms": {
+      "min": 377.469482,
+      "median": 379.207153,
+      "max": 385.308044,
+      "iqr": 3.797485999999992,
+      "raw": [
+        381.519501,
+        377.469482,
+        385.308044,
+        379.207153,
+        377.722015
+      ]
+    }
+  }
+]

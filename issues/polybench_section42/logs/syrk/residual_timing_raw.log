@@ -1,0 +1,5 @@
+syrk,raised_residual_cpu,1,0,2.521243
+syrk,raised_residual_cpu,2,0,2.411593
+syrk,raised_residual_cpu,3,0,2.383358
+syrk,raised_residual_cpu,4,0,2.468187
+syrk,raised_residual_cpu,5,0,2.397483

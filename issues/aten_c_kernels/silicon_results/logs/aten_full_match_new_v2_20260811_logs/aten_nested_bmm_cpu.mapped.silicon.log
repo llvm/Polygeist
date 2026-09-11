@@ -1,0 +1,8 @@
+kernel=aten_nested_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_bmm_cpu iterations=5 raised_gpu_us=5759.007996
+kernel=aten_nested_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_bmm_cpu iterations=5 raised_gpu_us=5883.724801
+kernel=aten_nested_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_bmm_cpu iterations=5 raised_gpu_us=5759.827187
+kernel=aten_nested_bmm_cpu correctness=PASS max_abs=0 max_rel=0
+kernel=aten_nested_bmm_cpu iterations=5 raised_gpu_us=5927.699199

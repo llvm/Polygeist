@@ -1,0 +1,7 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, CUB/Thrust 12.6.
+Warm mean of 10 calls after 3 warmups; correctness compared with original C.
+
+RESULT kernel=aten_count_nonzero_cpu N=8388608 warm_us=2431.248022 errors=0 max_error=0
+RESULT kernel=aten_count_nonzero_impl_cpu R=131072 C=64 warm_us=2516.918359 errors=0 max_error=0
+RESULT kernel=aten_equal_cpu N=8388608 warm_us=8547.996777 errors=0 max_error=0 mismatch_index=12345
+RESULT kernel=aten_allany_dims_cpu R=131072 C=64 all=1 warm_us=18347.158398 errors=0 max_error=0

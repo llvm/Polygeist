@@ -1,0 +1,30 @@
+Date: 2026-07-24
+Target: ubuntu@enmity
+Target kernel: Linux 6.8.12-1017-tegra aarch64
+Backend: cuTensorNet 2.13.0, cuTENSOR 2, CUDA 12
+Datatype: f64
+
+The system-wide /lib/aarch64-linux-gnu/libcuda.so.1 was incompatible with
+the running Tegra kernel. The test used a staging-directory symlink to the
+board's Tegra-specific /usr/lib/aarch64-linux-gnu/nvidia/libcuda.so.1.1.
+No system files were changed.
+
+Compiler-generated end-to-end run:
+
+POLYGEIST_RT_TIMING	op=cutensornetContraction2_f64	m=2	n=3	k=4	host_ms=575.260447	device_ms=0.821856
+POLYGEIST_RT_TIMING	op=cutensornetContraction2_f64	m=2	n=3	k=4	host_ms=2.297184	device_ms=0.087520
+POLYGEIST_RT_TIMING	op=cutensornetContraction2_f64	m=2	n=3	k=4	host_ms=1.935484	device_ms=0.084512
+compiler_generated_r4r5r4 max_error=0 PASS
+compiler_generated_r5r4r4 max_error=0 PASS
+compiler_generated_r5r5r4_broadcast max_error=0 PASS
+compiler_generated_variants failures=0
+
+Five-process runtime repetition:
+
+RUN=1 device_ms=(0.776544,0.088384,0.088928) failures=0
+RUN=2 device_ms=(0.902208,0.118144,0.118912) failures=0
+RUN=3 device_ms=(0.886528,0.106240,0.103904) failures=0
+RUN=4 device_ms=(0.898560,0.113984,0.108832) failures=0
+RUN=5 device_ms=(0.884128,0.104352,0.104352) failures=0
+
+Every run reported max_error=0 for all three variants.

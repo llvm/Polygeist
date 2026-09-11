@@ -1,0 +1,173 @@
+/tmp/polybench-section42-residual/e2e_adi_debuf/orig.mlir:4:3: warning: Distribute+Raising didn't converge, continuing anyway
+  func.func @kernel_adi(%arg0: i32, %arg1: i32, %arg2: memref<?x?xf64>, %arg3: memref<?x?xf64>, %arg4: memref<?x?xf64>, %arg5: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  ^
+/tmp/polybench-section42-residual/e2e_adi_debuf/orig.mlir:4:3: note: see current operation: 
+func.func @kernel_adi(%arg0: i32, %arg1: i32, %arg2: memref<?x?xf64>, %arg3: memref<?x?xf64>, %arg4: memref<?x?xf64>, %arg5: memref<?x?xf64>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  %c1 = arith.constant 1 : index
+  %cst = arith.constant 1.000000e+00 : f64
+  %cst_0 = arith.constant 2.000000e+00 : f64
+  %cst_1 = arith.constant 0.000000e+00 : f64
+  %0 = arith.index_cast %arg1 : i32 to index
+  %1 = arith.sitofp %arg1 : i32 to f64
+  %2 = arith.divf %cst, %1 : f64
+  %3 = arith.sitofp %arg0 : i32 to f64
+  %4 = arith.divf %cst, %3 : f64
+  %5 = arith.mulf %4, %cst_0 : f64
+  %6 = arith.mulf %2, %2 : f64
+  %7 = arith.divf %5, %6 : f64
+  %8 = arith.divf %4, %6 : f64
+  %9 = arith.negf %7 : f64
+  %10 = arith.divf %9, %cst_0 : f64
+  %11 = arith.addf %7, %cst : f64
+  %12 = arith.negf %8 : f64
+  %13 = arith.divf %12, %cst_0 : f64
+  %14 = arith.addf %8, %cst : f64
+  %15 = arith.index_cast %arg0 : i32 to index
+  %16 = arith.negf %10 : f64
+  %17 = arith.negf %13 : f64
+  %18 = arith.mulf %13, %cst_0 : f64
+  %19 = arith.addf %18, %cst : f64
+  %20 = arith.mulf %10, %cst_0 : f64
+  %21 = arith.addf %20, %cst : f64
+  %22 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  %23 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  %24 = arith.subi %23, %c1 : index
+  %25 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  %26 = arith.subi %25, %c1 : index
+  %27 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  %28 = arith.subi %27, %c1 : index
+  %29 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  %30 = arith.subi %29, %c1 : index
+  %31 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+  affine.for %arg6 = 1 to affine_map<()[s0] -> (s0 + 1)>()[%15] {
+    %32 = polygeist.submap(%arg3, %28) {map = affine_map<(d0) -> (0, d0 + 1)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%32 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst : f64
+    }
+    %33 = polygeist.submap(%arg4, %30) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%33 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst_1 : f64
+    }
+    %34 = arith.subi %31, %c1 : index
+    %35 = polygeist.submap(%arg3, %34) {map = affine_map<(d0) -> (0, d0 + 1)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    %36 = polygeist.submap(%arg5, %34) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%35 : memref<?xf64>) outs(%36 : memref<?xf64>) {
+    ^bb0(%in: f64, %out: f64):
+      linalg.yield %in : f64
+    }
+    %37 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %38 = arith.subi %37, %c1 : index
+    %39 = polygeist.submap(%arg4, %38, %24) {map = affine_map<(d0, d1) -> (d0 + 1, d1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %40 = polygeist.submap(%arg2, %38, %24) {map = affine_map<(d0, d1) -> (d1 + 1, d0)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %41 = polygeist.submap(%arg2, %38, %24) {map = affine_map<(d0, d1) -> (d1 + 1, d0 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %42 = polygeist.submap(%arg2, %38, %24) {map = affine_map<(d0, d1) -> (d1 + 1, d0 + 2)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %43 = polygeist.submap(%arg5, %38, %24) {map = affine_map<(d0, d1) -> (d0 + 1, d1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %44 = polygeist.submap(%arg4, %38, %24) {map = affine_map<(d0, d1) -> (d0 + 1, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %45 = polygeist.submap(%arg5, %38, %24) {map = affine_map<(d0, d1) -> (d0 + 1, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%39, %40, %41, %42, %43 : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) outs(%44, %45 : memref<?x?xf64>, memref<?x?xf64>) {
+    ^bb0(%in: f64, %in_2: f64, %in_3: f64, %in_4: f64, %in_5: f64, %out: f64, %out_6: f64):
+      %86 = arith.mulf %10, %in : f64
+      %87 = arith.addf %86, %11 : f64
+      %88 = arith.divf %16, %87 : f64
+      %89 = arith.mulf %17, %in_2 : f64
+      %90 = arith.mulf %19, %in_3 : f64
+      %91 = arith.addf %89, %90 : f64
+      %92 = arith.mulf %13, %in_4 : f64
+      %93 = arith.subf %91, %92 : f64
+      %94 = arith.mulf %10, %in_5 : f64
+      %95 = arith.subf %93, %94 : f64
+      %96 = arith.divf %95, %87 : f64
+      linalg.yield %88, %96 : f64, f64
+    }
+    %46 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %47 = arith.subi %46, %c1 : index
+    %48 = polygeist.submap(%arg3, %0, %47) {map = affine_map<(d0)[s0] -> (s0 - 1, d0 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%48 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst : f64
+    }
+    %49 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %50 = arith.subi %49, %c1 : index
+    %51 = polygeist.submap(%arg4, %0, %50, %26) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0 - 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %52 = polygeist.submap(%arg3, %0, %50, %26) {map = affine_map<(d0, d1)[s0] -> (-(d1 + 1) + s0, d0 + 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %53 = polygeist.submap(%arg5, %0, %50, %26) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0 - 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %54 = polygeist.submap(%arg3, %0, %50, %26) {map = affine_map<(d0, d1)[s0] -> (-(d1 + 1) + s0 - 1, d0 + 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%51, %52, %53 : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) outs(%54 : memref<?x?xf64>) {
+    ^bb0(%in: f64, %in_2: f64, %in_3: f64, %out: f64):
+      %86 = arith.mulf %in, %in_2 : f64
+      %87 = arith.addf %86, %in_3 : f64
+      linalg.yield %87 : f64
+    }
+    %55 = arith.subi %22, %c1 : index
+    %56 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %57 = arith.subi %56, %c1 : index
+    %58 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %59 = arith.subi %58, %c1 : index
+    %60 = polygeist.submap(%arg2, %59) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%60 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst : f64
+    }
+    %61 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %62 = arith.subi %61, %c1 : index
+    %63 = polygeist.submap(%arg4, %62) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%63 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst_1 : f64
+    }
+    %64 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %65 = arith.subi %64, %c1 : index
+    %66 = polygeist.submap(%arg2, %65) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    %67 = polygeist.submap(%arg5, %65) {map = affine_map<(d0) -> (d0 + 1, 0)>} : (memref<?x?xf64>, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} ins(%66 : memref<?xf64>) outs(%67 : memref<?xf64>) {
+    ^bb0(%in: f64, %out: f64):
+      linalg.yield %in : f64
+    }
+    %68 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %69 = arith.subi %68, %c1 : index
+    %70 = polygeist.submap(%arg4, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 1, d1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %71 = polygeist.submap(%arg3, %69, %55) {map = affine_map<(d0, d1) -> (d0, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %72 = polygeist.submap(%arg3, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 1, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %73 = polygeist.submap(%arg3, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 2, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %74 = polygeist.submap(%arg5, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 1, d1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %75 = polygeist.submap(%arg4, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 1, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    %76 = polygeist.submap(%arg5, %69, %55) {map = affine_map<(d0, d1) -> (d0 + 1, d1 + 1)>} : (memref<?x?xf64>, index, index) -> memref<?x?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%70, %71, %72, %73, %74 : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) outs(%75, %76 : memref<?x?xf64>, memref<?x?xf64>) {
+    ^bb0(%in: f64, %in_2: f64, %in_3: f64, %in_4: f64, %in_5: f64, %out: f64, %out_6: f64):
+      %86 = arith.mulf %13, %in : f64
+      %87 = arith.addf %86, %14 : f64
+      %88 = arith.divf %17, %87 : f64
+      %89 = arith.mulf %16, %in_2 : f64
+      %90 = arith.mulf %21, %in_3 : f64
+      %91 = arith.addf %89, %90 : f64
+      %92 = arith.mulf %10, %in_4 : f64
+      %93 = arith.subf %91, %92 : f64
+      %94 = arith.mulf %13, %in_5 : f64
+      %95 = arith.subf %93, %94 : f64
+      %96 = arith.divf %95, %87 : f64
+      linalg.yield %88, %96 : f64, f64
+    }
+    %77 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %78 = arith.subi %77, %c1 : index
+    %79 = polygeist.submap(%arg2, %0, %78) {map = affine_map<(d0)[s0] -> (d0 + 1, s0 - 1)>} : (memref<?x?xf64>, index, index) -> memref<?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = ["parallel"]} outs(%79 : memref<?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %cst : f64
+    }
+    %80 = affine.apply affine_map<()[s0] -> (s0 - 1)>()[%0]
+    %81 = arith.subi %80, %c1 : index
+    %82 = polygeist.submap(%arg4, %0, %81, %57) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0 - 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %83 = polygeist.submap(%arg2, %0, %81, %57) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %84 = polygeist.submap(%arg5, %0, %81, %57) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0 - 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    %85 = polygeist.submap(%arg2, %0, %81, %57) {map = affine_map<(d0, d1)[s0] -> (d0 + 1, -(d1 + 1) + s0 - 1)>} : (memref<?x?xf64>, index, index, index) -> memref<?x?xf64>
+    linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%82, %83, %84 : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) outs(%85 : memref<?x?xf64>) {
+    ^bb0(%in: f64, %in_2: f64, %in_3: f64, %out: f64):
+      %86 = arith.mulf %in, %in_2 : f64
+      %87 = arith.addf %86, %in_3 : f64
+      linalg.yield %87 : f64
+    }
+  }
+  return
+}

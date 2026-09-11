@@ -1,0 +1,5 @@
+suite,input_id,path
+polybench,2mm,/tmp/polybench_new/2mm_debuf.mlir
+polybench,gemm,/tmp/polybench_new/gemm_debuf.mlir
+polybench,gemver,/tmp/polybench_new/gemver_debuf.mlir
+aten,aten_addmm,/home/arjaiswal/Polygeist/issues/aten_c_kernels/results/aten_addmm/debuf.mlir

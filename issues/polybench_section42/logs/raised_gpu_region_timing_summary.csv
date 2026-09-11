@@ -1,0 +1,12 @@
+kernel,correctness_status,samples,warmups,statistic,compute_device_ms,memory_device_ms,end_to_end_ms,markers
+2mm,pass,5,1,median,290.617279,46.757312,336.142272,44
+3mm,pass,5,1,median,476.892487,73.839776,553.739744,60
+atax,pass,5,1,median,51.219009,19.471296,70.676576,36
+bicg,pass,5,1,median,47.499519,21.193887,69.376864,44
+doitgen,pass,5,1,median,1421.120361,16.453120,1438.330208,28
+gemm,pass,5,1,median,240.480774,26.234592,267.094464,28
+gemver,pass,5,1,median,119.012352,20.834848,139.872544,76
+gesummv,pass,5,1,median,42.193665,19.545120,62.273312,44
+mvt,pass,5,1,median,48.667583,21.030016,69.993280,44
+syr2k,pass,5,1,median,226.520538,24.959712,253.400224,28
+syrk,pass,5,1,median,145.095322,18.270656,163.361824,20

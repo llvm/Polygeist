@@ -50,11 +50,37 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
         return b.create<mlir::memref::CastOp>(callerArg.getLoc(), calleeArgType,
                                               callerArg);
       }
+
+      // A C pointer-to-array cast can deliberately change the ranked view of
+      // the same allocation, for example `int *flat` to `int (*)[8]`.  Such a
+      // conversion is not a memref.cast: the latter may only refine compatible
+      // shape metadata and cannot turn memref<Nxi32> into memref<?x8xi32>.
+      // Preserve the C pointer identity and rebuild the callee's ranked view.
+      if (!mlir::memref::CastOp::areCastCompatible(srcTy, dstTy)) {
+        b.setInsertionPointAfterValue(callerArg);
+        auto ptrTy = mlir::LLVM::LLVMPointerType::get(
+            b.getI8Type(), srcTy.getMemorySpaceAsInt());
+        auto ptr = b.create<polygeist::Memref2PointerOp>(
+            callerArg.getLoc(), ptrTy, callerArg);
+        return b.create<polygeist::Pointer2MemrefOp>(
+            callerArg.getLoc(), dstTy, ptr);
+      }
     }
   }
 
   // Return the original value when casting fails.
   return callerArg;
+}
+
+static mlir::Value castIntegerToWidth(mlir::Location loc, mlir::Value value,
+                                      mlir::IntegerType dstTy,
+                                      mlir::OpBuilder &builder) {
+  auto srcTy = value.getType().cast<mlir::IntegerType>();
+  if (srcTy == dstTy)
+    return value;
+  if (srcTy.getWidth() < dstTy.getWidth())
+    return builder.create<arith::ExtUIOp>(loc, dstTy, value);
+  return builder.create<arith::TruncIOp>(loc, dstTy, value);
 }
 
 /// Typecast the caller args to match the callee's signature. Mismatches that
@@ -79,6 +105,12 @@ static void castCallerArgs(mlir::func::FuncOp callee,
 
     if (calleeArgType.isa<MemRefType>())
       args[i] = castCallerMemRefArg(args[i], calleeArgType, b);
+
+    if (auto callerIntTy = dyn_cast<mlir::IntegerType>(callerArgType))
+      if (auto calleeIntTy = dyn_cast<mlir::IntegerType>(calleeArgType))
+        if (callerIntTy != calleeIntTy)
+          args[i] =
+              castIntegerToWidth(args[i].getLoc(), args[i], calleeIntTy, b);
   }
 }
 
@@ -111,12 +143,26 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
-      expr->dump();
+      llvm::errs() << "\n=== cgeist CallHelper diagnostic ===\n";
+      llvm::errs() << "callee name:        " << tocall.getName() << "\n";
+      llvm::errs() << "callee input count: " << fnType.getInputs().size()
+                   << "\n";
+      llvm::errs() << "caller arg count:   " << arguments.size() << "\n";
+      llvm::errs() << "failing at arg i:   " << i << "\n";
+      llvm::errs() << "current arg null?:  " << (a == nullptr) << "\n";
+      llvm::errs() << "\n--- callee MLIR func type:\n";
       tocall.dump();
-      fnType.dump();
-      for (auto a : arguments) {
-        std::get<1>(a)->dump();
+      llvm::errs() << "\n--- caller call-site expression:\n";
+      expr->dump();
+      llvm::errs() << "\n--- caller args (in order):\n";
+      for (size_t idx = 0; idx < arguments.size(); ++idx) {
+        llvm::errs() << "[arg " << idx << "]\n";
+        if (auto *aa = std::get<1>(arguments[idx]))
+          aa->dump();
+        else
+          llvm::errs() << " <null>\n";
       }
+      llvm::errs() << "=== end diagnostic ===\n";
       assert(0 && "too many arguments in calls");
     }
     bool isReference =
@@ -177,7 +223,7 @@ ValueCategory MLIRScanner::CallHelper(
         if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
           auto ipostTy = expectedType.cast<mlir::IntegerType>();
           if (prevTy != ipostTy)
-            val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+            val = castIntegerToWidth(loc, val, ipostTy, builder);
         }
       }
     } else {
@@ -554,6 +600,17 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     assert(!v.isReference);
     Value res = builder.create<math::SqrtOp>(loc, v.val);
     auto postTy = getMLIRType(expr->getType());
+    return success(ValueCategory(res, /*isRef*/ false));
+  }
+  case Builtin::BItanh:
+  case Builtin::BItanhf:
+  case Builtin::BItanhl:
+  case Builtin::BI__builtin_tanh:
+  case Builtin::BI__builtin_tanhf:
+  case Builtin::BI__builtin_tanhl: {
+    auto v = Visit(expr->getArg(0));
+    assert(!v.isReference);
+    Value res = builder.create<math::TanhOp>(loc, v.val);
     return success(ValueCategory(res, /*isRef*/ false));
   }
   case Builtin::BI__builtin_clzs:

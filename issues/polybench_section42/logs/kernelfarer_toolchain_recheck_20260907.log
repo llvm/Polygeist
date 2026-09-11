@@ -1,0 +1,32 @@
+2026-09-07T20:11:28-07:00
+Installed LLVM roots:
+/usr/lib/llvm-14
+clang versions:
+Ubuntu clang version 14.0.0-1ubuntu1.1
+Current retained commit 53a10e6 LLVM14 failure tail:
+                 from /usr/lib/llvm-14/include/llvm/IR/Constant.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+ninja: build stopped: subcommand failed.
+Preceding commit 9d04406 LLVM14 failure tail:
+                 from /usr/lib/llvm-14/include/llvm/IR/Metadata.h:27,
+                 from /usr/lib/llvm-14/include/llvm/IR/TrackingMDRef.h:16,
+                 from /usr/lib/llvm-14/include/llvm/IR/DebugLoc.h:17,
+                 from /usr/lib/llvm-14/include/llvm/IR/Instruction.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/BasicBlock.h:22,
+                 from /usr/lib/llvm-14/include/llvm/IR/CFG.h:25,
+                 from /tmp/polybench-section42-kernelfarer-9d04406/passes/source/ReplacerPass.cpp:16:
+/usr/lib/llvm-14/include/llvm/IR/Value.h:225:3: note: declared here
+  225 |   Value(const Value &) = delete;
+      |   ^~~~~
+[3/4] Building CXX object passes/CMakeFiles/KernelFaRer.dir/source/Matcher.cpp.o
+ninja: build stopped: subcommand failed.
+Disposition: unavailable; no compatible LLVM older than 14 is installed.

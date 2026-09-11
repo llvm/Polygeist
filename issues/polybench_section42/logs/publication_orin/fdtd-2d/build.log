@@ -1,0 +1,33 @@
++ common=(-O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -I"$util")
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -DPOLYBENCH_DUMP_ARRAYS -c tools/cgeist/Test/polybench/stencils/fdtd-2d/fdtd-2d.c -o /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_fdtd_2d /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-full.o /tmp/polybench-publication-orin/fdtd-2d/native-work/harness.o
++ aarch64-linux-gnu-gcc -O3 -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/fdtd-2d/native-work/polybench.o
++ /usr/local/cuda-12.6/bin/nvcc -O3 -std=c++17 -arch=sm_87 -ccbin aarch64-linux-gnu-g++ -Iissues/polybench_section42/polybenchgpu_adapters -Ithird_party/polybenchGpu -c issues/polybench_section42/polybenchgpu_adapters/fdtd-2d.cu -o /tmp/polybench-publication-orin/fdtd-2d/native-work/adapter.o
+third_party/polybenchGpu/CUDA/FDTD-2D/fdtd2d.cu: In function ‘void fdtdCuda(int, int, int, double*, double (*)[1200], double (*)[1200], double (*)[1200], double (*)[1200])’:
+third_party/polybenchGpu/CUDA/FDTD-2D/fdtd2d.cu:196:36: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  196 |                 cudaThreadSynchronize();
+      |                 ~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/FDTD-2D/fdtd2d.cu:198:36: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  198 |                 cudaThreadSynchronize();
+      |                 ~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+third_party/polybenchGpu/CUDA/FDTD-2D/fdtd2d.cu:200:36: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  200 |                 cudaThreadSynchronize();
+      |                 ~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/fdtd-2d/native-work/harness.o /tmp/polybench-publication-orin/fdtd-2d/native-work/polybench.o /tmp/polybench-publication-orin/fdtd-2d/native-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/fdtd-2d/native-correctness
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Dmain=polygeist_polybench_iteration -DPOLYBENCH_TIME -c tools/cgeist/Test/polybench/stencils/fdtd-2d/fdtd-2d.c -o /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-timing-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_fdtd_2d /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-timing-full.o /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-timing.o
++ aarch64-linux-gnu-gcc -O3 -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/utilities/polybench.c -o /tmp/polybench-publication-orin/fdtd-2d/native-work/polybench-timing.o
++ aarch64-linux-gnu-gcc -O2 -DPOLYGEIST_WARMUP_RUNS=5 -DPOLYGEIST_TIMED_RUNS=5 -c runtime/polybench_repeat_driver.c -o /tmp/polybench-publication-orin/fdtd-2d/native-work/repeat-driver.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/fdtd-2d/native-work/harness-timing.o /tmp/polybench-publication-orin/fdtd-2d/native-work/polybench-timing.o /tmp/polybench-publication-orin/fdtd-2d/native-work/repeat-driver.o /tmp/polybench-publication-orin/fdtd-2d/native-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/fdtd-2d/native-timing
++ file /tmp/polybench-publication-orin/fdtd-2d/native-correctness /tmp/polybench-publication-orin/fdtd-2d/native-timing
+/tmp/polybench-publication-orin/fdtd-2d/native-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=941a8a612003a15fbe4dabf51daade904d1d6dc0, for GNU/Linux 3.7.0, not stripped
+/tmp/polybench-publication-orin/fdtd-2d/native-timing:      ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=b770c927dca583d8ddb72b393a3009dc9df4c6ae, for GNU/Linux 3.7.0, not stripped

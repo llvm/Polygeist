@@ -1,0 +1,23 @@
+== match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/diffusion_apply_3d_stage_sliced/debufferized.mlir ==
+  match          body#[0, 1]  cutensornetContraction2_f64
+  match          body#[2, 3]  cutensornetContraction2_f64
+  computed_submap_base_reject body#4  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#6  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#8  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#10  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#12  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#14  cublasGemmFor1x1Conv
+  no_match       body#16  ?
+  no_match       body#17  ?
+  no_match       body#18  ?
+  no_match       body#19  ?
+  no_match       body#20  ?
+  no_match       body#21  ?
+  computed_submap_base_reject body#22  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#24  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#26  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#28  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#30  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#32  cublasGemmFor1x1Conv
+  no_match       body#34  ?
+  total: 2 matched / 21 bodies

@@ -1,0 +1,8 @@
+correlation_debuf: FAIL_DIFF (first 5 differing lines:)
+2a3
+> 2.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 
+61a63
+> 1.00 2.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 
+120a123
+Command exited with non-zero status 4
+wall_seconds=57.90 maxrss_kb=102752
