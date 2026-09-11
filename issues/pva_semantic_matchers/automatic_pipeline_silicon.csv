@@ -1,0 +1,10 @@
+operation,structural_candidate,audit_replacement_built,audit_replacement_ran,initial_source_mismatches,initial_max_error,production_selected,production_silicon,notes
+box-u8,yes,yes,yes,15875,1,no,not-applicable,PVA Q8 [29 28 29;28 29 28;29 28 28] differs from symmetric source (sum+4)/9
+gaussian-u8,yes,yes,yes,33212,5,yes,exact-pass,matcher inferred sigmaX=sigmaY=0.8493218 and proved quantized coefficients equivalent; final mismatches 0
+morphology-dilate-u8,yes,yes,yes,0,0,yes,exact-pass,whole 3x3 unsigned max is equivalent
+morphology-dilate-s8,yes,yes,yes,0,0,yes,exact-pass,whole 3x3 signed max is equivalent; full signed range exercised
+morphology-dilate-u16,yes,yes,yes,0,0,yes,exact-pass,whole 3x3 unsigned max is equivalent; full 16-bit range exercised
+morphology-dilate-s16,yes,yes,yes,0,0,yes,exact-pass,whole 3x3 signed max is equivalent; full signed 16-bit range exercised
+bilateral-u8,yes,yes,yes,18245,2,no,not-applicable,PVA cross support and quantized approximate math differ from full 3x3 expf source
+histogram-u8-u32,yes,yes,yes,0,0,yes,exact-pass,complete zero-fill plus indirect unit count is equivalent
+histogram-equalization-u8,yes,yes,yes,23675,1,no,not-applicable,PVA Q15 scaling differs from source integer division
