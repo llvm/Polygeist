@@ -1,0 +1,4 @@
+dtype,source_translation,raised_linalg,structural_match,pva_lowering,aarch64_build,orin_run,correctness,mismatches,max_error,checksum
+s8,pass,pass,pass,pass,pass,pass,exact-pass,0,0,3047181173142788415
+u16,pass,pass,pass,pass,pass,pass,exact-pass,0,0,10334719796412806890
+s16,pass,pass,pass,pass,pass,pass,exact-pass,0,0,7779205890836004112

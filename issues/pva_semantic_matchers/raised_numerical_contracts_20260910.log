@@ -1,0 +1,147 @@
+[polygeist] input=<polygeist-root>/test/Inputs/pva_matchers/image_processing.c  function=fixture_box_filter3x3  target=jetson  output=<campaign-output>/box_u8
+[polygeist] harness=<polygeist-root>/scripts/correctness/pva_matched_smoke_harness.c
+[polygeist] gcc passthrough: (none)
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         PVA approximation budgets: box-filter=1
+         only named kernels: pvaBoxFilter_3x3_u8
+         matched 1 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower kernel.launch → runtime func.call (pva)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for fixture_box_filter3x3
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + staged PVA Solutions runtime adapter
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+  [9/9] link → <campaign-output>/box_u8
+
+═══ build complete ═══
+<campaign-output>/box_u8: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=4150bcdca3246fc2e269d22c1fe8ff80a044b44e, for GNU/Linux 3.7.0, not stripped
+═══════════════════════════════════════════════════════════════════════
+  Experiment:    pva_raised_box_u8
+  Profile:       <local-profile>
+  Local EXE:     <campaign-output>/box_u8 (19568 bytes)
+  Jetson:        <target-user>@<target-host>
+  SSH mode:      bounce via <local-user>@<local-profile>
+  Runs:          1
+═══════════════════════════════════════════════════════════════════════
+[pva_raised_box_u8] Staging on Jetson: <target-staging>/pva_raised_box_u8_20260910_140555
+[pva_raised_box_u8] Running on Jetson (this may take a minute on first compile)...
+[jetson] uname -a: Linux <target-host> 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running <target-staging>/pva_raised_box_u8_20260910_140555/box_u8 run 1 ...
+MATCHED_SMOKE,1,WITHIN_TOLERANCE,mismatches=15875,max_error=1,tolerance=1,checksum=13457283809969870832
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.189
+
+═══════════════════════════════════════════════════════════════════════
+Done. Local log: <polygeist-root>/scripts/correctness/logs/pva_raised_box_u8_20260910_140555.silicon.log
+Jetson exit code: 0
+═══════════════════════════════════════════════════════════════════════
+[polygeist] input=<polygeist-root>/test/Inputs/pva_matchers/image_processing.c  function=fixture_bilateral_filter3x3  target=jetson  output=<campaign-output>/bilateral_u8
+[polygeist] harness=<polygeist-root>/scripts/correctness/pva_matched_smoke_harness.c
+[polygeist] gcc passthrough: (none)
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         PVA approximation budgets: bilateral-filter=2
+         only named kernels: pvaBilateralFilter_3x3_u8
+         matched 1 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower kernel.launch → runtime func.call (pva)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for fixture_bilateral_filter3x3
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + staged PVA Solutions runtime adapter
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+  [9/9] link → <campaign-output>/bilateral_u8
+
+═══ build complete ═══
+<campaign-output>/bilateral_u8: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=92207c426408d54fcde9e2adbbf64c8013e9f8d5, for GNU/Linux 3.7.0, not stripped
+═══════════════════════════════════════════════════════════════════════
+  Experiment:    pva_raised_bilateral_u8
+  Profile:       <local-profile>
+  Local EXE:     <campaign-output>/bilateral_u8 (19648 bytes)
+  Jetson:        <target-user>@<target-host>
+  SSH mode:      bounce via <local-user>@<local-profile>
+  Runs:          1
+═══════════════════════════════════════════════════════════════════════
+[pva_raised_bilateral_u8] Staging on Jetson: <target-staging>/pva_raised_bilateral_u8_20260910_140600
+[pva_raised_bilateral_u8] Running on Jetson (this may take a minute on first compile)...
+[jetson] uname -a: Linux <target-host> 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running <target-staging>/pva_raised_bilateral_u8_20260910_140600/bilateral_u8 run 1 ...
+MATCHED_SMOKE,4,WITHIN_TOLERANCE,mismatches=18245,max_error=2,tolerance=2,checksum=5994759095415600212
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.184
+
+═══════════════════════════════════════════════════════════════════════
+Done. Local log: <polygeist-root>/scripts/correctness/logs/pva_raised_bilateral_u8_20260910_140600.silicon.log
+Jetson exit code: 0
+═══════════════════════════════════════════════════════════════════════
+[polygeist] input=<polygeist-root>/test/Inputs/pva_matchers/image_processing.c  function=fixture_histogram_equalization  target=jetson  output=<campaign-output>/histogram_equalization_u8
+[polygeist] harness=<polygeist-root>/scripts/correctness/pva_matched_smoke_harness.c
+[polygeist] gcc passthrough: (none)
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + debufferize (preserve submaps)
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         PVA approximation budgets: histogram-equalization=1
+         only named kernels: pvaHistogramEqualization_u8
+         matched 1 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower kernel.launch → runtime func.call (pva)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for fixture_histogram_equalization
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + staged PVA Solutions runtime adapter
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+  [9/9] link → <campaign-output>/histogram_equalization_u8
+
+═══ build complete ═══
+<campaign-output>/histogram_equalization_u8: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=78bdf5b8d25d39ad814427535bc2f2383d905f89, for GNU/Linux 3.7.0, not stripped
+═══════════════════════════════════════════════════════════════════════
+  Experiment:    pva_raised_histogram_equalization_u8
+  Profile:       <local-profile>
+  Local EXE:     <campaign-output>/histogram_equalization_u8 (19224 bytes)
+  Jetson:        <target-user>@<target-host>
+  SSH mode:      bounce via <local-user>@<local-profile>
+  Runs:          1
+═══════════════════════════════════════════════════════════════════════
+[pva_raised_histogram_equalization_u8] Staging on Jetson: <target-staging>/pva_raised_histogram_equalization_u8_20260910_140604
+[pva_raised_histogram_equalization_u8] Running on Jetson (this may take a minute on first compile)...
+[jetson] uname -a: Linux <target-host> 6.8.12-1021-tegra #1 SMP PREEMPT Tue Jun 9 09:16:45 PDT 2026 aarch64 aarch64 aarch64 GNU/Linux
+[jetson] nvcc version:
+  (nvcc not found)
+[jetson] accelerator status:
+[N/A]
+
+[jetson] running <target-staging>/pva_raised_histogram_equalization_u8_20260910_140604/histogram_equalization_u8 run 1 ...
+MATCHED_SMOKE,6,WITHIN_TOLERANCE,mismatches=23675,max_error=1,tolerance=1,checksum=9509715653168268106
+
+[jetson] exit code: 0
+[jetson] elapsed_s 0.175
+
+═══════════════════════════════════════════════════════════════════════
+Done. Local log: <polygeist-root>/scripts/correctness/logs/pva_raised_histogram_equalization_u8_20260910_140604.silicon.log
+Jetson exit code: 0
+═══════════════════════════════════════════════════════════════════════
