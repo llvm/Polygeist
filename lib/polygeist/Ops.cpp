@@ -1603,6 +1603,77 @@ public:
 };
 
 /// Simplify pointer2memref(memref2pointer(x)) to cast(x)
+/// The element width in bytes (times the trailing dimensions) and the
+/// trailing bounds of a copy between `dstTy` and `srcTy` of `len` bytes, or
+/// false when the copy is not a whole number of rows of one element type.
+static bool copyShape(MemRefType dstTy, MemRefType srcTy, Value len,
+                      size_t &width, SmallVectorImpl<size_t> &bounds) {
+  if (srcTy.getShape().size() != dstTy.getShape().size())
+    return false;
+  if (dstTy.getElementType() != srcTy.getElementType())
+    return false;
+  Type elTy = dstTy.getElementType();
+  // `len` counts bytes of storage, so the element width is the type's size
+  // in bytes (sizeof), not its bit width divided by 8 rounded down: an i12
+  // element (ap_uint<12>) occupies 2 bytes, and taking 1 copied twice the
+  // elements, past the end (CIRCT W9 round 8 review defect 1, probe
+  // mc12p.cpp). Which size an iN of a width whose byte count is not a power
+  // of two has depends on the source type (sizeof(ap_uint<24>) is 3 under
+  // the Vitis headers, sizeof(_BitInt(24)) is 4), so such elements, like
+  // x86_fp80, keep the byte-view copy.
+  width = 0;
+  if (auto IT = dyn_cast<IntegerType>(elTy)) {
+    size_t bytes = llvm::divideCeil(IT.getWidth(), 8);
+    if (llvm::isPowerOf2_64(bytes))
+      width = bytes;
+  } else if (auto FT = dyn_cast<FloatType>(elTy)) {
+    unsigned bits = FT.getWidth();
+    if (bits == 16 || bits == 32 || bits == 64 || bits == 128)
+      width = bits / 8;
+  }
+  if (width == 0)
+    return false;
+  bool first = true;
+  bounds.clear();
+  for (auto pair : llvm::zip(dstTy.getShape(), srcTy.getShape())) {
+    if (first) {
+      first = false;
+      continue;
+    }
+    if (std::get<0>(pair) != std::get<1>(pair))
+      return false;
+    bounds.push_back(std::get<0>(pair));
+    width *= std::get<0>(pair);
+  }
+
+  SmallVector<Value> todo = {len};
+  size_t factor = 1;
+  while (factor % width != 0 && todo.size()) {
+    Value len = todo.back();
+    todo.pop_back();
+    IntegerAttr constValue;
+    if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
+      todo.push_back(ext.getIn());
+    else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
+      todo.push_back(ext.getIn());
+    else if (auto ext = len.getDefiningOp<arith::TruncIOp>()) {
+      if (APInt(64, width).isPowerOf2() &&
+          ext.getType().getIntOrFloatBitWidth() >
+              APInt(64, width).nearestLogBase2())
+        todo.push_back(ext.getIn());
+    } else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+      todo.push_back(ext.getIn());
+    else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
+      todo.push_back(mul.getLhs());
+      todo.push_back(mul.getRhs());
+    } else if (matchPattern(len, m_Constant(&constValue))) {
+      factor *= constValue.getValue().getLimitedValue();
+    } else
+      continue;
+  }
+  return factor % width == 0;
+}
+
 template <typename T>
 class CopySimplification final : public OpRewritePattern<T> {
 public:
@@ -1615,71 +1686,43 @@ public:
     auto dst = dstv.getDefiningOp<polygeist::Memref2PointerOp>();
     if (!dst)
       return failure();
-
-    auto dstTy = dst.getSource().getType().cast<MemRefType>();
-
     Value srcv = op.getSrc();
     auto src = srcv.getDefiningOp<polygeist::Memref2PointerOp>();
     if (!src)
       return failure();
-    auto srcTy = src.getSource().getType().cast<MemRefType>();
-    if (srcTy.getShape().size() != dstTy.getShape().size())
-      return failure();
 
-    if (dstTy.getElementType() != srcTy.getElementType())
-      return failure();
-    Type elTy = dstTy.getElementType();
-
-    size_t width = 1;
-    if (auto IT = dyn_cast<IntegerType>(elTy))
-      width = IT.getWidth() / 8;
-    else if (auto FT = dyn_cast<FloatType>(elTy))
-      width = FT.getWidth() / 8;
-    else {
-      // TODO extend to llvm compatible type
-      return failure();
-    }
-    bool first = true;
-    SmallVector<size_t> bounds;
-    for (auto pair : llvm::zip(dstTy.getShape(), srcTy.getShape())) {
-      if (first) {
-        first = false;
-        continue;
+    // memcpy(a, b, n) on arrays: clang converts each argument to void *,
+    // which cgeist emits as memref2pointer(pointer2memref<?xi8>(
+    // memref2pointer(a))). Look through such byte views to the typed arrays,
+    // so that the copy is element-wise in the arrays' own type (an i8 copy
+    // through pointers names no array: hls-est cannot bank it, while Vitis
+    // copies and partitions the typed array; OPEN_ISSUES O84 (a), kernel
+    // w9r8p_mc_cpy). When the typed arrays do not form a copy of whole rows
+    // of one element type, the byte views are copied as before.
+    auto typedBase = [](Value m) {
+      while (auto p2m = m.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
+        auto m2p =
+            p2m.getSource().template getDefiningOp<polygeist::Memref2PointerOp>();
+        if (!m2p)
+          break;
+        m = m2p.getSource();
       }
-      if (std::get<0>(pair) != std::get<1>(pair))
+      return m;
+    };
+    Value dstBase = typedBase(dst.getSource());
+    Value srcBase = typedBase(src.getSource());
+    size_t width = 1;
+    SmallVector<size_t> bounds;
+    if (!copyShape(dstBase.getType().cast<MemRefType>(),
+                   srcBase.getType().cast<MemRefType>(), op.getLen(), width,
+                   bounds)) {
+      dstBase = dst.getSource();
+      srcBase = src.getSource();
+      if (!copyShape(dstBase.getType().cast<MemRefType>(),
+                     srcBase.getType().cast<MemRefType>(), op.getLen(), width,
+                     bounds))
         return failure();
-      bounds.push_back(std::get<0>(pair));
-      width *= std::get<0>(pair);
     }
-
-    SmallVector<Value> todo = {op.getLen()};
-    size_t factor = 1;
-    while (factor % width != 0 && todo.size()) {
-      Value len = todo.back();
-      todo.pop_back();
-      IntegerAttr constValue;
-      if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
-        todo.push_back(ext.getIn());
-      else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
-        todo.push_back(ext.getIn());
-      else if (auto ext = len.getDefiningOp<arith::TruncIOp>()) {
-        if (APInt(64, width).isPowerOf2() &&
-            ext.getType().getIntOrFloatBitWidth() >
-                APInt(64, width).nearestLogBase2())
-          todo.push_back(ext.getIn());
-      } else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
-        todo.push_back(ext.getIn());
-      else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
-        todo.push_back(mul.getLhs());
-        todo.push_back(mul.getRhs());
-      } else if (matchPattern(len, m_Constant(&constValue))) {
-        factor *= constValue.getValue().getLimitedValue();
-      } else
-        continue;
-    }
-
-    if (factor % width != 0)
-      return failure();
 
     Value c0 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
@@ -1706,8 +1749,8 @@ public:
 
     rewriter.create<memref::StoreOp>(
         op.getLoc(),
-        rewriter.create<memref::LoadOp>(op.getLoc(), src.getSource(), idxs),
-        dst.getSource(), idxs);
+        rewriter.create<memref::LoadOp>(op.getLoc(), srcBase, idxs),
+        dstBase, idxs);
 
     rewriter.eraseOp(op);
     return success();
@@ -2159,14 +2202,24 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
 
       {
         SmallVector<Value> elseVals = otherYield.getOperands();
+        // nextIf's else runs on two paths: prevIf took its other branch
+        // (then prevIf's results are otherYield's operands), or it took
+        // `yield`'s branch and nextIfCondition is false (then they are
+        // `yield`'s operands). Mapping the moved nextIf's else with the other
+        // branch's values was wrong code: `do { if (..) break; } while
+        // (++i > 0)` returned i without the increment (W8b).
         IRMapping elseMapping;
         elseMapping.map(prevIf.getResults(), otherYield.getOperands());
-        SmallVector<Value> nextElseVals;
-        for (auto v : nextIf.elseYield().getOperands())
+        IRMapping movedMapping;
+        movedMapping.map(prevIf.getResults(), yield.getOperands());
+        SmallVector<Value> nextElseVals, movedElseVals;
+        for (auto v : nextIf.elseYield().getOperands()) {
           nextElseVals.push_back(elseMapping.lookupOrDefault(v));
+          movedElseVals.push_back(movedMapping.lookupOrDefault(v));
+        }
         elseVals.append(nextElseVals);
         otherYield->setOperands(elseVals);
-        nextIf.elseYield()->setOperands(nextElseVals);
+        nextIf.elseYield()->setOperands(movedElseVals);
       }
 
       SmallVector<Type> postTys;
@@ -4972,6 +5025,9 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
+    if (op->hasAttr("hls.preserve"))
+      return failure();
+    
     if (isCaptured(op))
       return failure();
 
@@ -5176,6 +5232,8 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
+    if (op->hasAttr("hls.preserve"))
+      return failure();
     SmallVector<Operation *> stores;
     LLVM_DEBUG(llvm::dbgs()
                << " Attempting affine buffer elim of: " << op << "\n");
@@ -5500,10 +5558,14 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
               } else {
                 auto vop = V.getDefiningOp();
 
-                if (DI.dominates((Operation *)vop, loc) &&
-                    DI.dominates((Operation *)vop, prevParent)) {
+                // A value computed before `loc` is used as it is. Computing it
+                // again at the load would re-read memory that may be written
+                // between its computation and the store: in a loop,
+                // `r = f(&s); g(r)` with f updating *s and g reading r
+                // through a reference re-ran f's arithmetic on the updated
+                // *s (OPEN_ISSUES O37, forgebench gpt_transformer_p1).
+                if (DI.dominates((Operation *)vop, loc))
                   continue;
-                }
 
                 if (vop->getRegions().size()) {
                   if (!isa<scf::IfOp, scf::ExecuteRegionOp,
@@ -5549,6 +5611,19 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             }
             return true;
           };
+
+      // The writes between `start` and the previous `tc` were already
+      // checked for this store: when the next `tc` is in the same block with
+      // the same start and the same values to recompute, only `tc` itself
+      // is new (the rewrite below only replaces loads inside `tc` and
+      // inserts read-only clones before them). Without this the scan from
+      // `start` is repeated for every `tc`, quadratic in the block length
+      // (OPEN_ISSUES O64 d: about 50 s of cgeist on forgebench
+      // attention_op_p1 under --xlx-headers).
+      Block *checkedBlock = nullptr;
+      Operation *checkedStart = nullptr;
+      Operation *nextUnchecked = nullptr;
+      SmallVector<Operation *, 1> checkedRedo;
 
       auto end = innerParent->getBlock()->end();
       for (auto iter = innerParent->getNextNode()->getIterator();;) {
@@ -5654,12 +5729,36 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           while (start->getBlock() != tc.getBlock())
             start = start->getParentOp();
           assert(start);
-          while (true) {
-            checkOverwritingOp(start);
-            if (start == &tc)
+          // The values computed again at the load read memory where they
+          // were first computed: the writes to check start there, not at
+          // the store (O37).
+          for (Operation *r : toRedo) {
+            Operation *at = r;
+            while (at && at->getBlock() != tc.getBlock())
+              at = at->getParentOp();
+            if (!at) {
+              legal = false;
               break;
-            start = start->getNextNode();
+            }
+            if (at->isBeforeInBlock(start))
+              start = at;
           }
+          Operation *from = start;
+          if (legal && checkedBlock == tc.getBlock() &&
+              checkedStart == start && checkedRedo == toRedo &&
+              nextUnchecked == &tc)
+            from = &tc;
+          Operation *firstChecked = start;
+          while (legal) {
+            checkOverwritingOp(from);
+            if (from == &tc)
+              break;
+            from = from->getNextNode();
+          }
+          checkedBlock = tc.getBlock();
+          checkedStart = firstChecked;
+          checkedRedo = toRedo;
+          nextUnchecked = tc.getNextNode();
         }
 
         if (!legal)

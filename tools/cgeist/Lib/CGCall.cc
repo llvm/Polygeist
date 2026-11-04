@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "HLSPragma.h"
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "XlxMathCore.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -21,6 +23,8 @@ using namespace std;
 using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
+
+extern llvm::cl::opt<bool> XlxPrelude; // driver.cc
 
 extern llvm::cl::opt<bool> CStyleMemRef;
 
@@ -45,10 +49,101 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
           srcShape[0] == ShapedType::kDynamic &&
           std::equal(std::next(srcShape.begin()), srcShape.end(),
                      std::next(dstShape.begin()))) {
+        // A static array seen through a cast to a dynamic first dimension
+        // (memref.get_global or memref.alloca, then memref.cast to ?xN) whose own
+        // first dimension differs from the parameter's: the chain of two
+        // casts folds into an invalid one, so with --hls-keep-misfit-inline-off
+        // (the call may stay) the static array is reinterpreted with the
+        // parameter's shape, as below (forgebench attn_breakdown:
+        // matmul_large(.., Q_weight_buffer[32][32], ..) with a [8][32]
+        // parameter; OPEN_ISSUES O167 in the hls-est tree).
+        mlir::Value staticSrc;
+        if (cgeist::hls::keepMisfitInlineOff())
+          for (auto cast = callerArg.getDefiningOp<mlir::memref::CastOp>();
+               cast; cast = cast.getSource()
+                                .getDefiningOp<mlir::memref::CastOp>()) {
+            auto t = dyn_cast<MemRefType>(cast.getSource().getType());
+            if (t && t.hasStaticShape()) {
+              // Only a whole array (a global's memref.get_global, a local
+              // alloca, through casts that keep its type): a row view keeps
+              // its cast, as before.
+              mlir::Value whole = cast.getSource();
+              while (auto same = whole.getDefiningOp<mlir::memref::CastOp>()) {
+                if (same.getSource().getType() != whole.getType())
+                  break;
+                whole = same.getSource();
+              }
+              if (whole.getDefiningOp<mlir::memref::GetGlobalOp>() ||
+                  whole.getDefiningOp<mlir::memref::AllocaOp>())
+                staticSrc = whole;
+              break;
+            }
+          }
+        if (staticSrc) {
+          auto staticTy = cast<MemRefType>(staticSrc.getType());
+          if (dstTy.hasStaticShape() &&
+              staticTy.getElementType() == dstTy.getElementType() &&
+              staticTy.getRank() == dstTy.getRank() &&
+              staticTy.getShape()[0] != dstShape[0] &&
+              staticTy.getLayout().isIdentity() &&
+              dstTy.getLayout().isIdentity()) {
+            b.setInsertionPointAfterValue(callerArg);
+            SmallVector<int64_t> strides(dstShape.size(), 1);
+            for (int k = static_cast<int>(dstShape.size()) - 2; k >= 0; --k)
+              strides[k] = strides[k + 1] * dstShape[k + 1];
+            return b.create<mlir::memref::ReinterpretCastOp>(
+                callerArg.getLoc(), dstTy, staticSrc, /*offset*/ 0,
+                dstShape, strides);
+          }
+        }
         b.setInsertionPointAfterValue(callerArg);
 
         return b.create<mlir::memref::CastOp>(callerArg.getLoc(), calleeArgType,
                                               callerArg);
+      }
+      // A C array argument whose static shape differs from the parameter's
+      // (C ignores the first dimension of an array parameter, and a `T p[]`
+      // or `T *p` parameter takes any array): `g(x)` with `short x[4096]` and
+      // `void g(short a[])`, or `f(z)` with `short z[16]` and
+      // `void f(short a[4096])` (W8b, hls-doc/hlsfactory-v2.md class
+      // cgeist-invalid-mlir). A cast towards a dynamic shape is a valid
+      // memref.cast. Two static shapes that differ are not cast-compatible,
+      // and a chain of two casts through a dynamic shape is folded back into
+      // that invalid cast by memref.cast's folder, so the argument is
+      // reinterpreted with the parameter's own shape and row-major strides,
+      // which is how C addresses the parameter. Once the call is inlined, the
+      // accesses go back to the argument itself when only the first
+      // dimension differs (populateArrayArgumentPatterns).
+      // A pointer to an array, `(T (*)[8][8]) p`, is a memref of the array's
+      // own shape (memref<8x8xT>: cgeist's type for a pointer to an array is
+      // the pointee's), passed to a parameter `T a[4][8][8]` one rank higher
+      // with the same trailing shape. C addresses the parameter through the
+      // pointer, row-major from its first element, so the argument is
+      // re-typed through its address (class_ece8893_2023_spring GradCAM
+      // src_hls, W8b; it was an invalid func.call).
+      if (srcTy && srcShape.size() + 1 == dstShape.size() &&
+          std::equal(srcShape.begin(), srcShape.end(),
+                     std::next(dstShape.begin())) &&
+          srcTy.getLayout().isIdentity() && dstTy.getLayout().isIdentity()) {
+        b.setInsertionPointAfterValue(callerArg);
+        mlir::Location loc = callerArg.getLoc();
+        mlir::Value ptr = b.create<polygeist::Memref2PointerOp>(
+            loc, LLVM::LLVMPointerType::get(b.getI8Type()), callerArg);
+        return b.create<polygeist::Pointer2MemrefOp>(loc, dstTy, ptr);
+      }
+      if (srcTy && srcShape.size() == dstShape.size() && !srcShape.empty() &&
+          srcTy.getLayout().isIdentity() && dstTy.getLayout().isIdentity()) {
+        b.setInsertionPointAfterValue(callerArg);
+        mlir::Location loc = callerArg.getLoc();
+        if (mlir::memref::CastOp::areCastCompatible(srcTy, dstTy))
+          return b.create<mlir::memref::CastOp>(loc, dstTy, callerArg);
+        if (srcTy.hasStaticShape() && dstTy.hasStaticShape()) {
+          SmallVector<int64_t> strides(dstShape.size(), 1);
+          for (int k = static_cast<int>(dstShape.size()) - 2; k >= 0; --k)
+            strides[k] = strides[k + 1] * dstShape[k + 1];
+          return b.create<mlir::memref::ReinterpretCastOp>(
+              loc, dstTy, callerArg, /*offset*/ 0, dstShape, strides);
+        }
       }
     }
   }
@@ -175,9 +270,23 @@ ValueCategory MLIRScanner::CallHelper(
                                                             val);
         }
         if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
+          // The argument is converted to the parameter's integer width
+          // explicitly (narrowing truncates; widening extends by the C
+          // signedness of the converted argument).
+          // (--scalar-wrapper-abi; with the option off, any mismatch is a
+          // trunci as before.)
           auto ipostTy = expectedType.cast<mlir::IntegerType>();
-          if (prevTy != ipostTy)
+          if (!ScalarWrapperABI) {
+            if (prevTy != ipostTy)
+              val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+          } else if (prevTy.getWidth() > ipostTy.getWidth())
             val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+          else if (prevTy.getWidth() < ipostTy.getWidth()) {
+            if (aType->isUnsignedIntegerType() || prevTy.getWidth() == 1)
+              val = builder.create<arith::ExtUIOp>(loc, ipostTy, val);
+            else
+              val = builder.create<arith::ExtSIOp>(loc, ipostTy, val);
+          }
         }
       }
     } else {
@@ -354,6 +463,47 @@ ValueCategory MLIRScanner::CallHelper(
   castCallerArgs(tocall, args, builder);
 
   auto op = builder.create<CallOp>(loc, tocall, args);
+
+  // (--xlx-headers) A compound assignment (`/=`, `*=`, `+=`, `-=`, `++`,
+  // `--`) to an ap_fixed object: marked on the call, and by the inliner on
+  // the stores of its body (HLSPragma.cc). Vitis keeps two stores per bank for it when the
+  // array is partitioned and the bank index is not constant: the
+  // `if (!op) V = 0` at the head of the cross-format ap_fixed_base::operator=
+  // and the final store (CIRCT VITIS_NOTES N38 R-cmpd, kernels w9r_d1div /
+  // d2mul / d3add; a plain `A = w * A` replicates, w9r_d4asg). After cgeist's
+  // own store forwarding only the final store is left, so hls-est needs the
+  // mark to tell the two apart.
+  if (cgeist::hls::xlxHeaders())
+    if (auto *oc = dyn_cast_or_null<clang::CXXOperatorCallExpr>(expr)) {
+      clang::OverloadedOperatorKind k = oc->getOperator();
+      if ((k == clang::OO_SlashEqual || k == clang::OO_StarEqual ||
+           k == clang::OO_PlusEqual || k == clang::OO_MinusEqual ||
+           // `++` / `--` go through operator+= / -= and the same
+           // cross-format operator= (Vitis: "store ... of constant 0", II 2;
+           // kernel w9r7rev_rc_inc, W9r7 review defect 5)
+           k == clang::OO_PlusPlus || k == clang::OO_MinusMinus) &&
+          oc->getNumArgs() > 0)
+        if (const auto *rd =
+                oc->getArg(0)->getType()->getAsCXXRecordDecl())
+          if (cgeist::hls::isApFixedClass(rd))
+            op->setAttr("hls.ap_compound_assign", builder.getUnitAttr());
+    }
+
+  // (--xlx-headers) A call of an hls:: math function of hls_math.h is a core
+  // of the Vitis math library (XlxMathCore.h): marked on the call and on the
+  // callee, which is then never inlined.
+  if (auto *ce = dyn_cast_or_null<clang::CallExpr>(expr))
+    if (auto core = cgeist::xlx::mathCoreOf(ce->getDirectCallee(),
+                                            Glob.CGM.getContext())) {
+      SmallVector<NamedAttribute, 2> fields = {builder.getNamedAttr(
+          "function", builder.getStringAttr(core->function))};
+      if (!core->type.empty())
+        fields.push_back(
+            builder.getNamedAttr("type", builder.getStringAttr(core->type)));
+      auto dict = builder.getDictionaryAttr(fields);
+      op->setAttr(cgeist::xlx::kMathCoreAttr, dict);
+      tocall->setAttr(cgeist::xlx::kMathCoreAttr, dict);
+    }
 
   if (isArrayReturn) {
     // TODO remedy return
@@ -584,6 +734,41 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
   return make_pair(ValueCategory(), false);
 }
 
+/// Whether `record` is std::ios_base or derives from it.
+static bool derivesFromIosBase(const clang::CXXRecordDecl *record) {
+  if (!record || !record->hasDefinition())
+    return false;
+  record = record->getDefinition();
+  if (record->isInStdNamespace() && record->getIdentifier() &&
+      record->getName() == "ios_base")
+    return true;
+  for (const clang::CXXBaseSpecifier &base : record->bases())
+    if (derivesFromIosBase(base.getType()->getAsCXXRecordDecl()))
+      return true;
+  return false;
+}
+
+/// Whether `type` (references removed) is a C++ standard stream: a class
+/// that is or derives from std::ios_base (std::ostream, std::istream, their
+/// file and string variants).
+static bool isStdStreamType(clang::QualType type) {
+  return derivesFromIosBase(
+      type.getNonReferenceType().getCanonicalType()->getAsCXXRecordDecl());
+}
+
+/// Whether `call` is stream I/O whose value nothing needs: it returns
+/// nothing or the stream itself, and its object or first argument is a
+/// standard stream (`os << x`, `os.flush()`, `std::endl(os)`).
+static bool isStreamIOCall(clang::CallExpr *call, clang::ASTContext &ctx) {
+  clang::QualType result = call->getCallReturnType(ctx);
+  if (!result->isVoidType() && !isStdStreamType(result))
+    return false;
+  if (auto *member = dyn_cast<clang::CXXMemberCallExpr>(call))
+    if (clang::Expr *object = member->getImplicitObjectArgument())
+      return isStdStreamType(object->getType());
+  return call->getNumArgs() > 0 && isStdStreamType(call->getArg(0)->getType());
+}
+
 ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   auto loc = getMLIRLocation(expr->getExprLoc());
@@ -602,6 +787,62 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
   */
+
+  // Console I/O through the C++ streams (`std::cout << x << std::endl;`,
+  // `std::cerr.flush()`) is no hardware: Vitis' reflow removes these calls
+  // (the Vitis 2025.1 run of class_ece8893_2023_spring YOLOv4-Tiny
+  // Maxpool_Layer: 29 ostream references in a.g.ld.5.gdce.ll, none in
+  // a.o.1.ll). cgeist used to emit them with the libstdc++ internals they
+  // call, whose `llvm.load` of a memref does not verify outside Polygeist.
+  // Only the arguments that have side effects are evaluated; a nested stream
+  // call among them is dropped the same way.
+  if (isStreamIOCall(expr, Glob.CGM.getContext())) {
+    auto evaluate = [&](clang::Expr *e) {
+      if (e && e->HasSideEffects(Glob.CGM.getContext()))
+        Visit(e);
+    };
+    if (auto *member = dyn_cast<clang::CXXMemberCallExpr>(expr))
+      evaluate(member->getImplicitObjectArgument());
+    for (clang::Expr *arg : expr->arguments())
+      evaluate(arg);
+    return ValueCategory();
+  }
+
+  // A builtin that clang evaluates to a constant of arithmetic type
+  // (`__builtin_inff()`, which <math.h>'s INFINITY expands to,
+  // `__builtin_huge_val()`, `__builtin_nanf("")`): emit the constant. These
+  // builtins have no library definition, so a call to them could not be
+  // lowered or linked (W8b repro r_inff.c: `float m = -INFINITY;`).
+  if (expr->getBuiltinCallee() && expr->getType()->isArithmeticType() &&
+      !expr->HasSideEffects(Glob.CGM.getContext())) {
+    clang::Expr::EvalResult res;
+    if (expr->EvaluateAsRValue(res, Glob.CGM.getContext()) &&
+        !res.HasSideEffects) {
+      mlir::Type ty = getMLIRType(expr->getType());
+      if (res.Val.isFloat())
+        if (auto ft = dyn_cast<mlir::FloatType>(ty);
+            ft && &ft.getFloatSemantics() == &res.Val.getFloat().getSemantics())
+          return ValueCategory(
+              builder.create<arith::ConstantFloatOp>(loc, res.Val.getFloat(),
+                                                     ft),
+              /*isReference*/ false);
+      if (res.Val.isInt() && res.Val.getInt().getBitWidth() <= 64)
+        if (auto it = dyn_cast<mlir::IntegerType>(ty))
+          return ValueCategory(
+              builder.create<arith::ConstantIntOp>(
+                  loc, res.Val.getInt().getSExtValue(), it.getWidth()),
+              /*isReference*/ false);
+    }
+  }
+
+  // Only callees named like the Xilinx HLS builtins (declared by the
+  // real-header prelude) are lowered here, and only under --xlx-prelude or
+  // --xlx-headers: without them such a call is emitted as before.
+  if (XlxPrelude || cgeist::hls::xlxHeaders()) {
+    auto xlx = EmitXlxBuiltin(expr);
+    if (xlx.second)
+      return xlx.first;
+  }
 
   auto valEmitted = EmitGPUCallExpr(expr);
   if (valEmitted.second)
@@ -634,6 +875,22 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
       }
     }
+  }
+  // `x = y` on scalar wrappers with the trivial (defaulted) assignment:
+  // a load and a store, no call.
+  if (auto *oc = dyn_cast<CXXOperatorCallExpr>(expr)) {
+    if (oc->getOperator() == clang::OO_Equal && oc->getNumArgs() == 2)
+      if (auto *MD = dyn_cast_or_null<CXXMethodDecl>(oc->getCalleeDecl()))
+        if (MD->isTrivial() &&
+            (MD->isCopyAssignmentOperator() ||
+             MD->isMoveAssignmentOperator()) &&
+            Glob.getScalarWrapperField(MD->getParent())) {
+          ValueCategory lhs = Visit(oc->getArg(0));
+          ValueCategory rhs = Visit(oc->getArg(1));
+          assert(lhs.val && rhs.val && lhs.isReference);
+          lhs.store(loc, builder, rhs.getValue(loc, builder));
+          return lhs;
+        }
   }
   if (auto *oc = dyn_cast<CXXMemberCallExpr>(expr)) {
     if (auto *lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
@@ -708,7 +965,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      // (--scalar-wrapper-abi: only for a floating first argument, so that
+      // hls::pow on an ap_fixed class stays a call; unchanged when off.)
       if (sr->getDecl()->getIdentifier() &&
+          (!ScalarWrapperABI ||
+           (expr->getNumArgs() == 2 &&
+            expr->getArg(0)->getType()->isRealFloatingType())) &&
           (sr->getDecl()->getName() == "__powf" ||
            sr->getDecl()->getName() == "pow" ||
            sr->getDecl()->getName() == "__nv_pow" ||
@@ -723,6 +985,25 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         for (auto *a : expr->arguments()) {
           args.push_back(Visit(a).getValue(loc, builder));
         }
+        // A floating argument of another type than the result is converted
+        // to it first: libstdc++'s `std::pow(float, int)` is the promoted
+        // template whose parameters are (float, int) and whose result is
+        // double (C++11 [c.math]), computed as pow((double)x, (double)n).
+        // Without the conversion the op computed in float and claimed a
+        // double result (llvm.intr.powi(f32, i32) -> f64; CIRCT W9r14
+        // review, kernel w9r14rv_pw_f32, OPEN_ISSUES O145).
+        auto toResultType = [&](mlir::Value v) -> mlir::Value {
+          auto from = v.getType().dyn_cast<mlir::FloatType>();
+          auto to = mlirType.dyn_cast<mlir::FloatType>();
+          if (!from || !to || from == to)
+            return v;
+          if (from.getWidth() < to.getWidth())
+            return builder.create<arith::ExtFOp>(loc, to, v);
+          return builder.create<arith::TruncFOp>(loc, to, v);
+        };
+        args[0] = toResultType(args[0]);
+        if (!args[1].getType().isa<mlir::IntegerType>())
+          args[1] = toResultType(args[1]);
         if (args[1].getType().isa<mlir::IntegerType>())
           return ValueCategory(
               builder.create<LLVM::PowIOp>(loc, mlirType, args[0], args[1]),
@@ -750,7 +1031,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "fabs" ||
            sr->getDecl()->getName() == "fabsf" ||
            sr->getDecl()->getName() == "__builtin_fabs" ||
-           sr->getDecl()->getName() == "__builtin_fabsf")) {
+           sr->getDecl()->getName() == "__builtin_fabsf") &&
+          // Only the C library function on a number: an overload of the same
+          // name for a class (`fabs(ap_fixed<W, I>)`, the Vitis hls_math
+          // overloads) is an ordinary call (W8b, flowgnn dgn and
+          // accelerators GP_selection: cast<IntegerType> of a class value).
+          expr->getNumArgs() == 1 &&
+          expr->getArg(0)->getType()->isArithmeticType()) {
         // isinf(x)    --> fabs(x) == infinity
         // isfinite(x) --> fabs(x) != infinity
         // x != NaN via the ordered compare in either case.
@@ -1939,7 +2226,28 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       return ValueCategory();
   }
 
-  auto tocall = EmitDirectCallee(callee);
+  // (--xlx-headers) A member of hls::stream called on an object of a class
+  // derived from the member's class (hls::stream<T, D> over
+  // hls::stream<T, 0>) is named as a member of the object's class.
+  const clang::CXXRecordDecl *xlxStreamObject = nullptr;
+  if (const auto *md = dyn_cast<CXXMethodDecl>(callee);
+      md && Glob.isXlxStreamClass(md->getParent())) {
+    const clang::Expr *object = nullptr;
+    if (auto *mc = dyn_cast<CXXMemberCallExpr>(expr))
+      object = mc->getImplicitObjectArgument();
+    else if (isa<CXXOperatorCallExpr>(expr) && expr->getNumArgs() > 0)
+      object = expr->getArg(0);
+    if (object) {
+      QualType t = object->IgnoreParenImpCasts()->getType();
+      if (t->isPointerType())
+        t = t->getPointeeType();
+      xlxStreamObject = t->getAsCXXRecordDecl();
+    }
+  }
+  auto tocall = xlxStreamObject
+                    ? Glob.GetOrCreateMLIRFunction(callee, false,
+                                                   xlxStreamObject)
+                    : EmitDirectCallee(callee);
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   QualType objType;

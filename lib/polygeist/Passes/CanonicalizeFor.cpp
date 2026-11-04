@@ -2,14 +2,20 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -94,6 +100,30 @@ struct PropagateInLoopBody : public OpRewritePattern<scf::ForOp> {
 //    yield %r#0, %a2
 // }
 // no use of %f#1
+//
+// Picking the "continue" value changes what the for carries in %a after the
+// iteration that clears %c. That is unobservable only when %f#1 is unused
+// and %a itself is read nowhere but inside the `then` region of the guard
+// (which never runs again once %c is false) and in its own slot of the
+// `else` yield. Only that one yield slot is rewritten: the same inner value
+// may also feed another slot, e.g. the copy of the counter whose result is
+// used, that MoveWhileToFor creates next to the unused one. Rewriting the
+// inner if's result for every user made `for (i = 0; i < n; i++) if (..)
+// { ..; break; }` leave i one too high after the break (W8b review).
+static bool carriedOnlyUnderGuard(BlockArgument regionArg, scf::IfOp guard,
+                                  unsigned slot) {
+  for (OpOperand &use : regionArg.getUses()) {
+    Operation *user = use.getOwner();
+    if (guard.getThenRegion().isAncestor(user->getParentRegion()))
+      continue;
+    if (user == guard.elseYield().getOperation() &&
+        use.getOperandNumber() == slot)
+      continue;
+    return false;
+  }
+  return true;
+}
+
 struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
 
@@ -169,7 +199,9 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
 
         if (ifcond == trueYield) {
           // If never used, can always pick the "continue" value
-          if (res.use_empty()) {
+          if (res.use_empty() &&
+              carriedOnlyUnderGuard(regionArg, outerIfOp,
+                                    opres2.getResultNumber())) {
             auto idx = topOp.cast<OpResult>().getResultNumber();
             Value val =
                 (negated ? innerIfOp.elseYield() : innerIfOp.thenYield())
@@ -188,11 +220,10 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
                 continue;
             }
 
-            rewriter.setInsertionPoint(innerIfOp);
-            auto cloned = rewriter.clone(*innerIfOp);
-            SmallVector<Value> results(cloned->getResults());
-            results[idx] = val;
-            rewriter.replaceOp(innerIfOp, results);
+            scf::YieldOp thenYield = outerIfOp.thenYield();
+            rewriter.updateRootInPlace(thenYield, [&] {
+              thenYield->setOperand(opres2.getResultNumber(), val);
+            });
             changed = true;
             continue;
           }
@@ -209,11 +240,15 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
           }
         if (ifcond == trueYield) {
           // If never used, can always pick the "continue" value
-          if (res.use_empty()) {
+          if (res.use_empty() &&
+              carriedOnlyUnderGuard(regionArg, outerIfOp,
+                                    opres2.getResultNumber())) {
             Value val = (negated ? innerSelOp.getFalseValue()
                                  : innerSelOp.getTrueValue());
-            Value results[] = {val};
-            rewriter.replaceOp(innerSelOp, results);
+            scf::YieldOp thenYield = outerIfOp.thenYield();
+            rewriter.updateRootInPlace(thenYield, [&] {
+              thenYield->setOperand(opres2.getResultNumber(), val);
+            });
             changed = true;
             continue;
           }
@@ -252,7 +287,9 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
       // Only do final hoisting on a variable which can be loop induction
       // replaced.
       //  Otherwise additional work is added outside the break
-      if (res.use_empty()) {
+      if (res.use_empty() &&
+          carriedOnlyUnderGuard(regionArg, outerIfOp,
+                                opres2.getResultNumber())) {
         if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
           if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
             continue;
@@ -274,14 +311,359 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
   }
 };
 
+/// Integer values of up to 64 bits, signed or unsigned, and sums and small
+/// products of them.
+using WideInt = __int128;
+
+/// Width of an integer or index type (index: 64, the width the index casts
+/// and the affine maps compute in); 0 for any other type.
+static unsigned intWidth(Type t) {
+  if (t.isa<IndexType>())
+    return 64;
+  if (auto it = t.dyn_cast<IntegerType>())
+    return it.getWidth();
+  return 0;
+}
+
+/// Smallest / largest value of a `width`-bit integer read as unsigned or
+/// signed.
+static WideInt viewMin(unsigned width, bool asUnsigned) {
+  return asUnsigned ? 0 : -((WideInt)1 << (width - 1));
+}
+static WideInt viewMax(unsigned width, bool asUnsigned) {
+  return asUnsigned ? ((WideInt)1 << width) - 1
+                    : ((WideInt)1 << (width - 1)) - 1;
+}
+
+/// The value of the integer constant `v` read as unsigned or signed.
+static std::optional<WideInt> constantValue(Value v, bool asUnsigned) {
+  APInt c;
+  if (!matchPattern(v, m_ConstantInt(&c)) || c.getBitWidth() > 64)
+    return std::nullopt;
+  return asUnsigned ? (WideInt)c.getZExtValue() : (WideInt)c.getSExtValue();
+}
+
+/// The range of values the integer `v` can hold, read as unsigned or signed,
+/// as far as its definition shows it: a constant is itself, extui(x) holds
+/// x's unsigned range, extsi(x) x's signed range when read as signed;
+/// anything else the whole range of its type.
+static std::pair<WideInt, WideInt> valueRange(Value v, bool asUnsigned) {
+  if (auto c = constantValue(v, asUnsigned))
+    return {*c, *c};
+  if (auto ext = v.getDefiningOp<ExtUIOp>())
+    return {0, viewMax(intWidth(ext.getIn().getType()), true)};
+  if (auto ext = v.getDefiningOp<ExtSIOp>())
+    if (!asUnsigned) {
+      unsigned w = intWidth(ext.getIn().getType());
+      return {viewMin(w, false), viewMax(w, false)};
+    }
+  unsigned w = intWidth(v.getType());
+  return {viewMin(w, asUnsigned), viewMax(w, asUnsigned)};
+}
+
+/// The range of the index value `v` when its definition bounds it: a
+/// constant, an index_cast / index_castui of an integer (valueRange), or the
+/// sum of two such values.
+static std::optional<std::pair<WideInt, WideInt>> indexRange(Value v) {
+  if (auto c = constantValue(v, /*asUnsigned=*/false))
+    return std::make_pair(*c, *c);
+  if (auto cast = v.getDefiningOp<IndexCastOp>())
+    if (intWidth(cast.getIn().getType()) <= 64)
+      return valueRange(cast.getIn(), /*asUnsigned=*/false);
+  if (auto cast = v.getDefiningOp<IndexCastUIOp>())
+    if (intWidth(cast.getIn().getType()) <= 64)
+      return valueRange(cast.getIn(), /*asUnsigned=*/true);
+  if (auto add = v.getDefiningOp<AddIOp>()) {
+    auto a = indexRange(add.getLhs()), b = indexRange(add.getRhs());
+    if (a && b)
+      return std::make_pair(a->first + b->first, a->second + b->second);
+  }
+  return std::nullopt;
+}
+
+/// Width of C `int` on the targets cgeist compiles for: a signed counter
+/// narrower than it is incremented in int and converted back.
+static constexpr unsigned kCIntWidth = 32;
+
+// A while loop over a counter narrower than int whose range check
+// (WhileToForHelper::counterStaysInRange) cannot show that the counter stays
+// in range, because its bound is a runtime value that may lie beyond it
+// (`for (uint8_t i = 0; i < n; i++)` with int n, which never ends for
+// n > 255) or because a narrow bound lets a power-of-two step overshoot it
+// (`for (uint8_t i = 0; i < m; i += 2)`, uint8_t m, which never ends for
+// m = 255), is raised to a for loop by assuming that it terminates. C11
+// 6.8.5p6 and C++ [intro.progress] let an implementation assume that a loop
+// whose controlling expression is not a constant expression terminates when
+// it performs no input / output, no volatile access and no synchronisation or
+// atomic operation; here that is a body without calls to functions cgeist
+// cannot see into, atomics, fences, barriers or volatile LLVM loads and
+// stores, in a function the frontend did not mark polygeist.volatile_access
+// and calling no function so marked (cgeist does not represent C volatile on
+// memref accesses; the frontend marks each function whose body accesses a
+// volatile-qualified object, and inlining carries the mark to the caller,
+// Passes.h). Such a loop terminates only
+// if its counter never wraps: counting by +-2^k with a test read with the
+// counter's own signedness, a wrap returns the counter to values the test
+// has already accepted, so a loop that wrapped never ends. The raised loop is
+// marked polygeist.counter_nowrap and the casts of its counter
+// polygeist.nuw / polygeist.nsw (Passes.h), so that AffineCFG reads them as
+// the induction variable; a loop whose bound is of a wider type than its
+// counter is marked hls.uncounted as well. Not applied to a constant bound
+// (the range check is exact there: such a loop never ends), to other steps
+// (a wrap can be followed by a different residue that ends the loop) or to a
+// signed counter compared unsigned (a negative value ends the loop). Vitis
+// HLS pipelines such loops as it does the `int` ones (hls-est-validate
+// VITIS_NOTES.md N15).
+static llvm::cl::opt<bool> AssumeTermination(
+    "canonicalize-for-assume-termination", llvm::cl::init(true),
+    llvm::cl::Hidden,
+    llvm::cl::desc(
+        "Raise a while loop whose counter (narrower than int) is not "
+        "provably kept in range by its runtime bound to a for loop by "
+        "assuming that the loop terminates, so that the counter does not "
+        "wrap (C11 6.8.5p6); false keeps such loops as while loops"));
+
+/// Whether `root` holds an operation that makes running forever observable
+/// (see AssumeTermination): a call to a function without a visible body (the
+/// bodies of visible callees are searched in turn), an atomic operation, a
+/// fence, a barrier, a volatile LLVM load / store, or a call to a function
+/// marked polygeist.volatile_access. The mark on the function enclosing the
+/// loop is checked by the caller (terminationImpliesNoWrap).
+static bool mayDoObservableWork(Operation *root,
+                                SmallPtrSetImpl<Operation *> &visited) {
+  WalkResult r = root->walk([&](Operation *op) {
+    if (isa<FunctionOpInterface>(op) &&
+        op->hasAttr(polygeist::kVolatileAccessAttrName))
+      return WalkResult::interrupt();
+    if (isa<memref::AtomicRMWOp, memref::GenericAtomicRMWOp,
+            LLVM::AtomicRMWOp, LLVM::AtomicCmpXchgOp, LLVM::FenceOp,
+            polygeist::BarrierOp>(op))
+      return WalkResult::interrupt();
+    if (auto ld = dyn_cast<LLVM::LoadOp>(op); ld && ld.getVolatile_())
+      return WalkResult::interrupt();
+    if (auto st = dyn_cast<LLVM::StoreOp>(op); st && st.getVolatile_())
+      return WalkResult::interrupt();
+    if (auto call = dyn_cast<CallOpInterface>(op)) {
+      auto callee =
+          dyn_cast_or_null<FunctionOpInterface>(call.resolveCallable());
+      if (!callee || callee.isExternal())
+        return WalkResult::interrupt();
+      if (visited.insert(callee.getOperation()).second &&
+          mayDoObservableWork(callee.getOperation(), visited))
+        return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return r.wasInterrupted();
+}
+
+/// ceil(a / b) for b > 0.
+static WideInt ceilDivWide(WideInt a, WideInt b) {
+  WideInt q = a / b;
+  return (a % b != 0 && a > 0) ? q + 1 : q;
+}
+
 struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
+
+  /// The signedness of the index cast `v` is of `init`, if it is one.
+  static std::optional<bool> castOf(Value v, Value init) {
+    if (auto c = v.getDefiningOp<IndexCastUIOp>())
+      if (c.getIn() == init)
+        return true;
+    if (auto c = v.getDefiningOp<IndexCastOp>())
+      if (c.getIn() == init)
+        return false;
+    return std::nullopt;
+  }
+
+  /// The signedness with which `bound` (a bound of the for) was cast from
+  /// `init`, possibly plus a constant (a countdown's init + 1): the signedness
+  /// MoveWhileToFor counted the loop's counter with. Only the choice of cast
+  /// for a counter as wide as int uses it, for any counter starting at `init`.
+  static std::optional<bool> boundCastOf(Value bound, Value init) {
+    if (auto add = bound.getDefiningOp<AddIOp>())
+      if (matchPattern(add.getRhs(), m_Constant()))
+        bound = add.getLhs();
+    return castOf(bound, init);
+  }
+
+  /// The counter's own signedness, when its values are those of the counter
+  /// MoveWhileToFor raised the for from, which counterStaysInRange kept in
+  /// that range: it starts at the lower bound, cast from `init`, and steps
+  /// with the loop (`sameValue`), or, counting down, the upper bound is that
+  /// cast plus one and it steps by minus the loop's step. Another counter
+  /// with the same start value (the same SSA value: a CSE'd constant, a
+  /// shared runtime start) but another step is not: `for (uint8_t i = 0,
+  /// j = 0; i < 10; i++, j += 30)` takes j to 270, which wraps.
+  static std::optional<bool> ownCastOf(scf::ForOp forOp, Value init,
+                                       bool sameValue, Value addStep) {
+    if (sameValue)
+      return castOf(forOp.getLowerBound(), init);
+    std::optional<WideInt> step = constantValue(forOp.getStep(), false);
+    std::optional<WideInt> inc = constantValue(addStep, false);
+    if (!step || !inc || *inc != -*step)
+      return std::nullopt;
+    auto add = forOp.getUpperBound().getDefiningOp<AddIOp>();
+    if (!add || !matchPattern(add.getRhs(), m_One()))
+      return std::nullopt;
+    return castOf(add.getLhs(), init);
+  }
+
+  /// The loop's own counter in a loop MoveWhileToFor raised by assuming that
+  /// it terminates (polygeist.counter_nowrap, whose value is the signedness
+  /// its exit test reads the counter with): the signedness that ownCastOf
+  /// gives, or, once the start's cast to the bound has been folded to a
+  /// constant, the mark's for a constant start that is, read that way, the
+  /// lower bound (counting up with the loop's step) or the upper bound minus
+  /// one (counting down by it). Any counter with those values never wraps
+  /// in such a loop. std::nullopt for other counters and loops.
+  static std::optional<bool> assumedOwnCastOf(scf::ForOp forOp, Value init,
+                                              bool sameValue, Value addStep) {
+    auto mark = forOp->getAttrOfType<BoolAttr>(kCounterNoWrapAttrName);
+    if (!mark)
+      return std::nullopt;
+    bool view = mark.getValue();
+    std::optional<bool> own = ownCastOf(forOp, init, sameValue, addStep);
+    if (own)
+      return *own == view ? own : std::nullopt;
+    std::optional<WideInt> start = constantValue(init, view);
+    if (!start)
+      return std::nullopt;
+    if (sameValue) {
+      std::optional<WideInt> lb = constantValue(forOp.getLowerBound(), false);
+      return lb && *lb == *start ? std::optional<bool>(view) : std::nullopt;
+    }
+    std::optional<WideInt> step = constantValue(forOp.getStep(), false);
+    std::optional<WideInt> inc = constantValue(addStep, false);
+    if (!step || !inc || *inc != -*step)
+      return std::nullopt;
+    std::optional<WideInt> ub = constantValue(forOp.getUpperBound(), false);
+    return ub && *ub == *start + 1 ? std::optional<bool>(view) : std::nullopt;
+  }
+
+  /// How to cast the iN start `init` of the counter `like` (an iter_arg of
+  /// the for, or with `atExit` its result) to index; true is index_castui.
+  /// The counter is replaced by index_cast(X -> iN), X = start + k * inc in
+  /// index, and the folds downstream (AffineCFG's cast stripping, the
+  /// index_cast(index_cast) / index_castui(index_cast) round trips) read each
+  /// extui / extsi / index_cast* of it back as X. That is exact only while X
+  /// stays in the range of every view the counter is read with: [0, 2^N)
+  /// through extui / index_castui, [-2^(N-1), 2^(N-1)) through extsi /
+  /// index_cast. A call it is passed to is both views: after inlining, the
+  /// callee's parameter reads it with the callee's signedness, which the
+  /// upstream index_cast(index_cast) fold does not check. For a counter
+  /// narrower than int (its values cross 2^(N-1) in ordinary loops: a
+  /// uint8_t over 120..135) a cast is taken when
+  ///  - every view is the counter's own signedness and its values are those
+  ///    of the loop's own counter (ownCastOf): X is then the counter's
+  ///    value, which never leaves that range (counterStaysInRange);
+  ///  - or the range of X, from the bounds, steps and start as far as their
+  ///    definitions show them, lies in every view.
+  /// std::nullopt when neither holds (e.g. a uint8_t counter read as
+  /// `(int8_t)i` while it runs over 120..135, or as both `i` and `(int8_t)i`
+  /// over 200..209): the counter then stays an iter_arg, whose own iN
+  /// arithmetic is exact. A counter as wide as int is assumed to stay below
+  /// 2^31 as before, and takes its own signedness when the bounds show it
+  /// (`int jj < unsigned row_end`: the for counts from index_castui(start),
+  /// so X is the induction variable), else the users' view.
+  static std::optional<bool> chooseInitCast(scf::ForOp forOp, Value init,
+                                            Value like, bool sameValue,
+                                            Value addStep, bool atExit) {
+    bool hasUnsigned = false, hasSigned = false;
+    for (Operation *u : like.getUsers()) {
+      if (isa<IndexCastUIOp, ExtUIOp>(u))
+        hasUnsigned = true;
+      else if (isa<IndexCastOp, ExtSIOp>(u))
+        hasSigned = true;
+      else if (isa<CallOpInterface>(u))
+        hasUnsigned = hasSigned = true;
+    }
+    bool usersView = hasUnsigned && !hasSigned;
+    unsigned w = intWidth(init.getType());
+    // A counter as wide as int, or one no extension reads: its own
+    // signedness when the bounds show it (X is then the induction variable
+    // itself), else the users' view (a signed one when they disagree).
+    if (w >= kCIntWidth || (!hasUnsigned && !hasSigned)) {
+      std::optional<bool> own = boundCastOf(forOp.getLowerBound(), init);
+      if (!own)
+        own = boundCastOf(forOp.getUpperBound(), init);
+      return own ? *own : usersView;
+    }
+    std::optional<bool> own = ownCastOf(forOp, init, sameValue, addStep);
+    if (!own)
+      own = assumedOwnCastOf(forOp, init, sameValue, addStep);
+    if (own && (hasUnsigned ? *own : !*own) && !(hasUnsigned && hasSigned))
+      return *own;
+
+    auto lbR = indexRange(forOp.getLowerBound());
+    auto ubR = indexRange(forOp.getUpperBound());
+    auto stR = indexRange(forOp.getStep());
+    if (!lbR || !ubR || !stR || stR->first <= 0)
+      return std::nullopt;
+    // X = start + d, d in [dLo, dHi].
+    WideInt dLo = 0, dHi = 0;
+    WideInt incLo = 1, incHi = 1;
+    if (!sameValue) {
+      if (auto c = constantValue(addStep, /*asUnsigned=*/false)) {
+        incLo = incHi = *c;
+      } else {
+        incLo = viewMin(intWidth(addStep.getType()), false);
+        incHi = viewMax(intWidth(addStep.getType()), false);
+      }
+    }
+    if (!atExit) {
+      if (ubR->second <= lbR->first) // the body never runs: any cast
+        return usersView;
+      // iv - lb in [0, span]; with !sameValue, k = (iv - lb) / step.
+      WideInt span = ubR->second - 1 - lbR->first;
+      WideInt kHi = sameValue ? span : span / stR->first;
+      dLo = std::min<WideInt>(0, kHi * incLo);
+      dHi = std::max<WideInt>(0, kHi * incHi);
+    } else {
+      // trips steps of inc (of the loop's step with sameValue), trips =
+      // max(0, ceil((ub - lb) / step)) as the exit value is computed.
+      WideInt tLo = std::max<WideInt>(
+          0, ceilDivWide(ubR->first - lbR->second, stR->second));
+      WideInt tHi = std::max<WideInt>(
+          0, ceilDivWide(ubR->second - lbR->first, stR->first));
+      if (sameValue) {
+        incLo = stR->first;
+        incHi = stR->second;
+      }
+      const WideInt big = (WideInt)1 << 62;
+      if (tHi > big || incHi > big || incLo < -big)
+        return std::nullopt;
+      WideInt c[4] = {tLo * incLo, tLo * incHi, tHi * incLo, tHi * incHi};
+      dLo = *std::min_element(c, c + 4);
+      dHi = *std::max_element(c, c + 4);
+    }
+    for (bool asUnsigned : {usersView, !usersView}) {
+      WideInt sLo = viewMin(w, asUnsigned), sHi = viewMax(w, asUnsigned);
+      if (auto c = constantValue(init, asUnsigned))
+        sLo = sHi = *c;
+      WideInt lo = sLo + dLo, hi = sHi + dHi;
+      if ((!hasUnsigned ||
+           (lo >= viewMin(w, true) && hi <= viewMax(w, true))) &&
+          (!hasSigned || (lo >= viewMin(w, false) && hi <= viewMax(w, false))))
+        return asUnsigned;
+    }
+    return std::nullopt;
+  }
+
+  static Value castInit(PatternRewriter &rewriter, Location loc, Value init,
+                        bool asUnsigned) {
+    if (asUnsigned)
+      return rewriter.create<IndexCastUIOp>(loc, rewriter.getIndexType(), init);
+    return rewriter.create<IndexCastOp>(loc, rewriter.getIndexType(), init);
+  }
 
   LogicalResult matchAndRewrite(scf::ForOp forOp,
                                 PatternRewriter &rewriter) const final {
     // Defer until after the step is a constant, if possible
-    if (auto icast = forOp.getStep().getDefiningOp<IndexCastOp>())
-      if (matchPattern(icast.getIn(), m_Constant()))
+    if (auto *icast = forOp.getStep().getDefiningOp())
+      if (isa<IndexCastOp, IndexCastUIOp>(icast) &&
+          matchPattern(icast->getOperand(0), m_Constant()))
         return failure();
     bool canonicalize = false;
     Block &block = forOp.getRegion().front();
@@ -316,7 +698,34 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
           sameValue |= rattr.zext(maxWidth) == sattr.zext(maxWidth);
         }
 
-      if (!std::get<1>(it).use_empty()) {
+      // A narrow counter is replaced only when one cast of its start makes
+      // every read of it exact (chooseInitCast).
+      bool narrow = !std::get<0>(it).getType().isa<IndexType>();
+      std::optional<bool> bodyCast, exitCast;
+      if (narrow && !std::get<1>(it).use_empty())
+        bodyCast = chooseInitCast(forOp, std::get<0>(it), std::get<1>(it),
+                                  sameValue, addOp.getOperand(1),
+                                  /*atExit=*/false);
+      if (narrow && !std::get<2>(it).use_empty())
+        exitCast = chooseInitCast(forOp, std::get<0>(it), std::get<2>(it),
+                                  sameValue, addOp.getOperand(1),
+                                  /*atExit=*/true);
+      // In a loop raised by assuming that it terminates (MoveWhileToFor,
+      // AssumeTermination), the loop's own counter never wraps: its value,
+      // read with its own signedness, is the index it is cast from, inside
+      // the loop and at its exit. The cast is marked so for AffineCFG.
+      std::optional<bool> ownNoWrap;
+      if (narrow)
+        ownNoWrap = assumedOwnCastOf(forOp, std::get<0>(it), sameValue,
+                                     addOp.getOperand(1));
+      auto markOwnCast = [&](Value cast, std::optional<bool> chosen) {
+        if (ownNoWrap && chosen && *chosen == *ownNoWrap)
+          cast.getDefiningOp()->setAttr(*ownNoWrap ? kNoUnsignedWrapAttrName
+                                                   : kNoSignedWrapAttrName,
+                                        rewriter.getUnitAttr());
+      };
+
+      if (!std::get<1>(it).use_empty() && (!narrow || bodyCast)) {
         Value init = std::get<0>(it);
         rewriter.setInsertionPointToStart(&forOp.getRegion().front());
         Value replacement = rewriter.create<SubIOp>(
@@ -338,10 +747,8 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
               rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
         }
 
-        if (!init.getType().isa<IndexType>()) {
-          init = rewriter.create<IndexCastOp>(forOp.getLoc(),
-                                              replacement.getType(), init);
-        }
+        if (narrow)
+          init = castInit(rewriter, forOp.getLoc(), init, *bodyCast);
 
         replacement =
             rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
@@ -349,6 +756,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
+          markOwnCast(replacement, bodyCast);
         }
 
         rewriter.updateRootInPlace(
@@ -356,32 +764,33 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         canonicalize = true;
       }
 
-      if (!std::get<2>(it).use_empty()) {
+      if (!std::get<2>(it).use_empty() && (!narrow || exitCast)) {
         Value init = std::get<0>(it);
+        Location loc = forOp.getLoc();
         rewriter.setInsertionPoint(forOp);
-        Value replacement = rewriter.create<SubIOp>(
-            forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound());
+        // The counter leaves the loop at init + trips * inc (inc: the loop's
+        // step with sameValue), trips = max(0, ceil((ub - lb) / step)), the
+        // number of iterations (step > 0): none when the loop does not run
+        // (ub < lb), a last partial step counted whole (`i < 10; i += 3`
+        // leaves at 12).
+        Value trips = rewriter.create<SubIOp>(loc, forOp.getUpperBound(),
+                                              forOp.getLowerBound());
+        if (!matchPattern(forOp.getStep(), m_One()))
+          trips = rewriter.create<CeilDivSIOp>(loc, trips, forOp.getStep());
+        auto lbR = indexRange(forOp.getLowerBound());
+        auto ubR = indexRange(forOp.getUpperBound());
+        if (!lbR || !ubR || ubR->first < lbR->second)
+          trips = rewriter.create<MaxSIOp>(
+              loc, trips, rewriter.create<ConstantIndexOp>(loc, 0));
+        Value inc = sameValue ? forOp.getStep() : addOp.getOperand(1);
+        if (!inc.getType().isa<IndexType>())
+          inc = rewriter.create<IndexCastOp>(loc, trips.getType(), inc);
+        Value replacement = trips;
+        if (!matchPattern(inc, m_One()))
+          replacement = rewriter.create<MulIOp>(loc, trips, inc);
 
-        if (!sameValue)
-          replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement,
-                                                 forOp.getStep());
-
-        if (!sameValue) {
-          Value step = addOp.getOperand(1);
-
-          if (!step.getType().isa<IndexType>()) {
-            step = rewriter.create<IndexCastOp>(forOp.getLoc(),
-                                                replacement.getType(), step);
-          }
-
-          replacement =
-              rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
-        }
-
-        if (!init.getType().isa<IndexType>()) {
-          init = rewriter.create<IndexCastOp>(forOp.getLoc(),
-                                              replacement.getType(), init);
-        }
+        if (narrow)
+          init = castInit(rewriter, forOp.getLoc(), init, *exitCast);
 
         replacement =
             rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
@@ -389,6 +798,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
+          markOwnCast(replacement, exitCast);
         }
 
         rewriter.updateRootInPlace(
@@ -432,6 +842,9 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
     auto newForOp =
         rewriter.create<ForOp>(op.getLoc(), op.getLowerBound(),
                                op.getUpperBound(), op.getStep(), usedOperands);
+    for (StringRef mark : {kCounterNoWrapAttrName, kUncountedLoopAttrName})
+      if (Attribute a = op->getAttr(mark))
+        newForOp->setAttr(mark, a);
 
     if (!newForOp.getBody()->empty())
       rewriter.eraseOp(newForOp.getBody()->getTerminator());
@@ -659,6 +1072,11 @@ bool canMoveOpOutsideWhile(Operation *op, WhileOp loop) {
   return true;
 }
 
+static bool isUnsignedPredicate(CmpIPredicate p) {
+  return p == CmpIPredicate::ult || p == CmpIPredicate::ule ||
+         p == CmpIPredicate::ugt || p == CmpIPredicate::uge;
+}
+
 struct WhileToForHelper {
   WhileOp loop;
   CmpIOp cmpIOp;
@@ -669,9 +1087,144 @@ struct WhileToForHelper {
   bool ub_addOne;
   bool ub_cloneMove;
   bool negativeStep;
+  // The counter's own values (its start and step) are read as unsigned: it is
+  // compared through an extui (an unsigned C counter narrower than its
+  // bound) or, unextended, with an unsigned predicate.
+  bool indVarUnsigned;
+  // The comparison is unsigned (ult/ule/ugt/uge): its bound is read as
+  // unsigned.
+  bool boundUnsigned;
+  // Which of lb / ub is the comparison's bound (the other is the counter's
+  // start).
+  bool lbIsBound;
+  bool ubIsBound;
   AddIOp addIOp;
   BlockArgument indVar;
   size_t afterArgIdx;
+  // Set by counterStaysInRange: the counter is not provably kept in range
+  // and the loop is raised by assuming that it terminates (AssumeTermination);
+  // with uncounted, its bound may lie beyond the counter's range.
+  bool assumedNoWrap = false;
+  bool uncounted = false;
+
+  /// The for loop counts in index arithmetic, the while in the counter's own
+  /// iW arithmetic, which wraps modulo 2^W (arith.addi); they agree only if
+  /// the counter never leaves its range before the test fails, so a counter
+  /// narrower than int is raised only when that is provable. Such counters
+  /// wrap in C: unsigned ones modulo 2^W (defined), signed ones because their
+  /// `++` / `+=` is computed in int and converted back (implementation-
+  /// defined; clang and Vitis wrap). A counter as wide as int is assumed not
+  /// to wrap, as before: for a signed one that is C's undefined overflow, and
+  /// the IR cannot tell an unsigned one (`unsigned j < n`, which could wrap
+  /// at 2^32) from a signed one compared unsigned (`int jj < unsigned
+  /// row_end; jj += 4`, spector_hls/spmv: cmpi ult on i32 either way).
+  /// The range is that of the counter's values as the test reads them:
+  /// [0, 2^W) through an extui or an unextended unsigned compare,
+  /// [-2^(W-1), 2^(W-1)) through an extsi or an unextended signed compare,
+  /// [0, 2^(W-1)) through an extsi read by an unsigned compare (a negative
+  /// value is huge there). Counting up by s with `i < B` (`i <= B`), the
+  /// largest value that passes is at most B - 1 (B), and it plus s must stay
+  /// in range; counting down by d with `i > B` (`i >= B`), the smallest is at
+  /// least B + 1 (B), and it minus d must stay in range. A constant start
+  /// makes this exact (the last value is start + k * s); a runtime bound
+  /// counts with the largest (smallest) value its definition allows, so a
+  /// bound zero-extended from at most W bits is in range while an `int n`
+  /// against a uint8_t counter is not (`for (uint8_t i = 0; i < n; i++)`
+  /// never ends for n > 255). A runtime step is not provable.
+  /// When the proof fails, the loop may still be raised by assuming that it
+  /// terminates (terminationImpliesNoWrap; AssumeTermination).
+  bool counterStaysInRange(Operation *ext) {
+    assumedNoWrap = false;
+    uncounted = false;
+    if (counterProvablyInRange(ext))
+      return true;
+    if (!terminationImpliesNoWrap(ext))
+      return false;
+    assumedNoWrap = true;
+    // The bound's values as the test reads them, against the counter's.
+    unsigned w = intWidth(indVar.getType());
+    auto [bMin, bMax] = valueRange(cmpIOp.getRhs(), boundUnsigned);
+    WideInt lo = viewMin(w, indVarUnsigned), hi = viewMax(w, indVarUnsigned);
+    uncounted = bMin < lo || bMax > hi;
+    return true;
+  }
+
+  /// Whether the loop may be assumed to terminate and its termination
+  /// implies that its counter never wraps (see AssumeTermination): a counter
+  /// narrower than int, a runtime bound, a constant step of +-2^k with
+  /// 2^k <= 2^(W-1), a test that reads the counter with its own signedness
+  /// (not a sign-extended counter compared unsigned) and nothing in the loop
+  /// that makes running forever observable (mayDoObservableWork).
+  bool terminationImpliesNoWrap(Operation *ext) {
+    if (!AssumeTermination)
+      return false;
+    unsigned w = intWidth(indVar.getType());
+    if (w == 0 || w >= kCIntWidth || intWidth(cmpIOp.getRhs().getType()) > 64)
+      return false;
+    if (ext && isa<ExtSIOp>(ext) && boundUnsigned)
+      return false;
+    if (constantValue(cmpIOp.getRhs(), boundUnsigned))
+      return false;
+    std::optional<WideInt> s = constantValue(step, /*asUnsigned=*/false);
+    if (!s || *s == 0)
+      return false;
+    WideInt mag = *s < 0 ? -*s : *s;
+    if ((mag & (mag - 1)) != 0 || mag > ((WideInt)1 << (w - 1)))
+      return false;
+    if (auto fn = loop->getParentOfType<FunctionOpInterface>();
+        fn && fn->hasAttr(polygeist::kVolatileAccessAttrName))
+      return false;
+    SmallPtrSet<Operation *, 4> visited;
+    return !mayDoObservableWork(loop.getOperation(), visited);
+  }
+
+  bool counterProvablyInRange(Operation *ext) {
+    CmpIPredicate pred = cmpIOp.getPredicate();
+    unsigned w = intWidth(indVar.getType());
+    if (w >= kCIntWidth)
+      return true;
+    if (w == 0 || intWidth(cmpIOp.getRhs().getType()) > 64)
+      return false;
+
+    WideInt lo = viewMin(w, indVarUnsigned);
+    WideInt hi = viewMax(w, indVarUnsigned);
+    Value init = loop.getInits()[indVar.getArgNumber()];
+    std::optional<WideInt> start = constantValue(init, indVarUnsigned);
+    if (ext && isa<ExtSIOp>(ext) && boundUnsigned) {
+      lo = 0;
+      if (start ? *start < 0 : valueRange(init, false).first < 0)
+        return false;
+    }
+
+    std::optional<WideInt> s = constantValue(step, /*asUnsigned=*/false);
+    if (!s || *s == 0)
+      return false;
+    auto [bMin, bMax] = valueRange(cmpIOp.getRhs(), boundUnsigned);
+    if (*s > 0) {
+      // The largest value the test accepts.
+      WideInt last = (pred == CmpIPredicate::slt || pred == CmpIPredicate::ult)
+                         ? bMax - 1
+                         : bMax;
+      if (start) {
+        if (*start > last) // the body never runs
+          return true;
+        last = *start + (last - *start) / *s * *s;
+      }
+      return last + *s <= hi;
+    }
+    WideInt d = -*s;
+    // The smallest value the test accepts.
+    WideInt first = (pred == CmpIPredicate::sgt || pred == CmpIPredicate::ugt)
+                        ? bMin + 1
+                        : bMin;
+    if (start) {
+      if (*start < first) // the body never runs
+        return true;
+      first = *start - (*start - first) / d * d;
+    }
+    return first - d >= lo;
+  }
+
   bool computeLegality(bool sizeCheck, Value lookThrough = nullptr) {
     step = nullptr;
     lb = nullptr;
@@ -680,14 +1233,33 @@ struct WhileToForHelper {
     ub_addOne = false;
     ub_cloneMove = false;
     negativeStep = false;
+    indVarUnsigned = false;
+    boundUnsigned = isUnsignedPredicate(cmpIOp.getPredicate());
+    lbIsBound = false;
+    ubIsBound = false;
+    assumedNoWrap = false;
+    uncounted = false;
 
     auto condOp = loop.getConditionOp();
     indVar = dyn_cast<BlockArgument>(cmpIOp.getLhs());
     Type extType = nullptr;
-    // todo handle ext
-    if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-      indVar = dyn_cast<BlockArgument>(ext.getIn());
-      extType = ext.getType();
+    Operation *ext = nullptr;
+    // A counter narrower than its bound is compared after a widening:
+    // `for (int8_t i ...; i < 64;)` compares extsi(i), `for (uint8_t i ...)`
+    // compares extui(i). Both extensions are monotone, so the bound test on
+    // the extended value is the same test on the counter while the counter
+    // does not wrap (counterStaysInRange).
+    if (auto extsi = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
+      indVar = dyn_cast<BlockArgument>(extsi.getIn());
+      extType = extsi.getType();
+      ext = extsi;
+    } else if (auto extui = cmpIOp.getLhs().getDefiningOp<ExtUIOp>()) {
+      indVar = dyn_cast<BlockArgument>(extui.getIn());
+      extType = extui.getType();
+      ext = extui;
+      indVarUnsigned = true;
+    } else if (boundUnsigned) {
+      indVarUnsigned = true;
     }
     // Condition is not the same as an induction variable
     {
@@ -791,6 +1363,14 @@ struct WhileToForHelper {
         return false;
       }
     }
+    // Nor when the step is a block argument of the loop itself (or of a
+    // region nested in it): `m += m` doubles the counter, it does not step it
+    // by a constant amount. The scf.for built from it would read its own
+    // iteration argument as the step (invalid IR: "operand does not dominate
+    // this use", W8b repro r_step_iv.c, machsuite sort_merge).
+    if (auto arg = dyn_cast<BlockArgument>(step))
+      if (loop->isAncestor(arg.getOwner()->getParentOp()))
+        return false;
 
     negativeStep = false;
     if (auto cop = step.getDefiningOp<ConstantIntOp>()) {
@@ -815,23 +1395,27 @@ struct WhileToForHelper {
       case CmpIPredicate::slt:
       case CmpIPredicate::ult: {
         ub = cmpRhs;
+        ubIsBound = true;
         break;
       }
       case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
         ub = cmpRhs;
+        ubIsBound = true;
         ub_addOne = true;
         break;
       }
       case CmpIPredicate::uge:
       case CmpIPredicate::sge: {
         lb = cmpRhs;
+        lbIsBound = true;
         break;
       }
 
       case CmpIPredicate::ugt:
       case CmpIPredicate::sgt: {
         lb = cmpRhs;
+        lbIsBound = true;
         lb_addOne = true;
         break;
       }
@@ -847,30 +1431,22 @@ struct WhileToForHelper {
       if (!op || !canMoveOpOutsideWhile(op, loop) || (op->getNumResults() != 1))
         return false;
       ub = cmpIOp.getRhs();
+      ubIsBound = true;
       ub_cloneMove = true;
     }
 
-    return lb && ub;
+    if (!lb || !ub)
+      return false;
+    return counterStaysInRange(ext);
   }
 
   void prepareFor(PatternRewriter &rewriter) {
-    Value one;
-    if (lb_addOne) {
-      Value one =
-          rewriter.create<ConstantIntOp>(loop.getLoc(), 1, lb.getType());
-      lb = rewriter.create<AddIOp>(loop.getLoc(), lb, one);
-    }
     if (ub_cloneMove) {
       auto *op = ub.getDefiningOp();
       assert(op);
       auto *newOp = rewriter.clone(*op);
       rewriter.replaceOp(op, newOp->getResults());
       ub = newOp->getResult(0);
-    }
-    if (ub_addOne) {
-      Value one =
-          rewriter.create<ConstantIntOp>(loop.getLoc(), 1, ub.getType());
-      ub = rewriter.create<AddIOp>(loop.getLoc(), ub, one);
     }
 
     if (negativeStep) {
@@ -882,12 +1458,32 @@ struct WhileToForHelper {
       }
     }
 
-    ub = rewriter.create<IndexCastOp>(loop.getLoc(),
-                                      IndexType::get(loop.getContext()), ub);
-    lb = rewriter.create<IndexCastOp>(loop.getLoc(),
-                                      IndexType::get(loop.getContext()), lb);
-    step = rewriter.create<IndexCastOp>(
-        loop.getLoc(), IndexType::get(loop.getContext()), step);
+    // The counter's own values (its start and step) are read with the
+    // counter's signedness, the comparison's bound with the predicate's
+    // (`ap_uint<8> i < ap_uint<8> len` compares ult in i8: len >= 128 is a
+    // large bound, not a negative one). The `+ 1` of an inclusive bound or a
+    // countdown's start is added in index, where it cannot wrap (a uint8_t
+    // countdown from 255 has ub 256, not 0).
+    auto toIndex = [&](Value v, bool asUnsigned) -> Value {
+      auto idxTy = IndexType::get(loop.getContext());
+      if (v.getType().isa<IndexType>())
+        return v;
+      if (asUnsigned)
+        return rewriter.create<IndexCastUIOp>(loop.getLoc(), idxTy, v);
+      return rewriter.create<IndexCastOp>(loop.getLoc(), idxTy, v);
+    };
+    auto plusOne = [&](Value v) -> Value {
+      return rewriter.create<AddIOp>(
+          loop.getLoc(), v,
+          rewriter.create<ConstantIndexOp>(loop.getLoc(), 1));
+    };
+    ub = toIndex(ub, ubIsBound ? boundUnsigned : indVarUnsigned);
+    if (ub_addOne)
+      ub = plusOne(ub);
+    lb = toIndex(lb, lbIsBound ? boundUnsigned : indVarUnsigned);
+    if (lb_addOne)
+      lb = plusOne(lb);
+    step = toIndex(step, indVarUnsigned);
   }
 };
 
@@ -906,6 +1502,17 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     }
     if (!helper.computeLegality(/*sizeCheck*/ true))
       return failure();
+    // Every value the condition passes to the body seeds an iter_arg of the
+    // for and is yielded from its body, so it has to exist outside the loop:
+    // a before-block argument (its init is used) or a value defined before
+    // the loop. A before-region op result (the extension a narrow counter is
+    // compared through, when the body shares it) would be erased with the
+    // while while still in use; MoveSideEffectFreeWhile recomputes such
+    // casts in the body first.
+    for (Value arg : condOp.getArgs())
+      if (!isTopLevelArgValue(arg, &loop.getBefore()) &&
+          !dominateWhile(arg, loop))
+        return failure();
     helper.prepareFor(rewriter);
 
     // input of the for goes the input of the scf::while plus the output taken
@@ -915,9 +1522,14 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
     for (Value arg : condOp.getArgs()) {
       Type cst = nullptr;
+      bool castUnsigned = false;
       if (auto idx = arg.getDefiningOp<IndexCastOp>()) {
         cst = idx.getType();
         arg = idx.getIn();
+      } else if (auto idx = arg.getDefiningOp<IndexCastUIOp>()) {
+        cst = idx.getType();
+        arg = idx.getIn();
+        castUnsigned = true;
       }
       Value res;
       if (isTopLevelArgValue(arg, &loop.getBefore())) {
@@ -927,13 +1539,24 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       } else
         res = arg;
       if (cst) {
-        res = rewriter.create<IndexCastOp>(res.getLoc(), cst, res);
+        if (castUnsigned)
+          res = rewriter.create<IndexCastUIOp>(res.getLoc(), cst, res);
+        else
+          res = rewriter.create<IndexCastOp>(res.getLoc(), cst, res);
       }
       forArgs.push_back(res);
     }
 
     auto forloop = rewriter.create<scf::ForOp>(loop.getLoc(), helper.lb,
                                                helper.ub, helper.step, forArgs);
+    // Raised by assuming that the loop terminates (AssumeTermination): its
+    // counter casts are marked (ForOpInductionReplacement), and a bound that
+    // may lie beyond the counter's range makes it an uncounted loop.
+    if (helper.assumedNoWrap)
+      forloop->setAttr(kCounterNoWrapAttrName,
+                       rewriter.getBoolAttr(helper.indVarUnsigned));
+    if (helper.uncounted)
+      forloop->setAttr(kUncountedLoopAttrName, rewriter.getUnitAttr());
 
     if (!forloop.getBody()->empty())
       rewriter.eraseOp(forloop.getBody()->getTerminator());
@@ -1070,6 +1693,12 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       {
         IRMapping postMap;
         postMap.map(helper.indVar, trueInd);
+        // The counter may be compared through an extension (computeLegality
+        // looked through it): rebuild it on the new counter first.
+        if (helper.cmpIOp.getLhs() != helper.indVar)
+          if (Operation *ext = helper.cmpIOp.getLhs().getDefiningOp())
+            postMap.map(ext->getResults(),
+                        rewriter.clone(*ext, postMap)->getResults());
         auto newCmp = cast<CmpIOp>(rewriter.clone(*helper.cmpIOp, postMap));
         rewriter.create<ConditionOp>(condOp.getLoc(), newCmp,
                                      newBeforeYieldArgs);
@@ -1340,17 +1969,42 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
           // } loop ( ... i:) {
           //    yield   i:pair<2>
           // }
+          //
+          // The result need not sit at the block argument's position: the
+          // condition may forward other values in front of it, as for a
+          // rotated variable (`B = A; A = t;`), where the condition passes
+          // the old B, the old A and the if results. What the rewrite needs
+          // is that the after argument feeds nothing but the yield into
+          // %blockArg (it is replaced there by the then value and receives
+          // the old value afterwards), and that the then value is visible in
+          // the after region (defined in the then region, which moves there,
+          // or outside the loop).
           if (!std::get<0>(pair).use_empty()) {
             if (auto blockArg = dyn_cast<BlockArgument>(elseYielded))
               if (blockArg.getOwner() == &op.getBefore().front()) {
+                Value afterArg = std::get<2>(pair);
+                bool thenValueVisible =
+                    ifOp.getThenRegion().isAncestor(
+                        thenYielded.getParentRegion()) ||
+                    !op->isAncestor(thenYielded.getParentRegion()
+                                        ->getParentOp());
                 if (afterYield.getResults()[blockArg.getArgNumber()] ==
-                        std::get<2>(pair) &&
-                    op.getResults()[blockArg.getArgNumber()] ==
-                        std::get<0>(pair)) {
+                        afterArg &&
+                    afterArg.hasOneUse() && thenValueVisible) {
                   prevResults.push_back(std::get<0>(pair));
                   condArgs.push_back(blockArg);
                   afterYieldRewrites.emplace_back(blockArg.getArgNumber(),
                                                   thenYielded);
+                  continue;
+                }
+                // An exit-only value: the loop body never reads the after
+                // argument (the variable is carried through other
+                // positions, its then value is typically undef), so the
+                // result is the block argument at the failing check and the
+                // body needs no rewrite.
+                if (afterArg.use_empty()) {
+                  prevResults.push_back(std::get<0>(pair));
+                  condArgs.push_back(blockArg);
                   continue;
                 }
               }
@@ -1563,6 +2217,132 @@ struct WhileLogicalNegation : public OpRewritePattern<WhileOp> {
 };
 
 /// TODO move the addi down and repalce below with a subi
+/// A while loop whose condition is a conjunction of two signed upper bounds
+/// on its counter, `i < B1 && i + a < B2` (either conjunct may be `i`,
+/// `i + a` or `a + i` against a value defined before the loop), tests the one
+/// bound `i < min(B1, B2 - a)`: the loop is then counted and MoveWhileToFor
+/// raises it. Vitis treats it so (VITIS_NOTES N153, kernels w9r21p_d1 / d3:
+/// `for (u = 0; u < 32 && k + u < B; ++u)` is unrolled and its array
+/// partitioned like the plain bound; class_ece8893 pranay_kamineny lab2).
+/// The two tests agree while `B2 - a` does not overflow; the program never
+/// computes that difference, so the pattern requires B2 to be a constant and
+/// `a` a constant or the counter of an enclosing scf.for with constant
+/// bounds, all within 2^30 in magnitude (then `i + a < B2` with `i` from 0
+/// cannot differ from `i < B2 - a` either). Only `slt` with the counter on
+/// the left; the counter must be a before-block argument.
+static llvm::cl::opt<bool> WhileConjunctiveBounds(
+    "while-conjunctive-bounds", llvm::cl::init(true),
+    llvm::cl::desc("Raise `while (i < B1 && i + a < B2)` loops as counted "
+                   "loops of min(B1, B2 - a) trips (VITIS_NOTES N153)"));
+
+/// [lo, hi] of a constant or of the counter of an scf.for with constant
+/// bounds (through integer casts), each within 2^30 in magnitude.
+static bool boundedSmallValue(Value v, int64_t &lo, int64_t &hi,
+                              unsigned depth = 0) {
+  constexpr int64_t kLimit = int64_t(1) << 30;
+  if (depth > 8)
+    return false;
+  APInt c;
+  if (matchPattern(v, m_ConstantInt(&c))) {
+    if (c.getSignificantBits() > 32)
+      return false;
+    lo = hi = c.getSExtValue();
+    return lo > -kLimit && lo < kLimit;
+  }
+  if (Operation *def = v.getDefiningOp()) {
+    if (isa<IndexCastOp, ExtSIOp, TruncIOp>(def))
+      return boundedSmallValue(def->getOperand(0), lo, hi, depth + 1);
+    return false;
+  }
+  auto arg = cast<BlockArgument>(v);
+  auto loop = dyn_cast<scf::ForOp>(arg.getOwner()->getParentOp());
+  if (!loop || arg != loop.getInductionVar())
+    return false;
+  int64_t l, u, l2, u2;
+  if (!boundedSmallValue(loop.getLowerBound(), l, l2, depth + 1) ||
+      !boundedSmallValue(loop.getUpperBound(), u, u2, depth + 1))
+    return false;
+  lo = std::min(l, u);
+  hi = std::max(l, u);
+  return true;
+}
+
+struct WhileConjunctiveBound : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!WhileConjunctiveBounds)
+      return failure();
+    Block &before = op.getBefore().front();
+    auto term = cast<scf::ConditionOp>(before.getTerminator());
+    auto conj = term.getCondition().getDefiningOp<AndIOp>();
+    if (!conj || conj->getBlock() != &before)
+      return failure();
+    auto outside = [&](Value v) {
+      if (auto arg = dyn_cast<BlockArgument>(v))
+        return !op->isAncestor(arg.getOwner()->getParentOp());
+      return !op->isAncestor(v.getDefiningOp());
+    };
+    // `cmp` as `iv < bound`, the bound a value defined before the loop or
+    // `B - a`, built before the loop.
+    BlockArgument iv;
+    auto boundOf = [&](Value c, SmallVectorImpl<std::pair<Value, Value>> &out) {
+      auto cmp = c.getDefiningOp<CmpIOp>();
+      if (!cmp || cmp.getPredicate() != CmpIPredicate::slt ||
+          !outside(cmp.getRhs()))
+        return false;
+      Value lhs = cmp.getLhs(), offset;
+      if (auto add = lhs.getDefiningOp<AddIOp>()) {
+        if (add->getBlock() != &before)
+          return false;
+        if (outside(add.getRhs())) {
+          lhs = add.getLhs();
+          offset = add.getRhs();
+        } else if (outside(add.getLhs())) {
+          lhs = add.getRhs();
+          offset = add.getLhs();
+        } else {
+          return false;
+        }
+      }
+      auto arg = dyn_cast<BlockArgument>(lhs);
+      if (!arg || arg.getOwner() != &before || (iv && arg != iv))
+        return false;
+      iv = arg;
+      out.push_back({cmp.getRhs(), offset});
+      return true;
+    };
+    SmallVector<std::pair<Value, Value>, 2> bounds;
+    if (!boundOf(conj.getLhs(), bounds) || !boundOf(conj.getRhs(), bounds))
+      return failure();
+    if (iv.getType() != bounds[0].first.getType() ||
+        iv.getType() != bounds[1].first.getType())
+      return failure();
+    // No overflow in `B - a` (see the comment above).
+    for (auto [b, a] : bounds) {
+      if (!a)
+        continue;
+      int64_t blo, bhi, alo, ahi;
+      if (!boundedSmallValue(b, blo, bhi) || blo != bhi ||
+          !boundedSmallValue(a, alo, ahi))
+        return failure();
+    }
+    rewriter.setInsertionPoint(op);
+    SmallVector<Value, 2> limits;
+    for (auto [b, a] : bounds)
+      limits.push_back(a ? rewriter.create<SubIOp>(op.getLoc(), b, a)
+                               .getResult()
+                         : b);
+    Value limit = rewriter.create<MinSIOp>(op.getLoc(), limits[0], limits[1]);
+    rewriter.setInsertionPoint(conj);
+    Value test =
+        rewriter.create<CmpIOp>(conj.getLoc(), CmpIPredicate::slt, iv, limit);
+    rewriter.replaceOp(conj, test);
+    return success();
+  }
+};
+
 struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -1977,17 +2757,30 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
     bool changed = false;
     unsigned i = 0;
     for (auto arg : term.getArgs()) {
-      if (auto IC = arg.getDefiningOp<IndexCastOp>()) {
-        if (arg.hasOneUse() && op.getResult(i).use_empty()) {
-          auto rep = op.getAfter().front().addArgument(
-              IC->getOperand(0).getType(), IC->getOperand(0).getLoc());
-          IC->moveBefore(&op.getAfter().front(), op.getAfter().front().begin());
-          conds.push_back(IC.getIn());
-          IC.getInMutable().assign(rep);
-          op.getAfter().front().getArgument(i).replaceAllUsesWith(
-              IC->getResult(0));
-          changed = true;
+      // A cast the condition passes to the body (an index cast of a counter,
+      // or the extension a narrow counter is compared through, when the body
+      // shares it) is recomputed in the body from the cast's input, which is
+      // passed instead. The before-region op moves when the condition was its
+      // only use and is cloned when the comparison still needs it there.
+      Operation *IC = arg.getDefiningOp();
+      if (IC && isa<IndexCastOp, IndexCastUIOp, ExtSIOp, ExtUIOp>(IC) &&
+          op.getResult(i).use_empty() &&
+          (arg.hasOneUse() || IC->getParentRegion() == &op.getBefore())) {
+        Block &after = op.getAfter().front();
+        auto rep = after.addArgument(IC->getOperand(0).getType(),
+                                     IC->getOperand(0).getLoc());
+        conds.push_back(IC->getOperand(0));
+        Operation *bodyCast = IC;
+        if (arg.hasOneUse()) {
+          IC->moveBefore(&after, after.begin());
+        } else {
+          OpBuilder::InsertionGuard guard(rewriter);
+          rewriter.setInsertionPointToStart(&after);
+          bodyCast = rewriter.clone(*IC);
         }
+        bodyCast->setOperand(0, rep);
+        after.getArgument(i).replaceAllUsesWith(bodyCast->getResult(0));
+        changed = true;
       }
       i++;
     }
@@ -2019,13 +2812,132 @@ struct SubToAdd : public OpRewritePattern<SubIOp> {
   LogicalResult matchAndRewrite(SubIOp op,
                                 PatternRewriter &rewriter) const override {
     if (auto cop = op.getOperand(1).getDefiningOp<ConstantIntOp>()) {
-      rewriter.replaceOpWithNewOp<AddIOp>(
+      // Negate in the constant's own width (APInt): going through the
+      // int64_t value() zero-extended -C into integers wider than 64 bits
+      // (x - 1 : i128 became x + (2^64 - 1)). Same constants as before for
+      // widths <= 64.
+      APInt c = cop.getValue().cast<IntegerAttr>().getValue();
+      // x - C and x + (-C) have the same exact result when -C does not
+      // overflow: a non-wrapping subtraction (polygeist.nsw) stays one.
+      bool nsw = op->hasAttr(kNoSignedWrapAttrName) && !c.isMinSignedValue();
+      auto add = rewriter.replaceOpWithNewOp<AddIOp>(
           op, op.getOperand(0),
-          rewriter.create<ConstantIntOp>(cop.getLoc(), -cop.value(),
-                                         cop.getType()));
+          rewriter.create<arith::ConstantOp>(
+              cop.getLoc(), cop.getType(),
+              rewriter.getIntegerAttr(cop.getType(), -c)));
+      if (nsw)
+        add->setAttr(kNoSignedWrapAttrName, rewriter.getUnitAttr());
       return success();
     }
     return failure();
+  }
+};
+
+// The arith canonicalizer folds a chain of two add / sub with constant
+// operands into one (`(x + 1) + 2` into `x + 3`, `3 - (x + 1)` into `2 - x`)
+// and two mul by constants into one, through new ops without the
+// polygeist.nsw mark of the originals (Passes.h). When both ops of a chain
+// are marked, their exact results are in range, so the folded op, which
+// computes the same value, does not wrap either. These patterns fold such a
+// chain first (benefit 10: a DRR pattern's benefit is the number of ops it
+// matches) into the form the arith patterns produce and keep
+// the mark. The folded constant must fit its width (`x + 2^30 + 2^30`
+// does not), or the folded op would compute a different value.
+
+/// A marked add / sub `op` with one constant operand, read as
+/// `sign * x + k`: `x + c` and `c + x` are x + c, `x - c` is x + (-c), `c - x`
+/// is -x + c.
+struct AddSubConst {
+  Value x;
+  int sign;
+  APInt k;
+};
+
+static std::optional<AddSubConst> matchNoSignedWrapAddSubConst(Operation *op) {
+  if (!isa<AddIOp, SubIOp>(op) ||
+      !op->hasAttr(polygeist::kNoSignedWrapAttrName))
+    return std::nullopt;
+  APInt c;
+  if (matchPattern(op->getOperand(1), m_ConstantInt(&c))) {
+    if (isa<AddIOp>(op))
+      return AddSubConst{op->getOperand(0), 1, c};
+    if (c.isMinSignedValue())
+      return std::nullopt;
+    return AddSubConst{op->getOperand(0), 1, -c};
+  }
+  if (matchPattern(op->getOperand(0), m_ConstantInt(&c)))
+    return AddSubConst{op->getOperand(1), isa<AddIOp>(op) ? 1 : -1, c};
+  return std::nullopt;
+}
+
+/// Folds the chain `op` = outer(inner(x)) of two marked add / sub with
+/// constant operands into `x + k` or `k - x`, marked.
+static LogicalResult foldNoSignedWrapAddSubChain(Operation *op,
+                                                 PatternRewriter &rewriter) {
+  auto outer = matchNoSignedWrapAddSubConst(op);
+  if (!outer)
+    return failure();
+  Operation *innerOp = outer->x.getDefiningOp();
+  if (!innerOp)
+    return failure();
+  auto inner = matchNoSignedWrapAddSubConst(innerOp);
+  if (!inner)
+    return failure();
+  // outer->sign * (inner->sign * x + inner->k) + outer->k
+  if (outer->sign < 0 && inner->k.isMinSignedValue())
+    return failure();
+  bool overflow = false;
+  APInt k =
+      (outer->sign < 0 ? -inner->k : inner->k).sadd_ov(outer->k, overflow);
+  if (overflow)
+    return failure();
+  Type t = op->getResult(0).getType();
+  Value cst = rewriter.create<arith::ConstantOp>(op->getLoc(), t,
+                                                 rewriter.getIntegerAttr(t, k));
+  Operation *folded =
+      outer->sign * inner->sign > 0
+          ? rewriter.create<AddIOp>(op->getLoc(), inner->x, cst).getOperation()
+          : rewriter.create<SubIOp>(op->getLoc(), cst, inner->x).getOperation();
+  folded->setAttr(polygeist::kNoSignedWrapAttrName, rewriter.getUnitAttr());
+  rewriter.replaceOp(op, folded->getResults());
+  return success();
+}
+
+template <typename OpTy>
+struct NoSignedWrapAddSubChain : public OpRewritePattern<OpTy> {
+  NoSignedWrapAddSubChain(MLIRContext *ctx)
+      : OpRewritePattern<OpTy>(ctx, /*benefit=*/10) {}
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    return foldNoSignedWrapAddSubChain(op, rewriter);
+  }
+};
+
+/// `(x * c0) * c1`, both marked, into `x * (c0 * c1)`, marked, when the
+/// product fits.
+struct NoSignedWrapMulChain : public OpRewritePattern<MulIOp> {
+  NoSignedWrapMulChain(MLIRContext *ctx)
+      : OpRewritePattern<MulIOp>(ctx, /*benefit=*/10) {}
+  LogicalResult matchAndRewrite(MulIOp op,
+                                PatternRewriter &rewriter) const override {
+    APInt c0, c1;
+    if (!op->hasAttr(polygeist::kNoSignedWrapAttrName) ||
+        !matchPattern(op.getRhs(), m_ConstantInt(&c1)))
+      return failure();
+    auto inner = op.getLhs().getDefiningOp<MulIOp>();
+    if (!inner || !inner->hasAttr(polygeist::kNoSignedWrapAttrName) ||
+        !matchPattern(inner.getRhs(), m_ConstantInt(&c0)))
+      return failure();
+    bool overflow = false;
+    APInt k = c0.smul_ov(c1, overflow);
+    if (overflow)
+      return failure();
+    Type t = op.getType();
+    Value cst = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), t, rewriter.getIntegerAttr(t, k));
+    auto folded = rewriter.replaceOpWithNewOp<MulIOp>(op, inner.getLhs(), cst);
+    folded->setAttr(polygeist::kNoSignedWrapAttrName, rewriter.getUnitAttr());
+    return success();
   }
 };
 
@@ -2228,7 +3140,7 @@ struct WhileShiftToInduction : public OpRewritePattern<WhileOp> {
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
-          MoveWhileToFor, RemoveWhileSelect,
+          MoveWhileToFor, RemoveWhileSelect, WhileConjunctiveBound,
 
           MoveWhileDown, MoveWhileDown2,
 
@@ -2249,4 +3161,10 @@ void CanonicalizeFor::runOnOperation() {
 
 std::unique_ptr<Pass> mlir::polygeist::createCanonicalizeForPass() {
   return std::make_unique<CanonicalizeFor>();
+}
+
+void mlir::polygeist::populateNoSignedWrapPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<NoSignedWrapAddSubChain<AddIOp>, NoSignedWrapAddSubChain<SubIOp>,
+               NoSignedWrapMulChain>(patterns.getContext());
 }

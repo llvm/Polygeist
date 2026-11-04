@@ -95,6 +95,17 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }
     }
+    // Assigning an array to a pointer variable (`p = out[1];` with
+    // `int out[16][32]` and a parameter `int p[16]`, a memref<?xi32>
+    // variable): the decayed row is a memref of static shape; cast it to the
+    // variable's type (W8b repro pa.c, forgebench mult_op_module_mm /
+    // mmv: `output = out[0];`).
+    if (auto dstMT = dyn_cast<mlir::MemRefType>(
+            val.getType().cast<MemRefType>().getElementType()))
+      if (auto srcMT = dyn_cast<mlir::MemRefType>(toStore.getType()))
+        if (srcMT != dstMT &&
+            mlir::memref::CastOp::areCastCompatible(srcMT, dstMT))
+          toStore = builder.create<mlir::memref::CastOp>(loc, dstMT, toStore);
     assert(toStore.getType() ==
                val.getType().cast<MemRefType>().getElementType() &&
            "expect same type");

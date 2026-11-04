@@ -18,6 +18,6 @@ void mac_top(int input[64], int &result) {
     }
 }
 
-// CHECK: %alloca = memref.alloca() {hls.bind_storage = [{impl = "uram", latency = 3 : i32, type = "ram_2p", variable = "output"}], polygeist.varname = "output"} : memref<16xi32>
-// CHECK: %alloca_0 = memref.alloca() {hls.bind_storage = [{impl = "lutram", type = "ram_1p", variable = "bias"}], polygeist.varname = "bias"} : memref<16xi32>
-// CHECK: %alloca_1 = memref.alloca() {hls.bind_storage = [{impl = "bram", type = "ram_1p", variable = "weights"}], polygeist.varname = "weights"} : memref<64xi32>
+// CHECK: %alloca = memref.alloca() {hls.bind_storage = [{impl = "uram", latency = 3 : i32, type = "ram_2p", variable = "output"}], hls.preserve, polygeist.varname = "output"} : memref<16xi32>
+// CHECK: %alloca_0 = memref.alloca() {hls.bind_storage = [{impl = "lutram", type = "ram_1p", variable = "bias"}], hls.preserve, polygeist.varname = "bias"} : memref<16xi32>
+// CHECK: %alloca_1 = memref.alloca() {hls.bind_storage = [{impl = "bram", type = "ram_1p", variable = "weights"}], hls.preserve, polygeist.varname = "weights"} : memref<64xi32>

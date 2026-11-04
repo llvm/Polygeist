@@ -1,4 +1,4 @@
-//RUN: cgeist %s --function="*" -S --hls-annotate --raise-scf-to-affine --memref-fullrank| FileCheck %s
+//RUN: cgeist %s --function="*" -S --hls-annotate --raise-scf-to-affine --memref-fullrank | FileCheck %s
 
 struct C {
     int A[8];
@@ -39,5 +39,5 @@ int top(int input1[8], int input2[4]) {
 
 }
 
-// CHECK: %alloca = memref.alloca() {hls.array_partition = [{kind = "complete", variable = "s.A"}, {kind = "complete", variable = "s.c.A"}, {factor = 2 : i32, kind = "block", variable = "s.B"}], polygeist.varname = "s"}
+// CHECK: %alloca = memref.alloca() {hls.array_partition = [{dim = 1 : i32, kind = "complete", member_path = [0 : i32], variable = "s.A"}, {dim = 1 : i32, kind = "complete", member_path = [2 : i32, 0 : i32], variable = "s.c.A"}, {dim = 1 : i32, factor = 2 : i32, kind = "block", member_path = [1 : i32], variable = "s.B"}], polygeist.varname = "s"}
 

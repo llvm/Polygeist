@@ -9,4 +9,4 @@ void basic_array_partition() {
     }
 }
 
-// CHECK: %alloca = memref.alloca() {hls.array_partition = [{kind = "complete", variable = "arr"}], polygeist.varname = "arr"}
+// CHECK: %alloca = memref.alloca() {hls.array_partition = [{dim = 1 : i32, kind = "complete", variable = "arr"}], hls.preserve, polygeist.varname = "arr"}

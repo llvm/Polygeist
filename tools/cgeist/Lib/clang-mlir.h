@@ -26,8 +26,7 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
 #include "pragmaHandler.h"
-#include "pragmaHandlerHLS.h"
-#include "HandleHLS.h"
+#include "HLSPragma.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -47,6 +46,9 @@ using namespace mlir;
 extern llvm::cl::opt<std::string> PrefixABI;
 
 extern llvm::cl::opt<bool> HLSAnnotate;
+
+// --scalar-wrapper-abi (default off), defined in clang-mlir.cc.
+extern llvm::cl::opt<bool> ScalarWrapperABI;
 
 struct LoopContext {
   mlir::Value keepRunning;
@@ -97,10 +99,11 @@ struct MLIRASTConsumer : public ASTConsumer {
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
+   
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
-    addPragmaHLSHandlers(PP);
+    cgeist::hls::beginTranslationUnit(PP, module->getContext());
   }
 
   ~MLIRASTConsumer() {}
@@ -110,8 +113,28 @@ struct MLIRASTConsumer : public ASTConsumer {
                            mlir::OpBuilder(module->getContext()).getI8Type());
   }
 
-  mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD,
-                                             bool getDeviceStub = false);
+  /// `xlxStreamObject` (--xlx-headers): the static class of the object a
+  /// member of hls::stream is called on, when that is a class derived from
+  /// the member's own class (hls::stream<T, D> over hls::stream<T, 0>); the
+  /// external function is then named as a member of that class.
+  mlir::func::FuncOp
+  GetOrCreateMLIRFunction(const FunctionDecl *FD, bool getDeviceStub = false,
+                          const clang::CXXRecordDecl *xlxStreamObject = nullptr);
+
+  /// --xlx-headers: whether `RD` is a specialisation of the Vitis HLS class
+  /// template hls::stream (hls_stream_39.h, ap_axi_sdata.h). Such an object
+  /// is an i32 handle and its members are external functions, as with the
+  /// stand-in headers (shim/exactclass hls_stream.h), whose IR form hls-est's
+  /// FIFO model reads (StreamFifos.cpp, VITIS_NOTES N31).
+  bool isXlxStreamClass(const clang::RecordDecl *RD) const;
+  /// A member function of an hls::stream class (isXlxStreamClass): never
+  /// emitted, every call stays an external call.
+  bool isXlxStreamMember(const clang::FunctionDecl *FD) const;
+  /// The bits Vitis packs a value of `T` into on a stream (VITIS_NOTES N58):
+  /// a struct is the sum of its members' (bases first, no padding), `bool`
+  /// is 1 bit, an array n x its element, anything else the width of the
+  /// MLIR type cgeist gives it. None for a type with no such width.
+  std::optional<int64_t> packedStreamBits(clang::QualType T);
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction();
@@ -131,17 +154,66 @@ struct MLIRASTConsumer : public ASTConsumer {
   GetOrCreateGlobal(const ValueDecl *VD, std::string prefix,
                     bool tryInit = true);
 
+  /// A global whose initializer is not a constant cgeist can evaluate: a
+  /// function `__hls_global_init.<name>` that computes it and stores it
+  /// (C++'s dynamic initialization, which runs before main), marked
+  /// `hls.global_init` with the declaration's source position. False when
+  /// the initializer cannot be emitted that way.
+  bool emitDynamicInitializer(const clang::VarDecl *VD, const clang::Expr *init,
+                              mlir::memref::GlobalOp global, bool isArray);
+
   std::deque<const FunctionDecl *> functionsToEmit;
 
   void run();
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
 
+  // Several translation units: the global definitions of this unit that no
+  // emitted function used, so that a unit that only declares them (`extern`)
+  // still gets their storage and initializer (CIRCT OPEN_ISSUES O75; W9r7
+  // review defect 2). Unused ones are removed after the last unit
+  // (eraseUnusedDefinitions).
+  void emitUnusedDefinitions(clang::DeclContext *DC);
+
   bool HandleTopLevelDecl(DeclGroupRef dg) override;
 
   void HandleDeclContext(DeclContext *DC);
 
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
+
+  /// Scalar wrappers (--scalar-wrapper-abi): a record whose only data member,
+  /// through any chain of single-base classes without members of their own,
+  /// is one scalar (integer, _BitInt, enum, floating). Such a record is
+  /// lowered to that scalar: ap_fixed<16,5> is an i16, `this` / references
+  /// are memref<?xi16>, arrays memref<...xi16>. Returns the member, or null
+  /// when the record is not a wrapper. Memoised.
+  llvm::DenseMap<const clang::RecordDecl *, const clang::FieldDecl *>
+      scalarWrapperCache;
+  const clang::FieldDecl *getScalarWrapperField(const clang::RecordDecl *RD);
+
+  /// --scalar-wrapper-abi: the initial value of the variable `VD` of memref
+  /// type `mr` as clang's constant evaluation of its initialiser (scalars,
+  /// arrays, scalar wrappers and their arrays), or null when it is not a
+  /// compile-time constant of that shape (or the option is off).
+  mlir::DenseElementsAttr evaluateConstantInitializer(const clang::VarDecl *VD,
+                                                      mlir::MemRefType mr);
+  /// --xlx-headers (with --scalar-wrapper-abi): the initialiser `init` of an
+  /// object of type `type` as the dense value of `mr`, when its leaves are
+  /// scalar wrappers constructed from string literals (folded as by the Vitis
+  /// front end, XlxStringBits.cc), ap types constructed from a numeric
+  /// constant (foldNumericConstruct) or integer constants, and at least one
+  /// is not a plain integer constant; null otherwise or when the options are
+  /// off.
+  mlir::DenseElementsAttr evaluateXlxStringInitializer(const clang::Expr *init,
+                                                       clang::QualType type,
+                                                       mlir::MemRefType mr);
+  /// --scalar-wrapper-abi: the initial value of the global `VD` whose
+  /// memref `mr` has llvm.struct elements, as one attribute per scalar in
+  /// memory order (clang's constant evaluation, or the --xlx-headers folds of
+  /// ap constructions); null when it is not such a constant.
+  mlir::ArrayAttr evaluateStructInitializer(const clang::VarDecl *VD,
+                                            const clang::Expr *init,
+                                            mlir::MemRefType mr);
   mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
                          bool allowMerge = true);
 
@@ -189,6 +261,20 @@ private:
   mlir::Value getTypeSize(mlir::Location loc, clang::QualType t);
   mlir::Value getTypeAlign(mlir::Location loc, clang::QualType t);
 
+  /// The constant a load of the const variable `VD` yields (clang's
+  /// constant evaluation of its initialiser), as an arith.constant of the
+  /// MLIR type of `resultType`, or null when it is not a compile-time
+  /// constant scalar.
+  mlir::Value tryEmitConstVarValue(mlir::Location loc, const VarDecl *VD,
+                                   clang::QualType resultType);
+
+  /// Value-initialisation of scalar-wrapper objects of type `T` at the
+  /// reference `op` (--scalar-wrapper-abi): one zero store per object, a
+  /// loop per array dimension of `T` (the outermost runs `count` times
+  /// when given, as for `new T[n]()`).
+  void storeZeroToWrapperObjects(mlir::Location loc, mlir::Value op,
+                                 clang::QualType T, mlir::Value count);
+
   mlir::Value createAllocOp(mlir::Type t, VarDecl *name, uint64_t memspace,
                             bool isArray, bool LLVMABI);
 
@@ -196,9 +282,10 @@ private:
 
   mlir::func::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
-  std::map<int, mlir::Value> constants;
+  std::map<int64_t, mlir::Value> constants;
 
-  mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
+  mlir::Value castToIndex(mlir::Location loc, mlir::Value val,
+                          bool isUnsigned = false);
 
   mlir::Value getLLVM(Expr *E, bool isRef = false);
 
@@ -244,7 +331,7 @@ public:
 
   mlir::OpBuilder &getBuilder();
 
-  mlir::Value getConstantIndex(int x);
+  mlir::Value getConstantIndex(int64_t x);
 
   ValueCategory createComplexFloat(mlir::Location loc, mlir::Value real,
                                    mlir::Value imag, clang::QualType cty);
@@ -265,6 +352,7 @@ public:
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
 
   ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *expr);
+  ValueCategory VisitCXXNullPtrLiteralExpr(clang::CXXNullPtrLiteralExpr *expr);
   ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
   ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);
@@ -317,6 +405,9 @@ public:
   std::pair<ValueCategory, bool> EmitGPUCallExpr(clang::CallExpr *expr);
 
   std::pair<ValueCategory, bool> EmitBuiltinOps(clang::CallExpr *expr);
+
+  /// The Xilinx HLS bit builtins of the Vitis headers (CGXlxBuiltin.cc).
+  std::pair<ValueCategory, bool> EmitXlxBuiltin(clang::CallExpr *expr);
 
   ValueCategory
   VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr);

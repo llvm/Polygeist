@@ -422,8 +422,23 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       combinedLocs.append(returnLocs);
       assert(combinedTypes.size() == combinedLocs.size());
 
-      auto loop = builder.create<mlir::scf::WhileOp>(
-          header->front().getLoc(), combinedTypes, valsCallingLoop);
+      // Front ends may identify a source loop by a location with metadata on
+      // the loop's exit test (cgeist does this for HLS pragmas); keep such
+      // locations on the structured loop.
+      Location loopLoc = header->front().getLoc();
+      {
+        SmallVector<Location, 2> locs = {loopLoc};
+        for (auto *B : exitingBlocks) {
+          Location termLoc = ((Block *)B)->getTerminator()->getLoc();
+          if (auto fused = dyn_cast<FusedLoc>(termLoc))
+            if (fused.getMetadata())
+              locs.push_back(termLoc);
+        }
+        if (locs.size() > 1)
+          loopLoc = FusedLoc::get(builder.getContext(), locs);
+      }
+      auto loop = builder.create<mlir::scf::WhileOp>(loopLoc, combinedTypes,
+                                                     valsCallingLoop);
       {
         SmallVector<Value, 4> RetVals;
         for (size_t i = 0; i < returns.size(); ++i) {

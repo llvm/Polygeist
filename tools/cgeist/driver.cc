@@ -32,9 +32,11 @@
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
@@ -178,6 +180,12 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
 static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
+static cl::opt<bool> KeepFrontendAssumptions(
+    "keep-frontend-assumptions", cl::init(false), cl::Hidden,
+    cl::desc("Keep the polygeist.nsw / polygeist.nuw / "
+             "polygeist.counter_nowrap attributes the raising passes read "
+             "(polygeist/Passes/Passes.h) in the output"));
+
 static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(false),
                                 cl::desc("Unroll Affine Loops"));
 
@@ -244,6 +252,24 @@ static cl::list<std::string> defines("D", cl::desc("defines"),
 static cl::list<std::string> Includes("include", cl::desc("includes"),
                                       cl::cat(toolOptions));
 
+// Arguments for the clang frontend (cc1), forwarded as `-Xclang <arg>`, e.g.
+// the Xilinx HLS extensions -fxlx-bitwidth / -fxlx-apint-promote or
+// -fnative-half-type that the real Vitis HLS headers need.
+// Force-include cgeist's declarations of the Xilinx HLS builtins
+// (include/xlx/xlx_prelude.h, compiled in), for the real Vitis HLS headers.
+// Not static: Lib/CGCall.cc lowers the builtins only when it is set.
+cl::opt<bool> XlxPrelude(
+    "xlx-prelude", cl::init(false),
+    cl::desc("Force-include the Xilinx HLS builtin declarations "
+             "(include/xlx/xlx_prelude.h) after the -include files"),
+    cl::cat(toolOptions));
+
+static cl::list<std::string> XclangArgs("Xclang",
+                                        cl::desc("Pass <arg> to the clang "
+                                                 "frontend (cc1)"),
+                                        cl::value_desc("arg"),
+                                        cl::cat(toolOptions));
+
 static cl::opt<std::string> TargetTripleOpt("target", cl::init(""),
                                             cl::desc("Target triple"),
                                             cl::cat(toolOptions));
@@ -262,6 +288,29 @@ static cl::opt<std::string>
 static cl::opt<bool> PMEnablePrinting(
     "pm-enable-printing", cl::init(false),
     cl::desc("Enable printing of IR before and after all passes"));
+
+// Vitis HLS makes its pipeline / flatten decisions on the loop structure of
+// the source and does not hoist a loop-invariant inner loop out of its outer
+// loop first (VITIS_NOTES N14 "O5" in the hls-est tree); cgeist's LICM does.
+namespace cgeist {
+std::unique_ptr<mlir::Pass> createXlxProxyScalarizePass();
+std::unique_ptr<mlir::Pass> createXlxLoopScalarPromotePass();
+void dropUnusedLinkonceODR(mlir::ModuleOp module);
+void eraseOverwrittenStores(mlir::ModuleOp module);
+mlir::LogicalResult reportUnscalarisedProxies(mlir::ModuleOp module);
+} // namespace cgeist
+
+static cl::opt<bool> HLSPromoteLoopScalars(
+    "hls-promote-loop-scalars", cl::init(true),
+    cl::desc("Promote a local scalar that structured loops carry in memory "
+             "(an ap_uint loop counter) to a loop-carried value after "
+             "inlining, so the loop is raised as a counted loop (OPEN_ISSUES "
+             "O101 in the hls-est tree); off: it stays in its alloca"));
+
+static cl::opt<bool> HLSKeepInvariantLoops(
+    "hls-keep-invariant-loops", cl::init(false),
+    cl::desc("LICM does not hoist a loop, or an op containing one, out of an "
+             "enclosing loop: a loop-invariant inner loop stays in place"));
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
@@ -458,11 +507,148 @@ int emitBinary(char *Argv0, const char *filename,
 }
 
 #include "Lib/clang-mlir.cc"
-#include "Lib/HandleHLS.h"
-#include "Lib/pragmaHandlerHLS.h"
+#include "Lib/HLSAutoInline.h"
+#include "Lib/HLSPragma.h"
 #include "Lib/utils.h"
-int main(int argc, char **argv) {
 
+/// Removes the attributes that record frontend facts for the raising passes
+/// (polygeist/Passes/Passes.h) from the output, unless
+/// -keep-frontend-assumptions; hls.uncounted stays.
+/// A dynamic-initialization function (`hls.global_init`, emitted for a global
+/// whose initializer is not a constant: `static const ap_fixed<32, 8> scale =
+/// 1.0 / sqrt((float)dk)`) that the pipeline folded down to one constant
+/// store into its own one-element global becomes that global's initial value,
+/// as LLVM's GlobalOpt evaluates such a constructor before Vitis schedules (the
+/// design reads a constant). Anything else stays a function that
+/// check_semantics runs before the top.
+static void foldGlobalInitializers(mlir::ModuleOp module) {
+  using namespace mlir;
+  SmallVector<func::FuncOp> inits;
+  module.walk([&](func::FuncOp f) {
+    if (f->hasAttr("hls.global_init"))
+      inits.push_back(f);
+  });
+  for (func::FuncOp f : inits) {
+    if (!f.getBody().hasOneBlock())
+      continue;
+    memref::GlobalOp target;
+    mlir::Attribute value;
+    unsigned stores = 0;
+    bool ok = true;
+    for (Operation &op : f.getBody().front()) {
+      if (isa<arith::ConstantOp, func::ReturnOp>(op))
+        continue;
+      if (auto gg = dyn_cast<memref::GetGlobalOp>(op)) {
+        auto g = SymbolTable::lookupNearestSymbolFrom<memref::GlobalOp>(
+            gg, gg.getNameAttr());
+        ok = g && (!target || target == g);
+        target = g;
+      } else if (auto st = dyn_cast<affine::AffineStoreOp>(op)) {
+        auto c = st.getValueToStore().getDefiningOp<arith::ConstantOp>();
+        ok = c && st.getMemRef().getDefiningOp<memref::GetGlobalOp>();
+        value = c ? c.getValue() : mlir::Attribute();
+        ++stores;
+      } else if (auto st = dyn_cast<memref::StoreOp>(op)) {
+        auto c = st.getValueToStore().getDefiningOp<arith::ConstantOp>();
+        ok = c && st.getMemRef().getDefiningOp<memref::GetGlobalOp>();
+        value = c ? c.getValue() : mlir::Attribute();
+        ++stores;
+      } else {
+        ok = false;
+      }
+      if (!ok)
+        break;
+    }
+    if (!ok || stores != 1 || !target || !value ||
+        target.getType().getNumElements() != 1 ||
+        target.getType().getElementType() !=
+            cast<TypedAttr>(value).getType())
+      continue;
+    target.setInitialValueAttr(DenseElementsAttr::get(
+        RankedTensorType::get(target.getType().getShape(),
+                              target.getType().getElementType()),
+        value));
+    f.erase();
+  }
+}
+
+static void stripFrontendAssumptions(mlir::ModuleOp module) {
+  if (KeepFrontendAssumptions)
+    return;
+  module->walk([](mlir::Operation *op) {
+    for (llvm::StringRef name :
+         {mlir::polygeist::kNoSignedWrapAttrName,
+          mlir::polygeist::kNoUnsignedWrapAttrName,
+          mlir::polygeist::kCounterNoWrapAttrName,
+          mlir::polygeist::kVolatileAccessAttrName})
+      op->removeAttr(name);
+  });
+}
+
+namespace {
+/// The lowering of an affine.for marked hls.uncounted (polygeist/Passes/
+/// Passes.h): upstream's AffineForLowering (AffineToStandard.cpp), which
+/// builds a new scf.for, plus the mark on that scf.for.
+struct MarkedAffineForLowering
+    : public mlir::OpRewritePattern<mlir::affine::AffineForOp> {
+  MarkedAffineForLowering(mlir::MLIRContext *ctx)
+      : OpRewritePattern(ctx, /*benefit=*/2) {}
+  mlir::LogicalResult
+  matchAndRewrite(mlir::affine::AffineForOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+    mlir::Attribute mark = op->getAttr(mlir::polygeist::kUncountedLoopAttrName);
+    if (!mark)
+      return mlir::failure();
+    mlir::Location loc = op.getLoc();
+    mlir::Value lowerBound = mlir::lowerAffineLowerBound(op, rewriter);
+    mlir::Value upperBound = mlir::lowerAffineUpperBound(op, rewriter);
+    mlir::Value step =
+        rewriter.create<mlir::arith::ConstantIndexOp>(loc, op.getStep());
+    auto scfForOp = rewriter.create<mlir::scf::ForOp>(
+        loc, lowerBound, upperBound, step, op.getInits());
+    scfForOp->setAttr(mlir::polygeist::kUncountedLoopAttrName, mark);
+    rewriter.eraseBlock(scfForOp.getBody());
+    rewriter.inlineRegionBefore(op.getRegion(), scfForOp.getRegion(),
+                                scfForOp.getRegion().end());
+    rewriter.replaceOp(op, scfForOp.getResults());
+    return mlir::success();
+  }
+};
+
+/// mlir::createLowerAffinePass (the same patterns, target and driver) except
+/// that an affine.for keeps its hls.uncounted mark on the scf.for it becomes.
+/// cgeist lowers the loops it raised to affine to enable inlining and raises
+/// them again afterwards (RaiseToAffine moves the mark back); the upstream
+/// lowering would drop it.
+struct LowerAffineKeepingLoopMarksPass
+    : public mlir::PassWrapper<LowerAffineKeepingLoopMarksPass,
+                               mlir::OperationPass<mlir::func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerAffineKeepingLoopMarksPass)
+  llvm::StringRef getArgument() const override {
+    return "cgeist-lower-affine-keeping-loop-marks";
+  }
+  void getDependentDialects(mlir::DialectRegistry &registry) const override {
+    registry.insert<mlir::arith::ArithDialect, mlir::memref::MemRefDialect,
+                    mlir::scf::SCFDialect, mlir::vector::VectorDialect>();
+  }
+  void runOnOperation() override {
+    mlir::RewritePatternSet patterns(&getContext());
+    mlir::populateAffineToStdConversionPatterns(patterns);
+    mlir::populateAffineToVectorConversionPatterns(patterns);
+    patterns.add<MarkedAffineForLowering>(&getContext());
+    mlir::ConversionTarget target(getContext());
+    target.addLegalDialect<mlir::arith::ArithDialect,
+                           mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                           mlir::vector::VectorDialect>();
+    if (mlir::failed(mlir::applyPartialConversion(getOperation(), target,
+                                                  std::move(patterns))))
+      signalPassFailure();
+  }
+};
+} // namespace
+
+int main(int argc, char **argv) {
+  
   if (argc >= 1) {
     if (std::string(argv[1]) == "-cc1") {
       SmallVector<const char *> Argv;
@@ -538,7 +724,10 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
-  mlir::func::registerInlinerExtension(registry);
+  // In place of mlir::func::registerInlinerExtension: honours
+  // `#pragma HLS inline off`. It must come before registerAllExtensions,
+  // which registers MLIR's interface too (the first one wins).
+  cgeist::hls::registerInlinerExtension(registry);
   polygeist::registerGpuSerializeToCubinPass();
   polygeist::registerGpuSerializeToHsacoPass();
   mlir::registerAllDialects(registry);
@@ -563,6 +752,12 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
   context.getOrLoadDialect<mlir::cf::ControlFlowDialect>();
+  if (!cgeist::hls::inlinerExtensionActive(&context)) {
+    llvm::errs() << "error: internal: the func dialect does not use cgeist's "
+                    "inliner interface ('#pragma HLS inline off' would be "
+                    "ignored)\n";
+    return 1;
+  }
 
   LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
@@ -599,9 +794,15 @@ int main(int argc, char **argv) {
       }
     }
   };
+  if (HLSKeepInvariantLoops && !ParallelLICM) {
+    llvm::errs() << "error: --hls-keep-invariant-loops needs --parallel-licm "
+                    "(the default)\n";
+    return 1;
+  }
   auto addLICM = [](auto &pm) {
     if (ParallelLICM)
-      pm.addPass(polygeist::createParallelLICMPass());
+      pm.addPass(polygeist::createParallelLICMPass(
+          /*keepLoops=*/HLSKeepInvariantLoops));
     else
       pm.addPass(mlir::createLoopInvariantCodeMotionPass());
   };
@@ -618,6 +819,9 @@ int main(int argc, char **argv) {
     flags.enableDebugInfo(/*pretty*/ false);
 
   if (ImmediateMLIR) {
+    // Loops are still unstructured here; only non-loop targets materialize.
+    cgeist::hls::materialize(module.get(), /*reportLost=*/false);
+    stripFrontendAssumptions(module.get());
     module->print(llvm::outs(), flags);
     return 0;
   }
@@ -681,7 +885,7 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
         canonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
+      optPM.addPass(polygeist::createPolygeistAffineScalarReplacementPass());
     addLICM(optPM);
     optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
         canonicalizerConfig, {}, {}));
@@ -696,7 +900,7 @@ int main(int argc, char **argv) {
       optPM.addPass(polygeist::createRaiseSCFToAffinePass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
       if (ScalarReplacement)
-        optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
+        optPM.addPass(polygeist::createPolygeistAffineScalarReplacementPass());
     }
 
     {
@@ -710,13 +914,24 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
         optPM.addPass(mlir::createCSEPass());
-        // Affine must be lowered to enable inlining
+        // Affine must be lowered to enable inlining (keeping the
+        // hls.uncounted loop marks for the second raising below)
         if (RaiseToAffine)
-          optPM.addPass(mlir::createLowerAffinePass());
+          optPM.addPass(std::make_unique<LowerAffineKeepingLoopMarksPass>());
         optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
+        // Vitis keeps the calls it does not inline automatically
+        // (HLSAutoInline.h); mark them for the inliner.
+        // An AGGREGATE pragma on a parameter reaches the actual argument;
+        // the calls that say which one disappear in the inliner.
+        if (cgeist::hls::isEnabled())
+          pm.addPass(cgeist::hls::createPropagateAggregatePass());
+        if (cgeist::hls::autoInlineEnabled())
+          pm.addPass(cgeist::hls::createMarkAutoInlinePass());
         pm.addPass(mlir::createInlinerPass());
         mlir::OpPassManager &optPM2 = pm.nest<mlir::func::FuncOp>();
+        if (cgeist::hls::xlxHeaders())
+          optPM2.addPass(cgeist::createXlxProxyScalarizePass());
         optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
         optPM2.addPass(mlir::createCSEPass());
@@ -735,6 +950,22 @@ int main(int argc, char **argv) {
         addLICM(optPM2);
         optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
+        // A scalar a loop carries in memory (an ap_uint loop counter, whose
+        // operators are inlined only now) becomes a loop-carried value and
+        // the loop is raised (XlxLoopScalarPromote.cc). After LICM: a loop
+        // that becomes free of memory effects is not hoisted out of its
+        // parent, which Vitis never does (hyungseok lab2's inner product).
+        if (cgeist::hls::isEnabled() && HLSPromoteLoopScalars) {
+          optPM2.addPass(cgeist::createXlxLoopScalarPromotePass());
+          optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+              canonicalizerConfig, {}, {}));
+          optPM2.addPass(polygeist::createCanonicalizeForPass());
+          if (RaiseToAffine)
+            optPM2.addPass(polygeist::createRaiseSCFToAffinePass());
+          optPM2.addPass(polygeist::replaceAffineCFGPass());
+          optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+              canonicalizerConfig, {}, {}));
+        }
       }
     }
 
@@ -800,7 +1031,8 @@ int main(int argc, char **argv) {
         noptPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
         if (ScalarReplacement)
-          noptPM2.addPass(mlir::affine::createAffineScalarReplacementPass());
+          noptPM2.addPass(
+              polygeist::createPolygeistAffineScalarReplacementPass());
       }
     }
 
@@ -831,7 +1063,8 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
         if (ScalarReplacement)
-          optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
+          optPM.addPass(
+              polygeist::createPolygeistAffineScalarReplacementPass());
       }
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
@@ -879,7 +1112,8 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
         if (ScalarReplacement)
-          optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
+          optPM.addPass(
+              polygeist::createPolygeistAffineScalarReplacementPass());
       }
     }
     pm.addPass(mlir::createSymbolDCEPass());
@@ -964,10 +1198,12 @@ int main(int argc, char **argv) {
       } while (changed);
     });
 
-    if (HLSAnnotate) {
-      ResolveScope(module.get(), g_HLSMetadata);
-      AttachMetadata(g_HLSMetadata);
-    }
+    // Calls kept until here (-O0, `inline off`) pass AGGREGATE on too.
+    cgeist::hls::propagateAggregate(module.get());
+    // Turn HLS pragma location tags into hls.* attributes.
+    cgeist::hls::materialize(module.get(), /*reportLost=*/true);
+    foldGlobalInitializers(module.get());
+    stripFrontendAssumptions(module.get());
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
@@ -1102,6 +1338,13 @@ int main(int argc, char **argv) {
       module->dump();
       return 5;
     }
+  }
+
+  if (cgeist::hls::xlxHeaders()) {
+    cgeist::eraseOverwrittenStores(module.get());
+    cgeist::dropUnusedLinkonceODR(module.get());
+    if (mlir::failed(cgeist::reportUnscalarisedProxies(module.get())))
+      return 13;
   }
 
   if (EmitLLVM || !EmitAssembly) {

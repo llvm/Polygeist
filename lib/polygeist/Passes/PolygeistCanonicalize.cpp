@@ -8,6 +8,7 @@
 
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
@@ -33,6 +34,64 @@
 
 using namespace mlir;
 using namespace polygeist;
+
+namespace {
+/// An array argument whose static shape differs from the parameter's only in
+/// the first dimension (`f(x)` with `int x[3][8]` and `void f(int p[16][8])`)
+/// reaches the callee through a memref.reinterpret_cast to the parameter's
+/// shape (cgeist's castCallerMemRefArg). The two shapes have the same
+/// row-major strides, so an access through the reinterpreted view addresses
+/// the same element of the argument: once the call is inlined, the loads,
+/// stores and subindex views of the view use the argument itself.
+struct ArrayArgumentViewAccess
+    : public OpRewritePattern<memref::ReinterpretCastOp> {
+  using OpRewritePattern<memref::ReinterpretCastOp>::OpRewritePattern;
+
+  static bool sameStridesAsSource(memref::ReinterpretCastOp op) {
+    auto src = dyn_cast<MemRefType>(op.getSource().getType());
+    MemRefType dst = op.getType();
+    if (!src || !src.hasStaticShape() || !dst.hasStaticShape() ||
+        !src.getLayout().isIdentity() || !dst.getLayout().isIdentity() ||
+        src.getRank() != dst.getRank() || src.getRank() == 0 ||
+        src.getElementType() != dst.getElementType() ||
+        src.getMemorySpace() != dst.getMemorySpace())
+      return false;
+    if (op.getStaticOffsets().size() != 1 || op.getStaticOffsets()[0] != 0)
+      return false;
+    return std::equal(std::next(src.getShape().begin()), src.getShape().end(),
+                      std::next(dst.getShape().begin()));
+  }
+
+  LogicalResult matchAndRewrite(memref::ReinterpretCastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!sameStridesAsSource(op))
+      return failure();
+    Value src = op.getSource();
+    bool changed = false;
+    for (OpOperand &use : llvm::make_early_inc_range(op->getUses())) {
+      Operation *user = use.getOwner();
+      bool isAccessedMemref =
+          (isa<memref::LoadOp, affine::AffineLoadOp, polygeist::SubIndexOp>(
+               user) &&
+           use.getOperandNumber() == 0) ||
+          (isa<memref::StoreOp, affine::AffineStoreOp>(user) &&
+           use.getOperandNumber() == 1);
+      if (!isAccessedMemref)
+        continue;
+      rewriter.updateRootInPlace(user, [&] { use.set(src); });
+      changed = true;
+    }
+    if (changed && op->use_empty())
+      rewriter.eraseOp(op);
+    return success(changed);
+  }
+};
+} // namespace
+
+void mlir::polygeist::populateArrayArgumentPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<ArrayArgumentViewAccess>(patterns.getContext());
+}
 
 namespace {
 struct PolygeistCanonicalizePass
@@ -67,6 +126,9 @@ struct PolygeistCanonicalizePass
       dialect->getCanonicalizationPatterns(owningPatterns);
     for (RegisteredOperationName op : context->getRegisteredOperations())
       op.getCanonicalizationPatterns(owningPatterns, context);
+    // Folds of marked add / sub / mul chains that keep the mark (Passes.h).
+    polygeist::populateNoSignedWrapPatterns(owningPatterns);
+    polygeist::populateArrayArgumentPatterns(owningPatterns);
 
     patterns = std::make_shared<FrozenRewritePatternSet>(
         std::move(owningPatterns), disabledPatterns, enabledPatterns);

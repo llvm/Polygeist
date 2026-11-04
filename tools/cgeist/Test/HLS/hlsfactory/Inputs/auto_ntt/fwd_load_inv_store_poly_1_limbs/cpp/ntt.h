@@ -1,0 +1,91 @@
+#ifndef _H_GEMM_H_
+#define _H_GEMM_H_
+#define __gmp_const const
+#include <cstdint>
+#include "ap_int.h"  
+
+// inbuilt data types
+#define VAR_TYPE_32 uint32_t
+#define VAR_TYPE_64 uint64_t
+#define VAR_TYPE_8 uint8_t
+#define VAR_TYPE_16 uint16_t
+
+// Polynomial size related
+const uint8_t logN=12;
+const uint32_t N=(1U<<logN);
+
+// data sizes
+const VAR_TYPE_8 WORD_SIZE=32;
+const VAR_TYPE_8 DWORD_SIZE=(2*WORD_SIZE);
+const VAR_TYPE_8 DRAM_WORD_SIZE=(WORD_SIZE>32)?64:32;
+
+// custom data types
+#define WORD ap_uint<WORD_SIZE>
+#define DRAM_WORD ap_uint<DRAM_WORD_SIZE>
+#define WORD_PLUS1 ap_uint<WORD_SIZE+1>
+#define WORD_PLUS2 ap_uint<WORD_SIZE+2>
+#define WORD_PLUS3 ap_uint<WORD_SIZE+3>
+#define DWORD ap_uint<WORD_SIZE*2>
+#define DWORD_PLUS1 ap_uint<WORD_SIZE*2+1>
+#define DWORD_PLUS3 ap_uint<WORD_SIZE*2+3>
+#define TWORD ap_uint<WORD_SIZE*3>  // TWORD
+#define TWORD_PLUS1 ap_uint<WORD_SIZE*3+1>  // TWORD_PLUS1
+#define DDWORD ap_uint<WORD_SIZE*4>
+
+// predefined vals
+const WORD WORD_SIZE_MASK=(WORD)(((WORD_PLUS1)1<<WORD_SIZE)-1);
+const WORD_PLUS2 WORD_SIZE_PLUS2_MASK=(WORD_PLUS2)((WORD_PLUS3(1)<<(WORD_SIZE+2)) - 1);
+
+// FIFO related
+#define BU_BUF_FIFO_DEPTH 3
+
+// BUG and architecture config
+const uint16_t V_BUG_SIZE = 8;
+const uint16_t H_BUG_SIZE = 4;
+const uint16_t logV_BUG_SIZE = 3;
+const uint16_t BUG_CONCAT_FACTOR = 4;
+const uint16_t logBUG_CONCAT_FACTOR = 2;
+const uint16_t V_TOTAL_DATA = V_BUG_SIZE*BUG_CONCAT_FACTOR*2;
+const uint16_t log_V_TOTAL_DATA = (logV_BUG_SIZE+logBUG_CONCAT_FACTOR+1);
+
+const uint16_t SINGLE_LIMB_BUF_SIZE = (N/V_TOTAL_DATA);
+const uint16_t SINGLE_LIMB_BUF_SIZE_MASK = ( (1<<(logN-log_V_TOTAL_DATA)) - 1 );
+const uint16_t TWO_SINGLE_LIMB_BUF_SIZE_MASK = ( (1<<(logN-log_V_TOTAL_DATA+1)) - 1 );
+
+//Parallel limbs
+const uint8_t PARA_LIMBS = 1;
+
+//HBM related
+const uint16_t DEFAULT_DRAM_PORT_WIDTH = 512;
+
+// POLY DRAM related
+const uint16_t POLY_DRAM_PORT_WIDTH_PER_PARA_LIMB = 512;
+const uint16_t POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT = (POLY_DRAM_PORT_WIDTH_PER_PARA_LIMB/DRAM_WORD_SIZE);
+#define POLY_WIDE_DATA_PER_PARA_LIMB ap_uint<DRAM_WORD_SIZE*POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT>
+const uint8_t POLY_LS_PORTS_PER_PARA_LIMB=1;
+const uint8_t BUG_PER_PARA_LIMB_POLY_PORT = (2*V_BUG_SIZE>POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT) ? (V_TOTAL_DATA/(POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT*POLY_LS_PORTS_PER_PARA_LIMB)) : (BUG_CONCAT_FACTOR/POLY_LS_PORTS_PER_PARA_LIMB);
+const uint8_t BUG_PER_PARA_LIMB_POLY_WIDE_DATA = (2*V_BUG_SIZE>POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT) ? (1) : (POLY_CONCAT_FACTOR_PER_PARA_LIMB_PORT/(2*V_BUG_SIZE));
+const uint8_t SEQ_BUG_PER_PARA_LIMB_POLY_PORT = (BUG_PER_PARA_LIMB_POLY_PORT/BUG_PER_PARA_LIMB_POLY_WIDE_DATA);
+
+const uint16_t PARA_LIMB_PORTS_PER_POLY_PORT = (DEFAULT_DRAM_PORT_WIDTH/POLY_DRAM_PORT_WIDTH_PER_PARA_LIMB > PARA_LIMBS) ? (PARA_LIMBS) : (DEFAULT_DRAM_PORT_WIDTH/POLY_DRAM_PORT_WIDTH_PER_PARA_LIMB);
+const uint16_t POLY_LS_PORTS = ((PARA_LIMBS + PARA_LIMB_PORTS_PER_POLY_PORT-1)/PARA_LIMB_PORTS_PER_POLY_PORT) * POLY_LS_PORTS_PER_PARA_LIMB; //ceil divsion
+#define POLY_WIDE_DATA ap_uint<DEFAULT_DRAM_PORT_WIDTH>
+
+// TF DRAM related
+const uint16_t TF_DRAM_PORT_WIDTH_PER_PARA_LIMB = 512;
+const uint16_t TF_CONCAT_FACTOR_PER_PARA_LIMB_PORT = (TF_DRAM_PORT_WIDTH_PER_PARA_LIMB/DRAM_WORD_SIZE);
+#define TF_WIDE_DATA_PER_PARA_LIMB ap_uint<DRAM_WORD_SIZE*TF_CONCAT_FACTOR_PER_PARA_LIMB_PORT>
+
+const uint8_t TF_PORTS_PER_PARA_LIMB=2;
+const uint8_t TF_LOAD_V_SEGS_PER_PARA_LIMB=( ( (V_BUG_SIZE/2) * BUG_CONCAT_FACTOR * 2 ) / TF_CONCAT_FACTOR_PER_PARA_LIMB_PORT );   //i.e., vertically how many TFBuffers the design has and each can take 2 values at a time
+const uint8_t TF_LOAD_H_SEGS_PER_PARA_LIMB=TF_PORTS_PER_PARA_LIMB/TF_LOAD_V_SEGS_PER_PARA_LIMB;   //i.e., How many segments total H_BUG_SIZE layers are bokern into
+
+const uint16_t PARA_LIMB_PORTS_PER_TF_PORT = (DEFAULT_DRAM_PORT_WIDTH/TF_DRAM_PORT_WIDTH_PER_PARA_LIMB > PARA_LIMBS) ? (PARA_LIMBS) : (DEFAULT_DRAM_PORT_WIDTH/TF_DRAM_PORT_WIDTH_PER_PARA_LIMB);
+const uint16_t TF_PORTS = ((PARA_LIMBS+PARA_LIMB_PORTS_PER_TF_PORT-1)/PARA_LIMB_PORTS_PER_TF_PORT) * TF_PORTS_PER_PARA_LIMB; //ceil divsion
+#define TF_WIDE_DATA ap_uint<DEFAULT_DRAM_PORT_WIDTH>
+
+// in/out FIFO size. Ideally this is equal to N/V_TOTAL_DATA. In order to force the FIFO into SRAM, larger sizes are used.
+const uint16_t LS_FIFO_BUF_SIZE=1024;
+
+#endif
+

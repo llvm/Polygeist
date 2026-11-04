@@ -26,6 +26,14 @@ struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
 };
 } // namespace
 
+/// The upper bound `min(a, b)` of a counted loop (arith.minsi, also under an
+/// index_cast) raises to an affine.for with a min bound (VITIS_NOTES N153:
+/// `for (u = 0; u < 32 && k + u < B; ++u)`, WhileConjunctiveBound).
+static llvm::cl::opt<bool> WhileConjunctiveMinBounds(
+    "raise-min-upper-bounds", llvm::cl::init(true),
+    llvm::cl::desc("Raise scf.for loops whose upper bound is an arith.minsi "
+                   "to affine.for with a min bound (VITIS_NOTES N153)"));
+
 struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
 
@@ -91,6 +99,27 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
           if (isValidIndex(cur)) {
             ubs.push_back(cur);
             continue;
+          } else if (auto mn = cur.getDefiningOp<MinSIOp>();
+                     mn && WhileConjunctiveMinBounds) {
+            // UB min(a, b) on index (WhileConjunctiveBound's bound,
+            // VITIS_NOTES N153).
+            todo.push_back(mn.getLhs());
+            todo.push_back(mn.getRhs());
+            continue;
+          } else if (auto cast = cur.getDefiningOp<IndexCastOp>();
+                     cast && WhileConjunctiveMinBounds) {
+            // index_cast(minsi(a, b)) = minsi(index_cast(a), index_cast(b)):
+            // index_cast sign-extends, which keeps the order.
+            if (auto mn = cast.getIn().getDefiningOp<MinSIOp>()) {
+              OpBuilder b(loop);
+              todo.push_back(b.create<IndexCastOp>(cast.getLoc(),
+                                                   b.getIndexType(),
+                                                   mn.getLhs()));
+              todo.push_back(b.create<IndexCastOp>(cast.getLoc(),
+                                                   b.getIndexType(),
+                                                   mn.getRhs()));
+              continue;
+            }
           } else if (auto selOp = cur.getDefiningOp<SelectOp>()) {
             // UB only has min of operands
             if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
@@ -111,16 +140,54 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       if (!loop.getStep().getDefiningOp<ConstantIndexOp>()) {
         if (ubs.size() != 1 || lbs.size() != 1)
           return failure();
-        ubs[0] = rewriter.create<DivUIOp>(
-            loop.getLoc(),
-            rewriter.create<AddIOp>(
-                loop.getLoc(),
-                rewriter.create<SubIOp>(
-                    loop.getLoc(), loop.getStep(),
-                    rewriter.create<ConstantIndexOp>(loop.getLoc(), 1)),
-                rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
-                                        loop.getLowerBound())),
-            loop.getStep());
+        // The trip count is computed above every enclosing loop that does
+        // not define the bounds or the step, where it is a valid symbol like
+        // its operands: built next to the loop, inside an outer loop, the
+        // affine map composition below moves it there itself and loses track
+        // of the ops it moved (an assertion on a loop with a variable step
+        // `m += 1 << stage` inside a loop over k, hp_fft no_StagePipeline;
+        // CIRCT OPEN_ISSUES O76).
+        Operation *ip = loop;
+        auto definedIn = [](Value v, Operation *region) {
+          Operation *def = v.getDefiningOp();
+          Region *r = def ? def->getParentRegion()
+                          : v.cast<BlockArgument>().getParentRegion();
+          return region->isAncestor(r->getParentOp());
+        };
+        while (Operation *parent = ip->getParentOp()) {
+          if (!isa<scf::ForOp, affine::AffineForOp, scf::IfOp, affine::AffineIfOp>(
+                  parent) ||
+              definedIn(loop.getStep(), parent) ||
+              definedIn(loop.getUpperBound(), parent) ||
+              definedIn(loop.getLowerBound(), parent))
+            break;
+          ip = parent;
+        }
+        PatternRewriter::InsertionGuard tripGuard(rewriter);
+        rewriter.setInsertionPoint(ip);
+        // Hoisted above the guards and loops that protect the loop, the trip
+        // count also runs where the loop never would, so it must not trap:
+        // a zero step divides by one, and an empty range (ub <= lb) gives 0
+        // instead of a huge unsigned quotient. Where the loop itself runs,
+        // the value is the plain (ub - lb + step - 1) / step (a step of 0
+        // there is an endless C loop). `if (s > 0) for (i = 0; i < n; i +=
+        // s)` inside another loop divided by zero (W9r7 review defect 1).
+        Location loc = loop.getLoc();
+        Value zero = rewriter.create<ConstantIndexOp>(loc, 0);
+        Value one = rewriter.create<ConstantIndexOp>(loc, 1);
+        Value range = rewriter.create<SubIOp>(loc, loop.getUpperBound(),
+                                              loop.getLowerBound());
+        Value nonEmpty =
+            rewriter.create<CmpIOp>(loc, CmpIPredicate::sgt, range, zero);
+        Value roundedUp = rewriter.create<AddIOp>(
+            loc, rewriter.create<SubIOp>(loc, loop.getStep(), one), range);
+        Value numerator =
+            rewriter.create<SelectOp>(loc, nonEmpty, roundedUp, zero);
+        Value stepIsZero = rewriter.create<CmpIOp>(loc, CmpIPredicate::eq,
+                                                   loop.getStep(), zero);
+        Value divisor =
+            rewriter.create<SelectOp>(loc, stepIsZero, one, loop.getStep());
+        ubs[0] = rewriter.create<DivUIOp>(loc, numerator, divisor);
         lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
         rewrittenStep = true;
       }
@@ -144,6 +211,9 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       affine::AffineForOp affineLoop = rewriter.create<affine::AffineForOp>(
           loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
           loop.getInits());
+      // The loop mark hls-est reads (Passes.h) moves to the affine loop.
+      if (Attribute mark = loop->getAttr(kUncountedLoopAttrName))
+        affineLoop->setAttr(kUncountedLoopAttrName, mark);
 
       auto mergedYieldOp =
           cast<scf::YieldOp>(loop.getRegion().front().getTerminator());

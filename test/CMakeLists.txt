@@ -12,3 +12,4 @@ add_lit_testsuite(check-polygeist-opt "Verify Polygeist passes perform correctly
 )
 
 set_target_properties(check-polygeist-opt PROPERTIES FOLDER "Tests")
+set_target_properties(check-cgeist PROPERTIES FOLDER "Tests")

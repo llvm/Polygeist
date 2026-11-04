@@ -28,7 +28,11 @@ class RewritePatternSet;
 class DominanceInfo;
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLICMPass();
+/// With `keepLoops`, LICM does not hoist a loop, or an op containing one, out
+/// of an enclosing loop (cgeist --hls-keep-invariant-loops).
+std::unique_ptr<Pass> createParallelLICMPass(bool keepLoops);
 std::unique_ptr<Pass> createPolygeistMem2RegPass();
+std::unique_ptr<Pass> createPolygeistAffineScalarReplacementPass();
 std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createInnerSerializationPass();
 std::unique_ptr<Pass> createSerializationPass();
@@ -80,6 +84,54 @@ void registerGpuSerializeToCubinPass();
 void registerGpuSerializeToHsacoPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
+
+// Facts about the C program that the frontend records on ops as discardable
+// attributes and the raising passes trust (AffineCFG, CanonicalizeFor). cgeist
+// removes the polygeist.* ones from its output unless
+// -keep-frontend-assumptions is given; hls.uncounted stays.
+
+/// On an arith.addi / subi / muli: the C operation it computes has undefined
+/// behaviour when its exact result does not fit the result type (signed
+/// integer arithmetic at least as wide as int, C11 6.5p5, C++ [expr.pre]p4;
+/// not under -fwrapv), so its result read signed is the exact result. On an
+/// arith.index_cast from index to iN: the index value fits iN read signed.
+constexpr llvm::StringLiteral kNoSignedWrapAttrName = "polygeist.nsw";
+/// On an arith.index_cast from index to iN: the index value fits iN read
+/// unsigned.
+constexpr llvm::StringLiteral kNoUnsignedWrapAttrName = "polygeist.nuw";
+/// On an scf.for that CanonicalizeFor raised from a while loop by assuming
+/// that the loop terminates: its counter never wraps (see
+/// -canonicalize-for-assume-termination in CanonicalizeFor.cpp). A BoolAttr:
+/// true when the exit test reads the counter unsigned.
+constexpr llvm::StringLiteral kCounterNoWrapAttrName =
+    "polygeist.counter_nowrap";
+/// On an scf.for / affine.for raised by that assumption whose exit test
+/// compares its counter with a bound of a wider type that the counter is not
+/// known to reach (`for (uint8_t i = 0; i < n; i++)`, int n): a loop whose
+/// trip count the source does not bound. Kept in the output for hls-est
+/// (Vitis does not collapse such a loop with its perfect inner nest,
+/// hls-est-validate VITIS_NOTES.md N15).
+constexpr llvm::StringLiteral kUncountedLoopAttrName = "hls.uncounted";
+/// On a func.func: its body (or the body of a function inlined into it)
+/// accesses a volatile-qualified object, which cgeist does not represent on
+/// memref accesses. No loop in such a function, and no loop that calls it, is
+/// assumed to terminate (C11 6.8.5p6 excludes loops that access volatile
+/// objects; -canonicalize-for-assume-termination in CanonicalizeFor.cpp).
+/// Recorded per function, not per loop: the frontend's loops become scf.while
+/// only in LoopRestructure, and a mark on a loop or on an access op would not
+/// survive the rewrites before CanonicalizeFor.
+constexpr llvm::StringLiteral kVolatileAccessAttrName =
+    "polygeist.volatile_access";
+
+/// Canonicalization patterns that fold a chain of two marked add / sub with
+/// constant operands, or of two marked mul by constants, into one marked op
+/// (CanonicalizeFor.cpp). The arith patterns fold such chains through new ops
+/// that would lose the mark.
+void populateNoSignedWrapPatterns(RewritePatternSet &patterns);
+/// Accesses through a memref.reinterpret_cast of an array argument whose
+/// shape differs from the parameter's only in the first dimension use the
+/// argument itself (PolygeistCanonicalize.cpp).
+void populateArrayArgumentPatterns(RewritePatternSet &patterns);
 } // namespace polygeist
 } // namespace mlir
 

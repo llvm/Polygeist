@@ -1,0 +1,5 @@
+--scalar-wrapper-abi
+# Math-core markers in hls_math.h: the fixed-point math functions call
+# __hlsest_math_<name>(args..., W, I, S) instead of the libm builtin, so that
+# hls-est (--bram-analysis math-costs=) sees the ap_fixed type of each call.
+-DHLSEST_MATH_MARKERS

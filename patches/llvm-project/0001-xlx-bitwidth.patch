@@ -1,0 +1,382 @@
+Squashed from the private llvm-project branch w11-real-headers (base 26eb4285b):
+  ac6056d62 [clang] Xilinx HLS bitwidth(N) attribute as _BitInt(N) (-fxlx-bitwidth), opt-in promotion (-fxlx-apint-promote)
+  546cda75c [clang] -fxlx-bitwidth: own diagnostics for widths below 1 and above 8191; neutral template test (W11 review)
+Apply with: git apply 0001-xlx-bitwidth.patch (in the llvm-project root).
+
+--- ac6056d62 [clang] Xilinx HLS bitwidth(N) attribute as _BitInt(N) (-fxlx-bitwidth), opt-in promotion (-fxlx-apint-promote)
+
+The Vitis HLS 2025.1 synthesis headers build ap_int / ap_fixed on
+`int __attribute__((bitwidth(N))) V` (common/technology/autopilot/etc/ap_common.h:529-542);
+upstream clang ignores the attribute, so every value became 32 bits.
+
+- Attr.td: XlxBitWidth, a GNU type attribute "bitwidth" with an expression argument
+  (ASTNode = 0, like vector_size).
+- SemaType.cpp: HandleXlxBitWidthAttr builds _BitInt(N) / unsigned _BitInt(N) with the
+  signedness of the builtin integer base type, keeping qualifiers; a template-dependent N
+  gives DependentBitIntType (instantiation and deduction are upstream's). Signed width 1
+  is accepted under the flag (ap_int<1>). Without -fxlx-bitwidth the attribute is
+  diagnosed and ignored exactly as before ("unknown attribute 'bitwidth' ignored").
+- SemaExpr.cpp UsualUnaryConversions: with -fxlx-apint-promote a _BitInt no wider than int
+  is promoted to int (unsigned int for an unsigned 32-bit one).
+- LangOptions.def / Options.td: the two cc1 flags, off by default.
+
+Re-implemented (not copied) from hls-llvm-project (github.com/Xilinx/hls-llvm-project)
+ee930469: clang/include/clang/Basic/Attr.td:554-559 (def BitWidth),
+clang/lib/Sema/SemaType.cpp:2295 (BuildAPIntType) and :6867 (HandleBitWidthAttr),
+clang/lib/Sema/SemaExpr.cpp:704 and clang/lib/AST/ASTContext.cpp:5553-5612
+(isPromotableIntegerOrAPIntType, getPromotedIntegerType); those are University of
+Illinois/NCSA files with Xilinx additions. hls-llvm-project's APIntType /
+DependentSizedAPIntType AST nodes are not ported: BitIntType covers them.
+
+Tests: clang/test/Sema/xlx-bitwidth.c, SemaCXX/xlx-bitwidth-template.cpp,
+CodeGen/xlx-bitwidth.c.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+--- 546cda75c [clang] -fxlx-bitwidth: own diagnostics for widths below 1 and above 8191; neutral template test (W11 review)
+
+W11 review D4 and D5 (scratchpad w11/review.md):
+- D4: under -fxlx-bitwidth every width from 1 up is valid for both signednesses, so
+  bitwidth(0) / bitwidth(-3) now report "bit width must be at least 1" instead of the
+  _BitInt message ("signed _BitInt must have a bit size of at least 2", or "greater
+  than 8388608" for a negative width). Widths above 8191, the ceiling of the
+  open-source Xilinx front end (hls-llvm-project ee930469 Type.h:1545 and :3131,
+  APIntType::isSizeTooLarge, used at SemaType.cpp:2320), get a warning; whether
+  Vitis 2025.1 has the same ceiling is unconfirmed. Custom diagnostic IDs keep the
+  private patch out of the diagnostic tables. Re-implemented from that behaviour,
+  not copied.
+- D5: clang/test/SemaCXX/xlx-bitwidth-template.cpp no longer reproduces the shape of
+  the Vitis-installed ssdm_int partial specialisations (etc/ap_common.h:529-542,
+  the block the Apache-2.0 HLS_arbitrary_Precision_Types leaves out); it tests the
+  same behaviour (dependent width in fields, typedefs, parameters and locals;
+  deduction; constant evaluation) with neutral declarations written for the test.
+- clang/test/Sema/xlx-bitwidth.c: the new diagnostics.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/clang/include/clang/Basic/Attr.td b/clang/include/clang/Basic/Attr.td
+index dd4d45171..d5998057b 100644
+--- a/clang/include/clang/Basic/Attr.td
++++ b/clang/include/clang/Basic/Attr.td
+@@ -3013,6 +3013,19 @@ def Uuid : InheritableAttr {
+   let Documentation = [Undocumented];
+ }
+ 
++// Xilinx HLS arbitrary-precision integer attribute (the Vitis HLS headers'
++// ssdm_int). Re-implemented from hls-llvm-project ee930469 Attr.td:554-559
++// (def BitWidth); here it is represented as BitIntType instead of a new
++// APIntType node, and is only honoured under -fxlx-bitwidth (otherwise it is
++// diagnosed and ignored exactly like an unknown attribute).
++def XlxBitWidth : TypeAttr {
++  let Spellings = [GNU<"bitwidth">];
++  let Args = [ExprArgument<"BitWidth">];
++  let Documentation = [Undocumented];
++  // Represented as BitIntType instead.
++  let ASTNode = 0;
++}
++
+ def VectorSize : TypeAttr {
+   let Spellings = [GCC<"vector_size">];
+   let Args = [ExprArgument<"NumBytes">];
+diff --git a/clang/include/clang/Basic/LangOptions.def b/clang/include/clang/Basic/LangOptions.def
+index e18b5b80a..36b90adc0 100644
+--- a/clang/include/clang/Basic/LangOptions.def
++++ b/clang/include/clang/Basic/LangOptions.def
+@@ -237,6 +237,9 @@ LANGOPT(OpenCLGenericAddressSpace, 1, 0, "OpenCL generic keyword")
+ LANGOPT(OpenCLPipes              , 1, 0, "OpenCL pipes language constructs and built-ins")
+ LANGOPT(NativeHalfType    , 1, 0, "Native half type support")
+ LANGOPT(NativeHalfArgsAndReturns, 1, 0, "Native half args and returns")
++// Xilinx HLS front-end extensions (cgeist / hls-est, track W11). Off by default.
++LANGOPT(XlxBitWidth      , 1, 0, "Xilinx HLS bitwidth(N) attribute as _BitInt(N)")
++LANGOPT(XlxAPIntPromote  , 1, 0, "Xilinx HLS integer promotion of narrow _BitInt types")
+ LANGOPT(CUDA              , 1, 0, "CUDA")
+ LANGOPT(HIP               , 1, 0, "HIP")
+ LANGOPT(OpenMP            , 32, 0, "OpenMP support and version of OpenMP (31, 40 or 45)")
+diff --git a/clang/include/clang/Driver/Options.td b/clang/include/clang/Driver/Options.td
+index f8143651c..b4472e41b 100644
+--- a/clang/include/clang/Driver/Options.td
++++ b/clang/include/clang/Driver/Options.td
+@@ -7418,6 +7418,14 @@ def fnative_half_arguments_and_returns : Flag<["-"], "fnative-half-arguments-and
+   HelpText<"Use the native __fp16 type for arguments and returns (and skip ABI-specific lowering)">,
+   MarshallingInfoFlag<LangOpts<"NativeHalfArgsAndReturns">>,
+   ImpliedByAnyOf<[open_cl.KeyPath, render_script.KeyPath, hlsl.KeyPath]>;
++def fxlx_bitwidth : Flag<["-"], "fxlx-bitwidth">,
++  HelpText<"Treat the Xilinx HLS __attribute__((bitwidth(N))) on a builtin "
++           "integer type as _BitInt(N) (signed width 1 allowed)">,
++  MarshallingInfoFlag<LangOpts<"XlxBitWidth">>;
++def fxlx_apint_promote : Flag<["-"], "fxlx-apint-promote">,
++  HelpText<"Apply the Xilinx HLS integer promotions to _BitInt types no wider "
++           "than int">,
++  MarshallingInfoFlag<LangOpts<"XlxAPIntPromote">>;
+ def fdefault_calling_conv_EQ : Joined<["-"], "fdefault-calling-conv=">,
+   HelpText<"Set default calling convention">,
+   Values<"cdecl,fastcall,stdcall,vectorcall,regcall">,
+diff --git a/clang/lib/Sema/SemaExpr.cpp b/clang/lib/Sema/SemaExpr.cpp
+index 92496b03e..f0a768441 100644
+--- a/clang/lib/Sema/SemaExpr.cpp
++++ b/clang/lib/Sema/SemaExpr.cpp
+@@ -851,6 +851,24 @@ ExprResult Sema::UsualUnaryConversions(Expr *E) {
+       E = ImpCastExprToType(E, PTy, CK_IntegralCast).get();
+       return E;
+     }
++    // Xilinx HLS (-fxlx-apint-promote): an arbitrary-precision integer no
++    // wider than int takes part in the integer promotions like a narrow
++    // builtin integer: it becomes int, or unsigned int for an unsigned one
++    // exactly as wide as int. Re-implemented from hls-llvm-project ee930469
++    // SemaExpr.cpp:704 and ASTContext.cpp:5553 (isPromotableIntegerOrAPIntType)
++    // and :5575 (getPromotedIntegerType).
++    if (getLangOpts().XlxAPIntPromote) {
++      if (const auto *BIT = Ty->getAs<BitIntType>()) {
++        uint64_t IntWidth = Context.getIntWidth(Context.IntTy);
++        if (BIT->getNumBits() <= IntWidth) {
++          QualType PT = (BIT->isUnsigned() && BIT->getNumBits() == IntWidth)
++                            ? Context.UnsignedIntTy
++                            : Context.IntTy;
++          E = ImpCastExprToType(E, PT, CK_IntegralCast).get();
++          return E;
++        }
++      }
++    }
+     if (Context.isPromotableIntegerType(Ty)) {
+       QualType PT = Context.getPromotedIntegerType(Ty);
+       E = ImpCastExprToType(E, PT, CK_IntegralCast).get();
+diff --git a/clang/lib/Sema/SemaType.cpp b/clang/lib/Sema/SemaType.cpp
+index d13a5564e..a63bfa37a 100644
+--- a/clang/lib/Sema/SemaType.cpp
++++ b/clang/lib/Sema/SemaType.cpp
+@@ -2361,8 +2361,25 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
+   if (ICE.isInvalid())
+     return QualType();
+ 
++  // Xilinx HLS (-fxlx-bitwidth): every width from 1 up is valid, for both
++  // signednesses, so a width below 1 gets its own message instead of the
++  // _BitInt one (which says 2 for signed). The Xilinx front end rejects
++  // widths above 8191 (hls-llvm-project ee930469 Type.h:1545 and :3131,
++  // APIntType::isSizeTooLarge, used at SemaType.cpp:2320); whether Vitis
++  // 2025.1 has the same ceiling is unconfirmed, so that is a warning.
++  // Custom diagnostic IDs keep this private patch out of the diagnostic
++  // tables (no rebuild of every clang library that includes them).
++  if (getLangOpts().XlxBitWidth && (Bits.isNegative() || Bits.isZero())) {
++    Diag(Loc, Diags.getCustomDiagID(DiagnosticsEngine::Error,
++                                    "bit width must be at least 1"));
++    return QualType();
++  }
++  const uint64_t XlxMaxBitWidth = 8191;
++
+   size_t NumBits = Bits.getZExtValue();
+-  if (!IsUnsigned && NumBits < 2) {
++  // Xilinx HLS: ap_int<1> is a signed 1-bit integer.
++  bool AllowSigned1 = getLangOpts().XlxBitWidth && NumBits == 1;
++  if (!IsUnsigned && NumBits < 2 && !AllowSigned1) {
+     Diag(Loc, diag::err_bit_int_bad_size) << 0;
+     return QualType();
+   }
+@@ -2379,6 +2396,12 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
+     return QualType();
+   }
+ 
++  if (getLangOpts().XlxBitWidth && NumBits > XlxMaxBitWidth)
++    Diag(Loc, Diags.getCustomDiagID(DiagnosticsEngine::Warning,
++                                    "bit width %0 exceeds %1, the largest "
++                                    "the Xilinx HLS front end accepts"))
++        << static_cast<uint64_t>(NumBits) << XlxMaxBitWidth;
++
+   return Context.getBitIntType(IsUnsigned, NumBits);
+ }
+ 
+@@ -8164,6 +8187,44 @@ void Sema::adjustMemberFunctionCC(QualType &T, bool IsStatic, bool IsCtorOrDtor,
+   T = Context.getAdjustedType(T, Wrapped);
+ }
+ 
++/// HandleXlxBitWidthAttr - the Xilinx HLS __attribute__((bitwidth(N))) on a
++/// builtin integer type (the Vitis HLS headers' ssdm_int, ap_common.h).
++/// Re-implemented from hls-llvm-project ee930469 SemaType.cpp:6867
++/// (HandleBitWidthAttr) and :2295 (BuildAPIntType): the type becomes
++/// _BitInt(N) / unsigned _BitInt(N) with the signedness of the base type; a
++/// template-dependent N yields a DependentBitIntType.
++static void HandleXlxBitWidthAttr(QualType &CurType, ParsedAttr &Attr,
++                                  Sema &S) {
++  if (!S.getLangOpts().XlxBitWidth) {
++    // Same diagnostic as before the attribute was known.
++    S.Diag(Attr.getLoc(), diag::warn_unknown_attribute_ignored)
++        << Attr << Attr.getRange();
++    Attr.setInvalid();
++    return;
++  }
++  if (Attr.getNumArgs() != 1) {
++    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_number_arguments)
++        << Attr << 1;
++    Attr.setInvalid();
++    return;
++  }
++  Qualifiers Quals = CurType.getQualifiers();
++  QualType Base = CurType.getCanonicalType().getUnqualifiedType();
++  if (!Base->isBuiltinType() || !Base->isIntegerType()) {
++    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_decl_type_str)
++        << Attr << Attr.isRegularKeywordAttribute() << "builtin integer types";
++    Attr.setInvalid();
++    return;
++  }
++  QualType T = S.BuildBitIntType(!Base->isSignedIntegerType(),
++                                 Attr.getArgAsExpr(0), Attr.getLoc());
++  if (T.isNull()) {
++    Attr.setInvalid();
++    return;
++  }
++  CurType = S.Context.getQualifiedType(T, Quals);
++}
++
+ /// HandleVectorSizeAttribute - this attribute is only applicable to integral
+ /// and float scalars, although arrays, pointers, and function return values are
+ /// allowed in conjunction with this construct. Aggregates with this attribute
+@@ -8700,6 +8761,11 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
+         distributeObjCPointerTypeAttr(state, attr, type);
+       attr.setUsedAsTypeAttr();
+       break;
++    case ParsedAttr::AT_XlxBitWidth:
++      if (!attr.isInvalid())
++        HandleXlxBitWidthAttr(type, attr, state.getSema());
++      attr.setUsedAsTypeAttr();
++      break;
+     case ParsedAttr::AT_VectorSize:
+       HandleVectorSizeAttr(type, attr, state.getSema());
+       attr.setUsedAsTypeAttr();
+diff --git a/clang/test/CodeGen/xlx-bitwidth.c b/clang/test/CodeGen/xlx-bitwidth.c
+new file mode 100755
+index 000000000..452c7656e
+--- /dev/null
++++ b/clang/test/CodeGen/xlx-bitwidth.c
+@@ -0,0 +1,17 @@
++// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fxlx-bitwidth -emit-llvm -o - %s | FileCheck %s
++// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-llvm -o - %s | FileCheck %s --check-prefix=OFF
++
++typedef int __attribute__((bitwidth(17))) i17;
++typedef unsigned __attribute__((bitwidth(5))) u5;
++
++// CHECK-LABEL: @add17(
++// CHECK: add nsw i17
++// OFF-LABEL: @add17(
++// OFF: add nsw i32
++i17 add17(i17 a, i17 b) { return a + b; }
++
++// The usual arithmetic conversions of _BitInt: u5 + int is done in int.
++// CHECK-LABEL: @inc5(
++// CHECK: zext i5 %{{.*}} to i32
++// CHECK: trunc i32 %{{.*}} to i5
++u5 inc5(u5 a) { return a + 1; }
+diff --git a/clang/test/Sema/xlx-bitwidth.c b/clang/test/Sema/xlx-bitwidth.c
+new file mode 100755
+index 000000000..5c038b13b
+--- /dev/null
++++ b/clang/test/Sema/xlx-bitwidth.c
+@@ -0,0 +1,54 @@
++// Xilinx HLS bitwidth(N) attribute (-fxlx-bitwidth): the type becomes _BitInt(N).
++// RUN: %clang_cc1 -fsyntax-only -fxlx-bitwidth -verify=on %s
++// RUN: %clang_cc1 -fsyntax-only -fxlx-bitwidth -fxlx-apint-promote -verify=on -DPROMOTE %s
++// RUN: %clang_cc1 -fsyntax-only -verify=off -DOFF %s
++
++typedef int __attribute__((bitwidth(7))) i7;        // off-warning {{unknown attribute 'bitwidth' ignored}}
++typedef unsigned __attribute__((bitwidth(12))) u12; // off-warning {{unknown attribute 'bitwidth' ignored}}
++
++#ifdef OFF
++_Static_assert(__builtin_types_compatible_p(i7, int), "");
++_Static_assert(__builtin_types_compatible_p(u12, unsigned), "");
++#else
++_Static_assert(__builtin_types_compatible_p(i7, _BitInt(7)), "");
++_Static_assert(__builtin_types_compatible_p(u12, unsigned _BitInt(12)), "");
++
++// Declarator position, as in the Vitis ssdm_int (ap_common.h).
++int x33 __attribute__((bitwidth(33)));
++_Static_assert(__builtin_types_compatible_p(__typeof__(x33), _BitInt(33)), "");
++const unsigned cu5 __attribute__((bitwidth(5))) = 31;
++_Static_assert(__builtin_types_compatible_p(__typeof__(cu5), const unsigned _BitInt(5)), "");
++
++// Signed width 1 (ap_int<1>) is allowed under the flag.
++typedef int __attribute__((bitwidth(1))) i1;
++_Static_assert((i1)1 == -1, "");
++
++// Bad uses.
++float f __attribute__((bitwidth(3)));   // on-error {{'bitwidth' attribute only applies to builtin integer types}}
++int w __attribute__((bitwidth(1, 2)));  // on-error {{'bitwidth' attribute takes one argument}}
++int z __attribute__((bitwidth(0)));     // on-error {{bit width must be at least 1}}
++unsigned uz __attribute__((bitwidth(0))); // on-error {{bit width must be at least 1}}
++int neg __attribute__((bitwidth(-3)));  // on-error {{bit width must be at least 1}}
++// Vitis' AP_INT_MAX_W (x86-64 _BitInt has no smaller limit).
++int max __attribute__((bitwidth(4096)));
++int xmax __attribute__((bitwidth(8191)));
++// Above the open-source Xilinx front end's ceiling: accepted with a warning.
++int big __attribute__((bitwidth(9000))); // on-warning {{bit width 9000 exceeds 8191, the largest the Xilinx HLS front end accepts}}
++
++i7 a;
++u12 b;
++unsigned __attribute__((bitwidth(32))) u32v;
++int __attribute__((bitwidth(33))) s33;
++#ifdef PROMOTE
++// Re-implemented Vitis promotion: no wider than int -> int (unsigned int for
++// an unsigned 32-bit one); wider types do not promote.
++_Static_assert(__builtin_types_compatible_p(__typeof__(a + a), int), "");
++_Static_assert(__builtin_types_compatible_p(__typeof__(b << 1), int), "");
++_Static_assert(__builtin_types_compatible_p(__typeof__(-u32v), unsigned int), "");
++_Static_assert(__builtin_types_compatible_p(__typeof__(s33 + s33), _BitInt(33)), "");
++_Static_assert(__builtin_types_compatible_p(__typeof__(~a), int), "");
++#else
++_Static_assert(__builtin_types_compatible_p(__typeof__(a + a), _BitInt(7)), "");
++_Static_assert(__builtin_types_compatible_p(__typeof__(b << 1), unsigned _BitInt(12)), "");
++#endif
++#endif
+diff --git a/clang/test/SemaCXX/xlx-bitwidth-template.cpp b/clang/test/SemaCXX/xlx-bitwidth-template.cpp
+new file mode 100755
+index 000000000..d80b431a4
+--- /dev/null
++++ b/clang/test/SemaCXX/xlx-bitwidth-template.cpp
+@@ -0,0 +1,50 @@
++// Xilinx HLS bitwidth(N) with a template-dependent N. The declarations are
++// written for this test from the attribute's behaviour; none is taken from the
++// Vitis-installed headers.
++// RUN: %clang_cc1 -std=gnu++14 -fsyntax-only -fxlx-bitwidth -verify %s
++// expected-no-diagnostics
++
++template <int N> struct SField { int v __attribute__((bitwidth(N))); };
++template <int N> struct UField { unsigned v __attribute__((bitwidth(N))); };
++template <int N> struct UTraits {
++  typedef unsigned __attribute__((bitwidth(N))) type;
++};
++template <int N> struct STraits {
++  typedef int __attribute__((bitwidth(N))) type;
++};
++
++template <class A, class B> struct same { static const bool value = false; };
++template <class A> struct same<A, A> { static const bool value = true; };
++
++static_assert(same<decltype(SField<17>::v), _BitInt(17)>::value, "");
++static_assert(same<decltype(SField<1>::v), _BitInt(1)>::value, "");
++static_assert(same<decltype(UField<256>::v), unsigned _BitInt(256)>::value, "");
++static_assert(same<UTraits<4096>::type, unsigned _BitInt(4096)>::value, "");
++static_assert(same<STraits<5>::type, _BitInt(5)>::value, "");
++
++// Deduction of N from the bit-precise type.
++template <int N> constexpr int width(_BitInt(N)) { return N; }
++template <int N> constexpr int uwidth(unsigned _BitInt(N)) { return N; }
++static_assert(width(SField<23>().v) == 23, "");
++static_assert(uwidth(UField<70>().v) == 70, "");
++
++// A parameter with a dependent width, in constant evaluation: the argument
++// is converted to N bits.
++template <int N> constexpr long long narrow(int x __attribute__((bitwidth(N)))) {
++  return x;
++}
++static_assert(narrow<5>(31) == -1, "");
++template <int N>
++constexpr unsigned long long unarrow(unsigned x __attribute__((bitwidth(N)))) {
++  return x;
++}
++static_assert(unarrow<9>(512) == 0, "");
++
++// A dependent-width local inside a function template.
++template <int W> constexpr unsigned long long mask(int lo, int hi) {
++  unsigned int m __attribute__((bitwidth(W))) = (unsigned _BitInt(W))-1;
++  m >>= (int)(W - (hi - lo + 1));
++  return (unsigned long long)m;
++}
++static_assert(mask<12>(0, 3) == 0xF, "");
++static_assert(mask<12>(2, 11) == 0x3FF, "");

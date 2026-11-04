@@ -1,0 +1,178 @@
+#include "conv_layer.h"
+#include "node_embedding.h"
+#include "message_passing.h"
+#include "load_inputs.h"
+#include "finalize.h"
+#include "hls_stream.h"
+
+// #region Internal Function Declarations
+void check_node_embedding(
+    hls::stream<ne_out_t> embeddings[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    node_feature_t* node_feature_in,
+    WT_TYPE embedding_h_atom_embedding_list_weights_in[9][119][100],
+    int i,
+    int num_of_nodes
+);
+void check_message_passing(
+    hls::stream<ne_out_t> embeddings[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    FM_TYPE* result,
+    int layer_num,
+    int num_of_nodes
+);
+void message_passing_all_pes(
+    hls::stream<ne_out_t> ne_out[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    int num_of_nodes
+);
+void ne_to_mp_adapter(
+    hls::stream<ne_out_t> ne_out[NODE_PARALLEL],
+    hls::stream<mp_in_t> mp_in[EDGE_PARALLEL][NODE_PARALLEL],
+    int num_of_nodes
+);
+// #endregion
+
+void compute_CONV_layer(
+    int layer_num,
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    FM_TYPE next_message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    node_feature_t* node_feature_in,
+    WT_TYPE embedding_h_atom_embedding_list_weights_in[9][119][100],
+    FM_TYPE* result,
+    int num_of_nodes
+)
+{
+#pragma HLS INLINE off
+#pragma HLS DATAFLOW
+
+#pragma HLS ARRAY_PARTITION variable=message complete dim=3
+#pragma HLS ARRAY_PARTITION variable=message cyclic factor=SCATTER_PARALLEL dim=4
+#pragma HLS ARRAY_PARTITION variable=next_message complete dim=3
+#pragma HLS ARRAY_PARTITION variable=next_message cyclic factor=SCATTER_PARALLEL dim=4
+
+    hls::stream<ne_out_t> embeddings[NODE_PARALLEL];
+#pragma HLS STREAM variable=embeddings depth=200
+
+    check_node_embedding(embeddings, message, node_feature_in, embedding_h_atom_embedding_list_weights_in, layer_num, num_of_nodes);
+    check_message_passing(embeddings, next_message, result, layer_num, num_of_nodes);
+}
+
+void check_node_embedding(
+    hls::stream<ne_out_t> embeddings[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    node_feature_t* node_feature_in,
+    WT_TYPE embedding_h_atom_embedding_list_weights_in[9][119][100],
+    int i,
+    int num_of_nodes
+)
+{
+#pragma HLS INLINE off
+
+    if (i == 0)
+        load_input_node_embeddings(embeddings, node_feature_in, embedding_h_atom_embedding_list_weights_in, num_of_nodes);
+    else
+        node_embedding_multi_pe(embeddings, message, i - 1, num_of_nodes);
+}
+
+void check_message_passing(
+    hls::stream<ne_out_t> embeddings[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    FM_TYPE* result,
+    int layer_num,
+    int num_of_nodes
+)
+{
+#pragma HLS INLINE off
+#pragma HLS ARRAY_PARTITION variable=message complete dim=1
+
+    if (layer_num == NUM_LAYERS)
+        finalize(
+            embeddings,
+            MLP_layer_FC_layers_0_weight,
+            MLP_layer_FC_layers_0_bias,
+            MLP_layer_FC_layers_1_weight,
+            MLP_layer_FC_layers_1_bias,
+            MLP_layer_FC_layers_2_weight,
+            MLP_layer_FC_layers_2_bias,
+            result,
+            num_of_nodes
+        );
+    else
+        message_passing_all_pes(embeddings, message, num_of_nodes);
+}
+
+void message_passing_all_pes(
+    hls::stream<ne_out_t> ne_out[NODE_PARALLEL],
+    FM_TYPE message[EDGE_PARALLEL][ceildiv(MAX_NODE, EDGE_PARALLEL)][2][EMB_DIM],
+    int num_of_nodes
+)
+{
+#pragma HLS INLINE off
+#pragma HLS DATAFLOW
+
+    hls::stream<mp_in_t> mp_in[EDGE_PARALLEL][NODE_PARALLEL];
+#pragma HLS STREAM variable=mp_in depth=40
+
+    ne_to_mp_adapter(ne_out, mp_in, num_of_nodes);
+    for (int pe_id = 0; pe_id < EDGE_PARALLEL; pe_id++)
+    {
+#pragma HLS UNROLL
+        message_passing_pe(
+            pe_id,
+            mp_in[pe_id],
+            message[pe_id],
+            num_of_nodes
+        );
+    }
+}
+
+void ne_to_mp_adapter(
+    hls::stream<ne_out_t> ne_out[NODE_PARALLEL],
+    hls::stream<mp_in_t> mp_in[EDGE_PARALLEL][NODE_PARALLEL],
+    int num_of_nodes
+)
+{
+#pragma HLS INLINE off
+
+    ne_out_t ne_out_struct;
+#pragma HLS AGGREGATE variable=ne_out_struct
+    mp_in_t mp_in_struct[NODE_PARALLEL];
+#pragma HLS AGGREGATE variable=mp_in_struct
+
+    for (int nd_base = 0; nd_base < num_of_nodes; nd_base += NODE_PARALLEL)
+    {
+#pragma HLS PIPELINE II=ceildiv(EMB_DIM, APPLY_PARALLEL)
+#pragma HLS LOOP_TRIPCOUNT min=ceildiv(ANALYSIS_MIN_NODES, NODE_PARALLEL) max=ceildiv(ANALYSIS_MAX_NODES, NODE_PARALLEL) avg=ceildiv(ANALYSIS_AVG_NODES, NODE_PARALLEL)
+        for (int ne_dim_base = 0; ne_dim_base < EMB_DIM; ne_dim_base += APPLY_PARALLEL)
+        {
+            for (int nd_offset = 0; nd_offset < NODE_PARALLEL; nd_offset++)
+            {
+#pragma HLS UNROLL
+                int nd = nd_base + nd_offset;
+                if (nd < num_of_nodes)
+                {
+                    ne_out[nd_offset] >> ne_out_struct;
+                    for (int ne_dim_offset = 0; ne_dim_offset < APPLY_PARALLEL; ne_dim_offset++)
+                    {
+#pragma HLS UNROLL
+                        int dim = ne_dim_base + ne_dim_offset;
+                        if (dim < EMB_DIM)
+                        {
+                            int mp_dim_offset = dim % SCATTER_PARALLEL;
+                            mp_in_struct[nd_offset][mp_dim_offset] = ne_out_struct[ne_dim_offset];
+                            if (dim == EMB_DIM - 1 || mp_dim_offset == SCATTER_PARALLEL - 1)
+                            {
+                                for (int i = 0; i < EDGE_PARALLEL; i++)
+                                {
+#pragma HLS UNROLL
+                                    mp_in[i][nd_offset] << mp_in_struct[nd_offset];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

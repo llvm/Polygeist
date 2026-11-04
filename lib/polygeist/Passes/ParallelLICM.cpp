@@ -24,9 +24,25 @@ using namespace polygeist;
 
 namespace {
 struct ParallelLICM : public ParallelLICMBase<ParallelLICM> {
+  ParallelLICM() = default;
+  explicit ParallelLICM(bool keepLoops) : keepLoops(keepLoops) {}
   void runOnOperation() override;
+
+  /// Do not hoist an op that is or contains a loop (cgeist
+  /// --hls-keep-invariant-loops): a loop-invariant inner loop stays in place.
+  bool keepLoops = false;
 };
 } // namespace
+
+/// Whether `op` must stay in its loop because it is or contains a loop and
+/// loops are kept in place (`keepLoops`).
+static bool keptInPlace(Operation *op, bool keepLoops) {
+  if (!keepLoops)
+    return false;
+  return op
+      ->walk([](LoopLikeOpInterface) { return WalkResult::interrupt(); })
+      .wasInterrupted();
+}
 
 static bool canBeParallelHoisted(Operation *op, Operation *scope,
                                  SmallPtrSetImpl<Operation *> &willBeMoved,
@@ -361,7 +377,8 @@ bool isSpeculatable(Operation *op) {
 }
 } // namespace mlir::polygeist
 
-void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
+void moveParallelLoopInvariantCode(scf::ParallelOp looplike,
+                                   bool keepLoops) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -378,6 +395,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
           if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
+              !keptInPlace(&op, keepLoops) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -421,8 +439,14 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
+// Used by ConvertParallelToGPU.cpp.
+void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
+  moveParallelLoopInvariantCode(looplike, /*keepLoops=*/false);
+}
+
 // TODO affine parallel licm
-void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
+void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike,
+                                   bool keepLoops) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -438,6 +462,7 @@ void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
           if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
+              !keptInPlace(&op, keepLoops) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -532,7 +557,7 @@ void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
-void moveSerialLoopInvariantCode(scf::ForOp looplike) {
+void moveSerialLoopInvariantCode(scf::ForOp looplike, bool keepLoops) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -548,6 +573,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
           if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
+              !keptInPlace(&op, keepLoops) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -585,7 +611,8 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
-void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
+void moveSerialLoopInvariantCode(affine::AffineForOp looplike,
+                                 bool keepLoops) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -601,6 +628,7 @@ void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
       for (Block &block : region)
         for (Operation &op : block.without_terminator()) {
           if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
+              !keptInPlace(&op, keepLoops) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -697,21 +725,39 @@ void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
 void ParallelLICM::runOnOperation() {
   getOperation()->walk([&](LoopLikeOpInterface loopLike) {
     LLVM_DEBUG(loopLike.print(llvm::dbgs() << "\nOriginal loop:\n"));
-    moveLoopInvariantCode(loopLike);
+    if (keepLoops)
+      // mlir::moveLoopInvariantCode(LoopLikeOpInterface) (LLVM 18), except
+      // for ops that are or contain loops.
+      moveLoopInvariantCode(
+          loopLike.getLoopRegions(),
+          [&](Value value, Region *) {
+            return loopLike.isDefinedOutsideOfLoop(value);
+          },
+          [&](Operation *op, Region *) {
+            return mlir::isMemoryEffectFree(op) && mlir::isSpeculatable(op) &&
+                   !keptInPlace(op, keepLoops);
+          },
+          [&](Operation *op, Region *) { loopLike.moveOutOfLoop(op); });
+    else
+      moveLoopInvariantCode(loopLike);
     if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
-      moveParallelLoopInvariantCode(par);
+      moveParallelLoopInvariantCode(par, keepLoops);
     } else if (auto par =
                    dyn_cast<affine::AffineParallelOp>((Operation *)loopLike)) {
-      moveParallelLoopInvariantCode(par);
+      moveParallelLoopInvariantCode(par, keepLoops);
     } else if (auto par = dyn_cast<scf::ForOp>((Operation *)loopLike)) {
-      moveSerialLoopInvariantCode(par);
+      moveSerialLoopInvariantCode(par, keepLoops);
     } else if (auto par =
                    dyn_cast<affine::AffineForOp>((Operation *)loopLike)) {
-      moveSerialLoopInvariantCode(par);
+      moveSerialLoopInvariantCode(par, keepLoops);
     }
   });
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createParallelLICMPass() {
   return std::make_unique<ParallelLICM>();
+}
+
+std::unique_ptr<Pass> mlir::polygeist::createParallelLICMPass(bool keepLoops) {
+  return std::make_unique<ParallelLICM>(keepLoops);
 }

@@ -226,6 +226,22 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
         strides.push_back(targetMemRef.stride(rewriter, loc, i));
       }
     } else {
+      // A view of the same rank moves by whole rows: `p + 1` of a pointer to
+      // an int[8] (memref<?x8xi32>) is 8 elements on, not 1 (CIRCT W9 round
+      // 8 review defect 8: the differential check of a range-based for over
+      // the rows of a 2-D array, probe pq1.cpp).
+      size_t sz = 1;
+      for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
+        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamic)
+          return failure();
+        sz *= sourceMemRefType.getShape()[i];
+      }
+      if (sz != 1) {
+        Value cop = rewriter.create<LLVM::ConstantOp>(
+            loc, idxs[0].getType(),
+            rewriter.getIntegerAttr(idxs[0].getType(), sz));
+        idxs[0] = rewriter.create<LLVM::MulOp>(loc, idxs[0], cop);
+      }
       for (size_t i = 0; i < sourceMemRefType.getShape().size(); i++) {
         sizes.push_back(targetMemRef.size(rewriter, loc, i));
         strides.push_back(targetMemRef.stride(rewriter, loc, i));

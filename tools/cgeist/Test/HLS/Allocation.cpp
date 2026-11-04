@@ -20,4 +20,4 @@ void top(int *out_int, float *out_float, int a, int b, float x, float y) {
     *out_float = r2;
 }
 
-// CHECK: hls.allocation = [{instances = "foo<int>", limit = 1 : i32, type = "function"}, {instances = "foo<float>", limit = 1 : i32, type = "function"}
+// CHECK: hls.allocation = [{instances = ["foo<int>"], limit = 1 : i32, type = "function"}, {instances = ["foo<float>"], limit = 1 : i32, type = "function"}]

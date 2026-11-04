@@ -165,6 +165,7 @@ void MLIRScanner::buildAffineLoopImpl(
       loc, lb, builder.getSymbolIdentityMap(), ub,
       builder.getSymbolIdentityMap(), descr.getStep(),
       /*iterArgs=*/std::nullopt);
+  affineOp->setLoc(cgeist::hls::loopLocation(fors, loc));
 
   auto &reg = affineOp.getRegion();
 
@@ -211,6 +212,54 @@ void MLIRScanner::buildAffineLoop(
   buildAffineLoopImpl(fors, loc, lb, ub, descr);
 }
 
+/// After a `break` a loop's condition is not evaluated: it may have side
+/// effects (`do { if (..) break; } while (++i > 0);` must not increment i on
+/// the break, `while (n--) { if (..) break; }` must not decrement n). The
+/// condition is built inside `scf.if` on the no-break flag (else false),
+/// between these two calls. Without a break the flag is the constant true and
+/// the `scf.if` folds away.
+static mlir::scf::IfOp beginNoBreakGuard(mlir::OpBuilder &builder,
+                                         mlir::Location loc,
+                                         mlir::Value noBreak) {
+  auto nb = builder.create<mlir::memref::LoadOp>(loc, noBreak,
+                                                 std::vector<mlir::Value>());
+  auto guard = builder.create<mlir::scf::IfOp>(
+      loc, mlir::TypeRange{builder.getI1Type()}, nb,
+      /*withElseRegion=*/true);
+  builder.setInsertionPointToStart(&guard.getThenRegion().front());
+  return guard;
+}
+
+static mlir::Value endNoBreakGuard(mlir::OpBuilder &builder,
+                                   mlir::Location loc, mlir::scf::IfOp guard,
+                                   mlir::Value cond) {
+  builder.create<mlir::scf::YieldOp>(loc, cond);
+  builder.setInsertionPointToStart(&guard.getElseRegion().front());
+  builder.create<mlir::scf::YieldOp>(
+      loc, mlir::ValueRange{builder.create<mlir::arith::ConstantIntOp>(
+               loc, false, 1)});
+  builder.setInsertionPointAfter(guard);
+  return guard.getResult(0);
+}
+
+/// A while / do loop's condition is built while the loop is the innermost
+/// one (`loops.back()`), so every statement-level guard in it (IfScope, e.g.
+/// around a condition variable's declaration) reads this loop's keepRunning
+/// flag. That flag is only set at the start of the body and cleared by a
+/// `continue`, so the condition would read it uninitialised on the first test
+/// (`while (int v = ..)` returned garbage) and false after a continue. Reset
+/// it to the no-break flag before the condition: the condition runs exactly
+/// when no break was taken.
+static void storeKeepRunningForCondition(mlir::OpBuilder &builder,
+                                         mlir::Location loc,
+                                         const LoopContext &lctx) {
+  builder.create<mlir::memref::StoreOp>(
+      loc,
+      builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
+                                           std::vector<mlir::Value>()),
+      lctx.keepRunning, std::vector<mlir::Value>());
+}
+
 ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   IfScope scope(*this);
 
@@ -247,6 +296,13 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     builder.setInsertionPointToStart(&condB);
 
     if (auto *s = fors->getCond()) {
+      mlir::scf::IfOp guard = beginNoBreakGuard(builder, loc, lctx.noBreak);
+      // `for (; int v = f();)`: the condition variable is initialised before
+      // each test, under the same no-break guard as the test (it may have
+      // side effects). It was never initialised before (the test read an
+      // undefined v).
+      if (auto *declStmt = fors->getConditionVariableDeclStmt())
+        Visit(declStmt);
       auto condRes = Visit(s);
       auto cond = condRes.getValue(loc, builder);
       if (auto mt = dyn_cast<mlir::MemRefType>(cond.getType())) {
@@ -267,14 +323,14 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
             loc, CmpIPredicate::ne, cond,
             builder.create<ConstantIntOp>(loc, 0, ty));
       }
-      auto nb = builder.create<mlir::memref::LoadOp>(
-          loc, lctx.noBreak, std::vector<mlir::Value>());
-      cond = builder.create<AndIOp>(loc, cond, nb);
-      builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+      cond = endNoBreakGuard(builder, loc, guard, cond);
+      builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(fors, loc), cond, &bodyB, &exitB);
     } else {
       auto cond = builder.create<mlir::memref::LoadOp>(
           loc, lctx.noBreak, std::vector<mlir::Value>());
-      builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+      builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(fors, loc), cond, &bodyB, &exitB);
     }
 
     builder.setInsertionPointToStart(&bodyB);
@@ -340,6 +396,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
   builder.setInsertionPointToStart(&condB);
 
   if (auto *s = fors->getCond()) {
+    mlir::scf::IfOp guard = beginNoBreakGuard(builder, loc, lctx.noBreak);
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
@@ -353,14 +410,14 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
           loc, CmpIPredicate::ne, cond,
           builder.create<ConstantIntOp>(loc, 0, ty));
     }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    cond = endNoBreakGuard(builder, loc, guard, cond);
+    builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(fors, loc), cond, &bodyB, &exitB);
   } else {
     auto cond = builder.create<mlir::memref::LoadOp>(
         loc, lctx.noBreak, std::vector<mlir::Value>());
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(fors, loc), cond, &bodyB, &exitB);
   }
 
   builder.setInsertionPointToStart(&bodyB);
@@ -738,8 +795,10 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   builder.create<mlir::cf::BranchOp>(loc, &bodyB);
 
   builder.setInsertionPointToStart(&condB);
+  storeKeepRunningForCondition(builder, loc, loops.back());
 
   if (auto *s = fors->getCond()) {
+    mlir::scf::IfOp guard = beginNoBreakGuard(builder, loc, loops.back().noBreak);
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
@@ -753,10 +812,9 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
           loc, CmpIPredicate::ne, cond,
           builder.create<ConstantIntOp>(loc, 0, ty));
     }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    cond = endNoBreakGuard(builder, loc, guard, cond);
+    builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(fors, loc), cond, &bodyB, &exitB);
   }
 
   builder.setInsertionPointToStart(&bodyB);
@@ -799,10 +857,14 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
   builder.create<mlir::cf::BranchOp>(loc, &condB);
 
   builder.setInsertionPointToStart(&condB);
+  storeKeepRunningForCondition(builder, loc, loops.back());
 
-  if (auto declStmt = stmt->getConditionVariableDeclStmt())
-    Visit(declStmt);
   if (auto *s = stmt->getCond()) {
+    mlir::scf::IfOp guard = beginNoBreakGuard(builder, loc, loops.back().noBreak);
+    // `while (int v = f())`: the condition variable is initialised before
+    // each test, under the no-break guard (after a break neither runs).
+    if (auto declStmt = stmt->getConditionVariableDeclStmt())
+      Visit(declStmt);
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
@@ -816,10 +878,9 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
           loc, CmpIPredicate::ne, cond,
           builder.create<ConstantIntOp>(loc, 0, ty));
     }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    cond = endNoBreakGuard(builder, loc, guard, cond);
+    builder.create<mlir::cf::CondBranchOp>(
+          cgeist::hls::loopLocation(stmt, loc), cond, &bodyB, &exitB);
   }
 
   builder.setInsertionPointToStart(&bodyB);
@@ -842,6 +903,9 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
 ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   IfScope scope(*this);
   auto loc = getMLIRLocation(stmt->getIfLoc());
+  // C++17 `if (init; cond)`: the init statement runs first (it was dropped).
+  if (auto *init = stmt->getInit())
+    Visit(init);
   if (auto declStmt = stmt->getConditionVariableDeclStmt())
     Visit(declStmt);
   auto cond = Visit(stmt->getCond()).getValue(loc, builder);
@@ -888,6 +952,13 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
 
 ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   IfScope scope(*this);
+  // `switch (init; int v = f())`: the init statement and the condition
+  // variable are evaluated before the condition (both were dropped, so the
+  // condition read an undefined v).
+  if (auto *init = stmt->getInit())
+    Visit(init);
+  if (auto *declStmt = stmt->getConditionVariableDeclStmt())
+    Visit(declStmt);
   auto cond = Visit(stmt->getCond())
                   .getValue(getMLIRLocation(stmt->getSwitchLoc()), builder);
   assert(cond != nullptr);
@@ -1080,9 +1151,31 @@ ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
   return nullptr;
 }
 
+/// A `goto` and the label it jumps to: cgeist's code for them is wrong
+/// whatever their nesting (CIRCT OPEN_ISSUES O27: a forward `goto` out of an
+/// if was dropped, held-out chstone dfadd / dfsin; a backward one made the
+/// body run once; `goto skip; z = 7; skip:` at the top of a function still
+/// ran `z = 7`, and the structured lowering after it fails on the
+/// unreachable code once that is put in a block of its own). Reported as an
+/// error rather than silently wrong code until a CFG lowering exists.
+static bool reportStructuredGoto(MLIRScanner &scanner, mlir::Region *region,
+                                 mlir::func::FuncOp function,
+                                 clang::SourceLocation at,
+                                 clang::DiagnosticsEngine &diags,
+                                 llvm::StringRef what) {
+  diags.Report(at, diags.getCustomDiagID(
+                       clang::DiagnosticsEngine::Error,
+                       "%0 is not supported by cgeist (its code would be "
+                       "wrong)"))
+      << what;
+  return true;
+}
+
 ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
   auto loc = getMLIRLocation(stmt->getIdentLoc());
   auto *toadd = builder.getInsertionBlock()->getParent();
+  // Only a label some `goto` jumps to (a label of a loop pragma, `L: for`,
+  // is fine): `goto` itself reports.
   Block *labelB;
   auto found = labels.find(stmt);
   if (found != labels.end()) {
@@ -1100,6 +1193,10 @@ ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
 
 ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
   auto loc = getMLIRLocation(stmt->getGotoLoc());
+  if (reportStructuredGoto(*this, builder.getInsertionBlock()->getParent(),
+                           function, stmt->getGotoLoc(), Glob.CGM.getDiags(),
+                           "'goto'"))
+    return nullptr;
   auto *labelstmt = stmt->getLabel()->getStmt();
   Block *labelB;
   auto found = labels.find(labelstmt);
@@ -1165,9 +1262,22 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
 
       auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
       if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
+        // Explicit width conversion of the returned integer (narrowing
+        // truncates; widening extends by the C signedness of the value).
+        // (--scalar-wrapper-abi; with the option off, any mismatch is a
+        // trunci as before.)
         auto ipostTy = postTy.cast<mlir::IntegerType>();
-        if (prevTy != ipostTy) {
+        if (!ScalarWrapperABI) {
+          if (prevTy != ipostTy)
+            val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+        } else if (prevTy.getWidth() > ipostTy.getWidth())
           val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+        else if (prevTy.getWidth() < ipostTy.getWidth()) {
+          if (stmt->getRetValue()->getType()->isUnsignedIntegerType() ||
+              prevTy.getWidth() == 1)
+            val = builder.create<arith::ExtUIOp>(loc, ipostTy, val);
+          else
+            val = builder.create<arith::ExtSIOp>(loc, ipostTy, val);
         }
       } else if (val.getType().isa<MemRefType>() &&
                  postTy.isa<LLVM::LLVMPointerType>())

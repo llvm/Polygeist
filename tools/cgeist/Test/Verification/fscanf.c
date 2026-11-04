@@ -37,7 +37,7 @@ int* alloc() {
 // CHECK:           %[[VAL_13:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_12]] : i64 to index
 // CHECK:           %[[VAL_14:[A-Za-z0-9_]*]] = arith.divui %[[VAL_13]], %[[VAL_3]] : index
 // CHECK:           %[[VAL_15:[A-Za-z0-9_]*]] = memref.alloc(%[[VAL_14]]) : memref<?xi32>
-// CHECK:           %[[VAL_16:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_10]] : i32 to index
+// CHECK:           %[[VAL_16:[A-Za-z0-9_]*]] = arith.index_castui %[[VAL_10]] : i32 to index
 // CHECK:           %[[VAL_17:[A-Za-z0-9_]*]] = llvm.mlir.addressof @str1 : !llvm.ptr
 // CHECK:           %[[VAL_18:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_17]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i8>
 // CHECK:           %[[VAL_19:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_15]]) : (memref<?xi32>) -> !llvm.ptr

@@ -1,0 +1,26 @@
+# shim "real" (track W11): compile against the real Vitis HLS 2025.1 headers, the way the Vitis
+# front end does (autopilot.flow.log:331 of every cached run: -I <autopilot tree>, the synthesis
+# macros, -include etc/autopilot_ssdm_op.h; C++ also -fno-threadsafe-statics -fno-use-cxa-atexit),
+# plus cgeist's Xilinx extensions. Needs a cgeist with --xlx-prelude / -Xclang and a clang with
+# -fxlx-bitwidth (Polygeist branch w11-real-headers). See README.md.
+--xlx-prelude
+-I /mnt/a/Vitis/2025.1/Vitis/common/technology/autopilot
+-D__SYNTHESIS__ -D__VITIS_HLS__ -DAESL_SYN -D__HLS_SYN__ -D__DSP48E1__
+-include /mnt/a/Vitis/2025.1/Vitis/common/technology/autopilot/etc/autopilot_ssdm_op.h
+-Xclang -fxlx-bitwidth -Xclang -fxlx-apint-promote
+-Xclang -fnative-half-type -Xclang -fnative-half-arguments-and-returns
+-Xclang -Wno-unknown-attributes
+# Vitis' C++-only flags, passed to cc1 (accepted for C too, where they have no effect).
+-Xclang -fno-threadsafe-statics -Xclang -fno-use-cxa-atexit
+--scalar-wrapper-abi --xlx-headers
+# A pipeline pragma on a loop of trip count 1 unrolls every loop nested in it completely, as Vitis
+# does, before cgeist folds the trip-1 loop away (OPEN_ISSUES O57, VITIS_NOTES N40; cgeist option of
+# Polygeist W9r5-impl, adopted in W9r12-impl: only the three
+# MultiHeadSelfAttention1 opt5 designs change, 2304 -> 2880 against Vitis 2688, bit-exact).
+--hls-trip-one-pipeline-unroll
+# Vitis' automatic inlining measures a function in loop-rotated form (VITIS_NOTES N131, OPEN_ISSUES O175;
+# adopted in W9r17-impl: machsuite sort_merge 8 -> 4 = Vitis, N18 kernels 127 -> 130 of 132 decisions),
+# and keeps an `inline off` call whatever its array argument's size (N123, O167; adopted in W9r17-impl:
+# forgebench attn_breakdown_module / op2 22 -> 17 = Vitis). Both need Polygeist w9r17-cgeist.
+--hls-auto-inline-rotated-size
+--hls-keep-misfit-inline-off

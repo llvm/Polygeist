@@ -8,4 +8,6 @@ int foo (int a, int b) {
     return d;
 }
 
-// CHECK: {hls.bind_op = [{impl = "fabric", latency = 2 : i32, op = "mul"}], polygeist.ssa_names = ["c"]}
+// The pragma binds the multiplication assigned to c (not the one assigned to d).
+// CHECK: %[[C:.*]] = arith.muli %arg0, %arg1 {hls.bind_op = [{impl = "fabric", latency = 2 : i32, op = "mul", variable = "c"}]} : i32
+// CHECK-NEXT: arith.muli %arg0, %[[C]] : i32
