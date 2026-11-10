@@ -1120,6 +1120,28 @@ module {
     kernel.yield %result : tensor<?xf64>
   }
 
+  // Transposed GEMV with overwrite semantics (BLAS beta=0).
+  kernel.defn @cublasDgemv_T_zero(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
+                              %y: tensor<?xf64>) -> tensor<?xf64> {
+    %c0 = arith.constant 0.0 : f64
+    %zero = linalg.fill ins(%c0 : f64) outs(%y : tensor<?xf64>) -> tensor<?xf64>
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%zero : tensor<?xf64>) {
+    ^bb0(%a: f64, %xv: f64, %out: f64):
+      %p = arith.mulf %a, %xv : f64
+      %s = arith.addf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
   // GEMV-SUBTRACT variants: y -= A*x (alpha=-1, beta=1).
   kernel.defn @cublasDgemv_subtract(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
                                      %y: tensor<?xf64>) -> tensor<?xf64> {
@@ -1230,12 +1252,55 @@ module {
     kernel.yield %result : tensor<?xf64>
   }
 
+  // Scaled transposed GEMV: y += alpha * transpose(A) * x.
+  kernel.defn @cublasDgemv_alpha_T(%A: tensor<?x?xf64>, %x: tensor<?xf64>,
+                                  %y: tensor<?xf64>,
+                                  %alpha: f64) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%y : tensor<?xf64>) {
+    ^bb0(%a: f64, %xv: f64, %out: f64):
+      %p = arith.mulf %a, %xv : f64
+      %ap = arith.mulf %alpha, %p : f64
+      %s = arith.addf %out, %ap : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
   kernel.defn @cublasSgemv_alpha(
       %A: tensor<?x?xf32>, %x: tensor<?xf32>, %y: tensor<?xf32>,
       %alpha: f32) -> tensor<?xf32> {
     %result = linalg.generic {
       indexing_maps = [
         affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d0)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%A, %x : tensor<?x?xf32>, tensor<?xf32>)
+      outs(%y : tensor<?xf32>) {
+    ^bb0(%a: f32, %xv: f32, %out: f32):
+      %p = arith.mulf %a, %xv : f32
+      %ap = arith.mulf %alpha, %p : f32
+      %s = arith.addf %out, %ap : f32
+      linalg.yield %s : f32
+    } -> tensor<?xf32>
+    kernel.yield %result : tensor<?xf32>
+  }
+
+  kernel.defn @cublasSgemv_alpha_T(%A: tensor<?x?xf32>, %x: tensor<?xf32>,
+                                  %y: tensor<?xf32>,
+                                  %alpha: f32) -> tensor<?xf32> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
         affine_map<(d0, d1) -> (d1)>,
         affine_map<(d0, d1) -> (d0)>
       ],

@@ -400,7 +400,9 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasSgemv_broadcast2d")
     return "polygeist_cublas_sgemv";
   if (libSym == "cublasDgemv_alpha") return "polygeist_cublas_dgemv_alpha";
+  if (libSym == "cublasDgemv_alpha_T") return "polygeist_cublas_dgemv_T";
   if (libSym == "cublasSgemv_alpha") return "polygeist_cublas_sgemv";
+  if (libSym == "cublasSgemv_alpha_T") return "polygeist_cublas_sgemv_T";
   if (libSym == "cublasSgemv_alpha_memref")
     return "polygeist_cublas_sgemv";
   if (libSym == "cublasSgemv_alpha_T_memref")
@@ -4744,7 +4746,11 @@ static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
   b.create<func::CallOp>(loc, shim,
       ValueRange{N, alpha, x_ptr, beta, y_ptr});
   Value yBase = resolveSubmapBase(y);
-  Value yBaseMr = tensorToMemref(b, loc, yBase);
+  // The opaque BLAS call mutated y_mr. Re-materializing the original
+  // tensor would recover its pre-call value; expose the updated storage as
+  // a fresh SSA result before downstream tensor bufferization.
+  Value yBaseMr = yBase == y ? snapshotOpaqueCallResult(b, loc, y_mr)
+                            : tensorToMemref(b, loc, yBase);
   Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
   rewireLaunchResult(launch, out);
   launch.erase();
@@ -4774,7 +4780,8 @@ static LogicalResult lowerSaxpby(LaunchOp launch, ModuleOp module) {
   b.create<func::CallOp>(loc, shim, ValueRange{
       N, alpha, memrefBasePtr(b, loc, x_mr), beta, memrefBasePtr(b, loc, y_mr)});
   Value yBase = resolveSubmapBase(y);
-  Value yBaseMr = tensorToMemref(b, loc, yBase);
+  Value yBaseMr = yBase == y ? snapshotOpaqueCallResult(b, loc, y_mr)
+                            : tensorToMemref(b, loc, yBase);
   Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
   rewireLaunchResult(launch, out);
   launch.erase();
@@ -4898,10 +4905,10 @@ static LogicalResult lowerDaxpyUnit(LaunchOp launch, ModuleOp module) {
 
 // @cublasDgemv_alpha(%A, %x, %y, %alpha) → tensor (y += α·A·x)
 static LogicalResult lowerDgemvAlpha(LaunchOp launch, ModuleOp module,
-                                      bool useF32 = false) {
-  if (launch.getNumOperands() != 4)
+                                      bool useF32 = false, bool transpose = false) {
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 1)
     return launch.emitError(
-        "cublasDgemv_alpha: expected 4 operands (A, x, y, α)");
+        "cublasDgemv_alpha: expected 4 operands (A, x, y, α) and one result");
   Value A = launch.getOperand(0);
   Value x = launch.getOperand(1);
   Value y = launch.getOperand(2);
@@ -4910,6 +4917,19 @@ static LogicalResult lowerDgemvAlpha(LaunchOp launch, ModuleOp module,
   if (!At || At.getRank() != 2 ||
       (useF32 ? !At.getElementType().isF32() : !At.getElementType().isF64()))
     return launch.emitError("cublas gemv-alpha: unexpected matrix type");
+  auto xt = dyn_cast<RankedTensorType>(x.getType());
+  auto yt = dyn_cast<RankedTensorType>(y.getType());
+  if (!xt || !yt || xt.getRank() != 1 || yt.getRank() != 1 ||
+      xt.getElementType() != At.getElementType() ||
+      yt.getElementType() != At.getElementType() ||
+      launch.getResult(0).getType() != y.getType())
+    return launch.emitError("cublas gemv-alpha: expected same-dtype vector tensors and result");
+  auto compatible = [](int64_t a, int64_t b) {
+    return ShapedType::isDynamic(a) || ShapedType::isDynamic(b) || a == b;
+  };
+  if (!compatible(At.getDimSize(transpose ? 0 : 1), xt.getDimSize(0)) ||
+      !compatible(At.getDimSize(transpose ? 1 : 0), yt.getDimSize(0)))
+    return launch.emitError("cublas gemv-alpha: incompatible matrix/vector extents");
   if (alpha.getType() != At.getElementType())
     return launch.emitError("cublas gemv-alpha: alpha type mismatch");
 
@@ -4933,9 +4953,10 @@ static LogicalResult lowerDgemvAlpha(LaunchOp launch, ModuleOp module,
       b.getI32Type(), b.getI32Type(), At.getElementType(),
       ptrTy, b.getI32Type(), ptrTy, At.getElementType(), ptrTy,
   };
-  func::FuncOp shim = ensureShimDecl(module, useF32 ? "polygeist_cublas_sgemv"
-                                                    : "polygeist_cublas_dgemv",
-                                       argTypes, b);
+  StringRef shimName = useF32
+      ? (transpose ? "polygeist_cublas_sgemv_T" : "polygeist_cublas_sgemv")
+      : (transpose ? "polygeist_cublas_dgemv_T" : "polygeist_cublas_dgemv");
+  func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{M, N, alpha, A_ptr, N, x_ptr, one, y_ptr});
   Value out = memrefToTensor(b, loc, y_mr, launch.getResult(0).getType());
@@ -8458,8 +8479,14 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerSgemvTZero(launch, module);
       } else if (libSym == "cublasDgemv_alpha") {
         r = lowerDgemvAlpha(launch, module);
+      } else if (libSym == "cublasDgemv_alpha_T") {
+        r = lowerDgemvAlpha(launch, module, /*useF32=*/false,
+                           /*transpose=*/true);
       } else if (libSym == "cublasSgemv_alpha") {
         r = lowerDgemvAlpha(launch, module, /*useF32=*/true);
+      } else if (libSym == "cublasSgemv_alpha_T") {
+        r = lowerDgemvAlpha(launch, module, /*useF32=*/true,
+                           /*transpose=*/true);
       } else if (libSym == "cublasSgemv_alpha_memref") {
         r = lowerCublasSgemvAlphaMemref(
             launch, module, /*transpose=*/false);

@@ -105,7 +105,9 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDgemm_outer_product",
     "cublasSgemm_strided_batched_broadcast_rhs",
     "cublasDgemv_alpha",
+    "cublasDgemv_alpha_T",
     "cublasSgemv_alpha",
+    "cublasSgemv_alpha_T",
     "cublasSgemv_alpha_memref",
     "cublasSgemv_alpha_T_memref",
     "cublasDaxpby",
@@ -10575,6 +10577,39 @@ def rewrite_mlir(
                 emit_name = ("cublasSgemv_alpha"
                              if entry.name == "cublasDgemv_alpha"
                              else "cublasSger_rank2")
+
+        if entry.name in ("cublasDgemv_alpha", "cublasSgemv_alpha"):
+            expected = "f64" if entry.name.startswith("cublasD") else "f32"
+            maps = [_compact_affine_map(_resolve_affine_map_text(text, m))
+                    for m in bodies[i].indexing_maps]
+            vector_maps = ["affine_map<(d0,d1)->(d1)>",
+                           "affine_map<(d0,d1)->(d0)>"]
+            normal = ["affine_map<(d0,d1)->(d0,d1)>"] + vector_maps
+            transposed = ["affine_map<(d0,d1)->(d1,d0)>"] + vector_maps
+            if (len(operand_types) != 3 or
+                    not all(t.startswith("tensor<") for t in operand_types) or
+                    [_tensor_rank(t) for t in operand_types] != [2, 1, 1] or
+                    [_sniff_elem_type(t) for t in operand_types] != [expected] * 3 or
+                    last.result_count != 1 or last.result_type != operand_types[2] or
+                    bodies[i].iterator_types != ["parallel", "reduction"] or
+                    maps not in (normal, transposed)):
+                report.append(("signature_or_layout_reject", i, entry.name))
+                i += n
+                continue
+            alpha = binds.get("%alpha")
+            if isinstance(alpha, tuple) and len(alpha) == 2 and alpha[0] == "Lit":
+                scalar = _derived_ssa_name(last.result_ssa or outs0[0], "alpha")
+                value = _format_weight_literal(float(alpha[1]), expected)
+                pre_launch_lines.append(
+                    f"{last.indent}{scalar} = arith.constant {value} : {expected}")
+                binds["%alpha"] = ("Cap", scalar)
+                scalar_types[scalar] = expected
+            elif not (isinstance(alpha, tuple) and len(alpha) == 2 and
+                      alpha[0] == "Cap" and scalar_types.get(alpha[1]) == expected):
+                report.append(("coefficient_reject", i, entry.name))
+                i += n
+                continue
+            emit_name = entry.name + ("_T" if maps == transposed else "")
 
         if entry.name == "cublasSgemv_alpha_memref":
             ranks = [_tensor_rank(ty) for ty in operand_types]

@@ -891,17 +891,35 @@ void polygeist_cublas_sgemv_T(
     const float *x,
     float beta,
     float *y) {
+  // BLAS requires separate x/y storage. The tensor overwrite composition
+  // can legally reuse its input slice as the destination, so preserve x.
+  const float *x_input = x;
+  float *x_snapshot = NULL;
+  uintptr_t x_begin = (uintptr_t)x;
+  uintptr_t y_begin = (uintptr_t)y;
+  if (x_begin < y_begin + (size_t)N * sizeof(float) &&
+      y_begin < x_begin + (size_t)M * sizeof(float)) {
+    x_snapshot = (float *)malloc((size_t)M * sizeof(float));
+    if (!x_snapshot) {
+      fprintf(stderr, "polygeist CPU runtime: GEMV alias snapshot failed\n");
+      abort();
+    }
+    memcpy(x_snapshot, x, (size_t)M * sizeof(float));
+    x_input = x_snapshot;
+  }
 #ifdef POLYGEIST_CPU_USE_CBLAS
-  cblas_sgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x, 1, beta, y,
+  cblas_sgemv(CblasRowMajor, CblasTrans, M, N, alpha, A, lda, x_input, 1, beta, y,
               1);
+  free(x_snapshot);
   return;
 #endif
   for (int32_t j = 0; j < N; ++j) {
     float acc = 0.0f;
     for (int32_t i = 0; i < M; ++i)
-      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x[i];
+      acc += A[(size_t)i * (size_t)lda + (size_t)j] * x_input[i];
     y[j] = alpha * acc + beta * y[j];
   }
+  free(x_snapshot);
 }
 
 void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,

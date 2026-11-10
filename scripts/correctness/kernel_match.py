@@ -1989,7 +1989,7 @@ def _gemv_subtract() -> CompositionEntry:
 
 def _gemv_alpha_accumulate() -> CompositionEntry:
     """y += alpha * A * x"""
-    return _mlir_metadata("cublasDgemv_alpha")
+    return _mlir_metadata("cublasDgemv_alpha", element_type="f64")
 
 
 def _sgemv_alpha_accumulate() -> CompositionEntry:

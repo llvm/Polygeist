@@ -1220,6 +1220,12 @@ struct LowerDynamicIdentityMemrefSubmap
     if (!baseTy || !outTy || baseTy.getRank() != 1 || outTy.getRank() != 1 ||
         !submap.getMap().isIdentity() || submap.getSizes().size() != 1)
       return failure();
+    // Keep the logical view while a structured consumer can compose it
+    // into its indexing map. An early reinterpret_cast hides the reduction
+    // projection from tensor reconstruction and library matching.
+    for (Operation *user : submap->getUsers())
+      if (isa<linalg::LinalgOp>(user))
+        return failure();
     SmallVector<OpFoldResult> sizes{submap.getSizes().front()};
     SmallVector<OpFoldResult> strides{rewriter.getIndexAttr(1)};
     auto view = rewriter.create<memref::ReinterpretCastOp>(
