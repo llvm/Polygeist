@@ -47,6 +47,7 @@ std::unique_ptr<Pass> createPropagateKernelLibraryConstantsPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToCuBLASPass();
 std::unique_ptr<Pass> createLowerKernelLaunchToPVAPass();
 std::unique_ptr<Pass> createRemoveIterArgsPass();
+std::unique_ptr<Pass> createDelinearizeMemrefAccessesPass();
 std::unique_ptr<Pass> createFoldSCFIfPass();
 std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
@@ -95,6 +96,8 @@ void registerGpuSerializeToCubinPass();
 void registerGpuSerializeToHsacoPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
+void populateNormalizeTensorReductionOutputPatterns(
+    RewritePatternSet &patterns);
 } // namespace polygeist
 } // namespace mlir
 

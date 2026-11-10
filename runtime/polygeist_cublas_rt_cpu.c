@@ -80,6 +80,22 @@ void polygeist_cublas_dtrsv_lower_row_major(
 #endif
 }
 
+void polygeist_cublas_strsv_lower_row_major(
+    int32_t n, const float *A, const float *b, float *x) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_scopy(n, b, 1, x, 1);
+  cblas_strsv(CblasRowMajor, CblasLower, CblasNoTrans, CblasNonUnit,
+              n, A, n, x, 1);
+#else
+  for (int32_t i = 0; i < n; ++i) {
+    float value = b[i];
+    for (int32_t j = 0; j < i; ++j)
+      value -= A[(size_t)i * (size_t)n + (size_t)j] * x[j];
+    x[i] = value / A[(size_t)i * (size_t)n + (size_t)i];
+  }
+#endif
+}
+
 void polygeist_cublas_dsymm_left_lower_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     const double *B, int32_t ldb, double beta, double *C, int32_t ldc) {
@@ -94,6 +110,20 @@ void polygeist_cublas_dsymm_left_lower_row_major(
 #endif
 }
 
+void polygeist_cublas_ssymm_left_lower_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    const float *B, int32_t ldb, float beta, float *C, int32_t ldc) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_ssymm(CblasRowMajor, CblasLeft, CblasLower, m, n, alpha, A, lda,
+              B, ldb, beta, C, ldc);
+#else
+  (void)m; (void)n; (void)alpha; (void)A; (void)lda;
+  (void)B; (void)ldb; (void)beta; (void)C; (void)ldc;
+  fprintf(stderr, "Polygeist runtime: FP32 SYMM requires external CBLAS\n");
+  abort();
+#endif
+}
+
 void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
     int32_t m, int32_t n, double alpha, const double *A, int32_t lda,
     double *B, int32_t ldb) {
@@ -103,6 +133,19 @@ void polygeist_cublas_dtrmm_left_lower_trans_unit_row_major(
 #else
   (void)m; (void)n; (void)alpha; (void)A; (void)lda; (void)B; (void)ldb;
   fprintf(stderr, "Polygeist runtime: FP64 TRMM requires external CBLAS\n");
+  abort();
+#endif
+}
+
+void polygeist_cublas_strmm_left_lower_trans_unit_row_major(
+    int32_t m, int32_t n, float alpha, const float *A, int32_t lda,
+    float *B, int32_t ldb) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_strmm(CblasRowMajor, CblasLeft, CblasLower, CblasTrans,
+              CblasUnit, m, n, alpha, A, lda, B, ldb);
+#else
+  (void)m; (void)n; (void)alpha; (void)A; (void)lda; (void)B; (void)ldb;
+  fprintf(stderr, "Polygeist runtime: FP32 TRMM requires external CBLAS\n");
   abort();
 #endif
 }
@@ -178,6 +221,29 @@ void polygeist_cublas_dcovariance_row_major(
 #endif
 }
 
+void polygeist_cublas_scovariance_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *cov, int32_t ldc, float *mean) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  const int32_t ones_count = m > n ? m : n;
+  float *ones = (float *)malloc((size_t)ones_count * sizeof(float));
+  if (!ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) ones[i] = 1.0f;
+  cblas_sgemv(CblasRowMajor, CblasTrans, m, n, 1.0f / sample_count,
+              data, ldd, ones, 1, 0.0f, mean, 1);
+  cblas_sger(CblasRowMajor, m, n, -1.0f, ones, 1, mean, 1, data, ldd);
+  cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n, n, m,
+              1.0f / (sample_count - 1.0f), data, ldd, data, ldd,
+              0.0f, cov, ldc);
+  free(ones);
+#else
+  (void)m; (void)n; (void)sample_count; (void)data; (void)ldd;
+  (void)cov; (void)ldc; (void)mean;
+  fprintf(stderr, "Polygeist runtime: FP32 covariance requires external CBLAS\n");
+  abort();
+#endif
+}
+
 void polygeist_cublas_dcorrelation_row_major(
     int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
     double *corr, int32_t ldc, double *mean, double *stddev) {
@@ -208,6 +274,36 @@ void polygeist_cublas_dcorrelation_row_major(
 #endif
 }
 
+void polygeist_cublas_scorrelation_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *corr, int32_t ldc, float *mean, float *stddev) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  const int32_t ones_count = m > n ? m : n;
+  float *ones = (float *)malloc((size_t)ones_count * sizeof(float));
+  if (!ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) ones[i] = 1.0f;
+  cblas_sgemv(CblasRowMajor, CblasTrans, m, n, 1.0f / sample_count,
+              data, ldd, ones, 1, 0.0f, mean, 1);
+  const float root_count = sqrtf(sample_count);
+  for (int32_t column = 0; column < n; ++column) {
+    cblas_saxpy(m, -mean[column], ones, 1, data + column, ldd);
+    float sigma = cblas_snrm2(m, data + column, ldd) / root_count;
+    if (sigma <= 0.1f) sigma = 1.0f;
+    stddev[column] = sigma;
+    cblas_sscal(m, 1.0f / (root_count * sigma), data + column, ldd);
+  }
+  cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n, n, m,
+              1.0f, data, ldd, data, ldd, 0.0f, corr, ldc);
+  cblas_scopy(n, ones, 1, corr, ldc + 1);
+  free(ones);
+#else
+  (void)m; (void)n; (void)sample_count; (void)data; (void)ldd;
+  (void)corr; (void)ldc; (void)mean; (void)stddev;
+  fprintf(stderr, "Polygeist runtime: FP32 correlation requires external CBLAS\n");
+  abort();
+#endif
+}
+
 static void require_cusparse_runtime(void) {
   fprintf(stderr,
           "Polygeist runtime: CSR SpMV requires the external NVIDIA "
@@ -219,10 +315,11 @@ void polygeist_cusparse_spmv_csr_f32_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const float *values, int32_t x_count, const float *x,
-    int32_t y_count, float *y) {
+    int32_t y_count, float *y, float alpha, float beta) {
   (void)rows; (void)row_offset_count; (void)row_offsets;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  (void)alpha; (void)beta;
   require_cusparse_runtime();
 }
 
@@ -230,10 +327,11 @@ void polygeist_cusparse_spmv_csr_f64_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const double *values, int32_t x_count, const double *x,
-    int32_t y_count, double *y) {
+    int32_t y_count, double *y, double alpha, double beta) {
   (void)rows; (void)row_offset_count; (void)row_offsets;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  (void)alpha; (void)beta;
   require_cusparse_runtime();
 }
 
@@ -726,6 +824,22 @@ void polygeist_cublas_dger_rank2(int32_t M, int32_t N,
 #endif
   for (int32_t i = 0; i < M; ++i) {
     double *row = &A[(size_t)i * (size_t)lda];
+    for (int32_t j = 0; j < N; ++j)
+      row[j] += u1[i] * v1[j] + u2[i] * v2[j];
+  }
+}
+
+void polygeist_cublas_sger_rank2(int32_t M, int32_t N,
+                                  const float *u1, const float *v1,
+                                  const float *u2, const float *v2,
+                                  float *A, int32_t lda) {
+#ifdef POLYGEIST_CPU_USE_CBLAS
+  cblas_sger(CblasRowMajor, M, N, 1.0f, u1, 1, v1, 1, A, lda);
+  cblas_sger(CblasRowMajor, M, N, 1.0f, u2, 1, v2, 1, A, lda);
+  return;
+#endif
+  for (int32_t i = 0; i < M; ++i) {
+    float *row = &A[(size_t)i * (size_t)lda];
     for (int32_t j = 0; j < N; ++j)
       row[j] += u1[i] * v1[j] + u2[i] * v2[j];
   }
@@ -2396,12 +2510,6 @@ void polygeist_cublas_broadcast_1d_to_2d_f32(
       Out[(size_t)i * cols + j] = X[axis == 0 ? i : j];
 }
 
-void polygeist_cuda_add_f32(
-    int32_t N, const float *X, const float *Y, float *Out) {
-  for (int32_t i = 0; i < N; ++i)
-    Out[i] = X[i] + Y[i];
-}
-
 void polygeist_rmsnorm_f32(
     int32_t N, const float *X, const float *Weight, float *Out) {
   float ss = 0.0f;
@@ -2528,34 +2636,6 @@ void polygeist_cub_exclusive_sum1d_i32(
     value += input[i];
   }
   output[n] = value;
-}
-
-void polygeist_cuda_mask_select_f32(
-    int32_t N, int32_t pos, const float *Scores, float *Out) {
-  const float neg_inf = -3.4028234663852886e38f;
-  for (int32_t i = 0; i < N; ++i)
-    Out[i] = (i > pos) ? neg_inf : Scores[i];
-}
-
-void polygeist_cuda_swiglu_f32(
-    int32_t N, const float *Gate, const float *Up, float *Out) {
-  for (int32_t i = 0; i < N; ++i) {
-    float g = Gate[i];
-    Out[i] = (g / (1.0f + expf(-g))) * Up[i];
-  }
-}
-
-void polygeist_cuda_rope_mulmul_f32(
-    int32_t M, int32_t N, const float *A, const float *B,
-    const float *C, const float *D, float *Out, int32_t add) {
-  for (int32_t i = 0; i < M; ++i) {
-    for (int32_t j = 0; j < N; ++j) {
-      size_t idx = (size_t)i * (size_t)N + (size_t)j;
-      float p0 = A[idx] * B[j];
-      float p1 = C[idx] * D[j];
-      Out[idx] = add ? (p0 + p1) : (p0 - p1);
-    }
-  }
 }
 
 static float polygeist_cutensor_unary_eval_f32(int32_t op, float x) {

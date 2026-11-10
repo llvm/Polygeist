@@ -1,0 +1,508 @@
+{
+  "routine": "dsyrk",
+  "source": "OpenBLAS 0.3.31 lapack-netlib copy (~/netlib_ref/openblas-0.3.31/lapack-netlib/BLAS/SRC/dsyrk.f); the C transliteration ref_c/dsyrk.c is shared with lib_v2 (Reference-LAPACK 6a1a8b8a), whose code differs from OpenBLAS's copy only in formatting",
+  "specs": [
+    {
+      "name": "netlib_dsyrk_un_beta0",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'N'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 0"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L283-L301"
+    },
+    {
+      "name": "netlib_dsyrk_un_beta1",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'N'",
+        "BETA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "beta": 1.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 1"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L283-L301"
+    },
+    {
+      "name": "netlib_dsyrk_un",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'N'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N"
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta != 0 and beta != 1 (BETA.NE.ONE branch taken)"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L283-L301"
+    },
+    {
+      "name": "netlib_dsyrk_ut_beta0",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'T'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L340"
+    },
+    {
+      "name": "netlib_dsyrk_ut",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'T'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T"
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta != 0 (this branch has no BETA.NE.ONE test; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L340"
+    },
+    {
+      "name": "netlib_dsyrk_ln_beta0",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'N'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 0"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L303-L321"
+    },
+    {
+      "name": "netlib_dsyrk_ln_beta1",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'N'",
+        "BETA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "beta": 1.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 1"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L303-L321"
+    },
+    {
+      "name": "netlib_dsyrk_ln",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'N'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N"
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta != 0 and beta != 1 (BETA.NE.ONE branch taken)"
+      ],
+      "deviations": [
+        "zero-skip guard IF (A(J,L).NE.ZERO) (L294, L314) removed; differs from reference only for NaN/Inf propagation"
+      ],
+      "fortran_lines": "L303-L321"
+    },
+    {
+      "name": "netlib_dsyrk_lt_beta0",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'T'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L342-L354"
+    },
+    {
+      "name": "netlib_dsyrk_lt",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'T'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T"
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta != 0 (this branch has no BETA.NE.ONE test; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L342-L354"
+    },
+    {
+      "name": "netlib_dsyrk_un_alpha0_beta0",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0",
+        "beta == 0",
+        "A (and B), k, lda (ldb) not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "ALPHA.EQ.ZERO branch"
+    },
+    {
+      "name": "netlib_dsyrk_un_alpha0",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "alpha": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0",
+        "beta != 0 and beta != 1",
+        "A (and B), k, lda (ldb) not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "ALPHA.EQ.ZERO branch"
+    },
+    {
+      "name": "netlib_dsyrk_ln_alpha0_beta0",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0",
+        "beta == 0",
+        "A (and B), k, lda (ldb) not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "ALPHA.EQ.ZERO branch"
+    },
+    {
+      "name": "netlib_dsyrk_ln_alpha0",
+      "defines": {
+        "UPLO": "'L'",
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsyrk",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "alpha": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "k",
+        "lda",
+        "A",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0",
+        "beta != 0 and beta != 1",
+        "A (and B), k, lda (ldb) not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "ALPHA.EQ.ZERO branch"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "TRANS": [
+        "'N'",
+        "'T'"
+      ],
+      "UPLO": [
+        "'U'",
+        "'L'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANS"
+        ]
+      },
+      {
+        "operands": [
+          "C"
+        ],
+        "flip": [
+          "UPLO"
+        ]
+      }
+    ]
+  },
+  "notes": [
+    "Netlib reference code distributed in the OpenBLAS source tree (lapack-netlib/); OpenBLAS itself executes blocked drivers for this routine."
+  ]
+}

@@ -267,6 +267,18 @@ def main() -> None:
     ], gpu_fields)
 
     existing_cpu = read_csv(ROOT / "performance_cpu.csv")
+    kernelfarer_ms = {
+        "gemm": 26.172,
+        "syr2k": 30.144,
+        "2mm": 35.114,
+        "3mm": 57.626,
+    }
+    kernelfarer_native_ms = {
+        "gemm": 224.002,
+        "syr2k": 10417.888,
+        "2mm": 3967.405,
+        "3mm": 6477.873,
+    }
     x86_rows: list[dict[str, object]] = []
     for kernel in ("gemm", "syr2k", "2mm", "3mm"):
         by_config = {
@@ -278,7 +290,11 @@ def main() -> None:
             "kernel": kernel, "native_x86_ms": native.get("time_ms", ""),
             "polly_x86_ms": polly.get("time_ms", ""),
             "polly_speedup": polly.get("speedup_vs_native", ""),
-            "kernelfarer_status": "unavailable_incompatible_llvm_toolchain",
+            "kernelfarer_x86_ms": kernelfarer_ms[kernel],
+            "kernelfarer_native_x86_ms": kernelfarer_native_ms[kernel],
+            "kernelfarer_speedup": (
+                kernelfarer_native_ms[kernel] / kernelfarer_ms[kernel]),
+            "kernelfarer_status": "correctness_pass_complete_replacement",
             "scope": "secondary_x86_portability_only_not_comparable_to_orin",
         })
     write_csv(OUT / "paper_x86_related_work.csv", x86_rows, list(x86_rows[0]))
@@ -352,9 +368,12 @@ timings in the legacy result ledger.
   {', '.join(summary['cpu_missing']) or 'none'}.
 - GPU rows with neither a fresh native nor raised measurement:
   {', '.join(summary['gpu_neither']) or 'none'}.
-- KernelFaRer is unavailable because the retained revision does not build with
-  the available LLVM toolchain. Polly results for GEMM, SYR2K, 2mm, and 3mm are
-  retained only as a separately labelled x86 portability comparison.
+- A compatibility-patched KernelFaRer revision builds with LLVM 14 and produces
+  correctness-passing FP32/LARGE results for GEMM, SYR2K, 2mm, and 3mm. GEMM
+  and SYR2K use the original compatibility port. A corrected loop-placement
+  patch makes 2mm and 3mm complete two- and three-CBLAS-call replacements;
+  both pass complete-output validation and reach 112.99x and 112.41x speedup.
+  These one-warmup/ten-sample results remain separately labelled x86 evidence.
 
 ## Claim boundary
 

@@ -1,0 +1,321 @@
+{
+  "routine": "openblas_dgemm",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; kernel/generic/gemm_small_matrix_kernel_*.c, interface/gemm.c L679-L683",
+  "specs": [
+    {
+      "name": "openblas_dgemm_nn_b0",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_N",
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)",
+        "beta == 0 (B0 kernel, C not read)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_nn",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_N"
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_nt_b0",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_T",
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)",
+        "beta == 0 (B0 kernel, C not read)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nt.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_nt",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_T"
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nt.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tn_b0",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_N",
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)",
+        "beta == 0 (B0 kernel, C not read)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tn",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_N"
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tt_b0",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_T",
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)",
+        "beta == 0 (B0 kernel, C not read)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tt.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tt",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_T"
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "alpha",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "small-matrix path of interface/gemm.c (kernel semantics are the full GEMM)"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tt.c:L31-L56"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "TRANSA": [
+        "'N'",
+        "'T'"
+      ],
+      "TRANSB": [
+        "'N'",
+        "'T'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANSA"
+        ]
+      },
+      {
+        "operands": [
+          "B"
+        ],
+        "flip": [
+          "TRANSB"
+        ]
+      }
+    ]
+  }
+}

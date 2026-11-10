@@ -11,6 +11,7 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -65,6 +66,9 @@ struct UseChainAnalysis {
       opsChain; // (op, invariant_operand)
   Operation *storeOp = nullptr;
   Operation *initLoad = nullptr;
+  // Scaled update form `out = acc' + x * L`: the multiply `x * L` (null when
+  // the invariant addend is the load L itself).
+  Operation *initScaleOp = nullptr;
   bool succeeded = false;
 
   /// Analyze the use chain of a loop result to find transformation
@@ -180,6 +184,38 @@ struct UseChainAnalysis {
           }
         }
 
+        // Scaled update form `out = acc' + x * L` with L a loop-invariant
+        // load and x loop-invariant (netlib DSYRK TRANS='T' with general
+        // beta: `C = alpha*temp + beta*C`).  The caller seeds the destination
+        // with x * L before the loop (see RemoveAffineIterArgs).
+        Operation *scaleOp = otherOperand.getDefiningOp();
+        if (!initLoad && scaleOp && isa<arith::MulFOp, arith::MulIOp>(scaleOp) &&
+            otherOperand.hasOneUse()) {
+          DominanceInfo dom(loopOp->getParentOp());
+          for (unsigned li = 0; li < 2; ++li) {
+            Value l = scaleOp->getOperand(li);
+            Value x = scaleOp->getOperand(1 - li);
+            auto loadOp = l.getDefiningOp<LoadOpType>();
+            if (!loadOp || !l.hasOneUse() || !isLoopInvariant(x, loopOp))
+              continue;
+            if (Operation *xDef = x.getDefiningOp())
+              if (!dom.dominates(xDef, loopOp))
+                continue;
+            if (llvm::any_of(loadOp->getOperands().drop_front(), [&](Value v) {
+                  return !isLoopInvariant(v, loopOp);
+                }))
+              continue;
+            initLoad = loadOp;
+            initScaleOp = scaleOp;
+            break;
+          }
+          if (initScaleOp) {
+            opsChain.push_back({user, otherOperand});
+            currentValue = user->getResult(0);
+            continue;
+          }
+        }
+
         LLVM_DEBUG(llvm::dbgs() << "    ✗ Addition doesn't match pattern\n");
         return false;
       }
@@ -194,6 +230,65 @@ struct UseChainAnalysis {
     return false;
   }
 };
+
+/// The store-fusion fast path rewrites
+///     acc = init; for (...) acc = acc + t;  out = chain(acc)
+/// into an in-place accumulation on out's address: the destination is seeded
+/// before the loop and every multiply of `chain` is distributed onto each term
+/// t (see pullOperationsIntoLoop).  That preserves the value only if the
+/// destination's contents before the loop equal chain(init):
+///   * a multiply (out = c * acc) must also scale the seed: seed = c * init.
+///     Seeding with plain `init` turned netlib DTRMM's
+///     `temp = B; temp += A*B; B = alpha*temp` into `B + sum(alpha*A*B)`;
+///   * an added loop-invariant load (out = acc + L, "update form") keeps the
+///     destination's old contents as the seed, which is only right when L
+///     reads the destination itself, init is zero, and no multiply is applied
+///     after the add (c * (acc + L) would need c * L).
+/// Returns false when these conditions cannot be met, in which case the
+/// caller must leave the loop to the consumer-blind alloca fallback.
+bool fastPathSeedIsSound(const UseChainAnalysis &analysis, Value init,
+                         bool sameAddressAsStore) {
+  bool hasMul = false;
+  int numAdds = 0;
+  for (auto &[op, operand] : analysis.opsChain) {
+    if (isa<arith::MulFOp, arith::MulIOp>(op)) {
+      if (numAdds) // multiply applied after the invariant add
+        return false;
+      hasMul = true;
+    } else {
+      ++numAdds;
+    }
+  }
+  if (analysis.initLoad) {
+    // Update form: the destination's old value stands in for L.
+    if (numAdds != 1 || !sameAddressAsStore)
+      return false;
+    return matchPattern(init, m_AnyZeroFloat()) || matchPattern(init, m_Zero());
+  }
+  // Overwrite form with a multiply (out = c * (init + sum t)) and a non-zero
+  // init: distributing c would need the seed c*init, which changes the
+  // rounding of the reference's `c * temp` and loses the netlib structure
+  // that library specs are matched/validated against.  The alloca fallback
+  // keeps the epilogue multiply exact.  A zero init (e.g. `temp = 0; ...;
+  // y = alpha*temp`) seeds the destination with 0 * c == 0 and stays here.
+  if (hasMul)
+    return matchPattern(init, m_AnyZeroFloat()) || matchPattern(init, m_Zero());
+  return true;
+}
+
+/// Seed value for the fast path's destination: init with every multiply of
+/// the chain applied in order (operands dominate the loop, see analyze()).
+Value buildScaledSeed(const UseChainAnalysis &analysis, Value init,
+                      PatternRewriter &rewriter, Location loc) {
+  Value seed = init;
+  for (auto &[op, operand] : analysis.opsChain) {
+    if (isa<arith::MulFOp>(op))
+      seed = rewriter.create<arith::MulFOp>(loc, operand, seed);
+    else if (isa<arith::MulIOp>(op))
+      seed = rewriter.create<arith::MulIOp>(loc, operand, seed);
+  }
+  return seed;
+}
 
 /// Pull operations from outside the loop into the loop body
 /// Returns the final accumulator value to be stored
@@ -375,6 +470,8 @@ struct RemoveSCFIterArgs : public OpRewritePattern<scf::ForOp> {
     auto storeOp = cast<memref::StoreOp>(analysis.storeOp);
     auto initLoad =
         analysis.initLoad ? cast<memref::LoadOp>(analysis.initLoad) : nullptr;
+    if (analysis.initScaleOp)
+      return failure(); // scaled update form: affine pattern only
 
     // The fast path moves the result store from after the loop into the loop
     // body.  Its destination (memref and indices) must therefore already be
@@ -391,6 +488,14 @@ struct RemoveSCFIterArgs : public OpRewritePattern<scf::ForOp> {
           return failure();
         }
       }
+    }
+
+    if (!fastPathSeedIsSound(
+            analysis, init,
+            initLoad && initLoad.getMemref() == storeOp.getMemref() &&
+                initLoad.getIndices() == storeOp.getIndices())) {
+      LLVM_DEBUG(llvm::dbgs() << "  ✗ Seed cannot be made equal to chain(init)\n");
+      return failure();
     }
 
     // Adjust initialization if we have a loop-invariant load
@@ -417,7 +522,8 @@ struct RemoveSCFIterArgs : public OpRewritePattern<scf::ForOp> {
     if (!initLoad && !isLoopCarriedRegionArg(init)) {
       rewriter.setInsertionPoint(forOp);
       auto initStore = rewriter.create<memref::StoreOp>(
-          loc, init, storeOp.getMemref(), storeOp.getIndices());
+          loc, buildScaledSeed(analysis, init, rewriter, loc),
+          storeOp.getMemref(), storeOp.getIndices());
       LLVM_DEBUG(llvm::dbgs() << "    Created memref.store for reduction seed: "
                               << initStore << "\n");
     }
@@ -636,11 +742,63 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
                         ? cast<affine::AffineLoadOp>(analysis.initLoad)
                         : nullptr;
 
+    if (!fastPathSeedIsSound(
+            analysis, init,
+            initLoad && initLoad.getMemref() == storeOp.getMemref() &&
+                initLoad.getAffineMap() == storeOp.getAffineMap() &&
+                initLoad.getMapOperands() == storeOp.getMapOperands())) {
+      LLVM_DEBUG(llvm::dbgs() << "  ✗ Seed cannot be made equal to chain(init)\n");
+      return failure();
+    }
+
+    // Scaled update form: the destination is seeded with x * old before the
+    // loop, so `old` is re-read there.  That is the value L reads after the
+    // loop only if the loop never writes the destination memref, and the
+    // address must already be available before the loop.
+    if (analysis.initScaleOp) {
+      DominanceInfo dom(forOp->getParentOp());
+      for (Value v : storeOp.getMapOperands())
+        if (Operation *def = v.getDefiningOp())
+          if (!dom.dominates(def, forOp))
+            return failure();
+      bool writesDest = false;
+      forOp.walk([&](Operation *op) {
+        if (auto st = dyn_cast<affine::AffineStoreOp>(op))
+          writesDest |= st.getMemref() == storeOp.getMemref();
+        else if (auto st = dyn_cast<memref::StoreOp>(op))
+          writesDest |= st.getMemref() == storeOp.getMemref();
+        else if (!isa<affine::AffineLoadOp, memref::LoadOp>(op) &&
+                 !isMemoryEffectFree(op) &&
+                 !op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+          writesDest = true; // unknown side effect
+      });
+      if (writesDest)
+        return failure();
+    }
+
     // Adjust initialization if we have a loop-invariant load
     Value newInit = init;
     if (initLoad) {
       LLVM_DEBUG(llvm::dbgs() << "  Using loop-invariant load as init\n");
       newInit = initLoad.getResult();
+    }
+
+    if (analysis.initScaleOp) {
+      // out = c*(0 + sum t) + x*old  ==>  out := x*old; out += c*t per iter.
+      rewriter.setInsertionPoint(forOp);
+      Value old = rewriter.create<affine::AffineLoadOp>(
+          loc, storeOp.getMemref(), storeOp.getMap(), storeOp.getMapOperands());
+      Operation *scale = analysis.initScaleOp;
+      Value x = scale->getOperand(0) == initLoad.getResult()
+                    ? scale->getOperand(1)
+                    : scale->getOperand(0);
+      Value seed =
+          isa<arith::MulFOp>(scale)
+              ? rewriter.create<arith::MulFOp>(loc, x, old).getResult()
+              : rewriter.create<arith::MulIOp>(loc, x, old).getResult();
+      rewriter.create<affine::AffineStoreOp>(loc, seed, storeOp.getMemref(),
+                                             storeOp.getMap(),
+                                             storeOp.getMapOperands());
     }
 
     LLVM_DEBUG(llvm::dbgs() << "  Creating new affine.for with "
@@ -660,8 +818,8 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
     if (!initLoad && !isLoopCarriedRegionArg(init)) {
       rewriter.setInsertionPoint(forOp);
       auto initStore = rewriter.create<affine::AffineStoreOp>(
-          loc, init, storeOp.getMemref(), storeOp.getMap(),
-          storeOp.getMapOperands());
+          loc, buildScaledSeed(analysis, init, rewriter, loc),
+          storeOp.getMemref(), storeOp.getMap(), storeOp.getMapOperands());
       LLVM_DEBUG(llvm::dbgs() << "    Created affine.store for reduction seed: "
                               << initStore << "\n");
     }
@@ -757,7 +915,9 @@ struct RemoveAffineIterArgs : public OpRewritePattern<affine::AffineForOp> {
       rewriter.eraseOp(op);
     }
 
-    // Erase the init load if it exists
+    // Erase the init load if it exists (after its scaling multiply).
+    if (analysis.initScaleOp)
+      rewriter.eraseOp(analysis.initScaleOp);
     if (initLoad) {
       LLVM_DEBUG(llvm::dbgs()
                  << "    Erasing init load: " << *initLoad << "\n");

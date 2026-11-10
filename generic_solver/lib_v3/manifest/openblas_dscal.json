@@ -1,0 +1,33 @@
+{
+  "routine": "openblas_dscal",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/scal.c, kernel/arm/scal.c",
+  "specs": [
+    {
+      "name": "openblas_dscal",
+      "defines": {},
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDscal",
+        "fixed_args": {
+          "incx": 1
+        },
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx"
+        },
+        "openblas_call": "cblas_dscal"
+      },
+      "args": [
+        "n",
+        "alpha",
+        "x"
+      ],
+      "assumptions": [
+        "alpha != 0, alpha != 1",
+        "incx == 1"
+      ],
+      "deviations": [],
+      "source_lines": "interface/scal.c:L70-L96 + kernel/arm/scal.c:L39-L79 (dummy2 == 1, da != 0)"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+ "recipe": "production",
+ "commands": [
+  "build/bin/cgeist generic_solver/lib_v2/raised/netlib_ddot.c --function=netlib_ddot --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v2/raised/netlib_ddot.mlir",
+  "build/bin/polygeist-opt '--select-func=func-name=netlib_ddot externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v2/raised/netlib_ddot.mlir -o generic_solver/lib_v2/raised/netlib_ddot_linalg.mlir",
+  "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v2/raised/netlib_ddot_linalg.mlir -o generic_solver/lib_v2/raised/netlib_ddot_debuf.mlir"
+ ],
+ "failure": null
+}

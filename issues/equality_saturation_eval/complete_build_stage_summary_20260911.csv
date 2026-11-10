@@ -1,0 +1,4 @@
+benchmark,frontend_seconds,raising_seconds,matching_process_seconds,definition_injection_seconds,library_lowering_seconds,downstream_lowering_seconds,abi_wrapper_seconds,native_runtime_harness_compile_seconds,link_seconds
+PolyBench,0.102292,0.024204,0.944398,0.087754,0.175574,0.100300,0.042218,6.641930,0.705570
+Llama,0.076054,0.018117,0.852519,0.081268,0.167213,0.086930,0.039794,6.581120,0.400140
+MFEM,3.975370,0.176698,3.909650,0.062520,1.660240,0.474173,0.035029,10.438900,0.105053

@@ -1,0 +1,9 @@
+{
+ "recipe": "production",
+ "commands": [
+  "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt.c --function=netlib_dsyrk_lt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir",
+  "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir",
+  "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_debuf.mlir"
+ ],
+ "failure": null
+}

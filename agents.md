@@ -56,6 +56,31 @@
   structural/Egglog recognition analysis-only until a permitted external
   library implementation is wired.
 
+### Matcher and ABI type-safety rule
+
+- Every new executable `CompositionEntry` must declare all legality evidence
+  needed to select its concrete kernel ABI: tensor/memref form, element dtype,
+  operand and result arity, ranks, layouts/indexing maps, and scalar parameter
+  types. Do not assume the types written in `kernel.defn` are automatically
+  imported into Python matcher metadata; set `element_type` explicitly until
+  that import is implemented and tested.
+- Equality or syntactic matching may prove algebraic semantics, including an
+  omitted unit coefficient, but that proof does not establish ABI legality.
+  Before selecting or emitting a `kernel.launch`, validate its complete
+  signature against the chosen definition. Materialize every required literal
+  or default scalar operand; otherwise reject the candidate and continue
+  searching rather than emitting a malformed launch.
+- Every ABI-lowering routine must independently check operand/result count,
+  shaped value kind, rank, element dtype, scalar dtype, and required
+  layout/stride constraints before indexing operands, casting types, or
+  creating a runtime call. The `kernel.launch` symbol verifier is an additional
+  defense, not a replacement for local lowering checks.
+- For every new typed ABI route, add positive tests and negative tests for the
+  opposite precision, wrong rank/form, missing or extra operands, and omitted
+  algebraic coefficients. Rerun existing FP32 and FP64 whole-suite build and
+  correctness coverage so an earlier greedy candidate cannot shadow a valid
+  typed alternative.
+
 ### Absolute prohibition on name- and fixture-based matching
 
 - Never select, enable, specialize, or parameterize a match from a benchmark
@@ -111,6 +136,32 @@ summary and the canonical document disagree, the canonical document wins.
   board endpoints. Do not publish them in logs, generated HTML, patches, or
   documentation either.
 
+### Temporary B300 worker
+
+- B300 connection details and credentials live only in the permission-restricted
+  local profile at `~/.config/polygeist-silicon/modal-b300/`. Use its `ssh.sh`
+  and `copy-to.sh` helpers; never copy `access.env`, resolved endpoints, SSH
+  commands, or credentials into this repository, patches, logs, or HTML.
+- Use `/mnt/forge1/arpitj` as the remote storage and working root. Keep cloned
+  repositories, pinned builds, scripts, generated artifacts, raw logs,
+  correctness output, provenance, and result tables there rather than under
+  `/root` or another ephemeral location.
+- The worker is temporary. Before access expires, create a checksummed bundle
+  under the remote working root and copy the report, normalized data, manifest,
+  and bundle into the local private profile directory.
+- Run publication measurements sequentially with an otherwise idle board. Use
+  one physical GPU per campaign, pin single-core CPU baselines to a declared
+  logical CPU, retain five warmups plus five samples, and report the minimum
+  with all raw samples and correctness evidence.
+- Fixed GPU clocks are unavailable in the current B300 container. Label B300
+  timings as secondary, non-fixed-clock measurements; do not silently mix them
+  with fixed-clock Orin publication results.
+- The 2026-09-09 collection index is
+  `/mnt/forge1/arpitj/B300_DATA_REPORT.md`; normalized results are under
+  `/mnt/forge1/arpitj/results/`. Treat directories explicitly suffixed
+  `.preliminary-overlapped-setup` or `.invalid-cpu-constprop-bypass` as
+  non-headline data.
+
 ### Hardware placement
 
 - The primary publication comparison runs native CPU, raised CPU/library,
@@ -140,9 +191,11 @@ summary and the canonical document disagree, the canonical document wins.
   implementation.
 - Run each benchmark configuration in one process. Perform five untimed
   warm-ups followed by five synchronized timed iterations.
-- Report the median of the five timed iterations together with their minimum,
-  maximum, and interquartile range. Do not substitute a best-of-N value or
-  describe within-process samples as cross-process variability.
+- Report the minimum of the five timed iterations as the headline runtime,
+  together with the median, maximum, interquartile range, and all five raw
+  samples. This is a fixed minimum-of-five protocol, not an unconstrained
+  best-of-N search; never describe within-process samples as cross-process
+  variability.
 - Accept timing samples only after the executable passes the declared
   correctness gate. Reject and retain evidence for errors, non-finite output,
   thermal throttling, or invalid timing; never silently replace failed runs.
@@ -1431,3 +1484,75 @@ summary and the canonical document disagree, the canonical document wins.
   - HPGMG, HyPar, and current SWFFT proxy reports have zero backend-capable
     candidates in the default view because their current recognitions do not
     yet have real backend definitions/lowerings.
+
+### MMA-Capable Semantic Matches and Measured Dispatch Heuristic (2026-09-08)
+
+- The first selector implementation is
+  `lib/polygeist/Passes/SelectContractionBackend.cpp`, exposed as
+  `--select-contraction-backend`. Run it after semantic matching/composition
+  and before `--lower-kernel-launch-to-cublas`. It writes
+  `polygeist.contraction.backend`, shape, target, and reason attributes while
+  preserving the launch for a subsequent backend-specific lowering. TF32 is
+  safe-by-default off and requires `allow-tf32=true`. The focused regression
+  is `test/polygeist-opt/select-contraction-backend.mlir`.
+- Apply MMA selection to a structurally proven semantic match, never to a
+  benchmark name, source filename, or function name. The selector consumes
+  the matched operation, dtype, `M/N/K`, batch count, layouts/strides,
+  transpose flags, accumulation semantics, and target-GPU capabilities.
+- The three backend classes are:
+  1. ordinary generated CUDA-core FMA code;
+  2. generated tensor-core code, with direct native MMA for small/irregular
+     tiles and WMMA for regular or padding-friendly medium tiles;
+  3. cuBLASDx for larger block-level GEMMs where its staging and scheduling
+     overhead is amortized.
+- Existing match families that are MMA candidates:
+  - rank-2 matmul/GEMM, including NN/NT/TN/TT, zero-initialized C,
+    alpha/beta accumulation, and subtract variants;
+  - strided-batched GEMM and broadcast-RHS GEMM;
+  - general binary tensor contraction (`cutensornetContraction2_*` or a
+    `linalg.generic` with parallel output dimensions and reduction
+    dimensions) when its free and reduction modes can be grouped into a
+    legal GEMM without copies that erase the benefit;
+  - a tensor network after it is planned as binary contraction steps, with a
+    separate decision for every step;
+  - SYRK and SYR2K, which are structured matrix products;
+  - batched GEMV when batch/free dimensions legally expose an equivalent GEMM
+    (the repository's `Y = X * A^T` probe is the canonical example);
+  - convolution lowered to implicit/im2col GEMM, 1x1 convolution, and fused
+    matmul epilogues such as bias/activation, provided materialization and
+    fusion costs are included;
+  - supported mixed-precision/integer GEMM such as `GemmEx_i8_i32`, using a
+    datatype-specific policy rather than the TF32 thresholds below.
+- Dot, an individual GEMV, GER/outer product, and Kronecker/broadcast product
+  are normally too skinny or are not reductions in the MMA sense. They become
+  MMA candidates only after a legal batching/fusion/grouping transformation
+  creates a sufficiently occupied GEMM. AXPY/AXPBY, scaling, unary/pointwise,
+  standalone reductions, copies, permutations, FFTs, and scans are not MMA
+  matches.
+- Measured Orin SM87 FP32/TF32 sweep:
+  `issues/mfem_c_kernels/tensor_core_experiment/gemm_shape_sweep.cu`, with raw
+  ten-run results in
+  `issues/mfem_c_kernels/tensor_core_experiment/results/gemm_shape_sweep_orin_raw.txt`.
+  All 10 shapes across all 10 runs passed complete-output validation.
+  Median winners were:
+  - CUDA-core FMA: `7x5x4`, `8x8x8`;
+  - direct `mma.sync.m16n8k4`: `13x9x7`, `25x5x4`, `31x17x9`;
+  - WMMA `16x16x8`: `45x27x13`, `16x16x8`, `32x32x16`;
+  - cuBLASDx 0.5.0: `64x64x32` (2.511x over scalar) and `128x128x64`
+    (3.541x over scalar).
+- Treat these observations as seed data for a cost model, not permanent
+  hard-coded thresholds. Estimate useful FLOPs, padded FLOPs, tile occupancy,
+  number of independent matrices, shared-memory/register demand, launches,
+  input conversions/materializations, and whether surrounding operations can
+  remain fused. Benchmark uncertain or unseen regions and cache the result per
+  target architecture.
+- Padding and TF32 conversion were prepared before and excluded from kernel
+  timing in the sweep. A real compiler decision must charge those costs when
+  the required representation is not already available. Direct MMA padded to
+  `16x8x4`; WMMA padded to `16x16x8`; cuBLASDx accepted compact logical shapes
+  but still incurred internal staging/scheduling overhead.
+- The TF32 results are not semantics-preserving for arbitrary FP32 code and do
+  not apply to the current FP64 MFEM contraction corpus. Require an explicit
+  relaxed-precision/TF32 contract. Keep FP64 on a valid FP64 path on Orin;
+  establish separate measurements for FP16, BF16, FP64, and integer types and
+  for GPUs with different tensor-core capabilities.

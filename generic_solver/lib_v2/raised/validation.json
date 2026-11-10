@@ -1,0 +1,924 @@
+{
+ "netlib_daxpy": {
+  "spec": "netlib_daxpy",
+  "verdict": "UNSOUND",
+  "maxabs": 1.369,
+  "maxrel": 185.7,
+  "mismatches": 253,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_daxpy_inc": {
+  "spec": "netlib_daxpy_inc",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_ddot": {
+  "spec": "netlib_ddot",
+  "verdict": "UNSOUND",
+  "maxabs": 4.974,
+  "maxrel": 6.491,
+  "mismatches": 1,
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 0.4074,
+  "build_status": "PARTIAL"
+ },
+ "netlib_ddot_inc": {
+  "spec": "netlib_ddot_inc",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nn_beta0": {
+  "spec": "netlib_dgemm_nn_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nn_beta1": {
+  "spec": "netlib_dgemm_nn_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nn": {
+  "spec": "netlib_dgemm_nn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nt_beta0": {
+  "spec": "netlib_dgemm_nt_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nt_beta1": {
+  "spec": "netlib_dgemm_nt_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_nt": {
+  "spec": "netlib_dgemm_nt",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_tn_beta0": {
+  "spec": "netlib_dgemm_tn_beta0",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 2.776e-16,
+  "maxrel": 4.872e-15,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 2.776e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_tn": {
+  "spec": "netlib_dgemm_tn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dgemm_tt_beta0": {
+  "spec": "netlib_dgemm_tt_beta0",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 4.441e-16,
+  "maxrel": 1.123e-15,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 4.441e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemm_tt": {
+  "spec": "netlib_dgemm_tt",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dgemv_n_beta0": {
+  "spec": "netlib_dgemv_n_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_n_beta1": {
+  "spec": "netlib_dgemv_n_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_n": {
+  "spec": "netlib_dgemv_n",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_n_alpha0_beta0": {
+  "spec": "netlib_dgemv_n_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_n_alpha0": {
+  "spec": "netlib_dgemv_n_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_n_inc": {
+  "spec": "netlib_dgemv_n_inc",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t_beta0": {
+  "spec": "netlib_dgemv_t_beta0",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 2.22e-16,
+  "maxrel": 1.008e-12,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 2.22e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t_beta1": {
+  "spec": "netlib_dgemv_t_beta1",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 2.22e-16,
+  "maxrel": 1.778e-16,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 2.22e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t": {
+  "spec": "netlib_dgemv_t",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 4.441e-16,
+  "maxrel": 4.408e-16,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 4.441e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t_alpha0_beta0": {
+  "spec": "netlib_dgemv_t_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t_alpha0": {
+  "spec": "netlib_dgemv_t_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dgemv_t_inc": {
+  "spec": "netlib_dgemv_t_inc",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 8.882e-16,
+  "maxrel": 3.977e-16,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 8.882e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dger": {
+  "spec": "netlib_dger",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dger_inc": {
+  "spec": "netlib_dger_inc",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dpotf2_u": {
+  "spec": "netlib_dpotf2_u",
+  "verdict": "UNSOUND",
+  "maxabs": 0.1184,
+  "maxrel": 0.1518,
+  "mismatches": 27,
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 0.1184,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dpotf2_l": {
+  "spec": "netlib_dpotf2_l",
+  "verdict": "UNSOUND",
+  "maxabs": 0.1732,
+  "maxrel": 0.1518,
+  "mismatches": 27,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dscal": {
+  "spec": "netlib_dscal",
+  "verdict": "UNSOUND",
+  "maxabs": 0.3889,
+  "maxrel": 0.37,
+  "mismatches": 254,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dscal_inc": {
+  "spec": "netlib_dscal_inc",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_lu_beta0": {
+  "spec": "netlib_dsymm_lu_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsymm_lu": {
+  "spec": "netlib_dsymm_lu",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsymm_ll_beta0": {
+  "spec": "netlib_dsymm_ll_beta0",
+  "verdict": "UNSOUND",
+  "maxabs": 2.397,
+  "maxrel": 16.55,
+  "mismatches": 34,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsymm_ll": {
+  "spec": "netlib_dsymm_ll",
+  "verdict": "UNSOUND",
+  "maxabs": 2.397,
+  "maxrel": 13.89,
+  "mismatches": 34,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsymm_ru_beta0": {
+  "spec": "netlib_dsymm_ru_beta0",
+  "verdict": "RUN_FAIL",
+  "why": "malloc(): corrupted top size\n",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_ru": {
+  "spec": "netlib_dsymm_ru",
+  "verdict": "RUN_FAIL",
+  "why": "malloc(): corrupted top size\n",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_rl_beta0": {
+  "spec": "netlib_dsymm_rl_beta0",
+  "verdict": "RUN_FAIL",
+  "why": "malloc(): corrupted top size\n",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_rl": {
+  "spec": "netlib_dsymm_rl",
+  "verdict": "RUN_FAIL",
+  "why": "malloc(): corrupted top size\n",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_lu_alpha0_beta0": {
+  "spec": "netlib_dsymm_lu_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsymm_lu_alpha0": {
+  "spec": "netlib_dsymm_lu_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_un_beta0": {
+  "spec": "netlib_dsyr2k_un_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_un_beta1": {
+  "spec": "netlib_dsyr2k_un_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_un": {
+  "spec": "netlib_dsyr2k_un",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_ut_beta0": {
+  "spec": "netlib_dsyr2k_ut_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyr2k_ut": {
+  "spec": "netlib_dsyr2k_ut",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyr2k_ln_beta0": {
+  "spec": "netlib_dsyr2k_ln_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_ln_beta1": {
+  "spec": "netlib_dsyr2k_ln_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_ln": {
+  "spec": "netlib_dsyr2k_ln",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_lt_beta0": {
+  "spec": "netlib_dsyr2k_lt_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyr2k_lt": {
+  "spec": "netlib_dsyr2k_lt",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyr2k_un_alpha0_beta0": {
+  "spec": "netlib_dsyr2k_un_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_un_alpha0": {
+  "spec": "netlib_dsyr2k_un_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_ln_alpha0_beta0": {
+  "spec": "netlib_dsyr2k_ln_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyr2k_ln_alpha0": {
+  "spec": "netlib_dsyr2k_ln_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_un_beta0": {
+  "spec": "netlib_dsyrk_un_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_un_beta1": {
+  "spec": "netlib_dsyrk_un_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_un": {
+  "spec": "netlib_dsyrk_un",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ut_beta0": {
+  "spec": "netlib_dsyrk_ut_beta0",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 4.441e-16,
+  "maxrel": 2.731e-15,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 4.441e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ut": {
+  "spec": "netlib_dsyrk_ut",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyrk_ln_beta0": {
+  "spec": "netlib_dsyrk_ln_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ln_beta1": {
+  "spec": "netlib_dsyrk_ln_beta1",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ln": {
+  "spec": "netlib_dsyrk_ln",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_lt_beta0": {
+  "spec": "netlib_dsyrk_lt_beta0",
+  "verdict": "WITHIN_1e-12",
+  "maxabs": 4.441e-16,
+  "maxrel": 2.731e-15,
+  "mismatches": 0,
+  "linalg_verdict": "WITHIN_1e-12",
+  "linalg_maxabs": 4.441e-16,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_lt": {
+  "spec": "netlib_dsyrk_lt",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dsyrk_un_alpha0_beta0": {
+  "spec": "netlib_dsyrk_un_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_un_alpha0": {
+  "spec": "netlib_dsyrk_un_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ln_alpha0_beta0": {
+  "spec": "netlib_dsyrk_ln_alpha0_beta0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dsyrk_ln_alpha0": {
+  "spec": "netlib_dsyrk_ln_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrmm_lunu": {
+  "spec": "netlib_dtrmm_lunu",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_lunn": {
+  "spec": "netlib_dtrmm_lunn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_lutu": {
+  "spec": "netlib_dtrmm_lutu",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrmm_lutu/defn/log.txt",
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 2.828,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrmm_lutn": {
+  "spec": "netlib_dtrmm_lutn",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrmm_lutn/defn/log.txt",
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 2.84,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrmm_llnu": {
+  "spec": "netlib_dtrmm_llnu",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_llnn": {
+  "spec": "netlib_dtrmm_llnn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_lltu": {
+  "spec": "netlib_dtrmm_lltu",
+  "verdict": "UNSOUND",
+  "maxabs": 0.3443,
+  "maxrel": 7.261,
+  "mismatches": 35,
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 0.3443,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrmm_lltn": {
+  "spec": "netlib_dtrmm_lltn",
+  "verdict": "RUN_FAIL",
+  "why": "malloc(): corrupted top size\n",
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 2.942,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrmm_runu": {
+  "spec": "netlib_dtrmm_runu",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrmm_runu/defn/log.txt",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_runn": {
+  "spec": "netlib_dtrmm_runn",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrmm_runn/defn/log.txt",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rutu": {
+  "spec": "netlib_dtrmm_rutu",
+  "verdict": "UNSOUND",
+  "maxabs": 3.16,
+  "maxrel": 206.0,
+  "mismatches": 166,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rutn": {
+  "spec": "netlib_dtrmm_rutn",
+  "verdict": "UNSOUND",
+  "maxabs": 1.907,
+  "maxrel": 59.26,
+  "mismatches": 166,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rlnu": {
+  "spec": "netlib_dtrmm_rlnu",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rlnn": {
+  "spec": "netlib_dtrmm_rlnn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rltu": {
+  "spec": "netlib_dtrmm_rltu",
+  "verdict": "UNSOUND",
+  "maxabs": 2.747,
+  "maxrel": 169.3,
+  "mismatches": 164,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_rltn": {
+  "spec": "netlib_dtrmm_rltn",
+  "verdict": "UNSOUND",
+  "maxabs": 2.637,
+  "maxrel": 59.26,
+  "mismatches": 164,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrmm_lunn_alpha0": {
+  "spec": "netlib_dtrmm_lunn_alpha0",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrsv_unn": {
+  "spec": "netlib_dtrsv_unn",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrsv_unn/defn/log.txt",
+  "linalg_verdict": "UNSOUND",
+  "linalg_maxabs": 36.95,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrsv_unu": {
+  "spec": "netlib_dtrsv_unu",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrsv_unu/defn/log.txt",
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrsv_utn": {
+  "spec": "netlib_dtrsv_utn",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrsv_utn/defn/log.txt",
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrsv_utu": {
+  "spec": "netlib_dtrsv_utu",
+  "verdict": "UNSOUND",
+  "maxabs": 0.3507,
+  "maxrel": 3.159,
+  "mismatches": 5,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrsv_lnn": {
+  "spec": "netlib_dtrsv_lnn",
+  "verdict": "EXACT",
+  "maxabs": 0.0,
+  "maxrel": 0.0,
+  "mismatches": 0,
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrsv_lnu": {
+  "spec": "netlib_dtrsv_lnu",
+  "verdict": "UNSOUND",
+  "maxabs": 1.409,
+  "maxrel": 6.286,
+  "mismatches": 5,
+  "linalg_verdict": "LOWER_FAIL",
+  "linalg_maxabs": null,
+  "build_status": "RAISED"
+ },
+ "netlib_dtrsv_ltn": {
+  "spec": "netlib_dtrsv_ltn",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrsv_ltn/defn/log.txt",
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "PARTIAL"
+ },
+ "netlib_dtrsv_ltu": {
+  "spec": "netlib_dtrsv_ltu",
+  "verdict": "LOWER_FAIL",
+  "why": "see generic_solver/lib_v2/raised/validate/netlib_dtrsv_ltu/defn/log.txt",
+  "linalg_verdict": "EXACT",
+  "linalg_maxabs": 0.0,
+  "build_status": "RAISED"
+ }
+}

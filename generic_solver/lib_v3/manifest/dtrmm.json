@@ -1,0 +1,703 @@
+{
+  "routine": "dtrmm",
+  "source": "OpenBLAS 0.3.31 lapack-netlib copy (~/netlib_ref/openblas-0.3.31/lapack-netlib/BLAS/SRC/dtrmm.f); the C transliteration ref_c/dtrmm.c is shared with lib_v2 (Reference-LAPACK 6a1a8b8a), whose code differs from OpenBLAS's copy only in formatting; OpenBLAS's older copy additionally has the zero-skip guard IF (X(J).NE.ZERO)/IF (B(K,J).NE.ZERO), removed here as a deviation",
+  "specs": [
+    {
+      "name": "netlib_dtrmm_lunu",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "TRANSA": "'N'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L274-L283"
+    },
+    {
+      "name": "netlib_dtrmm_lunn",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "TRANSA": "'N'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L274-L283"
+    },
+    {
+      "name": "netlib_dtrmm_lutu",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "TRANSA": "'T'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L301-L310"
+    },
+    {
+      "name": "netlib_dtrmm_lutn",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "TRANSA": "'T'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L301-L310"
+    },
+    {
+      "name": "netlib_dtrmm_llnu",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "TRANSA": "'N'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L285-L294"
+    },
+    {
+      "name": "netlib_dtrmm_llnn",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "TRANSA": "'N'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L285-L294"
+    },
+    {
+      "name": "netlib_dtrmm_lltu",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "TRANSA": "'T'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L312-L321"
+    },
+    {
+      "name": "netlib_dtrmm_lltn",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "TRANSA": "'T'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L312-L321"
+    },
+    {
+      "name": "netlib_dtrmm_runu",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "TRANSA": "'N'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L330-L342"
+    },
+    {
+      "name": "netlib_dtrmm_runn",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "TRANSA": "'N'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L330-L342"
+    },
+    {
+      "name": "netlib_dtrmm_rutu",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "TRANSA": "'T'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "guard IF (TEMP.NE.ONE) (L372/L388) removed; exact",
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L363-L377"
+    },
+    {
+      "name": "netlib_dtrmm_rutn",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "TRANSA": "'T'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "guard IF (TEMP.NE.ONE) (L372/L388) removed; exact",
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L363-L377"
+    },
+    {
+      "name": "netlib_dtrmm_rlnu",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "TRANSA": "'N'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L344-L356"
+    },
+    {
+      "name": "netlib_dtrmm_rlnn",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "TRANSA": "'N'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L344-L356"
+    },
+    {
+      "name": "netlib_dtrmm_rltu",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "TRANSA": "'T'",
+        "DIAG": "'U'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "guard IF (TEMP.NE.ONE) (L372/L388) removed; exact",
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L379-L393"
+    },
+    {
+      "name": "netlib_dtrmm_rltn",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "TRANSA": "'T'",
+        "DIAG": "'N'"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "trans": "CUBLAS_OP_T",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "C": "B",
+          "ldc": "ldb"
+        },
+        "note": "cuBLAS v2 DTRMM is out-of-place; the in-place reference semantics are obtained with C = B, ldc = ldb"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha != 0 (L257-L264 not taken)"
+      ],
+      "deviations": [
+        "guard IF (TEMP.NE.ONE) (L372/L388) removed; exact",
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L379-L393"
+    },
+    {
+      "name": "netlib_dtrmm_lunn_alpha0",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "TRANSA": "'N'",
+        "DIAG": "'N'",
+        "ALPHA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDtrmm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_N",
+          "diag": "CUBLAS_DIAG_NON_UNIT",
+          "alpha": 0.0,
+          "C": "B",
+          "ldc": "ldb"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "ldb",
+        "B"
+      ],
+      "assumptions": [
+        "alpha == 0 (L257-L264)",
+        "A, lda not referenced by this branch"
+      ],
+      "deviations": [
+        "OpenBLAS lapack-netlib copy: data-dependent zero-skip guard removed (exact except NaN/Inf propagation)"
+      ],
+      "fortran_lines": "L257-L264"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "SIDE": [
+        "'L'",
+        "'R'"
+      ],
+      "UPLO": [
+        "'U'",
+        "'L'"
+      ],
+      "TRANSA": [
+        "'N'",
+        "'T'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANSA",
+          "UPLO"
+        ]
+      },
+      {
+        "operands": [
+          "B"
+        ],
+        "flip": [
+          "SIDE",
+          "TRANSA"
+        ],
+        "swap": [
+          [
+            "m",
+            "n"
+          ]
+        ]
+      }
+    ]
+  },
+  "notes": [
+    "Netlib reference code distributed in the OpenBLAS source tree (lapack-netlib/); OpenBLAS itself executes blocked drivers for this routine."
+  ]
+}

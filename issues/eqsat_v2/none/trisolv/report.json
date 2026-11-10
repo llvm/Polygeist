@@ -1,0 +1,29 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%10",
+   "func": "kernel_trisolv",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  }
+ ]
+}

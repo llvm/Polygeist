@@ -1,0 +1,36 @@
+{
+  "routine": "openblas_daxpy",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/axpy.c, kernel/arm/axpy.c",
+  "specs": [
+    {
+      "name": "openblas_daxpy",
+      "defines": {},
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDaxpy",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        },
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx",
+          "y": "dy"
+        },
+        "openblas_call": "cblas_daxpy"
+      },
+      "args": [
+        "n",
+        "alpha",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "source_lines": "interface/axpy.c:L74-L104 + kernel/arm/axpy.c:L40-L62"
+    }
+  ]
+}

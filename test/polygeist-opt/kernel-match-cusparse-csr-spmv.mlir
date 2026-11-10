@@ -29,5 +29,8 @@ module {
   }
 }
 
+// y[row] = sum with a zero-initialized sum: y = 1*A*x + 0*y.
+// CHECK: %[[ALPHA:cusparse_alpha_[0-9]+]] = arith.constant 1.000000e+00 : f64
+// CHECK: %[[BETA:cusparse_beta_[0-9]+]] = arith.constant 0.000000e+00 : f64
 // CHECK: kernel.launch @cusparseSpMV_CSR_f64_memref
-// CHECK-SAME: (%rows, %rowptr, %col, %values, %x, %y)
+// CHECK-SAME: (%rows, %rowptr, %col, %values, %x, %y, %[[ALPHA]], %[[BETA]])

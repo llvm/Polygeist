@@ -22,9 +22,12 @@ timings in the legacy result ledger.
   adi, deriche, durbin, fdtd-2d, floyd-warshall, gramschmidt, heat-3d, jacobi-1d, jacobi-2d, lu, ludcmp, nussinov, seidel-2d.
 - GPU rows with neither a fresh native nor raised measurement:
   adi, deriche, durbin, floyd-warshall, gramschmidt, heat-3d, jacobi-1d, jacobi-2d, lu, ludcmp, nussinov, seidel-2d.
-- KernelFaRer is unavailable because the retained revision does not build with
-  the available LLVM toolchain. Polly results for GEMM, SYR2K, 2mm, and 3mm are
-  retained only as a separately labelled x86 portability comparison.
+- A compatibility-patched KernelFaRer revision builds with LLVM 14 and produces
+  correctness-passing FP32/LARGE results for GEMM, SYR2K, 2mm, and 3mm. GEMM
+  and SYR2K use the original compatibility port. A corrected loop-placement
+  patch makes 2mm and 3mm complete two- and three-CBLAS-call replacements;
+  both pass complete-output validation and reach 112.99x and 112.41x speedup.
+  These one-warmup/ten-sample results remain separately labelled x86 evidence.
 
 ## Claim boundary
 

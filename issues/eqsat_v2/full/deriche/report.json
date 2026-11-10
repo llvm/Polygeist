@@ -1,0 +1,127 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%26",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%29",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%32",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%26",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%29",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%32",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  }
+ ],
+ "residual_generics": [
+  {
+   "app_generic": "%25",
+   "func": "kernel_deriche",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dgemv_n_alpha0_beta0#step0",
+    "netlib_dgemv_n_beta0#step0",
+    "netlib_dgemv_t_alpha0_beta0#step0",
+    "netlib_dgemv_t_beta0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "matched",
+    "specs": [
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%28",
+   "func": "kernel_deriche",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dgemv_n_alpha0_beta0#step0",
+    "netlib_dgemv_n_beta0#step0",
+    "netlib_dgemv_t_alpha0_beta0#step0",
+    "netlib_dgemv_t_beta0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "matched",
+    "specs": [
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%31",
+   "func": "kernel_deriche",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dgemv_n_alpha0_beta0#step0",
+    "netlib_dgemv_n_beta0#step0",
+    "netlib_dgemv_t_alpha0_beta0#step0",
+    "netlib_dgemv_t_beta0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "matched",
+    "specs": [
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%39#0",
+   "func": "kernel_deriche",
+   "iters": [
+    "parallel",
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  }
+ ]
+}

@@ -62,6 +62,7 @@ ABI_LOWERABLE_KERNELS = {
     "cublasDcovarianceRowMajor_memref",
     "cublasScovarianceRowMajor_memref",
     "cublasDcorrelationRowMajor_memref",
+    "cublasScorrelationRowMajor_memref",
     "cusolverDnDpotrfLowerRowMajor_memref",
     "cusparseSpMV_CSR_f32_memref",
     "cusparseSpMV_CSR_f64_memref",
@@ -246,11 +247,6 @@ ABI_LOWERABLE_KERNELS = {
     "cudaCopy2D_f32_tensor",
     "cudaCopy3D_f32_tensor",
     "cudaCopy6D_f32_tensor",
-    "cudaAdd_f32_tensor",
-    "cudaMaskSelect_f32_tensor",
-    "cudaSwiGLU_f32_tensor",
-    "cudaRopeMulMulSub_f32_tensor",
-    "cudaRopeMulMulAdd_f32_tensor",
     "cublasLtMatmulBiasReluFused",
     "cublasDsyrk_alias",
     "cublasGemmFor1x1Conv",
@@ -722,7 +718,7 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
     for m in re.finditer(r'%\w+\s*:\s*([a-zA-Z_][\w.]*[!<>?x\d,\s]*)', text):
         # Re-scope: only inside func.func parameter lists. Just match more carefully.
         pass
-    for fm in re.finditer(r'func\.func\s+@\w+\s*\(([^)]*)\)', text):
+    for fm in re.finditer(r'func\.func(?:\s+private)?\s+@\w+\s*\(([^)]*)\)', text):
         params = fm.group(1)
         for pm in re.finditer(r'(%[\w]+)\s*:\s*([^,)]+)', params):
             out[pm.group(1).strip()] = pm.group(2).strip()
@@ -767,6 +763,27 @@ def _scan_scalar_types(text: str) -> dict[str, str]:
     return out
 
 
+def _enclosing_function_text(text: str, pos: int) -> str:
+    """Return the function body containing ``pos`` for SSA-local inference."""
+    matches = list(re.finditer(
+        r'func\.func(?:\s+private)?\s+@\w+\s*\(', text[:pos + 1]))
+    if not matches:
+        return text
+    start = matches[-1].start()
+    brace = text.find("{", matches[-1].end())
+    if brace < 0 or brace > pos:
+        return text
+    depth = 0
+    for end in range(brace, len(text)):
+        if text[end] == "{":
+            depth += 1
+        elif text[end] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:end + 1]
+    return text[start:]
+
+
 def _enclosing_func_args(text: str, pos: int) -> list[tuple[str, str]]:
     """Best-effort function-argument list for the func containing `pos`.
 
@@ -774,7 +791,8 @@ def _enclosing_func_args(text: str, pos: int) -> list[tuple[str, str]]:
     parameters, which cgeist emits as the first seven function arguments:
     channels, height, width, out_channels, ksize, stride, pad.
     """
-    matches = list(re.finditer(r'func\.func\s+@\w+\s*\(([^)]*)\)', text[:pos]))
+    matches = list(re.finditer(
+        r'func\.func(?:\s+private)?\s+@\w+\s*\(([^)]*)\)', text[:pos]))
     if not matches:
         return []
     params = matches[-1].group(1)
@@ -1382,7 +1400,7 @@ def _memref_to_tensor_type(memref_ty: str) -> str | None:
 def _infer_tensor_type(text: str, ssa: str) -> str | None:
     """Best-effort SSA→tensor type inference for custom launch rendering."""
     # Function argument or explicit tensor operand.
-    for fm in re.finditer(r"func\.func\s+@\w+\s*\(([^)]*)\)", text):
+    for fm in re.finditer(r"func\.func(?:\s+private)?\s+@\w+\s*\(([^)]*)\)", text):
         params = fm.group(1)
         for pm in re.finditer(r"(%[\w_\-]+)\s*:\s*(tensor<[^,)]+>)", params):
             if pm.group(1) == ssa:
@@ -3680,14 +3698,146 @@ def _render_source_faithful_sgemm(structured, text: str) -> tuple[int, int, str]
     return outer.span[0], outer.span[1], indent + replacement
 
 
+def _csr_spmv_scaling(text: str, row_loop, inner_loop, values_buffer: str,
+                      gather_buffer: str, stored: str, output: str,
+                      elem: str) -> tuple[str, str] | None:
+    """Prove a buffer-form CSR row update and derive cuSPARSE alpha/beta.
+
+    The inner loop must be exactly  acc' = acc + values[k] * x[col[k]]  over
+    an f32/f64 iter_arg, the row body must store nothing but  y[r] := stored,
+    and `stored` must be a linear combination of the row sum and the old
+    y[r] whose coefficients are 1, -1 or scalars defined outside the row
+    loop.  Returns the (alpha, beta) operands as MLIR literals or SSA names
+    (a leading '-' on an SSA name means negation), or None when the update has
+    any other form (the loop then stays unmatched)."""
+    body = text[row_loop.span[0]:row_loop.span[1]]
+    head = text[row_loop.span[0]:inner_loop.span[0]]
+    inner = text[inner_loop.span[0]:inner_loop.span[1]]
+    tail = text[inner_loop.span[1]:row_loop.span[1]]
+    row_iv = re.escape(row_loop.induction)
+    num = r"%[\w.$-]+"
+    if (len(re.findall(r"\b(?:affine|memref)\.store\b", body)) != 1 or
+            re.search(r"\b(?:func\.call|kernel\.launch)\b", body)):
+        return None
+    line_start = text.rfind("\n", row_loop.span[0], inner_loop.span[0]) + 1
+    assign = re.match(rf"\s*({num})\s*=\s*$",
+                      text[line_start:inner_loop.span[0]])
+    header = re.match(
+        rf"scf\.for\s+{re.escape(inner_loop.induction)}\s*=\s*{num}\s+to\s+"
+        rf"{num}\s+step\s+{num}\s+iter_args\s*\(\s*({num})\s*=\s*({num})\s*\)"
+        rf"\s*->\s*(?:\({elem}\)|{elem})\s*\{{", inner)
+    if assign is None or header is None:
+        return None
+    result, acc, init = assign.group(1), header.group(1), header.group(2)
+
+    # acc + values[k] * x[col[k]], in either operand order.
+    yielded = re.search(rf"scf\.yield\s+({num})\s*:\s*{elem}", inner)
+    add = yielded and re.search(
+        rf"{re.escape(yielded.group(1))}\s*=\s*arith\.addf\s+({num}),\s*"
+        rf"({num})\s*:\s*{elem}", inner)
+    if not add or acc not in add.groups():
+        return None
+    product = add.group(2) if add.group(1) == acc else add.group(1)
+    mul = re.search(rf"{re.escape(product)}\s*=\s*arith\.mulf\s+({num}),\s*"
+                    rf"({num})\s*:\s*{elem}", inner)
+    if not mul:
+        return None
+
+    def loaded_from(value: str, region: str) -> str | None:
+        m = re.search(rf"{re.escape(value)}\s*=\s*(?:affine|memref)\.load\s+"
+                      rf"({num})\[", region)
+        return m.group(1) if m else None
+
+    if {loaded_from(mul.group(1), inner), loaded_from(mul.group(2), inner)} \
+            != {values_buffer, gather_buffer}:
+        return None
+
+    def old_row(value: str) -> bool:
+        return bool(re.search(
+            rf"{re.escape(value)}\s*=\s*(?:affine|memref)\.load\s+"
+            rf"{re.escape(output)}\[{row_iv}\]", head + tail))
+
+    zero = re.search(
+        rf"{re.escape(init)}\s*=\s*arith\.constant\s+"
+        rf"(?:0(?:\.0+)?(?:e[+-]?0+)?|0x0+)\s*:\s*{elem}",
+        text[:inner_loop.span[0]], re.IGNORECASE)
+    if zero:
+        sum_includes_old = False
+    elif old_row(init):          # sum = y[r]; sum += ...; y[r] = sum
+        sum_includes_old = True
+    else:
+        return None
+
+    def invariant(value: str) -> bool:
+        return not re.search(rf"{re.escape(value)}\s*=", body)
+
+    def term(value: str) -> tuple[str, str] | None:
+        """('sum' | 'old', coefficient) for result, y[r] or scalar * either."""
+        if value == result:
+            return "sum", "1"
+        if old_row(value):
+            return "old", "1"
+        m = re.search(rf"{re.escape(value)}\s*=\s*arith\.mulf\s+({num}),\s*"
+                      rf"({num})\s*:\s*{elem}", tail)
+        if m:
+            for base, scale in ((m.group(1), m.group(2)),
+                                (m.group(2), m.group(1))):
+                if base == result and invariant(scale):
+                    return "sum", scale
+                if old_row(base) and invariant(scale):
+                    return "old", scale
+        return None
+
+    def negate(coeff: str) -> str:
+        return {"1": "-1", "-1": "1"}.get(
+            coeff, coeff[1:] if coeff.startswith("-") else "-" + coeff)
+
+    single = term(stored)
+    if single is not None:
+        if single[0] != "sum":
+            return None
+        alpha = single[1]
+        return alpha, (alpha if sum_includes_old else "0")
+    combo = re.search(rf"{re.escape(stored)}\s*=\s*arith\.(addf|subf)\s+"
+                      rf"({num}),\s*({num})\s*:\s*{elem}", tail)
+    if not combo or sum_includes_old:
+        return None
+    first, second = term(combo.group(2)), term(combo.group(3))
+    if first is None or second is None or {first[0], second[0]} != {"sum", "old"}:
+        return None
+    if combo.group(1) == "subf":
+        second = (second[0], negate(second[1]))
+    coeffs = dict((first, second))
+    return coeffs["sum"], coeffs["old"]
+
+
+def _csr_spmv_scalar_operands(alpha: str, beta: str, elem: str,
+                              uid: int) -> tuple[list[str], list[str]]:
+    """Materialize (alpha, beta) from _csr_spmv_scaling as launch operands."""
+    lines: list[str] = []
+    names: list[str] = []
+    for tag, coeff in (("alpha", alpha), ("beta", beta)):
+        name = f"%cusparse_{tag}_{uid}"
+        if re.fullmatch(r"-?\d+", coeff):
+            lines.append(f"{name} = arith.constant {float(coeff):e} : {elem}")
+        elif coeff.startswith("-"):
+            lines.append(f"{name} = arith.negf {coeff[1:]} : {elem}")
+        else:
+            name = coeff
+        names.append(name)
+    return lines, names
+
+
 def _render_cusparse_csr_spmv(
         text: str) -> list[tuple[int, int, str, str]]:
     """Replace proven CSR reductions with NVIDIA cuSPARSE SpMV calls.
 
     The executable subset is intentionally the native cuSPARSE CSR ABI: i32
-    row offsets/column indices, f32 or f64 values, beta=0, and one dense output
-    element per enclosing row. JDS stays analysis-only because cuSPARSE has no
-    JDS matrix descriptor.
+    row offsets/column indices, f32 or f64 values, and one dense output
+    element per enclosing row.  alpha/beta are launch operands derived from
+    the row update (see _csr_spmv_scaling); the tensor form proves the
+    zero-initialized overwrite, i.e. alpha=1, beta=0. JDS stays analysis-only
+    because cuSPARSE has no JDS matrix descriptor.
     """
     loops = parse_loops(text)
     rendered: list[tuple[int, int, str, str]] = []
@@ -3866,10 +4016,15 @@ def _render_cusparse_csr_spmv(
                     normalized.append(cast_name)
                 else:
                     normalized.append(operand)
+            # Proven above: zero-initialized sum inserted as the row value,
+            # i.e. y = 1*A*x + 0*y.
+            scalar_lines, scalars = _csr_spmv_scalar_operands(
+                "1", "0", "f32", uid)
+            lines.extend(scalar_lines)
             lines.append(
                 "kernel.launch @cusparseSpMV_CSR_f32_memref("
-                + ", ".join([rows, *normalized]) + ") : (index, "
-                + ", ".join(target_types) + ") -> ()")
+                + ", ".join([rows, *normalized, *scalars]) + ") : (index, "
+                + ", ".join(target_types) + ", f32, f32) -> ()")
             replacement = ("\n" + indent).join(lines)
             rendered.append((line_start, row_loop.span[1] + tail.end(),
                              indent + replacement,
@@ -3919,7 +4074,7 @@ def _render_cusparse_csr_spmv(
                 r"(memref<[^>]*x(f32|f64)>)", inner)
         row_iv = re.escape(row_loop.induction)
         store = re.search(
-            r"(?:affine|memref)\.store\s+%[\w.$-]+,\s*"
+            r"(?:affine|memref)\.store\s+(%[\w.$-]+),\s*"
             rf"(%[\w.$-]+)\[{row_iv}\]\s*:\s*"
             r"(memref<[^>]*x(f32|f64)>)",
             body)
@@ -3928,10 +4083,20 @@ def _render_cusparse_csr_spmv(
                 not values or not cols or not gather or not store):
             continue
         elem = values.group(3)
-        if gather.group(3) != elem or store.group(3) != elem:
+        if gather.group(3) != elem or store.group(4) != elem:
             continue
+        # The stored value decides alpha/beta (y[r] = sum, y[r] += sum, ...);
+        # any other row update is not a cuSPARSE SpMV and stays as loops.
+        scaling = _csr_spmv_scaling(text, row_loop, candidate.loop,
+                                    values.group(1), gather.group(1),
+                                    store.group(1), store.group(2), elem)
+        if scaling is None:
+            continue
+        scalar_lines, scalars = _csr_spmv_scalar_operands(
+            *scaling, elem, row_loop.span[0])
+        prefix_lines.extend(scalar_lines)
         operands = [rows, rowptr_loads[0][0], cols.group(2), values.group(1),
-                    gather.group(1), store.group(1)]
+                    gather.group(1), store.group(2)]
         target_types = ["memref<?xi32>", "memref<?xi32>",
                         f"memref<?x{elem}>", f"memref<?x{elem}>",
                         f"memref<?x{elem}>"]
@@ -3950,8 +4115,9 @@ def _render_cusparse_csr_spmv(
             else:
                 normalized.append(operand)
         symbol = f"cusparseSpMV_CSR_{elem}_memref"
-        launch = (f"kernel.launch @{symbol}(" + ", ".join(normalized) +
-                  ") : (index, " + ", ".join(target_types) + ") -> ()")
+        launch = (f"kernel.launch @{symbol}(" + ", ".join(normalized + scalars) +
+                  ") : (index, " + ", ".join(target_types + [elem, elem]) +
+                  ") -> ()")
         replacement = "\n".join(
             f"{indent}{line}" for line in [*prefix_lines, launch])
         rendered.append((row_loop.span[0], row_loop.span[1], replacement,
@@ -5796,11 +5962,12 @@ def _render_dense_covariance_regions(
         args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
             r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(2))]
         elem = args[2][1] if len(args) == 6 else ""
-        expected = ["i32", "i32", elem, f"memref<?x?x{elem}>",
-                    f"memref<?x?x{elem}>", f"memref<?x{elem}>"]
         if elem not in ("f32", "f64"):
             continue
-        if [ty for _, ty in args] != expected:
+        types = [ty for _, ty in args]
+        if (types[:3] != ["i32", "i32", elem] or
+                [_shaped_rank(ty) for ty in types[3:]] != [2, 2, 1] or
+                any(_sniff_elem_type(ty) != elem for ty in types[3:])):
             continue
         signature_end = text.find("\n", function.end())
         opening = text.rfind("{", function.end(), signature_end)
@@ -5834,11 +6001,26 @@ def _render_dense_covariance_regions(
         body_indent = indent + "  "
         symbol = ("cublasScovarianceRowMajor_memref" if elem == "f32"
                   else "cublasDcovarianceRowMajor_memref")
+        canonical_matrix = f"memref<?x?x{elem}>"
+        data_launch, cov_launch = data, cov
+        cast_lines = []
+        if args[3][1] != canonical_matrix:
+            data_launch = _derived_ssa_name(data, "dynamic")
+            cast_lines.append(
+                f"{body_indent}{data_launch} = memref.cast {data} : "
+                f"{args[3][1]} to {canonical_matrix}")
+        if args[4][1] != canonical_matrix:
+            cov_launch = _derived_ssa_name(cov, "dynamic")
+            cast_lines.append(
+                f"{body_indent}{cov_launch} = memref.cast {cov} : "
+                f"{args[4][1]} to {canonical_matrix}")
+        cast_prefix = "\n".join(cast_lines)
+        if cast_prefix:
+            cast_prefix += "\n"
         launch = (
-            f"\n{body_indent}kernel.launch @{symbol}("
-            f"{args[2][0]}, {data}, {cov}, {mean}) : "
-            f"({elem}, memref<?x?x{elem}>, memref<?x?x{elem}>, "
-            f"memref<?x{elem}>) -> ()\n"
+            f"\n{cast_prefix}{body_indent}kernel.launch @{symbol}("
+            f"{args[2][0]}, {data_launch}, {cov_launch}, {mean}) : "
+            f"({elem}, {canonical_matrix}, {canonical_matrix}, {args[5][1]}) -> ()\n"
             f"{body_indent}return\n{indent}")
         consumed = [i for i, inst in enumerate(instances)
                     if opening < inst.span[0] and inst.span[1] < function_end]
@@ -5854,12 +6036,14 @@ def _render_dense_correlation_regions(
     function_re = re.compile(
         r"func\.func(?:\s+private)?\s+@([\w.$-]+)\s*\(([^)]*)\)",
         re.MULTILINE)
-    expected = ["i32", "i32", "f64", "memref<?x?xf64>",
-                "memref<?x?xf64>", "memref<?xf64>", "memref<?xf64>"]
     for function in function_re.finditer(text):
         args = [(m.group(1), m.group(2).strip()) for m in re.finditer(
             r"(%[\w.$-]+)\s*:\s*([^,)]+)", function.group(2))]
-        if [ty for _, ty in args] != expected:
+        elem = args[2][1] if len(args) == 7 else ""
+        types = [ty for _, ty in args]
+        if (elem not in ("f32", "f64") or types[:3] != ["i32", "i32", elem] or
+                [_shaped_rank(ty) for ty in types[3:]] != [2, 2, 1, 1] or
+                any(_sniff_elem_type(ty) != elem for ty in types[3:])):
             continue
         signature_end = text.find("\n", function.end())
         opening = text.rfind("{", function.end(), signature_end)
@@ -5891,12 +6075,29 @@ def _render_dense_correlation_regions(
         indent = re.match(r"\s*", text[text.rfind("\n", 0, function.start()) + 1:
                                       function.start()]).group(0)
         body_indent = indent + "  "
-        symbol = "cublasDcorrelationRowMajor_memref"
+        symbol = ("cublasScorrelationRowMajor_memref" if elem == "f32"
+                  else "cublasDcorrelationRowMajor_memref")
+        canonical_matrix = f"memref<?x?x{elem}>"
+        canonical_vector = f"memref<?x{elem}>"
+        launch_args = [data, corr, mean, stddev]
+        canonical_types = [canonical_matrix, canonical_matrix,
+                           canonical_vector, canonical_vector]
+        cast_lines = []
+        for index, (value, arg) in enumerate(zip(launch_args, args[3:])):
+            if arg[1] != canonical_types[index]:
+                cast = _derived_ssa_name(value, "dynamic")
+                cast_lines.append(
+                    f"{body_indent}{cast} = memref.cast {value} : "
+                    f"{arg[1]} to {canonical_types[index]}")
+                launch_args[index] = cast
+        cast_prefix = "\n".join(cast_lines)
+        if cast_prefix:
+            cast_prefix += "\n"
         launch = (
-            f"\n{body_indent}kernel.launch @{symbol}("
-            f"{args[2][0]}, {data}, {corr}, {mean}, {stddev}) : "
-            "(f64, memref<?x?xf64>, memref<?x?xf64>, memref<?xf64>, "
-            "memref<?xf64>) -> ()\n"
+            f"\n{cast_prefix}{body_indent}kernel.launch @{symbol}("
+            f"{args[2][0]}, {', '.join(launch_args)}) : "
+            f"({elem}, {canonical_matrix}, {canonical_matrix}, "
+            f"{canonical_vector}, {canonical_vector}) -> ()\n"
             f"{body_indent}return\n{indent}")
         consumed = [i for i, inst in enumerate(instances)
                     if opening < inst.span[0] and inst.span[1] < function_end]
@@ -5920,11 +6121,12 @@ def _render_dense_symm_regions(
     for loop in loops:
         args = _enclosing_func_args(text, loop.span[0])
         elem = args[2][1] if args and len(args) == 7 else ""
-        expected = ["i32", "i32", elem, elem, f"memref<?x?x{elem}>",
-                    f"memref<?x?x{elem}>", f"memref<?x?x{elem}>"]
         if elem not in ("f32", "f64"):
             continue
-        if not args or [ty for _, ty in args] != expected:
+        types = [ty for _, ty in args]
+        if (types[:4] != ["i32", "i32", elem, elem] or
+                [_shaped_rank(ty) for ty in types[4:]] != [2, 2, 2] or
+                any(_sniff_elem_type(ty) != elem for ty in types[4:])):
             continue
         prefix_start = text.rfind("func.func", 0, loop.span[0])
         prefix = text[prefix_start:loop.span[0]]
@@ -5978,12 +6180,25 @@ def _render_dense_symm_regions(
         indent = re.match(r"\s*", line_prefix).group(0)
         symbol = ("cublasSsymmLeftLowerRowMajor_memref" if elem == "f32"
                   else "cublasDsymmLeftLowerRowMajor_memref")
+        canonical_matrix = f"memref<?x?x{elem}>"
+        launch_matrices = []
+        cast_lines = []
+        for arg_index in (5, 6, 4):
+            operand, operand_type = args[arg_index]
+            if operand_type == canonical_matrix:
+                launch_matrices.append(operand)
+                continue
+            cast = _derived_ssa_name(operand, "dynamic")
+            cast_lines.append(
+                f"{indent}{cast} = memref.cast {operand} : "
+                f"{operand_type} to {canonical_matrix}")
+            launch_matrices.append(cast)
         launch = (
+            ("\n".join(cast_lines) + "\n" if cast_lines else "") +
             f"{indent}kernel.launch @{symbol}("
-            f"{args[5][0]}, {args[6][0]}, {args[4][0]}, "
+            f"{launch_matrices[0]}, {launch_matrices[1]}, {launch_matrices[2]}, "
             f"{args[2][0]}, {args[3][0]}) : "
-            f"(memref<?x?x{elem}>, memref<?x?x{elem}>, "
-            f"memref<?x?x{elem}>, {elem}, {elem}) "
+            f"({canonical_matrix}, {canonical_matrix}, {canonical_matrix}, {elem}, {elem}) "
             "-> ()")
         end = loop.span[1] + trailing.end()
         consumed = [i for i, inst in enumerate(instances)
@@ -6002,9 +6217,11 @@ def _render_dense_trmm_regions(
     for loop in loops:
         args = _enclosing_func_args(text, loop.span[0])
         elem = args[2][1] if args and len(args) == 5 else ""
-        if (elem not in ("f32", "f64") or [ty for _, ty in args] !=
-                ["i32", "i32", elem, f"memref<?x?x{elem}>",
-                 f"memref<?x?x{elem}>"]):
+        types = [ty for _, ty in args]
+        if (elem not in ("f32", "f64") or
+                types[:3] != ["i32", "i32", elem] or
+                [_shaped_rank(ty) for ty in types[3:]] != [2, 2] or
+                any(_sniff_elem_type(ty) != elem for ty in types[3:])):
             continue
         prefix_start = text.rfind("func.func", 0, loop.span[0])
         prefix = text[prefix_start:loop.span[0]]
@@ -6050,9 +6267,23 @@ def _render_dense_trmm_regions(
         symbol = ("cublasStrmmLeftLowerTransUnitRowMajor_memref"
                   if elem == "f32"
                   else "cublasDtrmmLeftLowerTransUnitRowMajor_memref")
-        launch = (f"{indent}kernel.launch @{symbol}("
-                  f"{args[3][0]}, {args[4][0]}, {args[2][0]}) : "
-                  f"(memref<?x?x{elem}>, memref<?x?x{elem}>, {elem}) -> ()")
+        canonical_matrix = f"memref<?x?x{elem}>"
+        launch_matrices = []
+        cast_lines = []
+        for arg_index in (3, 4):
+            operand, operand_type = args[arg_index]
+            if operand_type == canonical_matrix:
+                launch_matrices.append(operand)
+                continue
+            cast = _derived_ssa_name(operand, "dynamic")
+            cast_lines.append(
+                f"{indent}{cast} = memref.cast {operand} : "
+                f"{operand_type} to {canonical_matrix}")
+            launch_matrices.append(cast)
+        launch = (("\n".join(cast_lines) + "\n" if cast_lines else "") +
+                  f"{indent}kernel.launch @{symbol}("
+                  f"{launch_matrices[0]}, {launch_matrices[1]}, {args[2][0]}) : "
+                  f"({canonical_matrix}, {canonical_matrix}, {elem}) -> ()")
         end = loop.span[1] + trailing.end()
         consumed = [i for i, inst in enumerate(instances)
                     if loop.span[0] <= inst.span[0] and
@@ -6523,6 +6754,12 @@ def rewrite_mlir(
         if i in consumed_structured_bodies:
             i += 1
             continue
+        # SSA names are local to each function. Whole-program modules reuse
+        # names such as %arg1 in kernels, helpers, and main, so a module-wide
+        # type map can silently assign a launch operand the type from a later
+        # function. Infer captured scalar types within the enclosing function.
+        scalar_types = _scan_scalar_types(
+            _enclosing_function_text(text, instances[i].span[0]))
         generic_graph_spec: dict | None = None
         generic_graph_partition: tuple[dict, dict] | None = None
         feature_scale = _feature_mask_scale_capture(bodies[i])
@@ -10340,7 +10577,31 @@ def rewrite_mlir(
                              else "cublasSger_rank2")
 
         if entry.name == "cublasSgemv_alpha_memref":
-            matrix_map = (_compact_affine_map(bodies[i].indexing_maps[0])
+            ranks = [_tensor_rank(ty) for ty in operand_types]
+            elems = [_sniff_elem_type(ty) for ty in operand_types]
+            if (len(operand_types) != 3 or ranks != [2, 1, 1] or
+                    elems != ["f32", "f32", "f32"]):
+                report.append(("rank_or_dtype_reject", i, entry.name))
+                i += n
+                continue
+            alpha = binds.get("%alpha")
+            if (isinstance(alpha, tuple) and len(alpha) == 2 and
+                    alpha[0] == "Lit"):
+                scalar = _derived_ssa_name(last.result_ssa or outs0[0],
+                                           "alpha")
+                value = _format_weight_literal(float(alpha[1]), "f32")
+                pre_launch_lines.append(
+                    f"{last.indent}{scalar} = arith.constant {value} : f32")
+                binds["%alpha"] = ("Cap", scalar)
+                scalar_types[scalar] = "f32"
+            elif not (isinstance(alpha, tuple) and len(alpha) == 2 and
+                      alpha[0] == "Cap" and
+                      scalar_types.get(alpha[1]) == "f32"):
+                report.append(("coefficient_reject", i, entry.name))
+                i += n
+                continue
+            matrix_map = (_compact_affine_map(_resolve_affine_map_text(
+                              text, bodies[i].indexing_maps[0]))
                           if bodies[i].indexing_maps else "")
             if matrix_map == "affine_map<(d0,d1)->(d1,d0)>":
                 emit_name = "cublasSgemv_alpha_T_memref"
@@ -11193,48 +11454,6 @@ def rewrite_mlir(
                 inst.indent,
             )
 
-        if entry.name == "cudaMaskSelect_f32_tensor":
-            pos = _extract_cmpi_rhs_i32(bodies[i].body_lines)
-            if not pos:
-                report.append(("mask_select_reject", i, entry.name))
-                i += 1
-                continue
-            elems = [_sniff_elem_type(t) for t in operand_types[:2]]
-            ranks = [_tensor_rank(t) for t in operand_types[:2]]
-            if elems != ["f32", "f32"] or ranks != [1, 1]:
-                report.append(("rank_or_dtype_reject", i, entry.name))
-                i += 1
-                continue
-            operands = operands + [pos]
-            operand_types = operand_types + [scalar_types.get(pos, "i32")]
-            binds = {}
-
-        if entry.name in ("cudaAdd_f32_tensor", "cudaSwiGLU_f32_tensor"):
-            elems = [_sniff_elem_type(t) for t in operand_types[:3]]
-            ranks = [_tensor_rank(t) for t in operand_types[:3]]
-            if elems != ["f32", "f32", "f32"] or ranks != [1, 1, 1]:
-                report.append(("rank_or_dtype_reject", i, entry.name))
-                i += 1
-                continue
-
-        if entry.name in ("cudaRopeMulMulSub_f32_tensor",
-                          "cudaRopeMulMulAdd_f32_tensor"):
-            # Preserve the linalg operand order. The generic rank-sort above is
-            # valid for commutative BLAS templates, but RoPE semantics depend
-            # on [2D, 1D, 2D, 1D, out] ordering.
-            in_names = _extract_ssa_names(instances[i].ins_part)
-            in_types = _extract_ssa_types(instances[i].ins_part)
-            out_names = _extract_ssa_names(instances[i].outs_part)
-            out_types = _extract_ssa_types(instances[i].outs_part)
-            operands = in_names + out_names
-            operand_types = in_types + out_types
-            elems = [_sniff_elem_type(t) for t in operand_types[:5]]
-            ranks = [_tensor_rank(t) for t in operand_types[:5]]
-            if (elems != ["f32"] * 5 or ranks != [2, 1, 2, 1, 2]):
-                report.append(("rank_or_dtype_reject", i, entry.name))
-                i += 1
-                continue
-
         if entry.name in ("elemwise_div_scalar", "elemwise_scale_input_1D",
                           "elemwise_axpby_inputs_1D"):
             # These templates are useful for algebraic recognition, but the
@@ -12042,13 +12261,18 @@ def rewrite_mlir(
                 return_match = re.search(
                     r"\n[ \t]*return\b", text[tail_start:])
                 tail_end = (tail_start + return_match.start()
-                            if return_match else tail_start)
-                if i + n < len(instances):
-                    tail_end = min(tail_end, instances[i + n].span[0])
+                            if return_match else len(text))
                 tail = text[tail_start:tail_end]
                 # Edit only the terminator line.  Replacing the whole tail
-                # would overlap later, independent kernel rewrites.
-                for yield_match in re.finditer(r"affine\.yield[^\n]*", tail):
+                # would overlap later, independent kernel rewrites.  Do not
+                # stop at the next linalg.generic: the enclosing affine.yield
+                # necessarily follows every operation in the loop body.
+                # Matching the fused op's indentation avoids nested-loop
+                # terminators while allowing intervening independent ops.
+                indent_spaces = last.indent.lstrip("\n").rstrip("\n")
+                yield_pattern = re.compile(
+                    rf"(?m)^{re.escape(indent_spaces)}affine\.yield[^\n]*")
+                for yield_match in yield_pattern.finditer(tail):
                     original_yield = yield_match.group(0)
                     rewritten_yield = original_yield
                     for old_root, new_root in tail_only_rewires:

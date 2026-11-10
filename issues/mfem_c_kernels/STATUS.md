@@ -43,3 +43,38 @@ The planned normalization and source-coverage list is complete. Further work
 should focus on making these structural normalizations automatic and lowering
 the expanded logical scratch tensors back to reused GPU shared memory after
 Linalg recognition.
+
+## Direct upstream CUDA frontend audit
+
+On 2026-09-09, the unchanged upstream
+`mfem::internal::SmemPAMassApply2D<4,5>` instantiation was tested directly.
+The native CUDA source cross-compiled for AArch64/SM87 and ran correctly on
+Orin at `NE=1024`; its final checksum exactly matched the independent expected
+value. cgeist also parsed the same CUDA translation unit and recovered the
+operator's multiply/add loop body. It did not, however, produce a valid or
+executable GPU module: the emitted module contains an illegal LLVM-struct
+element inside a memref, and the launched CUDA kernel remains a declaration
+separate from the recovered lambda computation. The integrated CUDA object
+path is also disabled in the current cgeist build.
+
+This result is frontend emission/lowering blocked, not a direct upstream CUDA
+raising success. Commands and exact evidence are retained in
+`direct_native_cgeist/README.md` and `direct_native_cgeist/run.sh`.
+
+The same operator has also been extracted into a self-contained native CUDA
+fixture that removes MFEM's containers and dispatch scaffolding while retaining
+the upstream thread layout, shared-memory algorithm, barriers, tensor indexing,
+and accumulation semantics. It cross-compiles for AArch64/SM87 and passes a
+complete 16,384-element comparison against an independent CPU reference on
+Orin with zero error. See `direct_native_cgeist/isolated_mass2_native.cu` and
+`direct_native_cgeist/isolated_mass2_native_result.csv`. This validates the
+isolated native fixture only; it does not change the blocked direct-cgeist
+status or count as a library match.
+
+Running the existing raising and matching passes on this isolated CUDA fixture
+produces one `linalg.generic`, representing only the final length-five dot
+reduction. The first three contraction stages remain behind CUDA
+thread-strided loops, barriers, and reused shared scratch; the matcher reports
+`0/1` bodies matched and structured-region analysis rejects the incomplete
+region. See `direct_native_cgeist/RAISING_RESULT.md`. This gives a focused
+raising target without changing the previously validated native semantics.

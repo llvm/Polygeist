@@ -1,0 +1,103 @@
+{
+ "launches": [
+  {
+   "region_match": "netlib_dtrsv_ltn",
+   "binding": {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg3 (in: %arg4, copied into %arg3 before the launch)"
+   },
+   "evidence": "netlib_dtrsv_ltn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg3 (in: %arg4, copied into %arg3 before the launch)'}; e-graph max 63 nodes, egglog 20.2 ms; dependence checks 9 (reads: input 3, final 1, accumulator 1, scratch-inlined 1); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_unn[transposed]; copy-in %arg4 -> %arg3; assumes %arg4 and %arg3 do not alias (pipeline-wide noalias assumption)"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%23",
+   "func": "kernel_ludcmp",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_ddot_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%23",
+   "func": "kernel_ludcmp",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_ddot_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%20",
+   "func": "kernel_ludcmp",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%21",
+   "func": "kernel_ludcmp",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  }
+ ]
+}

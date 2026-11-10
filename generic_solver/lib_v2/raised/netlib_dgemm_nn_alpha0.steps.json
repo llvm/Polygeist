@@ -1,0 +1,11 @@
+{
+ "recipe": "production",
+ "commands": [
+  "build/bin/cgeist generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0.c --function=netlib_dgemm_nn_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0.mlir"
+ ],
+ "failure": {
+  "status": "FAIL_CGEIST",
+  "reason": "tool crashed (stack dump)",
+  "stderr": "PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.\nStack dump:\n0.\tProgram arguments: /home/arjaiswal/Polygeist/build/bin/cgeist /home/arjaiswal/Polygeist/generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0.c --function=netlib_dgemm_nn_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -S -o /home/arjaiswal/Polygeist/generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0.mlir\nStack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):\n0  cgeist    0x000055697d5c7470\n1  cgeist    0x000055697d5c490f\n2  cgeist    0x000055697d5c4a65\n3  libc.so.6 0x00007f7f81848520\n4  cgeist    0x000055697d883ffb\n5  cgeist    0x000055697d93e5cb\n6  cgeist    0x000055697d93ebb6\n7  cgeist    0x000055697d93ed06\n8  cgeist    0x000055697d93f86a\n9  cgeist    0x0000556980d14ded\n10 cgeist    0x0000556980d14ffd\n11 cgeist    0x0000556981450098\n12 cgeist    0x000055697e0e82a4\n13 cgeist    0x000055697e0ed1fe\n14 cgeist    0x000055697de1e65a\n15 cgeist    0x000055697e0a9269\n16 cgeist    0x000055697e0a9731\n17 cgeist    0x000055697e0aa52b\n18 cgeist    0x000055697e0a9070\n19 cgeist    0x000055697e0a9731\n20 cgeist    0x000055697e0a9f95\n21 cgeist    0x000055697ba4e9df\n22 libc.so.6 0x00007f7f8182fd90\n23 libc.so.6 0x00007f7f8182fe40 __libc_start_main + 128\n24 cgeist    0x000055697b9e36a5\n"
+ }
+}

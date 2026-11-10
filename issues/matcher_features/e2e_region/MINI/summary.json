@@ -1,0 +1,520 @@
+{
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "MINI",
+  "linalg_launches": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "region_launches": [
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dscal_inc:n": "%arg0",
+    "1:netlib_dscal_inc:da": "%arg2",
+    "1:netlib_dscal_inc:dx": "%arg7 (in-place)",
+    "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:n": "%arg0",
+    "2:netlib_daxpy_inc:da": "%arg1",
+    "2:netlib_daxpy_inc:dx": "%arg5",
+    "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:dy": "%arg7 (in-place)",
+    "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_daxpy_inc",
+   "netlib_dscal_inc"
+  ],
+  "v2": {
+   "n_ref": 30,
+   "n_out": 30,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "MINI",
+  "linalg_launches": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc"
+  ],
+  "region_launches": [
+   "netlib_dger+netlib_dger"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dger:m": "%arg0",
+    "1:netlib_dger:n": "%arg0",
+    "1:netlib_dger:alpha": "literal 1.0",
+    "1:netlib_dger:x": "%arg5",
+    "1:netlib_dger:y": "%arg4",
+    "1:netlib_dger:lda": "stride0(%arg3)",
+    "1:netlib_dger:A": "%arg3 (in-place)",
+    "2:netlib_dger:m": "%arg0",
+    "2:netlib_dger:n": "%arg0",
+    "2:netlib_dger:alpha": "literal 1.0",
+    "2:netlib_dger:x": "%arg7",
+    "2:netlib_dger:y": "%arg6",
+    "2:netlib_dger:lda": "stride0(%arg3)",
+    "2:netlib_dger:A": "%arg3 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dger"
+  ],
+  "v2": {
+   "n_ref": 40,
+   "n_out": 40,
+   "exact_text": false,
+   "max_abs": 9.094947017729282e-13,
+   "max_rel": 2.165638890719905e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "syr2k": {
+  "kernel": "syr2k",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyr2k_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "ldb": "stride0(%arg6)",
+    "B": "%arg6",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dsyr2k_ut"
+  ],
+  "v2": {
+   "n_ref": 900,
+   "n_out": 900,
+   "exact_text": false,
+   "max_abs": 7.105427357601002e-15,
+   "max_rel": 6.436075505073368e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "trmm": {
+  "kernel": "trmm",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrmm_rutu"
+  ],
+  "region_bindings": [
+   {
+    "m": "%arg1",
+    "n": "%arg0",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg3)",
+    "A": "%arg3",
+    "ldb": "stride0(%arg4)",
+    "B": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrmm_rutu"
+  ],
+  "v2": {
+   "n_ref": 600,
+   "n_out": 600,
+   "exact_text": false,
+   "max_abs": 3.552713678800501e-15,
+   "max_rel": 5.173854872039563e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "gesummv_mutated": {
+  "kernel": "gesummv",
+  "dataset": "MINI",
+  "linalg_launches": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "region_launches": [
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dscal_inc:n": "%arg0",
+    "1:netlib_dscal_inc:da": "%arg2",
+    "1:netlib_dscal_inc:dx": "%arg7 (in-place)",
+    "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:n": "%arg0",
+    "2:netlib_daxpy_inc:da": "%arg1",
+    "2:netlib_daxpy_inc:dx": "%arg5",
+    "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:dy": "%arg7 (in-place)",
+    "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+   }
+  ],
+  "mutation": "swapped operands 3 and 0 of @netlib_dscal_inc",
+  "called_spec_functions": [
+   "netlib_daxpy_inc",
+   "netlib_dscal_inc"
+  ],
+  "v2": {
+   "n_ref": 30,
+   "n_out": 30,
+   "exact_text": false,
+   "max_abs": 1.7144444444444424,
+   "max_rel": 0.07854565639744658,
+   "verdict": "FAIL"
+  },
+  "status": "ok"
+ },
+ "gemver_mutated": {
+  "kernel": "gemver",
+  "dataset": "MINI",
+  "linalg_launches": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc"
+  ],
+  "region_launches": [
+   "netlib_dger+netlib_dger"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dger:m": "%arg0",
+    "1:netlib_dger:n": "%arg0",
+    "1:netlib_dger:alpha": "literal 1.0",
+    "1:netlib_dger:x": "%arg5",
+    "1:netlib_dger:y": "%arg4",
+    "1:netlib_dger:lda": "stride0(%arg3)",
+    "1:netlib_dger:A": "%arg3 (in-place)",
+    "2:netlib_dger:m": "%arg0",
+    "2:netlib_dger:n": "%arg0",
+    "2:netlib_dger:alpha": "literal 1.0",
+    "2:netlib_dger:x": "%arg7",
+    "2:netlib_dger:y": "%arg6",
+    "2:netlib_dger:lda": "stride0(%arg3)",
+    "2:netlib_dger:A": "%arg3 (in-place)"
+   }
+  ],
+  "mutation": "swapped operands 4 and 3 of @netlib_dger",
+  "called_spec_functions": [
+   "netlib_dger"
+  ],
+  "v2": {
+   "n_ref": 40,
+   "n_out": 40,
+   "exact_text": false,
+   "max_abs": 111.46688850911458,
+   "max_rel": 115.46967685385586,
+   "verdict": "FAIL"
+  },
+  "status": "ok"
+ },
+ "syr2k_mutated": {
+  "kernel": "syr2k",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyr2k_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "ldb": "stride0(%arg6)",
+    "B": "%arg6",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "mutation": "swapped operands 6 and 4 of @netlib_dsyr2k_ut",
+  "called_spec_functions": [
+   "netlib_dsyr2k_ut"
+  ],
+  "v2": {
+   "n_ref": 900,
+   "n_out": 900,
+   "exact_text": false,
+   "max_abs": 7.105427357601002e-15,
+   "max_rel": 6.436075505073368e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "trmm_mutated": {
+  "kernel": "trmm",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrmm_rutu"
+  ],
+  "region_bindings": [
+   {
+    "m": "%arg1",
+    "n": "%arg0",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg3)",
+    "A": "%arg3",
+    "ldb": "stride0(%arg4)",
+    "B": "%arg4 (in-place)"
+   }
+  ],
+  "mutation": "swapped operands 6 and 4 of @netlib_dtrmm_rutu",
+  "called_spec_functions": [
+   "netlib_dtrmm_rutu"
+  ],
+  "v2": {
+   "n_ref": 600,
+   "n_out": 600,
+   "exact_text": false,
+   "max_abs": 11.091666666666665,
+   "max_rel": 1.0,
+   "verdict": "FAIL"
+  },
+  "status": "ok"
+ },
+ "syrk_mutated": {
+  "kernel": "syrk",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyrk_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "mutation": "swapped operands 7 and 4 of @netlib_dsyrk_ut",
+  "called_spec_functions": [
+   "netlib_dsyrk_ut"
+  ],
+  "v2": {
+   "n_ref": 900,
+   "n_out": 900,
+   "exact_text": false,
+   "max_abs": 13.446666666666664,
+   "max_rel": 1.0,
+   "verdict": "FAIL"
+  },
+  "status": "ok"
+ },
+ "trisolv_mutated": {
+  "kernel": "trisolv",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_utn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+   }
+  ],
+  "mutation": "swapped operands 1 and 0 of @netlib_dtrsv_utn",
+  "called_spec_functions": [
+   "netlib_dtrsv_utn"
+  ],
+  "v2": {
+   "n_ref": 40,
+   "n_out": 40,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "cholesky_mutated": {
+  "kernel": "cholesky",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dpotf2_u"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1 (in-place)"
+   }
+  ],
+  "mutation": "swapped operands 1 and 0 of @netlib_dpotf2_u",
+  "called_spec_functions": [
+   "netlib_dpotf2_u"
+  ],
+  "v2": {
+   "n_ref": 820,
+   "n_out": 820,
+   "exact_text": false,
+   "max_abs": 1.887379141862766e-15,
+   "max_rel": 1.7763568394002252e-14,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyrk_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dsyrk_ut"
+  ],
+  "v2": {
+   "n_ref": 900,
+   "n_out": 900,
+   "exact_text": false,
+   "max_abs": 5.329070518200751e-15,
+   "max_rel": 1.0860877414811302e-15,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_utn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrsv_utn"
+  ],
+  "v2": {
+   "n_ref": 40,
+   "n_out": 40,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dpotf2_u"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dpotf2_u"
+  ],
+  "v2": {
+   "n_ref": 820,
+   "n_out": 820,
+   "exact_text": false,
+   "max_abs": 1.887379141862766e-15,
+   "max_rel": 1.7763568394002252e-14,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "ludcmp": {
+  "kernel": "ludcmp",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_ltn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg3 (in: %arg4, copied into %arg3 before the launch)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrsv_ltn"
+  ],
+  "v2": {
+   "verdict": "LOWER_FAIL"
+  },
+  "status": "ok"
+ },
+ "ludcmp_mutated": {
+  "kernel": "ludcmp",
+  "dataset": "MINI",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_ltn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg3 (in: %arg4, copied into %arg3 before the launch)"
+   }
+  ],
+  "mutation": "swapped operands 1 and 0 of @netlib_dtrsv_ltn",
+  "called_spec_functions": [
+   "netlib_dtrsv_ltn"
+  ],
+  "v2": {
+   "verdict": "LOWER_FAIL"
+  },
+  "status": "ok"
+ }
+}

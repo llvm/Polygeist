@@ -5,7 +5,8 @@
 module {
   kernel.defn @cusparseSpMV_CSR_f64_memref(
       %rows: index, %rowptr: memref<?xi32>, %cols: memref<?xi32>,
-      %values: memref<?xf64>, %x: memref<?xf64>, %y: memref<?xf64>) {
+      %values: memref<?xf64>, %x: memref<?xf64>, %y: memref<?xf64>,
+      %alpha: f64, %beta: f64) {
     kernel.yield
   }
   kernel.defn @cusparseSpMM_CSR_f32_memref(
@@ -28,11 +29,12 @@ module {
       %alpha: f32, %beta: f32, %out: memref<?xf32>) { kernel.yield }
   func.func @spmv(%rows: index, %rowptr: memref<?xi32>,
                   %cols: memref<?xi32>, %values: memref<?xf64>,
-                  %x: memref<?xf64>, %y: memref<?xf64>) {
+                  %x: memref<?xf64>, %y: memref<?xf64>,
+                  %alpha: f64, %beta: f64) {
     kernel.launch @cusparseSpMV_CSR_f64_memref(
-        %rows, %rowptr, %cols, %values, %x, %y) :
+        %rows, %rowptr, %cols, %values, %x, %y, %alpha, %beta) :
         (index, memref<?xi32>, memref<?xi32>, memref<?xf64>,
-         memref<?xf64>, memref<?xf64>) -> ()
+         memref<?xf64>, memref<?xf64>, f64, f64) -> ()
     return
   }
 
@@ -54,10 +56,13 @@ module {
       (memref<?xf64>, index) -> memref<?xf64>
     %y_view = polygeist.submap(%y, %rows) {map = #identity} :
       (memref<?xf64>, index) -> memref<?xf64>
+    %alpha = arith.constant 1.0 : f64
+    %beta = arith.constant 1.0 : f64
     kernel.launch @cusparseSpMV_CSR_f64_memref(
-        %rows, %row_view, %col_view, %value_view, %x_view, %y_view) :
+        %rows, %row_view, %col_view, %value_view, %x_view, %y_view,
+        %alpha, %beta) :
         (index, memref<?xi32>, memref<?xi32>, memref<?xf64>,
-         memref<?xf64>, memref<?xf64>) -> ()
+         memref<?xf64>, memref<?xf64>, f64, f64) -> ()
     return
   }
 
@@ -105,7 +110,11 @@ module {
   }
 }
 
-// CHECK: call @polygeist_cusparse_spmv_csr_f64_sized
+// alpha/beta are passed through by value, after the five sized buffers.
+// CHECK-LABEL: func.func @spmv(
+// CHECK: call @polygeist_cusparse_spmv_csr_f64_sized({{.*}}, %arg6, %arg7) : (i32, i32, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr, f64, f64) -> ()
+// CHECK-LABEL: func.func @spmv_through_submaps(
+// CHECK: call @polygeist_cusparse_spmv_csr_f64_sized({{.*}}) : ({{.*}}, f64, f64) -> ()
 // CHECK: call @polygeist_cusparse_spmm_csr_f32_sized
 // CHECK: call @polygeist_cusparse_spmm_coo_f32_sized
 // CHECK: call @polygeist_cusparse_spmm_bsr_f32_sized

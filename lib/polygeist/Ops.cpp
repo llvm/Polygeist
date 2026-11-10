@@ -1267,7 +1267,26 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
           return failure();
       }
     }
-    Value off = rewriter.create<ConstantIndexOp>(subindex.getLoc(), offs);
+    // The rewrites below only re-index the leading dimension: every other
+    // offset must be zero, and a rank-reducing view must drop exactly dim 0.
+    // The leading offset itself may be dynamic -- use its SSA value.  Reading
+    // getStaticOffsets() alone yielded the ShapedType::kDynamic sentinel,
+    // materialised as the index constant -9223372036854775808 (e.g. a load
+    // through `subview %B[%j, 0] [1, %m]` became `load %B[INT64_MIN, %k]`).
+    ArrayRef<int64_t> staticOffsets = subindex.getStaticOffsets();
+    for (size_t i = 1; i < staticOffsets.size(); ++i)
+      if (staticOffsets[i] != 0)
+        return failure();
+    if (subindex.getType().getRank() + 1 ==
+        subindex.getSource().getType().cast<MemRefType>().getRank()) {
+      llvm::SmallBitVector dropped = subindex.getDroppedDims();
+      if (dropped.count() != 1 || !dropped.test(0))
+        return failure();
+    }
+    if (staticOffsets.empty())
+      return failure();
+    Value off = getValueOrCreateConstantIndexOp(
+        rewriter, subindex.getLoc(), subindex.getMixedOffsets().front());
     assert(off);
 
     for (OpOperand &use : llvm::make_early_inc_range(subindex->getUses())) {

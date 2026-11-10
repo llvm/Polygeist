@@ -224,6 +224,7 @@ def main() -> None:
             "samples": 5,
             "statistic": "minimum_of_5",
             "gpu_timing": "synchronized resident wall time",
+            "cudnn_plan_cache": "enabled_only_for_cached_convolution_wrappers",
             "cpu_threads": 1,
             "cpu_affinity": "core_0",
         },

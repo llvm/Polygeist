@@ -1,0 +1,19 @@
+diff --git a/scripts/correctness/polygeist_build.sh b/scripts/correctness/polygeist_build.sh
+--- a/scripts/correctness/polygeist_build.sh
++++ b/scripts/correctness/polygeist_build.sh
+@@ -795,6 +795,15 @@ elif [ "$TARGET" = "host-cuda" ]; then
+            -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
+            -lcudart -lm -lpthread -ldl \
+            -Wl,-rpath,/usr/local/cuda/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu"
++  if [ -n "${POLYGEIST_CUTENSOR_ROOT:-}" ]; then
++    CUTENSOR_ROOT=$POLYGEIST_CUTENSOR_ROOT
++    [ -f "$CUTENSOR_ROOT/include/cutensor.h" ] || {
++      echo "ERROR: $CUTENSOR_ROOT/include/cutensor.h not found" >&2; exit 1;
++    }
++    RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$CUTENSOR_ROOT/include")
++    RT_LIBS="-L$CUTENSOR_ROOT/lib -lcutensor $RT_LIBS -Wl,-rpath,$CUTENSOR_ROOT/lib"
++    echo "         + native x86_64 cuTENSOR runtime from $CUTENSOR_ROOT"
++  fi
+   echo "         + native x86_64 CUDA vendor-library runtime"
+ elif [ "$TARGET" = "jetson-cpu" ]; then
+   CC=$AARCH64_CC

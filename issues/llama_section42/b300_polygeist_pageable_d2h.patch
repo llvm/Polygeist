@@ -1,0 +1,13 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8970,7 +8970,7 @@ void polygeist_cudnn_rmsnorm_f32(int32_t n, const float *x,
+     CUDA_CHECK(cudaMemcpyAsync(out_device, p->out, p->bytes,
+                                cudaMemcpyDeviceToDevice, g_stream));
+   else
+-    CUDA_CHECK(cudaMemcpyAsync(out, p->out, p->bytes,
+-                               cudaMemcpyDeviceToHost, g_stream));
++    CUDA_CHECK(cudaMemcpy(out, p->out, p->bytes,
++                          cudaMemcpyDeviceToHost));
+   timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
+ }

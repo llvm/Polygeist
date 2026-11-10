@@ -1,0 +1,515 @@
+{
+ "updated": "2026-10-28T01:13:20",
+ "suites": {
+  "negatives": {
+   "finished": "2026-10-28T00:20:13",
+   "seconds": 416.2,
+   "summary": {
+    "kernels": 70,
+    "near_misses": 61,
+    "positive_controls": 9,
+    "verdicts": {
+     "PASS_NO_MATCH": 47,
+     "PASS_EQUIVALENT_MATCH": 9,
+     "PASS_MATCH": 5,
+     "NUMERIC_FAIL_PIPELINE": 3,
+     "MATCH_NUMERIC_INCONCLUSIVE": 4,
+     "MISS": 2
+    },
+    "near_miss_pass": 56,
+    "false_positives": [],
+    "matcher_crashes": [],
+    "equivalent_matches": {
+     "axpy__missing_alpha": [
+      "netlib_daxpy_inc"
+     ],
+     "axpy__partial_range": [
+      "netlib_daxpy_inc"
+     ],
+     "gemm__missing_beta": [
+      "netlib_dgemm_nn_beta1"
+     ],
+     "gemv_n__missing_beta": [
+      "netlib_dgemv_t_beta1"
+     ],
+     "gemv_n__wrong_index_transposed": [
+      "netlib_dgemv_n"
+     ],
+     "gemv_t__missing_beta": [
+      "netlib_dgemv_n_beta1"
+     ],
+     "gemv_t__off_by_one": [
+      "netlib_dgemv_n_beta1"
+     ],
+     "gemv_t__partial_range": [
+      "netlib_dgemv_n"
+     ],
+     "ger__missing_alpha": [
+      "netlib_dger"
+     ]
+    },
+    "positive_controls_matched": {
+     "axpy__pos": [
+      "netlib_daxpy_inc"
+     ],
+     "gemm__pos": [
+      "netlib_dgemm_nn"
+     ],
+     "gemv_n__pos": [
+      "netlib_dgemv_t"
+     ],
+     "gemv_t__pos": [
+      "netlib_dgemv_n"
+     ],
+     "ger__pos": [
+      "netlib_dger"
+     ],
+     "symm__pos": [
+      "netlib_dsymm_ru"
+     ],
+     "syr2k__pos": [],
+     "syrk__pos": [
+      "netlib_dsyrk_ut"
+     ],
+     "trmm__pos": []
+    },
+    "by_kind": {
+     "extra_term": {
+      "PASS_NO_MATCH": 9
+     },
+     "missing_beta": {
+      "PASS_EQUIVALENT_MATCH": 5,
+      "MATCH_NUMERIC_INCONCLUSIVE": 1,
+      "PASS_NO_MATCH": 3
+     },
+     "off_by_one": {
+      "PASS_NO_MATCH": 8,
+      "PASS_EQUIVALENT_MATCH": 1
+     },
+     "partial_range": {
+      "PASS_EQUIVALENT_MATCH": 2,
+      "PASS_NO_MATCH": 7
+     },
+     "read_before_final": {
+      "PASS_NO_MATCH": 6,
+      "NUMERIC_FAIL_PIPELINE": 3
+     },
+     "wrong_index": {
+      "PASS_NO_MATCH": 9,
+      "MATCH_NUMERIC_INCONCLUSIVE": 1,
+      "PASS_EQUIVALENT_MATCH": 1
+     },
+     "wrong_triangle": {
+      "PASS_NO_MATCH": 5
+     }
+    },
+    "rtol": 1e-12,
+    "seeds": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   }
+  },
+  "aliasing": {
+   "finished": "2026-10-28T00:22:35",
+   "seconds": 27.3,
+   "summary": {
+    "explicit": {
+     "REJECTED": 6,
+     "MATCHED_CORRECT": 1,
+     "E2E_WRONG_MATCH_RAISE_BUG": 1,
+     "MATCHED_CORRECT_FLAGGED": 1
+    },
+    "call_site": {
+     "WRONG_UNDER_ALIAS_UNFLAGGED": 4,
+     "CORRECT_UNDER_ALIAS": 3,
+     "CORRECT_UNDER_ALIAS_FLAGGED": 1,
+     "WRONG_UNDER_ALIAS_FLAGGED": 2
+    },
+    "false_positives": [],
+    "e2e_wrong_matches_raise_bug": {
+     "gemm_C_is_A": "debufferize (memref-Linalg stage correct, --linalg-debufferize output wrong; the matcher faithfully matched unsound tensor IR)"
+    },
+    "unflagged_wrong_under_alias": [
+     "rt_gemm_A_is_C",
+     "rt_gemm_B_is_C",
+     "rt_gemv_x_is_y",
+     "rt_axpy_y_is_x_plus1"
+    ],
+    "note": "call-site cases call a correctly matched function with aliased pointers; C allows this without restrict.  'residual_control_under_alias' is the same raised IR lowered without matching: if it is also wrong the noalias assumption is pipeline-wide, not introduced by the matcher."
+   }
+  },
+  "numerics": {
+   "finished": "2026-10-28T00:25:15",
+   "seconds": 134.7,
+   "summary": {
+    "verdicts": {
+     "gemm": "PASS",
+     "2mm": "PASS",
+     "3mm": "PASS",
+     "atax": "PASS",
+     "bicg": "PASS",
+     "mvt": "PASS",
+     "gesummv": "PASS",
+     "gemver": "PASS",
+     "doitgen": "PASS",
+     "trisolv": "PASS",
+     "cholesky": "PASS",
+     "syrk": "PASS"
+    },
+    "pass": 12,
+    "kernels": 12,
+    "max_err": {
+     "gemm": 0.0,
+     "2mm": 0.0,
+     "3mm": 0.0,
+     "atax": 0.0,
+     "bicg": 0.0,
+     "mvt": 0.0,
+     "gesummv": 0.0,
+     "gemver": 4.3473287897862204e-16,
+     "doitgen": 0.0,
+     "trisolv": 0.0,
+     "cholesky": 1.8194359488480653e-16,
+     "syrk": 5.614866715836055e-16
+    },
+    "bit_exact": {
+     "gemm": true,
+     "2mm": true,
+     "3mm": true,
+     "atax": true,
+     "bicg": true,
+     "mvt": true,
+     "gesummv": true,
+     "gemver": false,
+     "doitgen": true,
+     "trisolv": true,
+     "cholesky": false,
+     "syrk": false
+    },
+    "runs_per_kernel": 20,
+    "seeds": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "rtol": 1e-12,
+    "size_configs": "n1 (all sizes 1), n2, nonsquare (7,5,11,3,..), medium (23,19,29,17,..)",
+    "tolerance": "per array incl. 64 guard elements: max|test-ref|/max|ref| <= 1e-12, NaN/Inf positions equal",
+    "sensitivity_controls": [
+     {
+      "control": "gemm launch with A/B operands swapped",
+      "verdict": "FAIL",
+      "expected": "FAIL",
+      "max_err": 1.612012886085969,
+      "ok": true
+     },
+     {
+      "control": "trisolv region launch with dtrsv_ltn instead of dtrsv_utn",
+      "verdict": "FAIL",
+      "expected": "FAIL",
+      "max_err": 0.03139131119854859,
+      "ok": true
+     }
+    ],
+    "large": {
+     "gemm": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "2mm": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "3mm": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "atax": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "bicg": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "mvt": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "gesummv": [
+      "PASS_EXACT",
+      0.0
+     ],
+     "gemver": [
+      "PASS_1e-12",
+      4.635918422315845e-16
+     ],
+     "doitgen": [
+      "PASS_EXACT",
+      0.0
+     ]
+    },
+    "large_tight_pass": 9
+   }
+  },
+  "irvariants": {
+   "finished": "2026-10-28T01:13:20",
+   "seconds": 2745.6,
+   "summary": {
+    "source_ir": "fresh raise of all 30 PolyBench kernels with the lib_v2 recipe",
+    "fresh_ir_identical_to_issues_lib_v2_polybench_raised": {
+     "2mm": false,
+     "3mm": false,
+     "adi": false,
+     "atax": false,
+     "bicg": false,
+     "cholesky": false,
+     "correlation": false,
+     "covariance": false,
+     "deriche": false,
+     "doitgen": false,
+     "durbin": false,
+     "fdtd-2d": false,
+     "floyd-warshall": false,
+     "gemm": false,
+     "gemver": false,
+     "gesummv": false,
+     "gramschmidt": false,
+     "heat-3d": false,
+     "jacobi-1d": false,
+     "jacobi-2d": false,
+     "lu": false,
+     "ludcmp": false,
+     "mvt": false,
+     "nussinov": false,
+     "seidel-2d": false,
+     "symm": false,
+     "syr2k": false,
+     "syrk": false,
+     "trisolv": false,
+     "trmm": false
+    },
+    "variants_generated": 245,
+    "variants_not_applicable": 55,
+    "variants_verifier_failed": 0,
+    "primary_excludes": "identity_pair (as in the production campaign)",
+    "egglog_retention": [
+     184,
+     208,
+     88.5
+    ],
+    "by_variant": {
+     "add_zero_lhs": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 22
+     },
+     "add_zero_rhs": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 22
+     },
+     "identity_pair": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 8
+     },
+     "mul_one_lhs": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 22
+     },
+     "mul_one_rhs": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 22
+     },
+     "reassociate_add": {
+      "inputs": 6,
+      "opportunities": 5,
+      "retained": 5
+     },
+     "reassociate_mul": {
+      "inputs": 6,
+      "opportunities": 10,
+      "retained": 10
+     },
+     "swap_add": {
+      "inputs": 26,
+      "opportunities": 25,
+      "retained": 25
+     },
+     "swap_add_mul": {
+      "inputs": 30,
+      "opportunities": 28,
+      "retained": 28
+     },
+     "swap_mul": {
+      "inputs": 27,
+      "opportunities": 28,
+      "retained": 28
+     }
+    },
+    "kernels_with_original_launches": {
+     "2mm": [
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn"
+     ],
+     "3mm": [
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn_beta0"
+     ],
+     "atax": [
+      "netlib_dgemv_n_beta0",
+      "netlib_dgemv_t_beta0"
+     ],
+     "bicg": [
+      "netlib_dgemv_n_beta0",
+      "netlib_dgemv_t_beta0"
+     ],
+     "cholesky": [
+      "netlib_dpotf2_u"
+     ],
+     "doitgen": [
+      "netlib_dgemv_n_beta0"
+     ],
+     "gemm": [
+      "netlib_dgemm_nn"
+     ],
+     "gemver": [
+      "netlib_dgemv_n_beta1",
+      "netlib_dgemv_t_beta1",
+      "netlib_daxpy_inc",
+      "netlib_dger",
+      "netlib_dger"
+     ],
+     "gesummv": [
+      "netlib_dgemv_t_beta0",
+      "netlib_dgemv_t_beta0",
+      "netlib_dscal_inc",
+      "netlib_daxpy_inc"
+     ],
+     "ludcmp": [
+      "netlib_dtrsv_ltn"
+     ],
+     "mvt": [
+      "netlib_dgemv_n_beta1",
+      "netlib_dgemv_t_beta1"
+     ],
+     "syr2k": [
+      "netlib_dsyr2k_ut"
+     ],
+     "syrk": [
+      "netlib_dsyrk_ut"
+     ],
+     "trisolv": [
+      "netlib_dtrsv_utn"
+     ],
+     "trmm": [
+      "netlib_dtrmm_rutu"
+     ]
+    },
+    "inputs_with_extra_launches": [],
+    "matcher_errors": [
+     "2mm__identity_pair: crash",
+     "3mm__identity_pair: crash",
+     "adi__identity_pair: crash",
+     "atax__identity_pair: crash",
+     "bicg__identity_pair: crash",
+     "correlation__identity_pair: crash",
+     "covariance__identity_pair: crash",
+     "deriche__identity_pair: crash",
+     "doitgen__identity_pair: crash",
+     "gesummv__identity_pair: crash"
+    ],
+    "production_reference": {
+     "egglog": "207/221 (93.7%)",
+     "syntactic": "98/221 (44.3%)",
+     "note": "production = old Term-formula matcher on campaign-recipe IR"
+    },
+    "campaign_recipe_inputs": {
+     "originals_with_v2_launch": [
+      "atax",
+      "bicg",
+      "cholesky",
+      "gemver",
+      "gesummv",
+      "ludcmp",
+      "mvt",
+      "trisolv",
+      "trmm"
+     ],
+     "originals": {
+      "2mm": [],
+      "3mm": [],
+      "adi": [],
+      "atax": [
+       "netlib_dgemv_n_beta1"
+      ],
+      "bicg": [
+       "netlib_dgemv_t_beta1"
+      ],
+      "cholesky": [
+       "netlib_dpotf2_u"
+      ],
+      "correlation": [],
+      "covariance": [],
+      "deriche": [],
+      "doitgen": [],
+      "durbin": [],
+      "fdtd-2d": [],
+      "floyd-warshall": [],
+      "gemm": [],
+      "gemver": [
+       "netlib_dgemv_t_beta1"
+      ],
+      "gesummv": [
+       "netlib_dscal_inc",
+       "netlib_daxpy_inc"
+      ],
+      "gramschmidt": [],
+      "heat-3d": [],
+      "jacobi-1d": [],
+      "jacobi-2d": [],
+      "lu": [],
+      "ludcmp": [
+       "netlib_dtrsv_ltn"
+      ],
+      "mvt": [
+       "netlib_dgemv_n_beta1"
+      ],
+      "nussinov": [],
+      "seidel-2d": [],
+      "symm": [],
+      "syr2k": [],
+      "syrk": [],
+      "trisolv": [
+       "netlib_dtrsv_utn"
+      ],
+      "trmm": [
+       "netlib_dtrmm_rutu"
+      ]
+     },
+     "variants_run": 71,
+     "retention": [
+      45,
+      69
+     ]
+    },
+    "syntactic_arm": "see ablation/results.json"
+   }
+  }
+ },
+ "last_invocation": {
+  "command": "scripts/correctness/lib_v2/tests_v2/run_all.py irvariants -j 8",
+  "seconds": 2745.6,
+  "finished": "2026-10-28T01:13:20"
+ }
+}

@@ -53,7 +53,7 @@ REASONS = {
     "atax": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
     "bicg": "CPU library passes; raised cuBLAS output is wrong; no canonical native-GPU adapter",
     "gemm": ("fresh Orin native CPU, raised OpenBLAS, raised cuBLAS, and normalized "
-             "PolyBenchGPU paths pass; KernelFaRer unavailable"),
+             "PolyBenchGPU paths pass; compatibility-patched x86 KernelFaRer passes"),
     "gemver": "CPU library and canonical PolyBenchGPU pass; raised cuBLAS output is wrong",
     "3mm": "canonical PolyBenchGPU passes; raised cuTensorNet output is all zero; CPU library unavailable",
     "gesummv": "CPU library and canonical PolyBenchGPU pass; raised CUDA path has an illegal memory access",
@@ -98,7 +98,11 @@ for row in rows:
         "fail" if kernel in PBGPU_FAIL else "unavailable"
     )
     row["modified_source"] = "true" if kernel in PBGPU_PASS else "false"
-    row["kernelfarer_status"] = "unavailable" if kernel in COMMON else "not_applicable"
+    row["kernelfarer_status"] = (
+        "pass" if kernel in {"gemm", "syr2k"} else
+        "partial" if kernel in {"2mm", "3mm"} else
+        "not_applicable"
+    )
     row["polly_status"] = "unavailable" if kernel in COMMON else "not_applicable"
     if kernel in COMMON:
         log = LOGS / kernel / "polly_correctness.log"

@@ -65,19 +65,25 @@ void polygeist_cublas_scovariance_row_major(
 void polygeist_cublas_dcorrelation_row_major(
     int32_t m, int32_t n, double sample_count, double *data, int32_t ldd,
     double *corr, int32_t ldc, double *mean, double *stddev);
+void polygeist_cublas_scorrelation_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *corr, int32_t ldc, float *mean, float *stddev);
 
-// NVIDIA cuSPARSE generic-API CSR SpMV, y = A*x. The explicit capacities are
-// derived from the MLIR memref descriptors; row_offsets[rows] supplies nnz.
+// NVIDIA cuSPARSE generic-API CSR SpMV, y = alpha*A*x + beta*y. The explicit
+// capacities are derived from the MLIR memref descriptors; row_offsets[rows]
+// supplies nnz.  beta = 0 does not read y.
 void polygeist_cusparse_spmv_csr_f32_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const float *values,
-    int32_t x_count, const float *x, int32_t y_count, float *y);
+    int32_t x_count, const float *x, int32_t y_count, float *y,
+    float alpha, float beta);
 void polygeist_cusparse_spmv_csr_f64_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const double *values,
-    int32_t x_count, const double *x, int32_t y_count, double *y);
+    int32_t x_count, const double *x, int32_t y_count, double *y,
+    double alpha, double beta);
 void polygeist_cusparse_spmm_csr_f32_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
@@ -877,16 +883,6 @@ void polygeist_cuda_copy_strided_2d_f32(
 void polygeist_cublas_broadcast_1d_to_2d_f32(
     int32_t axis, int32_t rows, int32_t cols,
     const float *X, float *Out);
-void polygeist_cuda_add_f32(
-    int32_t N, const float *X, const float *Y, float *Out);
-void polygeist_cuda_mask_select_f32(
-    int32_t N, int32_t pos, const float *Scores, float *Out);
-void polygeist_cuda_swiglu_f32(
-    int32_t N, const float *Gate, const float *Up, float *Out);
-void polygeist_cuda_rope_mulmul_f32(
-    int32_t M, int32_t N, const float *A, const float *B,
-    const float *C, const float *D, float *Out, int32_t add);
-
 // Generic cuTENSOR unary permutation ABI. The compiler flattens a proven
 // contiguous, identity-layout tensor to N elements and passes one stable
 // operation id instead of requiring one runtime function per math operator.

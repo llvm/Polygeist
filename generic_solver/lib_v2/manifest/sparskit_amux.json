@@ -1,0 +1,41 @@
+{
+  "routine": "sparskit_amux",
+  "source": "SPARSKIT2 BLASSM/matvec.f subroutine amux L34-L76 (md5 8c9ee5d16411920e357df19a7e359b8e), LGPL-2.1",
+  "notes": [
+    "y = A*x for a CSR matrix whose row pointers, column indices and value positions are 1-based (Fortran convention).",
+    "Indices are int (CUSPARSE_INDEX_32I) with CUSPARSE_INDEX_BASE_ONE, values double.",
+    "Recognition only: no runtime wrapper or ABI lowering exists for this target; a match is reported, not spliced."
+  ],
+  "specs": [
+    {
+      "name": "sparskit_amux",
+      "defines": {},
+      "source_lines": "matvec.f:L61-L73",
+      "target": {
+        "library": "cuSPARSE",
+        "call": "cusparseSpMV",
+        "recognition_only": true,
+        "fixed_args": {
+          "opA": "CUSPARSE_OPERATION_NON_TRANSPOSE",
+          "format": "CUSPARSE_FORMAT_CSR",
+          "index_base": "CUSPARSE_INDEX_BASE_ONE",
+          "index_type": "CUSPARSE_INDEX_32I",
+          "alpha": 1.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "y",
+        "a",
+        "ja",
+        "ia"
+      ],
+      "assumptions": [
+        "ia is non-decreasing with ia(1) >= 1 and 1 <= ja(k) <= ncol (a valid 1-based CSR matrix)"
+      ],
+      "deviations": []
+    }
+  ]
+}

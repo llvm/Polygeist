@@ -34,9 +34,11 @@
 #                       running --linalg-debufferize before the matcher.
 #                       Useful for memref-only compositions such as the
 #                       llama2.c RMSNorm/softmax patterns.
-#   --semantic-mlir     Resume from an already matched/composed tensor MLIR
-#                       artifact. The C input is still used for ABI metadata,
-#                       wrapper generation, and harness compilation.
+#   --semantic-mlir     Resume from an already matched/composed MLIR artifact.
+#                       With --whole-program, the artifact must contain the
+#                       complete transformed program and selected function;
+#                       otherwise it contains the extracted function and C is
+#                       used for ABI metadata and harness compilation.
 #   --whole-program     Compile the complete input through cgeist and transform
 #                       the selected function in place. The resulting module
 #                       retains main and all source helpers, and no native
@@ -196,11 +198,6 @@ done
 [ -z "$SEMANTIC_MLIR" ] || [ -f "$SEMANTIC_MLIR" ] || {
   echo "ERROR: semantic MLIR file $SEMANTIC_MLIR not found" >&2; exit 1;
 }
-if [ "$WHOLE_PROGRAM" -ne 0 ] && [ -n "$SEMANTIC_MLIR" ]; then
-  echo "ERROR: --whole-program requires a fresh semantic transformation; " \
-       "--semantic-mlir contains only an extracted function" >&2
-  exit 1
-fi
 case "$TARGET" in host|jetson-cpu|jetson) ;; *)
   echo "ERROR: --target must be 'host', 'jetson-cpu', or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
 esac
@@ -250,6 +247,12 @@ if [ -z "$FUNCTION" ]; then
     echo "       Use --function=NAME to specify it explicitly." >&2
     exit 1
   fi
+fi
+if [ "$WHOLE_PROGRAM" -ne 0 ] && [ -n "$SEMANTIC_MLIR" ]; then
+  grep -qE "func\.func .*@${FUNCTION}\(" "$SEMANTIC_MLIR" || {
+    echo "ERROR: whole-program semantic MLIR does not contain $FUNCTION" >&2
+    exit 1
+  }
 fi
 
 if [ -n "${POLYGEIST_BUILD_WORK_DIR:-}" ]; then
@@ -716,6 +719,37 @@ fi
 # Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
 sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
   $WORK/abi_canon.mlir
+# One-shot bufferization materialises every tensor temporary as a heap
+# allocation and nothing frees it, so each call leaks its scratch buffers and
+# pays fresh page faults. Bufferize here and insert deallocations with MLIR's
+# ownership-based pipeline; the lowering below then sees no tensors. The CUDA
+# runtime may still use registered host buffers after the function returns,
+# so the GPU target keeps the old behaviour. POLYGEIST_BUFFER_DEALLOC=0|1
+# overrides; if the pass rejects the module the build continues without it.
+BUFFER_DEALLOC=${POLYGEIST_BUFFER_DEALLOC:-auto}
+if [ "$BUFFER_DEALLOC" = auto ]; then
+  if [ "$TARGET" = jetson ]; then BUFFER_DEALLOC=0; else BUFFER_DEALLOC=1; fi
+fi
+if [ "$BUFFER_DEALLOC" != 0 ]; then
+  # Same tool as the lowering below (see the C-pointer ABI branch).
+  DEALLOC_OPT=("$MLIR_OPT")
+  if grep -qE 'polygeist\.(memref2pointer|pointer2memref)' $WORK/abi_canon.mlir; then
+    DEALLOC_OPT=("$MLIR_OPT" --allow-unregistered-dialect)
+    if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+      DEALLOC_OPT=(polygeist-opt --allow-unregistered-dialect)
+    fi
+  fi
+  if "${DEALLOC_OPT[@]}" --empty-tensor-to-alloc-tensor --lower-affine \
+       --one-shot-bufferize=bufferize-function-boundaries \
+       --ownership-based-buffer-deallocation \
+       --buffer-deallocation-simplification --bufferization-lower-deallocations \
+       $WORK/abi_canon.mlir -o $WORK/abi_dealloc.mlir 2>$WORK/dealloc.err; then
+    mv $WORK/abi_dealloc.mlir $WORK/abi_canon.mlir
+    echo "         + temporaries freed (ownership-based buffer deallocation)"
+  else
+    echo "  WARNING: buffer deallocation failed, temporaries will leak; see $WORK/dealloc.err" >&2
+  fi
+fi
 C_STYLE_ABI=0
 GPU_TO_LLVM_ARGS=()
 if [ "$DEVICE_WORKSPACE_PLANNED" -ne 0 ]; then

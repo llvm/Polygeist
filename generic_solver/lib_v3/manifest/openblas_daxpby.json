@@ -1,0 +1,64 @@
+{
+  "routine": "openblas_daxpby",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/axpby.c, kernel/arm/axpby.c",
+  "specs": [
+    {
+      "name": "openblas_daxpby",
+      "defines": {
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "OpenBLAS (CBLAS)",
+        "call": "cblas_daxpby",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        },
+        "notes": "no cuBLAS equivalent; not lowered by lower_v2.py (matching only)"
+      },
+      "args": [
+        "n",
+        "alpha",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "incx == 1, incy == 1",
+        "beta != 0"
+      ],
+      "deviations": [],
+      "source_lines": "interface/axpby.c:L57-L64 + kernel/arm/axpby.c:L31-L94"
+    },
+    {
+      "name": "openblas_daxpby_beta0",
+      "defines": {
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "OpenBLAS (CBLAS)",
+        "call": "cblas_daxpby",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0
+        },
+        "notes": "no cuBLAS equivalent; not lowered by lower_v2.py (matching only)"
+      },
+      "args": [
+        "n",
+        "alpha",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "incx == 1, incy == 1",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "source_lines": "interface/axpby.c:L57-L64 + kernel/arm/axpby.c:L31-L94"
+    }
+  ]
+}

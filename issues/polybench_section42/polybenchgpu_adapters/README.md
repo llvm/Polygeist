@@ -25,13 +25,20 @@ values are:
 - `CUDA/FDTD-2D/fdtd2d.cu`: `aa73d1266fdd173be5e2531c7ff2e8271e8d64ca9ce5409dd5b161924f05ddba`
 - `CUDA/GRAMSCHM/gramschmidt.cu`: `30f9138e7433dee3a9ce1324ca5d53ec84932b3b9ae49fb26ba2676114a26b89`
 - `CUDA/MVT/mvt.cu`: `44aa960a339f3702e82f4e9b2e7b29c90fae19b5a095fa1ccd0f8e6f6b76a87d`
+- `CUDA/SYRK/syrk.cu`: `7e208416e8b6c59b52ab9c2ba295c06802c2d1b48968374be6a6d6a618948f1f`
+- `CUDA/SYR2K/syr2k.cu`: `6e25029d1b77d257ed41ddee95f54ce22c4dd6ed026b53a6ee1e1d82c362f960`
 
-The repository contains six additional same-named CUDA programs that are not
+The repository contains four additional same-named CUDA programs that are not
 valid canonical baselines: ADI uses an older formulation; Jacobi-1D and
-Jacobi-2D replace the canonical second stencil with a copy; LU produces a
-different factor layout; and SYR2K/SYRK update the full matrix rather than the
-canonical lower triangle. They are recorded as unavailable, not silently
+Jacobi-2D replace the canonical second stencil with a copy; and LU produces a
+different factor layout. They are recorded as unavailable, not silently
 adapted into different algorithms.
+
+SYR2K and SYRK update the full matrix whereas canonical PolyBench/C exposes
+only the lower triangle as live output. Their adapters retain the upstream
+computational body but copy back and compare exactly the canonical lower
+triangle. They remain explicitly labelled modified-source normalization
+adapters, not untouched upstream programs or compiler matches.
 
 `run_polybenchgpu_native.sh` verifies the external repository commit before it
 cross-compiles. Nothing is compiled on the Jetson.

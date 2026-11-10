@@ -1,0 +1,16 @@
+kernel,dtype,dataset,status,correctness,e2e_min_ms,device_min_ms
+2mm,fp64,LARGE,pass,pass,20.874042004,20.856705
+3mm,fp64,LARGE,pass,pass,44.329117984,44.310719
+atax,fp64,LARGE,pass,pass,2.063252,2.050816
+bicg,fp64,LARGE,pass,pass,2.254973,2.243616
+covariance,fp64,LARGE,pass,pass,5931.515881985,5931.466309
+doitgen,fp64,LARGE,pass,pass,727.346057981,727.325439
+gemm,fp64,LARGE,pass,pass,13.681650013,13.663776
+gemver,fp64,LARGE,pass,pass,5.025458992,5.005824
+gesummv,fp64,LARGE,pass,pass,0.864549,0.853504
+mvt,fp64,LARGE,pass,pass,2.019024998,2.000928
+symm,fp64,LARGE,pass,pass,325.542052001,325.522797
+syr2k,fp64,LARGE,pass,pass,17.784081995,17.766239
+syrk,fp64,LARGE,pass,pass,7.616569012,7.598592
+trisolv,fp64,LARGE,pass,pass,10.051016986,10.0344
+trmm,fp64,LARGE,pass,pass,304.621248007,304.601685

@@ -1,6 +1,56 @@
 # PolyBench Section 4.2 Reproduction Status
 
-Last updated: 2026-09-08T22:02:00-07:00
+Last updated: 2026-09-10T18:20:00-07:00
+
+- PASS — Corrected the KernelFaRer multi-stage loop-placement defect that put a
+  complete BLAS call in the following loop header. Fresh FP32/LARGE, pinned,
+  single-thread, one-warmup/ten-sample runs now make two non-nested CBLAS calls
+  for `2mm` and three for `3mm`. Complete-output checks pass (`960,000` and
+  `880,000` values). Minima are `3967.405 -> 35.114 ms` (112.99x) for `2mm`
+  and `6477.873 -> 57.626 ms` (112.41x) for `3mm`.
+
+- SUPERSEDED — The earlier `2mm`/`3mm` KernelFaRer slowdown rows came from
+  incorrectly nested library calls in the compatibility port. Their raw data
+  remain retained as diagnostic evidence but are not the corrected result.
+- FIXED — A full raw-ledger-to-viewer audit found three additional related-work
+  figure omissions: eleven correctness-passing FP32 PolyBenchGPU overlap rows,
+  the valid B300 `trisolv` row, and the retained x86 native-correlation baseline.
+  The generators now read all FP32 PolyBenchGPU passes from the normalized CSV,
+  plot `trisolv`, and include correlation. Cross-worker B300 ratios are marked
+  secondary because native and raised FP32 ran on different physical B300s.
+
+## B300 native PolyBenchGPU FP32 campaign (2026-09-09)
+
+- PASS — Added a dedicated `b300.html` viewer page and landing-page card. It
+  exposes 136 visible rows across three tables: separated Polygeist/native
+  FP32 and FP64 precision results; all 60 PPCG, 21 PolyBench-ACC, and four
+  Ginsbach-region B300 rows; and 33 separately labelled x86 KernelFaRer, Pluto,
+  and Polly rows. Correctness failures remain visible, timing scopes and
+  datasets are explicit, and the page does not compute ratios across different
+  devices, datasets, or scopes. The focused page audit confirms every expected
+  suite and all 136 rows are present.
+- PASS — Generalized the B300 native-PolyBenchGPU runner from its FP64-only,
+  13-adapter configuration and ran all 15 CUDA programs that have a defensible
+  canonical PolyBench/C counterpart at `LARGE_DATASET`/FP32. Fourteen pass
+  complete-output correctness; Gram-Schmidt fails 431,605 of 2,640,000 values
+  and therefore has no accepted performance result. Every executed row retains
+  five same-process warmups and five synchronized E2E plus device samples.
+- PASS — Added explicitly modified-source SYRK and SYR2K normalization adapters.
+  The upstream kernels compute the full matrix, but the adapters return and
+  compare only the canonical lower-triangle live output. Both pass all
+  1,440,000 printed values. This is benchmark integration, not a compiler match.
+- UNAVAILABLE — The other six programs in the 21-program external CUDA tree are
+  not valid rows for this denominator: 2DCONV/3DCONV lack Section 4.2 canonical
+  counterparts; ADI is an older non-equivalent formulation; Jacobi-1D/Jacobi-2D
+  replace the second stencil with a copy; and LU produces a different factor
+  layout.
+- PARTIAL — B300 GPU clock locking was denied. The retained timings are
+  secondary non-fixed-clock evidence. The existing Polygeist FP32 and new
+  native CUDA campaigns also used different physical B300s, so the 12 overlap
+  ratios are labelled secondary rather than strict paper headline comparisons.
+  Paper-facing CSVs and methodology are under
+  `b300_polybenchgpu_fp32_2026-09-09/`; 118 MiB of raw logs/full-output dumps are
+  retained in the credential-free local B300 collection directory.
 
 ## Paper-analysis generation (2026-09-08)
 
@@ -30,7 +80,7 @@ Last updated: 2026-09-08T22:02:00-07:00
 - PASS — Generated a publication-specific GPU ledger with 13 native and 17 raised measurements, including 12 one-to-one device-time pairs. The provisional geometric-mean native/raised device speedup is 1.504235x; raised is faster in 9/12 pairs. Device, synchronized resident-wall, compiler-visible memory-device, and end-to-end scopes remain separate.
 - PASS — Generated reproducible SVG and PDF paper figures plus CSV, JSON, methodology, conversion-command, and raw-evidence links under `paper_analysis/`. The generator validates the five-warmup/five-sample contract rather than consuming the legacy one-warmup ledger.
 - PASS — Added `polybench-paper.html` to the viewer landing page and global paper-analysis navigation. It presents the two figures, per-kernel medians/IQRs, correctness gates, device and end-to-end GPU scopes, modified-source status, raw evidence, related-work status, and explicit incomplete experiments. After publishing fresh GEMM on both PolyBench pages, the rebuilt viewer passes all 5,579 local links across 1,589 HTML pages. URLs: `file:///tmp/ir_viewer/polybench.html` and `file:///tmp/ir_viewer/polybench-paper.html`.
-- PARTIAL — These figures are paper-layout-ready but remain publication-pending because the runner reported hardware/accelerator state as `N/A`; fixed power, clocks, fan, temperature, and throttling state have not yet been verified. KernelFaRer remains unavailable, and Polly is retained only as separately labelled x86 evidence.
+- PARTIAL — These figures are paper-layout-ready but remain publication-pending because the runner reported hardware/accelerator state as `N/A`; fixed power, clocks, fan, temperature, and throttling state have not yet been verified. Compatibility-patched KernelFaRer and Polly results are retained only as separately labelled x86 evidence.
 
 ## Strict recognition retraction (2026-09-07)
 
@@ -157,7 +207,10 @@ Native-GPU availability update: 2026-09-05
 - PASS — Final native C timing completed for all 30 kernels: five post-warmup samples per kernel, Clang 18 `-O3`, CPU 21 pinning, and 30/30 direct-call disassembly audits. The corrected native `deriche` median is 80.851 ms rather than the rejected zero result.
 - PASS — Accepted CPU timing ledger contains 64 rows: 30 native, 23 raised residual, seven correctness-approved OpenBLAS/CBLAS, and four correctness-approved Polly 14 rows. Every row has five samples and a median; `lu` is the sole correctness-passing residual without a timing because its warmup was killed by the host.
 - PASS — Polly 14 exact output correctness passes for the complete common subset: `gemm`, `syr2k`, `2mm`, and `3mm`. Accepted medians and speedups versus the audited Clang 18 native baseline are in `performance_cpu.csv`.
-- UNAVAILABLE — KernelFaRer is explicit for all four common-subset rows: both tested source revisions fail against the installed LLVM APIs, so no correctness or timing result is claimed.
+- SUPERSEDED — The initial unmodified KernelFaRer build attempts failed against
+  the installed LLVM APIs. A later 12-line `MatrixBuilder` compatibility patch
+  built commit `9d04406e59863512d6296f588d3fad815a01c536` with LLVM 14 and produced
+  the four separately labelled x86 results recorded at the top of this file.
 - PASS — Jetson recovery resolved every formerly blocked raised-GPU row to an explicit correctness failure. No raised-GPU timing is accepted: ten eligible configurations fail correctness or lowering, while twenty are unavailable because raising fails or no eligible full computational-library match exists.
 - PARTIAL — After generic atomic registration of overlapping mapped host operands and preventing whole-program IPA of the weak source kernel, audited raised-GPU correctness now passes for `2mm`, `atax`, `bicg`, `gemm`, `gemver`, `gesummv`, and `mvt`. `3mm` still returns an all-zero result through its cuTensorNet route; `gramschmidt` now completes instead of timing out but fails 1,598,673/2,640,000 values; `doitgen` still fails loop-carried tensor ABI lowering. No timing is accepted for the three remaining failures.
 - PASS — A generic, layout-checked rank-2 `A[m,k] * B[k,n] -> C[m,n]` route now retains zero initialization and dispatches the contraction to real cuBLAS instead of cuTensorNet. Its benchmark-name-independent matcher regression passes, and audited Jetson `3mm` correctness passes all 880,000 FP64 values exactly. The remaining raised-GPU failures are `doitgen` and `gramschmidt`.
@@ -247,7 +300,10 @@ The run is closed with explicit outcomes rather than fabricated substitutes. Nat
 - PASS — Correctness-gated Cholesky timing is complete. OpenBLAS `DPOTRF` has a 64.021 ms CPU-21-pinned median (29.975× versus native C's 1,919.037 ms). The blocked cuSOLVER/cuBLAS Jetson composition has a 543.584 ms device median and 632.020 ms end-to-end median. Each result discards one warmup and uses five accepted samples; the GPU ledger keeps device and end-to-end scopes separate.
 - PASS — Added a name-independent whole-operation covariance match that proves the mean reduction, centering, Gram product, sample-count normalization, and symmetric result before dispatch. Real OpenBLAS (`DGEMV` + `DGER` + `DGEMM`) and real cuBLAS (`DGEMV` + `DGER` + column `DGEMV`) both pass all 1,440,000 canonical LARGE/FP64 values. Correctness-gated medians are 82.939 ms on pinned x86 CPU 21 and 590.682 ms device / 659.460 ms end-to-end on Jetson; one warmup is discarded and five samples retained.
 - PASS — Added a name-independent whole-operation correlation match that proves mean, standard deviation with epsilon handling, standardization, triangular Gram calculation, symmetry, and unit diagonal. The external OpenBLAS and cuBLAS compositions both pass all 1,440,000 canonical LARGE/FP64 values exactly. Correctness-gated medians are 94.717 ms on pinned x86 CPU 21 and 774.067 ms device / 843.458 ms end-to-end on Jetson. This is separate from and in addition to the repaired residual CPU path and the normalized native PolyBenchGPU pass.
-- UNAVAILABLE — KernelFaRer was rechecked against the host inventory. LLVM 14 is still the only installed packaged LLVM tree; both retained KernelFaRer revisions fail its `MatrixBuilder`/`llvm::Value` API at compile time, and no compatible older LLVM is installed. The current inventory and both exact failure tails are retained in `logs/kernelfarer_toolchain_recheck_20260907.log`; no result is fabricated.
+- SUPERSEDED — This recheck accurately describes the unpatched revisions on
+  2026-09-07. The subsequent compatibility-patched LLVM 14 build and its four
+  correctness-passing program runs supersede the unavailable conclusion; the
+  original failure logs remain retained as rejected build attempts.
 - PASS — Regenerated the consolidated four-runtime results page after finalizing 30 explicit manifest rows and 74 accepted CPU records. Covariance and correlation display their newly correctness-gated OpenBLAS, native PolyBenchGPU, and raised cuBLAS measurements, with GPU device and end-to-end scopes separate. The full local audit passes 5,440 links across 1,587 HTML pages with zero broken targets. URL: `file:///tmp/ir_viewer/polybench.html`.
 - IN PROGRESS (2026-09-08) — Reopened measurement as a publication-protocol Orin campaign under `agents.md` and `PUBLICATION_BENCHMARK_METHODOLOGY.md`. Earlier x86 CPU timings, one-warmup GPU sweeps, and any linker-substitution experiments remain diagnostic and will not be reused as paper results. The required protocol is one selected Jetson AGX Orin, x86-host cross-compilation only, identical LARGE/FP64 sources and inputs, complete-output correctness before timing, five untimed warmups plus five synchronized samples in one process, pinned single-core/single-thread CPU runs, and separate resident device and end-to-end GPU scopes.
 - PASS (2026-09-08) — The publication path now builds an unchanged whole-program PolyBench/C GEMM through Cgeist, Linalg raising, semantic matching, external-library lowering, and final executable generation without weak symbols, linker substitution, or source rewriting. The focused compiler regressions pass. A native-versus-raised MINI/FP64 host probe passes all 500 printed values (`max_abs=0`, `max_rel=0`); this is a pipeline/correctness probe, not an accepted performance result.

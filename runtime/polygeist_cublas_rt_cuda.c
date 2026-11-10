@@ -1672,8 +1672,8 @@ static void polygeist_cusparse_spmv_csr_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const void *values, int32_t x_count, const void *x,
-    int32_t y_count, void *y, cudaDataType value_type, size_t value_size,
-    const char *timing_name) {
+    int32_t y_count, void *y, double alpha_value, double beta_value,
+    cudaDataType value_type, size_t value_size, const char *timing_name) {
   if (rows <= 0)
     return;
   if (!row_offsets || !column_indices || !values || !x || !y ||
@@ -1718,8 +1718,10 @@ static void polygeist_cusparse_spmv_csr_sized(
   CUSPARSE_CHECK(
       cusparseCreateDnVec(&vector_y, rows, device_ptrs[4], value_type));
 
-  double alpha64 = 1.0, beta64 = 0.0;
-  float alpha32 = 1.0f, beta32 = 0.0f;
+  // y = alpha*A*x + beta*y; the scalars come from the matched application
+  // code (cuSPARSE does not read y when beta is zero).
+  double alpha64 = alpha_value, beta64 = beta_value;
+  float alpha32 = (float)alpha_value, beta32 = (float)beta_value;
   const void *alpha = value_type == CUDA_R_64F ? (const void *)&alpha64
                                                 : (const void *)&alpha32;
   const void *beta = value_type == CUDA_R_64F ? (const void *)&beta64
@@ -1751,22 +1753,22 @@ void polygeist_cusparse_spmv_csr_f32_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const float *values, int32_t x_count, const float *x,
-    int32_t y_count, float *y) {
+    int32_t y_count, float *y, float alpha, float beta) {
   polygeist_cusparse_spmv_csr_sized(
       rows, row_offset_count, row_offsets, column_index_count, column_indices,
-      value_count, values, x_count, x, y_count, y, CUDA_R_32F, sizeof(float),
-      "cusparseSpMV_CSR_f32");
+      value_count, values, x_count, x, y_count, y, alpha, beta, CUDA_R_32F,
+      sizeof(float), "cusparseSpMV_CSR_f32");
 }
 
 void polygeist_cusparse_spmv_csr_f64_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const double *values, int32_t x_count, const double *x,
-    int32_t y_count, double *y) {
+    int32_t y_count, double *y, double alpha, double beta) {
   polygeist_cusparse_spmv_csr_sized(
       rows, row_offset_count, row_offsets, column_index_count, column_indices,
-      value_count, values, x_count, x, y_count, y, CUDA_R_64F, sizeof(double),
-      "cusparseSpMV_CSR_f64");
+      value_count, values, x_count, x, y_count, y, alpha, beta, CUDA_R_64F,
+      sizeof(double), "cusparseSpMV_CSR_f64");
 }
 
 void polygeist_cusparse_spmm_csr_f32_sized(
@@ -2243,7 +2245,7 @@ void polygeist_cusparse_spmv_jds_f32_sized(
   for (int32_t iteration = 0; iteration < repetitions; ++iteration)
     polygeist_cusparse_spmv_csr_f32_sized(
         rows, rows + 1, device_rows, nnz, device_columns, nnz, device_values,
-        x_count, x, y_count, y);
+        x_count, x, y_count, y, 1.0f, 0.0f);
   sync_stream_if_outside_pipeline();
   if (device_values) DEVICE_FREE(device_values);
   if (device_columns) DEVICE_FREE(device_columns);
@@ -2265,10 +2267,11 @@ void polygeist_cusparse_spmv_csr_f32_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const float *values, int32_t x_count, const float *x,
-    int32_t y_count, float *y) {
+    int32_t y_count, float *y, float alpha, float beta) {
   (void)rows; (void)row_offset_count; (void)row_offsets;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  (void)alpha; (void)beta;
   cusparse_disabled();
 }
 
@@ -2276,10 +2279,11 @@ void polygeist_cusparse_spmv_csr_f64_sized(
     int32_t rows, int32_t row_offset_count, const int32_t *row_offsets,
     int32_t column_index_count, const int32_t *column_indices,
     int32_t value_count, const double *values, int32_t x_count, const double *x,
-    int32_t y_count, double *y) {
+    int32_t y_count, double *y, double alpha, double beta) {
   (void)rows; (void)row_offset_count; (void)row_offsets;
   (void)column_index_count; (void)column_indices; (void)value_count;
   (void)values; (void)x_count; (void)x; (void)y_count; (void)y;
+  (void)alpha; (void)beta;
   cusparse_disabled();
 }
 
@@ -3844,6 +3848,67 @@ void polygeist_cublas_dcorrelation_row_major(
         d_corr + (size_t)column * (size_t)ldc, 1));
   CUBLAS_CHECK(cublasDcopy(g_handle, n, d_ones, 1, d_corr, ldc + 1));
   timing_gpu_end("cublasDcorrelationRowMajor", m, n, 0, host_start_ms);
+  CUDA_CHECK(cudaFree(d_ones));
+}
+
+void polygeist_cublas_scorrelation_row_major(
+    int32_t m, int32_t n, float sample_count, float *data, int32_t ldd,
+    float *corr, int32_t ldc, float *mean, float *stddev) {
+  if (m <= 0 || n <= 0) return;
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  void *hosts[4] = {data, corr, mean, stddev};
+  size_t sizes[4] = {
+      (size_t)m * (size_t)ldd * sizeof(float),
+      (size_t)n * (size_t)ldc * sizeof(float),
+      (size_t)n * sizeof(float), (size_t)n * sizeof(float)};
+  void *devices[4];
+  register_host_operands_safe(hosts, sizes, devices, 4);
+  float *d_data = (float *)devices[0];
+  float *d_corr = (float *)devices[1];
+  float *d_mean = (float *)devices[2];
+  float *d_stddev = (float *)devices[3];
+  const int32_t ones_count = m > n ? m : n;
+  float *host_ones = (float *)malloc((size_t)ones_count * sizeof(float));
+  if (!host_ones) abort();
+  for (int32_t i = 0; i < ones_count; ++i) host_ones[i] = 1.0f;
+  float *d_ones = NULL;
+  CUDA_CHECK(cudaMalloc((void **)&d_ones, (size_t)ones_count * sizeof(float)));
+  CUDA_CHECK(cudaMemcpyAsync(d_ones, host_ones,
+                             (size_t)ones_count * sizeof(float),
+                             cudaMemcpyHostToDevice, g_stream));
+  free(host_ones);
+  const float mean_alpha = 1.0f / sample_count;
+  const float zero = 0.0f;
+  const float root_count = sqrtf(sample_count);
+  const float one = 1.0f;
+  timing_gpu_begin();
+  CUBLAS_CHECK(cublasSgemv(g_handle, CUBLAS_OP_N, n, m, &mean_alpha,
+                           d_data, ldd, d_ones, 1, &zero, d_mean, 1));
+  for (int32_t column = 0; column < n; ++column) {
+    float column_mean;
+    CUDA_CHECK(cudaMemcpyAsync(&column_mean, d_mean + column, sizeof(float),
+                               cudaMemcpyDeviceToHost, g_stream));
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    const float negative_mean = -column_mean;
+    CUBLAS_CHECK(cublasSaxpy(g_handle, m, &negative_mean, d_ones, 1,
+                             d_data + column, ldd));
+    float norm = 0.0f;
+    CUBLAS_CHECK(cublasSnrm2(g_handle, m, d_data + column, ldd, &norm));
+    float sigma = norm / root_count;
+    if (sigma <= 0.1f) sigma = 1.0f;
+    CUDA_CHECK(cudaMemcpyAsync(d_stddev + column, &sigma, sizeof(float),
+                               cudaMemcpyHostToDevice, g_stream));
+    const float scale = 1.0f / (root_count * sigma);
+    CUBLAS_CHECK(cublasSscal(g_handle, m, &scale, d_data + column, ldd));
+  }
+  for (int32_t column = 0; column < n; ++column)
+    CUBLAS_CHECK(cublasSgemv(
+        g_handle, CUBLAS_OP_N, n, m, &one, d_data, ldd,
+        d_data + column, ldd, &zero,
+        d_corr + (size_t)column * (size_t)ldc, 1));
+  CUBLAS_CHECK(cublasScopy(g_handle, n, d_ones, 1, d_corr, ldc + 1));
+  timing_gpu_end("cublasScorrelationRowMajor", m, n, 0, host_start_ms);
   CUDA_CHECK(cudaFree(d_ones));
 }
 
@@ -10158,197 +10223,6 @@ void polygeist_cublas_broadcast_1d_to_2d_f32(
   timing_gpu_end("cublasBroadcast1DTo2D_f32", rows, cols, axis, host_start_ms);
   DEVICE_FREE(dOnes);
   free(host_ones);
-}
-
-void polygeist_cuda_add_f32(
-    int32_t N, const float *X, const float *Y, float *Out) {
-  if (N <= 0) return;
-  polygeist_cublas_init();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t bytes = (size_t)N * sizeof(float);
-  float *dX = (float *)register_host_safe((void *)X, bytes);
-  float *dY = (float *)register_host_safe((void *)Y, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
-  const float alpha = 1.0f;
-
-  timing_gpu_begin();
-  CUDA_CHECK(cudaMemcpyAsync(dOut, dX, bytes, cudaMemcpyDeviceToDevice,
-                             g_stream));
-  CUBLAS_CHECK(cublasSaxpy(g_handle, N, &alpha, dY, 1, dOut, 1));
-  timing_gpu_end("cudaAdd_f32", N, 1, 0, host_start_ms);
-}
-
-void polygeist_cuda_mask_select_f32(
-    int32_t N, int32_t pos, const float *Scores, float *Out) {
-  if (N <= 0) return;
-  polygeist_cublas_init();
-  ensure_cudnn();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t bytes = (size_t)N * sizeof(float);
-  float *keep_h = (float *)malloc(bytes);
-  float *bias_h = (float *)malloc(bytes);
-  if (!keep_h || !bias_h) {
-    fprintf(stderr, "polygeist_cuda_mask_select_f32: malloc failed\n");
-    abort();
-  }
-  for (int32_t i = 0; i < N; ++i) {
-    int drop = i > pos;
-    keep_h[i] = drop ? 0.0f : 1.0f;
-    bias_h[i] = drop ? -3.4028234663852886e38f : 0.0f;
-  }
-
-  float *dScores = (float *)register_host_safe((void *)Scores, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
-  float *dKeep = NULL;
-  float *dBias = NULL;
-  DEVICE_MALLOC((void **)&dKeep, bytes);
-  DEVICE_MALLOC((void **)&dBias, bytes);
-
-  cudnnTensorDescriptor_t desc;
-  cudnnOpTensorDescriptor_t mul_desc, add_desc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&desc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&add_desc));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      add_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-
-  float one = 1.0f;
-  float zero = 0.0f;
-  timing_gpu_begin();
-  CUDA_CHECK(cudaMemcpyAsync(dKeep, keep_h, bytes, cudaMemcpyHostToDevice,
-                             g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(dBias, bias_h, bytes, cudaMemcpyHostToDevice,
-                             g_stream));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, desc, dScores,
-                            &one, desc, dKeep,
-                            &zero, desc, dOut));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
-                            &one, desc, dOut,
-                            &one, desc, dBias,
-                            &zero, desc, dOut));
-  timing_gpu_end("cudaMaskSelect_f32", N, 1, 0, host_start_ms);
-
-  cudnnDestroyOpTensorDescriptor(mul_desc);
-  cudnnDestroyOpTensorDescriptor(add_desc);
-  cudnnDestroyTensorDescriptor(desc);
-  DEVICE_FREE(dKeep);
-  DEVICE_FREE(dBias);
-  pipeline_host_free(keep_h);
-  pipeline_host_free(bias_h);
-}
-
-void polygeist_cuda_swiglu_f32(
-    int32_t N, const float *Gate, const float *Up, float *Out) {
-  if (N <= 0) return;
-  polygeist_cublas_init();
-  ensure_cudnn();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t bytes = (size_t)N * sizeof(float);
-  float *dGate = (float *)register_host_safe((void *)Gate, bytes);
-  float *dUp = (float *)register_host_safe((void *)Up, bytes);
-  float *dOut = (float *)register_host_safe(Out, bytes);
-  float *dSigmoid = NULL;
-  DEVICE_MALLOC((void **)&dSigmoid, bytes);
-
-  cudnnTensorDescriptor_t desc;
-  cudnnActivationDescriptor_t act_desc;
-  cudnnOpTensorDescriptor_t mul_desc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&desc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
-  CUDNN_CHECK(cudnnCreateActivationDescriptor(&act_desc));
-  CUDNN_CHECK(cudnnSetActivationDescriptor(
-      act_desc, CUDNN_ACTIVATION_SIGMOID, CUDNN_PROPAGATE_NAN, 0.0));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-
-  float one = 1.0f;
-  float zero = 0.0f;
-  timing_gpu_begin();
-  CUDNN_CHECK(cudnnActivationForward(
-      g_cudnn, act_desc, &one, desc, dGate, &zero, desc, dSigmoid));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, desc, dGate,
-                            &one, desc, dSigmoid,
-                            &zero, desc, dOut));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, desc, dOut,
-                            &one, desc, dUp,
-                            &zero, desc, dOut));
-  timing_gpu_end("cudaSwiGLU_f32", N, 1, 0, host_start_ms);
-
-  cudnnDestroyOpTensorDescriptor(mul_desc);
-  cudnnDestroyActivationDescriptor(act_desc);
-  cudnnDestroyTensorDescriptor(desc);
-  DEVICE_FREE(dSigmoid);
-}
-
-void polygeist_cuda_rope_mulmul_f32(
-    int32_t M, int32_t N, const float *A, const float *B,
-    const float *C, const float *D, float *Out, int32_t add) {
-  if (M <= 0 || N <= 0) return;
-  polygeist_cublas_init();
-  ensure_cudnn();
-  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-
-  size_t mat_bytes = (size_t)M * (size_t)N * sizeof(float);
-  size_t vec_bytes = (size_t)N * sizeof(float);
-  float *dA = (float *)register_host_safe((void *)A, mat_bytes);
-  float *dB = (float *)register_host_safe((void *)B, vec_bytes);
-  float *dC = (float *)register_host_safe((void *)C, mat_bytes);
-  float *dD = (float *)register_host_safe((void *)D, vec_bytes);
-  float *dOut = (float *)register_host_safe(Out, mat_bytes);
-  float *dTmp = NULL;
-  DEVICE_MALLOC((void **)&dTmp, mat_bytes);
-
-  cudnnTensorDescriptor_t mat_desc, vec_desc;
-  cudnnOpTensorDescriptor_t mul_desc, add_desc;
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&mat_desc));
-  CUDNN_CHECK(cudnnCreateTensorDescriptor(&vec_desc));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(mat_desc, CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT, 1, 1, M, N));
-  CUDNN_CHECK(cudnnSetTensor4dDescriptor(vec_desc, CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT, 1, 1, 1, N));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&mul_desc));
-  CUDNN_CHECK(cudnnCreateOpTensorDescriptor(&add_desc));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      mul_desc, CUDNN_OP_TENSOR_MUL, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-  CUDNN_CHECK(cudnnSetOpTensorDescriptor(
-      add_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_PROPAGATE_NAN));
-
-  float one = 1.0f;
-  float zero = 0.0f;
-  float sign = add ? 1.0f : -1.0f;
-  timing_gpu_begin();
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, mat_desc, dA,
-                            &one, vec_desc, dB,
-                            &zero, mat_desc, dOut));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, mul_desc,
-                            &one, mat_desc, dC,
-                            &one, vec_desc, dD,
-                            &zero, mat_desc, dTmp));
-  CUDNN_CHECK(cudnnOpTensor(g_cudnn, add_desc,
-                            &one, mat_desc, dOut,
-                            &sign, mat_desc, dTmp,
-                            &zero, mat_desc, dOut));
-  timing_gpu_end(add ? "cudaRopeMulMulAdd_f32" : "cudaRopeMulMulSub_f32",
-                 M, N, 0, host_start_ms);
-
-  cudnnDestroyOpTensorDescriptor(mul_desc);
-  cudnnDestroyOpTensorDescriptor(add_desc);
-  cudnnDestroyTensorDescriptor(mat_desc);
-  cudnnDestroyTensorDescriptor(vec_desc);
-  DEVICE_FREE(dTmp);
 }
 
 #if POLYGEIST_HAS_CUTENSOR

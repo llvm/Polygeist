@@ -47,8 +47,9 @@ static void run(void) { FUNCTION(a[0], a[1], op, x, y); }
 #define FUNCTION mfem_pa_mass_apply_3d_stage_sliced
 #define OP_SIZE (125 * MFEM_BENCH_NE)
 #define X_SIZE (64 * MFEM_BENCH_NE)
-extern void FUNCTION(const double *, const double *, const double *,
-                     const double *, double *);
+extern void FUNCTION(const double *basis, const double *basis_transpose,
+                     const double *operator_data, const double *input,
+                     double *output);
 static void run(void) { FUNCTION(a[0], a[1], op, x, y); }
 #elif defined(BENCH_DIFFUSION_2D)
 #define BENCH_NAME "diffusion_apply_2d"
@@ -63,8 +64,11 @@ static void run(void) { FUNCTION(a[0], a[1], a[2], a[3], op, x, y); }
 #define FUNCTION mfem_pa_diffusion_apply_3d_stage_sliced
 #define OP_SIZE (750 * MFEM_BENCH_NE)
 #define X_SIZE (64 * MFEM_BENCH_NE)
-extern void FUNCTION(const double *, const double *, const double *,
-                     const double *, const double *, const double *, double *);
+extern void FUNCTION(const double *basis, const double *gradient,
+                     const double *basis_transpose,
+                     const double *gradient_transpose,
+                     const double *operator_data, const double *input,
+                     double *output);
 static void run(void) { FUNCTION(a[0], a[1], a[2], a[3], op, x, y); }
 #elif defined(BENCH_CONVECTION_2D)
 #define BENCH_NAME "convection_apply_2d"

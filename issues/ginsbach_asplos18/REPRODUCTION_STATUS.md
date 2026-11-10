@@ -1,120 +1,51 @@
 # Ginsbach ASPLOS 2018 independent reproduction status
 
-Last updated: 2026-09-07 18:00 PDT
+Last updated: 2026-09-07 18:45 PDT
 
-## Active external-library reduction work (2026-09-07)
+## Strict recognition audit and retractions (2026-09-07)
 
-- CUTCP's seventh reconstructed scalar reduction now has an exact library
-  route. The original `src/base/output.c::write_lattice_summary` region widens
-  FP32 lattice values to FP64, takes the absolute value, and accumulates in
-  FP64. A new generic matcher recognizes that exact typed expression and
-  lowers it to a CUB transform-reduce with an FP64 result. The exact retained
-  source IR emits one `cubAbsSum_f32_f64_memref` launch and then one
-  `polygeist_cub_abs_sum_f32_f64` runtime call, with zero residual launches.
-  Focused matcher, ABI-lowering, and independent CPU-reference regressions all
-  pass. The completed CUDA 12.6 AArch64 `sm_87` library and reference
-  executable were cross-compiled on x86 and passed 3/3 on Orin #2 with the
-  independently expected result 16.375. Median host-observed runtime was
-  2.569824 ms and median CUDA-event device runtime was 2.117280 ms. No source,
-  MLIR, or CUDA compilation occurred on the Jetson. Together with the six
-  exact-source cuDNN min/max routes, all seven reconstructed CUTCP scalar
-  sites now match and lower. The new absolute-sum test is standalone rather
-  than a complete CUTCP application run, and correspondence to the paper's
-  seven occurrences remains inferred. Retained details:
-  `logs/cutcp_abs_sum_mixed_20260907.md`.
-- The original NPB CG Class S driver has now been recomposed with the
-  source-faithful raised `conj_grad` helper containing five distinct static
-  external-library sites: two cuSPARSE SpMV, two cuBLAS Ddot, and one CUB
-  squared-L2 transform-reduce. All five lower to runtime calls with zero
-  residual launches. The completed AArch64 CUDA 12.6 `sm_87` executable and
-  CUB companion were cross-compiled on the x86 host, then passed NASA
-  verification 3/3 on Orin #2. Every run produced zeta
-  `8.5971775078648E+00` with relative error `1.0331046659065E-15`.
-  Benchmark-reported time was 0.08 s in every run; median rate was 855.66
-  Mop/s and median process elapsed was 0.275 s. The earlier three-route run
-  reported median 501.82 Mop/s and 0.397 s process elapsed, but this
-  same-board historical comparison was not interleaved and is only
-  indicative. The whole-file structural count of eight includes duplication
-  after `conj_grad` call-site inlining; it is not eight distinct source
-  occurrences. Retained details:
-  `logs/npb_cg_five_routes_20260907.md`.
-- CG direct-reduction work now recognizes zero-seeded FP32/FP64 sum of squares
-  as `cublas[D/S]dot(x,x)`, a two-output self-dot/dot reduction as two exact
-  dot calls, and `sum((x-y)^2)` as a CUB transform-reduce plus sum. The real
-  retained `cg.c` therefore increases from four to eight production launches:
-  four cuSPARSE SpMV, three cuBLAS Ddot, and one CUB squared-L2 reduction. ABI
-  lowering emits the corresponding eight runtime calls and leaves no launches
-  behind. Positive, nonzero-seed negative, focused lowering, and CPU reference
-  checks pass. A CUDA 12.6 AArch64 `sm_87` companion and completed smoke-test
-  executable were cross-compiled on the x86 host; both FP32 and FP64 passed
-  3/3 runs on Orin #2 with the independently expected result 34.0. No source,
-  MLIR, or CUDA compilation occurred on the Jetson. The first deployment found
-  an older board-side companion without the new symbol; restaging the new
-  library under the canonical name resolved it. Retained implementation and
-  silicon details: `logs/cg_direct_reductions_20260907.md` in the isolated
-  audit worktree, plus
-  `scripts/correctness/logs/cg_squared_l2_fixed_20260907_20260907_165833.silicon.log`.
-- Expected-match subset rerun after commits `0bcdb646` and `887b131e`:
-  BT, CG, IS, UA, CUTCP, SGEMM, SPMV, and STENCIL. All 39 selected
-  translation units passed source translation, affine-to-Linalg raising, and
-  the production matcher without error diagnostics. The matcher emitted 30
-  raw `kernel.launch` operations: BT 8, CG 4, IS 6, UA 3, CUTCP 6, and one
-  each for SGEMM, SPMV, and STENCIL. API breakdown: six CUB histograms, three
-  cuBLAS DAXPBY, one cuBLAS DGEMM, one cuBLAS DGEMV, one cuBLAS SGEMM, six
-  cuDNN min/max reductions, one cuDNN stencil, five cuSPARSE SpMV operations,
-  and six zero-fill launches. This is a current-corpus structural count, not
-  yet a count on the paper's occurrence denominator. Retained summary:
-  `logs/expected_match_subset_20260907.csv` in the isolated audit worktree.
-- Polygeist implementation work is isolated in worktree
-  `/home/arjaiswal/Polygeist-ginsbach-reductions`, branch
-  `audit/ginsbach-reductions`, based on `70340a75936fd5bdc1384bbd6aefce1ff8ce4984`.
-- CUTCP source/IR reconstruction identifies the seven Figure 16 scalar
-  occurrences with high confidence: six seeded `fminf`/`fmaxf` coordinate
-  folds in `get_atom_extent` and one FP32-input/FP64-accumulator absolute sum
-  in `write_lattice_summary`. This is source-to-count evidence, not yet
-  original-tool confirmation.
-- The six coordinate folds already raise to six `linalg.generic` reductions.
-  A new generic, function-name-independent matcher recognizes all 6/6 as
-  seeded strided FP32 min/max and selects cuDNN reduction calls. ABI lowering
-  emits six `polygeist_cudnn_reduce_strided_f32` calls, and both focused lit
-  regressions pass. The nested
-  `memref<?x!llvm.struct<(memref<?x4xf32>, i32)>>` C-ABI blocker is fixed on
-  the isolated audit branch: `polygeist-opt` now registers the transitional
-  C-pointer interfaces independently of dialect load order and keeps C-ABI
-  preparation in the same registered MLIR context. A second C-ABI defect that
-  emitted an empty-index LLVM GEP for rank-zero memrefs was also fixed. The
-  exact original `src/base/readatom.c::get_atom_extent` now raises, matches all
-  six sites, emits six cuDNN runtime calls, translates to LLVM, builds for x86
-  and AArch64, and passes the independent nontrivial harness on both the host
-  and Orin (`max 19 31 14`, `min -11 -7 -5`). The AArch64 executable was
-  cross-compiled on x86; no source was compiled on the Jetson. These are now
-  six exact-source Polygeist executable/correctness/silicon passes, while the
-  correspondence to the paper's seven CUTCP occurrences remains inferred.
-  Retained logs: `logs/cutcp_strided_minmax_20260907.log` and
-  `scripts/correctness/logs/cutcp_atom_extent_exact_fix_20260907_143318.silicon.log`
-  in the isolated worktree.
-- The seventh absolute sum cannot be mapped exactly to `cublasSasum`, because
-  that API returns FP32. The implemented route instead uses CUB transform
-  reduction, preserving the source's FP32-to-FP64 conversion before `fabs`
-  and its FP64 accumulation/result type.
-- DC has been triaged before adding another GPU route. The six paper-reported
-  scalar occurrences still have no confirmed source locations. Six plausible
-  source loops are bit-mask construction, two population counts, a binomial
-  coefficient recurrence, tuple-bitset construction, and a maximum over
-  per-task counts, but this list is explicitly inferred. The exact raised IR
-  is dominated by loop-carried shift/OR/count state rather than associative
-  array reductions. Only the per-task maximum maps directly to CUB
-  `DeviceReduce::Max`, and its extent is the small `nTasks` value, making GPU
-  offload unjustified. DC is therefore classified as a missing associative
-  memory representation plus profitability issue, not as six missing CUB
-  matcher rules. Retained analysis: `logs/dc_library_route_triage_20260907.md`.
-- FT is the next implementation bucket. Its five units translate and raise,
-  but `fft3d.c::fftXYZ` remains 23 nested `affine.for`, `scf.for`, and
-  `scf.while` operations with no `linalg.generic`; the existing matcher only
-  recognizes a direct 1D DFT tensor form. The required next step is a tested
-  3D complex-double cuFFT ABI followed by whole-algorithm Stockham FFT
-  recognition. This is a loop/algorithm representation gap, not absence of a
-  target library.
+The project now requires every library selection to be derived solely from
+the computation: operations, dataflow, memory/indexing structure, loop bounds,
+control flow, types, and proven semantics. Benchmark names, paths, source
+function or symbol names, source text, line numbers, argument positions, and
+manifest identity are forbidden match inputs. Renaming a function or moving
+the same computation to another file must not change the match.
+
+The audit removed the following noncompliant routes and retracted their
+automatic/end-to-end claims:
+
+- **FT:** the `fftXYZ` helper adapter and padded cuFFT application builder were
+  direct whole-function substitution. FT has **0 compliant automatic matches**.
+  Its Stockham FFT remains a loop/algorithm-representation gap; the former
+  correctness and timing result is excluded from matcher and performance
+  totals.
+- **EP:** the fused Gaussian statistics route was an assertion-checked source
+  text rewrite. It is removed. The three directly evidenced paper occurrences
+  (`q[l]`, `sx`, and `sy`) remain **0/3 Polygeist matches**. A separate inferred
+  final `gc` sum is structurally recognized as one generic CUB sum, but is not
+  one of those three confirmed locations and has no full-application claim.
+- **MG:** matcher dispatch on `resid`, `psinv`, and `rprj3` was name-based. The
+  renderer, dedicated ABI route, application builder, and tests are removed.
+  MG has **0 compliant executable stencil matches** until a name-independent
+  structural rule is implemented.
+- **CG and IS:** their full-application executables deleted `conj_grad` or `rank`
+  from the original object and linked an extracted replacement. These are
+  manual compositions, not untouched automatic whole-program transformations.
+  Their builders/adapters are removed and their application results are
+  excluded. Structural IR matches may still be reported separately.
+- **UA:** existing application results use manual composition and are excluded
+  from automatic whole-program totals pending an untouched-source pipeline.
+- **ATen special cases:** name-specific renderers for bilinear upsampling,
+  compressed-block conversion, all/any, NaN sum, sparse norm, joint scaling,
+  arg-reduction, fixed pooling backward, sparse index conversion, quantized
+  column offsets, adjacent difference, and embedding-bag counts are removed.
+  Previously generated artifacts from those paths are stale and must be
+  regenerated before any claim.
+
+Neutral ABI wrappers may select which transformed entry point a test invokes,
+but may not select the library or matched algorithm. Stored logs from removed
+routes are historical debugging evidence only and must not be cited as
+automatic matching, correctness, silicon, or performance results.
 
 ## Claim discipline
 

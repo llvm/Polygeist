@@ -1,10 +1,9 @@
-// XFAIL: *
 // RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s --only-kernel=cutensornetContraction2_f64 | sed '/^[[:space:]]*\/\/ CHECK/d' | FileCheck %s
 
-// Known safety gap: an adjacent zero-fill of an unrelated tensor must not
+// An adjacent zero-fill of an unrelated tensor must not
 // establish overwrite (beta=0) semantics for a contraction that accumulates
-// into another tensor.  Keep this focused test XFAIL until the rewrite proves
-// the initializer-to-destination dataflow/alias chain.
+// into another tensor.  The rewrite must prove the initializer-to-destination
+// dataflow/alias chain.
 
 #map = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 #map1 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>

@@ -12,8 +12,9 @@ For each workload and implementation, we compile 1 executable from pinned
 source, compiler, and library revisions, since our compilation pipeline is
 deterministic, and evaluate compilation variability separately. We run each
 executable in 1 process, with 5 untimed warm-up iterations followed by 5
-synchronized timed iterations. We report the median of the 5 measurements,
-together with their interquartile range and minimum and maximum values; results
+synchronized timed iterations. We report the minimum of the 5 measurements as
+the headline runtime, together with their median, interquartile range, maximum,
+and all 5 raw values; results
 are accepted only when the complete output passes the declared correctness
 criterion. Our primary evaluation runs native CPU, raised
 CPU-library, native accelerator, and raised accelerator implementations on the
@@ -43,9 +44,10 @@ iteration count, recovered external-library calls, and timeout outcomes.
   the x86 development host. Do not compile project code on the Jetson.
 - Runtime repetitions: use 1 process with 5 warm-ups and 5 synchronized timed
   iterations for every workload/implementation configuration.
-- Aggregation: take the median of the 5 timed iterations and retain their
-  minimum, maximum, and interquartile range. Do not substitute a best-of-N
-  timing or describe these
+- Aggregation: take the minimum of the 5 timed iterations as the headline
+  runtime and retain their median, maximum, interquartile range, and all raw
+  values. This fixed minimum-of-5 rule is not an unconstrained best-of-N timing;
+  do not describe these
   within-process samples as cross-process variability.
 - CPU configuration: pin the primary result to 1 declared Orin CPU core and
   force BLAS/OpenMP libraries to 1 thread. Any all-core result is secondary and

@@ -1,0 +1,545 @@
+{
+ "lost_any": false,
+ "rows": [
+  {
+   "kernel": "2mm",
+   "base": {
+    "linalg": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "3mm",
+   "base": {
+    "linalg": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "adi",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "atax",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "bicg",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "cholesky",
+   "base": {
+    "linalg": [],
+    "region": [
+     "netlib_dpotf2_u"
+    ],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dpotf2_u"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "correlation",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "covariance",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "deriche",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "doitgen",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_n_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_n_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "durbin",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "fdtd-2d",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "floyd-warshall",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "gemm",
+   "base": {
+    "linalg": [
+     "netlib_dgemm_nn"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemm_nn"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "gemver",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1",
+     "netlib_daxpy_inc"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1",
+     "netlib_daxpy_inc"
+    ],
+    "region": [
+     "netlib_dger",
+     "netlib_dger"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": [
+    "netlib_dger",
+    "netlib_dger"
+   ]
+  },
+  {
+   "kernel": "gesummv",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_t_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_t_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "region": [
+     "netlib_dscal_inc",
+     "netlib_daxpy_inc"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": [
+    "netlib_daxpy_inc",
+    "netlib_dscal_inc"
+   ]
+  },
+  {
+   "kernel": "gramschmidt",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "heat-3d",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "jacobi-1d",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "jacobi-2d",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "lu",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "ludcmp",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dtrsv_ltn"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": [
+    "netlib_dtrsv_ltn"
+   ]
+  },
+  {
+   "kernel": "mvt",
+   "base": {
+    "linalg": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1"
+    ],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "nussinov",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "seidel-2d",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "symm",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "syr2k",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dsyr2k_ut"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": [
+    "netlib_dsyr2k_ut"
+   ]
+  },
+  {
+   "kernel": "syrk",
+   "base": {
+    "linalg": [],
+    "region": [
+     "netlib_dsyrk_ut"
+    ],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dsyrk_ut"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "trisolv",
+   "base": {
+    "linalg": [],
+    "region": [
+     "netlib_dtrsv_utn"
+    ],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dtrsv_utn"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": []
+  },
+  {
+   "kernel": "trmm",
+   "base": {
+    "linalg": [],
+    "region": [],
+    "notes": []
+   },
+   "new": {
+    "linalg": [],
+    "region": [
+     "netlib_dtrmm_rutu"
+    ],
+    "notes": []
+   },
+   "lost": [],
+   "gained": [
+    "netlib_dtrmm_rutu"
+   ]
+  }
+ ]
+}

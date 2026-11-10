@@ -1,0 +1,40 @@
+component	field	value
+polygeist	commit	2716bebcb56c608d7fb5fb6a51bc076214cc7bdd
+polygeist	tree	c8f3e7f7895d34af6ee88ea06985b36dd632695e
+polygeist	origin	git@github.com:arpitj1/Polygeist.git
+polygeist	tracked_worktree	dirty
+snu_npb_mirror	commit	4f2aa1b4d3127dbb3612c8aef24b24c69e83013c
+snu_npb_mirror	tree	c5538f40860faa6a3c8b013086a089d635a6c26a
+snu_npb_mirror	origin	https://github.com/akshay9594/SNU_NPB-1.0.3.git
+snu_npb_mirror	tracked_worktree	clean
+snu_npb_second_mirror	commit	65f2efb9104ac9c1e8de13512110d388b0129507
+snu_npb_second_mirror	tree	d5c8e393dbef3db6e2882cf2cc0adbe9fef20883
+snu_npb_second_mirror	origin	https://gitlab.srcc.msu.ru/shvets.pavel.srcc/locality.git
+snu_npb_second_mirror	tracked_worktree	clean
+parboil_mirror	commit	ccf3d3126f1754ca85528722f4ced5894ccb852b
+parboil_mirror	tree	884a9b6ec010434d87422c7505ec20ddc1efe5aa
+parboil_mirror	origin	https://github.com/yuhc/gpu-parboil.git
+parboil_mirror	tracked_worktree	clean
+author_idl_demo	commit	1edfb4086a07f1efe2f6b4cf568fe58a2feecfb8
+author_idl_demo	tree	e14fed0e0ebd01ab399b6367a7a922aa05ba1f40
+author_idl_demo	origin	https://github.com/asplos18ginsbach/IDL-Demo.git
+author_idl_demo	tracked_worktree	clean
+related_candl_llvm	commit	5d26ac5896055927238d4c3ec01608ae07b7f9d0
+related_candl_llvm	tree	945ecbf975f0846a4de40e561fd73c5166997f1f
+related_candl_llvm	origin	https://github.com/cc18ginsbach/llvm.git
+related_candl_llvm	tracked_worktree	clean
+author_clang	commit	818167bc99a0f5538a2676bf876e5c598d1b449b
+author_clang	tree	49fc0cfb5e63fbec383c1e8aaa676afbb057c2e2
+author_clang	origin	https://github.com/asplos18ginsbach/clang.git
+author_clang	tracked_worktree	clean
+parsed_idiom_reconstruction	commit	e1fc2eb154550adfd54a5fda943ad92e90411d48
+parsed_idiom_reconstruction	tree	ad9e1f2d9d5ad6f5d4c523c5285668b9b2752e15
+parsed_idiom_reconstruction	origin	https://github.com/cc18ginsbach/llvm.git
+parsed_idiom_reconstruction	tracked_worktree	clean
+host	uname	Linux arpitj-dev 5.15.0-151-generic #161-Ubuntu SMP Tue Jul 22 14:25:40 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+host	cc	cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+host	cxx	c++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+host	cmake	cmake version 3.24.0
+host	ninja	1.11.1.git.kitware.jobserver-1
+host	ghc	8.8.4
+host	pypy	Python 2.7.18 (7.3.9+dfsg-1, Apr 01 2022, 21:40:34)

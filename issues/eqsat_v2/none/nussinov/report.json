@@ -1,0 +1,19 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "op48",
+   "func": "kernel_nussinov",
+   "iters": [
+    "reduction"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  }
+ ]
+}

@@ -28,6 +28,17 @@ METRICS = {
     "raised": ("raised_resident_wall_us",),
 }
 
+# These raised kernels call runtime wrappers backed by the opt-in legacy cuDNN
+# forward/backward-data plan cache. Keep the setting off for every other ATen
+# measurement so the environment records exactly which optimization applies.
+CUDNN_PLAN_CACHE_KERNELS = {
+    "aten_conv3d",
+    "aten_conv_transpose2d",
+    "aten_conv_transpose3d_cpu",
+    "aten_dilated_convolution_cpu",
+    "aten_slow_conv3d_backward_input_cpu",
+}
+
 
 def read_batch(batch: int) -> list[dict[str, str]]:
     path = CAMPAIGN / f"batch_{batch:02d}.csv"
@@ -102,8 +113,13 @@ done
 exit "$rc"
 """
     else:
-        body = """for kernel in "${kernels[@]}"; do
-  "$here/$kernel" || rc=1
+        cached = "|".join(sorted(CUDNN_PLAN_CACHE_KERNELS))
+        body = f"""for kernel in "${{kernels[@]}}"; do
+  case "$kernel" in
+    {cached}) plan_cache=1 ;;
+    *) plan_cache=0 ;;
+  esac
+  POLYGEIST_CUDNN_PLAN_CACHE="$plan_cache" "$here/$kernel" || rc=1
 done
 exit "$rc"
 """
@@ -119,9 +135,6 @@ def jetson_run(wrapper: Path, extras: list[Path], args: str, tag: str,
         "POLYGEIST_JETSON_RUNS": "1",
         "POLYGEIST_JETSON_RUN_ARGS": args,
         "POLYGEIST_JETSON_EXTRA_LIBS": " ".join(str(path) for path in extras),
-        # Publication resident timing warms library plans before sampling.
-        "POLYGEIST_CUDNN_PLAN_CACHE": env.get(
-            "POLYGEIST_CUDNN_PLAN_CACHE", "1"),
     })
     command = [str(RUN_JETSON)]
     if dry_run:

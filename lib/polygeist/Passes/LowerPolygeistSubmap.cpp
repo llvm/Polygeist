@@ -948,8 +948,69 @@ struct ComposeTensorInputSubmapIntoLinalgGeneric
       return rewriter.notifyMatchFailure(
           generic, "tensor input-submap composition loses a loop dimension");
 
+    // Replacing a view by its base keeps every element address but not the
+    // operand extent, and Linalg infers each loop bound from the first
+    // operand dimension whose map result is exactly that loop dim.  A stencil
+    // interior view `A[d0 + 1, d1]` of an n x n base has extent n - 2 along
+    // d1; composed onto the base, d1 would range over n and the generic would
+    // write past its (n-2)-wide output (heap corruption in PolyBench
+    // jacobi-2d / heat-3d after multi-root debufferization).  The memref
+    // sibling (ComposeSubmapIntoLinalgGeneric) preserves extents with a
+    // subview; do the same here: wherever a composed result is a bare loop
+    // dim, slice the base (offset 0, so the composed map is unchanged) to that
+    // loop's extent as given by the *original* operands.
+    // Source of each loop's extent among the ORIGINAL operands (first bare
+    // occurrence, as Linalg's shape-to-loops inference does).
+    unsigned numLoops = generic.getNumLoops();
+    SmallVector<std::pair<int64_t, int64_t>> extentSource(numLoops, {-1, -1});
+    for (OpOperand &operand : generic->getOpOperands())
+      for (auto [pos, r] :
+           llvm::enumerate(maps[operand.getOperandNumber()].getResults()))
+        if (auto d = r.dyn_cast<AffineDimExpr>())
+          if (d.getPosition() < numLoops &&
+              extentSource[d.getPosition()].first < 0)
+            extentSource[d.getPosition()] = {operand.getOperandNumber(), pos};
     for (WorkItem &item : work)
-      generic->setOperand(item.operandNumber, item.submap.getBase());
+      for (AffineExpr r : item.composedMap.getResults())
+        if (auto d = r.dyn_cast<AffineDimExpr>())
+          if (d.getPosition() >= numLoops ||
+              extentSource[d.getPosition()].first < 0)
+            return rewriter.notifyMatchFailure(
+                generic, "cannot recover the extent of a composed loop dim");
+
+    Location loc = generic.getLoc();
+    rewriter.setInsertionPoint(generic);
+    auto loopExtent = [&](unsigned loop) -> OpFoldResult {
+      auto [opIdx, pos] = extentSource[loop];
+      Value v = generic->getOperand(opIdx);
+      if (auto view = v.getDefiningOp<SubmapOp>())
+        return view.getSizes()[pos];
+      return tensor::getMixedSize(rewriter, loc, v, pos);
+    };
+    SmallVector<Value> newOperands;
+    for (WorkItem &item : work) {
+      Value base = item.submap.getBase();
+      bool needsSlice = false;
+      SmallVector<OpFoldResult> offsets, sizes, strides;
+      for (auto [j, r] : llvm::enumerate(item.composedMap.getResults())) {
+        offsets.push_back(rewriter.getIndexAttr(0));
+        strides.push_back(rewriter.getIndexAttr(1));
+        if (auto d = r.dyn_cast<AffineDimExpr>()) {
+          sizes.push_back(loopExtent(d.getPosition()));
+          needsSlice = true;
+        } else {
+          sizes.push_back(tensor::getMixedSize(rewriter, loc, base, j));
+        }
+      }
+      newOperands.push_back(
+          needsSlice ? rewriter
+                           .create<tensor::ExtractSliceOp>(loc, base, offsets,
+                                                           sizes, strides)
+                           .getResult()
+                     : base);
+    }
+    for (auto [item, operand] : llvm::zip(work, newOperands))
+      generic->setOperand(item.operandNumber, operand);
     generic.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(tentativeMaps));
     return success();
   }
@@ -2268,6 +2329,11 @@ namespace mlir {
 namespace polygeist {
 std::unique_ptr<Pass> createLowerPolygeistSubmapPass() {
   return std::make_unique<LowerPolygeistSubmapPass>();
+}
+
+void populateNormalizeTensorReductionOutputPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<NormalizeTensorReductionOutputSubmap>(patterns.getContext());
 }
 } // namespace polygeist
 } // namespace mlir

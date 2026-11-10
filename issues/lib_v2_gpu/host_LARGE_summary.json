@@ -1,0 +1,671 @@
+{
+ "gemm": {
+  "kernel": "gemm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 8.6,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 5.9,
+  "calls": {
+   "cublasDgemm": 1
+  },
+  "lib_entries": {
+   "cublasDgemm": "dgemm_"
+  },
+  "compare": {
+   "n_ref": 1100000,
+   "n_out": 1100000,
+   "exact_text": false,
+   "max_abs": 4.433786671143025e-12,
+   "max_rel": 1.1602415413930659e-14,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 7.614908680491337e-15
+  },
+  "status": "PASS"
+ },
+ "2mm": {
+  "kernel": "2mm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 9.3,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 5.1,
+  "calls": {
+   "cublasDgemm": 2
+  },
+  "lib_entries": {
+   "cublasDgemm": "dgemm_"
+  },
+  "compare": {
+   "n_ref": 960000,
+   "n_out": 960000,
+   "exact_text": false,
+   "max_abs": 7.8580342233181e-10,
+   "max_rel": 4.303259389892322e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 2.9445943026763976e-15
+  },
+  "status": "PASS"
+ },
+ "3mm": {
+  "kernel": "3mm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 9.5,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 3.7,
+  "calls": {
+   "cublasDgemm": 3
+  },
+  "lib_entries": {
+   "cublasDgemm": "dgemm_"
+  },
+  "compare": {
+   "n_ref": 880000,
+   "n_out": 880000,
+   "exact_text": false,
+   "max_abs": 4.802132025361061e-10,
+   "max_rel": 4.5385929255218186e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 3.5105531620746364e-15
+  },
+  "status": "PASS"
+ },
+ "atax": {
+  "kernel": "atax",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 10.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.2,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "dgemv_"
+  },
+  "compare": {
+   "n_ref": 2100,
+   "n_out": 2100,
+   "exact_text": false,
+   "max_abs": 4.511093720793724e-10,
+   "max_rel": 6.15060544857037e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 5.7342179082658675e-15
+  },
+  "status": "PASS"
+ },
+ "bicg": {
+  "kernel": "bicg",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 9.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.4,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "dgemv_"
+  },
+  "compare": {
+   "n_ref": 4000,
+   "n_out": 4000,
+   "exact_text": false,
+   "max_abs": 1.8189894035458565e-12,
+   "max_rel": 3.802938857311815e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 2.600413434115568e-15
+  },
+  "status": "PASS"
+ },
+ "mvt": {
+  "kernel": "mvt",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 15.2,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.3,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "dgemv_"
+  },
+  "compare": {
+   "n_ref": 4004,
+   "n_out": 4004,
+   "exact_text": false,
+   "max_abs": 1.8758328224066645e-12,
+   "max_rel": 3.754387575805801e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 2.822203850796021e-15
+  },
+  "status": "PASS"
+ },
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 15.1,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dscal_inc",
+    "call": "polygeist_v2_cublasDscal",
+    "cpu_entry": "dscal_",
+    "gpu_entry": "cublasDscal_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0",
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "daxpy_",
+    "dgemv_",
+    "dscal_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDscal"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.2,
+  "calls": {
+   "cublasDgemv": 2,
+   "cublasDscal": 1,
+   "cublasDaxpy": 1
+  },
+  "lib_entries": {
+   "cublasDgemv": "dgemv_",
+   "cublasDscal": "dscal_",
+   "cublasDaxpy": "daxpy_"
+  },
+  "compare": {
+   "n_ref": 1300,
+   "n_out": 1300,
+   "exact_text": false,
+   "max_abs": 2.1600499167107046e-12,
+   "max_rel": 2.496923614641921e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 1.851414065070634e-15
+  },
+  "status": "PASS"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 15.7,
+  "launches": [
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc",
+   "netlib_dger+netlib_dger"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "daxpy_",
+    "dgemv_",
+    "dger_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDger"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.2,
+  "calls": {
+   "cublasDger": 2,
+   "cublasDgemv": 2,
+   "cublasDaxpy": 1
+  },
+  "lib_entries": {
+   "cublasDger": "dger_",
+   "cublasDgemv": "dgemv_",
+   "cublasDaxpy": "daxpy_"
+  },
+  "compare": {
+   "n_ref": 2000,
+   "n_out": 2000,
+   "exact_text": false,
+   "max_abs": 6.866455078125e-05,
+   "max_rel": 3.196411466957932e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 2.7361045960114826e-15
+  },
+  "status": "PASS"
+ },
+ "doitgen": {
+  "kernel": "doitgen",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 9.7,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 124.9,
+  "calls": {
+   "cublasDgemv": 21000
+  },
+  "lib_entries": {
+   "cublasDgemv": "dgemv_"
+  },
+  "compare": {
+   "n_ref": 3360000,
+   "n_out": 3360000,
+   "exact_text": false,
+   "max_abs": 9.237055564881302e-14,
+   "max_rel": 2.3730393230266736e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 1.7483041230034992e-15
+  },
+  "status": "PASS"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 16.9,
+  "launches": [
+   {
+    "spec": "netlib_dtrsv_utn",
+    "call": "polygeist_v2_cublasDtrsv",
+    "cpu_entry": "dtrsv_",
+    "gpu_entry": "cublasDtrsv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dtrsv_utn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dtrsv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDtrsv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 0.2,
+  "calls": {
+   "cublasDtrsv": 1
+  },
+  "lib_entries": {
+   "cublasDtrsv": "dtrsv_"
+  },
+  "compare": {
+   "n_ref": 2000,
+   "n_out": 2000,
+   "exact_text": false,
+   "max_abs": 4.32390234728075e-12,
+   "max_rel": 2.011758768284523e-11,
+   "verdict": "PASS_LOOSE",
+   "normwise_rel": 8.65212859690878e-12
+  },
+  "status": "PASS"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 20.5,
+  "launches": [
+   {
+    "spec": "netlib_dpotf2_u",
+    "call": "polygeist_v2_cusolverDnDpotrf",
+    "cpu_entry": "dpotrf_",
+    "gpu_entry": "cusolverDnDpotrf"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dpotf2_u"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dpotrf_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cusolverDnDpotrf"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 98.4,
+  "calls": {
+   "cusolverDnDpotrf": 1
+  },
+  "lib_entries": {
+   "cusolverDnDpotrf": "dpotrf_"
+  },
+  "compare": {
+   "n_ref": 2001000,
+   "n_out": 2001000,
+   "exact_text": false,
+   "max_abs": 1.504352198367087e-13,
+   "max_rel": 1.0370035649700362e-12,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 1.5043521983668498e-13
+  },
+  "status": "PASS"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 13.8,
+  "launches": [
+   {
+    "spec": "netlib_dsyrk_ut",
+    "call": "polygeist_v2_cublasDsyrk",
+    "cpu_entry": "dsyrk_",
+    "gpu_entry": "cublasDsyrk_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dsyrk_ut"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dsyrk_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDsyrk"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "run_seconds": 6.3,
+  "calls": {
+   "cublasDsyrk": 1
+  },
+  "lib_entries": {
+   "cublasDsyrk": "dsyrk_"
+  },
+  "compare": {
+   "n_ref": 1440000,
+   "n_out": 1440000,
+   "exact_text": false,
+   "max_abs": 4.718003765447065e-12,
+   "max_rel": 3.301434993021346e-14,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 7.901092620812967e-15
+  },
+  "status": "PASS"
+ }
+}

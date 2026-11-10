@@ -61,18 +61,26 @@ module {
       %sample_count: f64, %data: memref<?x?xf64>,
       %corr: memref<?x?xf64>, %mean: memref<?xf64>,
       %stddev: memref<?xf64>) { kernel.yield }
+  kernel.defn @cublasScorrelationRowMajor_memref(
+      %sample_count: f32, %data: memref<?x?xf32>,
+      %corr: memref<?x?xf32>, %mean: memref<?xf32>,
+      %stddev: memref<?xf32>) { kernel.yield }
 
-  // NVIDIA cuSPARSE generic-API CSR SpMV. These are ABI contracts: the
-  // matcher proves the row-pointer traversal and multiply-add reduction, and
-  // the CUDA runtime invokes cusparseSpMV with alpha=1 and beta=0.
+  // NVIDIA cuSPARSE generic-API CSR SpMV, y = alpha*A*x + beta*y. These are
+  // ABI contracts: the matcher proves the row-pointer traversal and
+  // multiply-add reduction and derives alpha/beta from how the row result is
+  // written back (y[r] = sum: 1, 0; y[r] += sum: 1, 1; scaled forms pass the
+  // application's scalars).  As in cuSPARSE, beta = 0 does not read y.
   kernel.defn @cusparseSpMV_CSR_f32_memref(
       %rows: index, %row_offsets: memref<?xi32>,
       %column_indices: memref<?xi32>, %values: memref<?xf32>,
-      %x: memref<?xf32>, %y: memref<?xf32>) { kernel.yield }
+      %x: memref<?xf32>, %y: memref<?xf32>, %alpha: f32, %beta: f32) {
+    kernel.yield }
   kernel.defn @cusparseSpMV_CSR_f64_memref(
       %rows: index, %row_offsets: memref<?xi32>,
       %column_indices: memref<?xi32>, %values: memref<?xf64>,
-      %x: memref<?xf64>, %y: memref<?xf64>) { kernel.yield }
+      %x: memref<?xf64>, %y: memref<?xf64>, %alpha: f64, %beta: f64) {
+    kernel.yield }
   // C = A*B for row-major dense B/C and an i32-indexed f32 CSR matrix A.
   kernel.defn @cusparseSpMM_CSR_f32_memref(
       %rows: index, %row_offsets: memref<?xi32>,
@@ -1034,122 +1042,6 @@ module {
       linalg.yield %sv : f32
     } -> tensor<?x?x?x?x?x?xf32>
     kernel.yield %result : tensor<?x?x?x?x?x?xf32>
-  }
-
-  kernel.defn @cudaAdd_f32_tensor(
-      %x: tensor<?xf32>, %y: tensor<?xf32>,
-      %out: tensor<?xf32>) -> tensor<?xf32> {
-    %result = linalg.generic {
-      indexing_maps = [
-        affine_map<(d0) -> (d0)>,
-        affine_map<(d0) -> (d0)>,
-        affine_map<(d0) -> (d0)>
-      ],
-      iterator_types = ["parallel"]
-    } ins(%x, %y : tensor<?xf32>, tensor<?xf32>) outs(%out : tensor<?xf32>) {
-    ^bb0(%xv: f32, %yv: f32, %ov: f32):
-      %sum = arith.addf %xv, %yv : f32
-      linalg.yield %sum : f32
-    } -> tensor<?xf32>
-    kernel.yield %result : tensor<?xf32>
-  }
-
-  kernel.defn @cudaMaskSelect_f32_tensor(
-      %scores: tensor<?xf32>, %out: tensor<?xf32>, %pos: i32)
-      -> tensor<?xf32> {
-    %one = arith.constant 1.000000e+00 : f32
-    %neg_inf = arith.constant -3.40282347E+38 : f32
-    %result = linalg.generic {
-      indexing_maps = [
-        affine_map<(d0) -> (d0)>,
-        affine_map<(d0) -> (d0)>
-      ],
-      iterator_types = ["parallel"]
-    } ins(%scores : tensor<?xf32>) outs(%out : tensor<?xf32>) {
-    ^bb0(%sv: f32, %ov: f32):
-      %i = linalg.index 0 : index
-      %ii = arith.index_cast %i : index to i32
-      %pred = arith.cmpi sgt, %ii, %pos : i32
-      %drop_i = arith.extui %pred : i1 to i32
-      %drop = arith.sitofp %drop_i : i32 to f32
-      %keep = arith.subf %one, %drop : f32
-      %kept = arith.mulf %keep, %sv : f32
-      %masked = arith.mulf %drop, %neg_inf : f32
-      %r = arith.addf %kept, %masked : f32
-      linalg.yield %r : f32
-    } -> tensor<?xf32>
-    kernel.yield %result : tensor<?xf32>
-  }
-
-  kernel.defn @cudaSwiGLU_f32_tensor(
-      %gate: tensor<?xf32>, %up: tensor<?xf32>,
-      %out: tensor<?xf32>) -> tensor<?xf32> {
-    %one = arith.constant 1.000000e+00 : f32
-    %result = linalg.generic {
-      indexing_maps = [
-        affine_map<(d0) -> (d0)>,
-        affine_map<(d0) -> (d0)>,
-        affine_map<(d0) -> (d0)>
-      ],
-      iterator_types = ["parallel"]
-    } ins(%gate, %up : tensor<?xf32>, tensor<?xf32>) outs(%out : tensor<?xf32>) {
-    ^bb0(%g: f32, %u: f32, %ov: f32):
-      %ng = arith.negf %g : f32
-      %e = math.exp %ng : f32
-      %den = arith.addf %e, %one : f32
-      %silu = arith.divf %g, %den : f32
-      %r = arith.mulf %silu, %u : f32
-      linalg.yield %r : f32
-    } -> tensor<?xf32>
-    kernel.yield %result : tensor<?xf32>
-  }
-
-  kernel.defn @cudaRopeMulMulSub_f32_tensor(
-      %a: tensor<?x?xf32>, %b: tensor<?xf32>,
-      %c: tensor<?x?xf32>, %d: tensor<?xf32>,
-      %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
-    %result = linalg.generic {
-      indexing_maps = [
-        affine_map<(d0, d1) -> (d0, d1)>,
-        affine_map<(d0, d1) -> (d1)>,
-        affine_map<(d0, d1) -> (d0, d1)>,
-        affine_map<(d0, d1) -> (d1)>,
-        affine_map<(d0, d1) -> (d0, d1)>
-      ],
-      iterator_types = ["parallel", "parallel"]
-    } ins(%a, %b, %c, %d : tensor<?x?xf32>, tensor<?xf32>,
-          tensor<?x?xf32>, tensor<?xf32>) outs(%out : tensor<?x?xf32>) {
-    ^bb0(%av: f32, %bv: f32, %cv: f32, %dv: f32, %ov: f32):
-      %p0 = arith.mulf %av, %bv : f32
-      %p1 = arith.mulf %cv, %dv : f32
-      %r = arith.subf %p0, %p1 : f32
-      linalg.yield %r : f32
-    } -> tensor<?x?xf32>
-    kernel.yield %result : tensor<?x?xf32>
-  }
-
-  kernel.defn @cudaRopeMulMulAdd_f32_tensor(
-      %a: tensor<?x?xf32>, %b: tensor<?xf32>,
-      %c: tensor<?x?xf32>, %d: tensor<?xf32>,
-      %out: tensor<?x?xf32>) -> tensor<?x?xf32> {
-    %result = linalg.generic {
-      indexing_maps = [
-        affine_map<(d0, d1) -> (d0, d1)>,
-        affine_map<(d0, d1) -> (d1)>,
-        affine_map<(d0, d1) -> (d0, d1)>,
-        affine_map<(d0, d1) -> (d1)>,
-        affine_map<(d0, d1) -> (d0, d1)>
-      ],
-      iterator_types = ["parallel", "parallel"]
-    } ins(%a, %b, %c, %d : tensor<?x?xf32>, tensor<?xf32>,
-          tensor<?x?xf32>, tensor<?xf32>) outs(%out : tensor<?x?xf32>) {
-    ^bb0(%av: f32, %bv: f32, %cv: f32, %dv: f32, %ov: f32):
-      %p0 = arith.mulf %av, %bv : f32
-      %p1 = arith.mulf %cv, %dv : f32
-      %r = arith.addf %p0, %p1 : f32
-      linalg.yield %r : f32
-    } -> tensor<?x?xf32>
-    kernel.yield %result : tensor<?x?xf32>
   }
 
   // GEMM-ALPHA-ONLY: C += alpha*A*B (beta=1, accumulate-into-C, custom alpha).

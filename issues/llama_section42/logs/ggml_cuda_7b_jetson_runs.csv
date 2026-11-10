@@ -1,0 +1,18 @@
+RUN,1
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 62878 MiB):
+  Device 0: Orin, compute capability 8.7, VMM: yes, VRAM: 62878 MiB
+backend=CUDA0 model_dim=4096 ffn_dim=11008 vocab=32000 seq_len=2048 heads=32 token=7 pos=1024 warmup=2 iters=10 stage=logits
+bench,stage,backend,model_dim,ffn_dim,vocab,seq_len,heads,token,pos,warmup,iters,avg_ms,median_ms,trimmed_ms,min_ms,max_ms,checksum,sumsq,maxabs,out0,out1,out2,out3,out4,out5,out6,out7
+ggml_extended,logits,CUDA0,4096,11008,32000,2048,32,7,1024,2,10,15.930600,15.889000,15.901875,15.749000,16.342000,-95.864949256181717,36153117.636128418,78.4661865234375,-66.40357208,12.98810959,34.77970886,55.23806763,16.73348999,-31.05064392,-6.11993408,-35.23983002
+RUN,2
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 62878 MiB):
+  Device 0: Orin, compute capability 8.7, VMM: yes, VRAM: 62878 MiB
+backend=CUDA0 model_dim=4096 ffn_dim=11008 vocab=32000 seq_len=2048 heads=32 token=7 pos=1024 warmup=2 iters=10 stage=logits
+bench,stage,backend,model_dim,ffn_dim,vocab,seq_len,heads,token,pos,warmup,iters,avg_ms,median_ms,trimmed_ms,min_ms,max_ms,checksum,sumsq,maxabs,out0,out1,out2,out3,out4,out5,out6,out7
+ggml_extended,logits,CUDA0,4096,11008,32000,2048,32,7,1024,2,10,15.997500,15.954000,15.972000,15.838000,16.361000,-95.864949256181717,36153117.636128418,78.4661865234375,-66.40357208,12.98810959,34.77970886,55.23806763,16.73348999,-31.05064392,-6.11993408,-35.23983002
+RUN,3
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 62878 MiB):
+  Device 0: Orin, compute capability 8.7, VMM: yes, VRAM: 62878 MiB
+backend=CUDA0 model_dim=4096 ffn_dim=11008 vocab=32000 seq_len=2048 heads=32 token=7 pos=1024 warmup=2 iters=10 stage=logits
+bench,stage,backend,model_dim,ffn_dim,vocab,seq_len,heads,token,pos,warmup,iters,avg_ms,median_ms,trimmed_ms,min_ms,max_ms,checksum,sumsq,maxabs,out0,out1,out2,out3,out4,out5,out6,out7
+ggml_extended,logits,CUDA0,4096,11008,32000,2048,32,7,1024,2,10,16.077000,16.056500,16.071250,15.804000,16.396000,-95.864949256181717,36153117.636128418,78.4661865234375,-66.40357208,12.98810959,34.77970886,55.23806763,16.73348999,-31.05064392,-6.11993408,-35.23983002

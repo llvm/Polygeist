@@ -1,0 +1,212 @@
+{
+ "seconds": 52.1,
+ "results": [
+  {
+   "test": "cache: hit in a fresh process equals the uncached load",
+   "ok": true,
+   "miss_ms": 6270,
+   "hit_ms": 274,
+   "nocache_ms": 6066,
+   "specs": 91
+  },
+  {
+   "test": "cache: hit is >= 5x faster than a miss",
+   "ok": true,
+   "miss_ms": 6270,
+   "hit_ms": 274
+  },
+  {
+   "test": "NEG cache: key stable when nothing changes",
+   "ok": true
+  },
+  {
+   "test": "cache: editing a raised spec file invalidates (new key, rebuilt)",
+   "ok": true,
+   "rebuilt_ms": 6541
+  },
+  {
+   "test": "cache: editing a manifest invalidates",
+   "ok": true
+  },
+  {
+   "test": "transpose: kernel_trisolv: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dtrsv_utn",
+   "derived": [
+    [
+     "netlib_dtrsv_lnn",
+     "netlib_dtrsv_utn",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "transpose: trsv_axpy: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dtrsv_utn",
+   "derived": [
+    [
+     "netlib_dtrsv_lnn",
+     "netlib_dtrsv_utn",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "transpose: trsv_upper_back: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dtrsv_ltn",
+   "derived": [
+    [
+     "netlib_dtrsv_unn",
+     "netlib_dtrsv_ltn",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "transpose: kernel_cholesky: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dpotf2_u",
+   "derived": [
+    [
+     "netlib_dpotf2_l",
+     "netlib_dpotf2_u",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "transpose: cholesky_upper: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dpotf2_l",
+   "derived": [
+    [
+     "netlib_dpotf2_u",
+     "netlib_dpotf2_l",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "transpose: trsv_transposed: manifest equivalent == identity proof",
+   "ok": true,
+   "identity": "netlib_dtrsv_lnn",
+   "derived": [
+    [
+     "netlib_dtrsv_utn",
+     "netlib_dtrsv_lnn",
+     true
+    ]
+   ]
+  },
+  {
+   "test": "NEG transpose: A alone transposed for dsyr2k is rejected",
+   "ok": true,
+   "why": "no layout_transpose rule covers transposed operands ['A']"
+  },
+  {
+   "test": "transpose: dtrmm_lltu with A,B transposed -> dtrmm_rutu, m<->n",
+   "ok": true,
+   "got": "netlib_dtrmm_rutu"
+  },
+  {
+   "test": "stride region: L strided<[?, 1], offset: ?> -> lda stride0(%arg1)",
+   "ok": true
+  },
+  {
+   "test": "stride region: L strided<[?, ?], offset: ?> -> lda stride0(%arg1)/stride1(%arg1)",
+   "ok": true
+  },
+  {
+   "test": "NEG stride region: identity layout never uses memref.dim for lda",
+   "ok": true
+  },
+  {
+   "test": "stride linalg: gemm lda/ldb/ldc = stride0(<memref arg>)",
+   "ok": true,
+   "binding": {
+    "%lda": "stride0(%arg7)",
+    "%ldb": "stride0(%arg6)",
+    "%ldc": "stride0(%arg5)"
+   }
+  },
+  {
+   "test": "stride linalg: dynamic inner stride -> stride0/stride1 (divui)",
+   "ok": true,
+   "lda": "stride0(%arg7)/stride1(%arg7)"
+  },
+  {
+   "test": "stride linalg: tensor produced in the kernel traced to its memref",
+   "ok": true,
+   "ldb": [
+    "stride0(%arg7)",
+    "stride0(%arg6)"
+   ]
+  },
+  {
+   "test": "NEG stride linalg: no tensor.dim-derived leading dimension in 2mm",
+   "ok": true
+  },
+  {
+   "test": "literal policy: netlib_dgemm_nn alpha := 1.0",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "test": "NEG literal policy: netlib_dgemm_nn beta := 1.0",
+   "ok": true,
+   "why": "beta := 1 violates manifest assumption beta != 1"
+  },
+  {
+   "test": "NEG literal policy: netlib_dgemm_nn beta := 0.0",
+   "ok": true,
+   "why": "beta := 0.0 would delete reads (NaN/Inf semantics differ)"
+  },
+  {
+   "test": "NEG literal policy: netlib_dscal_inc da := 0.0",
+   "ok": true,
+   "why": "da := 0.0 would delete reads (NaN/Inf semantics differ)"
+  },
+  {
+   "test": "literal policy: netlib_daxpy_inc da := 2.5",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "test": "literal policy: netlib_daxpy_inc incx := 1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "test": "NEG literal policy: netlib_dgemv_n_inc incy := 0",
+   "ok": true,
+   "why": "incy := 0 violates manifest assumption incy == 1"
+  },
+  {
+   "test": "literal: match_v2 uses region_match/literal_policy.py",
+   "ok": true
+  },
+  {
+   "test": "literal linalg: C += A*B -> dgemm_nn_beta1 (alpha := 1.0), not dgemm_nn",
+   "ok": true,
+   "specs": [
+    "netlib_dgemm_nn_beta1"
+   ]
+  },
+  {
+   "test": "NEG literal linalg: x = 0.0*x -> no DSCAL, da := 0.0 refused by the shared policy",
+   "ok": true,
+   "rejections": [
+    "netlib_dgemv_n_alpha0: beta := 0.0 would delete reads (NaN/Inf semantics differ)",
+    "netlib_dgemv_t_alpha0: beta := 0.0 would delete reads (NaN/Inf semantics differ)",
+    "netlib_dscal_inc: da := 0.0 would delete reads (NaN/Inf semantics differ)"
+   ]
+  },
+  {
+   "test": "NEG literal region: x = 0.0*x -> no DSCAL (0.0 is never a candidate literal)",
+   "ok": true,
+   "got": []
+  }
+ ]
+}

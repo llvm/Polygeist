@@ -4569,7 +4569,7 @@ def _b300_results_page() -> str:
     def status_label(status: str) -> str:
         raw = status or "unavailable"
         css = "pass" if raw == "pass" else (
-            "blocked" if raw in {"unavailable", "unmatched", "build_failed"}
+            "blocked" if raw in {"unavailable", "unmatched", "build_failed", "partial"}
             else "fail")
         return (f'<span class="result-status {css}">'
                 f'{html.escape(raw.replace("_", " "))}</span>')
@@ -4673,7 +4673,11 @@ def _b300_results_page() -> str:
         '<div class="section-header"><h3 class="section-title">Related-paper CPU reproductions</h3></div>'
         '<div class="intro">These KernelFaRer, Pluto, and Polly measurements are '
         'from the separate x86 FP32/LARGE campaign. They are stored for completeness '
-        'and are not compared numerically with B300 rows.</div>'
+        'and are not compared numerically with B300 rows. Corrected KernelFaRer '
+        '<code>2mm</code> and <code>3mm</code> pass complete-output correctness and '
+        'execute two and three non-nested CBLAS calls, respectively. The KernelFaRer '
+        'campaign used one warmup and ten measurements, so it is retained as secondary '
+        'legacy evidence rather than the current five-warmup/five-sample protocol.</div>'
         '<div class="table-wrap"><table class="audit-table b300-table"><thead><tr>'
         '<th>paper/tool</th><th>kernel</th><th>dtype</th><th>dataset</th><th>status</th>'
         '<th>minimum</th><th>claim boundary</th></tr></thead><tbody>' +
@@ -4793,11 +4797,20 @@ def _polybench_paper_analysis_page() -> str:
 
     related_html = []
     for row in related_rows:
+        kfr_status = row.get("kernelfarer_status", "unavailable")
+        kfr_class = ("pass" if kfr_status == "correctness_pass_complete_replacement"
+                     else "blocked")
+        kfr_runtime = ms(row.get("kernelfarer_x86_ms", ""))
+        kfr_native = ms(row.get("kernelfarer_native_x86_ms", ""))
+        kfr_speedup = row.get("kernelfarer_speedup", "")
+        kfr_detail = (f'{kfr_runtime}; {float(kfr_speedup):.2f}&times; vs '
+                      f'same-run native {kfr_native}' if kfr_speedup else kfr_runtime)
         related_html.append(
             f'<tr><td><b>{html.escape(row["kernel"])}</b></td>'
             f'<td>{ms(row["native_x86_ms"])}</td><td>{ms(row["polly_x86_ms"])}</td>'
             f'<td>{html.escape(row["polly_speedup"] or "unavailable")}</td>'
-            '<td>unavailable: incompatible LLVM toolchain</td></tr>')
+            f'<td>{kfr_detail}<br><span class="result-status {kfr_class}">'
+            f'{html.escape(kfr_status.replace("_", " "))}</span></td></tr>')
 
     mlirsynth_html = []
     for row in mlirsynth_rows:
@@ -4846,10 +4859,9 @@ def _polybench_paper_analysis_page() -> str:
             'SVG</a></div></div>')
 
     paper_figures = (
-        paper_svg_figure(
-            "polybench_fp32_fp64_related_work_speedup.svg",
-            "PolyBench: GPU and CPU speedup over native C",
-            760)
+        paper_pdf_figure(
+            "polybench_fp32_fp64_related_work_speedup.pdf",
+            "PolyBench: speedup over backend-native baselines")
         + paper_pdf_figure(
             "polybench_cpu_native_vs_raised.pdf",
             "PolyBench: native CPU vs raised CPU (log scale)")
@@ -5016,11 +5028,13 @@ def _polybench_paper_analysis_page() -> str:
         '<th>correctness native / raised</th><th>modified source</th><th>raw evidence</th>'
         '</tr></thead><tbody>' + "".join(gpu_html) + '</tbody></table></div>'
         '<div class="section-header"><h3 class="section-title">Related CPU compilers '
-        '(secondary x86 evidence)</h3></div><div class="intro">These Polly values are '
-        'retained portability evidence and are not compared with Orin. KernelFaRer could '
-        'not be built with the available LLVM toolchain.</div><div class="table-wrap">'
+        '(secondary x86 evidence)</h3></div><div class="intro">These Polly and '
+        'KernelFaRer values are retained portability evidence and are not compared with '
+        'Orin. KernelFaRer uses a compatibility-patched LLVM 14 build and an older '
+        'one-warmup/ten-sample protocol. Its corrected 2mm and 3mm results pass '
+        'complete-output correctness and are complete replacements.</div><div class="table-wrap">'
         '<table class="audit-table"><thead><tr><th>kernel</th><th>x86 native</th>'
-        '<th>x86 Polly</th><th>reported speedup</th><th>KernelFaRer</th></tr></thead><tbody>'
+        '<th>x86 Polly</th><th>reported speedup</th><th>KernelFaRer FP32 LARGE</th></tr></thead><tbody>'
         + "".join(related_html) + '</tbody></table></div>'
         '<div class="section-header"><h3 class="section-title">Incomplete and blocked '
         'experiments</h3></div><div class="intro"><ul>'
@@ -5033,8 +5047,9 @@ def _polybench_paper_analysis_page() -> str:
         f'<code>{html.escape(cpu_missing)}</code>. These kernels lack a correctness-gated '
         'fresh native/raised external-CPU-library pair.</li>'
         '<li><b>Gramschmidt:</b> correctness failed, so no performance result is admitted.</li>'
-        '<li><b>KernelFaRer:</b> unavailable due to incompatible LLVM/toolchain; Polly is '
-        'available only as separately labelled x86 evidence.</li></ul>'
+        '<li><b>KernelFaRer:</b> all four paper-reported PolyBench programs are retained '
+        'as separately labelled x86 evidence. Corrected 2mm and 3mm execute complete '
+        'two- and three-call CBLAS substitutions. Polly is also x86-only evidence.</li></ul>'
         '<p><b>Artifacts:</b> '
         + " &middot; ".join((
             artifact("paper_analysis/paper_cpu_results.csv", "CPU CSV"),
@@ -5044,6 +5059,8 @@ def _polybench_paper_analysis_page() -> str:
             artifact("paper_analysis/PAPER_ANALYSIS.md", "analysis notes"),
             artifact("paper_analysis/polybench_cpu_native_vs_raised.pdf", "CPU figure PDF"),
             artifact("paper_analysis/polybench_gpu_native_vs_raised.pdf", "GPU figure PDF"),
+            artifact("paper_analysis/polybench_fp32_fp64_related_work_speedup.pdf",
+                     "CPU/GPU speedup PDF"),
             artifact("paper_analysis/polybench_fp32_fp64_related_work_speedup.svg",
                      "CPU/GPU speedup SVG"),
             artifact("paper_analysis/polybench_cpu_raised_fp32_x86_min5.csv",

@@ -2327,10 +2327,18 @@ static LogicalResult handleRoot(Value root, Block *body,
   if (!memrefType) return failure();
   if (!canHandle(root)) return failure();
 
-  rewriter.setInsertionPointAfterValue(root);
   auto tensorType = RankedTensorType::get(memrefType.getShape(),
                                           memrefType.getElementType());
-  auto initT = rewriter.create<bufferization::ToTensorOp>(
+  // The entry to_tensor is speculative: walkBlock may find nothing it can
+  // rewrite (e.g. every use goes through a memref.reinterpret_cast view).
+  // Build it with a listener-free builder so that undoing it is invisible to
+  // the greedy driver.  Creating and erasing it through `rewriter` while
+  // returning failure() is reported as an IR change, which re-queued the
+  // func.func forever (--linalg-debufferize never terminated on DGEMV /
+  // PolyBench atax, bicg, mvt, ... under the run_kernel_e2e.sh recipe).
+  OpBuilder speculative(rewriter.getContext());
+  speculative.setInsertionPointAfterValue(root);
+  auto initT = speculative.create<bufferization::ToTensorOp>(
       root.getLoc(), tensorType, root);
   Value initTensor = initT.getResult();
 
@@ -2341,9 +2349,16 @@ static LogicalResult handleRoot(Value root, Block *body,
     // Nothing actually changed. Undo the speculative to_tensor — but only
     // if it has no uses (e.g. an input-only rewrite of a generic would
     // have wired tensor submaps to it, in which case didRewrite is true).
-    if (initT.getResult().use_empty()) rewriter.eraseOp(initT);
+    if (initT.getResult().use_empty()) {
+      initT->erase();
+    } else if (auto *listener = rewriter.getListener()) {
+      listener->notifyOperationInserted(initT);
+    }
     return failure();
   }
+  // Now that the rewrite is committed, let the driver see the entry op.
+  if (auto *listener = rewriter.getListener())
+    listener->notifyOperationInserted(initT);
 
   // Write back if the current tensor diverged from the entry tensor.
   // If only reads (loads) or input-only generic rewrites happened, the
@@ -2859,6 +2874,20 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   funcOp.walk([&](memref::AllocOp op) {
     if (canConvertMemrefToTensor(op.getType())) roots.push_back(op.getResult());
   });
+  // A flat buffer whose only use is a row-major reinterpret_cast (as built by
+  // --delinearize-memref-accesses) is accessed exclusively through that view,
+  // so the view is the root: it gets the n-D tensor, and the flat buffer is
+  // not tracked separately (two roots for one buffer would alias).
+  for (Value &root : roots) {
+    if (!root.hasOneUse())
+      continue;
+    auto view = dyn_cast<memref::ReinterpretCastOp>(*root.getUsers().begin());
+    if (!view || view->getBlock() != &funcOp.getBody().front() ||
+        !view.getType().getLayout().isIdentity() ||
+        !canConvertMemrefToTensor(view.getType()))
+      continue;
+    root = view.getResult();
+  }
   if (roots.empty()) return failure();
 
   // The multi-root loop handlers thread every tracked root written in a loop
@@ -2886,13 +2915,19 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   MultiRootCtx ctx;
   ctx.rewriter = &rewriter;
   SmallVector<bufferization::ToTensorOp> initial;
+  // As in v2::handleRoot, the entry to_tensor ops are speculative: build
+  // them without notifying the greedy driver so that undoing them on a
+  // no-op walk is not reported as an IR change (which re-queued the
+  // func.func forever, e.g. debufferize_stress s14_memref_subview).
+  OpBuilder speculative(rewriter.getContext());
+  speculative.setInsertionPointToStart(&funcOp.getBody().front());
   for (Value root : roots) {
     if (auto alloc = root.getDefiningOp())
-      rewriter.setInsertionPointAfter(alloc);
+      speculative.setInsertionPointAfter(alloc);
     auto memrefType = root.getType().cast<MemRefType>();
     auto tensorType = RankedTensorType::get(memrefType.getShape(),
                                              memrefType.getElementType());
-    auto t = rewriter.create<bufferization::ToTensorOp>(
+    auto t = speculative.create<bufferization::ToTensorOp>(
         root.getLoc(), tensorType, root);
     ctx.rootToTensor[root] = t.getResult();
     ctx.rootInitial[root] = t.getResult();
@@ -2901,11 +2936,19 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
 
   walkBlock(ctx, funcOp.getBody().front());
 
+  auto *listener = rewriter.getListener();
   if (!ctx.didRewrite) {
-    for (auto t : initial)
-      if (t.getResult().use_empty()) rewriter.eraseOp(t);
+    for (auto t : initial) {
+      if (t.getResult().use_empty())
+        t->erase();
+      else if (listener)
+        listener->notifyOperationInserted(t);
+    }
     return failure();
   }
+  if (listener)
+    for (auto t : initial)
+      listener->notifyOperationInserted(t);
 
   // Write back any roots whose tensor state diverged from the initial.
   for (auto [root, curT] : ctx.rootToTensor) {

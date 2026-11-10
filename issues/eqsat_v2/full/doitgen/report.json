@@ -1,0 +1,84 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemv_n_beta0",
+   "root": "%17",
+   "func": "kernel_doitgen",
+   "binding": {
+    "%m": "%arg2",
+    "%n": "%arg2",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg4)",
+    "%A": "%1",
+    "%x": "%arg11[%arg6, %arg9, :]  (rank-reducing extract_slice)",
+    "%y": "%arg10"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      1,
+      0
+     ],
+     "app": "%16"
+    },
+    "%5": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0
+     ],
+     "app": "%11"
+    }
+   },
+   "consumed_ops": 9
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [
+  "netlib_dgemv_n_beta1@%17"
+ ],
+ "rejected": [
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%12",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%12",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  }
+ ],
+ "residual_generics": [
+  {
+   "app_generic": "%20",
+   "func": "kernel_doitgen",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  }
+ ]
+}

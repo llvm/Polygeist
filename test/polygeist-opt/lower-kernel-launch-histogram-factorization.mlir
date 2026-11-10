@@ -20,6 +20,9 @@ module {
   kernel.defn @cublasDcorrelationRowMajor_memref(
       %count: f64, %data: memref<?x?xf64>, %corr: memref<?x?xf64>,
       %mean: memref<?xf64>, %stddev: memref<?xf64>) { kernel.yield }
+  kernel.defn @cublasScorrelationRowMajor_memref(
+      %count: f32, %data: memref<?x?xf32>, %corr: memref<?x?xf32>,
+      %mean: memref<?xf32>, %stddev: memref<?xf32>) { kernel.yield }
 
   func.func @histogram(%samples: memref<?xi32>, %histogram: memref<?xi32>) {
     %shift = arith.constant 2 : i32
@@ -66,6 +69,16 @@ module {
            memref<?xf64>) -> ()
     return
   }
+
+  func.func @correlation_f32(%count: f32, %data: memref<?x?xf32>,
+                             %corr: memref<?x?xf32>, %mean: memref<?xf32>,
+                             %stddev: memref<?xf32>) {
+    kernel.launch @cublasScorrelationRowMajor_memref(
+        %count, %data, %corr, %mean, %stddev)
+        : (f32, memref<?x?xf32>, memref<?x?xf32>, memref<?xf32>,
+           memref<?xf32>) -> ()
+    return
+  }
 }
 
 // CHECK-LABEL: func.func @histogram
@@ -91,4 +104,8 @@ module {
 // CHECK-LABEL: func.func @correlation
 // CHECK: call @polygeist_cublas_dcorrelation_row_major
 // CHECK-SAME: (i32, i32, f64, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NOT: kernel.launch
+// CHECK-LABEL: func.func @correlation_f32
+// CHECK: call @polygeist_cublas_scorrelation_row_major
+// CHECK-SAME: (i32, i32, f32, !llvm.ptr, i32, !llvm.ptr, i32, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NOT: kernel.launch

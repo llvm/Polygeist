@@ -7,7 +7,9 @@
 // the second row pointer must be exactly rowptr[row + 1].
 
 // CHECK: %[[ROWS:.*]] = arith.constant 64 : index
-// CHECK: kernel.launch @cusparseSpMV_CSR_f32_memref(%[[ROWS]], %arg0, %arg1, %arg2, %arg3, %arg4)
+// CHECK: %[[ALPHA:.*]] = arith.constant 1.000000e+00 : f32
+// CHECK: %[[BETA:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK: kernel.launch @cusparseSpMV_CSR_f32_memref(%[[ROWS]], %arg0, %arg1, %arg2, %arg3, %arg4, %[[ALPHA]], %[[BETA]])
 // CHECK-NOT: scf.for
 // CHECK-NOT: memref.copy
 

@@ -172,6 +172,25 @@ def RemoveIterArgs : Pass<"remove-iter-args"> {
   ];
 }
 
+def DelinearizeMemrefAccesses : Pass<"delinearize-memref-accesses"> {
+  let summary = "Recover n-D views of flat buffers indexed as i*S + j";
+  let description = [{
+    Rewrites a rank-1 memref whose affine accesses linearize a row-major
+    n-D index by hand (`A[(i*N + j)*M + k]`, `C[i*ldc + j]`, or constant
+    strides) into a `memref.reinterpret_cast` to `memref<D0 x ... x Dn-1>`
+    and rewrites every access to the n-D view.  Each inner index is proved
+    in range from the enclosing affine loop bounds, so dependence analysis on
+    the view is exact.  Buffers with any other use, or with an access that
+    does not fit, are left unchanged.  Run before --affine-parallelize.
+  }];
+  let constructor = "mlir::polygeist::createDelinearizeMemrefAccessesPass()";
+  let dependentDialects = [
+    "affine::AffineDialect",
+    "arith::ArithDialect",
+    "memref::MemRefDialect",
+  ];
+}
+
 def FoldSCFIf : Pass<"fold-scf-if"> {
   let summary = "Fold simple scf.if regions into arith.select";
   let constructor = "mlir::polygeist::createFoldSCFIfPass()";

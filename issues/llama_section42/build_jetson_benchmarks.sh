@@ -23,7 +23,6 @@ PYTHON=/usr/bin/python3 \
 POLYGEIST_CUTENSOR_ROOT="$CUTENSOR_ROOT" \
 POLYGEIST_WRAP_KERNEL_PIPELINE=0 \
 POLYGEIST_DISABLE_POINTWISE_MATCHING=1 \
-POLYGEIST_DISABLED_KERNELS=cudaMaskSelect_f32_tensor,cudaAdd_f32_tensor,cudaSwiGLU_f32_tensor \
   "$ROOT/scripts/correctness/polygeist_build.sh" --target=jetson \
   --function=kernel_llama2_extended_forward \
   --harness="$HERE/llama_extended_timing_harness.c" \

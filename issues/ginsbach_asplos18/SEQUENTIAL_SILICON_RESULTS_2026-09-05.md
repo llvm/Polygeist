@@ -1,5 +1,12 @@
 *Ginsbach follow-up: sequential Orin #2 results (2026-09-05 PDT)*
 
+> **RETRACTED AS AUTOMATIC/END-TO-END EVIDENCE (2026-09-07).** The application
+> binaries documented below omitted, weakened, or substituted selected source
+> functions/helpers. They are manual feasibility compositions. Their
+> correctness and timings must not appear in matcher coverage, silicon totals,
+> speedups, or paper comparisons. The raw observations are retained only as
+> historical debugging notes.
+
 This is the raw non-HTML handoff requested for the five remaining application
 experiments. Every executable was cross-compiled on the x86 host and only the
 finished AArch64 binary and input files were staged on Orin #2

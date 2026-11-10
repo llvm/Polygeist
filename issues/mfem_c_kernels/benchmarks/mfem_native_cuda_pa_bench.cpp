@@ -3,6 +3,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#ifdef MFEM_BENCH_DEBUG
+#include <csignal>
+#include <execinfo.h>
+#include <unistd.h>
+#endif
 
 #include "mfem.hpp"
 
@@ -193,7 +198,21 @@ static void transpose(Array<real_t> &dst, const Array<real_t> &src,
 }
 
 int main() {
+#ifdef MFEM_BENCH_DEBUG
+  std::signal(SIGSEGV, [](int) {
+    void *frames[64];
+    const int count = backtrace(frames, 64);
+    backtrace_symbols_fd(frames, count, STDERR_FILENO);
+    _exit(139);
+  });
+  std::fprintf(stderr, "stage=before_device\n");
+#endif
   mfem::Device device("cuda");
+#ifdef MFEM_BENCH_DEBUG
+  std::fprintf(stderr, "stage=after_device\n");
+  std::fprintf(stderr, "cuda_allowed=%d\n",
+               mfem::Device::Allows(mfem::Backend::CUDA) ? 1 : 0);
+#endif
   Array<real_t> a0(20), a1(20), a2(20), a3(20), a4(20), a5(20);
   Array<real_t> *arrays[] = {&a0, &a1, &a2, &a3, &a4, &a5};
   for (int a = 0; a < 6; ++a)
@@ -220,12 +239,21 @@ int main() {
 #endif
 
   Vector op(OP_SIZE), x(X_SIZE), y(Y_SIZE);
+#ifdef MFEM_BENCH_DEBUG
+  std::fprintf(stderr, "stage=after_alloc\n");
+#endif
   for (int i = 0; i < op.Size(); ++i) op[i] = value(i, 6);
   for (int i = 0; i < x.Size(); ++i) x[i] = value(i, 7);
   y = 0.0;
 
+#ifdef MFEM_BENCH_DEBUG
+  std::fprintf(stderr, "stage=before_launch\n");
+#endif
   launch(a0, a1, a2, a3, a4, a5, op, x, y);
   cudaDeviceSynchronize();
+#ifdef MFEM_BENCH_DEBUG
+  std::fprintf(stderr, "stage=after_launch\n");
+#endif
   const real_t *host_y = y.HostRead();
   double checksum = 0.0;
   double max_abs = 0.0;

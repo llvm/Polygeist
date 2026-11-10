@@ -1,0 +1,16 @@
+kernel,status,wall_seconds,raised_ops,num_ops,notes
+2mm,pass,13.531,"chlo.broadcast_add; chlo.broadcast_multiply; stablehlo.dot",5,
+3mm,pass,0.105,stablehlo.dot,3,
+atax,pass,10.713,"chlo.broadcast_add; chlo.broadcast_subtract; stablehlo.dot",6,
+bicg,pass,10.223,"chlo.broadcast_subtract; stablehlo.dot",8,
+covariance,pass,152.212,"chlo.broadcast_divide; chlo.broadcast_subtract; stablehlo.dot_general",6,
+doitgen,pass,0.604,stablehlo.dot_general,1,
+gemm,pass,26.579,"chlo.broadcast_add; chlo.broadcast_multiply; stablehlo.dot",4,
+gemver,pass,236.723,"chlo.broadcast_add; chlo.broadcast_multiply; stablehlo.dot",7,
+gesummv,pass,16.774,"chlo.broadcast_add; chlo.broadcast_multiply; stablehlo.dot",9,
+mvt,pass,13.235,"chlo.broadcast_add; stablehlo.dot",4,
+correlation,budget_exceeded,900.000,,,Search remained active after the 15-minute local budget
+symm,not_run,,,,Deferred after the bounded correlation search
+syr2k,not_run,,,,Deferred after the bounded correlation search
+syrk,not_run,,,,Deferred after the bounded correlation search
+trmm,expected_unmatched,,,,Paper reports TRMM cannot be represented in the selected HLO operations

@@ -1,0 +1,493 @@
+{
+ "gemm": {
+  "kernel": "gemm",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 4200,
+   "n_out": 4200,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemm_nn"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "binding": {
+     "%m": "%arg1",
+     "%n": "%arg0",
+     "%k": "%arg2",
+     "%alpha": "%arg3",
+     "%lda": "dim(%2, 1)",
+     "%A": "%2",
+     "%ldb": "dim(%1, 1)",
+     "%B": "%1",
+     "%beta": "%arg4",
+     "%ldc": "dim(%0, 1)",
+     "%C": "%0"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 4200,
+   "n_out": 4200,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "2mm": {
+  "kernel": "2mm",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 3200,
+   "n_out": 3200,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "binding": {
+     "%m": "%arg1",
+     "%n": "%arg0",
+     "%k": "%arg2",
+     "%alpha": "%arg4",
+     "%lda": "dim(%2, 1)",
+     "%A": "%2",
+     "%ldb": "dim(%1, 1)",
+     "%B": "%1",
+     "%ldc": "dim(%0, 1)",
+     "%C": "%0"
+    }
+   },
+   {
+    "spec": "netlib_dgemm_nn",
+    "binding": {
+     "%m": "%arg3",
+     "%n": "%arg0",
+     "%k": "%arg1",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%3, 1)",
+     "%A": "%3",
+     "%ldb": "dim(%16, 1)",
+     "%B": "%16",
+     "%beta": "%arg5",
+     "%ldc": "dim(%4, 1)",
+     "%C": "%4"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 3200,
+   "n_out": 3200,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "3mm": {
+  "kernel": "3mm",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 2800,
+   "n_out": 2800,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "binding": {
+     "%m": "%arg1",
+     "%n": "%arg0",
+     "%k": "%arg2",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%2, 1)",
+     "%A": "%2",
+     "%ldb": "dim(%1, 1)",
+     "%B": "%1",
+     "%ldc": "dim(%0, 1)",
+     "%C": "%0"
+    }
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "binding": {
+     "%m": "%arg3",
+     "%n": "%arg1",
+     "%k": "%arg4",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%5, 1)",
+     "%A": "%5",
+     "%ldb": "dim(%4, 1)",
+     "%B": "%4",
+     "%ldc": "dim(%3, 1)",
+     "%C": "%3"
+    }
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "binding": {
+     "%m": "%arg3",
+     "%n": "%arg0",
+     "%k": "%arg1",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%28, 1)",
+     "%A": "%28",
+     "%ldb": "dim(%19, 1)",
+     "%B": "%19",
+     "%ldc": "dim(%6, 1)",
+     "%C": "%6"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 2800,
+   "n_out": 2800,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "atax": {
+  "kernel": "atax",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 124,
+   "n_out": 124,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "binding": {
+     "%m": "%arg1",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%0, 1)",
+     "%A": "%0",
+     "%x": "%16",
+     "%y": "%2"
+    }
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "binding": {
+     "%m": "%arg1",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%0, 1)",
+     "%A": "%0",
+     "%x": "%1",
+     "%y": "%3"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 124,
+   "n_out": 124,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "bicg": {
+  "kernel": "bicg",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 240,
+   "n_out": 240,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg1",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%0, 1)",
+     "%A": "%0",
+     "%x": "%4",
+     "%y": "%1"
+    }
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg1",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%0, 1)",
+     "%A": "%0",
+     "%x": "%3",
+     "%y": "%2"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 240,
+   "n_out": 240,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "%arg2",
+     "%lda": "dim(%16, 1)",
+     "%A": "%16",
+     "%x": "%7",
+     "%y": "%6"
+    }
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "%arg1",
+     "%lda": "dim(%16, 1)",
+     "%A": "%16",
+     "%x": "%26",
+     "%y": "%5"
+    }
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "binding": {
+     "%n": "%arg0",
+     "%da": "literal 1.0",
+     "%dx": "%8",
+     "%incx": "literal 1",
+     "%dy": "%22",
+     "%incy": "literal 1"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": false,
+   "max_abs": 5.820766091346741e-11,
+   "max_rel": 3.1408821241038493e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 90,
+   "n_out": 90,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%0, 1)",
+     "%A": "%0",
+     "%x": "%3",
+     "%y": "%2"
+    }
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%1, 1)",
+     "%A": "%1",
+     "%x": "%3",
+     "%y": "%4"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 90,
+   "n_out": 90,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "mvt": {
+  "kernel": "mvt",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 244,
+   "n_out": 244,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%4, 1)",
+     "%A": "%4",
+     "%x": "%3",
+     "%y": "%1"
+    }
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "binding": {
+     "%m": "%arg0",
+     "%n": "%arg0",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%4, 1)",
+     "%A": "%4",
+     "%x": "%2",
+     "%y": "%0"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 244,
+   "n_out": 244,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "doitgen": {
+  "kernel": "doitgen",
+  "dataset": "SMALL",
+  "residual": {
+   "verdict": "LOWER_FAIL"
+  },
+  "v2_launches": [
+   "netlib_dgemv_n_beta0"
+  ],
+  "v2_bindings": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "binding": {
+     "%m": "%arg2",
+     "%n": "%arg2",
+     "%alpha": "literal 1.0",
+     "%lda": "dim(%1, 1)",
+     "%A": "%1",
+     "%x": "('slice', ('blk', 8, '%arg11'), (0, 1), (('key', ('blk', 7, '%arg6')), ('key', ('blk', 8, '%arg9'))), 3)",
+     "%y": "%arg10"
+    }
+   }
+  ],
+  "v2": {
+   "n_ref": 15000,
+   "n_out": 15000,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "SMALL",
+  "residual": {
+   "n_ref": 6400,
+   "n_out": 6400,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "v2_launches": [],
+  "v2_bindings": [],
+  "v2": {
+   "verdict": "NO_MATCH"
+  },
+  "status": "ok"
+ }
+}

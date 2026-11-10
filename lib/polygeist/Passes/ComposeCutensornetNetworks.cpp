@@ -706,6 +706,26 @@ struct ComposeCutensornetNetworksPass
     for (LaunchOp candidate : physicalCandidates)
       (void)normalizePhysicalContractionOutput(candidate, counter);
 
+    // A raised reduction may write through a logical view whose reduction
+    // dimensions are absent from the physical address (zero stride), which
+    // composeSink rejects as a non-injective destination. Rewrite such sinks
+    // into the canonical Linalg reduction (projected output map, injective
+    // view) with the same pattern --lower-polygeist-submap applies later.
+    SmallVector<Operation *> aliasingSinks;
+    module.walk([&](linalg::GenericOp generic) {
+      if (!generic->getParentOfType<DefnOp>() &&
+          isAdditiveContraction(generic) &&
+          !hasInjectiveDestinationView(generic.getDpsInitOperand(0)->get()))
+        aliasingSinks.push_back(generic);
+    });
+    if (!aliasingSinks.empty()) {
+      RewritePatternSet patterns(module.getContext());
+      populateNormalizeTensorReductionOutputPatterns(patterns);
+      GreedyRewriteConfig config;
+      config.strictMode = GreedyRewriteStrictness::ExistingOps;
+      (void)applyOpPatternsAndFold(aliasingSinks, std::move(patterns), config);
+    }
+
     SmallVector<linalg::GenericOp> candidates;
     module.walk([&](linalg::GenericOp generic) {
       if (!generic->getParentOfType<DefnOp>() &&

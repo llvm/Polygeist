@@ -4227,7 +4227,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     auto ty = getMLIRType(E->getType()).cast<mlir::FloatType>();
     bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
+    // Integer types in MLIR are signless, so preserve the source-language
+    // signedness in the conversion operation.  Look through typedefs (for
+    // example uint8_t); dyn_casting the sugared QualType directly misses them
+    // and incorrectly defaults unsigned typedefs to SIToFP.
+    auto sourceType = E->getSubExpr()->getType().getCanonicalType();
+    if (auto bit = dyn_cast<clang::BuiltinType>(&*sourceType)) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())
@@ -4246,7 +4251,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     auto ty = getMLIRType(E->getType()).cast<mlir::IntegerType>();
     bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
+    auto destinationType = E->getType().getCanonicalType();
+    if (auto bit = dyn_cast<clang::BuiltinType>(&*destinationType)) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())

@@ -170,6 +170,12 @@ separate process.
 
 Prepare or refresh the manifest, then build and run one batch:
 
+Raised ATen measurements enable the steady-state cuDNN descriptor, algorithm,
+and workspace cache only for kernels whose selected wrapper uses that cache.
+The batch wrapper sets `POLYGEIST_CUDNN_PLAN_CACHE=1` for those convolution
+kernels and `0` for every other raised kernel. Plan creation is covered by the
+five warmups rather than the five reported samples.
+
 ```
 python3 scripts/correctness/prepare_aten_section42_campaign.py
 python3 scripts/correctness/run_aten_section42_batch.py --batch 1 --phase build

@@ -1,0 +1,37 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8943,12 +8943,28 @@ void polygeist_cudnn_rmsnorm_f32(int32_t n, const float *x,
+     timing_host_only("hostRmsNorm_f32", n, 1, 0, host_start_ms);
+     return;
+   }
+-  CUDA_CHECK(cudaMemcpyAsync(p->x, x, p->bytes, cudaMemcpyDefault, g_stream));
+-  CUDA_CHECK(cudaMemcpyAsync(p->weight, weight, p->bytes,
+-                             cudaMemcpyDefault, g_stream));
++  void *x_device = NULL;
++  void *weight_device = NULL;
++  void *out_device = NULL;
++  if (pointer_is_device_resident((void *)x, &x_device))
++    CUDA_CHECK(cudaMemcpyAsync(p->x, x_device, p->bytes,
++                               cudaMemcpyDeviceToDevice, g_stream));
++  else
++    CUDA_CHECK(cudaMemcpyAsync(p->x, x, p->bytes, cudaMemcpyHostToDevice,
++                               g_stream));
++  if (pointer_is_device_resident((void *)weight, &weight_device))
++    CUDA_CHECK(cudaMemcpyAsync(p->weight, weight_device, p->bytes,
++                               cudaMemcpyDeviceToDevice, g_stream));
++  else
++    CUDA_CHECK(cudaMemcpyAsync(p->weight, weight, p->bytes,
++                               cudaMemcpyHostToDevice, g_stream));
+   timing_gpu_begin();
+   CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+-  CUDA_CHECK(cudaMemcpyAsync(out, p->out, p->bytes, cudaMemcpyDefault,
+-                             g_stream));
++  if (pointer_is_device_resident(out, &out_device))
++    CUDA_CHECK(cudaMemcpyAsync(out_device, p->out, p->bytes,
++                               cudaMemcpyDeviceToDevice, g_stream));
++  else
++    CUDA_CHECK(cudaMemcpyAsync(out, p->out, p->bytes,
++                               cudaMemcpyDeviceToHost, g_stream));
+   timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
+ }

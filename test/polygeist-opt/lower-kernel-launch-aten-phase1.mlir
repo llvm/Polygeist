@@ -2,6 +2,8 @@
 
 #window = affine_map<(d0,d1,d2,d3,d4,d5,d6,d7) ->
                      (d4, d5 + d1, d6 + d2, d7 + d3)>
+#dilated = affine_map<(d0,d1,d2,d3,d4,d5) ->
+                      (d3, d4 * 2 + d1, d5 * 2 + d2)>
 
 module {
   kernel.defn @cublasDgemm_outer_product(
@@ -14,6 +16,18 @@ module {
       %a: tensor<?x?x?xf32>, %b: tensor<?x?xf32>,
       %c: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
     kernel.yield %c : tensor<?x?x?xf32>
+  }
+
+  kernel.defn @cublasSgemm_strided_batched_nn_zero(
+      %a: tensor<?x?x?xf32>, %b: tensor<?x?x?xf32>,
+      %c: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    kernel.yield %c : tensor<?x?x?xf32>
+  }
+
+  kernel.defn @cudnnConvolution2D_f32_dilated(
+      %window: tensor<?x?x?x?x?x?xf32>, %filter: tensor<?x?x?x?xf32>,
+      %out: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    kernel.yield %out : tensor<?x?x?xf32>
   }
 
   kernel.defn @cudnnConvolution3D_f32_bias(
@@ -45,6 +59,38 @@ module {
     %0 = kernel.launch @cublasSgemm_strided_batched_broadcast_rhs(%a, %b, %c)
         : (tensor<?x?x?xf32>, tensor<?x?xf32>, tensor<?x?x?xf32>)
           -> tensor<?x?x?xf32>
+    return %0 : tensor<?x?x?xf32>
+  }
+
+  // CHECK-LABEL: func.func @nested_bmm
+  // CHECK: call @polygeist_cublas_sgemm_strided_batched
+  func.func @nested_bmm(%a: tensor<?x?x?xf32>, %b: tensor<?x?x?xf32>,
+                        %c: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    %0 = kernel.launch @cublasSgemm_strided_batched_nn_zero(%a, %b, %c)
+        : (tensor<?x?x?xf32>, tensor<?x?x?xf32>, tensor<?x?x?xf32>)
+          -> tensor<?x?x?xf32>
+    return %0 : tensor<?x?x?xf32>
+  }
+
+  // CHECK-LABEL: func.func @dilated_conv2d
+  // CHECK: call @polygeist_cudnn_conv2d_dilated_f32
+  func.func @dilated_conv2d(
+      %input: tensor<?x?x?xf32>, %filter: tensor<?x?x?x?xf32>,
+      %out: tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+    %oc = arith.constant 3 : index
+    %oh = arith.constant 12 : index
+    %ow = arith.constant 12 : index
+    %ic = arith.constant 2 : index
+    %kh = arith.constant 3 : index
+    %kw = arith.constant 3 : index
+    %window = polygeist.submap(%input, %oc, %oh, %ow, %ic, %kh, %kw)
+        {map = #dilated}
+        : (tensor<?x?x?xf32>, index, index, index, index, index, index)
+          -> tensor<?x?x?x?x?x?xf32>
+    %0 = kernel.launch @cudnnConvolution2D_f32_dilated(
+        %window, %filter, %out) {dilation_h = 2 : i64, dilation_w = 2 : i64}
+        : (tensor<?x?x?x?x?x?xf32>, tensor<?x?x?x?xf32>,
+           tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
     return %0 : tensor<?x?x?xf32>
   }
 

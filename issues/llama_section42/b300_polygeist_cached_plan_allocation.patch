@@ -1,0 +1,28 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8919,10 +8919,10 @@ static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
+   cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+   p->bytes = (size_t)p->n * sizeof(float);
+   p->epsilon = 1.0e-5f;
+-  DEVICE_MALLOC((void **)&p->x, p->bytes);
+-  DEVICE_MALLOC((void **)&p->weight, p->bytes);
+-  DEVICE_MALLOC((void **)&p->bias, p->bytes);
+-  DEVICE_MALLOC((void **)&p->out, p->bytes);
++  CUDA_CHECK(cudaMalloc((void **)&p->x, p->bytes));
++  CUDA_CHECK(cudaMalloc((void **)&p->weight, p->bytes));
++  CUDA_CHECK(cudaMalloc((void **)&p->bias, p->bytes));
++  CUDA_CHECK(cudaMalloc((void **)&p->out, p->bytes));
+   CUDA_CHECK(cudaMemsetAsync(p->bias, 0, p->bytes, g_stream));
+ 
+   int64_t dims[4] = {1, p->n, 1, 1};
+@@ -9037,8 +9037,8 @@ static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
+       p->plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
+       &count, &workspace_size);
+   if (status != CUDNN_STATUS_SUCCESS) return 0;
+   if (workspace_size > 0)
+-    DEVICE_MALLOC(&p->workspace, (size_t)workspace_size);
++    CUDA_CHECK(cudaMalloc(&p->workspace, (size_t)workspace_size));
+   status = cudnnBackendCreateDescriptor(
+       CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
+   if (status != CUDNN_STATUS_SUCCESS) return 0;

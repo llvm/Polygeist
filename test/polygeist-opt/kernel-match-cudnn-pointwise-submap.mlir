@@ -1,4 +1,4 @@
-// RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s --disable-kernel cudaAdd_f32_tensor | sed '/^\/\/ CHECK/d' | FileCheck %s
+// RUN: /usr/bin/python3 %S/../../scripts/correctness/kernel_match_rewrite.py %s | sed '/^\/\/ CHECK/d' | FileCheck %s
 
 #map = affine_map<(d0) -> (d0)>
 #map1 = affine_map<(d0)[s0] -> (s0, d0)>

@@ -1,0 +1,257 @@
+{
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "SMALL",
+  "linalg_launches": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "region_launches": [
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dscal_inc:n": "%arg0",
+    "1:netlib_dscal_inc:da": "%arg2",
+    "1:netlib_dscal_inc:dx": "%arg7 (in-place)",
+    "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:n": "%arg0",
+    "2:netlib_daxpy_inc:da": "%arg1",
+    "2:netlib_daxpy_inc:dx": "%arg5",
+    "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+    "2:netlib_daxpy_inc:dy": "%arg7 (in-place)",
+    "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_daxpy_inc",
+   "netlib_dscal_inc"
+  ],
+  "v2": {
+   "n_ref": 90,
+   "n_out": 90,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "SMALL",
+  "linalg_launches": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc"
+  ],
+  "region_launches": [
+   "netlib_dger+netlib_dger"
+  ],
+  "region_bindings": [
+   {
+    "1:netlib_dger:m": "%arg0",
+    "1:netlib_dger:n": "%arg0",
+    "1:netlib_dger:alpha": "literal 1.0",
+    "1:netlib_dger:x": "%arg5",
+    "1:netlib_dger:y": "%arg4",
+    "1:netlib_dger:lda": "stride0(%arg3)",
+    "1:netlib_dger:A": "%arg3 (in-place)",
+    "2:netlib_dger:m": "%arg0",
+    "2:netlib_dger:n": "%arg0",
+    "2:netlib_dger:alpha": "literal 1.0",
+    "2:netlib_dger:x": "%arg7",
+    "2:netlib_dger:y": "%arg6",
+    "2:netlib_dger:lda": "stride0(%arg3)",
+    "2:netlib_dger:A": "%arg3 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dger"
+  ],
+  "v2": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": false,
+   "max_abs": 5.820766091346741e-11,
+   "max_rel": 3.1408821241038493e-16,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "syr2k": {
+  "kernel": "syr2k",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyr2k_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "ldb": "stride0(%arg6)",
+    "B": "%arg6",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dsyr2k_ut"
+  ],
+  "v2": {
+   "n_ref": 6400,
+   "n_out": 6400,
+   "exact_text": false,
+   "max_abs": 4.973799150320701e-14,
+   "max_rel": 1.2335811384723955e-15,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "trmm": {
+  "kernel": "trmm",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrmm_rutu"
+  ],
+  "region_bindings": [
+   {
+    "m": "%arg1",
+    "n": "%arg0",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg3)",
+    "A": "%arg3",
+    "ldb": "stride0(%arg4)",
+    "B": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrmm_rutu"
+  ],
+  "v2": {
+   "n_ref": 4800,
+   "n_out": 4800,
+   "exact_text": false,
+   "max_abs": 2.1316282072803006e-14,
+   "max_rel": 1.1653017396639607e-15,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dsyrk_ut"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dsyrk_ut"
+  ],
+  "v2": {
+   "n_ref": 6400,
+   "n_out": 6400,
+   "exact_text": false,
+   "max_abs": 2.842170943040401e-14,
+   "max_rel": 1.925242239234371e-15,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_utn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrsv_utn"
+  ],
+  "v2": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": true,
+   "max_abs": 0.0,
+   "max_rel": 0.0,
+   "verdict": "PASS_EXACT"
+  },
+  "status": "ok"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dpotf2_u"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1 (in-place)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dpotf2_u"
+  ],
+  "v2": {
+   "n_ref": 7260,
+   "n_out": 7260,
+   "exact_text": false,
+   "max_abs": 8.271161533457416e-15,
+   "max_rel": 1.1345091532890251e-13,
+   "verdict": "PASS_1e-12"
+  },
+  "status": "ok"
+ },
+ "ludcmp": {
+  "kernel": "ludcmp",
+  "dataset": "SMALL",
+  "linalg_launches": [],
+  "region_launches": [
+   "netlib_dtrsv_ltn"
+  ],
+  "region_bindings": [
+   {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg3 (in: %arg4, copied into %arg3 before the launch)"
+   }
+  ],
+  "called_spec_functions": [
+   "netlib_dtrsv_ltn"
+  ],
+  "v2": {
+   "verdict": "LOWER_FAIL"
+  },
+  "status": "ok"
+ }
+}

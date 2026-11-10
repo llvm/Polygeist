@@ -449,7 +449,7 @@ def _encode_scalar_defs(mlir_text: str,
 _MAP_ALIAS_RE = re.compile(
     # affine_map text contains `->` which has a `>`, so [^>] is wrong here.
     # Match the literal form `affine_map<(...) -> (...)>`.
-    r"^\s*(#map\w*)\s*=\s*"
+    r"^\s*(#[A-Za-z_][\w.$-]*)\s*=\s*"
     r"(affine_map<\([^)]*\)\s*->\s*\([^)]*\)>)",
     re.MULTILINE
 )
@@ -1994,12 +1994,13 @@ def _gemv_alpha_accumulate() -> CompositionEntry:
 
 def _sgemv_alpha_accumulate() -> CompositionEntry:
     """Single-precision y += alpha * A * x."""
-    return _mlir_metadata("cublasSgemv_alpha")
+    return _mlir_metadata("cublasSgemv_alpha", element_type="f32")
 
 
 def _sgemv_alpha_accumulate_memref() -> CompositionEntry:
     """Buffer-form single-precision y += alpha * A * x."""
-    return _mlir_metadata("cublasSgemv_alpha_memref", form="memref")
+    return _mlir_metadata(
+        "cublasSgemv_alpha_memref", form="memref", element_type="f32")
 
 
 def _axpy() -> CompositionEntry:
@@ -3451,38 +3452,6 @@ def _rmsnorm_family() -> list[CompositionEntry]:
         name="rmsnorm_f32", steps=[reduction, scale], form="any")]
 
 
-def _llama_add_f32_tensor() -> CompositionEntry:
-    """out = in0 + in1 — residual add in standalone Llama fixtures."""
-    return _mlir_metadata("cudaAdd_f32_tensor")
-
-
-def _llama_mask_select_f32_tensor() -> CompositionEntry:
-    """Branchless causal mask fixture:
-
-        drop = (i > pos)
-        out = (1 - drop) * scores + drop * NEG_INF
-
-    The `%mask` cap is produced from linalg.index inside the linalg body; the
-    rewriter special-cases this symbol and surfaces the real `%pos` operand.
-    """
-    return _mlir_metadata("cudaMaskSelect_f32_tensor")
-
-
-def _llama_swiglu_f32_tensor() -> CompositionEntry:
-    """out = (gate / (1 + exp(-gate))) * up."""
-    return _mlir_metadata("cudaSwiGLU_f32_tensor")
-
-
-def _llama_rope_mulmul_sub_f32_tensor() -> CompositionEntry:
-    """RoPE split even output: out[h,p] = a[h,p] * b[p] - c[h,p] * d[p]."""
-    return _mlir_metadata("cudaRopeMulMulSub_f32_tensor")
-
-
-def _llama_rope_mulmul_add_f32_tensor() -> CompositionEntry:
-    """RoPE split odd output: out[h,p] = a[h,p] * b[p] + c[h,p] * d[p]."""
-    return _mlir_metadata("cudaRopeMulMulAdd_f32_tensor")
-
-
 def _jacobi_1d_3pt() -> CompositionEntry:
     """Jacobi 1D 3-point smoother: out[i] = (a + b + c) * coef
     where a, b, c are the left/center/right neighbors (encoded via subview
@@ -3950,12 +3919,13 @@ def _rank_two_update() -> CompositionEntry:
 
 def _rank_two_update_f32() -> CompositionEntry:
     """Single-precision GEMVER rank-two update."""
-    return _mlir_metadata("cublasSger_rank2")
+    return _mlir_metadata("cublasSger_rank2", element_type="f32")
 
 
 def _rank_two_update_f32_memref() -> CompositionEntry:
     """Buffer-form single-precision GEMVER rank-two update."""
-    return _mlir_metadata("cublasSger_rank2_memref", form="memref")
+    return _mlir_metadata(
+        "cublasSger_rank2_memref", form="memref", element_type="f32")
 
 
 def composition_library() -> list[CompositionEntry]:
@@ -4131,11 +4101,6 @@ def composition_library() -> list[CompositionEntry]:
         _copy_input_2d_tensor(),
 
         # 1-step BLAS, no α.
-        _llama_rope_mulmul_sub_f32_tensor(),
-        _llama_rope_mulmul_add_f32_tensor(),
-        _llama_swiglu_f32_tensor(),
-        _llama_mask_select_f32_tensor(),
-        _llama_add_f32_tensor(),
         _sgemm_broadcast3d_memref(),
         _dot(),
         _dot_f32(),
@@ -4214,10 +4179,8 @@ _MLIR_SEMANTIC_SOURCE_NAMES = {
     "cublasSgemv_alpha_memref",
     "cublasDger_rank2", "cublasSger_rank2",
     "cublasSger_rank2_memref", "cublasSdot",
-    "cublasSgemm_broadcast3d_memref", "cudaAdd_f32_tensor",
+    "cublasSgemm_broadcast3d_memref",
     "cudaCopy1D_f32_memref",
-    "cudaMaskSelect_f32_tensor", "cudaRopeMulMulAdd_f32_tensor",
-    "cudaRopeMulMulSub_f32_tensor", "cudaSwiGLU_f32_tensor",
     "cudnnAddTensor_batched",
     "memset_zero_1D", "memset_zero_2D", "whisperExpShiftSum_f32_tensor",
 }

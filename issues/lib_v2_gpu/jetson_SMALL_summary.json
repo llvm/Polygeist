@@ -1,0 +1,667 @@
+{
+ "gemm": {
+  "kernel": "gemm",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 2.0,
+  "calls": {
+   "cublasDgemm": 1
+  },
+  "lib_entries": {
+   "cublasDgemm": "cublasDgemm_v2"
+  },
+  "compare": {
+   "n_ref": 4200,
+   "n_out": 4200,
+   "exact_text": false,
+   "max_abs": 4.263256414560601e-14,
+   "max_rel": 1.433707215398621e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 1.1628101172120581e-15
+  },
+  "status": "PASS"
+ },
+ "2mm": {
+  "kernel": "2mm",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 2.0,
+  "calls": {
+   "cublasDgemm": 2
+  },
+  "lib_entries": {
+   "cublasDgemm": "cublasDgemm_v2"
+  },
+  "compare": {
+   "n_ref": 3200,
+   "n_out": 3200,
+   "exact_text": false,
+   "max_abs": 4.547473508864641e-13,
+   "max_rel": 9.218801617459857e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 5.195268393812144e-16
+  },
+  "status": "PASS"
+ },
+ "3mm": {
+  "kernel": "3mm",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.9,
+  "calls": {
+   "cublasDgemm": 3
+  },
+  "lib_entries": {
+   "cublasDgemm": "cublasDgemm_v2"
+  },
+  "compare": {
+   "n_ref": 2800,
+   "n_out": 2800,
+   "exact_text": false,
+   "max_abs": 1.0658141036401503e-14,
+   "max_rel": 6.303898651490048e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 4.2309706431866547e-16
+  },
+  "status": "PASS"
+ },
+ "atax": {
+  "kernel": "atax",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.9,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "cublasDgemv_v2"
+  },
+  "compare": {
+   "n_ref": 124,
+   "n_out": 124,
+   "exact_text": false,
+   "max_abs": 1.7053025658242404e-13,
+   "max_rel": 7.386489143116824e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 6.70459879481026e-16
+  },
+  "status": "PASS"
+ },
+ "bicg": {
+  "kernel": "bicg",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.8,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "cublasDgemv_v2"
+  },
+  "compare": {
+   "n_ref": 240,
+   "n_out": 240,
+   "exact_text": false,
+   "max_abs": 2.1316282072803006e-14,
+   "max_rel": 7.400686484687529e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 5.220142148765819e-16
+  },
+  "status": "PASS"
+ },
+ "mvt": {
+  "kernel": "mvt",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.8,
+  "calls": {
+   "cublasDgemv": 2
+  },
+  "lib_entries": {
+   "cublasDgemv": "cublasDgemv_v2"
+  },
+  "compare": {
+   "n_ref": 244,
+   "n_out": 244,
+   "exact_text": false,
+   "max_abs": 1.7763568394002505e-14,
+   "max_rel": 6.050032754816371e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 4.668821363686136e-16
+  },
+  "status": "PASS"
+ },
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dscal_inc",
+    "call": "polygeist_v2_cublasDscal",
+    "cpu_entry": "dscal_",
+    "gpu_entry": "cublasDscal_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0",
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDscal"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.9,
+  "calls": {
+   "cublasDgemv": 2,
+   "cublasDscal": 1,
+   "cublasDaxpy": 1
+  },
+  "lib_entries": {
+   "cublasDgemv": "cublasDgemv_v2",
+   "cublasDscal": "cublasDscal_v2",
+   "cublasDaxpy": "cublasDaxpy_v2"
+  },
+  "compare": {
+   "n_ref": 90,
+   "n_out": 90,
+   "exact_text": false,
+   "max_abs": 2.842170943040401e-14,
+   "max_rel": 4.258359301364034e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 3.655995553177773e-16
+  },
+  "status": "PASS"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc",
+   "netlib_dger+netlib_dger"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDger"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.8,
+  "calls": {
+   "cublasDger": 2,
+   "cublasDgemv": 2,
+   "cublasDaxpy": 1
+  },
+  "lib_entries": {
+   "cublasDger": "cublasDger_v2",
+   "cublasDgemv": "cublasDgemv_v2",
+   "cublasDaxpy": "cublasDaxpy_v2"
+  },
+  "compare": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": false,
+   "max_abs": 1.7462298274040222e-10,
+   "max_rel": 6.713908056974215e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 5.064648323207629e-16
+  },
+  "status": "PASS"
+ },
+ "doitgen": {
+  "kernel": "doitgen",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.9,
+  "calls": {
+   "cublasDgemv": 500
+  },
+  "lib_entries": {
+   "cublasDgemv": "cublasDgemv_v2"
+  },
+  "compare": {
+   "n_ref": 15000,
+   "n_out": 15000,
+   "exact_text": false,
+   "max_abs": 3.552713678800501e-15,
+   "max_rel": 5.043284402082732e-16,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 3.737512929188136e-16
+  },
+  "status": "PASS"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dtrsv_utn",
+    "call": "polygeist_v2_cublasDtrsv",
+    "cpu_entry": "dtrsv_",
+    "gpu_entry": "cublasDtrsv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dtrsv_utn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDtrsv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.8,
+  "calls": {
+   "cublasDtrsv": 1
+  },
+  "lib_entries": {
+   "cublasDtrsv": "cublasDtrsv_v2"
+  },
+  "compare": {
+   "n_ref": 120,
+   "n_out": 120,
+   "exact_text": false,
+   "max_abs": 5.920264278813647e-14,
+   "max_rel": 2.7835298905774475e-13,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 1.1939199628940856e-13
+  },
+  "status": "PASS"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dpotf2_u",
+    "call": "polygeist_v2_cusolverDnDpotrf",
+    "cpu_entry": "dpotrf_",
+    "gpu_entry": "cusolverDnDpotrf"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dpotf2_u"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cusolverDnDpotrf"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.9,
+  "calls": {
+   "cusolverDnDpotrf": 1
+  },
+  "lib_entries": {
+   "cusolverDnDpotrf": "cusolverDnDpotrf"
+  },
+  "compare": {
+   "n_ref": 7260,
+   "n_out": 7260,
+   "exact_text": false,
+   "max_abs": 7.216449660063518e-15,
+   "max_rel": 1.9443905944787257e-14,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 7.216449660063488e-15
+  },
+  "status": "PASS"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "SMALL",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dsyrk_ut",
+    "call": "polygeist_v2_cublasDsyrk",
+    "cpu_entry": "dsyrk_",
+    "gpu_entry": "cublasDsyrk_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dsyrk_ut"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDsyrk"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "run_seconds": 1.8,
+  "calls": {
+   "cublasDsyrk": 1
+  },
+  "lib_entries": {
+   "cublasDsyrk": "cublasDsyrk_v2"
+  },
+  "compare": {
+   "n_ref": 6400,
+   "n_out": 6400,
+   "exact_text": false,
+   "max_abs": 2.842170943040401e-14,
+   "max_rel": 2.053591721849996e-15,
+   "verdict": "PASS_1e-12",
+   "normwise_rel": 7.375108573850267e-16
+  },
+  "status": "PASS"
+ }
+}

@@ -1,5 +1,7 @@
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -21,6 +23,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 
 #include <algorithm>
@@ -35,6 +38,186 @@ using namespace mlir::arith;
 using namespace polygeist;
 using namespace affine;
 using namespace linalg;
+
+//===----------------------------------------------------------------------===//
+// Loop-carried flow dependences vs. linalg.generic value semantics.
+//
+// Raising an affine.for into a linalg.generic dimension turns every read of
+// the loop body into an `ins` operand (or the `%out` of the element it
+// updates).  After --linalg-debufferize those reads see the buffer *before*
+// the generic, so a read that, in the sequential C loop, observes a value
+// written by an earlier iteration of the raised loop (a carried flow / RAW
+// dependence) silently reads a stale value.  Forward substitution
+// (`t = X[j]; for i > j: X[i] -= t * A[j][i]`) is the canonical example: the
+// outer j loop was raised as a "parallel" dim and the dependence was lost.
+//
+// The dependences are computed once, on the pure affine loop nest, before any
+// raising (when MLIR's exact affine dependence analysis still applies):
+//   * every affine.load/store gets a unique `polygeist.acc_id`;
+//   * every affine.for gets `polygeist.carried_flow = [s0, r0, s1, r1, ...]`,
+//     the (store id, load id) pairs with a RAW dependence carried by that loop
+//     that a generic cannot express;
+//   * a raised linalg.generic records the ids of the accesses it absorbed in
+//     `polygeist.acc_ids`, so the information survives inner raising and loop
+//     distribution (which copies the loop attribute to its sibling loops; a
+//     pair split across siblings is no longer carried and is ignored).
+// A loop whose body contains both ids of a recorded pair is not raised.
+// All three attributes are stripped at the end of the pass.
+//===----------------------------------------------------------------------===//
+static constexpr llvm::StringLiteral kAccIdAttr = "polygeist.acc_id";
+static constexpr llvm::StringLiteral kAccIdsAttr = "polygeist.acc_ids";
+static constexpr llvm::StringLiteral kCarriedFlowAttr =
+    "polygeist.carried_flow";
+
+static bool sameAffineAddress(Operation *a, Operation *b) {
+  MemRefAccess x(a), y(b);
+  auto mapOf = [](Operation *op) {
+    if (auto l = dyn_cast<affine::AffineLoadOp>(op))
+      return l.getAffineMap();
+    return cast<affine::AffineStoreOp>(op).getAffineMap();
+  };
+  return x.memref == y.memref && mapOf(a) == mapOf(b) &&
+         x.indices == y.indices;
+}
+
+// True if `store`'s address may vary with the IV of `loop`: an operand is the
+// IV itself, or a value computed inside `loop` other than a nested loop IV.
+static bool addressMayDependOnLoop(affine::AffineStoreOp store,
+                                   affine::AffineForOp loop) {
+  for (Value v : store.getMapOperands()) {
+    if (v == loop.getInductionVar())
+      return true;
+    if (auto ba = dyn_cast<BlockArgument>(v)) {
+      Operation *owner = ba.getOwner()->getParentOp();
+      if (isa<affine::AffineForOp>(owner) && owner != loop &&
+          loop->isProperAncestor(owner))
+        continue; // IV of a nested loop
+      if (loop->isAncestor(owner))
+        return true;
+      continue;
+    }
+    if (loop->isAncestor(v.getDefiningOp()))
+      return true;
+  }
+  return false;
+}
+
+// A load whose element is (re)written earlier in the *same* iteration of
+// `loop` by an unconditional exact-address store -- one in a block enclosing
+// the load (within `loop`) and preceding it -- can never observe a value from
+// an earlier iteration (forwarded loads, scratch slots re-initialised at the
+// top of every iteration).
+static bool loadKilledWithinIteration(affine::AffineLoadOp load,
+                                      affine::AffineForOp loop) {
+  for (Operation *anc = load; anc && anc != loop; anc = anc->getParentOp()) {
+    Block *blk = anc->getBlock();
+    for (Operation &op : *blk) {
+      if (&op == anc)
+        break;
+      auto st = dyn_cast<affine::AffineStoreOp>(op);
+      if (st && sameAffineAddress(st, load))
+        return true;
+    }
+  }
+  return false;
+}
+
+static void annotateCarriedFlowDependences(func::FuncOp func) {
+  int64_t nextId = 0;
+  func.walk([&](Operation *op) {
+    if (isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+      op->setAttr(kAccIdAttr,
+                  IntegerAttr::get(IntegerType::get(op->getContext(), 64),
+                                   nextId++));
+  });
+  DominanceInfo dom(func);
+  func.walk([&](affine::AffineForOp loop) {
+    SmallVector<affine::AffineLoadOp> loads;
+    SmallVector<affine::AffineStoreOp> stores;
+    loop.getBody()->walk([&](Operation *op) {
+      if (auto l = dyn_cast<affine::AffineLoadOp>(op))
+        loads.push_back(l);
+      else if (auto s = dyn_cast<affine::AffineStoreOp>(op))
+        stores.push_back(s);
+    });
+    if (loads.empty() || stores.empty())
+      return;
+    unsigned depth = getNestingDepth(loop) + 1;
+    SmallVector<int64_t> pairs;
+    for (affine::AffineLoadOp load : loads) {
+      if (loadKilledWithinIteration(load, loop))
+        continue;
+      MemRefAccess dst(load);
+      for (affine::AffineStoreOp store : stores) {
+        if (store.getMemref() != load.getMemref())
+          continue;
+        // The `%out` of an accumulator store (same address, read first)
+        // carries values across iterations by design -- a reduction dim --
+        // as long as the address does not move with this loop.
+        if (sameAffineAddress(load, store) &&
+            dom.dominates(load.getOperation(), store.getOperation()) &&
+            !addressMayDependOnLoop(store, loop))
+          continue;
+        DependenceResult res = checkMemrefAccessDependence(
+            MemRefAccess(store), dst, depth, /*dependenceConstraints=*/nullptr,
+            /*dependenceComponents=*/nullptr);
+        if (res.value == DependenceResult::NoDependence)
+          continue;
+        // Semi-affine subscripts (e.g. BLAS `x[i * incx]`) are outside the
+        // Presburger analysis (Failure).  For the read-modify-write of one
+        // element the raiser already assumes the address is injective in the
+        // loop (it becomes a parallel dim); keep that assumption rather than
+        // reject every strided update.  Any other unanalysable pair is
+        // conservatively treated as a dependence.
+        if (res.value == DependenceResult::Failure &&
+            sameAffineAddress(load, store))
+          continue;
+        pairs.push_back(
+            cast<IntegerAttr>(store->getAttr(kAccIdAttr)).getInt());
+        pairs.push_back(cast<IntegerAttr>(load->getAttr(kAccIdAttr)).getInt());
+      }
+    }
+    if (!pairs.empty())
+      loop->setAttr(kCarriedFlowAttr,
+                    DenseI64ArrayAttr::get(loop.getContext(), pairs));
+  });
+}
+
+// Ids of every affine access absorbed in (or still present in) `loop`'s body.
+static llvm::SmallSetVector<int64_t, 16> collectAccessIds(Operation *loop) {
+  llvm::SmallSetVector<int64_t, 16> ids;
+  loop->walk([&](Operation *op) {
+    if (op == loop)
+      return;
+    if (auto id = op->getAttrOfType<IntegerAttr>(kAccIdAttr))
+      ids.insert(id.getInt());
+    if (auto arr = op->getAttrOfType<DenseI64ArrayAttr>(kAccIdsAttr))
+      for (int64_t id : arr.asArrayRef())
+        ids.insert(id);
+  });
+  return ids;
+}
+
+// True if raising `loop` into a generic dimension would drop a carried flow
+// dependence recorded by annotateCarriedFlowDependences.
+static bool raisingDropsCarriedFlow(
+    Operation *loop, const llvm::SmallSetVector<int64_t, 16> &ids) {
+  auto pairs = loop->getAttrOfType<DenseI64ArrayAttr>(kCarriedFlowAttr);
+  if (!pairs)
+    return false;
+  ArrayRef<int64_t> p = pairs.asArrayRef();
+  for (size_t i = 0; i + 1 < p.size(); i += 2)
+    if (ids.contains(p[i]) && ids.contains(p[i + 1]))
+      return true;
+  return false;
+}
+
+static void setAccessIds(Operation *op,
+                         const llvm::SmallSetVector<int64_t, 16> &ids) {
+  if (!ids.empty())
+    op->setAttr(kAccIdsAttr, DenseI64ArrayAttr::get(op->getContext(),
+                                                    ids.getArrayRef()));
+}
 
 namespace {
 
@@ -1698,6 +1881,10 @@ struct DistributeAffineForOnLinalgGeneric
       // loops it produces are equally sequential.
       if (isParallel)
         newFor->setAttr("polygeist.was_parallel", rewriter.getUnitAttr());
+      // Each sibling keeps the carried-flow pairs; only pairs whose two
+      // accesses both land in that sibling's chunk still constrain it.
+      if (Attribute pairs = forOp->getAttr(kCarriedFlowAttr))
+        newFor->setAttr(kCarriedFlowAttr, pairs);
 
       Block *newBody = newFor.getBody();
       // newBody already has a default affine.yield from the builder.
@@ -2281,6 +2468,24 @@ static bool allOperandsAreLoopInvariantWrt(ValueRange operands,
   return true;
 }
 
+// Slope of the single-result `map` with respect to operand `operandPos`
+// (dims first, then symbols): E(x+1) - E(x) when that difference simplifies to
+// a constant, std::nullopt otherwise (e.g. mod/floordiv of the operand).
+static std::optional<int64_t> getConstantSlope(AffineMap map,
+                                               unsigned operandPos) {
+  if (map.getNumResults() != 1)
+    return std::nullopt;
+  MLIRContext *ctx = map.getContext();
+  unsigned nd = map.getNumDims(), ns = map.getNumSymbols();
+  AffineExpr var = operandPos < nd ? getAffineDimExpr(operandPos, ctx)
+                                   : getAffineSymbolExpr(operandPos - nd, ctx);
+  AffineExpr e = map.getResult(0);
+  AffineExpr diff = simplifyAffineExpr(e.replace(var, var + 1) - e, nd, ns);
+  if (auto c = diff.dyn_cast<AffineConstantExpr>())
+    return c.getValue();
+  return std::nullopt;
+}
+
 // Bound-mask info captured at loop acceptance time and consumed at body-build
 // time to emit a `linalg.index + affine.apply + cmpi + select` guard.
 struct BoundMaskInfo {
@@ -2759,6 +2964,17 @@ struct FuseScalarAddReductionIntoOutput
 
     generic.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(indexingMaps));
     generic->setOperand(generic.getNumDpsInputs(), outputView.getResult());
+    {
+      // The generic now performs the output read-modify-write itself.
+      llvm::SmallSetVector<int64_t, 16> ids = collectAccessIds(generic);
+      if (auto arr = generic->getAttrOfType<DenseI64ArrayAttr>(kAccIdsAttr))
+        ids.insert(arr.asArrayRef().begin(), arr.asArrayRef().end());
+      for (Operation *op : {outputStore.getOperation(),
+                            outputLoad.getOperation()})
+        if (auto id = op->getAttrOfType<IntegerAttr>(kAccIdAttr))
+          ids.insert(id.getInt());
+      setAccessIds(generic, ids);
+    }
 
     rewriter.eraseOp(outputStore);
     rewriter.eraseOp(outerAdd);
@@ -2854,6 +3070,9 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       return failure();
     if (targetStore->getNextNode() != terminator)
       return failure();
+    llvm::SmallSetVector<int64_t, 16> bodyAccessIds = collectAccessIds(loop);
+    if (raisingDropsCarriedFlow(loop, bodyAccessIds))
+      return failure();
 
     // Only loads from the destination buffer participate in the output
     // dependence proof.  Affine loads from index/input tensors are ordinary
@@ -2906,6 +3125,7 @@ struct HybridAffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
         loop.getLoc(), TypeRange(), inputs, outputs, affineMaps, iteratorTypes,
         empty, empty);
+    setAccessIds(genericOp, bodyAccessIds);
 
     rewriter.setInsertionPointToStart(loopBody);
     auto idx = rewriter.create<linalg::IndexOp>(loop.getLoc(), 0);
@@ -3175,6 +3395,14 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       return failure();
     }
 
+    // A carried RAW dependence (e.g. forward substitution) cannot be expressed
+    // by a generic dimension: its reads would see the pre-generic buffer.
+    llvm::SmallSetVector<int64_t, 16> bodyAccessIds = collectAccessIds(loop);
+    if (raisingDropsCarriedFlow(loop, bodyAccessIds)) {
+      LLVM_DEBUG(llvm::dbgs() << "REJECTED: loop carries a flow dependence\n\n");
+      return failure();
+    }
+
     // A memref whose element is itself a memref is an array of descriptors,
     // not a dense numeric tensor.  Building a submap for it loses the loaded
     // descriptor/indirection and can hoist the loop IV outside its region,
@@ -3339,36 +3567,75 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     }
 
     // Non-constant upper bound (e.g. `for j = 0 to i+1`): if any of the ub
-    // operands is an IV of an enclosing affine.for, replace it with that
-    // outer loop's (ub - 1) so the resulting size becomes outer-scope-
-    // dominating. This is necessary for the outer loop to later wrap this
-    // inner linalg.generic. Emit a body mask `index < origUb(captures)` so
-    // the iterations we'd otherwise execute past the original ub are gated.
+    // operands is an IV of an enclosing affine.for, replace it with the value
+    // of that outer IV which MAXIMISES the bound, so the resulting size
+    // becomes outer-scope-dominating and covers every outer iteration. This
+    // is necessary for the outer loop to later wrap this inner
+    // linalg.generic. Emit a body mask `index < origUb(captures)` so the
+    // iterations we'd otherwise execute past the original ub are gated.
+    //
+    // The maximising value depends on the bound's monotonicity in that IV:
+    // `for i < j + 1` grows with j (use the outer ub - 1), whereas
+    // `for i < n - j - 1` shrinks with j (use the outer lb).  Substituting
+    // ub - 1 unconditionally sized the latter to n - (n-1) - 1 = 0, i.e. an
+    // empty view that silently dropped the whole nest.  A bound that is not
+    // monotone in the IV (mod/floordiv) is rejected.
     if (!loop.hasConstantUpperBound() &&
         allOperandsAreLoopInvariantWrt(ubOperands, loop)) {
-      // Check whether any operand is an IV of an enclosing affine.for.
+      // Decide (without creating IR) how to substitute each outer IV.
+      enum class Subst { Keep, OuterMax, OuterMin };
+      SmallVector<Subst> substs;
       bool anyOuterIv = false;
+      for (auto [pos, op] : llvm::enumerate(ubOperands)) {
+        substs.push_back(Subst::Keep);
+        auto blockArg = dyn_cast<BlockArgument>(op);
+        if (!blockArg)
+          continue;
+        auto outerFor =
+            dyn_cast<affine::AffineForOp>(blockArg.getOwner()->getParentOp());
+        if (!outerFor || blockArg != outerFor.getInductionVar())
+          continue;
+        std::optional<int64_t> slope = getConstantSlope(ubMap, pos);
+        if (!slope) {
+          LLVM_DEBUG(llvm::dbgs() << "REJECTED: ub is not monotone in an "
+                                     "outer IV\n\n");
+          return failure();
+        }
+        AffineMap outerBound = *slope >= 0 ? outerFor.getUpperBoundMap()
+                                           : outerFor.getLowerBoundMap();
+        if (outerBound.getNumResults() != 1) {
+          LLVM_DEBUG(llvm::dbgs() << "REJECTED: outer loop bound is a "
+                                     "min/max of several expressions\n\n");
+          return failure();
+        }
+        substs.back() = *slope >= 0 ? Subst::OuterMax : Subst::OuterMin;
+        anyOuterIv = true;
+      }
       SmallVector<Value> maxUbOperands;
       maxUbOperands.reserve(ubOperands.size());
-      for (Value op : ubOperands) {
-        if (auto blockArg = dyn_cast<BlockArgument>(op)) {
-          Operation *parentOp = blockArg.getOwner()->getParentOp();
-          if (auto outerFor = dyn_cast<affine::AffineForOp>(parentOp)) {
-            // Build (outerFor.ub - 1) at the same site this loop currently is.
-            OpBuilder::InsertionGuard g(rewriter);
-            rewriter.setInsertionPoint(loop);
-            Value outerUb = rewriter.create<affine::AffineApplyOp>(
-                loop.getLoc(), outerFor.getUpperBoundMap(),
-                SmallVector<Value>(outerFor.getUpperBoundOperands()));
-            Value c1 = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), 1);
-            Value outerUbMinus1 = rewriter.create<arith::SubIOp>(
-                loop.getLoc(), outerUb, c1);
-            maxUbOperands.push_back(outerUbMinus1);
-            anyOuterIv = true;
-            continue;
-          }
+      for (auto [pos, op] : llvm::enumerate(ubOperands)) {
+        if (substs[pos] == Subst::Keep) {
+          maxUbOperands.push_back(op);
+          continue;
         }
-        maxUbOperands.push_back(op);
+        auto outerFor = cast<affine::AffineForOp>(
+            cast<BlockArgument>(op).getOwner()->getParentOp());
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPoint(loop);
+        if (substs[pos] == Subst::OuterMin) {
+          // Non-increasing in this IV: the bound is largest at the outer lb.
+          maxUbOperands.push_back(rewriter.create<affine::AffineApplyOp>(
+              loop.getLoc(), outerFor.getLowerBoundMap(),
+              SmallVector<Value>(outerFor.getLowerBoundOperands())));
+          continue;
+        }
+        // Non-decreasing: largest at (outerFor.ub - 1).
+        Value outerUb = rewriter.create<affine::AffineApplyOp>(
+            loop.getLoc(), outerFor.getUpperBoundMap(),
+            SmallVector<Value>(outerFor.getUpperBoundOperands()));
+        Value c1 = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), 1);
+        maxUbOperands.push_back(
+            rewriter.create<arith::SubIOp>(loop.getLoc(), outerUb, c1));
       }
       if (anyOuterIv) {
         ubMaskInfo.needed = true;
@@ -3772,6 +4039,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
         loop.getLoc(), TypeRange(), inputs, outputs, affineMaps, iteratorTypes,
         empty, empty);
+    setAccessIds(genericOp, bodyAccessIds);
 
     // TODO if doing the linalg generic case, ignore a lot of the below and
     // instead of injecting the old body of the affine.for, move the inner
@@ -3880,6 +4148,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // to the corresponding output block arg when inactive.
     if (lbMaskInfo.needed || ubMaskInfo.needed) {
       Value idx = rewriter.create<linalg::IndexOp>(loop.getLoc(), /*dim=*/0);
+      // linalg.index is zero-based; the original bounds are in terms of the
+      // affine IV, which starts at a constant lower bound (a non-constant lb
+      // was replaced by 0 above).  Compare the IV, not the raw index.
+      if (loop.hasConstantLowerBound() && loop.getConstantLowerBound() != 0)
+        idx = rewriter.create<arith::AddIOp>(loop.getLoc(), idx, lbValue);
       Value active;
       if (lbMaskInfo.needed) {
         Value lbVal = rewriter.create<affine::AffineApplyOp>(
@@ -4264,6 +4537,12 @@ void RaiseAffineToLinalg::runOnOperation() {
     }
     LLVM_DEBUG(llvm::dbgs() << "### Step 2 Complete ###\n\n");
   }
+
+  // Every loop is now a plain affine.for over affine accesses: record the
+  // carried flow dependences that raising must not drop (see
+  // annotateCarriedFlowDependences).
+  getOperation()->walk(
+      [&](func::FuncOp func) { annotateCarriedFlowDependences(func); });
   
   // Step 3: Apply distribution then raising patterns. Distribute runs at
   // higher benefit so loops whose bodies have mixed chunks (Group C/D)
@@ -4336,6 +4615,13 @@ void RaiseAffineToLinalg::runOnOperation() {
     }
     LLVM_DEBUG(llvm::dbgs() << "### Step 4 Complete ###\n\n");
   }
+
+  // The dependence bookkeeping attributes are internal to this pass.
+  getOperation()->walk([&](Operation *op) {
+    op->removeAttr(kAccIdAttr);
+    op->removeAttr(kAccIdsAttr);
+    op->removeAttr(kCarriedFlowAttr);
+  });
 
   LLVM_DEBUG(llvm::dbgs() << "****************************************\n");
   LLVM_DEBUG(llvm::dbgs() << "*** RaiseAffineToLinalg END ***\n");

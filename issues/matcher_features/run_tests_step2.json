@@ -1,0 +1,1168 @@
+{
+ "spec_load_ms": 23.8,
+ "spec_validation": {
+  "netlib_dpotf2_u": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])",
+  "netlib_dpotf2_l": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (r0, v1))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (r0, v1))\"])",
+  "netlib_dtrsv_unn": "debufferized stage NOT equivalent (element reads differ on piece [p%arg0 - v0 - 1 >= 0, v0 >= 0]: app [\"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_unu": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 2 >= 0]: app [\"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_utn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_utu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_lnn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_lnu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_1 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_ltn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_ltu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ"
+ },
+ "results": [
+  {
+   "test": "pb_trisolv_saved",
+   "source": "issues/polybench_section42/ir/trisolv/raised_debufferized.mlir",
+   "function": "kernel_trisolv",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "saved campaign artifact",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 276.8,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      32.37
+     ],
+     "normalise_ms": 8.65,
+     "match_ms": 48.28
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 32.4 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (restrict)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 32.4,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "pb_trisolv_fresh",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c",
+   "function": "kernel_trisolv",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 644.0,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      106.78
+     ],
+     "normalise_ms": 23.47,
+     "match_ms": 141.38
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 106.8 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 106.8,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "saved_vs_fresh": "equivalent"
+  },
+  {
+   "test": "trsv_axpy",
+   "source": "scripts/correctness/region_match/tests/c/trsv_axpy.c",
+   "function": "trsv_axpy",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 1133.4,
+   "windows": [
+    {
+     "window": [
+      6,
+      10
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      59
+     ],
+     "egraph_classes": [
+      46
+     ],
+     "egg_ms": [
+      95.34
+     ],
+     "normalise_ms": 122.41,
+     "match_ms": 145.02
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 59 nodes, egglog 95.3 ms; dependence checks 20 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_10_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_10_ld2 = arith.index_cast %rm6_10_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_10_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 59,
+   "egg_ms_total": 95.3,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_temp",
+   "source": "scripts/correctness/region_match/tests/c/trsv_temp.c",
+   "function": "trsv_temp",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 915.4,
+   "windows": [
+    {
+     "window": [
+      7,
+      9
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      130.52
+     ],
+     "normalise_ms": 45.29,
+     "match_ms": 203.05
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 130.5 ms; dependence checks 9 (reads: input 3, final 1, accumulator 1, scratch-inlined 1); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm7_9_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm7_9_ld2 = arith.index_cast %rm7_9_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm7_9_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 130.5,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_unit",
+   "source": "scripts/correctness/region_match/tests/c/trsv_unit.c",
+   "function": "trsv_unit",
+   "expect": {
+    "match": "netlib_dtrsv_utu",
+    "not": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_utu",
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 259.8,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utu",
+     "kind": "single",
+     "also": [],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      55
+     ],
+     "egraph_classes": [
+      43
+     ],
+     "egg_ms": [
+      68.59
+     ],
+     "normalise_ms": 15.36,
+     "match_ms": 96.17
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utu: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 55 nodes, egglog 68.6 ms; dependence checks 7 (reads: input 2, final 1, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ); copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utu(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 55,
+   "egg_ms_total": 68.6,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utu"
+    ]
+   }
+  },
+  {
+   "test": "trsv_upper_back",
+   "source": "scripts/correctness/region_match/tests/c/trsv_upper_back.c",
+   "function": "trsv_upper_back",
+   "expect": {
+    "match": "netlib_dtrsv_ltn",
+    "not": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_ltn",
+   "also_equal": [
+    "netlib_dtrsv_unn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 820.1,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dtrsv_ltn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_unn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      98.23
+     ],
+     "normalise_ms": 43.95,
+     "match_ms": 162.8
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_ltn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 98.2 ms; dependence checks 9 (reads: input 3, final 1, accumulator 1, scratch-inlined 1); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_unn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_ltn(%arg0, %rm5_7_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 98.2,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 6.939e-18,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_ltn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_inplace (b aliases x)",
+   "source": "scripts/correctness/region_match/tests/c/trsv_inplace.c",
+   "function": "trsv_inplace",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "flag": "in-place"
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 419.4,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 16,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      25.87
+     ],
+     "normalise_ms": 26.9,
+     "match_ms": 43.38
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in-place)'}; e-graph max 63 nodes, egglog 25.9 ms; dependence checks 10 (reads: input 2, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; in-place: X in/out both bound to %arg2"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm5_7_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 25.9,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "pb_cholesky_saved",
+   "source": "issues/polybench_section42/ir/cholesky/raised_debufferized.mlir",
+   "function": "kernel_cholesky",
+   "expect": {
+    "match": "netlib_dpotf2_u"
+   },
+   "recipe": "saved campaign artifact",
+   "selected": "netlib_dpotf2_u",
+   "also_equal": [
+    "netlib_dpotf2_l[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 682.6,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "matched": "netlib_dpotf2_u",
+     "kind": "single",
+     "also": [
+      "netlib_dpotf2_l[transposed]"
+     ],
+     "bindings_tried": 2,
+     "pieces": 2,
+     "egraph_nodes": [
+      55,
+      72
+     ],
+     "egraph_classes": [
+      43,
+      53
+     ],
+     "egg_ms": [
+      41.8,
+      46.59
+     ],
+     "normalise_ms": 212.01,
+     "match_ms": 256.6
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 72 nodes, egglog 88.4 ms; dependence checks 49 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal: netlib_dpotf2_l[transposed]; in-place: A in/out both bound to %arg1"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm4_6_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm4_6_ld2 = arith.index_cast %rm4_6_md1#4 : index to i32\n    kernel.launch @netlib_dpotf2_u(%arg0, %rm4_6_ld2, %arg1) : (i32, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 72,
+   "egg_ms_total": 88.4,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 8.882e-16,
+    "max_abs_val": 4.885,
+    "n": 23,
+    "specs": [
+     "netlib_dpotf2_u"
+    ]
+   }
+  },
+  {
+   "test": "pb_cholesky_fresh",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/solvers/cholesky/cholesky.c",
+   "function": "kernel_cholesky",
+   "expect": {
+    "match": "netlib_dpotf2_u"
+   },
+   "recipe": "production",
+   "selected": "netlib_dpotf2_u",
+   "also_equal": [
+    "netlib_dpotf2_l[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 898.0,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "matched": "netlib_dpotf2_u",
+     "kind": "single",
+     "also": [
+      "netlib_dpotf2_l[transposed]"
+     ],
+     "bindings_tried": 2,
+     "pieces": 2,
+     "egraph_nodes": [
+      55,
+      72
+     ],
+     "egraph_classes": [
+      43,
+      53
+     ],
+     "egg_ms": [
+      43.57,
+      111.22
+     ],
+     "normalise_ms": 107.45,
+     "match_ms": 246.15
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 72 nodes, egglog 154.8 ms; dependence checks 49 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal: netlib_dpotf2_l[transposed]; in-place: A in/out both bound to %arg1"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm4_6_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm4_6_ld2 = arith.index_cast %rm4_6_md1#4 : index to i32\n    kernel.launch @netlib_dpotf2_u(%arg0, %rm4_6_ld2, %arg1) : (i32, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 72,
+   "egg_ms_total": 154.8,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 8.882e-16,
+    "max_abs_val": 4.885,
+    "n": 23,
+    "specs": [
+     "netlib_dpotf2_u"
+    ]
+   },
+   "saved_vs_fresh": "equivalent"
+  },
+  {
+   "test": "cholesky_crout (column-by-column)",
+   "source": "scripts/correctness/region_match/tests/c/cholesky_crout.c",
+   "function": "cholesky_crout",
+   "expect": {
+    "match": "netlib_dpotf2_u"
+   },
+   "recipe": "production",
+   "selected": "netlib_dpotf2_u",
+   "also_equal": [
+    "netlib_dpotf2_l[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 1017.2,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dpotf2_u",
+     "kind": "single",
+     "also": [
+      "netlib_dpotf2_l[transposed]"
+     ],
+     "bindings_tried": 2,
+     "pieces": 2,
+     "egraph_nodes": [
+      55,
+      72
+     ],
+     "egraph_classes": [
+      43,
+      53
+     ],
+     "egg_ms": [
+      62.29,
+      97.8
+     ],
+     "normalise_ms": 227.12,
+     "match_ms": 360.86
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 72 nodes, egglog 160.1 ms; dependence checks 60 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal: netlib_dpotf2_l[transposed]; in-place: A in/out both bound to %arg1"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    kernel.launch @netlib_dpotf2_u(%arg0, %rm5_7_ld2, %arg1) : (i32, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 72,
+   "egg_ms_total": 160.1,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 8.882e-16,
+    "max_abs_val": 4.885,
+    "n": 23,
+    "specs": [
+     "netlib_dpotf2_u"
+    ]
+   }
+  },
+  {
+   "test": "cholesky_right (right-looking)",
+   "source": "scripts/correctness/region_match/tests/c/cholesky_right.c",
+   "function": "cholesky_right",
+   "expect": {
+    "match": "netlib_dpotf2_u"
+   },
+   "recipe": "production",
+   "selected": "netlib_dpotf2_u",
+   "also_equal": [
+    "netlib_dpotf2_l[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 611.8,
+   "windows": [
+    {
+     "window": [
+      2,
+      4
+     ],
+     "matched": "netlib_dpotf2_u",
+     "kind": "single",
+     "also": [
+      "netlib_dpotf2_l[transposed]"
+     ],
+     "bindings_tried": 2,
+     "pieces": 2,
+     "egraph_nodes": [
+      51,
+      68
+     ],
+     "egraph_classes": [
+      40,
+      50
+     ],
+     "egg_ms": [
+      45.13,
+      57.87
+     ],
+     "normalise_ms": 166.65,
+     "match_ms": 174.79
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 68 nodes, egglog 103.0 ms; dependence checks 48 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal: netlib_dpotf2_l[transposed]; in-place: A in/out both bound to %arg1"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm2_4_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm2_4_ld2 = arith.index_cast %rm2_4_md1#4 : index to i32\n    kernel.launch @netlib_dpotf2_u(%arg0, %rm2_4_ld2, %arg1) : (i32, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 68,
+   "egg_ms_total": 103.0,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 8.882e-16,
+    "max_abs_val": 4.885,
+    "n": 23,
+    "specs": [
+     "netlib_dpotf2_u"
+    ]
+   }
+  },
+  {
+   "test": "cholesky_upper (row-major U^T U)",
+   "source": "scripts/correctness/region_match/tests/c/cholesky_upper.c",
+   "function": "cholesky_upper",
+   "expect": {
+    "match": "netlib_dpotf2_l"
+   },
+   "recipe": "production",
+   "selected": "netlib_dpotf2_l",
+   "also_equal": [
+    "netlib_dpotf2_u[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 299.9,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dpotf2_l",
+     "kind": "single",
+     "also": [
+      "netlib_dpotf2_u[transposed]"
+     ],
+     "bindings_tried": 2,
+     "pieces": 2,
+     "egraph_nodes": [
+      54,
+      85
+     ],
+     "egraph_classes": [
+      42,
+      55
+     ],
+     "egg_ms": [
+      24.09,
+      28.06
+     ],
+     "normalise_ms": 100.08,
+     "match_ms": 95.17
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dpotf2_l: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 85 nodes, egglog 52.2 ms; dependence checks 60 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (r0, v1))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (r0, v1))\"])); also equal: netlib_dpotf2_u[transposed]; in-place: A in/out both bound to %arg1"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    kernel.launch @netlib_dpotf2_l(%arg0, %rm5_7_ld2, %arg1) : (i32, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 85,
+   "egg_ms_total": 52.1,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 1.776e-15,
+    "max_abs_val": 4.885,
+    "n": 23,
+    "specs": [
+     "netlib_dpotf2_l"
+    ]
+   }
+  },
+  {
+   "test": "NEG trsv_transposed L[j][i]",
+   "source": "scripts/correctness/region_match/tests/c/trsv_transposed.c",
+   "function": "trsv_transposed",
+   "expect": {
+    "not": [
+     "netlib_dtrsv_utn",
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "selected": "netlib_dtrsv_lnn",
+   "also_equal": [
+    "netlib_dtrsv_utn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 427.9,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_lnn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_utn[transposed]"
+     ],
+     "bindings_tried": 30,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      46.04
+     ],
+     "normalise_ms": 10.28,
+     "match_ms": 83.89
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_lnn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 46.0 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_utn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_lnn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 46.0,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_lnn"
+    ]
+   }
+  },
+  {
+   "test": "NEG trsv_swapdiv L[i][i]/x[i]",
+   "source": "scripts/correctness/region_match/tests/c/trsv_swapdiv.c",
+   "function": "trsv_swapdiv",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 2463.7,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "composite_pairs": 160,
+     "composites_built": 144,
+     "matched": null,
+     "bindings_tried": 62,
+     "normalise_ms": 41.91378504037857
+    }
+   ],
+   "rejections": [
+    "window 6-8: no specification matched (62 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_mask_le j<=i",
+   "source": "scripts/correctness/region_match/tests/c/trsv_mask_le.c",
+   "function": "trsv_mask_le",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 46.0,
+   "windows": [],
+   "rejections": [
+    "window 7-9: dependence check failed: read of %arg2[g1_0] at [29, v0, 21, g1_0, 0] observes an intermediate value (written both before and after)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_alias_shift b=x+1",
+   "source": "scripts/correctness/region_match/tests/c/trsv_alias_shift.c",
+   "function": "trsv_alias_shift",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 818.9,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "composite_pairs": 160,
+     "composites_built": 144,
+     "matched": null,
+     "bindings_tried": 32,
+     "normalise_ms": 49.86351728439331
+    }
+   ],
+   "rejections": [
+    "window 5-7: no specification matched (32 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_reads_b x-=L*b",
+   "source": "scripts/correctness/region_match/tests/c/trsv_reads_b.c",
+   "function": "trsv_reads_b",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 547.9,
+   "windows": [
+    {
+     "window": [
+      8,
+      20
+     ],
+     "composite_pairs": 64,
+     "composites_built": 96,
+     "matched": null,
+     "bindings_tried": 30,
+     "normalise_ms": 42.41969436407089
+    },
+    {
+     "window": [
+      13,
+      20
+     ],
+     "composite_pairs": 64,
+     "composites_built": 96,
+     "matched": null,
+     "bindings_tried": 32,
+     "normalise_ms": 4.3678879737854
+    },
+    {
+     "window": [
+      17,
+      20
+     ],
+     "composite_pairs": 0,
+     "composites_built": 0,
+     "matched": null,
+     "bindings_tried": 16,
+     "normalise_ms": 0.9651780128479004
+    }
+   ],
+   "rejections": [
+    "window 8-20: no specification matched (30 bindings tried)",
+    "window 13-20: no specification matched (32 bindings tried)",
+    "window 17-20: no specification matched (16 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_div_first",
+   "source": "scripts/correctness/region_match/tests/c/trsv_div_first.c",
+   "function": "trsv_div_first",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 873.6,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "composite_pairs": 160,
+     "composites_built": 144,
+     "matched": null,
+     "bindings_tried": 62,
+     "normalise_ms": 5.085259675979614
+    }
+   ],
+   "rejections": [
+    "window 6-8: no specification matched (62 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG ldlt",
+   "source": "scripts/correctness/region_match/tests/c/ldlt.c",
+   "function": "ldlt",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 89.0,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "composite_pairs": 0,
+     "composites_built": 0,
+     "matched": null,
+     "bindings_tried": 0,
+     "normalise_ms": 61.569660902023315
+    }
+   ],
+   "rejections": [
+    "window 4-6: no specification matched (0 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG cholesky_wrong_tri A[k][j]",
+   "source": "scripts/correctness/region_match/tests/c/cholesky_wrong_tri.c",
+   "function": "cholesky_wrong_tri",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 1645.3,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "composite_pairs": 212,
+     "composites_built": 338,
+     "matched": null,
+     "bindings_tried": 2,
+     "normalise_ms": 52.45814472436905
+    }
+   ],
+   "rejections": [
+    "window 4-6: no specification matched (2 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  }
+ ]
+}

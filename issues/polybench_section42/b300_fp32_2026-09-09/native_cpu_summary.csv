@@ -1,0 +1,16 @@
+kernel,dtype,dataset,status,min_ms
+2mm,fp32,LARGE,pass,246.953
+3mm,fp32,LARGE,pass,435.822
+atax,fp32,LARGE,pass,2.161
+bicg,fp32,LARGE,pass,1.941
+covariance,fp32,LARGE,pass,817.715
+doitgen,fp32,LARGE,pass,40.775
+gemm,fp32,LARGE,pass,148.144
+gemver,fp32,LARGE,pass,3.865
+gesummv,fp32,LARGE,pass,0.863
+mvt,fp32,LARGE,pass,3.310
+symm,fp32,LARGE,pass,993.140
+syr2k,fp32,LARGE,pass,379.606
+syrk,fp32,LARGE,pass,308.326
+trisolv,fp32,LARGE,pass,1.063
+trmm,fp32,LARGE,pass,570.390

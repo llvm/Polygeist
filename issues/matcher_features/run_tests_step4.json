@@ -1,0 +1,366 @@
+{
+ "spec_load_ms": 6354.3,
+ "spec_validation": {
+  "netlib_dpotf2_u": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])",
+  "netlib_dpotf2_l": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (r0, v1))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (r0, v1))\"])",
+  "netlib_dtrsv_unn": "debufferized stage NOT equivalent (element reads differ on piece [p%arg0 - v0 - 1 >= 0, v0 >= 0]: app [\"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_unu": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 2 >= 0]: app [\"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_utn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_utu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_lnn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_lnu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_1 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_ltn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_ltu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ"
+ },
+ "results": [
+  {
+   "test": "comp axpby = DSCAL;DAXPY",
+   "source": "scripts/correctness/region_match/tests/c/axpby.c",
+   "function": "axpby",
+   "expect": {
+    "match": "netlib_dscal_inc+netlib_daxpy_inc",
+    "flag": "sequential composition"
+   },
+   "recipe": "production",
+   "selected": "netlib_dscal_inc+netlib_daxpy_inc",
+   "also_equal": [
+    "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+    "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "ok": true,
+   "match_ms": 565.4,
+   "windows": [
+    {
+     "window": [
+      5,
+      8
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": "netlib_dscal_inc+netlib_daxpy_inc",
+     "kind": "composite",
+     "also": [
+      "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+      "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+     ],
+     "bindings_tried": 72,
+     "pieces": 1,
+     "egraph_nodes": [
+      42
+     ],
+     "egraph_classes": [
+      31
+     ],
+     "egg_ms": [
+      20.45
+     ],
+     "normalise_ms": 1.11,
+     "match_ms": 545.15
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dscal_inc+netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dscal_inc:n': '%arg0', '1:netlib_dscal_inc:da': '%arg2', '1:netlib_dscal_inc:dx': '%arg4 (in-place)', '1:netlib_dscal_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:n': '%arg0', '2:netlib_daxpy_inc:da': '%arg1', '2:netlib_daxpy_inc:dx': '%arg3', '2:netlib_daxpy_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:dy': '%arg4 (in-place)', '2:netlib_daxpy_inc:incy': 'literal 1 (specialised)'}; e-graph max 42 nodes, egglog 20.4 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dscal_inc ; netlib_daxpy_inc with link {'dy': 'dx'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; also equal: netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal], netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "binding": [
+    {
+     "1:netlib_dscal_inc:n": "%arg0",
+     "1:netlib_dscal_inc:da": "%arg2",
+     "1:netlib_dscal_inc:dx": "%arg4 (in-place)",
+     "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:n": "%arg0",
+     "2:netlib_daxpy_inc:da": "%arg1",
+     "2:netlib_daxpy_inc:dx": "%arg3",
+     "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:dy": "%arg4 (in-place)",
+     "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm5_8_c1 = arith.constant 1 : i32\n    kernel.launch @netlib_dscal_inc(%arg0, %arg2, %arg4, %rm5_8_c1) : (i32, f64, memref<?xf64>, i32) -> ()\n    kernel.launch @netlib_daxpy_inc(%arg0, %arg1, %arg3, %rm5_8_c1, %arg4, %rm5_8_c1) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 42,
+   "egg_ms_total": 20.4,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 1.839,
+    "n": 23,
+    "specs": [
+     "netlib_dscal_inc",
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "comp axpby_lit = DSCAL(2);DAXPY(1)",
+   "source": "scripts/correctness/region_match/tests/c/axpby_lit.c",
+   "function": "axpby_lit",
+   "expect": {
+    "match": "netlib_dscal_inc+netlib_daxpy_inc"
+   },
+   "recipe": "production",
+   "selected": "netlib_dscal_inc+netlib_daxpy_inc",
+   "also_equal": [
+    "netlib_daxpy_inc+netlib_daxpy_inc[literal]",
+    "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+    "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "ok": true,
+   "match_ms": 927.2,
+   "windows": [
+    {
+     "window": [
+      6,
+      9
+     ],
+     "composite_pairs": 32,
+     "composites_built": 32,
+     "matched": "netlib_dscal_inc+netlib_daxpy_inc",
+     "kind": "composite",
+     "also": [
+      "netlib_daxpy_inc+netlib_daxpy_inc[literal]",
+      "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+      "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+     ],
+     "bindings_tried": 152,
+     "pieces": 1,
+     "egraph_nodes": [
+      42
+     ],
+     "egraph_classes": [
+      30
+     ],
+     "egg_ms": [
+      18.25
+     ],
+     "normalise_ms": 3.56,
+     "match_ms": 806.72
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dscal_inc+netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dscal_inc:n': '%arg0', '1:netlib_dscal_inc:da': 'literal 2.0', '1:netlib_dscal_inc:dx': '%arg2 (in-place)', '1:netlib_dscal_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:n': '%arg0', '2:netlib_daxpy_inc:da': 'literal 1.0', '2:netlib_daxpy_inc:dx': '%arg1', '2:netlib_daxpy_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:dy': '%arg2 (in-place)', '2:netlib_daxpy_inc:incy': 'literal 1 (specialised)'}; e-graph max 42 nodes, egglog 18.3 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dscal_inc ; netlib_daxpy_inc with link {'dy': 'dx'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; also equal: netlib_daxpy_inc+netlib_daxpy_inc[literal], netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal], netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]; scalar parameter(s) bound to literals {'a:%arg1': 2.0, 'b:%arg1': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "1:netlib_dscal_inc:n": "%arg0",
+     "1:netlib_dscal_inc:da": "literal 2.0",
+     "1:netlib_dscal_inc:dx": "%arg2 (in-place)",
+     "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:n": "%arg0",
+     "2:netlib_daxpy_inc:da": "literal 1.0",
+     "2:netlib_daxpy_inc:dx": "%arg1",
+     "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:dy": "%arg2 (in-place)",
+     "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm6_9_c1 = arith.constant 2.0 : f64\n    %rm6_9_c2 = arith.constant 1 : i32\n    kernel.launch @netlib_dscal_inc(%arg0, %rm6_9_c1, %arg2, %rm6_9_c2) : (i32, f64, memref<?xf64>, i32) -> ()\n    %rm6_9_c3 = arith.constant 1.0 : f64\n    kernel.launch @netlib_daxpy_inc(%arg0, %rm6_9_c3, %arg1, %rm6_9_c2, %arg2, %rm6_9_c2) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 42,
+   "egg_ms_total": 18.2,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 2.862,
+    "n": 23,
+    "specs": [
+     "netlib_dscal_inc",
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "NEG comp axpby_prod",
+   "source": "scripts/correctness/region_match/tests/c/axpby_prod.c",
+   "function": "axpby_prod",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 688.3,
+   "windows": [
+    {
+     "window": [
+      5,
+      8
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": null,
+     "bindings_tried": 72,
+     "normalise_ms": 1.1810287833213806
+    }
+   ],
+   "rejections": [
+    "window 5-8: no specification matched (72 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG comp axpby_shift y[i+1]",
+   "source": "scripts/correctness/region_match/tests/c/axpby_shift.c",
+   "function": "axpby_shift",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 35.2,
+   "windows": [
+    {
+     "window": [
+      7,
+      10
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": null,
+     "bindings_tried": 0,
+     "normalise_ms": 1.1168867349624634
+    }
+   ],
+   "rejections": [
+    "window 7-10: no specification matched (0 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "tr pb_syr2k -> dsyr2k_ut",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/blas/syr2k/syr2k.c",
+   "function": "kernel_syr2k",
+   "expect": {
+    "match": "netlib_dsyr2k_ut",
+    "flag": "layout_transpose",
+    "no_saved_compare": true
+   },
+   "recipe": "production",
+   "selected": "netlib_dsyr2k_ut",
+   "also_equal": [
+    "netlib_dsyr2k_ln[transposed]",
+    "netlib_dsyr2k_un[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 2050.7,
+   "windows": [
+    {
+     "window": [
+      9,
+      21
+     ],
+     "matched": "netlib_dsyr2k_ut",
+     "kind": "single",
+     "also": [
+      "netlib_dsyr2k_ln[transposed]",
+      "netlib_dsyr2k_un[transposed]"
+     ],
+     "bindings_tried": 1312,
+     "pieces": 1,
+     "egraph_nodes": [
+      90
+     ],
+     "egraph_classes": [
+      63
+     ],
+     "egg_ms": [
+      25.04
+     ],
+     "normalise_ms": 14.57,
+     "match_ms": 322.68
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dsyr2k_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 90 nodes, egglog 25.0 ms; dependence checks 7 (reads: input 4, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); netlib_dsyr2k_un proved with operands ['A', 'B'] stored transposed; launched as the equivalent netlib_dsyr2k_ut (manifest layout_transpose: A+B transposed -> flip TRANS); also equal: netlib_dsyr2k_ln[transposed], netlib_dsyr2k_un[transposed]; in-place: C in/out both bound to %arg4"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "k": "%arg1",
+     "alpha": "%arg2",
+     "lda": "stride0(%arg5)",
+     "A": "%arg5",
+     "ldb": "stride0(%arg6)",
+     "B": "%arg6",
+     "beta": "%arg3",
+     "ldc": "stride0(%arg4)",
+     "C": "%arg4 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm9_21_md1:6 = memref.extract_strided_metadata %arg5 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld2 = arith.index_cast %rm9_21_md1#4 : index to i32\n    %rm9_21_md3:6 = memref.extract_strided_metadata %arg6 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld4 = arith.index_cast %rm9_21_md3#4 : index to i32\n    %rm9_21_md5:6 = memref.extract_strided_metadata %arg4 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld6 = arith.index_cast %rm9_21_md5#4 : index to i32\n    kernel.launch @netlib_dsyr2k_ut(%arg0, %arg1, %arg2, %rm9_21_ld2, %arg5, %rm9_21_ld4, %arg6, %arg3, %rm9_21_ld6, %arg4) : (i32, i32, f64, i32, memref<?x?xf64>, i32, memref<?x?xf64>, f64, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 90,
+   "egg_ms_total": 25.0,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 34.79,
+    "n": 23,
+    "specs": [
+     "netlib_dsyr2k_ut"
+    ]
+   }
+  },
+  {
+   "test": "NEG tr syr2k_halfT (B only)",
+   "source": "scripts/correctness/region_match/tests/c/syr2k_halfT.c",
+   "function": "syr2k_halfT",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 2698.6,
+   "windows": [],
+   "rejections": [
+    "window 11-21: netlib_dsyr2k_ln matched but no layout_transpose rule covers transposed operands ['B', 'C']",
+    "window 18-21: netlib_dsyr2k_ln_beta1 matched but no layout_transpose rule covers transposed operands ['B', 'C']"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG tr syr2k_beta1 (no flipped spec)",
+   "source": "scripts/correctness/region_match/tests/c/syr2k_beta1.c",
+   "function": "syr2k_beta1",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 705.2,
+   "windows": [],
+   "rejections": [
+    "window 13-16: netlib_dsyr2k_ln_beta1 matched but no dsyr2k specification with defines {'UPLO': \"'U'\", 'TRANS': \"'T'\", 'BETA_CASE': '1'}"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  }
+ ]
+}
