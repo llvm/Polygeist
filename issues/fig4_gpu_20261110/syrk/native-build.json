@@ -1,0 +1,12 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/SYRK/syrk.cu",
+  "upstream_sha256": "7e208416e8b6c59b52ab9c2ba295c06802c2d1b48968374be6a6d6a618948f1f",
+  "kernel_sha256": [
+    "c1dae53ae28c878b105dd9e987d591a4ffd7d486d1051b75d6a23a7a51b98aef"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "f1a1689ffb62e24c417c81d11e79953719977e0d22dfbb1ada471801b64e9315",
+  "build_rc": 0,
+  "executable_sha256": "f3cbe69c3967e05731689359b14b56dd15cf189c3bb63941a73fcb5bee54604a"
+}

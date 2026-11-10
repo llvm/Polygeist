@@ -6752,10 +6752,13 @@ def rewrite_mlir(
             report.append(("match", [], symbol + "[jds-to-csr+indirect-row-reduction]"))
             emitted_launches += 1
     i = 0
+    rejected_compositions: dict[int, set[str]] = {}
     while i < len(body_terms):
         if i in consumed_structured_bodies:
             i += 1
             continue
+        active_comps = [entry for entry in comps
+                        if entry.name not in rejected_compositions.get(i, ())]
         # SSA names are local to each function. Whole-program modules reuse
         # names such as %arg1 in kernels, helpers, and main, so a module-wide
         # type map can silently assign a launch operand the type from a later
@@ -7180,7 +7183,7 @@ def rewrite_mlir(
                 i += 1
                 continue
         pending_composition = match_composition(
-            bodies, body_terms, comps, start=i, body_forms=body_forms)
+            bodies, body_terms, active_comps, start=i, body_forms=body_forms)
         current_ins = _extract_ssa_names(instances[i].ins_part)
         current_outs = _extract_ssa_names(instances[i].outs_part)
         hidden_broadcast = (
@@ -7248,7 +7251,7 @@ def rewrite_mlir(
                 emitted_launches += 1
                 i += 1
                 continue
-        m = match_composition(bodies, body_terms, comps, start=i,
+        m = match_composition(bodies, body_terms, active_comps, start=i,
                               body_forms=body_forms)
         # Rank-2 GEMM subtraction and strided-batched GEMV subtraction both
         # have two parallel iterators, one reduction iterator, and the scalar
@@ -7265,7 +7268,7 @@ def rewrite_mlir(
             if [_shaped_rank(t) for t in ambiguous_types] != [3, 2, 2]:
                 m = match_composition(
                     bodies, body_terms,
-                    [entry for entry in comps
+                    [entry for entry in active_comps
                      if entry.name != "cublasDgemv_strided_batched_subtract"],
                     start=i, body_forms=body_forms)
         if m is None:
@@ -10567,6 +10570,8 @@ def rewrite_mlir(
                 operand_types=operand_types + [coefficient_type, coefficient_type],
                 scalar_type_map=scalar_types,
                 result_count=last.result_count,
+                launch_attrs=(" {polygeist.result_destinations = array<i64: 1>}"
+                              if body_forms[i] == "tensor" else ""),
             )
             custom_launch_line = "\n".join(scalar_lines + [rendered])
 
@@ -10834,10 +10839,11 @@ def rewrite_mlir(
             if not contraction_init_connected:
                 report.append(("contraction_init_provenance_reject", i,
                                entry.name))
-                # A rejected broad composition must not hide a legal match on
-                # its consumer.  Keep the initializer residual and reconsider
-                # the contraction body independently on the next iteration.
-                i += 1
+                # Retry this body without the rejected composition. It can
+                # still have a valid single-operation match (such as a zero
+                # fill for a different accumulator). Advancing here loses
+                # that match and can force temporary buffers and GPU kernels.
+                rejected_compositions.setdefault(i, set()).add(entry.name)
                 continue
             # When the contraction consumes the zero generic directly, pass
             # the zero generic's destination to the beta=0 runtime and erase
@@ -11002,6 +11008,7 @@ def rewrite_mlir(
                     instances[i].indent, {}, [], operand_types=init_types,
                     scalar_type_map=scalar_types,
                     result_count=instances[i].result_count,
+                    launch_attrs=" {polygeist.result_destinations = array<i64: 0>}",
                 )
                 paired_inputs = sorted(
                     zip(contraction_in_types, contraction_ins),
@@ -11028,6 +11035,7 @@ def rewrite_mlir(
                     operand_types=gemv_types,
                     scalar_type_map=scalar_types,
                     result_count=last.result_count,
+                    launch_attrs=" {polygeist.result_destinations = array<i64: 2>}",
                 )
                 emit_name = gemv_name
                 operands = gemv_operands
@@ -12518,12 +12526,7 @@ def main():
             1 for k, _, _ in report if k == "structured_fusion")
         structured_rejects = sum(
             1 for k, _, _ in report if k == "structured_reject")
-        total = sum(
-            1 for k, _, _ in report
-            if k not in ("kernel_candidate", "semantic_debug",
-                         "structured_fusion", "structured_reject",
-                         "residual_idiom_candidate")
-        )
+        total = len(parse_generics(text))
         print(f"  total: {matched} matched / {total} bodies", file=sys.stderr)
         if candidates:
             print(f"  kernel candidates: {candidates}", file=sys.stderr)

@@ -1,0 +1,13 @@
+{
+  "kernel": "covariance",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 70.0376570224762,
+  "sha256": "e898a05b9febd53016e628b054ab3790843209fae49042d42d1e352b26610425",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.937,
+  "thermal_ok": true
+}

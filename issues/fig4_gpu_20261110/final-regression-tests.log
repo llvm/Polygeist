@@ -1,0 +1,24 @@
+-- Testing: 19 of 265 tests, 2 workers --
+PASS: polygeist :: runtime/cblas-gemv-transpose-alias.c (1 of 19)
+PASS: polygeist :: scripts/scaled-gemv-matching.c (2 of 19)
+PASS: polygeist :: polygeist-opt/kernel-match-fp32-gemver-memref.mlir (3 of 19)
+PASS: polygeist :: scripts/kernel-match-scaled-gemv-transpose.mlir (4 of 19)
+PASS: polygeist :: scripts/kernel-match-mfem-cutensornet-safety.mlir (5 of 19)
+PASS: polygeist :: polygeist-opt/kernel-match-blas-profitability.mlir (6 of 19)
+PASS: polygeist :: scripts/kernel-match-zero-init-matmul.mlir (7 of 19)
+PASS: polygeist :: scripts/kernel-match-gemv-overwrite-scratch.mlir (8 of 19)
+PASS: polygeist :: scripts/kernel-match-mfem-cutensornet-zero-provenance.mlir (9 of 19)
+PASS: polygeist :: scripts/kernel-match-retry-rejected-composition.mlir (10 of 19)
+PASS: polygeist :: polygeist-opt/kernel-launch-bufferize-cutensornet.mlir (11 of 19)
+PASS: polygeist :: polygeist-opt/kernel-launch-bufferize.mlir (12 of 19)
+PASS: polygeist :: polygeist-opt/kernel-launch-bufferize-vector-blas.mlir (13 of 19)
+PASS: polygeist :: polygeist-opt/kernel-launch-bufferized-gemv-stride-error.mlir (14 of 19)
+PASS: polygeist :: polygeist-opt/lower-kernel-launch-cublas-gemv-ssa.mlir (15 of 19)
+PASS: polygeist :: polygeist-opt/lower-kernel-launch-cublas-dgemv-zero.mlir (16 of 19)
+PASS: polygeist :: polygeist-opt/lower-kernel-launch-cublas-llama-batched-gemv.mlir (17 of 19)
+PASS: polygeist :: scripts/scaled-gemv-abi.c (18 of 19)
+PASS: polygeist :: polygeist-opt/lower-kernel-launch-cublas-gemv-t-memref.mlir (19 of 19)
+
+Testing Time: 6.90s
+  Excluded: 246
+  Passed  :  19

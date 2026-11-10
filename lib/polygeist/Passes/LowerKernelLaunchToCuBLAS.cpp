@@ -4563,6 +4563,8 @@ using mlir::polygeist::lowerCudnnConv2DNtapPacked;
 
 // Shared lowering for tensor GEMV. D/S variants differ only in element type
 // and runtime shim symbol; transpose picks A*x vs A^T*x.
+static bool hasKnownContiguousLayout(MemRefType type);
+
 static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
                                        bool transpose, bool useF32,
                                        bool subtract = false,
@@ -4616,23 +4618,24 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
     return launch.emitError(libName)
            << " lowering: expected 3 operands (A, x, y), got "
            << launch.getNumOperands();
-  if (launch.getNumResults() != 1)
-    return launch.emitError(libName) << " lowering: expected 1 result";
+  bool bufferized = launch->hasAttr("polygeist.bufferized");
+  if (launch.getNumResults() != (bufferized ? 0 : 1))
+    return launch.emitError(libName) << " lowering: unexpected result count";
 
   Value A = launch.getOperand(0);
   Value x = launch.getOperand(1);
   Value y = launch.getOperand(2);
-  auto At = dyn_cast<RankedTensorType>(A.getType());
-  auto xt = dyn_cast<RankedTensorType>(x.getType());
-  auto yt = dyn_cast<RankedTensorType>(y.getType());
+  auto At = dyn_cast<ShapedType>(A.getType());
+  auto xt = dyn_cast<ShapedType>(x.getType());
+  auto yt = dyn_cast<ShapedType>(y.getType());
   auto hasElem = [&](Type ty) { return useF32 ? ty.isF32() : ty.isF64(); };
-  if (!At || At.getRank() != 2 || !hasElem(At.getElementType()))
+  if (!At || !At.hasRank() || At.getRank() != 2 || !hasElem(At.getElementType()))
     return launch.emitError(libName)
            << " lowering: A must be 2D " << elemName << " tensor";
-  if (!xt || xt.getRank() != 1 || !hasElem(xt.getElementType()))
+  if (!xt || !xt.hasRank() || xt.getRank() != 1 || !hasElem(xt.getElementType()))
     return launch.emitError(libName)
            << " lowering: x must be 1D " << elemName << " tensor";
-  if (!yt || yt.getRank() != 1 || !hasElem(yt.getElementType()))
+  if (!yt || !yt.hasRank() || yt.getRank() != 1 || !hasElem(yt.getElementType()))
     return launch.emitError(libName)
            << " lowering: y must be 1D " << elemName << " tensor";
 
@@ -4664,6 +4667,17 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   Value M = dimForTensorOrMemrefAsI32(b, loc, A, 0);
   Value N = dimForTensorOrMemrefAsI32(b, loc, A, 1);
   Value lda = N;  // row-major
+  if (bufferized) {
+    auto xType = dyn_cast<MemRefType>(x.getType());
+    auto yType = dyn_cast<MemRefType>(y.getType());
+    auto leadingDim = rowMajorLeadingDim(b, loc, A);
+    if (!xType || !yType || failed(leadingDim) ||
+        !hasKnownContiguousLayout(xType) ||
+        !hasKnownContiguousLayout(yType))
+      return launch.emitError("bufferized GEMV requires a row-major matrix "
+                              "and unit-stride vectors");
+    lda = *leadingDim;
+  }
   if (auto slice = stripTensorCasts(A).getDefiningOp<tensor::ExtractSliceOp>()) {
     auto sourceType = dyn_cast<RankedTensorType>(slice.getSource().getType());
     auto mixedStrides = slice.getMixedStrides();
@@ -4676,8 +4690,10 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
     }
   }
 
-  Value A_ptr = pointerForTensorOrMemref(b, loc, A);
-  Value x_ptr = pointerForTensorOrMemref(b, loc, x);
+  Value A_ptr = bufferized ? memrefDataPtr(b, loc, A)
+                          : pointerForTensorOrMemref(b, loc, A);
+  Value x_ptr = bufferized ? memrefDataPtr(b, loc, x)
+                          : pointerForTensorOrMemref(b, loc, x);
   Value y_mr = valueToOutputMemrefPreservingSlice(b, loc, y);
   Value y_ptr = memrefDataPtr(b, loc, y_mr);
 
@@ -4698,6 +4714,11 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
   func::FuncOp shim = ensureShimDecl(module, shimSym, argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{M, N, alpha, A_ptr, lda, x_ptr, beta, y_ptr});
+
+  if (bufferized) {
+    launch.erase();
+    return success();
+  }
 
   if (overwrite) {
     // The beta=0 form was redirected to its final destination by the
@@ -4723,7 +4744,11 @@ static LogicalResult lowerDgemvImpl(LaunchOp launch, ModuleOp module,
 // @cublasDaxpby(%x : tensor<Nxf64>, %y : tensor<Nxf64>, %alpha : f64, %beta : f64)
 //   -> tensor<Nxf64>
 // Computes y = α*x + β*y. Output (the second tensor) is updated in place.
+static LogicalResult lowerDaxpbyMemref(LaunchOp launch, ModuleOp module);
+
 static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
+  if (launch->hasAttr("polygeist.bufferized"))
+    return lowerDaxpbyMemref(launch, module);
   if (launch.getNumOperands() != 4)
     return launch.emitError("cublasDaxpby: expected 4 operands (x, y, α, β)");
   Value x = launch.getOperand(0);
@@ -4837,6 +4862,8 @@ static LogicalResult lowerDaxpbyMemref(LaunchOp launch, ModuleOp module) {
       !launch.getOperand(3).getType().isF64())
     return launch.emitError(
         "bufferized cublasDaxpby requires rank-1 f64 vectors and scalars");
+  if (!hasKnownContiguousLayout(xType) || !hasKnownContiguousLayout(yType))
+    return launch.emitError("bufferized cublasDaxpby requires unit strides");
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
@@ -5072,19 +5099,26 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
   if (launch.getNumOperands() != 1)
     return launch.emitError(variant) << ": expected 1 operand";
   Value V = launch.getOperand(0);
-  auto Vt = dyn_cast<RankedTensorType>(V.getType());
+  bool bufferized = launch->hasAttr("polygeist.bufferized");
+  if (launch.getNumResults() != (bufferized ? 0 : 1))
+    return launch.emitError(variant) << ": unexpected result count";
+  auto Vt = dyn_cast<ShapedType>(V.getType());
   bool isF32Variant = variant == "memset_zero_1D_f32";
-  if (!Vt || Vt.getRank() != 1 ||
+  if (!Vt || !Vt.hasRank() || Vt.getRank() != 1 ||
       (isF32Variant ? !Vt.getElementType().isF32()
                     : !Vt.getElementType().isF64()))
     return launch.emitError(variant)
            << ": V must be a 1D "
            << (isF32Variant ? "f32" : "f64") << " tensor";
+  if (bufferized && (!isa<MemRefType>(V.getType()) ||
+                     !hasKnownContiguousLayout(cast<MemRefType>(V.getType()))))
+    return launch.emitError(variant) << ": requires a unit-stride memref";
 
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value len = dimForTensorOrMemrefAsI32(b, loc, V, 0);
-  Value V_ptr = pointerForTensorOrMemref(b, loc, V);
+  Value V_ptr = bufferized ? memrefDataPtr(b, loc, V)
+                          : pointerForTensorOrMemref(b, loc, V);
 
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {b.getI32Type(), ptrTy};
@@ -5092,6 +5126,11 @@ static LogicalResult lowerMemsetZero1D(LaunchOp launch, ModuleOp module,
                                     : "polygeist_cublas_memset_zero_1d";
   func::FuncOp shim = ensureShimDecl(module, shimName, argTypes, b);
   b.create<func::CallOp>(loc, shim, ValueRange{len, V_ptr});
+
+  if (bufferized) {
+    launch.erase();
+    return success();
+  }
 
   Value V_mr = valueToMemrefPreservingSlice(b, loc, V);
   Value updatedView =
@@ -8758,6 +8797,33 @@ struct LowerKernelLaunchToCuBLASPass
     });
     for (memref::CopyOp copy : redundantInsertCopies)
       copy.erase();
+
+    // Bufferization may snapshot a buffer and immediately copy the snapshot
+    // back. Remove this closed pair before copies become opaque runtime calls.
+    // Adjacency matters: a write between the two copies would make the snapshot
+    // observable, and must be preserved.
+    SmallVector<memref::AllocOp> copyTemps;
+    module.walk([&](memref::AllocOp alloc) { copyTemps.push_back(alloc); });
+    for (memref::AllocOp alloc : copyTemps) {
+      if (std::distance(alloc.getResult().use_begin(),
+                        alloc.getResult().use_end()) != 2)
+        continue;
+      memref::CopyOp copyIn, copyOut;
+      for (Operation *user : alloc.getResult().getUsers()) {
+        if (auto copy = dyn_cast<memref::CopyOp>(user)) {
+          if (copy.getTarget() == alloc.getResult())
+            copyIn = copy;
+          if (copy.getSource() == alloc.getResult())
+            copyOut = copy;
+        }
+      }
+      if (!copyIn || !copyOut || copyIn->getNextNode() != copyOut.getOperation() ||
+          copyIn.getSource() != copyOut.getTarget())
+        continue;
+      copyIn.erase();
+      copyOut.erase();
+      alloc.erase();
+    }
 
     if (!loweredSymbols.empty()) {
       SmallVector<memref::CopyOp> contiguousCopies;

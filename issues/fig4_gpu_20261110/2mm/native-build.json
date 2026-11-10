@@ -1,0 +1,13 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/2MM/2mm.cu",
+  "upstream_sha256": "dec4988b28f94c75dfdc3b3048e1dc01511fb8cfcdc0314552451002be9d4a0f",
+  "kernel_sha256": [
+    "d1c8273b39a81e8a9d831396b0a25a355dc792a02d1430d9ae90d62493de1aa0",
+    "bd276dac2d4f83c91bedf1309db1ee424e3323e34ec68467f41aba8786dea879"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "bba1c5027e2d93decc9288fde31a541e740a17aff8aa8606f54c0d7d805424d9",
+  "build_rc": 0,
+  "executable_sha256": "555e0c1956dc0364c24befc8b1e5ad15b0927a365600c331f1cd1a771ddda3bf"
+}

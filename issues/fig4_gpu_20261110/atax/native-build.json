@@ -1,0 +1,13 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/ATAX/atax.cu",
+  "upstream_sha256": "5966799837bce3d7fce603c7876f78c2c1bc487f97f590bf242e28ab2acbd230",
+  "kernel_sha256": [
+    "1dea83651b599059ec8bd350cba72661900520eb638da60731704f81366cb0dc",
+    "1ce0fc5b9c111a57dd89688f6b256071a59003d4438e71dd15abe193161136aa"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "75adf96b1ffe440114bbde19561857c84ae770b8165b7be4545138adad8a159f",
+  "build_rc": 0,
+  "executable_sha256": "0e3780a44129e86fc9b5d0d496a3df0d1d645b0865a544f44b3c6ae5587d31db"
+}

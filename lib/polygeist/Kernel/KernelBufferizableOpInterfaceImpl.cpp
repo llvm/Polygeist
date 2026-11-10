@@ -112,7 +112,7 @@ struct LaunchOpInterface
     state.addOperands(operands);
     state.addAttributes(launch->getAttrs());
     state.addAttribute("polygeist.bufferized", rewriter.getUnitAttr());
-    state.addAttribute("polygeist.result_destinations",
+    state.attributes.set("polygeist.result_destinations",
                        rewriter.getDenseI64ArrayAttr(llvm::to_vector(
                            llvm::map_range(*destinations, [](unsigned value) {
                              return (int64_t)value;

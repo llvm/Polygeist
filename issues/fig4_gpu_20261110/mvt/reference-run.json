@@ -1,0 +1,13 @@
+{
+  "kernel": "mvt",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 1.2564043998718262,
+  "sha256": "08945268c636cd70cb6e6801e79572dd4f5c99379203d75561aadf3356ddf2e9",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.093,
+  "thermal_ok": true
+}

@@ -1,0 +1,13 @@
+{
+  "kernel": "2mm",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 38.701322078704834,
+  "sha256": "07e7022e09a9b51ed9246ed4dd83675e0c82c51d5c09d4bdc715cbfa26847df0",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.031,
+  "thermal_ok": true
+}

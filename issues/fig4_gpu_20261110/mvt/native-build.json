@@ -1,0 +1,13 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/MVT/mvt.cu",
+  "upstream_sha256": "44aa960a339f3702e82f4e9b2e7b29c90fae19b5a095fa1ccd0f8e6f6b76a87d",
+  "kernel_sha256": [
+    "3f04bad4b9d8ea9795c9760354f4f29924e30944b29bc773e7f4649339c998c0",
+    "953ee96f07b99a95110f4f8766a033cf8642a4d1fc6a152b6567d2d30aca4b9e"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "07a0953ec37b03197388e218bc48e24040fdbd5dc88b42313749a96340e36085",
+  "build_rc": 0,
+  "executable_sha256": "70bf1adfd06ee70d1a8773e25ef4af5ad7755e9d03a0d3895cad92b0a2d24ffa"
+}

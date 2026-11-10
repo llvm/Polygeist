@@ -595,9 +595,17 @@ N_CURRENT_LAUNCH=$(grep -c 'kernel\.launch' "$SEMANTIC_INPUT" || true)
 N_TENSOR_NETWORK=$(grep -c 'kernel\.launch @cutensornetNetwork_' \
   "$SEMANTIC_INPUT" || true)
 N_POLYGEIST_SUBMAP=$(grep -c 'polygeist\.submap' "$SEMANTIC_INPUT" || true)
+N_BUFFERIZABLE_VECTOR_BLAS=$(grep -Ec 'kernel\.launch @(memset_zero_1D|cublasDgemv|cublasDgemv_T|cublasDaxpby)\(' \
+  "$SEMANTIC_INPUT" || true)
+N_AXPBY=$(grep -c 'kernel\.launch @cublasDaxpby(' "$SEMANTIC_INPUT" || true)
 if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
   if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ] && \
      [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; then
+    PRE_ABI_BUFFERIZE=1
+  elif [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
+       [ "$N_AXPBY" -gt 0 ] && \
+       [ "$N_BUFFERIZABLE_VECTOR_BLAS" -eq "$N_CURRENT_LAUNCH" ] && \
+       [ "$N_POLYGEIST_SUBMAP" -eq 0 ]; then
     PRE_ABI_BUFFERIZE=1
   elif [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
      { [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] || \

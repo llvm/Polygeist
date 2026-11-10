@@ -1,0 +1,13 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/BICG/bicg.cu",
+  "upstream_sha256": "e6a480c75f939958edd2633d7dc1be0a14d9890c6adb7b916b0db5e2c75965bd",
+  "kernel_sha256": [
+    "ece06ca04dfee3087f9b21be4454c7abdbc0165712ff66969ac38dd1175d5f8b",
+    "32ce5c783dc8ca416e343dd9f81113125706cb76d888271abe5ecab180b14e35"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "87795bf484f7386fddf4288c748f0ba860f9be65cb14094c9834726815cf09e6",
+  "build_rc": 0,
+  "executable_sha256": "33db593cf0256abf38aa432a54f3444604e930a930bf51ce4117cbc7d42e1b37"
+}

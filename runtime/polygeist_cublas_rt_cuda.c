@@ -2588,9 +2588,32 @@ void mgpuMemcpy(void *destination, void *source, size_t size_bytes,
     CUDA_CHECK(cudaMemcpy(staging, source, size_bytes, kind));
     memcpy(destination, staging, size_bytes);
     CUDA_CHECK(cudaFreeHost(staging));
-  } else
+  } else if (kind == cudaMemcpyHostToDevice) {
+    cudaError_t status = cudaMemcpyAsync(destination, source, size_bytes, kind,
+                                         cuda_stream);
+    if (status == cudaErrorInvalidValue) {
+      // A reused malloc object can straddle pages registered for another
+      // object by an earlier invocation. CUDA rejects that partially pinned
+      // source just as it rejects a partially pinned D2H destination above.
+      // Stage only this rejected transfer through an independent pinned
+      // allocation. Keep the staging buffer alive until the copy completes.
+      (void)cudaGetLastError();
+      void *staging = NULL;
+      CUDA_CHECK(cudaMallocHost(&staging, size_bytes));
+      // Preserve stream ordering if earlier GPU work wrote mapped host data.
+      CUDA_CHECK(cudaStreamSynchronize(cuda_stream));
+      memcpy(staging, source, size_bytes);
+      CUDA_CHECK(cudaMemcpyAsync(destination, staging, size_bytes, kind,
+                                 cuda_stream));
+      CUDA_CHECK(cudaStreamSynchronize(cuda_stream));
+      CUDA_CHECK(cudaFreeHost(staging));
+    } else {
+      CUDA_CHECK(status);
+    }
+  } else {
     CUDA_CHECK(cudaMemcpyAsync(destination, source, size_bytes, kind,
                                cuda_stream));
+  }
 }
 
 // ABI used by MLIR's gpu.host_register lowering. `descriptor` points to the

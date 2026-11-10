@@ -1,0 +1,3103 @@
+[
+  {
+    "kernel": "2mm",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "2mm",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 6.86768651008606,
+          "sha256": "622987f811fe5dcb18ec5857b2a8deab8df0c2ad661d0b6d6ffca3ea2ed12fb4",
+          "cuda_graph": false,
+          "started_at_unix": 1794344221.843417,
+          "host_uptime": "12:57:01 up 446 days, 17:26,  2 users,  load average: 3.26, 3.29, 3.10",
+          "compute_device_ms": {
+            "all_iterations": [
+              78.145348,
+              48.980927,
+              49.007839,
+              48.990913,
+              49.064671,
+              48.981697,
+              48.984993,
+              48.984863,
+              49.096958,
+              48.994335
+            ],
+            "samples_ms": [
+              48.981697,
+              48.984993,
+              48.984863,
+              49.096958,
+              48.994335
+            ],
+            "min_ms": 48.981697,
+            "median_ms": 48.984993,
+            "max_ms": 49.096958,
+            "iqr_ms": 0.009472000000002367
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              78.130705,
+              48.969369,
+              48.997785,
+              48.982745,
+              49.054138,
+              48.971321,
+              48.976889,
+              48.976153,
+              49.087675,
+              48.984474
+            ],
+            "samples_ms": [
+              48.971321,
+              48.976889,
+              48.976153,
+              49.087675,
+              48.984474
+            ],
+            "min_ms": 48.971321,
+            "median_ms": 48.976889,
+            "max_ms": 49.087675,
+            "iqr_ms": 0.008321000000002243
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              34.907008,
+              33.74864,
+              31.754369,
+              31.748992,
+              31.572256,
+              31.465696,
+              31.47952,
+              31.470208,
+              31.40928,
+              30.911872
+            ],
+            "samples_ms": [
+              31.465696,
+              31.47952,
+              31.470208,
+              31.40928,
+              30.911872
+            ],
+            "min_ms": 30.911872,
+            "median_ms": 31.465696,
+            "max_ms": 31.47952,
+            "iqr_ms": 0.06092800000000054
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              179.750858,
+              83.343062,
+              81.520882,
+              81.331759,
+              81.223629,
+              81.169068,
+              81.079754,
+              81.052202,
+              81.11153,
+              80.489758
+            ],
+            "samples_ms": [
+              81.169068,
+              81.079754,
+              81.052202,
+              81.11153,
+              80.489758
+            ],
+            "min_ms": 80.489758,
+            "median_ms": 81.079754,
+            "max_ms": 81.169068,
+            "iqr_ms": 0.05932800000000782
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.062,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "D": {
+              "count": 960000,
+              "failures": 0,
+              "max_abs": 3.2014213502407074e-10,
+              "max_rel": 1.8057007535414187e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 48.919712,
+        "time_change_percent": 0.126707614304844
+      },
+      "native": {
+        "run": {
+          "kernel": "2mm",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 6.691612005233765,
+          "sha256": "555e0c1956dc0364c24befc8b1e5ad15b0927a365600c331f1cd1a771ddda3bf",
+          "cuda_graph": false,
+          "started_at_unix": 1794344235.3390982,
+          "host_uptime": "12:57:15 up 446 days, 17:26,  2 users,  load average: 3.12, 3.25, 3.09",
+          "compute_device_ms": {
+            "all_iterations": [
+              72.009567261,
+              71.811836243,
+              71.837921143,
+              71.853569031,
+              71.853820801,
+              71.815551758,
+              71.856002808,
+              71.876190186,
+              71.868034363,
+              71.920227051
+            ],
+            "samples_ms": [
+              71.815551758,
+              71.856002808,
+              71.876190186,
+              71.868034363,
+              71.920227051
+            ],
+            "min_ms": 71.815551758,
+            "median_ms": 71.868034363,
+            "max_ms": 71.920227051,
+            "iqr_ms": 0.02018737800000281
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              72.024409056,
+              71.82792592,
+              71.853878021,
+              71.868438005,
+              71.868951082,
+              71.830710173,
+              71.871253967,
+              71.891126871,
+              71.88303113,
+              71.936632156
+            ],
+            "samples_ms": [
+              71.830710173,
+              71.871253967,
+              71.891126871,
+              71.88303113,
+              71.936632156
+            ],
+            "min_ms": 71.830710173,
+            "median_ms": 71.88303113,
+            "max_ms": 71.936632156,
+            "iqr_ms": 0.019872903999996083
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.187,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "D": {
+              "count": 960000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 71.729347229,
+        "time_change_percent": 0.12018027812910059,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/2MM/2mm.cu",
+          "upstream_sha256": "dec4988b28f94c75dfdc3b3048e1dc01511fb8cfcdc0314552451002be9d4a0f",
+          "kernel_sha256": [
+            "d1c8273b39a81e8a9d831396b0a25a355dc792a02d1430d9ae90d62493de1aa0",
+            "bd276dac2d4f83c91bedf1309db1ee424e3323e34ec68467f41aba8786dea879"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "bba1c5027e2d93decc9288fde31a541e740a17aff8aa8606f54c0d7d805424d9",
+          "build_rc": 0,
+          "executable_sha256": "555e0c1956dc0364c24befc8b1e5ad15b0927a365600c331f1cd1a771ddda3bf"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 1.4661711650782536,
+    "paper_speedup": 1.466266752
+  },
+  {
+    "kernel": "3mm",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "3mm",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 6.7574687004089355,
+          "sha256": "d1508a8e5e70ca7492b492eb0b30345a7c5678bedd32fe1cf2d6ab0e99b27472",
+          "cuda_graph": false,
+          "started_at_unix": 1794344261.6626782,
+          "host_uptime": "12:57:41 up 446 days, 17:26,  2 users,  load average: 3.16, 3.25, 3.10",
+          "compute_device_ms": {
+            "all_iterations": [
+              111.977409,
+              82.667809,
+              82.627907,
+              82.619774,
+              82.626274,
+              82.66787,
+              82.653694,
+              82.701149,
+              82.708542,
+              82.661507
+            ],
+            "samples_ms": [
+              82.66787,
+              82.653694,
+              82.701149,
+              82.708542,
+              82.661507
+            ],
+            "min_ms": 82.653694,
+            "median_ms": 82.66787,
+            "max_ms": 82.708542,
+            "iqr_ms": 0.03964200000000062
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              111.962434,
+              82.657928,
+              82.618247,
+              82.609287,
+              82.615912,
+              82.657832,
+              82.643976,
+              82.692073,
+              82.699177,
+              82.651464
+            ],
+            "samples_ms": [
+              82.657832,
+              82.643976,
+              82.692073,
+              82.699177,
+              82.651464
+            ],
+            "min_ms": 82.643976,
+            "median_ms": 82.657832,
+            "max_ms": 82.699177,
+            "iqr_ms": 0.04060899999998924
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              54.502912,
+              53.499391,
+              45.921088,
+              46.150912,
+              45.896352,
+              45.805471,
+              45.760544,
+              45.508608,
+              45.440288,
+              45.227969
+            ],
+            "samples_ms": [
+              45.805471,
+              45.760544,
+              45.508608,
+              45.440288,
+              45.227969
+            ],
+            "min_ms": 45.227969,
+            "median_ms": 45.508608,
+            "max_ms": 45.805471,
+            "iqr_ms": 0.32025600000000054
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              234.454801,
+              136.794694,
+              129.187954,
+              129.408022,
+              129.147281,
+              129.117584,
+              129.058063,
+              128.810442,
+              128.762473,
+              128.524836
+            ],
+            "samples_ms": [
+              129.117584,
+              129.058063,
+              128.810442,
+              128.762473,
+              128.524836
+            ],
+            "min_ms": 128.524836,
+            "median_ms": 128.810442,
+            "max_ms": 129.117584,
+            "iqr_ms": 0.29559000000000424
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.937,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "G": {
+              "count": 880000,
+              "failures": 0,
+              "max_abs": 1.7462298274040222e-10,
+              "max_rel": 1.660319936575637e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 82.513443,
+        "time_change_percent": 0.16997351570944286
+      },
+      "native": {
+        "run": {
+          "kernel": "3mm",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 6.409582138061523,
+          "sha256": "9bc585f825d6cecdba5fd4f63b9d5264215765b414146c716a7a9a836585230b",
+          "cuda_graph": false,
+          "started_at_unix": 1794344248.649891,
+          "host_uptime": "12:57:28 up 446 days, 17:26,  2 users,  load average: 3.02, 3.23, 3.09",
+          "compute_device_ms": {
+            "all_iterations": [
+              82.5912323,
+              82.283874512,
+              82.34210968,
+              82.320892334,
+              82.281150818,
+              82.306686401,
+              82.301826477,
+              82.286079407,
+              82.339584351,
+              82.308387756
+            ],
+            "samples_ms": [
+              82.306686401,
+              82.301826477,
+              82.286079407,
+              82.339584351,
+              82.308387756
+            ],
+            "min_ms": 82.286079407,
+            "median_ms": 82.306686401,
+            "max_ms": 82.339584351,
+            "iqr_ms": 0.006561278999996034
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              82.606566906,
+              82.317890167,
+              82.36867404,
+              82.349090099,
+              82.309729099,
+              82.323266029,
+              82.328514099,
+              82.309954166,
+              82.365282059,
+              82.335649967
+            ],
+            "samples_ms": [
+              82.323266029,
+              82.328514099,
+              82.309954166,
+              82.365282059,
+              82.335649967
+            ],
+            "min_ms": 82.309954166,
+            "median_ms": 82.328514099,
+            "max_ms": 82.365282059,
+            "iqr_ms": 0.012383937999999262
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.312,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "G": {
+              "count": 880000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 82.349311829,
+        "time_change_percent": -0.0767856107058984,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/3MM/3mm.cu",
+          "upstream_sha256": "52db8f0bb854d5fcfca0c3368aa6fcfd466f5793b2519d22943086576f83a313",
+          "kernel_sha256": [
+            "2b5243eaaa7e3d475694a2a9351588e85a94079cb82b2e4d8f5d7fdbb33ad09c",
+            "1a7dc3bc1441ac7ebdb7fe00fe29876e3c492c532c442568e106bc25c26a48a0",
+            "8645c6990737799337dbe11169c49330d25ccdb6950fa66dce7d422be2e9bb3f"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "1cc916af20968d9f7c5776b1c08e009439ab7867b46bfac42f9099fc923bf6e6",
+          "build_rc": 0,
+          "executable_sha256": "9bc585f825d6cecdba5fd4f63b9d5264215765b414146c716a7a9a836585230b"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 0.9955523513201963,
+    "paper_speedup": 0.998010855
+  },
+  {
+    "kernel": "atax",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "atax",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 1.5617377758026123,
+          "sha256": "d164741232e8d2f23300ca75aeeb41ca9ba93860a971e45d0b5ea49f1925706d",
+          "cuda_graph": false,
+          "started_at_unix": 1794344274.9935172,
+          "host_uptime": "12:57:54 up 446 days, 17:27,  2 users,  load average: 2.91, 3.19, 3.08",
+          "compute_device_ms": {
+            "all_iterations": [
+              37.959583,
+              0.596288,
+              0.58144,
+              0.58704,
+              0.583264,
+              0.590528,
+              0.590496,
+              0.58784,
+              0.586272,
+              0.589088
+            ],
+            "samples_ms": [
+              0.590528,
+              0.590496,
+              0.58784,
+              0.586272,
+              0.589088
+            ],
+            "min_ms": 0.586272,
+            "median_ms": 0.589088,
+            "max_ms": 0.590528,
+            "iqr_ms": 0.0026559999999999917
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              37.944386,
+              0.587564,
+              0.572427,
+              0.578956,
+              0.576171,
+              0.581355,
+              0.581547,
+              0.579564,
+              0.577035,
+              0.581451
+            ],
+            "samples_ms": [
+              0.581355,
+              0.581547,
+              0.579564,
+              0.577035,
+              0.581451
+            ],
+            "min_ms": 0.577035,
+            "median_ms": 0.581355,
+            "max_ms": 0.581547,
+            "iqr_ms": 0.001887000000000083
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              25.963264,
+              26.870304,
+              26.353663,
+              26.268287,
+              26.620576,
+              26.612736,
+              26.748,
+              26.585697,
+              26.191359,
+              26.081024
+            ],
+            "samples_ms": [
+              26.612736,
+              26.748,
+              26.585697,
+              26.191359,
+              26.081024
+            ],
+            "min_ms": 26.081024,
+            "median_ms": 26.585697,
+            "max_ms": 26.748,
+            "iqr_ms": 0.4213770000000032
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              131.200889,
+              28.049025,
+              27.500055,
+              27.459542,
+              27.787773,
+              27.781821,
+              27.906623,
+              27.723067,
+              27.330675,
+              27.221009
+            ],
+            "samples_ms": [
+              27.781821,
+              27.906623,
+              27.723067,
+              27.330675,
+              27.221009
+            ],
+            "min_ms": 27.221009,
+            "median_ms": 27.723067,
+            "max_ms": 27.906623,
+            "iqr_ms": 0.4511460000000014
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.781,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "y": {
+              "count": 2100,
+              "failures": 0,
+              "max_abs": 3.92901711165905e-10,
+              "max_rel": 5.3569789390774184e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 0.592672,
+        "time_change_percent": -1.0798552993898758
+      },
+      "native": {
+        "run": {
+          "kernel": "atax",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 1.2698485851287842,
+          "sha256": "0e3780a44129e86fc9b5d0d496a3df0d1d645b0865a544f44b3c6ae5587d31db",
+          "cuda_graph": false,
+          "started_at_unix": 1794344283.0982504,
+          "host_uptime": "12:58:03 up 446 days, 17:27,  2 users,  load average: 2.83, 3.17, 3.07",
+          "compute_device_ms": {
+            "all_iterations": [
+              2.477312088,
+              2.38944006,
+              2.391488075,
+              2.390464067,
+              2.388927937,
+              2.385663986,
+              2.392191887,
+              2.393376112,
+              2.389728069,
+              2.389183998
+            ],
+            "samples_ms": [
+              2.385663986,
+              2.392191887,
+              2.393376112,
+              2.389728069,
+              2.389183998
+            ],
+            "min_ms": 2.385663986,
+            "median_ms": 2.389728069,
+            "max_ms": 2.393376112,
+            "iqr_ms": 0.0030078890000000413
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              2.876440048,
+              2.773653984,
+              2.788694143,
+              2.810455084,
+              2.770325899,
+              2.80011797,
+              2.771317005,
+              2.811959028,
+              2.78591013,
+              2.803989887
+            ],
+            "samples_ms": [
+              2.80011797,
+              2.771317005,
+              2.811959028,
+              2.78591013,
+              2.803989887
+            ],
+            "min_ms": 2.771317005,
+            "median_ms": 2.80011797,
+            "max_ms": 2.811959028,
+            "iqr_ms": 0.018079757000000196
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.562,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "y": {
+              "count": 2100,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 2.385792017,
+        "time_change_percent": -0.005366394014549858,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/ATAX/atax.cu",
+          "upstream_sha256": "5966799837bce3d7fce603c7876f78c2c1bc487f97f590bf242e28ab2acbd230",
+          "kernel_sha256": [
+            "1dea83651b599059ec8bd350cba72661900520eb638da60731704f81366cb0dc",
+            "1ce0fc5b9c111a57dd89688f6b256071a59003d4438e71dd15abe193161136aa"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "75adf96b1ffe440114bbde19561857c84ae770b8165b7be4545138adad8a159f",
+          "build_rc": 0,
+          "executable_sha256": "0e3780a44129e86fc9b5d0d496a3df0d1d645b0865a544f44b3c6ae5587d31db"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 4.069210172070302,
+    "paper_speedup": 4.025484614
+  },
+  {
+    "kernel": "bicg",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "bicg",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 1.605480670928955,
+          "sha256": "897d94bb2cd7463f078e888163b1a11d2ac463a2f4c76ae3e6babcb701acfe6a",
+          "cuda_graph": false,
+          "started_at_unix": 1794344298.7256458,
+          "host_uptime": "12:58:18 up 446 days, 17:27,  2 users,  load average: 2.65, 3.11, 3.05",
+          "compute_device_ms": {
+            "all_iterations": [
+              37.625664,
+              0.593568,
+              0.597856,
+              0.601408,
+              0.59792,
+              0.59232,
+              0.596032,
+              0.602176,
+              0.5864,
+              0.596256
+            ],
+            "samples_ms": [
+              0.59232,
+              0.596032,
+              0.602176,
+              0.5864,
+              0.596256
+            ],
+            "min_ms": 0.5864,
+            "median_ms": 0.596032,
+            "max_ms": 0.602176,
+            "iqr_ms": 0.003936000000000051
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              37.613788,
+              0.585675,
+              0.588523,
+              0.588556,
+              0.589964,
+              0.584332,
+              0.586636,
+              0.594411,
+              0.578731,
+              0.587724
+            ],
+            "samples_ms": [
+              0.584332,
+              0.586636,
+              0.594411,
+              0.578731,
+              0.587724
+            ],
+            "min_ms": 0.578731,
+            "median_ms": 0.586636,
+            "max_ms": 0.594411,
+            "iqr_ms": 0.0033920000000000616
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              28.290784,
+              27.653857,
+              27.290912,
+              26.708929,
+              26.528544,
+              26.771391,
+              26.727232,
+              26.773248,
+              26.65216,
+              26.529088
+            ],
+            "samples_ms": [
+              26.771391,
+              26.727232,
+              26.773248,
+              26.65216,
+              26.529088
+            ],
+            "min_ms": 26.529088,
+            "median_ms": 26.727232,
+            "max_ms": 26.773248,
+            "iqr_ms": 0.11923100000000275
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              132.811736,
+              28.841425,
+              28.486315,
+              27.891871,
+              27.779421,
+              27.930592,
+              27.982944,
+              27.949056,
+              27.802653,
+              27.686106
+            ],
+            "samples_ms": [
+              27.930592,
+              27.982944,
+              27.949056,
+              27.802653,
+              27.686106
+            ],
+            "min_ms": 27.686106,
+            "median_ms": 27.930592,
+            "max_ms": 27.982944,
+            "iqr_ms": 0.1464029999999994
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.5,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "s": {
+              "count": 1900,
+              "failures": 0,
+              "max_abs": 1.9326762412674725e-12,
+              "max_rel": 3.677783204029031e-15,
+              "first_failure": null
+            },
+            "q": {
+              "count": 2100,
+              "failures": 0,
+              "max_abs": 1.7053025658242404e-12,
+              "max_rel": 3.565255178729827e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 0.576736,
+        "time_change_percent": 1.6756366864562056
+      },
+      "native": {
+        "run": {
+          "kernel": "bicg",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 1.2852592468261719,
+          "sha256": "33db593cf0256abf38aa432a54f3444604e930a930bf51ce4117cbc7d42e1b37",
+          "cuda_graph": false,
+          "started_at_unix": 1794344290.8929389,
+          "host_uptime": "12:58:10 up 446 days, 17:27,  2 users,  load average: 2.70, 3.13, 3.06",
+          "compute_device_ms": {
+            "all_iterations": [
+              2.461632013,
+              2.239743948,
+              2.25135994,
+              2.267168045,
+              2.275104046,
+              2.258208036,
+              2.266367912,
+              2.258527994,
+              2.261343956,
+              2.225183964
+            ],
+            "samples_ms": [
+              2.258208036,
+              2.266367912,
+              2.258527994,
+              2.261343956,
+              2.225183964
+            ],
+            "min_ms": 2.225183964,
+            "median_ms": 2.258527994,
+            "max_ms": 2.266367912,
+            "iqr_ms": 0.0031359200000000698
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              2.474960089,
+              2.253419876,
+              2.265068054,
+              2.281643867,
+              2.288813114,
+              2.271692038,
+              2.280428171,
+              2.27284503,
+              2.274092913,
+              2.23853898
+            ],
+            "samples_ms": [
+              2.271692038,
+              2.280428171,
+              2.27284503,
+              2.274092913,
+              2.23853898
+            ],
+            "min_ms": 2.23853898,
+            "median_ms": 2.27284503,
+            "max_ms": 2.280428171,
+            "iqr_ms": 0.002400875000000191
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.625,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "s": {
+              "count": 1900,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            },
+            "q": {
+              "count": 2100,
+              "failures": 0,
+              "max_abs": 1.7053025658242404e-13,
+              "max_rel": 3.6100515209079557e-16,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 2.211424112,
+        "time_change_percent": 0.6222167844392335,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/BICG/bicg.cu",
+          "upstream_sha256": "e6a480c75f939958edd2633d7dc1be0a14d9890c6adb7b916b0db5e2c75965bd",
+          "kernel_sha256": [
+            "ece06ca04dfee3087f9b21be4454c7abdbc0165712ff66969ac38dd1175d5f8b",
+            "32ce5c783dc8ca416e343dd9f81113125706cb76d888271abe5ecab180b14e35"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "87795bf484f7386fddf4288c748f0ba860f9be65cb14094c9834726815cf09e6",
+          "build_rc": 0,
+          "executable_sha256": "33db593cf0256abf38aa432a54f3444604e930a930bf51ce4117cbc7d42e1b37"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 3.794652053206003,
+    "paper_speedup": 3.834378489
+  },
+  {
+    "kernel": "correlation",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "correlation",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 9.79358172416687,
+          "sha256": "3b98138e9647545b4bf78607214d3a40efd0b2686ccabd27f64b5b8027613457",
+          "cuda_graph": false,
+          "started_at_unix": 1794344306.862571,
+          "host_uptime": "12:58:26 up 446 days, 17:27,  2 users,  load average: 2.55, 3.07, 3.04",
+          "compute_device_ms": {
+            "all_iterations": [
+              342.59845,
+              301.100311,
+              300.756348,
+              300.689209,
+              298.617157,
+              297.755615,
+              303.667816,
+              305.03595,
+              299.069031,
+              300.496643
+            ],
+            "samples_ms": [
+              297.755615,
+              303.667816,
+              305.03595,
+              299.069031,
+              300.496643
+            ],
+            "min_ms": 297.755615,
+            "median_ms": 300.496643,
+            "max_ms": 305.03595,
+            "iqr_ms": 4.598785000000021
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              342.593287,
+              301.095296,
+              300.751129,
+              300.680407,
+              298.612143,
+              297.749119,
+              303.660466,
+              305.031629,
+              299.061336,
+              300.492692
+            ],
+            "samples_ms": [
+              297.749119,
+              303.660466,
+              305.031629,
+              299.061336,
+              300.492692
+            ],
+            "min_ms": 297.749119,
+            "median_ms": 300.492692,
+            "max_ms": 305.031629,
+            "iqr_ms": 4.599130000000002
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              25.819423,
+              24.496384,
+              21.330592,
+              21.56368,
+              21.735296,
+              21.2904,
+              21.475072,
+              21.315936,
+              21.594368,
+              21.3064
+            ],
+            "samples_ms": [
+              21.2904,
+              21.475072,
+              21.315936,
+              21.594368,
+              21.3064
+            ],
+            "min_ms": 21.2904,
+            "median_ms": 21.315936,
+            "max_ms": 21.594368,
+            "iqr_ms": 0.16867200000000082
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              436.316326,
+              326.172456,
+              322.637347,
+              322.806823,
+              320.917185,
+              319.560455,
+              325.688383,
+              326.893237,
+              321.229895,
+              322.359358
+            ],
+            "samples_ms": [
+              319.560455,
+              325.688383,
+              326.893237,
+              321.229895,
+              322.359358
+            ],
+            "min_ms": 319.560455,
+            "median_ms": 322.359358,
+            "max_ms": 326.893237,
+            "iqr_ms": 4.4584879999999885
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.343,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "corr": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 6.217248937900877e-15,
+              "max_rel": 6.217248937900916e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 306.372864,
+        "time_change_percent": -2.812667181908124
+      },
+      "native": {
+        "run": {
+          "kernel": "correlation",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 18.32392930984497,
+          "sha256": "b6bb0855f4195cec172145e111a7d1c4b060eb1de4a57af386c02e5f968a5961",
+          "cuda_graph": false,
+          "compute_device_ms": {
+            "all_iterations": [
+              1164.356811523,
+              1164.7109375,
+              1164.670043945,
+              1161.817016602,
+              1161.261474609,
+              1161.685058594,
+              1166.525390625,
+              1163.398803711,
+              1161.848022461,
+              1160.682739258
+            ],
+            "samples_ms": [
+              1161.685058594,
+              1166.525390625,
+              1163.398803711,
+              1161.848022461,
+              1160.682739258
+            ],
+            "min_ms": 1160.682739258,
+            "median_ms": 1161.848022461,
+            "max_ms": 1166.525390625,
+            "iqr_ms": 1.7137451169999167
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              1164.399151087,
+              1164.760436058,
+              1164.716656923,
+              1161.865907907,
+              1161.307079077,
+              1161.734477043,
+              1166.570988894,
+              1163.453611135,
+              1161.897993088,
+              1160.733392
+            ],
+            "samples_ms": [
+              1161.734477043,
+              1166.570988894,
+              1163.453611135,
+              1161.897993088,
+              1160.733392
+            ],
+            "min_ms": 1160.733392,
+            "median_ms": 1161.897993088,
+            "max_ms": 1166.570988894,
+            "iqr_ms": 1.719134092000104
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.687,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "corr": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 321.20098877,
+        "time_change_percent": 261.3571501453632,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/CORR/correlation.cu",
+          "upstream_sha256": "6e027ff963ebd24de31757cc9a407d422282bfd9e24c49c9087e7306fdacbe9e",
+          "kernel_sha256": [
+            "83eae8c6c88b23dde543e17056fa03e50849408e78c81c72604271b13464b62d",
+            "e8a44f2b3328b27e358e5bc8e9d30e038e2525b413dabe17fc02a8f107e0d58b",
+            "f44eb96cbcfa88700f97c031748a54f8eb034aacfa2c5b20abe07f3887c42a1a",
+            "0d7f8a088f7f236e532b7f40fe2d8da1497d9c770ec852d5aeefee1f4fa827fa"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization; FLOAT_N and EPS configured to canonical C; upstream final diagonal copy retained",
+          "generated_source_sha256": "0ee22f974f31ccb028535f1a4ef04789b15ed66cc2110e3140f84f3575403e6b",
+          "build_rc": 0,
+          "executable_sha256": "b6bb0855f4195cec172145e111a7d1c4b060eb1de4a57af386c02e5f968a5961"
+        }
+      },
+      "paper-baseline": {
+        "run": {
+          "kernel": "correlation",
+          "variant": "paper-baseline",
+          "rc": 0,
+          "elapsed_s": 9.937292098999023,
+          "sha256": "8528a7a6a0370e6c9f9ba7e236d65a7aaeaa0a3fdae5e9c8202477ee80e7ae1c",
+          "cuda_graph": false,
+          "started_at_unix": 1794344323.2381954,
+          "host_uptime": "12:58:43 up 446 days, 17:27,  2 users,  load average: 2.50, 3.04, 3.03",
+          "compute_device_ms": {
+            "all_iterations": [
+              319.114593506,
+              319.820953369,
+              317.463500977,
+              319.165771484,
+              317.921508789,
+              320.06161499,
+              319.263977051,
+              320.951416016,
+              318.78918457,
+              319.196014404
+            ],
+            "samples_ms": [
+              320.06161499,
+              319.263977051,
+              320.951416016,
+              318.78918457,
+              319.196014404
+            ],
+            "min_ms": 318.78918457,
+            "median_ms": 319.263977051,
+            "max_ms": 320.951416016,
+            "iqr_ms": 0.8656005860000278
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              319.136765957,
+              319.846508026,
+              317.487741947,
+              319.195326805,
+              317.949606895,
+              320.083793163,
+              319.288321018,
+              320.981506109,
+              318.81653595,
+              319.226783991
+            ],
+            "samples_ms": [
+              320.083793163,
+              319.288321018,
+              320.981506109,
+              318.81653595,
+              319.226783991
+            ],
+            "min_ms": 318.81653595,
+            "median_ms": 319.288321018,
+            "max_ms": 320.981506109,
+            "iqr_ms": 0.857009172000005
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.281,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "corr": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 321.20098877,
+        "time_change_percent": -0.7508707271530302,
+        "provenance": {
+          "original_source": "issues/polybench_section42/polybenchgpu_adapters/correlation.cu",
+          "original_sha256": "3e297e5abbd63b34816bc2326777b5c679ce2541d728720cc1e3c6c29038049c",
+          "generated_source_sha256": "5ecee65f19d8d7b8d31108ff0f2747b1e1e6eb50d41c14f281d9d97309990113",
+          "build_rc": 0,
+          "qualifier": "paper local CUDA adaptation; not verbatim upstream PolyBenchGPU",
+          "executable_sha256": "8528a7a6a0370e6c9f9ba7e236d65a7aaeaa0a3fdae5e9c8202477ee80e7ae1c"
+        }
+      }
+    },
+    "paper_comparison_baseline": "paper-baseline",
+    "device_speedup": 1.070640379258675,
+    "paper_speedup": 1.048398949
+  },
+  {
+    "kernel": "covariance",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "covariance",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 9.62615180015564,
+          "sha256": "2d70b0e7c4e44d0dcd4f834b12216e1a6b68a03dfb9ba52311e6bd422463ecc6",
+          "cuda_graph": false,
+          "started_at_unix": 1794344357.757805,
+          "host_uptime": "12:59:17 up 446 days, 17:28,  2 users,  load average: 2.59, 3.00, 3.02",
+          "compute_device_ms": {
+            "all_iterations": [
+              165.712006,
+              127.967491,
+              128.797241,
+              128.05719,
+              127.940163,
+              127.858749,
+              128.148026,
+              127.903328,
+              128.562973,
+              128.180984
+            ],
+            "samples_ms": [
+              127.858749,
+              128.148026,
+              127.903328,
+              128.562973,
+              128.180984
+            ],
+            "min_ms": 127.858749,
+            "median_ms": 128.148026,
+            "max_ms": 128.562973,
+            "iqr_ms": 0.27765599999999324
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              165.699382,
+              127.956056,
+              128.789096,
+              128.047834,
+              127.932151,
+              127.849269,
+              128.139291,
+              127.890743,
+              128.5561,
+              128.172316
+            ],
+            "samples_ms": [
+              127.849269,
+              128.139291,
+              127.890743,
+              128.5561,
+              128.172316
+            ],
+            "min_ms": 127.849269,
+            "median_ms": 128.139291,
+            "max_ms": 128.5561,
+            "iqr_ms": 0.2815729999999945
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              24.797345,
+              24.603296,
+              20.824416,
+              20.374496,
+              20.595712,
+              20.508128,
+              20.250752,
+              20.632384,
+              20.405536,
+              20.699552
+            ],
+            "samples_ms": [
+              20.508128,
+              20.250752,
+              20.632384,
+              20.405536,
+              20.699552
+            ],
+            "min_ms": 20.250752,
+            "median_ms": 20.508128,
+            "max_ms": 20.699552,
+            "iqr_ms": 0.22684799999999683
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              257.182504,
+              153.125409,
+              150.124647,
+              149.013073,
+              149.081139,
+              148.903983,
+              148.914703,
+              149.044818,
+              149.539516,
+              149.396024
+            ],
+            "samples_ms": [
+              148.903983,
+              148.914703,
+              149.044818,
+              149.539516,
+              149.396024
+            ],
+            "min_ms": 148.903983,
+            "median_ms": 149.044818,
+            "max_ms": 149.539516,
+            "iqr_ms": 0.4813210000000083
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.718,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "cov": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 1.8044374883174896e-09,
+              "max_rel": 1.7626783080113847e-14,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 128.239166,
+        "time_change_percent": -0.2966465018963138
+      },
+      "native": {
+        "run": {
+          "kernel": "covariance",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 19.632038593292236,
+          "sha256": "b76ab940105f21b6d38d916cf76a7d2167e58f945dfa8074b4788ec9b3d8e3bf",
+          "cuda_graph": false,
+          "compute_device_ms": {
+            "all_iterations": [
+              1164.9140625,
+              1164.194702148,
+              1162.220214844,
+              1162.085571289,
+              1159.561523438,
+              1156.832885742,
+              1161.764038086,
+              1159.598510742,
+              1157.863037109,
+              1162.950683594
+            ],
+            "samples_ms": [
+              1156.832885742,
+              1161.764038086,
+              1159.598510742,
+              1157.863037109,
+              1162.950683594
+            ],
+            "min_ms": 1156.832885742,
+            "median_ms": 1159.598510742,
+            "max_ms": 1162.950683594,
+            "iqr_ms": 3.901000976999967
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              1164.965800047,
+              1164.242775202,
+              1162.268524885,
+              1162.138248205,
+              1159.60945797,
+              1156.879961014,
+              1161.813402176,
+              1159.646315813,
+              1157.909958839,
+              1163.001355886
+            ],
+            "samples_ms": [
+              1156.879961014,
+              1161.813402176,
+              1159.646315813,
+              1157.909958839,
+              1163.001355886
+            ],
+            "min_ms": 1156.879961014,
+            "median_ms": 1159.646315813,
+            "max_ms": 1163.001355886,
+            "iqr_ms": 3.903443336999999
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 51.062,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "cov": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 2.9103830456733704e-11,
+              "max_rel": 2.220332086816581e-16,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 331.264831543,
+        "time_change_percent": 249.21693327769887,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/COVAR/covariance.cu",
+          "upstream_sha256": "236cc00fb1f8a13246314682eb371973fd9363bc3ca911f22aef42726d585c64",
+          "kernel_sha256": [
+            "0bd46be47a9aa0dc33a9e75d4a67ab872626c053ed639ab5e0924863ed634469",
+            "b87afda7bfffe907226ee48f894454e337ca227f3ebb196dc5fd22a27a643505",
+            "182bdd1ee888c73a2dc3fc687e16e45bd6498c6935f844745df276d5f792aa8e"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization; upstream CUDA plus timed cuBLAS normalization (not pure PolyBenchGPU)",
+          "generated_source_sha256": "db6d52b6d591af0df67bd78ad15c74576639f2242b4732407241abdd1e8fdbf0",
+          "build_rc": 0,
+          "executable_sha256": "b76ab940105f21b6d38d916cf76a7d2167e58f945dfa8074b4788ec9b3d8e3bf"
+        }
+      },
+      "paper-baseline": {
+        "run": {
+          "kernel": "covariance",
+          "variant": "paper-baseline",
+          "rc": 0,
+          "elapsed_s": 11.22291898727417,
+          "sha256": "ef88948e13bbd0aa3d014324c7feef6cfae1c8c9f62d19256efd7eb67030447e",
+          "cuda_graph": false,
+          "started_at_unix": 1794344339.8369002,
+          "host_uptime": "12:58:59 up 446 days, 17:28,  2 users,  load average: 2.67, 3.03, 3.03",
+          "compute_device_ms": {
+            "all_iterations": [
+              329.167297363,
+              332.292236328,
+              329.226257324,
+              331.318634033,
+              330.24230957,
+              331.657653809,
+              331.51574707,
+              329.448425293,
+              332.675048828,
+              331.48550415
+            ],
+            "samples_ms": [
+              331.657653809,
+              331.51574707,
+              329.448425293,
+              332.675048828,
+              331.48550415
+            ],
+            "min_ms": 329.448425293,
+            "median_ms": 331.51574707,
+            "max_ms": 332.675048828,
+            "iqr_ms": 0.1721496590000129
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              329.188832998,
+              332.315134048,
+              329.261953831,
+              331.350634813,
+              330.275702,
+              331.691729069,
+              331.546478987,
+              329.480454922,
+              332.710948944,
+              331.516303062
+            ],
+            "samples_ms": [
+              331.691729069,
+              331.546478987,
+              329.480454922,
+              332.710948944,
+              331.516303062
+            ],
+            "min_ms": 329.480454922,
+            "median_ms": 331.546478987,
+            "max_ms": 332.710948944,
+            "iqr_ms": 0.17542600699999866
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.593,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "cov": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 331.264831543,
+        "time_change_percent": -0.5483245056649544,
+        "provenance": {
+          "original_source": "issues/polybench_section42/polybenchgpu_adapters/covariance.cu",
+          "original_sha256": "dd62a7ebc9a40f2dca75ae7ae12873736dc342cdb2de19a926c9c5c12ea1882b",
+          "generated_source_sha256": "2ec153269b410c7427b404362f0e8a07271390c0bcf3773fd12942a0b15977f7",
+          "build_rc": 0,
+          "qualifier": "paper local CUDA adaptation; not verbatim upstream PolyBenchGPU",
+          "executable_sha256": "ef88948e13bbd0aa3d014324c7feef6cfae1c8c9f62d19256efd7eb67030447e"
+        }
+      }
+    },
+    "paper_comparison_baseline": "paper-baseline",
+    "device_speedup": 2.576659226448399,
+    "paper_speedup": 2.583179865
+  },
+  {
+    "kernel": "gemm",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "gemm",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 7.084944009780884,
+          "sha256": "195579a3155abfca3013c2d8c5b1345f329d326218cb3692369af4d1a036ba72",
+          "cuda_graph": false,
+          "started_at_unix": 1794344374.0304885,
+          "host_uptime": "12:59:34 up 446 days, 17:28,  2 users,  load average: 2.81, 3.02, 3.02",
+          "compute_device_ms": {
+            "all_iterations": [
+              69.503586,
+              40.292992,
+              40.26429,
+              40.261761,
+              40.268799,
+              40.322273,
+              40.295872,
+              40.25005,
+              40.248447,
+              40.277374
+            ],
+            "samples_ms": [
+              40.322273,
+              40.295872,
+              40.25005,
+              40.248447,
+              40.277374
+            ],
+            "min_ms": 40.248447,
+            "median_ms": 40.277374,
+            "max_ms": 40.322273,
+            "iqr_ms": 0.04582200000000114
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              69.48295,
+              40.283215,
+              40.253583,
+              40.249839,
+              40.258286,
+              40.312176,
+              40.285744,
+              40.239982,
+              40.237839,
+              40.267119
+            ],
+            "samples_ms": [
+              40.312176,
+              40.285744,
+              40.239982,
+              40.237839,
+              40.267119
+            ],
+            "min_ms": 40.237839,
+            "median_ms": 40.267119,
+            "max_ms": 40.312176,
+            "iqr_ms": 0.04576200000000341
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              24.054336,
+              23.5208,
+              23.558976,
+              23.340768,
+              23.587616,
+              23.774528,
+              23.017088,
+              23.138496,
+              23.114048,
+              23.170784
+            ],
+            "samples_ms": [
+              23.774528,
+              23.017088,
+              23.138496,
+              23.114048,
+              23.170784
+            ],
+            "min_ms": 23.017088,
+            "median_ms": 23.138496,
+            "max_ms": 23.774528,
+            "iqr_ms": 0.056736000000000786
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              160.653555,
+              64.431268,
+              64.413061,
+              64.144063,
+              64.420836,
+              64.665097,
+              63.860185,
+              63.947003,
+              63.90457,
+              64.077662
+            ],
+            "samples_ms": [
+              64.665097,
+              63.860185,
+              63.947003,
+              63.90457,
+              64.077662
+            ],
+            "min_ms": 63.860185,
+            "median_ms": 63.947003,
+            "max_ms": 64.665097,
+            "iqr_ms": 0.17309200000000402
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.437,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1100000,
+              "failures": 0,
+              "max_abs": 4.831690603168681e-12,
+              "max_rel": 1.6540597934239483e-14,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 40.220322,
+        "time_change_percent": 0.06992733673290008
+      },
+      "native": {
+        "run": {
+          "kernel": "gemm",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 7.253488063812256,
+          "sha256": "f3d75b25f1b0f732532cfd23cbfd488badadb20f6ffcda3cefa929f578a0d8cb",
+          "cuda_graph": false,
+          "started_at_unix": 1794344387.749603,
+          "host_uptime": "12:59:47 up 446 days, 17:29,  2 users,  load average: 3.01, 3.05, 3.03",
+          "compute_device_ms": {
+            "all_iterations": [
+              75.058624268,
+              74.949058533,
+              74.928764343,
+              74.944610596,
+              74.924575806,
+              75.024833679,
+              74.957344055,
+              74.984161377,
+              74.966209412,
+              75.008575439
+            ],
+            "samples_ms": [
+              75.024833679,
+              74.957344055,
+              74.984161377,
+              74.966209412,
+              75.008575439
+            ],
+            "min_ms": 74.957344055,
+            "median_ms": 74.984161377,
+            "max_ms": 75.024833679,
+            "iqr_ms": 0.04236602699999992
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              75.074195862,
+              74.965746164,
+              74.945008039,
+              74.960208893,
+              74.940815926,
+              75.04190588,
+              74.973744869,
+              74.999377966,
+              74.982545137,
+              75.024050951
+            ],
+            "samples_ms": [
+              75.04190588,
+              74.973744869,
+              74.999377966,
+              74.982545137,
+              75.024050951
+            ],
+            "min_ms": 74.973744869,
+            "median_ms": 74.999377966,
+            "max_ms": 75.04190588,
+            "iqr_ms": 0.04150581400000419
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.656,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1100000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 74.818206787,
+        "time_change_percent": 0.1859671248150896,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/GEMM/gemm.cu",
+          "upstream_sha256": "8d458e662aeff25003c5efad74e22ef4414d6655c098aa28a7e8c5bf61e82880",
+          "kernel_sha256": [
+            "9f237638fb41f8bf9c6f51555b3c5c9933c180d72723ab139d24fda601e2162e"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "21e8bac021167a6ad7ff1b081ebfb7be65842ea0a30ab556b0fc230a3b26801a",
+          "build_rc": 0,
+          "executable_sha256": "f3d75b25f1b0f732532cfd23cbfd488badadb20f6ffcda3cefa929f578a0d8cb"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 1.8623661194927594,
+    "paper_speedup": 1.860209045
+  },
+  {
+    "kernel": "gemver",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "gemver",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 1.6617655754089355,
+          "sha256": "15c074cea1ff71cd4bce78b72894d6633cf0f780753a563fd9a8a42cfde8822c",
+          "cuda_graph": false,
+          "started_at_unix": 1794344409.5302258,
+          "host_uptime": "13:00:09 up 446 days, 17:29,  2 users,  load average: 2.81, 3.00, 3.01",
+          "compute_device_ms": {
+            "all_iterations": [
+              55.008224,
+              1.758784,
+              1.80544,
+              1.839616,
+              1.84928,
+              1.653856,
+              1.692032,
+              1.666016,
+              1.707968,
+              1.714112
+            ],
+            "samples_ms": [
+              1.653856,
+              1.692032,
+              1.666016,
+              1.707968,
+              1.714112
+            ],
+            "min_ms": 1.653856,
+            "median_ms": 1.692032,
+            "max_ms": 1.714112,
+            "iqr_ms": 0.04195199999999999
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              55.001101,
+              1.75101,
+              1.797731,
+              1.831939,
+              1.841572,
+              1.641664,
+              1.682656,
+              1.655872,
+              1.699393,
+              1.704961
+            ],
+            "samples_ms": [
+              1.641664,
+              1.682656,
+              1.655872,
+              1.699393,
+              1.704961
+            ],
+            "min_ms": 1.641664,
+            "median_ms": 1.682656,
+            "max_ms": 1.704961,
+            "iqr_ms": 0.04352099999999992
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              27.835969,
+              27.674432,
+              29.646272,
+              28.901535,
+              27.814591,
+              28.446752,
+              26.900577,
+              26.845952,
+              26.658624,
+              26.688801
+            ],
+            "samples_ms": [
+              28.446752,
+              26.900577,
+              26.845952,
+              26.658624,
+              26.688801
+            ],
+            "min_ms": 26.658624,
+            "median_ms": 26.845952,
+            "max_ms": 28.446752,
+            "iqr_ms": 0.21177599999999686
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              149.885121,
+              30.094665,
+              32.100016,
+              31.466596,
+              30.325229,
+              30.724917,
+              29.214936,
+              29.120598,
+              28.995764,
+              29.043956
+            ],
+            "samples_ms": [
+              30.724917,
+              29.214936,
+              29.120598,
+              28.995764,
+              29.043956
+            ],
+            "min_ms": 28.995764,
+            "median_ms": 29.120598,
+            "max_ms": 30.724917,
+            "iqr_ms": 0.17098000000000013
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.031,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "w": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 7.62939453125e-05,
+              "max_rel": 3.196411466957932e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 15.073344,
+        "time_change_percent": -89.02794230663083
+      },
+      "native": {
+        "run": {
+          "kernel": "gemver",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 1.3306090831756592,
+          "sha256": "ef94fbc7ba9dc912d19ea84d5edf4a18ed6bf480aa941712af1d6af2112c5878",
+          "cuda_graph": false,
+          "started_at_unix": 1794344401.668342,
+          "host_uptime": "13:00:01 up 446 days, 17:29,  2 users,  load average: 2.86, 3.01, 3.02",
+          "compute_device_ms": {
+            "all_iterations": [
+              2.856832027,
+              2.669312,
+              2.648960114,
+              2.657023907,
+              2.653856039,
+              2.655616045,
+              2.656095982,
+              2.653023958,
+              2.656928062,
+              2.647007942
+            ],
+            "samples_ms": [
+              2.655616045,
+              2.656095982,
+              2.653023958,
+              2.656928062,
+              2.647007942
+            ],
+            "min_ms": 2.647007942,
+            "median_ms": 2.655616045,
+            "max_ms": 2.656928062,
+            "iqr_ms": 0.003072024000000173
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              2.870999813,
+              2.683092117,
+              2.662770987,
+              2.67009902,
+              2.667635918,
+              2.669555902,
+              2.670068026,
+              2.666387796,
+              2.670547962,
+              2.660530806
+            ],
+            "samples_ms": [
+              2.669555902,
+              2.670068026,
+              2.666387796,
+              2.670547962,
+              2.660530806
+            ],
+            "min_ms": 2.660530806,
+            "median_ms": 2.669555902,
+            "max_ms": 2.670547962,
+            "iqr_ms": 0.003680230000000062
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.75,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "w": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 7.62939453125e-06,
+              "max_rel": 4.284270719414561e-16,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 2.642623901,
+        "time_change_percent": 0.16589727347660066,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/GEMVER/gemver.cu",
+          "upstream_sha256": "c53e178dd285504f9dd29479460f85f25fa8fcd2e40a8429bf9f5e16e14de704",
+          "kernel_sha256": [
+            "7ff8fb5c5c3553a82afc8ecb1befe0145e10ef676d1f6382eb3d82ed2d365ec4",
+            "cc2100b8c7b60e4acb4bbd7654f4510a389c4b8a33d3497da500ea4504d525b3",
+            "a33d27982d908818393ae4a1bc4a76fe9a1355805bccda3bc1972cd67a192315"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "e5d66cb3f980cbf1ccd9c6b5038c3c6f265c653ee978817f159e8cba4354a81e",
+          "build_rc": 0,
+          "executable_sha256": "ef94fbc7ba9dc912d19ea84d5edf4a18ed6bf480aa941712af1d6af2112c5878"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 1.6005069014472846,
+    "paper_speedup": 0.175317693
+  },
+  {
+    "kernel": "gesummv",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "gesummv",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 1.5431137084960938,
+          "sha256": "c565e9b1daadc1725fd54c441b7c277db2a7f882358fab16446dfcf73b1c26a7",
+          "cuda_graph": false,
+          "started_at_unix": 1794344417.7004035,
+          "host_uptime": "13:00:17 up 446 days, 17:29,  2 users,  load average: 2.74, 2.98, 3.01",
+          "compute_device_ms": {
+            "all_iterations": [
+              34.184673,
+              0.358016,
+              0.352448,
+              0.352544,
+              0.348704,
+              0.359968,
+              0.345568,
+              0.361568,
+              0.344544,
+              0.353152
+            ],
+            "samples_ms": [
+              0.359968,
+              0.345568,
+              0.361568,
+              0.344544,
+              0.353152
+            ],
+            "min_ms": 0.344544,
+            "median_ms": 0.353152,
+            "max_ms": 0.361568,
+            "iqr_ms": 0.014400000000000024
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              34.171128,
+              0.349159,
+              0.344071,
+              0.343463,
+              0.340358,
+              0.352679,
+              0.337415,
+              0.352199,
+              0.336103,
+              0.343687
+            ],
+            "samples_ms": [
+              0.352679,
+              0.337415,
+              0.352199,
+              0.336103,
+              0.343687
+            ],
+            "min_ms": 0.336103,
+            "median_ms": 0.343687,
+            "max_ms": 0.352679,
+            "iqr_ms": 0.014783999999999964
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              24.510624,
+              24.975648,
+              24.13984,
+              23.945471,
+              24.122176,
+              23.35472,
+              22.970848,
+              23.617984,
+              23.253344,
+              23.468384
+            ],
+            "samples_ms": [
+              23.35472,
+              22.970848,
+              23.617984,
+              23.253344,
+              23.468384
+            ],
+            "min_ms": 22.970848,
+            "median_ms": 23.35472,
+            "max_ms": 23.617984,
+            "iqr_ms": 0.2150400000000019
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              126.54854,
+              25.912215,
+              25.093096,
+              24.885124,
+              25.061447,
+              24.296216,
+              23.864144,
+              24.587742,
+              24.161493,
+              24.364473
+            ],
+            "samples_ms": [
+              24.296216,
+              23.864144,
+              24.587742,
+              24.161493,
+              24.364473
+            ],
+            "min_ms": 23.864144,
+            "median_ms": 24.296216,
+            "max_ms": 24.587742,
+            "iqr_ms": 0.20298000000000016
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.718,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "y": {
+              "count": 1300,
+              "failures": 0,
+              "max_abs": 2.0463630789890885e-12,
+              "max_rel": 2.365506582292347e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 0.440224,
+        "time_change_percent": -21.734389765210437
+      },
+      "native": {
+        "run": {
+          "kernel": "gesummv",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 1.2464189529418945,
+          "sha256": "7432a7a22b9d386afffcd85ba1abea2fcc71dac131114fb7c3e597fd8b2ddd3a",
+          "cuda_graph": false,
+          "started_at_unix": 1794344425.8045611,
+          "host_uptime": "13:00:25 up 446 days, 17:29,  2 users,  load average: 2.63, 2.95, 2.99",
+          "compute_device_ms": {
+            "all_iterations": [
+              0.948319972,
+              0.878880024,
+              0.880511999,
+              0.873311996,
+              0.892575979,
+              0.876511991,
+              0.880511999,
+              0.876991987,
+              0.872255981,
+              0.903743982
+            ],
+            "samples_ms": [
+              0.876511991,
+              0.880511999,
+              0.876991987,
+              0.872255981,
+              0.903743982
+            ],
+            "min_ms": 0.872255981,
+            "median_ms": 0.876991987,
+            "max_ms": 0.903743982,
+            "iqr_ms": 0.004000007999999999
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              1.379738092,
+              1.277592897,
+              1.34841013,
+              1.278840065,
+              1.27797699,
+              1.321881056,
+              1.289016962,
+              1.353018045,
+              1.263927937,
+              1.288440943
+            ],
+            "samples_ms": [
+              1.321881056,
+              1.289016962,
+              1.353018045,
+              1.263927937,
+              1.288440943
+            ],
+            "min_ms": 1.263927937,
+            "median_ms": 1.289016962,
+            "max_ms": 1.353018045,
+            "iqr_ms": 0.03344011300000016
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.5,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "y": {
+              "count": 1300,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 0.872575998,
+        "time_change_percent": -0.036674971662464806,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/GESUMMV/gesummv.cu",
+          "upstream_sha256": "717c2bc6161a1d9b478282dabe994e0184821ee100996a898aba688302f384a4",
+          "kernel_sha256": [
+            "1c8986c47e22f089011f7e854895fba779c1678307a0b67bc64c00b6f9f85c97"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "11ab2143882e63b22462e872c54e6b67c1d39d9ec726dd79be9f9689ee4a16b6",
+          "build_rc": 0,
+          "executable_sha256": "7432a7a22b9d386afffcd85ba1abea2fcc71dac131114fb7c3e597fd8b2ddd3a"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 2.5316243527677162,
+    "paper_speedup": 1.98211819
+  },
+  {
+    "kernel": "mvt",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "mvt",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 1.5914762020111084,
+          "sha256": "05cd1917f4ac705f082007f66f1a3e3a83782296066888684484a3a7108e6642",
+          "cuda_graph": false,
+          "started_at_unix": 1794344441.514943,
+          "host_uptime": "13:00:41 up 446 days, 17:29,  2 users,  load average: 2.49, 2.90, 2.98",
+          "compute_device_ms": {
+            "all_iterations": [
+              37.338879,
+              1.010016,
+              0.976352,
+              0.958496,
+              0.960064,
+              0.958912,
+              0.987712,
+              0.948064,
+              0.995456,
+              0.97312
+            ],
+            "samples_ms": [
+              0.958912,
+              0.987712,
+              0.948064,
+              0.995456,
+              0.97312
+            ],
+            "min_ms": 0.948064,
+            "median_ms": 0.97312,
+            "max_ms": 0.995456,
+            "iqr_ms": 0.028800000000000048
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              37.319669,
+              0.99954,
+              0.967123,
+              0.949394,
+              0.949906,
+              0.950003,
+              0.978643,
+              0.936786,
+              0.985747,
+              0.963283
+            ],
+            "samples_ms": [
+              0.950003,
+              0.978643,
+              0.936786,
+              0.985747,
+              0.963283
+            ],
+            "min_ms": 0.936786,
+            "median_ms": 0.963283,
+            "max_ms": 0.985747,
+            "iqr_ms": 0.02864
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              26.59456,
+              27.900641,
+              25.900224,
+              26.287423,
+              27.266111,
+              27.290785,
+              25.865663,
+              24.523136,
+              25.07792,
+              24.359009
+            ],
+            "samples_ms": [
+              27.290785,
+              25.865663,
+              24.523136,
+              25.07792,
+              24.359009
+            ],
+            "min_ms": 24.359009,
+            "median_ms": 25.07792,
+            "max_ms": 27.290785,
+            "iqr_ms": 1.3425270000000005
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              130.368325,
+              29.492254,
+              27.473174,
+              27.822109,
+              28.843249,
+              28.850448,
+              27.427381,
+              26.010426,
+              26.668006,
+              25.952441
+            ],
+            "samples_ms": [
+              28.850448,
+              27.427381,
+              26.010426,
+              26.668006,
+              25.952441
+            ],
+            "min_ms": 25.952441,
+            "median_ms": 26.668006,
+            "max_ms": 28.850448,
+            "iqr_ms": 1.4169550000000015
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.656,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "x1": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 1.6484591469634324e-12,
+              "max_rel": 3.3010941780621243e-15,
+              "first_failure": null
+            },
+            "x2": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 1.7053025658242404e-12,
+              "max_rel": 3.4219797924786693e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 0.950624,
+        "time_change_percent": -0.2692967987343087
+      },
+      "native": {
+        "run": {
+          "kernel": "mvt",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 1.2986516952514648,
+          "sha256": "70bf1adfd06ee70d1a8773e25ef4af5ad7755e9d03a0d3895cad92b0a2d24ffa",
+          "cuda_graph": false,
+          "started_at_unix": 1794344433.6130345,
+          "host_uptime": "13:00:33 up 446 days, 17:29,  2 users,  load average: 2.58, 2.93, 2.99",
+          "compute_device_ms": {
+            "all_iterations": [
+              2.359456062,
+              2.145503998,
+              2.160320044,
+              2.160543919,
+              2.15043211,
+              2.16704011,
+              2.165344,
+              2.171744108,
+              2.158560038,
+              2.175616026
+            ],
+            "samples_ms": [
+              2.16704011,
+              2.165344,
+              2.171744108,
+              2.158560038,
+              2.175616026
+            ],
+            "min_ms": 2.158560038,
+            "median_ms": 2.16704011,
+            "max_ms": 2.175616026,
+            "iqr_ms": 0.006400107999999793
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              2.373166084,
+              2.159081936,
+              2.173130035,
+              2.17392993,
+              2.164201975,
+              2.180553913,
+              2.178953886,
+              2.185451031,
+              2.171561956,
+              2.189227104
+            ],
+            "samples_ms": [
+              2.180553913,
+              2.178953886,
+              2.185451031,
+              2.171561956,
+              2.189227104
+            ],
+            "min_ms": 2.171561956,
+            "median_ms": 2.180553913,
+            "max_ms": 2.189227104,
+            "iqr_ms": 0.006497144999999982
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 49.781,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "x1": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            },
+            "x2": {
+              "count": 2000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 2.130847931,
+        "time_change_percent": 1.3005201636793862,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/MVT/mvt.cu",
+          "upstream_sha256": "44aa960a339f3702e82f4e9b2e7b29c90fae19b5a095fa1ccd0f8e6f6b76a87d",
+          "kernel_sha256": [
+            "3f04bad4b9d8ea9795c9760354f4f29924e30944b29bc773e7f4649339c998c0",
+            "953ee96f07b99a95110f4f8766a033cf8642a4d1fc6a152b6567d2d30aca4b9e"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "07a0953ec37b03197388e218bc48e24040fdbd5dc88b42313749a96340e36085",
+          "build_rc": 0,
+          "executable_sha256": "70bf1adfd06ee70d1a8773e25ef4af5ad7755e9d03a0d3895cad92b0a2d24ffa"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 2.2768083568197928,
+    "paper_speedup": 2.241525494
+  },
+  {
+    "kernel": "syr2k",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "syr2k",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 8.153245210647583,
+          "sha256": "b1469f8f40d42725ac107dee2420decf86b4f4401d00e4118996d9c0ef2a2f90",
+          "cuda_graph": false,
+          "started_at_unix": 1794344449.6576934,
+          "host_uptime": "13:00:49 up 446 days, 17:30,  2 users,  load average: 2.63, 2.92, 2.98",
+          "compute_device_ms": {
+            "all_iterations": [
+              71.285278,
+              41.979519,
+              41.947487,
+              41.898079,
+              41.893856,
+              41.934719,
+              41.933922,
+              41.935776,
+              41.915039,
+              41.947327
+            ],
+            "samples_ms": [
+              41.934719,
+              41.933922,
+              41.935776,
+              41.915039,
+              41.947327
+            ],
+            "min_ms": 41.915039,
+            "median_ms": 41.934719,
+            "max_ms": 41.947327,
+            "iqr_ms": 0.0018539999999944712
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              71.267913,
+              41.962544,
+              41.936783,
+              41.887406,
+              41.882062,
+              41.922062,
+              41.923215,
+              41.925935,
+              41.904558,
+              41.937007
+            ],
+            "samples_ms": [
+              41.922062,
+              41.923215,
+              41.925935,
+              41.904558,
+              41.937007
+            ],
+            "min_ms": 41.904558,
+            "median_ms": 41.923215,
+            "max_ms": 41.937007,
+            "iqr_ms": 0.0038730000000057885
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              25.686048,
+              25.559264,
+              24.935776,
+              24.845088,
+              24.556704,
+              25.366848,
+              24.977312,
+              25.05312,
+              24.349024,
+              24.382912
+            ],
+            "samples_ms": [
+              25.366848,
+              24.977312,
+              25.05312,
+              24.349024,
+              24.382912
+            ],
+            "min_ms": 24.349024,
+            "median_ms": 24.977312,
+            "max_ms": 25.366848,
+            "iqr_ms": 0.6702079999999988
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              164.219288,
+              68.081963,
+              67.572769,
+              67.332061,
+              67.01695,
+              67.862887,
+              67.469055,
+              67.573538,
+              66.813203,
+              66.946805
+            ],
+            "samples_ms": [
+              67.862887,
+              67.469055,
+              67.573538,
+              66.813203,
+              66.946805
+            ],
+            "min_ms": 66.813203,
+            "median_ms": 67.469055,
+            "max_ms": 67.862887,
+            "iqr_ms": 0.6267330000000015
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.343,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 6.480149750132114e-12,
+              "max_rel": 3.247563716654332e-14,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 41.853855,
+        "time_change_percent": 0.14618486158561872
+      },
+      "native": {
+        "run": {
+          "kernel": "syr2k",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 9.56294846534729,
+          "sha256": "4394b015b145e3bc1bfb77a1df5755b6cec623ff1c16f99e499b85ae12706abf",
+          "cuda_graph": false,
+          "started_at_unix": 1794344464.4489374,
+          "host_uptime": "13:01:04 up 446 days, 17:30,  2 users,  load average: 2.49, 2.87, 2.97",
+          "compute_device_ms": {
+            "all_iterations": [
+              208.16242981,
+              208.066009521,
+              208.038269043,
+              208.067169189,
+              208.080154419,
+              208.053436279,
+              208.006851196,
+              208.020935059,
+              208.008255005,
+              208.073272705
+            ],
+            "samples_ms": [
+              208.053436279,
+              208.006851196,
+              208.020935059,
+              208.008255005,
+              208.073272705
+            ],
+            "min_ms": 208.006851196,
+            "median_ms": 208.020935059,
+            "max_ms": 208.073272705,
+            "iqr_ms": 0.04518127400001504
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              208.183597803,
+              208.101324081,
+              208.073580027,
+              208.102539062,
+              208.115916014,
+              208.091500044,
+              208.042603016,
+              208.056555033,
+              208.041162014,
+              208.108716011
+            ],
+            "samples_ms": [
+              208.091500044,
+              208.042603016,
+              208.056555033,
+              208.041162014,
+              208.108716011
+            ],
+            "min_ms": 208.041162014,
+            "median_ms": 208.056555033,
+            "max_ms": 208.108716011,
+            "iqr_ms": 0.048897027999998954
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.625,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 1.0231815394945443e-12,
+              "max_rel": 1.7652973739425937e-15,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 207.734329224,
+        "time_change_percent": 0.13118774013811674,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/SYR2K/syr2k.cu",
+          "upstream_sha256": "6e25029d1b77d257ed41ddee95f54ce22c4dd6ed026b53a6ee1e1d82c362f960",
+          "kernel_sha256": [
+            "1c7b9b650efefe0fdf4cc3a25543ca70e34fe4bf9af81180007acd9f9cd5fbcc"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "23cd6d7e03d5aed4452e69f84c51f947b84d5a7bc560dd579711e76d9b9dbe6d",
+          "build_rc": 0,
+          "executable_sha256": "4394b015b145e3bc1bfb77a1df5755b6cec623ff1c16f99e499b85ae12706abf"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 4.962582790296342,
+    "paper_speedup": 4.96332606
+  },
+  {
+    "kernel": "syrk",
+    "atol": 1e-08,
+    "rtol": 1e-08,
+    "variants": {
+      "raised": {
+        "run": {
+          "kernel": "syrk",
+          "variant": "raised",
+          "rc": 0,
+          "elapsed_s": 7.954985618591309,
+          "sha256": "6cbeac48cdfd718e85481806d5e75767c1af8d1c27493266a8ee008143fb22e0",
+          "cuda_graph": false,
+          "started_at_unix": 1794344495.6394014,
+          "host_uptime": "13:01:35 up 446 days, 17:30,  2 users,  load average: 2.55, 2.85, 2.96",
+          "compute_device_ms": {
+            "all_iterations": [
+              51.072704,
+              22.763329,
+              22.798559,
+              22.767904,
+              22.796448,
+              22.771616,
+              22.764864,
+              22.758528,
+              22.810144,
+              22.819233
+            ],
+            "samples_ms": [
+              22.771616,
+              22.764864,
+              22.758528,
+              22.810144,
+              22.819233
+            ],
+            "min_ms": 22.758528,
+            "median_ms": 22.771616,
+            "max_ms": 22.819233,
+            "iqr_ms": 0.04528000000000176
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              51.056672,
+              22.753531,
+              22.787995,
+              22.756666,
+              22.788219,
+              22.760698,
+              22.75497,
+              22.74793,
+              22.799323,
+              22.809051
+            ],
+            "samples_ms": [
+              22.760698,
+              22.75497,
+              22.74793,
+              22.799323,
+              22.809051
+            ],
+            "min_ms": 22.74793,
+            "median_ms": 22.760698,
+            "max_ms": 22.809051,
+            "iqr_ms": 0.044353000000000975
+          },
+          "memory_device_ms": {
+            "all_iterations": [
+              18.4768,
+              17.812256,
+              17.726016,
+              17.463552,
+              17.818048,
+              17.726624,
+              17.801024,
+              17.475872,
+              17.3456,
+              17.601472
+            ],
+            "samples_ms": [
+              17.726624,
+              17.801024,
+              17.475872,
+              17.3456,
+              17.601472
+            ],
+            "min_ms": 17.3456,
+            "median_ms": 17.601472,
+            "max_ms": 17.801024,
+            "iqr_ms": 0.2507520000000021
+          },
+          "e2e_host_ms": {
+            "all_iterations": [
+              136.426074,
+              41.120671,
+              41.076862,
+              40.776472,
+              41.092734,
+              41.033277,
+              41.08579,
+              40.889338,
+              40.665558,
+              40.92598
+            ],
+            "samples_ms": [
+              41.033277,
+              41.08579,
+              40.889338,
+              40.665558,
+              40.92598
+            ],
+            "min_ms": 40.665558,
+            "median_ms": 40.92598,
+            "max_ms": 41.08579,
+            "iqr_ms": 0.14393899999999604
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.0,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 6.252776074688882e-12,
+              "max_rel": 3.175426023822058e-14,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 22.700001,
+        "time_change_percent": 0.25782818247452877
+      },
+      "native": {
+        "run": {
+          "kernel": "syrk",
+          "variant": "native",
+          "rc": 0,
+          "elapsed_s": 8.309215307235718,
+          "sha256": "f3cbe69c3967e05731689359b14b56dd15cf189c3bb63941a73fcb5bee54604a",
+          "cuda_graph": false,
+          "started_at_unix": 1794344480.669179,
+          "host_uptime": "13:01:20 up 446 days, 17:30,  2 users,  load average: 2.53, 2.86, 2.96",
+          "compute_device_ms": {
+            "all_iterations": [
+              83.68825531,
+              83.57497406,
+              83.559677124,
+              83.610435486,
+              83.576637268,
+              83.60761261,
+              83.590431213,
+              83.578910828,
+              83.556541443,
+              83.583778381
+            ],
+            "samples_ms": [
+              83.60761261,
+              83.590431213,
+              83.578910828,
+              83.556541443,
+              83.583778381
+            ],
+            "min_ms": 83.556541443,
+            "median_ms": 83.583778381,
+            "max_ms": 83.60761261,
+            "iqr_ms": 0.01152038499999719
+          },
+          "compute_wall_ms": {
+            "all_iterations": [
+              83.704602003,
+              83.598743916,
+              83.577719927,
+              83.629753113,
+              83.609911919,
+              83.642137051,
+              83.624729156,
+              83.611736059,
+              83.588023901,
+              83.615608931
+            ],
+            "samples_ms": [
+              83.642137051,
+              83.624729156,
+              83.611736059,
+              83.588023901,
+              83.615608931
+            ],
+            "min_ms": 83.588023901,
+            "median_ms": 83.615608931,
+            "max_ms": 83.642137051,
+            "iqr_ms": 0.01299309700000606
+          },
+          "warmups": 5,
+          "measured": 5,
+          "dump_count": 1,
+          "max_temperature_c": 50.281,
+          "thermal_ok": true
+        },
+        "binary_matches_run": true,
+        "correctness": {
+          "passed": true,
+          "arrays": {
+            "C": {
+              "count": 1440000,
+              "failures": 0,
+              "max_abs": 0.0,
+              "max_rel": 0.0,
+              "first_failure": null
+            }
+          }
+        },
+        "valid_run": true,
+        "accepted": true,
+        "paper_ms": 83.40914917,
+        "time_change_percent": 0.17670995863965366,
+        "provenance": {
+          "upstream_source": "third_party/polybenchGpu/CUDA/SYRK/syrk.cu",
+          "upstream_sha256": "7e208416e8b6c59b52ab9c2ba295c06802c2d1b48968374be6a6d6a618948f1f",
+          "kernel_sha256": [
+            "c1dae53ae28c878b105dd9e987d591a4ffd7d486d1051b75d6a23a7a51b98aef"
+          ],
+          "computational_bodies_verbatim": true,
+          "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+          "generated_source_sha256": "f1a1689ffb62e24c417c81d11e79953719977e0d22dfbb1ada471801b64e9315",
+          "build_rc": 0,
+          "executable_sha256": "f3cbe69c3967e05731689359b14b56dd15cf189c3bb63941a73fcb5bee54604a"
+        }
+      }
+    },
+    "paper_comparison_baseline": "native",
+    "device_speedup": 3.6714387434459734,
+    "paper_speedup": 3.674411696
+  }
+]

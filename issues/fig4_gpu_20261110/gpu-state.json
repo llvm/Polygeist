@@ -1,0 +1,1 @@
+{"gpu": {"min_freq": "1300500000", "max_freq": "1300500000", "cur_freq": "1300500000", "governor": "nvhost_podgov"}, "sudo_available": false, "fan_writable": {"/sys/class/hwmon/hwmon1/pwm1": false}}

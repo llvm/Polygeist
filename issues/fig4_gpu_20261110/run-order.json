@@ -1,0 +1,122 @@
+[
+  {
+    "kernel": "2mm",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "2mm",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "3mm",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "3mm",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "atax",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "atax",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "bicg",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "bicg",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "correlation",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "correlation",
+    "variant": "paper-baseline",
+    "exit_code": 0
+  },
+  {
+    "kernel": "covariance",
+    "variant": "paper-baseline",
+    "exit_code": 0
+  },
+  {
+    "kernel": "covariance",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gemm",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gemm",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gemver",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gemver",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gesummv",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "gesummv",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "mvt",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "mvt",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "syr2k",
+    "variant": "raised",
+    "exit_code": 0
+  },
+  {
+    "kernel": "syr2k",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "syrk",
+    "variant": "native",
+    "exit_code": 0
+  },
+  {
+    "kernel": "syrk",
+    "variant": "raised",
+    "exit_code": 0
+  }
+]

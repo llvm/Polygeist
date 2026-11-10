@@ -1,0 +1,8 @@
+{
+  "original_source": "issues/polybench_section42/polybenchgpu_adapters/covariance.cu",
+  "original_sha256": "dd62a7ebc9a40f2dca75ae7ae12873736dc342cdb2de19a926c9c5c12ea1882b",
+  "generated_source_sha256": "2ec153269b410c7427b404362f0e8a07271390c0bcf3773fd12942a0b15977f7",
+  "build_rc": 0,
+  "qualifier": "paper local CUDA adaptation; not verbatim upstream PolyBenchGPU",
+  "executable_sha256": "ef88948e13bbd0aa3d014324c7feef6cfae1c8c9f62d19256efd7eb67030447e"
+}

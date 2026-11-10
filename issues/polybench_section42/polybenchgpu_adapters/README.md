@@ -2,10 +2,21 @@
 
 These adapters make the independent PolyBenchGPU CUDA baselines comparable to
 the PolyBench/C evaluation. They use the canonical PolyBench/C `LARGE` harness,
-FP64 datatype, initialization, argument order, and output dump. The CUDA
-computational kernel bodies are copied from PolyBenchGPU commit
-`5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c`; Polygeist does not supply a
-replacement computational kernel.
+FP64 datatype, initialization, argument order, and output dump. They are based
+on PolyBenchGPU commit `5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c`.
+
+**Provenance exception:** `correlation.cu` and `covariance.cu` launch locally
+rewritten `pbgpu_corr_*` and `pbgpu_covar_*` computational kernels. Including
+the upstream files does not make these executed kernels verbatim upstream
+implementations. These are the local CUDA adaptations used for the published
+Figure 4 baselines and must be labelled accordingly. Upstream covariance also
+lacks the canonical PolyBench/C division by `N-1`.
+
+The Figure 4 reproduction in `../../fig4_gpu_20261110/` retains these paper
+baselines separately from an audit using verbatim upstream CUDA kernel bodies.
+That audit configures correlation's constants for canonical C and adds timed
+cuBLAS normalization to covariance; the latter is explicitly labelled upstream
+CUDA plus vendor normalization, rather than pure PolyBenchGPU.
 
 The adapter code supplies allocation, transfers, error checks, canonical launch
 geometry, CUDA-event device timing, and the PolyBench/C ABI. These are therefore

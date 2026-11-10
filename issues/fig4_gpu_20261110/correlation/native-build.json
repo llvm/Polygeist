@@ -1,0 +1,15 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/CORR/correlation.cu",
+  "upstream_sha256": "6e027ff963ebd24de31757cc9a407d422282bfd9e24c49c9087e7306fdacbe9e",
+  "kernel_sha256": [
+    "83eae8c6c88b23dde543e17056fa03e50849408e78c81c72604271b13464b62d",
+    "e8a44f2b3328b27e358e5bc8e9d30e038e2525b413dabe17fc02a8f107e0d58b",
+    "f44eb96cbcfa88700f97c031748a54f8eb034aacfa2c5b20abe07f3887c42a1a",
+    "0d7f8a088f7f236e532b7f40fe2d8da1497d9c770ec852d5aeefee1f4fa827fa"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization; FLOAT_N and EPS configured to canonical C; upstream final diagonal copy retained",
+  "generated_source_sha256": "0ee22f974f31ccb028535f1a4ef04789b15ed66cc2110e3140f84f3575403e6b",
+  "build_rc": 0,
+  "executable_sha256": "b6bb0855f4195cec172145e111a7d1c4b060eb1de4a57af386c02e5f968a5961"
+}

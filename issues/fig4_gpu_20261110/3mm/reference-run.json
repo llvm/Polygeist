@@ -1,0 +1,13 @@
+{
+  "kernel": "3mm",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 50.00192356109619,
+  "sha256": "efc10081b92c0d34d521c370e855be754aff3a384b9b7f64143e3e4f81bb8e72",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.125,
+  "thermal_ok": true
+}

@@ -1,0 +1,8 @@
+{
+  "original_source": "issues/polybench_section42/polybenchgpu_adapters/correlation.cu",
+  "original_sha256": "3e297e5abbd63b34816bc2326777b5c679ce2541d728720cc1e3c6c29038049c",
+  "generated_source_sha256": "5ecee65f19d8d7b8d31108ff0f2747b1e1e6eb50d41c14f281d9d97309990113",
+  "build_rc": 0,
+  "qualifier": "paper local CUDA adaptation; not verbatim upstream PolyBenchGPU",
+  "executable_sha256": "8528a7a6a0370e6c9f9ba7e236d65a7aaeaa0a3fdae5e9c8202477ee80e7ae1c"
+}
