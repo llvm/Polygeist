@@ -150,6 +150,7 @@ static bool isCudaGraphSafeCall(func::CallOp call,
          callee == "polygeist_cudnn_pointwise_graph_f32" ||
          callee == "polygeist_cudnn_softmax_forward_out_f32" ||
          callee == "polygeist_cutensor_permute_f32" ||
+         callee == "polygeist_cuda_copy_f32" ||
          callee == "polygeist_rmsnorm_f32";
 }
 
@@ -279,7 +280,9 @@ static bool isPipelineTransparent(Operation *op, StringRef beginSymbol,
            isRuntimePipelineCall(call, beginSymbol, endSymbol);
 
   StringRef name = op->getName().getStringRef();
-  if (name.startswith("arith.") || name.startswith("shape."))
+  if (name.startswith("arith.") || name.startswith("shape.") ||
+      name == "affine.apply" || name == "llvm.inttoptr" ||
+      name == "llvm.ptrtoint")
     return true;
   if (name == "tensor.empty" || name == "tensor.cast" || name == "tensor.dim" ||
       name == "tensor.extract_slice" || name == "tensor.collapse_shape" ||
@@ -288,7 +291,9 @@ static bool isPipelineTransparent(Operation *op, StringRef beginSymbol,
   if (name == "bufferization.to_tensor" || name == "bufferization.to_memref")
     return true;
   if (name == "memref.cast" || name == "memref.subview" ||
-      name == "memref.reinterpret_cast" || name == "memref.dim")
+      name == "memref.reinterpret_cast" || name == "memref.dim" ||
+      name == "memref.extract_strided_metadata" ||
+      name == "memref.extract_aligned_pointer_as_index")
     return true;
   if (name == "polygeist.submap")
     return true;

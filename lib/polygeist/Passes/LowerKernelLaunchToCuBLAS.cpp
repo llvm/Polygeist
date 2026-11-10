@@ -875,9 +875,17 @@ static Value pointerForFlatAffineSubmap(OpBuilder &b, Location loc, Value v) {
   if (!submap)
     return Value();
   auto baseTensor = sourceToTensorOp(submap.getBase());
-  if (!baseTensor)
+  auto tensorType = dyn_cast<RankedTensorType>(submap.getBase().getType());
+  if (!tensorType || submap.getMap().getNumResults() !=
+                         static_cast<unsigned>(tensorType.getRank()))
     return Value();
-  Value base = baseTensor.getMemref();
+  // A computed tensor has no original C buffer, but the library still needs
+  // its physical base, not a dense expansion of a broadcast view. Materialize
+  // the base SSA value so its updates are preserved without replicating a
+  // vector across every GEMV row.
+  Value base = baseTensor
+                   ? baseTensor.getMemref()
+                   : valueToMemrefPreservingSlice(b, loc, submap.getBase());
   auto baseTy = dyn_cast<MemRefType>(base.getType());
   if (!baseTy || submap.getMap().getNumResults() !=
                      static_cast<unsigned>(baseTy.getRank()))

@@ -1617,9 +1617,12 @@ struct LowerSymbolBearingSubmapToExtractSlice
 
         auto staticOutTy =
             RankedTensorType::get(*staticSizes, baseTy.getElementType());
-        auto reassociation = getSingleSourceReassociation(numViewDims);
-        Value expanded = rewriter.create<tensor::ExpandShapeOp>(
-            loc, staticOutTy, baseForExpand, reassociation);
+        Value expanded = baseForExpand;
+        if (numViewDims > 1) {
+          auto reassociation = getSingleSourceReassociation(numViewDims);
+          expanded = rewriter.create<tensor::ExpandShapeOp>(
+              loc, staticOutTy, baseForExpand, reassociation);
+        }
         if (expanded.getType() != outTy)
           expanded = rewriter.create<tensor::CastOp>(loc, outTy, expanded);
         rewriter.replaceOp(submap, expanded);
@@ -1855,9 +1858,12 @@ struct LowerSubmapInverse : public OpRewritePattern<SubmapInverseOp> {
         // affine write-back unless the base extent is statically identical.
         auto staticOutTy =
             RankedTensorType::get({flatSize}, viewTy.getElementType());
-        auto reassociation = getSingleSourceReassociation(numViewDims);
-        Value collapsed = rewriter.create<tensor::CollapseShapeOp>(
-            loc, staticOutTy, viewForCollapse, reassociation);
+        Value collapsed = viewForCollapse;
+        if (numViewDims > 1) {
+          auto reassociation = getSingleSourceReassociation(numViewDims);
+          collapsed = rewriter.create<tensor::CollapseShapeOp>(
+              loc, staticOutTy, viewForCollapse, reassociation);
+        }
         if (collapsed.getType() != outTy)
           collapsed = rewriter.create<tensor::CastOp>(loc, outTy, collapsed);
         rewriter.replaceOp(inv, collapsed);

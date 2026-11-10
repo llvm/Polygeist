@@ -219,7 +219,7 @@ module attributes {gpu.container_module} {
 // PERSISTENT-PIPELINE-NOT: memref.alloc
 // PERSISTENT-PIPELINE: gpu.launch_func
 // PERSISTENT-PIPELINE-SAME: args(%[[DEVICE]] : memref<128xf32>)
-// PERSISTENT-PIPELINE: gpu.dealloc %[[DEVICE]] : memref<128xf32>
+// PERSISTENT-PIPELINE: gpu.dealloc async {{.*}} %[[DEVICE]] : memref<128xf32>
 
 // PERSISTENT-LABEL: func.func @persistent_device_scratch
 // PERSISTENT: %[[STREAM:.*]] = gpu.wait async
@@ -229,7 +229,7 @@ module attributes {gpu.container_module} {
 // PERSISTENT-NOT: gpu.host_register
 // PERSISTENT: gpu.launch_func
 // PERSISTENT-SAME: args(%[[DEVICE]] : memref<128xf32>)
-// PERSISTENT: gpu.dealloc %[[DEVICE]] : memref<128xf32>
+// PERSISTENT: gpu.dealloc async {{.*}} %[[DEVICE]] : memref<128xf32>
 
 // PERSISTENT-HOST-LABEL: func.func @persistent_host_visible
 // PERSISTENT-HOST-NOT: gpu.alloc

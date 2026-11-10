@@ -213,15 +213,29 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/bufferized.mlir -o $WORK/gpu_prepared.mlir
   $MLIR_OPT --convert-linalg-to-parallel-loops \
-    --gpu-map-parallel-loops --convert-parallel-loops-to-gpu \
+    $WORK/gpu_prepared.mlir -o $WORK/gpu_parallel.mlir
+  $POLYGEIST_OPT \
+    "--prepare-gpu-residual-pipeline=function=${GPU_FN} tile-size=256" \
+    $WORK/gpu_parallel.mlir -o $WORK/gpu_tiled.mlir
+  $MLIR_OPT --gpu-map-parallel-loops --convert-parallel-loops-to-gpu \
     --gpu-kernel-outlining \
-    $WORK/gpu_prepared.mlir -o $WORK/gpu_outlined.mlir
+    $WORK/gpu_tiled.mlir -o $WORK/gpu_outlined.mlir
   $POLYGEIST_OPT --merge-gpu-modules \
     $WORK/gpu_outlined.mlir -o $WORK/gpu_merged.mlir
   $POLYGEIST_OPT \
     "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
     $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
   GRAPH_INPUT=$WORK/gpu_registered.mlir
+  if [ "${POLYGEIST_INLINE_GPU_ENTRY_CALLS:-0}" != "0" ]; then
+    # This mode builds one standalone application entry. Helpers must be
+    # private so residency can follow their argument uses and the inliner can
+    # move their scratch allocations into the enclosing session lifetime.
+    # Normalize affine loops before inlining GPU launches into their bodies.
+    ENTRY_FN=${POLYGEIST_ENTRY_FUNCTION:-$GPU_FN}
+    $MLIR_OPT "--symbol-privatize=exclude=${ENTRY_FN}" --lower-affine \
+      $GRAPH_INPUT -o $WORK/gpu_owned.mlir
+    GRAPH_INPUT=$WORK/gpu_owned.mlir
+  fi
   RESIDENCY_FUNCTION=${POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION:-}
   RESIDENCY_PROMOTE_ARGUMENTS=true
   # Persistent scratch begins as private host globals so it has a stable
@@ -241,7 +255,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     fi
     $POLYGEIST_OPT \
       "--plan-gpu-data-residency=${RESIDENCY_ARGS}" \
-      $WORK/gpu_registered.mlir -o $WORK/gpu_resident.mlir
+      $GRAPH_INPUT -o $WORK/gpu_resident.mlir
     GRAPH_INPUT=$WORK/gpu_resident.mlir
   fi
   if [ "${POLYGEIST_INLINE_GPU_ENTRY_CALLS:-0}" != "0" ]; then

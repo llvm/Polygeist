@@ -324,6 +324,10 @@ __attribute__((noinline)) void kernel_llama2_extended_forward(
 // pass allocate and upload at entry, reuse the buffers for every forward, and
 // copy observable results back once at exit.  There are intentionally no CUDA
 // types or calls in this interface.
+#ifdef POLYGEIST_BENCHMARK_ITERATIONS
+extern void polygeist_benchmark_iteration_begin(int);
+extern void polygeist_benchmark_iteration_end(int);
+#endif
 __attribute__((noinline)) void kernel_llama2_extended_forward_session(
     int repetitions, int token, int pos,
     DATA_TYPE tok_embeddings[VOCAB][MODEL_DIM],
@@ -361,7 +365,13 @@ __attribute__((noinline)) void kernel_llama2_extended_forward_session(
     DATA_TYPE ffn_hidden[FFN_DIM], DATA_TYPE ffn_out[MODEL_DIM],
     DATA_TYPE resid_ffn[MODEL_DIM], DATA_TYPE final_normed[MODEL_DIM],
     DATA_TYPE logits[VOCAB]) {
+  // Optional harness callbacks measure individual forwards within the owned
+  // session, after initial residency transfers and before final copy-back.
+  // They do not change the layer's computation or its inputs.
   for (int iteration = 0; iteration < repetitions; ++iteration) {
+#ifdef POLYGEIST_BENCHMARK_ITERATIONS
+    polygeist_benchmark_iteration_begin(iteration);
+#endif
     kernel_llama2_extended_forward(
         token, pos, tok_embeddings, rms_att_weight, wq_even, wq_odd, wk_even,
         wk_odd, wv, wo, rms_ffn_weight, w_gate, w_up, w_down,
@@ -370,6 +380,9 @@ __attribute__((noinline)) void kernel_llama2_extended_forward_session(
         q_even_rot, q_odd_rot, k_read_even, k_read_odd, v_read, scores,
         masked_scores, probs, att_out, proj_out, resid_att, ffn_normed, gate,
         up, ffn_hidden, ffn_out, resid_ffn, final_normed, logits);
+#ifdef POLYGEIST_BENCHMARK_ITERATIONS
+    polygeist_benchmark_iteration_end(iteration);
+#endif
   }
 }
 

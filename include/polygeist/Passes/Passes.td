@@ -453,6 +453,8 @@ def PrepareGpuResidualPipeline
   let options = [
     Option<"functionName", "function", "std::string", /*default=*/"\"\"",
            "Exact function whose residual work is prepared.">,
+    Option<"tileSize", "tile-size", "int64_t", /*default=*/"0",
+           "Flatten and tile independent parallel loops before GPU mapping.">,
   ];
 }
 

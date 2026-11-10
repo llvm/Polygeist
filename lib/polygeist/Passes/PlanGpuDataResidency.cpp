@@ -80,6 +80,18 @@ static func::FuncOp getOwnedCallee(func::CallOp call) {
   return callee;
 }
 
+// GPU-to-LLVM accepts deallocation only with one asynchronous dependency.
+// Retain synchronous source semantics by waiting for that operation here.
+static void deallocateDeviceBuffer(OpBuilder &builder, Location loc,
+                                   Value buffer) {
+  Type tokenType = gpu::AsyncTokenType::get(builder.getContext());
+  Value stream =
+      builder.create<gpu::WaitOp>(loc, tokenType, ValueRange{}).getAsyncToken();
+  auto free = builder.create<gpu::DeallocOp>(loc, tokenType, ValueRange{stream},
+                                             buffer);
+  builder.create<gpu::WaitOp>(loc, Type(), ValueRange{free.getAsyncToken()});
+}
+
 static bool hasOnlyDeviceOrDescriptorUses(Value root) {
   SmallVector<Value> worklist{root};
   llvm::DenseSet<Value> visited;
@@ -89,7 +101,7 @@ static bool hasOnlyDeviceOrDescriptorUses(Value root) {
       continue;
     for (OpOperand &use : value.getUses()) {
       Operation *owner = use.getOwner();
-      if (isa<gpu::LaunchFuncOp, gpu::HostRegisterOp>(owner))
+      if (isa<gpu::LaunchFuncOp, gpu::HostRegisterOp, memref::DeallocOp>(owner))
         continue;
       if (isGpuRuntimeCall(owner))
         continue;
@@ -245,9 +257,8 @@ struct PlanGpuDataResidencyPass
       function.walk([&](func::ReturnOp ret) { returns.push_back(ret); });
       for (func::ReturnOp ret : returns) {
         OpBuilder returnBuilder(ret);
-        returnBuilder.create<gpu::DeallocOp>(
-            ret.getLoc(), /*asyncTokenType=*/Type(),
-            /*asyncDependencies=*/ValueRange{}, deviceAllocation.getMemref());
+        deallocateDeviceBuffer(returnBuilder, ret.getLoc(),
+                               deviceAllocation.getMemref());
       }
     }
 
@@ -333,22 +344,19 @@ struct PlanGpuDataResidencyPass
           registration.erase();
       for (memref::DeallocOp deallocation : deallocations) {
         OpBuilder deallocationBuilder(deallocation);
-        deallocationBuilder.create<gpu::DeallocOp>(
-            deallocation.getLoc(), /*asyncTokenType=*/Type(),
-            /*asyncDependencies=*/ValueRange{},
-            deviceAllocation.getMemref());
+        if (!hoisted)
+          deallocateDeviceBuffer(deallocationBuilder, deallocation.getLoc(),
+                                 deviceAllocation.getMemref());
         deallocation.erase();
       }
-      if (deallocations.empty() && hoisted) {
+      if (hoisted) {
         SmallVector<func::ReturnOp> allocationReturns;
         allocationFunction.walk(
             [&](func::ReturnOp ret) { allocationReturns.push_back(ret); });
         for (func::ReturnOp ret : allocationReturns) {
           OpBuilder returnBuilder(ret);
-          returnBuilder.create<gpu::DeallocOp>(
-              ret.getLoc(), /*asyncTokenType=*/Type(),
-              /*asyncDependencies=*/ValueRange{},
-              deviceAllocation.getMemref());
+          deallocateDeviceBuffer(returnBuilder, ret.getLoc(),
+                                 deviceAllocation.getMemref());
         }
       }
     }

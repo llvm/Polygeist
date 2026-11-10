@@ -72,6 +72,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRPolygeistKernel
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
+  MLIRSCFTransforms
+  MLIRSCFUtils
   MLIRTargetLLVMIRImport
   MLIRTensorDialect
   MLIRTransformUtils

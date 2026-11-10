@@ -1,9 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 #define main polygeist_llama_fixture_original_main
+#define kernel_llama2_extended_forward kernel_llama2_extended_forward_native
 #define kernel_llama2_extended_forward_session \
   kernel_llama2_extended_forward_session_native
 #include "../../third_party/cnn-extracted/llama2_extended_forward_bench.c"
 #undef kernel_llama2_extended_forward_session
+#undef kernel_llama2_extended_forward
 #undef main
 
 /* Implemented by the generated ABI wrapper linked with this harness. */

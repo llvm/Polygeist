@@ -9191,10 +9191,12 @@ static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
   cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
   p->bytes = (size_t)p->n * sizeof(float);
   p->epsilon = 1.0e-5f;
-  DEVICE_MALLOC((void **)&p->x, p->bytes);
-  DEVICE_MALLOC((void **)&p->weight, p->bytes);
-  DEVICE_MALLOC((void **)&p->bias, p->bytes);
-  DEVICE_MALLOC((void **)&p->out, p->bytes);
+  // The variant pack retains these addresses across pipeline invocations.
+  // They must not belong to the per-invocation temporary allocation pool.
+  CUDA_CHECK(cudaMalloc((void **)&p->x, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->weight, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->bias, p->bytes));
+  CUDA_CHECK(cudaMalloc((void **)&p->out, p->bytes));
   CUDA_CHECK(cudaMemsetAsync(p->bias, 0, p->bytes, g_stream));
 
   int64_t dims[4] = {1, p->n, 1, 1};
@@ -9313,7 +9315,7 @@ rms_heur_cleanup:
       &count, &workspace_size);
   if (status != CUDNN_STATUS_SUCCESS) return 0;
   if (workspace_size > 0)
-    DEVICE_MALLOC(&p->workspace, (size_t)workspace_size);
+    CUDA_CHECK(cudaMalloc(&p->workspace, (size_t)workspace_size));
   status = cudnnBackendCreateDescriptor(
       CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
   if (status != CUDNN_STATUS_SUCCESS) return 0;
@@ -9358,14 +9360,25 @@ void polygeist_rmsnorm_f32(
     timing_host_only("hostRmsNorm_f32", n, 1, 0, host_start_ms);
     return;
   }
-  CUDA_CHECK(cudaMemcpyAsync(p->x, x, p->bytes, cudaMemcpyHostToDevice,
-                             g_stream));
-  CUDA_CHECK(cudaMemcpyAsync(p->weight, weight, p->bytes,
-                             cudaMemcpyHostToDevice, g_stream));
+  // Stabilize all host registrations before obtaining any device aliases.
+  // A host span can cross existing registration boundaries, and registering
+  // a later operand can replace an earlier mapping. Device and managed
+  // operands already have usable device addresses. Copy through these
+  // addresses so neither partial host registration nor pointer residency
+  // changes the transfer's meaning. Plan-owned buffers also preserve input
+  // values when the caller aliases the output with an input.
+  void *operands[] = {(void *)x, (void *)weight, out};
+  size_t sizes[] = {p->bytes, p->bytes, p->bytes};
+  void *device_operands[3];
+  register_host_operands_safe(operands, sizes, device_operands, 3);
+  CUDA_CHECK(cudaMemcpyAsync(p->x, device_operands[0], p->bytes,
+                             cudaMemcpyDeviceToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(p->weight, device_operands[1], p->bytes,
+                             cudaMemcpyDeviceToDevice, g_stream));
   timing_gpu_begin();
   CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
-  CUDA_CHECK(cudaMemcpyAsync(out, p->out, p->bytes, cudaMemcpyDeviceToHost,
-                             g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(device_operands[2], p->out, p->bytes,
+                             cudaMemcpyDeviceToDevice, g_stream));
   timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
 }
 
@@ -9565,7 +9578,8 @@ static int build_pointwise_graph_plan(struct pointwise_graph_plan *p) {
 
   for (int i = 0; i < 8; ++i) {
     if (i < 4 && p->used_inputs[i]) {
-      DEVICE_MALLOC((void **)&p->d_inputs[i], p->bytes);
+      // Cached variant packs outlive the pipeline's reusable temporary pool.
+      CUDA_CHECK(cudaMalloc((void **)&p->d_inputs[i], p->bytes));
       if (!make_f32_backend_tensor_ex(
               &p->input_descs[i], 100 + i, dims, strides, 4, false, false,
               "pointwise.generic.input", &status))
@@ -9577,7 +9591,7 @@ static int build_pointwise_graph_plan(struct pointwise_graph_plan *p) {
             true, false, "pointwise.generic.scalar", &status))
       return 0;
   }
-  DEVICE_MALLOC((void **)&p->d_out, p->bytes);
+  CUDA_CHECK(cudaMalloc((void **)&p->d_out, p->bytes));
   if (!make_f32_backend_tensor_ex(
           &p->out_desc, 400, dims, strides, 4, false, false,
           "pointwise.generic.output", &status))
@@ -9763,7 +9777,7 @@ generic_heur_cleanup:
       1, &count, &workspace_size);
   if (status != CUDNN_STATUS_SUCCESS) return 0;
   if (workspace_size > 0)
-    DEVICE_MALLOC(&p->workspace, (size_t)workspace_size);
+    CUDA_CHECK(cudaMalloc(&p->workspace, (size_t)workspace_size));
 
   status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR,
                                         &p->variant_pack);

@@ -328,7 +328,8 @@ module {
 
 // CHECK-LABEL: func.func @dynamic_identity_prefix
 // CHECK-NOT: polygeist.submap
-// CHECK: memref.reinterpret_cast %arg0 to offset: [0], sizes: [%arg1], strides: [1]
+// CHECK: memref.load %arg0[%c0] : memref<32xf64>
+// CHECK: memref.store {{.*}}, %arg0[%c0] : memref<32xf64>
 
 // CHECK-LABEL: func.func @external_c_array_call
 // CHECK: call @external_array(%arg0) : (memref<5x5x5xf64>) -> ()

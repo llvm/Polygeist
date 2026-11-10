@@ -7,6 +7,9 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
+#include "mlir/Dialect/GPU/Transforms/ParallelLoopMapper.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
@@ -458,6 +461,49 @@ struct PrepareGpuResidualPipelinePass
                       UnitAttr::get(module.getContext()));
       launches.push_back(launch);
     });
+    if (tileSize > 0) {
+      // A flat parallel loop otherwise maps entirely to GPU block IDs,
+      // launching one active thread per block. Flatten in row-major order,
+      // then form an outer block loop and an inner thread loop. The tiler
+      // guards the last partial tile, including dynamic trip counts.
+      auto independent = [](scf::ParallelOp loop) {
+        if (loop.getNumResults() || loop->getParentOfType<scf::ParallelOp>())
+          return false;
+        bool nested = false;
+        loop.getRegion().walk([&](scf::ParallelOp) { nested = true; });
+        return !nested;
+      };
+      SmallVector<scf::ParallelOp> loops;
+      function.walk([&](scf::ParallelOp loop) {
+        if (independent(loop))
+          loops.push_back(loop);
+      });
+      for (scf::ParallelOp loop : loops) {
+        if (loop.getNumLoops() <= 1)
+          continue;
+        std::vector<unsigned> dimensions;
+        for (unsigned i = 0; i < loop.getNumLoops(); ++i)
+          dimensions.push_back(i);
+        collapseParallelLoops(loop, {dimensions});
+      }
+      loops.clear();
+      function.walk([&](scf::ParallelOp loop) {
+        if (independent(loop))
+          loops.push_back(loop);
+      });
+      for (scf::ParallelOp loop : loops) {
+        auto [blocks, threads] =
+            scf::tileParallelLoop(loop, {tileSize}, /*noMinMaxBounds=*/true);
+        auto identity = AffineMap::getMultiDimIdentityMap(1, module.getContext());
+        auto mapping = [&](gpu::Processor processor) {
+          return gpu::ParallelLoopDimMappingAttr::get(
+              module.getContext(), processor, identity, identity);
+        };
+        if (failed(gpu::setMappingAttr(blocks, {mapping(gpu::Processor::BlockX)})) ||
+            failed(gpu::setMappingAttr(threads, {mapping(gpu::Processor::ThreadX)})))
+          return signalPassFailure();
+      }
+    }
     if (launches.empty())
       return;
 
