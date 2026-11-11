@@ -6663,6 +6663,14 @@ struct LinalgGenericEliminateSubmaps : public OpRewritePattern<linalg::GenericOp
   using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(linalg::GenericOp genericOp, PatternRewriter &rewriter) const override {
+    // A tensor output submap defines both the result shape and the active
+    // iteration domain. Replacing it by the base changes those contracts;
+    // cloning the original result types then produces invalid IR. Keep the
+    // view until a rewrite can reconstruct its result and prove the bounds.
+    for (Value output : genericOp.getOutputs())
+      if (isa<RankedTensorType>(output.getType()) &&
+          output.getDefiningOp<SubmapOp>())
+        return failure();
     bool hasSubmaps = false;
     SmallVector<Value> newInputs;
     SmallVector<Value> newOutputs;

@@ -16,6 +16,12 @@
 // signature whose body computes the canonical semantics for that library op.
 
 module {
+  // out[r] is the length of the initial prefix whose values are all below r.
+  // CUB max scan + histogram + sum scan also preserves unsorted-input semantics.
+  kernel.defn @cubPrefixMaxLowerBounds_i32_memref(
+      %rows: index, %input: memref<?xi32>, %output: memref<?xi32>) {
+    kernel.yield
+  }
   // Device-wide integer histogram. The executable matcher selects this
   // overwrite form only when it also proves a zero-initialized destination.
   kernel.defn @cubHistogramEvenI32ShiftZero_memref(
@@ -181,7 +187,7 @@ module {
   kernel.defn @cubSegmentedLogicalAnd_i32_memref(
       %x: memref<?x64xi32>, %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubSegmentedLogicalSelect_i32_memref(
-      %all_x: memref<?x64xi32>, %any_x: memref<?x64xi32>, %all: i32,
+      %all_x: memref<?x?xi32>, %any_x: memref<?x?xi32>, %all: i32,
       %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cublasSdot_memref(
       %x: memref<?xf32>, %y: memref<?xf32>,
@@ -190,11 +196,11 @@ module {
       %x: memref<?xf64>, %y: memref<?xf64>,
       %out: memref<?xf64>) { kernel.yield }
   kernel.defn @cubSegmentedArgMax_f32_i32_memref(
-      %x: memref<?x64xf32>, %out: memref<?xi32>) { kernel.yield }
+      %x: memref<?x?xf32>, %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubSegmentedArgMin_f32_i32_memref(
-      %x: memref<?x64xf32>, %out: memref<?xi32>) { kernel.yield }
+      %x: memref<?x?xf32>, %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubQuantColOffsets_i8_i32_memref(
-      %weights: memref<?x48xi8>, %offset: i32,
+      %weights: memref<?x?xi8>, %offset: i32,
       %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubAdjacentDifference_f32_memref(
       %input: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
@@ -205,7 +211,7 @@ module {
   kernel.defn @cubSegmentedSum_f32_memref(
       %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedNanSum_f32_memref(
-      %input: memref<?x64xf32>, %out: memref<?xf32>) { kernel.yield }
+      %input: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedSum_f64_memref(
       %input: memref<?x?xf64>, %out: memref<?xf64>) { kernel.yield }
   kernel.defn @cubSegmentedMin_f32_memref(
@@ -408,6 +414,13 @@ module {
       %ptr0: memref<?x3x4x4xf32>, %ptr1: memref<?x3x8x8xf32>) {
     kernel.yield
   }
+  // Integer-origin coordinates (h/2,w/2), with the final row/column clamped.
+  // Uses cudnnSpatialTfSamplerForward, operation 7 in the shared pool ABI.
+  kernel.defn @cudnnAdaptivePool_f32_bilinear_integer_origin_flat2(
+      %operation: i32, %rank: i32, %n: i32, %c: i32,
+      %i0: i32, %i1: i32, %i2: i32,
+      %o0: i32, %o1: i32, %o2: i32,
+      %input: memref<?xf32>, %output: memref<?xf32>) { kernel.yield }
   kernel.defn @cudnnAdaptivePool_f32_flat3_fwd(
       %operation: i32, %rank: i32, %n: i32, %c: i32,
       %i0: i32, %i1: i32, %i2: i32,
@@ -1432,19 +1445,20 @@ module {
   }
 
   kernel.defn @cublasSaxpby_memref(
-      %x: memref<?xf32>, %y: memref<?xf32>, %a: f32, %b: f32) {
+      %x: memref<?xf32, strided<[1], offset: ?>>,
+      %y: memref<?xf32, strided<[1], offset: ?>>, %a: f32, %b: f32) {
     kernel.yield
   }
 
   kernel.defn @cudaCopy1D_f32_memref(
-      %input: memref<?xf32, strided<[1], offset: ?>>,
-      %output: memref<?xf32, strided<[1], offset: ?>>) {
+      %input: memref<?xf32, strided<[?], offset: ?>>,
+      %output: memref<?xf32, strided<[?], offset: ?>>) {
     linalg.generic {
       indexing_maps = [affine_map<(d0) -> (d0)>,
                        affine_map<(d0) -> (d0)>],
       iterator_types = ["parallel"]
-    } ins(%input : memref<?xf32, strided<[1], offset: ?>>)
-      outs(%output : memref<?xf32, strided<[1], offset: ?>>) {
+    } ins(%input : memref<?xf32, strided<[?], offset: ?>>)
+      outs(%output : memref<?xf32, strided<[?], offset: ?>>) {
     ^bb0(%in: f32, %out: f32):
       linalg.yield %in : f32
     }

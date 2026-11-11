@@ -18,6 +18,84 @@ struct ArithmeticRightShiftI32 {
 
 static bool cub_device_pointer(const void *pointer, void **device_pointer);
 
+struct ClampRowIndexI32 {
+  int32_t rows;
+  __host__ __device__ int32_t operator()(int32_t value) const {
+    return value < -1 ? -1 : (value > rows ? rows : value);
+  }
+};
+
+// For arbitrary input order, count(prefix_max(input) < r) is exactly the
+// stopping position of a scan that advances while input[p] < r. Clamping to
+// [-1, rows] preserves every queried comparison, including negative values.
+extern "C" int polygeist_cub_prefix_max_lower_bounds_i32_cuda(
+    int32_t rows, int32_t count, const int32_t *input, int32_t *output,
+    cudaStream_t stream) {
+  if (rows < 0 || rows > INT_MAX-3 || count < 0 || !output ||
+      (count && !input)) return cudaErrorInvalidValue;
+  if (!count)
+    return cudaMemsetAsync(output, 0, (size_t)(rows+1)*sizeof(int32_t), stream);
+  struct Cache {
+    int device;
+    size_t input_capacity, bin_capacity, scratch_capacity;
+    int32_t *prefix, *bins;
+    void *scratch;
+    Cache *next;
+  };
+  static thread_local Cache *cache_list = nullptr;
+  int device;
+  cudaError_t status = cudaGetDevice(&device);
+  if (status != cudaSuccess) return status;
+  Cache *cache = cache_list;
+  for (; cache && cache->device != device; cache = cache->next) {}
+  if (!cache) {
+    cache = new Cache{};
+    cache->device = device; cache->next = cache_list; cache_list = cache;
+  }
+  auto reserve = [&](void **pointer, size_t &capacity, size_t required) {
+    if (capacity >= required) return cudaSuccess;
+    cudaError_t result = cudaStreamSynchronize(stream);
+    if (result == cudaSuccess) result = cudaFree(*pointer);
+    *pointer = nullptr; capacity = 0;
+    if (result == cudaSuccess) result = cudaMalloc(pointer, required);
+    if (result == cudaSuccess) capacity = required;
+    return result;
+  };
+  status = reserve((void **)&cache->prefix, cache->input_capacity,
+                   (size_t)count*sizeof(int32_t));
+  if (status == cudaSuccess)
+    status = reserve((void **)&cache->bins, cache->bin_capacity,
+                     (size_t)(rows+2)*sizeof(int32_t));
+  if (status != cudaSuccess) return status;
+  using Input = cub::TransformInputIterator<int32_t, ClampRowIndexI32,
+                                            const int32_t *>;
+  Input values(input, ClampRowIndexI32{rows});
+  size_t prefix_bytes = 0, histogram_bytes = 0, sum_bytes = 0;
+  status = cub::DeviceScan::InclusiveScan(nullptr, prefix_bytes, values,
+      cache->prefix, cub::Max(), count, stream);
+  if (status == cudaSuccess)
+    status = cub::DeviceHistogram::HistogramEven(nullptr, histogram_bytes,
+        cache->prefix, cache->bins, rows+3, -1, rows+1, count, stream);
+  if (status == cudaSuccess)
+    status = cub::DeviceScan::InclusiveSum(nullptr, sum_bytes, cache->bins,
+        output, rows+1, stream);
+  size_t required = prefix_bytes > histogram_bytes ? prefix_bytes : histogram_bytes;
+  if (sum_bytes > required) required = sum_bytes;
+  if (status == cudaSuccess)
+    status = reserve(&cache->scratch, cache->scratch_capacity, required);
+  if (status == cudaSuccess)
+    status = cub::DeviceScan::InclusiveScan(cache->scratch, prefix_bytes,
+        values, cache->prefix, cub::Max(), count, stream);
+  if (status == cudaSuccess)
+    status = cub::DeviceHistogram::HistogramEven(cache->scratch, histogram_bytes,
+        cache->prefix, cache->bins, rows+3, -1, rows+1, count, stream);
+  if (status == cudaSuccess)
+    status = cub::DeviceScan::InclusiveSum(cache->scratch, sum_bytes,
+        cache->bins, output, rows+1, stream);
+  if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
+  return status;
+}
+
 extern "C" int polygeist_cub_histogram_even_i32_shift_zero_cuda(
     int32_t count, int32_t num_bins, const int32_t *host_samples,
     int32_t *host_histogram, int32_t right_shift, cudaStream_t stream) {
@@ -405,13 +483,40 @@ extern "C" int polygeist_cub_segmented_inclusive_product2d_f32_cuda(
   if (rows < 0 || cols < 0) return -1;
   int64_t count = (int64_t)rows * cols;
   if (count == 0) return 0;
+  if (!input || !output) return cudaErrorInvalidValue;
   float *d_input = nullptr, *d_output = nullptr;
-  void *temporary = nullptr;
+  void *resident = nullptr;
+  bool owns_input = !cub_device_pointer(input, &resident);
+  if (!owns_input) d_input = static_cast<float *>(resident);
+  bool owns_output = !cub_device_pointer(output, &resident);
+  if (!owns_output) d_output = static_cast<float *>(resident);
+  // The CUB temporary buffer is shape-dependent scratch, not a result.
+  // Retain it across resident calls, with separate storage per host thread
+  // and CUDA device. No project-authored scan kernel is involved.
+  struct Workspace {
+    void *pointer = nullptr;
+    size_t capacity = 0;
+    int device = -1;
+  };
+  static thread_local Workspace workspace;
+  int device = -1;
+  cudaError_t status = cudaGetDevice(&device);
+  if (status != cudaSuccess) return status;
+  if (workspace.device != device) {
+    if (workspace.pointer) {
+      cudaSetDevice(workspace.device);
+      cudaFree(workspace.pointer);
+      cudaSetDevice(device);
+    }
+    workspace = Workspace{};
+    workspace.device = device;
+  }
   size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&d_input, (size_t)count * sizeof(float));
-  if (status == cudaSuccess)
+  if (owns_input)
+    status = cudaMalloc(&d_input, (size_t)count * sizeof(float));
+  if (status == cudaSuccess && owns_output)
     status = cudaMalloc(&d_output, (size_t)count * sizeof(float));
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && owns_input)
     status = cudaMemcpyAsync(d_input, input, (size_t)count * sizeof(float),
                              cudaMemcpyHostToDevice, stream);
   using Counting = cub::CountingInputIterator<int64_t>;
@@ -420,24 +525,30 @@ extern "C" int polygeist_cub_segmented_inclusive_product2d_f32_cuda(
   Keys keys(counting, ProductSegmentKey{cols});
   if (status == cudaSuccess)
     status = cub::DeviceScan::InclusiveScanByKey(
-        temporary, temporary_bytes, keys, d_input, d_output,
+        nullptr, temporary_bytes, keys, d_input, d_output,
         ProductF32{}, count, cub::Equality{}, stream);
-  if (status == cudaSuccess) status = cudaMalloc(&temporary, temporary_bytes);
+  if (status == cudaSuccess && temporary_bytes > workspace.capacity) {
+    if (workspace.pointer) cudaFree(workspace.pointer);
+    workspace.pointer = nullptr;
+    workspace.capacity = 0;
+    status = cudaMalloc(&workspace.pointer, temporary_bytes);
+    if (status == cudaSuccess) workspace.capacity = temporary_bytes;
+  }
   if (status == cudaSuccess)
     status = cub::DeviceScan::InclusiveScanByKey(
-        temporary, temporary_bytes, keys, d_input, d_output,
+        workspace.pointer, temporary_bytes, keys, d_input, d_output,
         ProductF32{}, count, cub::Equality{}, stream);
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && owns_output)
     status = cudaMemcpyAsync(output, d_output, (size_t)count * sizeof(float),
                              cudaMemcpyDeviceToHost, stream);
-  if (status == cudaSuccess)
+  if (status == cudaSuccess && final_values)
     status = cudaMemcpy2DAsync(final_values, sizeof(float),
                                d_output + cols - 1,
                                (size_t)cols * sizeof(float), sizeof(float), rows,
-                               cudaMemcpyDeviceToHost, stream);
+                               cudaMemcpyDefault, stream);
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
-  cudaFree(temporary);
-  cudaFree(d_output); cudaFree(d_input);
+  if (owns_output) cudaFree(d_output);
+  if (owns_input) cudaFree(d_input);
   return status;
 }
 
@@ -1013,4 +1124,57 @@ extern "C" int polygeist_cub_segmented_prefix_logical_and_i32_cuda(
     int32_t *out, cudaStream_t stream) {
   return static_cast<int>(segmented_prefix_reduce(
       rows, cols, x, lengths, out, int32_t{1}, LogicalAndI32{}, stream));
+}
+
+// Absolute maximum with the source reduction's zero seed and ordered
+// comparison: NaNs are ignored, and an all-NaN input reduces to zero.
+struct OrderedAbsF32 {
+  __host__ __device__ float operator()(float value) const {
+    return value == value ? fabsf(value) : 0.0f;
+  }
+};
+
+extern "C" int polygeist_cub_maxabs_f32_cuda(
+    int32_t count, const float *device_input, float *device_output,
+    cudaStream_t stream) {
+  if (count < 0 || !device_output || (count && !device_input))
+    return cudaErrorInvalidValue;
+  if (!count)
+    return cudaMemsetAsync(device_output, 0, sizeof(float), stream);
+  using Values = cub::TransformInputIterator<float, OrderedAbsF32, const float *>;
+  Values values(device_input, OrderedAbsF32{});
+  struct Workspace {
+    void *pointer = nullptr;
+    size_t capacity = 0;
+    int device = -1;
+  };
+  static thread_local Workspace workspace;
+  int device = -1;
+  cudaError_t status = cudaGetDevice(&device);
+  if (status != cudaSuccess) return status;
+  if (workspace.device != device) {
+    if (workspace.pointer) {
+      cudaSetDevice(workspace.device);
+      cudaFree(workspace.pointer);
+      cudaSetDevice(device);
+    }
+    workspace = Workspace{};
+    workspace.device = device;
+  }
+  size_t bytes = 0;
+  status = cub::DeviceReduce::Max(nullptr, bytes, values, device_output,
+                                 count, stream);
+  if (status == cudaSuccess && bytes > workspace.capacity) {
+    if (workspace.pointer) cudaFree(workspace.pointer);
+    workspace.pointer = nullptr;
+    workspace.capacity = 0;
+    status = cudaMalloc(&workspace.pointer, bytes);
+    if (status == cudaSuccess) workspace.capacity = bytes;
+  }
+  if (status == cudaSuccess)
+    status = cub::DeviceReduce::Max(workspace.pointer, bytes, values,
+                                   device_output, count, stream);
+  // The thread-local scratch may be reused by a later call on another stream.
+  if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
+  return status;
 }

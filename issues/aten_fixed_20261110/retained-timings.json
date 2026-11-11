@@ -1,0 +1,5180 @@
+{
+  "scope": "Saved validated runs; five synchronized samples after five warmups, minimum headline. Native rows retain their original run provenance.",
+  "cases": [
+    {
+      "kernel": "aten_avg_pool2d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_avg_pool2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "3998a493f67d5897fee2dd97d479a88e6b3e02937671941a5ad5c2e14f80252b",
+        "samples_us": [
+          60.609131,
+          50.14502,
+          52.767822,
+          52.99292,
+          55.200928
+        ],
+        "errors": 0,
+        "shape": "B=2_C=4_H=16_W=16",
+        "accepted": true,
+        "minimum_us": 50.14502,
+        "median_us": 52.99292,
+        "maximum_us": 60.609131,
+        "iqr_us": 6.448608499999995
+      },
+      "native": {
+        "kernel": "aten_avg_pool2d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          41.312,
+          22.497,
+          22.912,
+          38.209,
+          23.744
+        ],
+        "errors": 0,
+        "shape": "B=2_C=4_H=16_W=16",
+        "accepted": true,
+        "minimum_us": 22.497,
+        "median_us": 23.744,
+        "maximum_us": 41.312,
+        "iqr_us": 17.056,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_avg_pool3d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_avg_pool3d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "ca2a8c27bab94c43ad8167351c20430b92a616af106254460a0a78a2decd9f92",
+        "samples_us": [
+          60.545166,
+          55.681152,
+          50.113037,
+          53.4729,
+          55.10498
+        ],
+        "errors": 0,
+        "shape": "B=2_C=3_D=8_H=8_W=8",
+        "accepted": true,
+        "minimum_us": 50.113037,
+        "median_us": 55.10498,
+        "maximum_us": 60.545166,
+        "iqr_us": 6.320190499999999
+      },
+      "native": {
+        "kernel": "aten_avg_pool3d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          45.217,
+          25.152,
+          55.745,
+          26.433,
+          39.936
+        ],
+        "errors": 0,
+        "shape": "B=2_C=3_D=8_H=8_W=8",
+        "accepted": true,
+        "minimum_us": 25.152,
+        "median_us": 39.936,
+        "maximum_us": 55.745,
+        "iqr_us": 24.688499999999994,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_adaptive_avg_pool3d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_adaptive_avg_pool3d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f77899c11e76a1862fc11bf57ce00cf30fde2ea1c00dbf19935d71a6cfe8a93b",
+        "samples_us": [
+          51.873047,
+          55.200928,
+          50.945068,
+          52.064941,
+          50.240967
+        ],
+        "errors": 0,
+        "shape": "B=2_C=3_D=8_H=8_W=8",
+        "accepted": true,
+        "minimum_us": 50.240967,
+        "median_us": 51.873047,
+        "maximum_us": 55.200928,
+        "iqr_us": 3.039916999999999
+      },
+      "native": {
+        "kernel": "aten_adaptive_avg_pool3d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          47.937,
+          46.017,
+          44.864,
+          31.937,
+          45.345
+        ],
+        "errors": 0,
+        "shape": "B=2_C=3_D=8_H=8_W=8",
+        "accepted": true,
+        "minimum_us": 31.937,
+        "median_us": 45.345,
+        "maximum_us": 47.937,
+        "iqr_us": 8.576500000000006,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_transpose3d_backward_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_transpose3d_backward_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "defade1c559d00a14122512123f07502996adf0e999995222db19d845bba915d",
+        "samples_us": [
+          358.310059,
+          340.677979,
+          336.101807,
+          349.926025,
+          339.908936
+        ],
+        "errors": 0,
+        "shape": "C=4_O=4_D=16_H=16_W=16_K=3",
+        "accepted": true,
+        "minimum_us": 336.101807,
+        "median_us": 340.677979,
+        "maximum_us": 358.310059,
+        "iqr_us": 16.112670500000007
+      },
+      "native": {
+        "kernel": "aten_conv_transpose3d_backward_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          85.761,
+          88.706,
+          84.001,
+          106.882,
+          88.417
+        ],
+        "errors": 0,
+        "shape": "C=4_O=4_D=16_H=16_W=16_K=3",
+        "accepted": true,
+        "minimum_us": 84.001,
+        "median_us": 88.417,
+        "maximum_us": 106.882,
+        "iqr_us": 12.913000000000011,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_avg_pool2d_backward_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_avg_pool2d_backward_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1153551177ca167172b2b150a09e9177cca277b754020e13d28d2b590a763bab",
+        "samples_us": [
+          181.827881,
+          169.699219,
+          172.674805,
+          177.026855,
+          175.170898
+        ],
+        "errors": 0,
+        "shape": "B=1_C=2_I0=6_I1=7",
+        "accepted": true,
+        "minimum_us": 169.699219,
+        "median_us": 175.170898,
+        "maximum_us": 181.827881,
+        "iqr_us": 8.240356000000006
+      },
+      "native": {
+        "kernel": "aten_avg_pool2d_backward_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          22.049,
+          37.088,
+          24.577,
+          38.88,
+          24.768
+        ],
+        "errors": 0,
+        "shape": "B=1_C=2_I0=6_I1=7",
+        "accepted": true,
+        "minimum_us": 22.049,
+        "median_us": 24.768,
+        "maximum_us": 38.88,
+        "iqr_us": 14.671000000000001,
+        "source_summary": "runtime_pool_backward/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_narrow_copy_dense_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_narrow_copy_dense_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1ad87b0ab027d40d0c439a0949dd76244226857f882ed9232f1e6d1fca47ae58",
+        "samples_us": [
+          82.304932,
+          97.952881,
+          88.961182,
+          103.522217,
+          92.961914
+        ],
+        "errors": 0,
+        "shape": "C=2897_L=724_R=1448",
+        "accepted": true,
+        "minimum_us": 82.304932,
+        "median_us": 92.961914,
+        "maximum_us": 103.522217,
+        "iqr_us": 15.104492000000008
+      },
+      "native": {
+        "kernel": "aten_narrow_copy_dense_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          88.961,
+          89.25,
+          92.417,
+          89.09,
+          87.521
+        ],
+        "errors": 0,
+        "shape": "C=2897_L=724_R=1448",
+        "accepted": true,
+        "minimum_us": 87.521,
+        "median_us": 89.09,
+        "maximum_us": 92.417,
+        "iqr_us": 2.592500000000001,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_norm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_norm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "7c5d3231dfce0c75c900706311f129c44a5ac7f94f743b7b00a3461d02a563be",
+        "samples_us": [
+          117.538086,
+          124.609863,
+          121.090088,
+          123.553955,
+          124.417969
+        ],
+        "errors": 0,
+        "shape": "N=2097152",
+        "accepted": true,
+        "minimum_us": 117.538086,
+        "median_us": 123.553955,
+        "maximum_us": 124.609863,
+        "iqr_us": 5.199828999999987
+      },
+      "native": {
+        "kernel": "aten_sparse_norm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          105.41,
+          105.697,
+          102.466,
+          105.57,
+          106.242
+        ],
+        "errors": 0,
+        "shape": "N=2097152",
+        "accepted": true,
+        "minimum_us": 102.466,
+        "median_us": 105.57,
+        "maximum_us": 106.242,
+        "iqr_us": 2.0315000000000154,
+        "source_summary": "runtime_norm/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_int_mm_out_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_int_mm_out_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "68d124dff2ef280758761c51504b0a6c8361e2a06d1f6f352e91e304d1106fc1",
+        "samples_us": [
+          123.041992,
+          130.498047,
+          125.25,
+          127.298096,
+          137.025879
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=1024",
+        "accepted": true,
+        "minimum_us": 123.041992,
+        "median_us": 127.298096,
+        "maximum_us": 137.025879,
+        "iqr_us": 9.615967000000012
+      },
+      "native": {
+        "kernel": "aten_int_mm_out_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          113.474,
+          98.849,
+          103.586,
+          97.09,
+          97.505
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=1024",
+        "accepted": true,
+        "minimum_us": 97.09,
+        "median_us": 98.849,
+        "maximum_us": 113.474,
+        "iqr_us": 11.232500000000002,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_avg_pool3d_backward_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_avg_pool3d_backward_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "3615db5824ab441b41aacdc0c3a8081099069f92de881eb8422340e2fee47709",
+        "samples_us": [
+          249.029053,
+          243.556152,
+          228.196045,
+          245.731934,
+          232.036133
+        ],
+        "errors": 0,
+        "shape": "B=1_C=2_I0=6_I1=7_I2=8",
+        "accepted": true,
+        "minimum_us": 228.196045,
+        "median_us": 243.556152,
+        "maximum_us": 249.029053,
+        "iqr_us": 17.264404499999983
+      },
+      "native": {
+        "kernel": "aten_avg_pool3d_backward_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          65.953,
+          67.073,
+          56.641,
+          60.257,
+          49.633
+        ],
+        "errors": 0,
+        "shape": "B=1_C=2_I0=6_I1=7_I2=8",
+        "accepted": true,
+        "minimum_us": 49.633,
+        "median_us": 60.257,
+        "maximum_us": 67.073,
+        "iqr_us": 13.376000000000001,
+        "source_summary": "runtime_pool_backward/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_zeros_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_zeros_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "c2aaf492d08b7bcc606dfc9f6ecdf58d01b55279d2eac9b5bc6854c4c1154c44",
+        "samples_us": [
+          110.337891,
+          149.346191,
+          137.0271,
+          133.37793,
+          141.570068
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 110.337891,
+        "median_us": 137.0271,
+        "maximum_us": 149.346191,
+        "iqr_us": 23.60021899999998
+      },
+      "native": {
+        "kernel": "aten_zeros_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          130.083,
+          135.01,
+          130.082,
+          128.066,
+          128.355
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 128.066,
+        "median_us": 130.082,
+        "maximum_us": 135.01,
+        "iqr_us": 4.335999999999984,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_or_reduce_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_or_reduce_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f5b9eb17b6fbac5f86eaba8a1bc994d93b4d945c8e262f9af91ec2cc89ab6c0b",
+        "samples_us": [
+          166.915039,
+          165.123047,
+          169.346924,
+          163.650879,
+          166.24292
+        ],
+        "errors": 0,
+        "shape": "K=2897_R=1448",
+        "accepted": true,
+        "minimum_us": 163.650879,
+        "median_us": 166.24292,
+        "maximum_us": 169.346924,
+        "iqr_us": 3.74401850000001
+      },
+      "native": {
+        "kernel": "aten_or_reduce_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          155.81,
+          149.699,
+          154.082,
+          154.403,
+          151.682
+        ],
+        "errors": 0,
+        "shape": "R=1448_K=2897",
+        "accepted": true,
+        "minimum_us": 149.699,
+        "median_us": 154.082,
+        "maximum_us": 155.81,
+        "iqr_us": 4.415999999999983,
+        "source_summary": "runtime_logical/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_dilated_convolution_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_dilated_convolution_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "b18b7ce1f4e4bb70540e659fede972b599f79ce3185d0207642e6ac7f73ad89a",
+        "samples_us": [
+          507.815918,
+          1003.60083,
+          1009.457031,
+          1004.75293,
+          1003.697021
+        ],
+        "errors": 0,
+        "shape": "C=16_O=32_H=128_W=128_K=3_D=2",
+        "accepted": true,
+        "minimum_us": 507.815918,
+        "median_us": 1003.697021,
+        "maximum_us": 1009.457031,
+        "iqr_us": 251.39660650000002
+      },
+      "native": {
+        "kernel": "aten_dilated_convolution_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          179.043,
+          177.251,
+          180.387,
+          176.995,
+          181.699
+        ],
+        "errors": 0,
+        "shape": "C=16_O=32_H=128_W=128_K=3_D=2",
+        "accepted": true,
+        "minimum_us": 176.995,
+        "median_us": 179.043,
+        "maximum_us": 181.699,
+        "iqr_us": 3.9200000000000017,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_blas_copy_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_blas_copy_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "dfc315a1bba87a20b4c9d4c3f019124e86d90d891ab912390c233b6f132e17d1",
+        "samples_us": [
+          205.988037,
+          220.131104,
+          235.939941,
+          225.924072,
+          220.483887
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 205.988037,
+        "median_us": 220.483887,
+        "maximum_us": 235.939941,
+        "iqr_us": 17.872436000000008
+      },
+      "native": {
+        "kernel": "aten_blas_copy_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          209.316,
+          217.443,
+          211.364,
+          211.747,
+          214.372
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 209.316,
+        "median_us": 211.747,
+        "maximum_us": 217.443,
+        "iqr_us": 5.567500000000024,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_copy_tensor_array_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_copy_tensor_array_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1da54eb7083d90911eee460307ce794081085a133c69064eb522597e29f2eeb7",
+        "samples_us": [
+          203.011963,
+          221.443115,
+          235.555908,
+          232.771973,
+          227.556152
+        ],
+        "errors": 0,
+        "shape": "B=512_N=8192",
+        "accepted": true,
+        "minimum_us": 203.011963,
+        "median_us": 227.556152,
+        "maximum_us": 235.555908,
+        "iqr_us": 21.936401500000002
+      },
+      "native": {
+        "kernel": "aten_copy_tensor_array_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          210.755,
+          213.732,
+          212.74,
+          213.315,
+          216.484
+        ],
+        "errors": 0,
+        "shape": "B=512_N=8192",
+        "accepted": true,
+        "minimum_us": 210.755,
+        "median_us": 213.315,
+        "maximum_us": 216.484,
+        "iqr_us": 3.360500000000002,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_copy_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_copy_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "9033117aec1a49971408e30c3cb94f3833fc7dc17bf48c0cbba3f4d41acc7748",
+        "samples_us": [
+          202.340088,
+          218.788086,
+          234.147949,
+          221.924072,
+          219.555908
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 202.340088,
+        "median_us": 219.555908,
+        "maximum_us": 234.147949,
+        "iqr_us": 17.471923500000003
+      },
+      "native": {
+        "kernel": "aten_copy_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          208.227,
+          208.164,
+          208.739,
+          207.876,
+          211.203
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 207.876,
+        "median_us": 208.227,
+        "maximum_us": 211.203,
+        "iqr_us": 1.9510000000000076,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_clamp_min_scalar_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_clamp_min_scalar_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "b6dbb6b547589714787d96af4270b8030e77f751e916b610cb5440aa63977d7e",
+        "samples_us": [
+          631.337891,
+          667.339844,
+          651.371094,
+          656.075195,
+          653.48291
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 631.337891,
+        "median_us": 653.48291,
+        "maximum_us": 667.339844,
+        "iqr_us": 20.353026999999997
+      },
+      "native": {
+        "kernel": "aten_clamp_min_scalar_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          223.043,
+          216.644,
+          218.276,
+          220.772,
+          217.155
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 216.644,
+        "median_us": 218.276,
+        "maximum_us": 223.043,
+        "iqr_us": 5.007999999999996,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_squeeze_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_squeeze_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "87739270b7fc0554b731d2119fba7c1ac8fe645a43abc08646eda21bfff3daa6",
+        "samples_us": [
+          210.052002,
+          226.62793,
+          224.100098,
+          225.732178,
+          228.580078
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 210.052002,
+        "median_us": 225.732178,
+        "maximum_us": 228.580078,
+        "iqr_us": 10.52795399999998
+      },
+      "native": {
+        "kernel": "aten_nested_squeeze_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          222.179,
+          226.5,
+          226.948,
+          220.996,
+          223.268
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 220.996,
+        "median_us": 223.268,
+        "maximum_us": 226.948,
+        "iqr_us": 5.136499999999984,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_clone_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_clone_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "bed2ee25c80958603ade583d9661c14b820756088159853c9e0d7bf8c0d0b020",
+        "samples_us": [
+          208.450928,
+          228.644043,
+          228.323975,
+          226.62793,
+          226.723877
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 208.450928,
+        "median_us": 226.723877,
+        "maximum_us": 228.644043,
+        "iqr_us": 10.944580000000016
+      },
+      "native": {
+        "kernel": "aten_nested_clone_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          220.836,
+          222.276,
+          220.675,
+          225.7,
+          225.252
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 220.675,
+        "median_us": 222.276,
+        "maximum_us": 225.7,
+        "iqr_us": 4.720499999999987,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_clamp_max_scalar_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_clamp_max_scalar_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "00c23f1b626ed3339035f2e97daf7b08f2b5a9a161df1b67caca9ceb74011042",
+        "samples_us": [
+          637.322998,
+          663.724121,
+          657.579102,
+          652.522949,
+          651.627197
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 637.322998,
+        "median_us": 652.522949,
+        "maximum_us": 663.724121,
+        "iqr_us": 16.17651399999994
+      },
+      "native": {
+        "kernel": "aten_clamp_max_scalar_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          219.652,
+          218.244,
+          220.131,
+          221.316,
+          216.772
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 216.772,
+        "median_us": 219.652,
+        "maximum_us": 221.316,
+        "iqr_us": 3.215500000000006,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_im2col",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_im2col",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "35addd9eef6ac71ffdc198c6f1c2a257870cf2c9f683cd0d6b6f0124d3dd4e01",
+        "samples_us": [
+          171.010986,
+          219.587891,
+          216.898926,
+          213.924072,
+          217.3479
+        ],
+        "errors": 0,
+        "shape": "B=4_C=8_H=128_W=128_KH=3_KW=3",
+        "accepted": true,
+        "minimum_us": 171.010986,
+        "median_us": 216.898926,
+        "maximum_us": 219.587891,
+        "iqr_us": 26.0003665
+      },
+      "native": {
+        "kernel": "aten_im2col",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          229.124,
+          229.188,
+          229.988,
+          227.78,
+          227.779
+        ],
+        "errors": 0,
+        "shape": "B=4_C=8_H=128_W=128_KH=3_KW=3",
+        "accepted": true,
+        "minimum_us": 227.779,
+        "median_us": 229.124,
+        "maximum_us": 229.988,
+        "iqr_us": 1.8084999999999951,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cat_serial_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cat_serial_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "2010076e6e99bd93e4f1d9ad1634e1bd19ec6260703ca1aeaa2ed6f2495092e0",
+        "samples_us": [
+          217.604004,
+          235.10791,
+          235.075928,
+          243.683838,
+          244.13208
+        ],
+        "errors": 0,
+        "shape": "K=3096_M=581_R=774",
+        "accepted": true,
+        "minimum_us": 217.604004,
+        "median_us": 235.10791,
+        "maximum_us": 244.13208,
+        "iqr_us": 17.567992999999987
+      },
+      "native": {
+        "kernel": "aten_cat_serial_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          225.667,
+          225.508,
+          220.868,
+          225.476,
+          224.228
+        ],
+        "errors": 0,
+        "shape": "K=3096_M=581_R=774",
+        "accepted": true,
+        "minimum_us": 220.868,
+        "median_us": 225.476,
+        "maximum_us": 225.667,
+        "iqr_us": 3.039500000000004,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv2d_columns_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_conv2d_columns_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "38f358250d69667fef8924b2cc7fcb483efa808ab6f20f042b5963151f3ed7c0",
+        "samples_us": [
+          44.896973,
+          49.728027,
+          47.712891,
+          46.816162,
+          49.281006
+        ],
+        "errors": 0,
+        "shape": "C=11_H=59_W=59_K=3",
+        "accepted": true,
+        "minimum_us": 44.896973,
+        "median_us": 47.712891,
+        "maximum_us": 49.728027,
+        "iqr_us": 3.6479489999999934
+      },
+      "native": {
+        "kernel": "aten_conv2d_columns_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "43470fbc607184bec6230d7076edb806f03671506ea0375d79f922c46853e178",
+        "samples_us": [
+          60.545166,
+          73.058105,
+          72.674072,
+          69.793213,
+          75.136963
+        ],
+        "errors": 0,
+        "shape": "C=11_H=59_W=59_K=3",
+        "accepted": true,
+        "minimum_us": 60.545166,
+        "median_us": 72.674072,
+        "maximum_us": 75.136963,
+        "iqr_us": 8.928344500000001,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_transpose2d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_transpose2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "70e70f53ad5f9fa7d3fbc166990168f40b90d88558622ed6bc1bdd966bf7267b",
+        "samples_us": [
+          432.455811,
+          594.218018,
+          583.498047,
+          594.98584,
+          598.282959
+        ],
+        "errors": 0,
+        "shape": "B=2_IC=16_OC=32_H=128_W=128_K=3",
+        "accepted": true,
+        "minimum_us": 432.455811,
+        "median_us": 594.218018,
+        "maximum_us": 598.282959,
+        "iqr_us": 88.65747049999993
+      },
+      "native": {
+        "kernel": "aten_conv_transpose2d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          244.9,
+          241.668,
+          245.444,
+          240.836,
+          237.701
+        ],
+        "errors": 0,
+        "shape": "B=2_IC=16_OC=32_H=128_W=128_K=3",
+        "accepted": true,
+        "minimum_us": 237.701,
+        "median_us": 241.668,
+        "maximum_us": 245.444,
+        "iqr_us": 5.903499999999994,
+        "source_summary": "runtime_transpose2d/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_stack_serial_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_stack_serial_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "899e6d6148cfb0f6447d8ea14721f0fe53dd6dac69db98da739503243799e3a6",
+        "samples_us": [
+          224.99585,
+          266.437012,
+          264.453125,
+          265.540039,
+          260.677002
+        ],
+        "errors": 0,
+        "shape": "K=405_R=203_T=51",
+        "accepted": true,
+        "minimum_us": 224.99585,
+        "median_us": 264.453125,
+        "maximum_us": 266.437012,
+        "iqr_us": 23.152099499999963
+      },
+      "native": {
+        "kernel": "aten_stack_serial_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          251.236,
+          252.356,
+          257.253,
+          253.892,
+          253.284
+        ],
+        "errors": 0,
+        "shape": "K=405_R=203_T=51",
+        "accepted": true,
+        "minimum_us": 251.236,
+        "median_us": 253.284,
+        "maximum_us": 257.253,
+        "iqr_us": 3.7764999999999986,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_compressed_block_convert_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_compressed_block_convert_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "2d0aca7ffee4e9a256dcfc00ee8f49e3e188837220e3435c4a804ffea39e9214",
+        "samples_us": [
+          212.964111,
+          257.699951,
+          258.563965,
+          260.86792,
+          257.444092
+        ],
+        "errors": 0,
+        "shape": "R=2048_C=2048_BR=4_BC=4",
+        "accepted": true,
+        "minimum_us": 212.964111,
+        "median_us": 257.699951,
+        "maximum_us": 260.86792,
+        "iqr_us": 24.511840999999976
+      },
+      "native": {
+        "kernel": "aten_compressed_block_convert_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          258.5,
+          258.916,
+          261.861,
+          258.628,
+          257.764
+        ],
+        "errors": 0,
+        "shape": "R=2048_C=2048_BR=4_BC=4",
+        "accepted": true,
+        "minimum_us": 257.764,
+        "median_us": 258.628,
+        "maximum_us": 261.861,
+        "iqr_us": 2.256500000000017,
+        "source_summary": "runtime_blocked/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_batch_norm",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_batch_norm",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "fedf8747058f877046a395c9eda9947bc0334162a91abf0b446c4c84cebcd1f1",
+        "samples_us": [
+          272.324951,
+          344.22998,
+          323.876953,
+          324.838135,
+          333.221924
+        ],
+        "errors": 0,
+        "shape": "B=11_C=46_H=92_W=92",
+        "accepted": true,
+        "minimum_us": 272.324951,
+        "median_us": 324.838135,
+        "maximum_us": 344.22998,
+        "iqr_us": 40.625
+      },
+      "native": {
+        "kernel": "aten_batch_norm",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          284.933,
+          277.86,
+          287.397,
+          282.821,
+          282.021
+        ],
+        "errors": 0,
+        "shape": "B=11_C=46_H=92_W=92",
+        "accepted": true,
+        "minimum_us": 277.86,
+        "median_us": 282.821,
+        "maximum_us": 287.397,
+        "iqr_us": 6.224499999999949,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_outer",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_outer",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "d91330aca30d92b0de8227bc71160b5079eab66e22201eb3257b5c859928e3e2",
+        "samples_us": [
+          993.264893,
+          1055.25,
+          1050.609863,
+          1056.946045,
+          1060.114014
+        ],
+        "errors": 0,
+        "shape": "M=2048_N=2048",
+        "accepted": true,
+        "minimum_us": 993.264893,
+        "median_us": 1055.25,
+        "maximum_us": 1060.114014,
+        "iqr_us": 36.59265149999999
+      },
+      "native": {
+        "kernel": "aten_outer",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          296.357,
+          285.893,
+          290.629,
+          298.789,
+          294.693
+        ],
+        "errors": 0,
+        "shape": "M=2048_N=2048",
+        "accepted": true,
+        "minimum_us": 285.893,
+        "median_us": 294.693,
+        "maximum_us": 298.789,
+        "iqr_us": 9.311999999999983,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_angle_complex_scalarized",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_angle_complex_scalarized",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "ab3bcf4bed07851ac83488c1b1e6d59842fccce381b18f0e78f43e3bd083457d",
+        "samples_us": [
+          893.326904,
+          921.424072,
+          923.920166,
+          920.366943,
+          918.800049
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 893.326904,
+        "median_us": 920.366943,
+        "maximum_us": 923.920166,
+        "iqr_us": 16.608642500000087
+      },
+      "native": {
+        "kernel": "aten_angle_complex_scalarized",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          307.973,
+          308.55,
+          314.213,
+          310.789,
+          308.837
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 307.973,
+        "median_us": 308.837,
+        "maximum_us": 314.213,
+        "iqr_us": 4.239499999999964,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_blas_axpy_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_blas_axpy_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "33ac7691352a2ef688e7c8a4e2933519b77bc238da435272e4595569f3291d28",
+        "samples_us": [
+          4612.589844,
+          4741.264893,
+          4710.958984,
+          4668.494873,
+          4700.462891
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 4612.589844,
+        "median_us": 4700.462891,
+        "maximum_us": 4741.264893,
+        "iqr_us": 85.56958000000031
+      },
+      "native": {
+        "kernel": "aten_blas_axpy_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          314.438,
+          309.189,
+          310.757,
+          311.334,
+          308.069
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 308.069,
+        "median_us": 310.757,
+        "maximum_us": 314.438,
+        "iqr_us": 4.256999999999948,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_mul_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_mul_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "6beb88c8fc445eda2ea7aa2ff2934d5d36d42e145098a196f43fa38253eb0f7d",
+        "samples_us": [
+          864.75,
+          887.98291,
+          890.638916,
+          886.958984,
+          890.895996
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 864.75,
+        "median_us": 887.98291,
+        "maximum_us": 890.895996,
+        "iqr_us": 14.912964000000045
+      },
+      "native": {
+        "kernel": "aten_sparse_mul_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          304.901,
+          305.829,
+          305.99,
+          303.717,
+          302.085
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 302.085,
+        "median_us": 304.901,
+        "maximum_us": 305.99,
+        "iqr_us": 3.008499999999998,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_intersection_apply_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sparse_intersection_apply_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "419083922d9827461c3a58e972820e83024beb449209a0a941bbd3715bf38a2e",
+        "samples_us": [
+          868.559082,
+          896.014893,
+          893.806885,
+          891.566895,
+          895.856201
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 868.559082,
+        "median_us": 893.806885,
+        "maximum_us": 896.014893,
+        "iqr_us": 15.872558500000025
+      },
+      "native": {
+        "kernel": "aten_sparse_intersection_apply_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "37defb4817606c4cbf79d269f9183176e731c19c8d596e6c727585a0729f65a8",
+        "samples_us": [
+          301.029053,
+          361.830078,
+          361.030029,
+          365.89502,
+          380.00708
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 301.029053,
+        "median_us": 361.830078,
+        "maximum_us": 380.00708,
+        "iqr_us": 41.921509000000015,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_intersection_launch_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sparse_intersection_launch_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "23df813618e5b2622c6f215e5356ab1a1250b350d142364e62128298b7192156",
+        "samples_us": [
+          865.711182,
+          893.422852,
+          890.126953,
+          890.958984,
+          886.638916
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 865.711182,
+        "median_us": 890.126953,
+        "maximum_us": 893.422852,
+        "iqr_us": 16.01586900000001
+      },
+      "native": {
+        "kernel": "aten_sparse_intersection_launch_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "e2fd403c2f6e9fa3720ac5577d29505b278823dac1215469bf02b37d60ca2005",
+        "samples_us": [
+          299.653076,
+          364.74292,
+          362.469971,
+          362.663086,
+          376.390869
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 299.653076,
+        "median_us": 362.663086,
+        "maximum_us": 376.390869,
+        "iqr_us": 39.505371,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_add_values_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_add_values_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f70ae2bb40159a24c002313210758858b68bcedf4d4be91bb8e434c649c24f0b",
+        "samples_us": [
+          869.262939,
+          899.343994,
+          897.74292,
+          891.118896,
+          906.510986
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 869.262939,
+        "median_us": 897.74292,
+        "maximum_us": 906.510986,
+        "iqr_us": 22.73657250000008
+      },
+      "native": {
+        "kernel": "aten_sparse_add_values_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          311.461,
+          306.405,
+          310.565,
+          310.63,
+          308.325
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 306.405,
+        "median_us": 310.565,
+        "maximum_us": 311.461,
+        "iqr_us": 3.6805000000000234,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cross_cpu_backend",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cross_cpu_backend",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "71d7a5549a48d5bade8ba9509120e35b4e7b8d9dcdbda7179a5c4fd780f79b90",
+        "samples_us": [
+          47970.444092,
+          47993.420898,
+          47991.596924,
+          47993.229004,
+          47986.188965
+        ],
+        "errors": 0,
+        "shape": "V=1398101",
+        "accepted": true,
+        "minimum_us": 47970.444092,
+        "median_us": 47991.596924,
+        "maximum_us": 47993.420898,
+        "iqr_us": 15.00842250000278
+      },
+      "native": {
+        "kernel": "aten_cross_cpu_backend",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          305.125,
+          302.501,
+          305.541,
+          303.621,
+          301.446
+        ],
+        "errors": 0,
+        "shape": "V=1398101",
+        "accepted": true,
+        "minimum_us": 301.446,
+        "median_us": 303.621,
+        "maximum_us": 305.541,
+        "iqr_us": 3.3594999999999686,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cross",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cross",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "82d9a6ff34d03e872a47e4764abd1d576af3af8acc8b7309a5fdf3e7ce650e06",
+        "samples_us": [
+          47810.409912,
+          47851.466064,
+          47843.435059,
+          47855.082031,
+          47840.778076
+        ],
+        "errors": 0,
+        "shape": "N=1398101",
+        "accepted": true,
+        "minimum_us": 47810.409912,
+        "median_us": 47843.435059,
+        "maximum_us": 47855.082031,
+        "iqr_us": 27.680053500000213
+      },
+      "native": {
+        "kernel": "aten_cross",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          305.093,
+          303.909,
+          306.661,
+          303.397,
+          302.181
+        ],
+        "errors": 0,
+        "shape": "N=1398101",
+        "accepted": true,
+        "minimum_us": 302.181,
+        "median_us": 303.909,
+        "maximum_us": 306.661,
+        "iqr_us": 3.0880000000000223,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cumprod_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cumprod_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "7dc50bc33f0e4f95f501fa0353e9c78c32f84a29e7d62490033f8cd48896df23",
+        "samples_us": [
+          272.132812,
+          304.260986,
+          325.925049,
+          303.62085,
+          316.966064
+        ],
+        "errors": 0,
+        "shape": "K=2897_R=1448",
+        "accepted": true,
+        "minimum_us": 272.132812,
+        "median_us": 304.260986,
+        "maximum_us": 325.925049,
+        "iqr_us": 33.5687255
+      },
+      "native": {
+        "kernel": "aten_cumprod_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          307.269,
+          308.037,
+          307.622,
+          303.621,
+          306.213
+        ],
+        "errors": 0,
+        "shape": "K=2897_R=1448",
+        "accepted": true,
+        "minimum_us": 303.621,
+        "median_us": 307.269,
+        "maximum_us": 308.037,
+        "iqr_us": 2.9124999999999943,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_repeat_compute_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_repeat_compute_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "9a64b67076352ebce356cb51af24486de51c30535f8dea4267d17fbf8530c84c",
+        "samples_us": [
+          337.349121,
+          385.958984,
+          386.215088,
+          389.574951,
+          396.230957
+        ],
+        "errors": 0,
+        "shape": "N=8192_R=512",
+        "accepted": true,
+        "minimum_us": 337.349121,
+        "median_us": 386.215088,
+        "maximum_us": 396.230957,
+        "iqr_us": 31.248901500000017
+      },
+      "native": {
+        "kernel": "aten_repeat_compute_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          342.054,
+          345.189,
+          342.054,
+          342.534,
+          336.806
+        ],
+        "errors": 0,
+        "shape": "N=8192_R=512",
+        "accepted": true,
+        "minimum_us": 336.806,
+        "median_us": 342.054,
+        "maximum_us": 345.189,
+        "iqr_us": 4.4315,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_as_complex_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_as_complex_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "4832819a69320bfaf4a5345954d0b3c15c957d32faae514dc820456f00d37f6b",
+        "samples_us": [
+          9120.922852,
+          9145.369873,
+          9148.603027,
+          9140.923096,
+          9137.721924
+        ],
+        "errors": 0,
+        "shape": "N=2097151",
+        "accepted": true,
+        "minimum_us": 9120.922852,
+        "median_us": 9140.923096,
+        "maximum_us": 9148.603027,
+        "iqr_us": 17.66406200000074
+      },
+      "native": {
+        "kernel": "aten_as_complex_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          316.262,
+          315.525,
+          313.957,
+          308.742,
+          317.861
+        ],
+        "errors": 0,
+        "shape": "N=2097151",
+        "accepted": true,
+        "minimum_us": 308.742,
+        "median_us": 315.525,
+        "maximum_us": 317.861,
+        "iqr_us": 5.7120000000000175,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_repeat_tensor_shape_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_repeat_tensor_shape_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "803cdaace150646ca77cd1658eb4ad7e63d7f1c747be7d0b2a8f00718398a36c",
+        "samples_us": [
+          331.876953,
+          388.166992,
+          390.565918,
+          389.254883,
+          379.462891
+        ],
+        "errors": 0,
+        "shape": "N=8192_R=512",
+        "accepted": true,
+        "minimum_us": 331.876953,
+        "median_us": 388.166992,
+        "maximum_us": 390.565918,
+        "iqr_us": 34.24047850000002
+      },
+      "native": {
+        "kernel": "aten_repeat_tensor_shape_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          341.318,
+          340.134,
+          332.806,
+          339.141,
+          335.526
+        ],
+        "errors": 0,
+        "shape": "N=8192_R=512",
+        "accepted": true,
+        "minimum_us": 332.806,
+        "median_us": 339.141,
+        "maximum_us": 341.318,
+        "iqr_us": 6.560000000000002,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_coo_to_csr_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_coo_to_csr_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "33352e34b9dc2f52ed9adfc37b036bf89fecc3a4ea5c31e826a07c271c285922",
+        "samples_us": [
+          626.250977,
+          635.915039,
+          628.106934,
+          614.539062,
+          620.458008
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 614.539062,
+        "median_us": 626.250977,
+        "maximum_us": 635.915039,
+        "iqr_us": 14.512451499999997
+      },
+      "native": {
+        "kernel": "aten_sparse_coo_to_csr_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          334.309,
+          324.934,
+          321.317,
+          321.094,
+          325.605
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 321.094,
+        "median_us": 324.934,
+        "maximum_us": 334.309,
+        "iqr_us": 8.751499999999993,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_convert_coo_to_csr_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_convert_coo_to_csr_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "a7426b445ab3255bc4deae04a18f6e8f2a51e0e3af5b30b8e0fdf62eac541c99",
+        "samples_us": [
+          625.929932,
+          620.331055,
+          618.410156,
+          631.721924,
+          621.22583
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 618.410156,
+        "median_us": 621.22583,
+        "maximum_us": 631.721924,
+        "iqr_us": 9.455322499999966
+      },
+      "native": {
+        "kernel": "aten_convert_coo_to_csr_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          323.205,
+          323.622,
+          323.077,
+          323.686,
+          326.021
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 323.077,
+        "median_us": 323.622,
+        "maximum_us": 326.021,
+        "iqr_us": 1.7125000000000057,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv2d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "3667d4b6f477a7325f32ad3c09d1635d1b98c2da54fb46d7c3c215d9de8e7f3a",
+        "samples_us": [
+          554.921143,
+          793.069092,
+          822.286133,
+          817.261963,
+          871.311035
+        ],
+        "errors": 0,
+        "shape": "B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3",
+        "accepted": true,
+        "minimum_us": 554.921143,
+        "median_us": 817.261963,
+        "maximum_us": 871.311035,
+        "iqr_us": 172.8034664999999
+      },
+      "native": {
+        "kernel": "aten_conv2d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          398.374,
+          402.183,
+          394.119,
+          394.663,
+          408.391
+        ],
+        "errors": 0,
+        "shape": "B=4_IC=16_OC=32_H=128_W=128_KH=3_KW=3",
+        "accepted": true,
+        "minimum_us": 394.119,
+        "median_us": 398.374,
+        "maximum_us": 408.391,
+        "iqr_us": 10.896000000000015,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_max_pool2d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_max_pool2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "16bb07d0f460e1c44947ee28bd5bfcc66c453821a60d9614cc5b11d51efe05bc",
+        "samples_us": [
+          255.267822,
+          293.188965,
+          294.853027,
+          310.309082,
+          294.532959
+        ],
+        "errors": 0,
+        "shape": "B=16_C=32_H=128_W=128_K=2_S=2",
+        "accepted": true,
+        "minimum_us": 255.267822,
+        "median_us": 294.532959,
+        "maximum_us": 310.309082,
+        "iqr_us": 28.352660999999983
+      },
+      "native": {
+        "kernel": "aten_max_pool2d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          378.407,
+          371.27,
+          373.863,
+          368.454,
+          367.302
+        ],
+        "errors": 0,
+        "shape": "B=16_C=32_H=128_W=128_K=2_S=2",
+        "accepted": true,
+        "minimum_us": 367.302,
+        "median_us": 371.27,
+        "maximum_us": 378.407,
+        "iqr_us": 8.256999999999977,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_addmv_csr_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_addmv_csr_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "084c78ebabccfe321595351f43e4ad2555cf0f4a5d49abba0158e9c03721dc1a",
+        "samples_us": [
+          329.98999,
+          337.25415,
+          325.030029,
+          330.916992,
+          328.582031
+        ],
+        "errors": 0,
+        "shape": "R=65536_C=65536_N=4194304",
+        "accepted": true,
+        "minimum_us": 325.030029,
+        "median_us": 329.98999,
+        "maximum_us": 337.25415,
+        "iqr_us": 7.279540999999966
+      },
+      "native": {
+        "kernel": "aten_sparse_addmv_csr_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          340.166,
+          337.701,
+          338.854,
+          338.214,
+          338.694
+        ],
+        "errors": 0,
+        "shape": "R=65536_C=65536_N=4194304",
+        "accepted": true,
+        "minimum_us": 337.701,
+        "median_us": 338.694,
+        "maximum_us": 340.166,
+        "iqr_us": 1.5524999999999807,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_sum_backward_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_sum_backward_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f3f90799e347dc09c439eae33a719f10f4d33635e09973a8c4a9e84c2457130e",
+        "samples_us": [
+          653.675049,
+          707.531006,
+          694.412109,
+          711.563965,
+          705.227051
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 653.675049,
+        "median_us": 705.227051,
+        "maximum_us": 711.563965,
+        "iqr_us": 35.50390650000003
+      },
+      "native": {
+        "kernel": "aten_nested_sum_backward_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          381.958,
+          384.615,
+          382.182,
+          387.143,
+          380.518
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 380.518,
+        "median_us": 382.182,
+        "maximum_us": 387.143,
+        "iqr_us": 4.6410000000000196,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_complex_scalarized",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_complex_scalarized",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "237e1afedc432bf255c3ce180d1368c74b6500720f8b74da269b1d5220ccee42",
+        "samples_us": [
+          383.974854,
+          404.101807,
+          401.671143,
+          398.215088,
+          399.623047
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 383.974854,
+        "median_us": 399.623047,
+        "maximum_us": 404.101807,
+        "iqr_us": 11.791504000000032
+      },
+      "native": {
+        "kernel": "aten_complex_scalarized",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          392.391,
+          395.366,
+          390.439,
+          394.407,
+          394.63
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 390.439,
+        "median_us": 394.407,
+        "maximum_us": 395.366,
+        "iqr_us": 3.58299999999997,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_all_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_all_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "3b1ce83faa9df66e21f4397e1ee448ff96d4225d858bcf6f5ee4dd145c6420e6",
+        "samples_us": [
+          1260.597168,
+          1312.150879,
+          1341.430908,
+          1277.493896,
+          1292.661865
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 1260.597168,
+        "median_us": 1292.661865,
+        "maximum_us": 1341.430908,
+        "iqr_us": 57.74536150000006
+      },
+      "native": {
+        "kernel": "aten_nested_all_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          416.711,
+          405.063,
+          410.727,
+          411.655,
+          411.431
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 405.063,
+        "median_us": 411.431,
+        "maximum_us": 416.711,
+        "iqr_us": 6.288000000000011,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_adaptive_avg_pool2d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_adaptive_avg_pool2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "d49eadd6d745b1bb66ef75c2490d8a7c737e87f5c13d72638c899f30dd186794",
+        "samples_us": [
+          696.011963,
+          718.477051,
+          718.604004,
+          730.796875,
+          713.452148
+        ],
+        "errors": 0,
+        "shape": "B=4_C=32_H=256_W=256_OH=128_OW=128",
+        "accepted": true,
+        "minimum_us": 696.011963,
+        "median_us": 718.477051,
+        "maximum_us": 730.796875,
+        "iqr_us": 19.968384000000015
+      },
+      "native": {
+        "kernel": "aten_adaptive_avg_pool2d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          407.911,
+          393.414,
+          396.455,
+          409.671,
+          406.119
+        ],
+        "errors": 0,
+        "shape": "B=4_C=32_H=256_W=256_OH=128_OW=128",
+        "accepted": true,
+        "minimum_us": 393.414,
+        "median_us": 406.119,
+        "maximum_us": 409.671,
+        "iqr_us": 13.856500000000011,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conj_complex_scalarized",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conj_complex_scalarized",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "bc803e6e7836a90411741818c2b9ce972eadafbcda6ab7faf8aae0dc12e7599a",
+        "samples_us": [
+          1746.812988,
+          1837.310791,
+          1857.50293,
+          1796.223145,
+          1808.319092
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1746.812988,
+        "median_us": 1808.319092,
+        "maximum_us": 1857.50293,
+        "iqr_us": 75.8887940000003
+      },
+      "native": {
+        "kernel": "aten_conj_complex_scalarized",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          406.215,
+          412.839,
+          411.911,
+          408.103,
+          428.392
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 406.215,
+        "median_us": 411.911,
+        "maximum_us": 428.392,
+        "iqr_us": 13.456500000000005,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_normal_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_normal_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "c7e7c0024f4510f39968726679a79dcd6553881df08f641e016877d2847beb19",
+        "samples_us": [
+          650.37915,
+          657.867188,
+          660.010986,
+          663.11499,
+          657.643066
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 650.37915,
+        "median_us": 657.867188,
+        "maximum_us": 663.11499,
+        "iqr_us": 7.55188000000004
+      },
+      "native": {
+        "kernel": "aten_normal_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "b31f1e724e0cf6ab4bed9801fdca4284ff9db86e7acef0aac8558fb081f847cf",
+        "samples_us": [
+          585.643066,
+          679.692139,
+          685.996094,
+          690.380859,
+          704.171875
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 585.643066,
+        "median_us": 685.996094,
+        "maximum_us": 704.171875,
+        "iqr_us": 64.60876449999995,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_uniform_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_uniform_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "8259d33df8634d45847af7a5b490d9ac78326023534d2d9cd5ad3108a6d371f0",
+        "samples_us": [
+          632.746094,
+          653.643066,
+          654.282959,
+          660.748047,
+          656.555176
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 632.746094,
+        "median_us": 654.282959,
+        "maximum_us": 660.748047,
+        "iqr_us": 15.457031499999971
+      },
+      "native": {
+        "kernel": "aten_uniform_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "abe64a6ed5269dde2b4d1f622e06d2a2f04a1cb6f90895708b7b3161d740629c",
+        "samples_us": [
+          591.913818,
+          685.900146,
+          691.820068,
+          690.731934,
+          704.49292
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 591.913818,
+        "median_us": 690.731934,
+        "maximum_us": 704.49292,
+        "iqr_us": 59.249512000000095,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_blas_scale_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_blas_scale_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "9ffc6cffcb9eed5b1fdcac7c5c8ca4f5ce13dc1f11afd5173383f948a080f2c8",
+        "samples_us": [
+          231.907959,
+          276.069092,
+          263.619873,
+          266.2771,
+          260.483887
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 231.907959,
+        "median_us": 263.619873,
+        "maximum_us": 276.069092,
+        "iqr_us": 24.977172999999993
+      },
+      "native": {
+        "kernel": "aten_blas_scale_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          411.623,
+          415.143,
+          418.567,
+          414.727,
+          411.719
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 411.623,
+        "median_us": 414.727,
+        "maximum_us": 418.567,
+        "iqr_us": 5.184000000000026,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nansum_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nansum_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "df7f0670d78bdd3b47179867ace87568307729f9125268650cadfbf4b8bc628c",
+        "samples_us": [
+          1842.078857,
+          1851.295166,
+          1845.791016,
+          1847.071045,
+          1846.912109
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 1842.078857,
+        "median_us": 1846.912109,
+        "maximum_us": 1851.295166,
+        "iqr_us": 5.248169000000075
+      },
+      "native": {
+        "kernel": "aten_nansum_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          429.895,
+          431.847,
+          429.096,
+          431.047,
+          425.447
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 425.447,
+        "median_us": 429.895,
+        "maximum_us": 431.847,
+        "iqr_us": 4.1754999999999995,
+        "source_summary": "runtime_logical/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_pixel_shuffle",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_pixel_shuffle",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "c7637a2fbdadd6acb0e9dfd9eccdb0a7df6f6fe7308ec8fdd195dfb707381cbd",
+        "samples_us": [
+          251.459961,
+          295.333008,
+          289.572998,
+          293.509033,
+          288.740967
+        ],
+        "errors": 0,
+        "shape": "B=9_C=14_H=19_R=9_W=19",
+        "accepted": true,
+        "minimum_us": 251.459961,
+        "median_us": 289.572998,
+        "maximum_us": 295.333008,
+        "iqr_us": 24.32055649999998
+      },
+      "native": {
+        "kernel": "aten_pixel_shuffle",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          441.415,
+          430.472,
+          436.039,
+          434.216,
+          436.007
+        ],
+        "errors": 0,
+        "shape": "B=9_C=14_H=19_R=9_W=19",
+        "accepted": true,
+        "minimum_us": 430.472,
+        "median_us": 436.007,
+        "maximum_us": 441.415,
+        "iqr_us": 6.382999999999981,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_channel_shuffle_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_channel_shuffle_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "7fb0acd3040f492307a2d46ee5ea5235466a4f052c2ec9814c20736e9c537538",
+        "samples_us": [
+          246.596924,
+          287.749023,
+          286.88501,
+          284.612793,
+          279.749023
+        ],
+        "errors": 0,
+        "shape": "B=17_CPG=26_G=34_S=276",
+        "accepted": true,
+        "minimum_us": 246.596924,
+        "median_us": 284.612793,
+        "maximum_us": 287.749023,
+        "iqr_us": 24.14404300000001
+      },
+      "native": {
+        "kernel": "aten_channel_shuffle_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          473.032,
+          459.016,
+          462.727,
+          464.776,
+          463.048
+        ],
+        "errors": 0,
+        "shape": "B=17_CPG=26_G=34_S=276",
+        "accepted": true,
+        "minimum_us": 459.016,
+        "median_us": 463.048,
+        "maximum_us": 473.032,
+        "iqr_us": 8.032499999999999,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_channel_shuffle",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_channel_shuffle",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "ef470a687b5628e165564f8676322a6f8c7ccc194f2ea9fa7e142d346ddc6ef6",
+        "samples_us": [
+          223.843994,
+          266.852051,
+          265.924072,
+          265.476807,
+          262.148926
+        ],
+        "errors": 0,
+        "shape": "B=14_CPG=28_G=14_H=28_W=28",
+        "accepted": true,
+        "minimum_us": 223.843994,
+        "median_us": 265.476807,
+        "maximum_us": 266.852051,
+        "iqr_us": 23.391601500000036
+      },
+      "native": {
+        "kernel": "aten_channel_shuffle",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          474.025,
+          475.112,
+          474.92,
+          476.968,
+          475.048
+        ],
+        "errors": 0,
+        "shape": "B=14_CPG=28_G=14_H=28_W=28",
+        "accepted": true,
+        "minimum_us": 474.025,
+        "median_us": 475.048,
+        "maximum_us": 476.968,
+        "iqr_us": 1.5675000000000239,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_batch_norm_transform_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_batch_norm_transform_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "adfde8fff21facd4fe2281fa30bafd0175515a0b5631ae0a516bc941c4793ede",
+        "samples_us": [
+          461.062988,
+          529.833008,
+          527.240967,
+          538.506104,
+          526.441162
+        ],
+        "errors": 0,
+        "shape": "N=32_C=64_H=64_W=64",
+        "accepted": true,
+        "minimum_us": 461.062988,
+        "median_us": 527.240967,
+        "maximum_us": 538.506104,
+        "iqr_us": 40.417481000000066
+      },
+      "native": {
+        "kernel": "aten_batch_norm_transform_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "d1ff759d52b8150557bb53fc547fc63fc25c1602257211336a66e2f4bcfd8db4",
+        "samples_us": [
+          1761.023193,
+          1844.672119,
+          1846.304199,
+          1886.048828,
+          1799.52002
+        ],
+        "errors": 0,
+        "shape": "N=32_C=64_H=64_W=64",
+        "accepted": true,
+        "minimum_us": 1761.023193,
+        "median_us": 1844.672119,
+        "maximum_us": 1886.048828,
+        "iqr_us": 85.9049070000001,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_sum_dim_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_sum_dim_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "8e2da2a0e6096a65dc24bdbf53830e1036faf9117b6e7518fe42cac2713ed83b",
+        "samples_us": [
+          1724.318115,
+          1731.485107,
+          1711.485107,
+          1702.844971,
+          1754.462158
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 1702.844971,
+        "median_us": 1724.318115,
+        "maximum_us": 1754.462158,
+        "iqr_us": 35.808593499999915
+      },
+      "native": {
+        "kernel": "aten_nested_sum_dim_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          546.985,
+          546.762,
+          551.145,
+          547.849,
+          546.313
+        ],
+        "errors": 0,
+        "shape": "B=724_N=5793",
+        "accepted": true,
+        "minimum_us": 546.313,
+        "median_us": 546.985,
+        "maximum_us": 551.145,
+        "iqr_us": 2.959500000000105,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_and_reduce_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_and_reduce_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "130c835be1eedf2820211b74a0b27164b102c73c2cb4ee9920f3c15e8d7d2396",
+        "samples_us": [
+          1921.63208,
+          1922.592041,
+          1929.344971,
+          1920.191895,
+          1921.312988
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 1920.191895,
+        "median_us": 1921.63208,
+        "maximum_us": 1929.344971,
+        "iqr_us": 5.216064500000243
+      },
+      "native": {
+        "kernel": "aten_and_reduce_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          568.265,
+          562.762,
+          565.257,
+          566.634,
+          560.714
+        ],
+        "errors": 0,
+        "shape": "R=131072_C=64",
+        "accepted": true,
+        "minimum_us": 560.714,
+        "median_us": 565.257,
+        "maximum_us": 568.265,
+        "iqr_us": 5.711499999999944,
+        "source_summary": "runtime_logical/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_pixel_unshuffle_cpu_backend",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_pixel_unshuffle_cpu_backend",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "0b3e9ffe07660aa0ddc804992bb3f37ab2572dfa9dc188326710eae415601701",
+        "samples_us": [
+          266.244873,
+          313.509033,
+          310.308838,
+          309.797852,
+          313.38208
+        ],
+        "errors": 0,
+        "shape": "B=4_C=13_H=34_RATIO=9_W=34",
+        "accepted": true,
+        "minimum_us": 266.244873,
+        "median_us": 310.308838,
+        "maximum_us": 313.509033,
+        "iqr_us": 25.42419399999997
+      },
+      "native": {
+        "kernel": "aten_pixel_unshuffle_cpu_backend",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          570.922,
+          572.746,
+          572.873,
+          573.13,
+          567.338
+        ],
+        "errors": 0,
+        "shape": "B=4_C=13_H=34_RATIO=9_W=34",
+        "accepted": true,
+        "minimum_us": 567.338,
+        "median_us": 572.746,
+        "maximum_us": 573.13,
+        "iqr_us": 3.8715000000000828,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_pixel_shuffle_cpu_backend",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_pixel_shuffle_cpu_backend",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1f326dcadcb94d6eeb6700120388202033d60f3a2a41d4cfadbed5a44ffd85a7",
+        "samples_us": [
+          325.636963,
+          368.038086,
+          364.903076,
+          370.566895,
+          369.381836
+        ],
+        "errors": 0,
+        "shape": "B=4_C=13_H=34_RATIO=9_W=34",
+        "accepted": true,
+        "minimum_us": 325.636963,
+        "median_us": 368.038086,
+        "maximum_us": 370.566895,
+        "iqr_us": 24.704345999999987
+      },
+      "native": {
+        "kernel": "aten_pixel_shuffle_cpu_backend",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          561.097,
+          558.026,
+          568.809,
+          560.458,
+          568.969
+        ],
+        "errors": 0,
+        "shape": "B=4_C=13_H=34_RATIO=9_W=34",
+        "accepted": true,
+        "minimum_us": 558.026,
+        "median_us": 561.097,
+        "maximum_us": 568.969,
+        "iqr_us": 9.647000000000048,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_log_normal_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_log_normal_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "db417df791c76f9019174939645bfcc1b462ff0062f2cf2da43f59ca661a6b0d",
+        "samples_us": [
+          629.386963,
+          651.435059,
+          660.140137,
+          658.092041,
+          654.794922
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 629.386963,
+        "median_us": 654.794922,
+        "maximum_us": 660.140137,
+        "iqr_us": 18.705077999999958
+      },
+      "native": {
+        "kernel": "aten_log_normal_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "dc89ebbe6538e1c76c8fd9dfdfa104f55df36f5b32868759a2476345e96cee7a",
+        "samples_us": [
+          587.050049,
+          686.604004,
+          688.10791,
+          699.884033,
+          707.211914
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 587.050049,
+        "median_us": 688.10791,
+        "maximum_us": 707.211914,
+        "iqr_us": 66.72094700000002,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_matmul_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sparse_matmul_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "16eb9190b805048646e519107cc44ea08f08aa2a87c838302dd09e540f3e158a",
+        "samples_us": [
+          370.118896,
+          454.535889,
+          456.743896,
+          459.208008,
+          455.911865
+        ],
+        "errors": 0,
+        "shape": "C=2047_N=16380_R=2047",
+        "accepted": true,
+        "minimum_us": 370.118896,
+        "median_us": 455.911865,
+        "maximum_us": 459.208008,
+        "iqr_us": 45.64855950000003
+      },
+      "native": {
+        "kernel": "aten_sparse_matmul_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "661cb160d5c6fb826c690cb3e8ce0918ba8e1dc35023c6288516492e5fe4c71a",
+        "samples_us": [
+          444.936035,
+          558.25,
+          561.802002,
+          570.345947,
+          560.298096
+        ],
+        "errors": 0,
+        "shape": "C=2047_N=16380_R=2047",
+        "accepted": true,
+        "minimum_us": 444.936035,
+        "median_us": 560.298096,
+        "maximum_us": 570.345947,
+        "iqr_us": 64.4809570000001,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_transpose_copy",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_transpose_copy",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "d1dca6821fd8c6c015da3f937e3b45e8b98442bf650380b62082659f3df736ca",
+        "samples_us": [
+          304.421143,
+          345.637939,
+          342.5979,
+          350.246094,
+          340.292969
+        ],
+        "errors": 0,
+        "shape": "M=2365_N=1774",
+        "accepted": true,
+        "minimum_us": 304.421143,
+        "median_us": 342.5979,
+        "maximum_us": 350.246094,
+        "iqr_us": 25.584960500000022
+      },
+      "native": {
+        "kernel": "aten_transpose_copy",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          658.251,
+          667.115,
+          655.403,
+          663.019,
+          645.451
+        ],
+        "errors": 0,
+        "shape": "M=2365_N=1774",
+        "accepted": true,
+        "minimum_us": 645.451,
+        "median_us": 658.251,
+        "maximum_us": 667.115,
+        "iqr_us": 14.639999999999986,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_matmul_broadcast_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_matmul_broadcast_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "caf508df1030cd1bcbb10bb07bce6224744733aaf39731c1b2b30e6f4baa0ec4",
+        "samples_us": [
+          1029.169922,
+          1084.370117,
+          1092.435059,
+          1079.72998,
+          1094.962891
+        ],
+        "errors": 0,
+        "shape": "B=89_K=266_M=178_N=222",
+        "accepted": true,
+        "minimum_us": 1029.169922,
+        "median_us": 1084.370117,
+        "maximum_us": 1094.962891,
+        "iqr_us": 39.249023999999736
+      },
+      "native": {
+        "kernel": "aten_nested_matmul_broadcast_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          728.429,
+          728.108,
+          729.132,
+          725.837,
+          724.94
+        ],
+        "errors": 0,
+        "shape": "B=89_K=266_M=178_N=222",
+        "accepted": true,
+        "minimum_us": 724.94,
+        "median_us": 728.108,
+        "maximum_us": 729.132,
+        "iqr_us": 3.391999999999939,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_flatten_nd_linear_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_flatten_nd_linear_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f96c460f63049fde986594f99ea8572e8a467b7c760b0f1e0d342ff8f2cf84d9",
+        "samples_us": [
+          1071.474121,
+          1118.387207,
+          1161.395996,
+          1117.363037,
+          1132.883057
+        ],
+        "errors": 0,
+        "shape": "B=80_K=322_M=161_N=241",
+        "accepted": true,
+        "minimum_us": 1071.474121,
+        "median_us": 1118.387207,
+        "maximum_us": 1161.395996,
+        "iqr_us": 52.72094750000008
+      },
+      "native": {
+        "kernel": "aten_flatten_nd_linear_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          728.556,
+          725.708,
+          728.461,
+          723.788,
+          720.972
+        ],
+        "errors": 0,
+        "shape": "B=80_K=322_M=161_N=241",
+        "accepted": true,
+        "minimum_us": 720.972,
+        "median_us": 725.708,
+        "maximum_us": 728.556,
+        "iqr_us": 6.128500000000031,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sum",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sum",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "6c8fe9c869070da76f585c049b800e70c3874660fc1ea8acf72349143f0f70fe",
+        "samples_us": [
+          3089.492188,
+          3099.283936,
+          3092.307861,
+          3090.676025,
+          3093.427979
+        ],
+        "errors": 0,
+        "shape": "M=65536_N=64",
+        "accepted": true,
+        "minimum_us": 3089.492188,
+        "median_us": 3092.307861,
+        "maximum_us": 3099.283936,
+        "iqr_us": 6.271850999999742
+      },
+      "native": {
+        "kernel": "aten_sum",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          764.781,
+          768.397,
+          765.965,
+          766.957,
+          763.533
+        ],
+        "errors": 0,
+        "shape": "M=65536_N=64",
+        "accepted": true,
+        "minimum_us": 763.533,
+        "median_us": 765.965,
+        "maximum_us": 768.397,
+        "iqr_us": 3.5200000000000387,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_diff_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_diff_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "16572399f199b27d2266f8d43fa825ba5c13155c1af118c8557d4dfb3ff3251a",
+        "samples_us": [
+          3368.505127,
+          3400.090088,
+          3404.440918,
+          3404.281006,
+          3413.75415
+        ],
+        "errors": 0,
+        "shape": "N=16777216",
+        "accepted": true,
+        "minimum_us": 3368.505127,
+        "median_us": 3404.281006,
+        "maximum_us": 3413.75415,
+        "iqr_us": 24.799926500000083
+      },
+      "native": {
+        "kernel": "aten_diff_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          784.846,
+          780.461,
+          777.037,
+          778.349,
+          772.269
+        ],
+        "errors": 0,
+        "shape": "N=16777216",
+        "accepted": true,
+        "minimum_us": 772.269,
+        "median_us": 778.349,
+        "maximum_us": 784.846,
+        "iqr_us": 8.000499999999988,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_exponential_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_exponential_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "20e3cb25ed3eece372a0d40ec7ec5716209f389daa5e1d0b93660976af8ffe99",
+        "samples_us": [
+          815.308838,
+          840.941895,
+          840.526123,
+          845.070068,
+          842.125977
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 815.308838,
+        "median_us": 840.941895,
+        "maximum_us": 845.070068,
+        "iqr_us": 15.68054200000006
+      },
+      "native": {
+        "kernel": "aten_exponential_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "b3071c7360b678c3ba9aaa1e5e8b16e8fd287bb96900e2348ee49f89a2e451f9",
+        "samples_us": [
+          955.408936,
+          1039.922119,
+          1055.475098,
+          1036.657959,
+          1040.625977
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 955.408936,
+        "median_us": 1039.922119,
+        "maximum_us": 1055.475098,
+        "iqr_us": 52.017089999999826,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_argmax_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_argmax_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "5c77d8df21f99431ea9687a9610fe91a073c1beaa04f9ba7eb1463c08eba0a40",
+        "samples_us": [
+          3945.698975,
+          3959.203125,
+          3957.0271,
+          3912.386963,
+          3940.770996
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 3912.386963,
+        "median_us": 3945.698975,
+        "maximum_us": 3959.203125,
+        "iqr_us": 31.53613299999961
+      },
+      "native": {
+        "kernel": "aten_argmax_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          760.461,
+          762.189,
+          760.141,
+          761.549,
+          759.725
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 759.725,
+        "median_us": 760.461,
+        "maximum_us": 762.189,
+        "iqr_us": 1.9359999999999218,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_argmin_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_argmin_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "b0ef812de37f6907456f4ca1751ca064caf43d0b9e37c11cb7d7fc7ab7d2e317",
+        "samples_us": [
+          3916.705811,
+          3930.753906,
+          3928.898926,
+          3921.762939,
+          3924.419189
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 3916.705811,
+        "median_us": 3924.419189,
+        "maximum_us": 3930.753906,
+        "iqr_us": 10.592040999999881
+      },
+      "native": {
+        "kernel": "aten_argmin_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          764.621,
+          764.557,
+          759.021,
+          764.525,
+          759.884
+        ],
+        "errors": 0,
+        "shape": "R=131072_K=64",
+        "accepted": true,
+        "minimum_us": 759.021,
+        "median_us": 764.525,
+        "maximum_us": 764.621,
+        "iqr_us": 5.136499999999955,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_bmm",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_bmm",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "e296eb402a36256ac4f3ee4eba170e4acf92572c3d1fe8cf00aa16f735fdcd23",
+        "samples_us": [
+          857.261963,
+          898.607178,
+          910.798828,
+          908.23999,
+          921.935059
+        ],
+        "errors": 0,
+        "shape": "BATCH=70_K=282_M=141_N=211",
+        "accepted": true,
+        "minimum_us": 857.261963,
+        "median_us": 908.23999,
+        "maximum_us": 921.935059,
+        "iqr_us": 38.43237299999993
+      },
+      "native": {
+        "kernel": "aten_bmm",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          861.679,
+          859.918,
+          861.327,
+          857.454,
+          857.647
+        ],
+        "errors": 0,
+        "shape": "BATCH=70_K=282_M=141_N=211",
+        "accepted": true,
+        "minimum_us": 857.454,
+        "median_us": 859.918,
+        "maximum_us": 861.679,
+        "iqr_us": 3.9524999999999295,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_allany_dims_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_allany_dims_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "3869df178edc14983c4bf26b355fdfee21da4b4cfaa78d5bb46ecf647f8a028d",
+        "samples_us": [
+          1883.040039,
+          1893.023926,
+          1885.280029,
+          1883.647949,
+          1885.215088
+        ],
+        "errors": 0,
+        "shape": "R=131072_C=64",
+        "accepted": true,
+        "minimum_us": 1883.040039,
+        "median_us": 1885.215088,
+        "maximum_us": 1893.023926,
+        "iqr_us": 5.807983500000205
+      },
+      "native": {
+        "kernel": "aten_allany_dims_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          570.89,
+          577.066,
+          568.361,
+          568.298,
+          563.625
+        ],
+        "errors": 0,
+        "shape": "R=131072_C=64",
+        "accepted": true,
+        "minimum_us": 563.625,
+        "median_us": 568.361,
+        "maximum_us": 577.066,
+        "iqr_us": 8.016500000000065,
+        "source_summary": "runtime_logical/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_dropout_feature_noise_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_dropout_feature_noise_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "2b33bfcd85c7bbeabc58201561a94f5b7102de13f8829fe88cc100d287a205e5",
+        "samples_us": [
+          453.800049,
+          501.927979,
+          511.240967,
+          508.488037,
+          500.616943
+        ],
+        "errors": 0,
+        "shape": "B=32_C=64_H=64_W=64",
+        "accepted": true,
+        "minimum_us": 453.800049,
+        "median_us": 501.927979,
+        "maximum_us": 511.240967,
+        "iqr_us": 32.65600600000005
+      },
+      "native": {
+        "kernel": "aten_dropout_feature_noise_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1148.435,
+          1150.612,
+          1151.059,
+          1154.996,
+          1146.931
+        ],
+        "errors": 0,
+        "shape": "B=32_C=64_H=64_W=64",
+        "accepted": true,
+        "minimum_us": 1146.931,
+        "median_us": 1150.612,
+        "maximum_us": 1154.996,
+        "iqr_us": 5.344500000000153,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_nested_bmm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_nested_bmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "5bc5596b14d16a5c4e1380fca9a1368da023770c206231952318766ab0c70e9c",
+        "samples_us": [
+          867.790039,
+          912.624023,
+          919.055908,
+          915.791992,
+          928.656006
+        ],
+        "errors": 0,
+        "shape": "B=83_K=248_M=165_N=206",
+        "accepted": true,
+        "minimum_us": 867.790039,
+        "median_us": 915.791992,
+        "maximum_us": 928.656006,
+        "iqr_us": 33.64892600000002
+      },
+      "native": {
+        "kernel": "aten_nested_bmm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          867.758,
+          867.087,
+          871.567,
+          867.374,
+          864.527
+        ],
+        "errors": 0,
+        "shape": "B=83_K=248_M=165_N=206",
+        "accepted": true,
+        "minimum_us": 864.527,
+        "median_us": 867.374,
+        "maximum_us": 871.567,
+        "iqr_us": 3.8555000000000064,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sumproduct_pair_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sumproduct_pair_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "a362ae39803deae8dab510d9c43d8f42644d0fe7e89db79eedbdb91eefe694fa",
+        "samples_us": [
+          857.423096,
+          905.806885,
+          910.15918,
+          908.622803,
+          917.776123
+        ],
+        "errors": 0,
+        "shape": "B=70_K=282_M=141_N=211",
+        "accepted": true,
+        "minimum_us": 857.423096,
+        "median_us": 908.622803,
+        "maximum_us": 917.776123,
+        "iqr_us": 32.35266100000001
+      },
+      "native": {
+        "kernel": "aten_sumproduct_pair_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          859.599,
+          857.839,
+          861.198,
+          855.855,
+          856.942
+        ],
+        "errors": 0,
+        "shape": "B=70_K=282_M=141_N=211",
+        "accepted": true,
+        "minimum_us": 855.855,
+        "median_us": 857.839,
+        "maximum_us": 861.198,
+        "iqr_us": 4.0,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_geometric_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_geometric_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "669dfce7b10f3cdabbf942a319b51c59213d55c8e6ec39ebd497ca4e895aa0bf",
+        "samples_us": [
+          822.446045,
+          842.926025,
+          841.325928,
+          855.629883,
+          845.230957
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 822.446045,
+        "median_us": 842.926025,
+        "maximum_us": 855.629883,
+        "iqr_us": 18.54443349999991
+      },
+      "native": {
+        "kernel": "aten_geometric_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "8f930e070e335dcc21a4292ef5877e4fe1c852ba0b2bc153c064e4aa959b2014",
+        "samples_us": [
+          791.949951,
+          870.766846,
+          871.791016,
+          876.335938,
+          864.207031
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 791.949951,
+        "median_us": 870.766846,
+        "maximum_us": 876.335938,
+        "iqr_us": 45.98498599999999,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_bmm_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sparse_bmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "91e5d5c93e1c2e5ffcc0a732e994e79ed95133d13b4e6b56a776455ffa9da8d5",
+        "samples_us": [
+          874.893799,
+          920.175049,
+          928.143066,
+          922.319092,
+          932.463867
+        ],
+        "errors": 0,
+        "shape": "B=37_K=375_M=300_N=225",
+        "accepted": true,
+        "minimum_us": 874.893799,
+        "median_us": 922.319092,
+        "maximum_us": 932.463867,
+        "iqr_us": 32.76904250000007
+      },
+      "native": {
+        "kernel": "aten_sparse_bmm_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "99470590921da41f402d04e1217150e3b94a07e1aad64e4350487d05d04cdb4a",
+        "samples_us": [
+          878.542969,
+          1005.137939,
+          994.802002,
+          987.984863,
+          1009.170166
+        ],
+        "errors": 0,
+        "shape": "B=37_K=375_M=300_N=225",
+        "accepted": true,
+        "minimum_us": 878.542969,
+        "median_us": 994.802002,
+        "maximum_us": 1009.170166,
+        "iqr_us": 73.89013649999998,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_matmul_csr_to_coo_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sparse_matmul_csr_to_coo_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "fae06c1b9438f7fa96423909e735c33f6d271de96b9752310e6fd75bb8aed1b3",
+        "samples_us": [
+          327.397949,
+          373.478027,
+          392.134033,
+          376.999023,
+          380.327148
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 327.397949,
+        "median_us": 376.999023,
+        "maximum_us": 392.134033,
+        "iqr_us": 35.792602500000015
+      },
+      "native": {
+        "kernel": "aten_sparse_matmul_csr_to_coo_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "fb9201c8fa078fc22d5fa358f1cb7ca2b1fee16c6278885f9b59bc3e1b71da53",
+        "samples_us": [
+          709.387939,
+          921.999023,
+          911.055176,
+          929.359863,
+          943.534912
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 709.387939,
+        "median_us": 921.999023,
+        "maximum_us": 943.534912,
+        "iqr_us": 126.22583000000003,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_convert_csr_to_coo_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_convert_csr_to_coo_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1f97c3610c5973467c8c9bb3abcf9f6473067917a09c69a87cce7aa24fd954ae",
+        "samples_us": [
+          337.958008,
+          407.463135,
+          399.846924,
+          383.110107,
+          391.111084
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 337.958008,
+        "median_us": 391.111084,
+        "maximum_us": 407.463135,
+        "iqr_us": 43.120971999999995
+      },
+      "native": {
+        "kernel": "aten_convert_csr_to_coo_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "25e18c8bdc785278df00b08dd735403893450df1e9a4974ed857af86537678bd",
+        "samples_us": [
+          707.884033,
+          920.624023,
+          924.462891,
+          906.927002,
+          923.63208
+        ],
+        "errors": 0,
+        "shape": "N=4194304_R=65536",
+        "accepted": true,
+        "minimum_us": 707.884033,
+        "median_us": 920.624023,
+        "maximum_us": 924.462891,
+        "iqr_us": 116.64196799999996,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_polar_scalarized",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_polar_scalarized",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "b54debc9109fed52715b03c5b08004f2572a7262dfe13698985cbf4df784fd46",
+        "samples_us": [
+          1696.381104,
+          1727.51709,
+          1722.396973,
+          1749.916992,
+          1721.533936
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1696.381104,
+        "median_us": 1722.396973,
+        "maximum_us": 1749.916992,
+        "iqr_us": 29.759520999999836
+      },
+      "native": {
+        "kernel": "aten_polar_scalarized",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          941.136,
+          938.223,
+          935.12,
+          939.536,
+          935.344
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 935.12,
+        "median_us": 938.223,
+        "maximum_us": 941.136,
+        "iqr_us": 5.103999999999985,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cauchy_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_cauchy_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f0e46eb2366c8f889b8f42e02d6afc39f4138e16f7a0183f7b3dcab85227e06f",
+        "samples_us": [
+          642.889893,
+          673.930908,
+          672.010986,
+          666.0271,
+          663.724121
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 642.889893,
+        "median_us": 666.0271,
+        "maximum_us": 673.930908,
+        "iqr_us": 19.663940000000025
+      },
+      "native": {
+        "kernel": "aten_cauchy_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "19bea07ba9bae858419b91d8f0650bd4644da8b35ddc05490d75344503fa53ad",
+        "samples_us": [
+          1138.036133,
+          1233.908936,
+          1255.062012,
+          1246.22998,
+          1253.174072
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1138.036133,
+        "median_us": 1246.22998,
+        "maximum_us": 1255.062012,
+        "iqr_us": 68.14550750000001,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cpu_blas_gemm_strided_batched_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cpu_blas_gemm_strided_batched_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "0c23682da5224bae9b0b235b825298fb9c1abbef8481fee2b5beed0cfb728233",
+        "samples_us": [
+          1016.625977,
+          1070.22583,
+          1074.641846,
+          1095.442871,
+          1084.147217
+        ],
+        "errors": 0,
+        "shape": "B=52_K=311_M=208_N=259",
+        "accepted": true,
+        "minimum_us": 1016.625977,
+        "median_us": 1074.641846,
+        "maximum_us": 1095.442871,
+        "iqr_us": 46.369140499999844
+      },
+      "native": {
+        "kernel": "aten_cpu_blas_gemm_strided_batched_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1025.073,
+          1023.473,
+          1027.762,
+          1023.217,
+          1021.137
+        ],
+        "errors": 0,
+        "shape": "B=52_K=311_M=208_N=259",
+        "accepted": true,
+        "minimum_us": 1021.137,
+        "median_us": 1023.473,
+        "maximum_us": 1027.762,
+        "iqr_us": 4.240500000000054,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cpu_blas_gemm_batched_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cpu_blas_gemm_batched_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1a4a69a5402ee4c51140323188dc62ab5ffdc462662396e7db9655810f892056",
+        "samples_us": [
+          1018.289062,
+          1075.538086,
+          1073.169922,
+          1072.018066,
+          1090.546875
+        ],
+        "errors": 0,
+        "shape": "B=52_K=311_M=208_N=259",
+        "accepted": true,
+        "minimum_us": 1018.289062,
+        "median_us": 1073.169922,
+        "maximum_us": 1090.546875,
+        "iqr_us": 37.88891650000005
+      },
+      "native": {
+        "kernel": "aten_cpu_blas_gemm_batched_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1020.049,
+          1021.201,
+          1024.626,
+          1020.273,
+          1018.801
+        ],
+        "errors": 0,
+        "shape": "B=52_K=311_M=208_N=259",
+        "accepted": true,
+        "minimum_us": 1018.801,
+        "median_us": 1020.273,
+        "maximum_us": 1024.626,
+        "iqr_us": 3.488499999999931,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_tbc_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_tbc_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "6a4bba7bc77108a748f16f036269c3d77a4b2c305c6df990f22f07a3b5063ad1",
+        "samples_us": [
+          1376.119873,
+          2124.035889,
+          2068.834961,
+          1716.125,
+          2065.218994
+        ],
+        "errors": 0,
+        "shape": "T=4096_B=16_I=32_O=64_K=3",
+        "accepted": true,
+        "minimum_us": 1376.119873,
+        "median_us": 2065.218994,
+        "maximum_us": 2124.035889,
+        "iqr_us": 550.3129885000001
+      },
+      "native": {
+        "kernel": "aten_conv_tbc_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1048.242,
+          1047.185,
+          1039.378,
+          1058.834,
+          1049.778
+        ],
+        "errors": 0,
+        "shape": "T=4096_B=16_I=32_O=64_K=3",
+        "accepted": true,
+        "minimum_us": 1039.378,
+        "median_us": 1048.242,
+        "maximum_us": 1058.834,
+        "iqr_us": 11.024500000000103,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_kron_impl_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_kron_impl_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "f06f393c0a5d7bf6ac419fe482f46cb8cdb491768722b3c957a68fffbeccca20",
+        "samples_us": [
+          6124.104004,
+          6193.353027,
+          6082.342041,
+          6103.23999,
+          6109.736084
+        ],
+        "errors": 0,
+        "shape": "A=256_B=128_C=32_D=32",
+        "accepted": true,
+        "minimum_us": 6082.342041,
+        "median_us": 6109.736084,
+        "maximum_us": 6193.353027,
+        "iqr_us": 65.9375
+      },
+      "native": {
+        "kernel": "aten_kron_impl_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1113.586,
+          1106.675,
+          1105.043,
+          1113.619,
+          1102.611
+        ],
+        "errors": 0,
+        "shape": "A=256_B=128_C=32_D=32",
+        "accepted": true,
+        "minimum_us": 1102.611,
+        "median_us": 1106.675,
+        "maximum_us": 1113.619,
+        "iqr_us": 9.775499999999965,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_kron_out_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_kron_out_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "6f88a1f1fbcce2da3ff697d3cc57927f31b512738e9f9a142fde50f45e88d484",
+        "samples_us": [
+          6418.125,
+          6551.215088,
+          6503.021973,
+          6079.014893,
+          6091.366943
+        ],
+        "errors": 0,
+        "shape": "A=256_B=128_C=32_D=32",
+        "accepted": true,
+        "minimum_us": 6079.014893,
+        "median_us": 6418.125,
+        "maximum_us": 6551.215088,
+        "iqr_us": 441.9276125000001
+      },
+      "native": {
+        "kernel": "aten_kron_out_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1110.131,
+          1103.219,
+          1103.442,
+          1108.787,
+          1103.635
+        ],
+        "errors": 0,
+        "shape": "A=256_B=128_C=32_D=32",
+        "accepted": true,
+        "minimum_us": 1103.219,
+        "median_us": 1103.635,
+        "maximum_us": 1110.131,
+        "iqr_us": 6.128500000000031,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_upsample_bilinear2d",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_upsample_bilinear2d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "c662eae388a68ed9079c03fe6109897359576495a879f6ce2f79b96c1940fe7d",
+        "samples_us": [
+          79.937988,
+          88.737061,
+          84.609131,
+          95.457764,
+          84.001221
+        ],
+        "errors": 0,
+        "shape": "B=4096_C=3_H=4_W=4",
+        "accepted": true,
+        "minimum_us": 79.937988,
+        "median_us": 84.609131,
+        "maximum_us": 95.457764,
+        "iqr_us": 10.127807999999987
+      },
+      "native": {
+        "kernel": "aten_upsample_bilinear2d",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "a11a5d88b543a4bf24026c96f3989a310c54686e1a1f75b66d0080cca42b38b1",
+        "samples_us": [
+          1692.251953,
+          1729.725098,
+          1674.748047,
+          1708.667969,
+          1691.580078
+        ],
+        "errors": 0,
+        "shape": "B=4096_C=3_H=4_W=4",
+        "accepted": true,
+        "minimum_us": 1674.748047,
+        "median_us": 1692.251953,
+        "maximum_us": 1729.725098,
+        "iqr_us": 36.03247099999999,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_dirichlet_grad_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_dirichlet_grad_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "33e8509715ebb8c2ec2b058fa55c76fc2123a7e691332d8194481705e64506a2",
+        "samples_us": [
+          1124.499023,
+          1157.779053,
+          1167.89209,
+          1150.100098,
+          1153.23584
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1124.499023,
+        "median_us": 1153.23584,
+        "maximum_us": 1167.89209,
+        "iqr_us": 25.53601100000003
+      },
+      "native": {
+        "kernel": "aten_dirichlet_grad_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "2be79e5778f72fb1c706d24e7ca8d2e4a502ca53a9054a1766cf8cf55349e00b",
+        "samples_us": [
+          1269.910889,
+          1352.184082,
+          1359.192139,
+          1364.759766,
+          1364.216064
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1269.910889,
+        "median_us": 1359.192139,
+        "maximum_us": 1364.759766,
+        "iqr_us": 53.44042949999994,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_count_nonzero_impl_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_count_nonzero_impl_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "78563ffcbbf24327127f8f662677c5cd28c12d12a347bad259f1979f04ebb2ad",
+        "samples_us": [
+          5090.038086,
+          5079.25415,
+          5137.431152,
+          5122.775146,
+          5086.678955
+        ],
+        "errors": 0,
+        "shape": "R=131072_C=64",
+        "accepted": true,
+        "minimum_us": 5079.25415,
+        "median_us": 5090.038086,
+        "maximum_us": 5137.431152,
+        "iqr_us": 47.13659650000045
+      },
+      "native": {
+        "kernel": "aten_count_nonzero_impl_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1223.924,
+          1227.477,
+          1223.829,
+          1219.413,
+          1219.284
+        ],
+        "errors": 0,
+        "shape": "R=131072_C=64",
+        "accepted": true,
+        "minimum_us": 1219.284,
+        "median_us": 1223.829,
+        "maximum_us": 1227.477,
+        "iqr_us": 6.351999999999862,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_transform_bias_rescale_qkv_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_transform_bias_rescale_qkv_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "438065253218a474850b14069afac4425fa39468669a6c13feb28121beac26da",
+        "samples_us": [
+          698.124023,
+          752.139893,
+          745.357178,
+          745.73999,
+          744.812988
+        ],
+        "errors": 0,
+        "shape": "B=8_S=512_H=16_D=64",
+        "accepted": true,
+        "minimum_us": 698.124023,
+        "median_us": 745.357178,
+        "maximum_us": 752.139893,
+        "iqr_us": 27.47143600000004
+      },
+      "native": {
+        "kernel": "aten_transform_bias_rescale_qkv_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "7242f734ce144f336c4939ea0dcc05a1ca27471a12a13df251c40c1a6700d3e5",
+        "samples_us": [
+          844.01416,
+          986.673096,
+          981.679932,
+          982.800049,
+          984.304199
+        ],
+        "errors": 0,
+        "shape": "B=8_S=512_H=16_D=64",
+        "accepted": true,
+        "minimum_us": 844.01416,
+        "median_us": 982.800049,
+        "maximum_us": 986.673096,
+        "iqr_us": 72.64160150000009,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_addmm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_addmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "8b3dee43b342a18d31ad93e04b5247ecb007101e2c047cd2981839a0c788a278",
+        "samples_us": [
+          110.337891,
+          117.889893,
+          122.369873,
+          115.233887,
+          123.137939
+        ],
+        "errors": 0,
+        "shape": "R=64_C=4096_N=4096",
+        "accepted": true,
+        "minimum_us": 110.337891,
+        "median_us": 117.889893,
+        "maximum_us": 123.137939,
+        "iqr_us": 9.968016999999996
+      },
+      "native": {
+        "kernel": "aten_sparse_addmm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1292.598,
+          1284.406,
+          1302.134,
+          1277.27,
+          1278.166
+        ],
+        "errors": 0,
+        "shape": "R=64_C=4096_N=4096",
+        "accepted": true,
+        "minimum_us": 1277.27,
+        "median_us": 1284.406,
+        "maximum_us": 1302.134,
+        "iqr_us": 19.648000000000025,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_depthwise_conv3x3_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_depthwise_conv3x3_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "cdae5addda5712716f1c2aa210d59a8ae51624c619b9aa4485c94808054f610f",
+        "samples_us": [
+          1659.547852,
+          1851.678955,
+          1857.983154,
+          1881.1521,
+          1868.704102
+        ],
+        "errors": 0,
+        "shape": "B=2_C=64_H=256_W=256",
+        "accepted": true,
+        "minimum_us": 1659.547852,
+        "median_us": 1857.983154,
+        "maximum_us": 1881.1521,
+        "iqr_us": 119.31469750000008
+      },
+      "native": {
+        "kernel": "aten_depthwise_conv3x3_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "d78c90d1ae398778d496da884600913e3214ecb8bc74266360189c6ea5f2712a",
+        "samples_us": [
+          1657.212891,
+          1817.056152,
+          1804.095947,
+          1828.832031,
+          1810.750977
+        ],
+        "errors": 0,
+        "shape": "B=2_C=64_H=256_W=256",
+        "accepted": true,
+        "minimum_us": 1657.212891,
+        "median_us": 1810.750977,
+        "maximum_us": 1828.832031,
+        "iqr_us": 92.28967250000005,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_gamma_transform_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_gamma_transform_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "699931afc7c742abf3439b44da9a3016142e82710798783bed0f2f01b260e0e2",
+        "samples_us": [
+          885.646973,
+          911.151123,
+          912.847168,
+          912.944092,
+          921.008057
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 885.646973,
+        "median_us": 912.847168,
+        "maximum_us": 921.008057,
+        "iqr_us": 18.577026499999988
+      },
+      "native": {
+        "kernel": "aten_gamma_transform_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "be07f289f71bed1f2fb85543291947031e4dcfdd6eb867a8bad1d65825413a60",
+        "samples_us": [
+          1853.248047,
+          2029.635986,
+          1950.497803,
+          2035.138916,
+          1976.547119
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1853.248047,
+        "median_us": 1976.547119,
+        "maximum_us": 2035.138916,
+        "iqr_us": 130.51452600000005,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_hspmm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_hspmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "05cc1e6e8a2bd96b9db8effee8e41484b6f57f9ab3e103418e346f5165b765e2",
+        "samples_us": [
+          110.018066,
+          117.761963,
+          124.001953,
+          116.897949,
+          122.914062
+        ],
+        "errors": 0,
+        "shape": "R=64_C=4096_N=4096",
+        "accepted": true,
+        "minimum_us": 110.018066,
+        "median_us": 117.761963,
+        "maximum_us": 124.001953,
+        "iqr_us": 10.000000000000007
+      },
+      "native": {
+        "kernel": "aten_hspmm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          2085.059,
+          2110.852,
+          2089.668,
+          2092.643,
+          2102.628
+        ],
+        "errors": 0,
+        "shape": "R=64_C=4096_N=4096",
+        "accepted": true,
+        "minimum_us": 2085.059,
+        "median_us": 2092.643,
+        "maximum_us": 2110.852,
+        "iqr_us": 19.376499999999623,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_renorm_scale_factor",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_renorm_scale_factor",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "05c8d57b85efda19d6591e14f148aa657f8e08d3aefb845dc95cc1366d3abc31",
+        "samples_us": [
+          629.481934,
+          654.218994,
+          658.730957,
+          653.386963,
+          655.371094
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 629.481934,
+        "median_us": 654.218994,
+        "maximum_us": 658.730957,
+        "iqr_us": 15.616576999999893
+      },
+      "native": {
+        "kernel": "aten_renorm_scale_factor",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1360.983,
+          1356.983,
+          1355.671,
+          1357.143,
+          1365.623
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1355.671,
+        "median_us": 1357.143,
+        "maximum_us": 1365.623,
+        "iqr_us": 6.975999999999885,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_standard_gamma_grad_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_standard_gamma_grad_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1b4f162928f0c26862a5d4f25eb8632b59516e05449cb92584bdd0812fb9a031",
+        "samples_us": [
+          866.479004,
+          893.13501,
+          894.062988,
+          894.447998,
+          911.086914
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 866.479004,
+        "median_us": 894.062988,
+        "maximum_us": 911.086914,
+        "iqr_us": 22.96044900000004
+      },
+      "native": {
+        "kernel": "aten_standard_gamma_grad_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "e180b7a8ab8f38fefa24854947db01048104ce513307f3d0b96cf7d0c8bed79c",
+        "samples_us": [
+          1447.513184,
+          1549.146973,
+          1544.762939,
+          1542.39502,
+          1528.282959
+        ],
+        "errors": 0,
+        "shape": "N=4194304",
+        "accepted": true,
+        "minimum_us": 1447.513184,
+        "median_us": 1542.39502,
+        "maximum_us": 1549.146973,
+        "iqr_us": 59.05688450000014,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_tbc_backward_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_tbc_backward_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "4f8a06098dee6a7a8587dad27cf84ca5337c19139090467bec5fb3a839d4a159",
+        "samples_us": [
+          9509.792969,
+          9597.666016,
+          9587.810059,
+          9645.50708,
+          9570.434082
+        ],
+        "errors": 0,
+        "shape": "T=4094_B=16_I=32_O=64_K=3",
+        "accepted": true,
+        "minimum_us": 9509.792969,
+        "median_us": 9587.810059,
+        "maximum_us": 9645.50708,
+        "iqr_us": 81.47302249999939
+      },
+      "native": {
+        "kernel": "aten_conv_tbc_backward_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1406.328,
+          1396.119,
+          1400.184,
+          1398.359,
+          1393.368
+        ],
+        "errors": 0,
+        "shape": "T=4094_B=16_I=32_O=64_K=3",
+        "accepted": true,
+        "minimum_us": 1393.368,
+        "median_us": 1398.359,
+        "maximum_us": 1406.328,
+        "iqr_us": 8.512499999999932,
+        "source_summary": "runtime_scatter/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_slow_conv3d_backward_input_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_slow_conv3d_backward_input_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "e9ec278b96d4a9d150cbeea5d646400640dca9c351c448546d4e5a0d1418b6ca",
+        "samples_us": [
+          931.886963,
+          968.432129,
+          959.375977,
+          968.49707,
+          968.785156
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 931.886963,
+        "median_us": 968.432129,
+        "maximum_us": 968.785156,
+        "iqr_us": 23.009642999999983
+      },
+      "native": {
+        "kernel": "aten_slow_conv3d_backward_input_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "2157b857c3ab56244cd25b7320b8275c8910ed401bd4ae4efc5b37953e5437e5",
+        "samples_us": [
+          838.510986,
+          874.60791,
+          864.910889,
+          856.430908,
+          856.111084
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 838.510986,
+        "median_us": 856.430908,
+        "maximum_us": 874.60791,
+        "iqr_us": 22.44836449999997,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_transpose3d_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_transpose3d_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "07d7a7fe70f39eff496116a00a6fce9116c2f12d129dc1af81a8f9776fd3aa9b",
+        "samples_us": [
+          1693.819824,
+          1768.318115,
+          1740.669189,
+          1748.030029,
+          1731.453125
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 1693.819824,
+        "median_us": 1740.669189,
+        "maximum_us": 1768.318115,
+        "iqr_us": 45.53759750000006
+      },
+      "native": {
+        "kernel": "aten_conv_transpose3d_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1588.667,
+          1586.875,
+          1582.042,
+          1579.387,
+          1581.786
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 1579.387,
+        "median_us": 1582.042,
+        "maximum_us": 1588.667,
+        "iqr_us": 7.184499999999957,
+        "source_summary": "runtime_scatter/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sampled_addmm_sparse_csr_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sampled_addmm_sparse_csr_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "7c460195c7a15dc52175f417590ddb656fb938d0fa11f6f55ebfdec9fa160323",
+        "samples_us": [
+          8178.089844,
+          8318.316895,
+          8341.037109,
+          8190.955078,
+          8110.504883
+        ],
+        "errors": 0,
+        "shape": "R=4096_K=512_C=4096_NNZ=262144_N=262144",
+        "accepted": true,
+        "minimum_us": 8110.504883,
+        "median_us": 8190.955078,
+        "maximum_us": 8341.037109,
+        "iqr_us": 185.3796385000005
+      },
+      "native": {
+        "kernel": "aten_sampled_addmm_sparse_csr_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          1805.823,
+          1809.151,
+          1810.046,
+          1812.831,
+          1819.423
+        ],
+        "errors": 0,
+        "shape": "R=4096_K=512_C=4096_NNZ=262144_N=262144",
+        "accepted": true,
+        "minimum_us": 1805.823,
+        "median_us": 1810.046,
+        "maximum_us": 1819.423,
+        "iqr_us": 8.639999999999873,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_joint_scaling_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_joint_scaling_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "cfe241ffff9940c3c08cd68c497efb1c896322876efa9c3d7a64717a0ce32265",
+        "samples_us": [
+          852.814941,
+          842.925781,
+          843.11792,
+          843.24585,
+          843.50293
+        ],
+        "errors": 0,
+        "shape": "N=16777216",
+        "accepted": true,
+        "minimum_us": 842.925781,
+        "median_us": 843.24585,
+        "maximum_us": 852.814941,
+        "iqr_us": 5.137084999999956
+      },
+      "native": {
+        "kernel": "aten_joint_scaling_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          2271.142,
+          2267.207,
+          2291.334,
+          2243.942,
+          2262.566
+        ],
+        "errors": 0,
+        "shape": "N=16777216",
+        "accepted": true,
+        "minimum_us": 2243.942,
+        "median_us": 2267.207,
+        "maximum_us": 2291.334,
+        "iqr_us": 27.983999999999924,
+        "source_summary": "runtime_joint/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sspaddmm_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_sspaddmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "2631fd7e4ff85047364501f56207335bc7d80159b607e6683d0a410c292ea12c",
+        "samples_us": [
+          271.9729,
+          314.694092,
+          329.062012,
+          318.309082,
+          330.342041
+        ],
+        "errors": 0,
+        "shape": "C=1774_K=2365_N=18917_R=2365",
+        "accepted": true,
+        "minimum_us": 271.9729,
+        "median_us": 318.309082,
+        "maximum_us": 330.342041,
+        "iqr_us": 36.36853049999999
+      },
+      "native": {
+        "kernel": "aten_sspaddmm_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "c51c3207d4f90c1dc86706ec32262c8dc504d00edc26f0e65523478ecf35b16f",
+        "samples_us": [
+          1280.663086,
+          1487.578125,
+          1491.002197,
+          1497.914062,
+          1506.521973
+        ],
+        "errors": 0,
+        "shape": "C=1774_K=2365_N=18917_R=2365",
+        "accepted": true,
+        "minimum_us": 1280.663086,
+        "median_us": 1491.002197,
+        "maximum_us": 1506.521973,
+        "iqr_us": 118.09741199999985,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_xor_sum_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_xor_sum_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "e57457aca8c1a44a1f13da28088d8557d8dbeba75a78c0c90272d88a834ae2ad",
+        "samples_us": [
+          164.35498,
+          163.202881,
+          168.706055,
+          167.938965,
+          168.259033
+        ],
+        "errors": 0,
+        "shape": "K=2897_R=1448",
+        "accepted": true,
+        "minimum_us": 163.202881,
+        "median_us": 167.938965,
+        "maximum_us": 168.706055,
+        "iqr_us": 4.703613499999989
+      },
+      "native": {
+        "kernel": "aten_xor_sum_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "49b4b92bf5a23e14c8efaffc86ca4a4405bd77499a11580608ae50e924b67219",
+        "samples_us": [
+          681.098877,
+          663.146973,
+          715.083984,
+          681.00293,
+          675.244141
+        ],
+        "errors": 0,
+        "shape": "K=2897_R=1448",
+        "accepted": true,
+        "minimum_us": 663.146973,
+        "median_us": 681.00293,
+        "maximum_us": 715.083984,
+        "iqr_us": 28.895873499999993,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv_transpose3d_grad_weight_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv_transpose3d_grad_weight_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "91ce1c643df61e1df8012259bb8af9c2772af540732a98351127328b69ba86a7",
+        "samples_us": [
+          3052.499023,
+          3055.283936,
+          3028.243164,
+          3021.267822,
+          3020.65918
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 3020.65918,
+        "median_us": 3028.243164,
+        "maximum_us": 3055.283936,
+        "iqr_us": 32.92797850000011
+      },
+      "native": {
+        "kernel": "aten_conv_transpose3d_grad_weight_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          2727.439,
+          2721.838,
+          2720.462,
+          2723.182,
+          2722.158
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 2720.462,
+        "median_us": 2722.158,
+        "maximum_us": 2727.439,
+        "iqr_us": 4.160499999999502,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_slow_conv3d_backward_weight_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_slow_conv3d_backward_weight_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "46e73b22ade6cbdcea6dfb8378c0b336689cadc6757c41690eea69e070e75cc4",
+        "samples_us": [
+          7309.883789,
+          7364.124023,
+          7323.73999,
+          7380.925049,
+          7313.756104
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 7309.883789,
+        "median_us": 7323.73999,
+        "maximum_us": 7380.925049,
+        "iqr_us": 60.704589500000566
+      },
+      "native": {
+        "kernel": "aten_slow_conv3d_backward_weight_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "bcdcfd626d3727858e32d0680ca7ac9261f7b1cf073eb9bba51d17522013f7d6",
+        "samples_us": [
+          6290.343994,
+          6285.991943,
+          6309.608154,
+          6284.072021,
+          6283.464111
+        ],
+        "errors": 0,
+        "shape": "C=8_O=16_D=32_H=32_W=32_K=3",
+        "accepted": true,
+        "minimum_us": 6283.464111,
+        "median_us": 6285.991943,
+        "maximum_us": 6309.608154,
+        "iqr_us": 16.208008000000063,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_cpu_blas_gemm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_cpu_blas_gemm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "932f583403710865d78932da45abd411118c0320956293e7af7ced187068d58a",
+        "samples_us": [
+          3777.791992,
+          3846.304932,
+          3843.072998,
+          3842.337158,
+          3849.729004
+        ],
+        "errors": 0,
+        "shape": "K=2290_M=1374_N=1832",
+        "accepted": true,
+        "minimum_us": 3777.791992,
+        "median_us": 3843.072998,
+        "maximum_us": 3849.729004,
+        "iqr_us": 37.95239300000003
+      },
+      "native": {
+        "kernel": "aten_cpu_blas_gemm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          3764.768,
+          3760.255,
+          3769.248,
+          3760.48,
+          3757.44
+        ],
+        "errors": 0,
+        "shape": "K=2290_M=1374_N=1832",
+        "accepted": true,
+        "minimum_us": 3757.44,
+        "median_us": 3760.48,
+        "maximum_us": 3769.248,
+        "iqr_us": 8.160499999999729,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_embedding_bag_counts_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_embedding_bag_counts_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "be7927d236e8d1657f06dd8f26a1cbdd329d6573c97dec6b4692a0029c9f0435",
+        "samples_us": [
+          3949.762939,
+          3978.627197,
+          4480.523926,
+          4009.411865,
+          4003.299805
+        ],
+        "errors": 0,
+        "shape": "N=16777216_E=65536",
+        "accepted": true,
+        "minimum_us": 3949.762939,
+        "median_us": 4003.299805,
+        "maximum_us": 4480.523926,
+        "iqr_us": 280.77282749999995
+      },
+      "native": {
+        "kernel": "aten_embedding_bag_counts_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "ad8d84d16c4a2a1a4429962861ee10ada8e303de6e9505b629225988e9f3733c",
+        "samples_us": [
+          3799.646973,
+          3816.447021,
+          3804.63916,
+          3808.863037,
+          3815.230957
+        ],
+        "errors": 0,
+        "shape": "N=16777216_E=65536",
+        "accepted": true,
+        "minimum_us": 3799.646973,
+        "median_us": 3808.863037,
+        "maximum_us": 3816.447021,
+        "iqr_us": 13.695922499999824,
+        "source_summary": "runtime_native_materialization/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_mm",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_mm",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "ff5257d523851db16a1e1183e5b6aa02e7349296a64cd85585bbd5cf6c1c84c6",
+        "samples_us": [
+          3819.775879,
+          3841.504883,
+          3835.937012,
+          3840.801025,
+          3835.647949
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=512",
+        "accepted": true,
+        "minimum_us": 3819.775879,
+        "median_us": 3835.937012,
+        "maximum_us": 3841.504883,
+        "iqr_us": 13.441040000000157
+      },
+      "native": {
+        "kernel": "aten_mm",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          3819.232,
+          3824.641,
+          3816.865,
+          3812.224,
+          3820.321
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=512",
+        "accepted": true,
+        "minimum_us": 3812.224,
+        "median_us": 3819.232,
+        "maximum_us": 3824.641,
+        "iqr_us": 7.936499999999796,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_unbind_copy_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_unbind_copy_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "0174cddb7bce5c870f9f4eeb7084dbd7abfa212186098c212b1e5cee1f1b3c30",
+        "samples_us": [
+          201.3479,
+          221.187988,
+          233.091797,
+          218.403076,
+          220.771973
+        ],
+        "errors": 0,
+        "shape": "B=512_N=8192",
+        "accepted": true,
+        "minimum_us": 201.3479,
+        "median_us": 220.771973,
+        "maximum_us": 233.091797,
+        "iqr_us": 17.264404499999998
+      },
+      "native": {
+        "kernel": "aten_unbind_copy_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          4350.346,
+          4230.247,
+          4237.992,
+          4197.703,
+          4095.174
+        ],
+        "errors": 0,
+        "shape": "B=512_N=8192",
+        "accepted": true,
+        "minimum_us": 4095.174,
+        "median_us": 4230.247,
+        "maximum_us": 4350.346,
+        "iqr_us": 147.73049999999967,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_addmm",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_addmm",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "41b3ca36c3ee27428cf8045884e477b782f0e493c097aa9f0d963f9533be222b",
+        "samples_us": [
+          3823.391846,
+          3828.639893,
+          3839.713135,
+          3828.672119,
+          3825.089111
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=512",
+        "accepted": true,
+        "minimum_us": 3823.391846,
+        "median_us": 3828.639893,
+        "maximum_us": 3839.713135,
+        "iqr_us": 9.952148500000021
+      },
+      "native": {
+        "kernel": "aten_addmm",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          3850.817,
+          3845.761,
+          3849.921,
+          3851.649,
+          3849.154
+        ],
+        "errors": 0,
+        "shape": "M=512_N=512_K=512",
+        "accepted": true,
+        "minimum_us": 3845.761,
+        "median_us": 3849.921,
+        "maximum_us": 3851.649,
+        "iqr_us": 3.775500000000193,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_addmv_bsr_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_addmv_bsr_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "35393e98a2f01e41e2a91aeb68e4889252aed9f38bb199a72472761aeb9e6cce",
+        "samples_us": [
+          632.171143,
+          633.833984,
+          629.77002,
+          631.177979,
+          628.458984
+        ],
+        "errors": 0,
+        "shape": "R=4096_C=4096_BR=4_BC=4_N=262144",
+        "accepted": true,
+        "minimum_us": 628.458984,
+        "median_us": 631.177979,
+        "maximum_us": 633.833984,
+        "iqr_us": 3.8880614999999352
+      },
+      "native": {
+        "kernel": "aten_sparse_addmv_bsr_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          4484.46,
+          4482.444,
+          4475.82,
+          4483.052,
+          4475.052
+        ],
+        "errors": 0,
+        "shape": "R=4096_C=4096_BR=4_BC=4_N=262144",
+        "accepted": true,
+        "minimum_us": 4475.052,
+        "median_us": 4482.444,
+        "maximum_us": 4484.46,
+        "iqr_us": 8.319999999999709,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_conv1d",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_conv1d",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "1b677dad0aeba6deb558a50f9d4cf3df64725119d32647407148aeafd28b23f6",
+        "samples_us": [
+          4735.919922,
+          5354.74707,
+          5345.337891,
+          5554.62207,
+          5403.450928
+        ],
+        "errors": 0,
+        "shape": "B=32_IC=64_OC=128_W=4096_K=3",
+        "accepted": true,
+        "minimum_us": 4735.919922,
+        "median_us": 5354.74707,
+        "maximum_us": 5554.62207,
+        "iqr_us": 438.40759249999974
+      },
+      "native": {
+        "kernel": "aten_conv1d",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          5195.256,
+          5189.72,
+          5187.447,
+          5184.664,
+          5187.768
+        ],
+        "errors": 0,
+        "shape": "B=32_IC=64_OC=128_W=4096_K=3",
+        "accepted": true,
+        "minimum_us": 5184.664,
+        "median_us": 5187.768,
+        "maximum_us": 5195.256,
+        "iqr_us": 6.432500000000346,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_sparse_csr_addmm_cpu",
+      "native_attribution": "original ATen exact-region baseline",
+      "raised": {
+        "kernel": "aten_sparse_csr_addmm_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "cc13ddc1b887e76c77bd3fc1b43deb28d55acc709e4a24a6483d641caad44936",
+        "samples_us": [
+          6861.620117,
+          6940.468994,
+          6949.749023,
+          6951.541992,
+          6947.573975
+        ],
+        "errors": 0,
+        "shape": "R=65536_K=65536_C=64_N=4194304",
+        "accepted": true,
+        "minimum_us": 6861.620117,
+        "median_us": 6947.573975,
+        "maximum_us": 6951.541992,
+        "iqr_us": 49.600952000000234
+      },
+      "native": {
+        "kernel": "aten_sparse_csr_addmm_cpu",
+        "variant": "native",
+        "exit_code": 0,
+        "sha256": "a000197bc345317491c694326aa0260df92c19077f6479d66bcb280baf39b978",
+        "samples_us": [
+          6741.01,
+          6727.986,
+          6732.242,
+          6732.594,
+          6734.482
+        ],
+        "errors": 0,
+        "shape": "R=65536_K=65536_C=64_N=4194304",
+        "accepted": true,
+        "minimum_us": 6727.986,
+        "median_us": 6732.594,
+        "maximum_us": 6741.01,
+        "iqr_us": 7.632000000000062,
+        "source_summary": "runtime_abi/summary.json"
+      }
+    },
+    {
+      "kernel": "aten_quant_col_offsets_cpu",
+      "native_attribution": "ATen composition of extracted C stage",
+      "raised": {
+        "kernel": "aten_quant_col_offsets_cpu",
+        "variant": "raised",
+        "exit_code": 0,
+        "sha256": "10075df3dde7ce7f055838f0a48f738434705e375765e1f88dbbbd410a22cce5",
+        "samples_us": [
+          3032.146973,
+          2880.977051,
+          2948.049805,
+          2975.12207,
+          3096.947998
+        ],
+        "errors": 0,
+        "shape": "K=1048576_N=48",
+        "accepted": true,
+        "minimum_us": 2880.977051,
+        "median_us": 2975.12207,
+        "maximum_us": 3096.947998,
+        "iqr_us": 150.03405750000024
+      },
+      "native": {
+        "kernel": "aten_quant_col_offsets_cpu",
+        "variant": "native_extension",
+        "exit_code": 0,
+        "sha256": "5c21b582d5d7659dfea0e17c69f5d52755764cffb3c48b6663cc0579a9ca0559",
+        "samples_us": [
+          3058.197021,
+          3078.741943,
+          3043.286133,
+          3048.88501,
+          3049.333984
+        ],
+        "errors": 0,
+        "shape": "K=1048576_N=48",
+        "accepted": true,
+        "minimum_us": 3043.286133,
+        "median_us": 3049.333984,
+        "maximum_us": 3078.741943,
+        "iqr_us": 22.383910499999956,
+        "source_summary": "runtime_extensions_final/summary.json"
+      }
+    }
+  ]
+}

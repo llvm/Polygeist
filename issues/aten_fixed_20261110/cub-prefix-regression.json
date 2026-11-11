@@ -1,0 +1,29 @@
+{
+  "library_sha256": "dafbdd2d82b6b46ccfb4c75b18c26ee71e3f9609ffe9ccbc482d6e4dd87d547d",
+  "tests": [
+    {
+      "test": "prefix-lower-bounds-residency",
+      "exit_code": 0,
+      "executable_sha256": "4606bd10b5ed0059dbd2a56aeae3e613e3ee670e32a374c9b47d8537d8d3c9af",
+      "log": "PASS prefix lower bounds residency: 512 cases\n"
+    },
+    {
+      "test": "joint-maxabs-residency",
+      "exit_code": 0,
+      "executable_sha256": "0796fe7c0a55c51a8690ebfa940a058ed4d2bd9680b78bb2cda1471c36d8f577",
+      "log": "PASS joint maxabs residency: 256 cases\n"
+    },
+    {
+      "test": "cub-product-residency",
+      "exit_code": 0,
+      "executable_sha256": "77dedfd872c092dff97f16f2d8b384fddae287169a9e26c3ffca6a01be1078cc",
+      "log": "PASS CUB product residency: 96 cases\n"
+    },
+    {
+      "test": "cub-argreduce-residency",
+      "exit_code": 0,
+      "executable_sha256": "b970ec0797c0b89db7c297de030f27caedfbe0bb425459f7878e44971167b4a6",
+      "log": "PASS CUB arg reduction residency: 32 cases\n"
+    }
+  ]
+}

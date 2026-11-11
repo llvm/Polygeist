@@ -1,0 +1,95 @@
+{
+  "scope": "Combination of full sweep and three later targeted checks, not a full sweep at one revision. Compiler/ABI coverage only; not GPU correctness.",
+  "runs": [
+    {
+      "source_summary": "coverage_final/summary.json",
+      "sha256": "58acc21bfe44041544dfd7bb0a7d38f1f85ce08ca176ef75dbe2fe0a2df9bcbe",
+      "summary": {
+        "cases": 598,
+        "native_external_cases": 52,
+        "any_call": 324,
+        "native_any_call": 30,
+        "complete_abi_candidates": 260,
+        "native_complete_abi_candidates": 26,
+        "gpu_safe_candidates": 239,
+        "native_gpu_safe_candidates": 25,
+        "stable": true
+      },
+      "compiler_inputs": {
+        "build/bin/polygeist-opt": "7a642aca8ada0b2476a501ed96e4f32570a40e256807aafb0a564dc73833c2a5",
+        "build/bin/cgeist": "cf0e9aadd73f611acf7dd1363f2cdcede2c1a6ca9e036e0c32ee26a2bf870e2d",
+        "scripts/correctness/kernel_match_rewrite.py": "9173f8645a74f915e27bbcbf5ae1a691a881e03621b4dc92cddf4f95ef0faae3",
+        "generic_solver/kernel_library_phase2.mlir": "9c99063553179e46a734897bd193f0da295f0da43d96ace8fdf174a1e59e8f79",
+        "scripts/correctness/kernel_match.py": "075960caa7189e6133a5d16677d318d3c9125dcbcae439c83d2456745c8d2e0a",
+        "scripts/correctness/reproduce_aten_coverage.py": "6d936eb5690c78ab806892a47d68c7afcac93391cb7b7fb8d00c02a5333c5e32"
+      }
+    },
+    {
+      "source_summary": "coverage_convolutions/summary.json",
+      "sha256": "507a312227944d1764c2393b5ebd81a2e3e8172af444a73b751e87702a01365f",
+      "summary": {
+        "cases": 2,
+        "native_external_cases": 2,
+        "any_call": 2,
+        "native_any_call": 2,
+        "complete_abi_candidates": 2,
+        "native_complete_abi_candidates": 2,
+        "gpu_safe_candidates": 2,
+        "native_gpu_safe_candidates": 2,
+        "stable": true
+      },
+      "compiler_inputs": {
+        "build/bin/polygeist-opt": "7a642aca8ada0b2476a501ed96e4f32570a40e256807aafb0a564dc73833c2a5",
+        "build/bin/cgeist": "cf0e9aadd73f611acf7dd1363f2cdcede2c1a6ca9e036e0c32ee26a2bf870e2d",
+        "scripts/correctness/kernel_match_rewrite.py": "0afc2481962201db51b1a4114451bb66cc7de8911fc7204c6a2358d3eb693b85",
+        "generic_solver/kernel_library_phase2.mlir": "9c99063553179e46a734897bd193f0da295f0da43d96ace8fdf174a1e59e8f79",
+        "scripts/correctness/kernel_match.py": "075960caa7189e6133a5d16677d318d3c9125dcbcae439c83d2456745c8d2e0a",
+        "scripts/correctness/reproduce_aten_coverage.py": "6d936eb5690c78ab806892a47d68c7afcac93391cb7b7fb8d00c02a5333c5e32"
+      }
+    },
+    {
+      "source_summary": "coverage_softmax/summary.json",
+      "sha256": "df74f84904db2591aa38562e97d7562ba7614e88c64d04f1f6225ce53e2fba92",
+      "summary": {
+        "cases": 1,
+        "native_external_cases": 0,
+        "any_call": 1,
+        "native_any_call": 0,
+        "complete_abi_candidates": 1,
+        "native_complete_abi_candidates": 0,
+        "gpu_safe_candidates": 1,
+        "native_gpu_safe_candidates": 0,
+        "stable": true
+      },
+      "compiler_inputs": {
+        "build/bin/polygeist-opt": "7a642aca8ada0b2476a501ed96e4f32570a40e256807aafb0a564dc73833c2a5",
+        "build/bin/cgeist": "cf0e9aadd73f611acf7dd1363f2cdcede2c1a6ca9e036e0c32ee26a2bf870e2d",
+        "scripts/correctness/kernel_match_rewrite.py": "c212ea78dde54f0654ca2883fd039c4f9fa468552f713ab43c10b34f5670b462",
+        "generic_solver/kernel_library_phase2.mlir": "9c99063553179e46a734897bd193f0da295f0da43d96ace8fdf174a1e59e8f79",
+        "scripts/correctness/kernel_match.py": "075960caa7189e6133a5d16677d318d3c9125dcbcae439c83d2456745c8d2e0a",
+        "scripts/correctness/reproduce_aten_coverage.py": "6d936eb5690c78ab806892a47d68c7afcac93391cb7b7fb8d00c02a5333c5e32"
+      }
+    }
+  ],
+  "combined_complete": 263,
+  "combined_native_complete": 28,
+  "historical_complete": 271,
+  "missing_historical": [
+    "aten_addr_elementwise",
+    "aten_count_nonzero_cpu",
+    "aten_depthwise_conv3x3_cpu",
+    "aten_equal_cpu",
+    "aten_flip_tensor_transform_cpu",
+    "aten_max_all_cpu",
+    "aten_max_values_cpu",
+    "aten_min_all_cpu",
+    "aten_min_values_cpu",
+    "aten_mse_loss",
+    "aten_nested_batch_offsets_cpu"
+  ],
+  "additional": [
+    "aten_cat_sparse_cpu",
+    "aten_rms_norm",
+    "aten_sparse_softmax_offsets_cpu"
+  ]
+}

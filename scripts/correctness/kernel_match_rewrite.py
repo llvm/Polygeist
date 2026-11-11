@@ -18,12 +18,14 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import itertools
 import math
 import re
 import resource
 import sys
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -51,6 +53,8 @@ from structured_loop_egglog import (
 # pass currently knows how to turn into a runtime call; leave the rest as
 # residual Linalg so the normal MLIR lowering path preserves semantics.
 ABI_LOWERABLE_KERNELS = {
+    "cubPrefixMaxLowerBounds_i32_memref",
+    "cudnnAdaptivePool_f32_bilinear_integer_origin_flat2",
     "cubHistogramEvenI32ShiftZero_memref",
     "cublasDtrsvLowerRowMajor_memref",
     "cublasStrsvLowerRowMajor_memref",
@@ -781,7 +785,10 @@ def _enclosing_function_text(text: str, pos: int) -> str:
             depth += 1
         elif text[end] == "}":
             depth -= 1
-            if depth == 0:
+            # Attribute dictionaries precede the function region and may
+            # contain braces too. Only the region containing pos defines
+            # the scalar scope needed by this generic.
+            if depth == 0 and end >= pos:
                 return text[start:end + 1]
     return text[start:]
 
@@ -1020,7 +1027,9 @@ def _is_scalar_alias_submap(text: str, operand: str) -> bool:
 
 
 def _normalize_memref_operands(
-    operands: list[str], operand_types: list[str] | None, indent: str
+    operands: list[str], operand_types: list[str] | None, indent: str,
+    dynamic_inner_stride: bool = False,
+    force_strided: bool = False,
 ) -> tuple[list[str], list[str], list[str]]:
     """For each strided memref operand, emit a memref.cast to a uniform
     `memref<?x?x...xT, strided<[?, ..., 1], offset: ?>>` target type, so the
@@ -1042,7 +1051,8 @@ def _normalize_memref_operands(
     # Capture (rank-dims-prefix, element-type).
     rank_pat = re.compile(r"memref<((?:\?x)+)([\w_]+)(?:,\s*strided<|>)")
     for ssa, ty in zip(operands, operand_types):
-        if not ty.startswith("memref<") or "strided<[" not in ty:
+        if not ty.startswith("memref<") or (
+                "strided<[" not in ty and not dynamic_inner_stride and not force_strided):
             new_ssas.append(ssa); new_types.append(ty); continue
         m = rank_pat.match(ty)
         if not m:
@@ -1058,7 +1068,7 @@ def _normalize_memref_operands(
         layout = re.search(r"strided<\[([^]]+)\]", ty)
         innermost_dynamic = bool(
             layout and layout.group(1).split(",")[-1].strip() == "?")
-        if innermost_dynamic:
+        if innermost_dynamic or dynamic_inner_stride:
             strides = "[" + ", ".join(["?"] * rank) + "]"
         elif rank == 1:
             strides = "[1]"
@@ -1246,9 +1256,9 @@ def _parse_static_tensor_submap_offset(
     return (base, (y, x)) if y is not None and x is not None else None
 
 
-def _affine_polynomial(expr: str) -> dict[tuple[int, ...], int] | None:
+def _affine_polynomial(expr: str, rank: int = 3) -> dict[tuple[int, ...], int] | None:
     """Parse the small integer-polynomial subset used by flattened submaps."""
-    variables = ("d0", "d1", "d2", "s0", "s1")
+    variables = tuple(f"d{i}" for i in range(rank)) + ("s0", "s1")
     zero_power = (0,) * len(variables)
 
     def add(lhs, rhs, scale=1):
@@ -2011,6 +2021,38 @@ def _regular_window_conv2d_info(
     return (base, base_type, kh, kw, sh, sw, dh, dw, 0, 0)
 
 
+def _conv3d_bias_slice_writeback(text, init, conv):
+    """Prove that the convolution reads exactly the slice initialized by bias."""
+    value = r'%[\w.$-]+'
+    function = _enclosing_function_text(text, init.span[0])
+    start = text.rfind('func.func', 0, init.span[0])
+    init_out, conv_out = _extract_ssa_names(init.outs_part), _extract_ssa_names(conv.outs_part)
+    if len(init_out) != 1 or len(conv_out) != 1:
+        return False
+    a = _tensor_extract_slice_info(function,init_out[0],init.span[0]-start)
+    b = _tensor_extract_slice_info(function,conv_out[0],conv.span[0]-start)
+    if a is None or b is None:
+        return False
+    def normalize(items):
+        return [int(x) if x.lstrip('-').isdigit() else _constant_index_value(function,x) for x in items]
+    if (normalize(a['offsets']) != normalize(b['offsets']) or
+            normalize(a['sizes']) != normalize(b['sizes']) or
+            normalize(a['strides']) != normalize(b['strides']) or
+            any(x is None for key in ['offsets','sizes','strides'] for x in normalize(a[key]))):
+        return False
+    insertion = re.search(rf'{re.escape(b["source"])}\s*=\s*tensor\.insert_slice\s+{re.escape(init.result_ssa)}\s+into\s+{re.escape(a["source"])}\[([^]]+)\]\s*\[([^]]+)\]\s*\[([^]]+)\]',text[init.span[1]:conv.span[0]])
+    if insertion is None or any(normalize([x.strip() for x in insertion[j].split(',')]) != normalize(a[key]) for j,key in enumerate(['offsets','sizes','strides'],1)):
+        return False
+    init_chunk = text[init.span[0]:init.span[1]]
+    conv_chunk = text[conv.span[0]:conv.span[1]]
+    maps = lambda chunk: [_compact_affine_map(_resolve_affine_map_text(text,m.strip())) for m in re.search(r'indexing_maps\s*=\s*\[([^]]+)\]',chunk)[1].split(',')]
+    if maps(init_chunk) != ['affine_map<(d0,d1,d2,d3)->(d0)>','affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>'] or maps(conv_chunk) != ['affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d0,d1,d2,d3,d4,d5,d6,d7)>','affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d0,d4,d5,d6,d7)>','affine_map<(d0,d1,d2,d3,d4,d5,d6,d7)->(d0,d1,d2,d3)>']:
+        return False
+    if not re.search(rf'\^bb0\((?P<a>{value}):\s*f32,\s*(?P<b>{value}):\s*f32,\s*(?P<old>{value}):\s*f32\):\s*(?P<p>{value})\s*=\s*arith\.mulf\s+(?P=a),\s*(?P=b)\s*:\s*f32\s*(?P<s>{value})\s*=\s*arith\.addf\s+(?P=old),\s*(?P=p)\s*:\s*f32\s*linalg\.yield\s+(?P=s)\s*:\s*f32\s*\}}',conv_chunk):
+        return False
+    return all(re.fullmatch(rf'\s*{value}\s*=\s*(?:tensor\.insert_slice|tensor\.extract_slice|polygeist\.submap)\s*[^\n]+',line) for line in text[init.span[1]:conv.span[0]].strip().splitlines())
+
+
 def _is_forward_conv3d_window(text: str, operand: str) -> bool:
     """Prove a rank-8 view is the valid-forward Conv3D input window."""
     definition = re.search(
@@ -2633,6 +2675,38 @@ def _render_whisper_exp_shift_sum_launch(
     )
 
 
+@lru_cache(maxsize=None)
+def _tensor_abi_signature(name: str):
+    """Read tensor interfaces from the executable library declarations."""
+    library = (Path(__file__).resolve().parents[2] /
+               "generic_solver/kernel_library_phase2.mlir").read_text()
+    declaration = re.search(
+        rf"kernel\.defn\s+@{re.escape(name)}\s*\(([^{{}}]*?)\)\s*->\s*"
+        rf"(tensor<[^>]+>|\([^)]*\))\s*\{{(.*?)\n?\s*\}}",
+        library, re.DOTALL)
+    if declaration is None:
+        return None
+    arguments = re.findall(
+        r"(%[\w.$-]+)\s*:\s*(tensor<[^>]+>|[if]\d+|index)",
+        declaration.group(1))
+    # This adapter is only for entirely tensor/scalar interfaces. Memref
+    # interfaces retain their explicit layout contracts and lowering route.
+    if "memref<" in declaration.group(1):
+        return None
+    results = re.findall(r"tensor<[^>]+>", declaration.group(2))
+    yields = re.findall(r"kernel\.yield\s+([^:\n]+)", declaration.group(3))
+    names = [argument[0] for argument in arguments]
+    destinations = []
+    if yields:
+        values = [value.strip() for value in yields[-1].split(",")]
+        if len(values) == len(results) and all(value in names for value in values):
+            destinations = [names.index(value) for value in values]
+    return [argument[1] for argument in arguments], results, destinations
+
+
+_tensor_abi_ids = itertools.count()
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -2652,13 +2726,51 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     operand_types : explicit types for the tensor `operands` list (same order).
     scalar_type_map : SSA→type lookup for Cap-bound scalars.
     """
+    # Mixed-form Linalg can read memrefs while returning tensors. Preserve
+    # those views through explicit to_tensor operations when the selected ABI
+    # expects tensors. For a buffer-only operation, the declaration's yielded
+    # destination arguments identify the results that must be written back.
+    abi_prefix, abi_suffix = [], []
+    signature = _tensor_abi_signature(name)
+    if signature and operand_types:
+        expected, results, destinations = signature
+        converted = list(operands)
+        converted_types = list(operand_types)
+        uid = next(_tensor_abi_ids)
+        for index, (operand, actual, wanted) in enumerate(zip(
+                operands, operand_types, expected)):
+            if actual.startswith("memref<") and wanted.startswith("tensor<"):
+                shape = actual[len("memref<"):].split(",", 1)[0].rstrip(">")
+                tensor_type = f"tensor<{shape}>"
+                tensor = f"%kernel_abi_{uid}_{index}"
+                abi_prefix.append(
+                    f"{indent}{tensor} = bufferization.to_tensor {operand} : {actual}")
+                converted[index], converted_types[index] = tensor, tensor_type
+        if result_ssa is None and destinations and all(
+                index < len(operand_types) and operand_types[index].startswith("memref<")
+                for index in destinations):
+            result_ssa = f"%kernel_abi_result_{uid}"
+            result_count = len(results)
+            result_type = results[0] if len(results) == 1 else "(" + ", ".join(results) + ")"
+            for index, destination in enumerate(destinations):
+                result = result_ssa if len(results) == 1 else f"{result_ssa}#{index}"
+                memref = f"%kernel_abi_output_{uid}_{index}"
+                original, original_type = operands[destination], operand_types[destination]
+                abi_suffix.extend([
+                    f"{indent}{memref} = bufferization.to_memref {result} : {original_type}",
+                    f"{indent}memref.copy {memref}, {original} : {original_type} to {original_type}"])
+        operands, operand_types = converted, converted_types
+
     # First: normalize strided memref operand types via memref.cast so they
     # match the canonical kernel.defn signature (which uses dynamic-stride
     # placeholders like `strided<[?, 1], offset: ?>` to accept any concrete
     # subview shape).
     cast_lines, operands, operand_types = _normalize_memref_operands(
-        operands, operand_types, indent
+        operands, operand_types, indent,
+        dynamic_inner_stride=(name == "cudaCopy1D_f32_memref"),
+        force_strided=(name == "cublasSaxpby_memref"),
     )
+    cast_lines = abi_prefix + cast_lines
     tensor_cast_lines, operands, operand_types = _normalize_tensor_operands(
         operands, operand_types, indent
     )
@@ -2821,7 +2933,7 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     return (
         f"{cast_prefix}{indent}{result_bind} = kernel.launch "
         f"@{name}({operand_str}){launch_attrs} : {sig} -> {launch_result_type}"
-        f"{result_cast}"
+        f"{result_cast}" + ("\n" + "\n".join(abi_suffix) if abi_suffix else "")
     )
 
 
@@ -6521,6 +6633,1134 @@ def _render_zeroed_i32_histograms(
     return results
 
 
+def _render_joint_maxabs_products(text, instances, bodies, body_forms):
+    """Recognize two ordered, zero-seeded absolute maxima and their product."""
+    edits = []
+    value = r'%[\w.$-]+'
+    for i in range(len(instances) - 1):
+        pair = instances[i:i + 2]
+        function = _enclosing_function_text(text, pair[0].span[0])
+        if (body_forms[i:i + 2] != ['tensor'] * 2 or function.count('linalg.generic') != 2 or
+                function != _enclosing_function_text(text, pair[1].span[0])):
+            continue
+        inputs = []
+        legal = True
+        for j, inst in enumerate(pair, i):
+            if (inst.result_type != 'tensor<f32>' or bodies[j].iterator_types != ['reduction'] or
+                    [_compact_affine_map(m) for m in bodies[j].indexing_maps] != ['affine_map<(d0)->(d0)>','affine_map<(d0)->()>']):
+                legal = False; break
+            ins, outs = _extract_ssa_names(inst.ins_part), _extract_ssa_names(inst.outs_part)
+            if len(ins) != 1 or len(outs) != 1:
+                legal = False; break
+            seed = re.search(rf'{re.escape(outs[0])}\s*=\s*tensor\.insert\s+({value})\s+into\s+{value}\[\]\s*:\s*tensor<f32>', function)
+            if seed is None or parse_constants(function).get(seed[1]) != 0:
+                legal = False; break
+            body = re.search(
+                rf'\^bb0\((?P<x>{value}):\s*f32,\s*(?P<old>{value}):\s*f32\):\s*'
+                rf'(?P<negative>{value})\s*=\s*arith\.cmpf\s+olt,\s*(?P=x),\s*{re.escape(seed[1])}\s*:\s*f32\s*'
+                rf'(?P<negated>{value})\s*=\s*arith\.negf\s+(?P=x)\s*:\s*f32\s*'
+                rf'(?P<abs>{value})\s*=\s*arith\.select\s+(?P=negative),\s*(?P=negated),\s*(?P=x)\s*:\s*f32\s*'
+                rf'(?P<greater>{value})\s*=\s*arith\.cmpf\s+ogt,\s*(?P=abs),\s*(?P=old)\s*:\s*f32\s*'
+                rf'(?P<result>{value})\s*=\s*arith\.select\s+(?P=greater),\s*(?P=abs),\s*(?P=old)\s*:\s*f32\s*'
+                rf'linalg\.yield\s+(?P=result)\s*:\s*f32\s*\}}', text[inst.span[0]:inst.span[1]])
+            source = _to_tensor_memref_source(text, ins[0], inst.span[0])
+            if body is None or source is None or source[1] != 'memref<?xf32>':
+                legal = False; break
+            inputs.append(source[0])
+        if not legal:
+            continue
+        middle = text[pair[0].span[1]:pair[1].span[0]]
+        if any(not re.fullmatch(rf'\s*{value}\s*=\s*(?:memref\.reinterpret_cast|bufferization\.to_tensor)\s+[^\n]+', line) for line in middle.strip().splitlines()):
+            continue
+        tail = re.match(
+            rf'\s*(?P<a>{value})\s*=\s*tensor\.extract\s+{re.escape(pair[0].result_ssa)}\[\]\s*:\s*tensor<f32>\s*'
+            rf'(?P<b>{value})\s*=\s*tensor\.extract\s+{re.escape(pair[1].result_ssa)}\[\]\s*:\s*tensor<f32>\s*'
+            rf'(?P<product>{value})\s*=\s*arith\.mulf\s+(?:(?P=a),\s*(?P=b)|(?P=b),\s*(?P=a))\s*:\s*f32\s*'
+            rf'(?P<insert>{value})\s*=\s*tensor\.insert\s+(?P=product)\s+into\s+(?P<output>{value})\[(?P<zero>{value})\]\s*:\s*tensor<\?xf32>\s*'
+            rf'(?P<memref>{value})\s*=\s*bufferization\.to_memref\s+(?P=insert)\s*:\s*memref<\?xf32>\s*'
+            rf'memref\.copy\s+(?P=memref),\s*(?P<dest>{value})\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>', text[pair[1].span[1]:])
+        if tail is None or _constant_index_value(function, tail['zero']) != 0:
+            continue
+        dest = _to_tensor_memref_source(text, tail['output'], pair[0].span[0])
+        if dest != (tail['dest'],'memref<?xf32>'):
+            continue
+        end = pair[1].span[1] + tail.end()
+        start = text.rfind('func.func',0,pair[0].span[0])
+        if not re.fullmatch(r'\s*return\s*\}',text[end:start + len(function)]):
+            continue
+        symbol = 'cublasJointMaxAbsProduct_f32_memref'
+        line = f'kernel.launch @{symbol}({inputs[0]}, {inputs[1]}, {dest[0]}) : (memref<?xf32>, memref<?xf32>, memref<?xf32>) -> ()'
+        edits.append((pair[0].span[0],end,middle + '    ' + line,symbol,[i,i+1]))
+    return edits
+
+
+def _render_prefix_lower_bounds(text):
+    """Map a guarded advancing cursor to CUB prefix maxima and rank queries."""
+    value = r'%[\w.$-]+'
+    edits = []
+    pattern = re.compile(
+        rf'(?P<slot>{value})\s*=\s*memref\.alloca\(\)\s*:\s*memref<i32>\s*'
+        rf'affine\.store\s+(?P<zero>{value}),\s*(?P=slot)\[\]\s*:\s*memref<i32>\s*'
+        rf'affine\.for\s+(?P<row>{value})\s*=\s*0 to (?P<queries>[1-9]\d*)\s*\{{\s*'
+        rf'(?P<start>{value})\s*=\s*affine\.load\s+(?P=slot)\[\]\s*:\s*memref<i32>\s*'
+        rf'(?P<threshold>{value})\s*=\s*arith\.index_cast\s+(?P=row)\s*:\s*index to i32\s*'
+        rf'(?P<result>{value})\s*=\s*scf\.while\s*\((?P<cursor>{value})\s*=\s*(?P=start)\)\s*:\s*\(i32\)\s*->\s*i32\s*\{{\s*'
+        rf'(?P<bounded>{value})\s*=\s*arith\.cmpi\s+slt,\s*(?P=cursor),\s*(?P<count>{value})\s*:\s*i32\s*'
+        rf'(?P<guard>{value}):2\s*=\s*scf\.if\s+(?P=bounded)\s*->\s*\(i1,\s*i32\)\s*\{{\s*'
+        rf'(?P<index>{value})\s*=\s*arith\.index_cast\s+(?P=cursor)\s*:\s*i32 to index\s*'
+        rf'(?P<loaded>{value})\s*=\s*memref\.load\s+(?P<input>{value})\[(?P=index)\]\s*:\s*(?P<input_type>memref<(?:\?|[1-9]\d*)xi32>)\s*'
+        rf'(?P<advance>{value})\s*=\s*arith\.cmpi\s+slt,\s*(?P=loaded),\s*(?P=threshold)\s*:\s*i32\s*'
+        rf'(?P<increment>{value})\s*=\s*arith\.addi\s+(?P=cursor),\s*(?P<one>{value})\s*:\s*i32\s*'
+        rf'(?P<next>{value})\s*=\s*arith\.select\s+(?P=advance),\s*(?P=increment),\s*(?P=cursor)\s*:\s*i32\s*'
+        rf'scf\.yield\s+(?P=advance),\s*(?P=next)\s*:\s*i1,\s*i32\s*\}}\s*else\s*\{{\s*'
+        rf'scf\.yield\s+(?P<false>{value}),\s*(?P=cursor)\s*:\s*i1,\s*i32\s*\}}\s*'
+        rf'scf\.condition\((?P=guard)#0\)\s*(?P=guard)#1\s*:\s*i32\s*\}}\s*do\s*\{{\s*'
+        rf'\^bb0\((?P<carry>{value}):\s*i32\):\s*scf\.yield\s+(?P=carry)\s*:\s*i32\s*\}}\s*'
+        rf'affine\.store\s+(?P=result),\s*(?P<output>{value})\[(?P=row)\]\s*:\s*(?P<output_type>memref<(?:\?|[1-9]\d*)xi32>)\s*'
+        rf'affine\.store\s+(?P=result),\s*(?P=slot)\[\]\s*:\s*memref<i32>\s*\}}')
+    for match in pattern.finditer(text):
+        function = _enclosing_function_text(text,match.start())
+        constants = parse_constants(function)
+        count = constants.get(match['count'])
+        rows = int(match['queries'])-1
+        if (count is None or count < 0 or count >= 2**31 or int(count) != count or
+                rows > 2**31-4 or constants.get(match['zero']) != 0 or
+                constants.get(match['one']) != 1 or
+                not re.search(rf'{re.escape(match["false"])}\s*=\s*arith\.constant false',function) or
+                match['input'] == match['output'] or
+                not _plain_shape_compatible(match['input_type'],'i32',[int(count)]) or
+                not _plain_shape_compatible(match['output_type'],'i32',[rows+1])):
+            continue
+        function_start = text.rfind('func.func',0,match.start())
+        if not re.fullmatch(r'\s*return\s*\}',text[match.end():function_start+len(function)]):
+            continue
+        symbol = 'cubPrefixMaxLowerBounds_i32_memref'
+        stem = f'%prefix_bounds_{match.start()}'
+        lines = [f'{stem}_rows = arith.constant {rows} : index']
+        operands = [stem+'_rows']
+        for j,(base,ty,size) in enumerate([(match['input'],match['input_type'],int(count)),(match['output'],match['output_type'],rows+1)]):
+            target = stem+f'_v{j}'
+            lines += [f'{target}_static = memref.reinterpret_cast {base} to offset: [0], sizes: [{size}], strides: [1] : {ty} to memref<{size}xi32>', f'{target} = memref.cast {target}_static : memref<{size}xi32> to memref<?xi32>']
+            operands.append(target)
+        lines += [f'kernel.launch @{symbol}({", ".join(operands)}) : (index, memref<?xi32>, memref<?xi32>) -> ()']
+        edits.append((match.start(),match.end(),'\n    '.join(lines),symbol))
+    return edits
+
+
+def _render_integer_origin_bilinear(text, instances, bodies, body_forms):
+    """Prove bounded index arithmetic and the four bilinear interpolation taps."""
+    edits = []
+    value = r'%[\w.$-]+'
+    for i, inst in enumerate(instances):
+        chunk = text[inst.span[0]:inst.span[1]]
+        function = _enclosing_function_text(text, inst.span[0])
+        outs = _extract_ssa_names(inst.outs_part)
+        if (body_forms[i] != 'memref' or function.count('linalg.generic') != 1 or
+                _extract_ssa_names(inst.ins_part) or len(outs) != 1 or
+                re.findall(r'"(parallel|reduction)"',chunk) != ['parallel']*4 or
+                [_compact_affine_map(m) for m in bodies[i].indexing_maps] != ['affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>']):
+            continue
+        view = re.search(rf'{re.escape(outs[0])}\s*=\s*polygeist\.submap\(\s*({value}),\s*([^)]*)\)\s*\{{map\s*=\s*([^}}]+)\}}\s*:\s*\((memref<[^>]+>),[^)]*\)\s*->\s*memref<[^>]+>',function)
+        if view is None or _compact_affine_map(_resolve_affine_map_text(text,view[3])) != 'affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>':
+            continue
+        shape = [_constant_index_value(function,x.strip()) for x in view[2].split(',')]
+        if len(shape) != 4 or any(x is None or x <= 0 or x >= 2**30 for x in shape) or shape[2]%2 or shape[3]%2:
+            continue
+        n,c,oh,ow = shape
+        h,w = oh//2,ow//2
+        if math.prod(shape) >= 2**31 or not _plain_shape_compatible(view[4],'f32',shape):
+            continue
+        body = re.search(r'\^bb0\([^)]*\):\s*(.*?)\s*linalg\.yield\s+(%[\w.$-]+)\s*:\s*f32\s*\}',chunk,re.S)
+        if body is None:
+            continue
+        # Each expression carries integer bounds where available. They justify
+        # signed division, casts, and elimination of impossible negative paths.
+        expr = {k:(v,v,v) for k,v in parse_constants(function).items()}
+        loads = []
+        legal = True
+        for line in body[1].strip().splitlines():
+            op = re.fullmatch(rf'\s*({value})\s*=\s*(\w+\.\w+)\s+(.*?)\s*:\s*(.+)',line)
+            if op is None:
+                legal = False; break
+            dest,kind,args,ty = op.groups()
+            if kind == 'linalg.index' and ty == 'index' and args.isdigit() and int(args) < 4:
+                d = int(args);expr[dest] = (('dim',d),0,shape[d]-1);continue
+            if kind == 'memref.load':
+                load = re.fullmatch(rf'({value})\[([^]]+)\]',args)
+                indices = [a.strip() for a in load[2].split(',')] if load else []
+                if load is None or len(indices) != 4 or any(a not in expr for a in indices) or not _plain_shape_compatible(ty,'f32',[n,c,h,w]):
+                    legal = False;break
+                loads.append((load[1],ty))
+                expr[dest] = (('load',tuple(expr[a][0] for a in indices)),None,None);continue
+            if kind in ('arith.index_cast','arith.sitofp'):
+                if args not in expr or (kind == 'arith.index_cast' and ty not in ('index to i32','i32 to index')) or (kind == 'arith.sitofp' and ty != 'i32 to f32'):
+                    legal = False;break
+                a = expr[args]
+                limit = 2**24 if kind == 'arith.sitofp' else 2**31-1
+                if a[1] is None or a[1] < -limit or a[2] > limit:
+                    legal = False;break
+                expr[dest] = a;continue
+            parts = [a.strip() for a in args.split(',')]
+            predicate = parts.pop(0) if kind == 'arith.cmpi' else None
+            if any(a not in expr for a in parts):
+                legal = False;break
+            operands = [expr[a] for a in parts]
+            if kind == 'arith.select' and len(operands) == 3 and ty in ('i32','index'):
+                cond,a,b = operands
+                if cond[1] == cond[2] and cond[1] is not None:
+                    expr[dest] = a if cond[1] else b
+                elif None not in (a[1],a[2],b[1],b[2]):
+                    expr[dest] = (('select',cond[0],a[0],b[0]),min(a[1],b[1]),max(a[2],b[2]))
+                else:
+                    legal = False;break
+                continue
+            if len(operands) != 2:
+                legal = False;break
+            a,b = operands
+            if kind in ('arith.mulf','arith.addf','arith.subf') and ty == 'f32':
+                expr[dest] = ((kind[6:],a[0],b[0]),None,None);continue
+            if ty not in ('i32','index') or None in (a[1],a[2],b[1],b[2]):
+                legal = False;break
+            if kind == 'arith.cmpi' and predicate == 'slt':
+                if a[2] < b[1] or a[1] >= b[2]:
+                    result = int(a[2] < b[1]);expr[dest] = (result,result,result)
+                else:
+                    expr[dest] = (('slt',a[0],b[0]),0,1)
+            elif kind in ('arith.addi','arith.subi'):
+                low,high = (a[1]+b[1],a[2]+b[2]) if kind == 'arith.addi' else (a[1]-b[2],a[2]-b[1])
+                limit = 2**31 if ty == 'i32' else 2**63
+                if low < -limit or high >= limit:
+                    legal = False;break
+                expr[dest] = ((kind[6:],a[0],b[0]),low,high)
+            elif kind in ('arith.divsi','arith.remsi') and b[1] == b[2] and b[1] > 0 and a[1] >= 0:
+                expr[dest] = (('floor' if kind == 'arith.divsi' else 'mod',a[0],b[1]),a[1]//b[1] if kind == 'arith.divsi' else 0,a[2]//b[1] if kind == 'arith.divsi' else min(a[2],b[1]-1))
+            else:
+                legal = False;break
+        if not legal or len(loads) != 4 or len(set(loads)) != 1 or body[2] not in expr or loads[0][0] == view[1]:
+            continue
+        dim = lambda d: ('dim',d)
+        floor = lambda d: ('floor',dim(d),2)
+        edge = lambda d,bound: ('select',('slt',('addi',floor(d),1),bound),('addi',floor(d),1),floor(d))
+        fraction = lambda d: ('mulf',('mod',dim(d),2),0.5)
+        fh,fw = fraction(2),fraction(3)
+        load = lambda y,x: ('load',(dim(0),dim(1),y,x))
+        row = lambda y: ('addf',('mulf',('subf',1,fw),load(y,floor(3))),('mulf',fw,load(y,edge(3,w))))
+        expected = ('addf',('mulf',('subf',1,fh),row(floor(2))),('mulf',fh,row(edge(2,h))))
+        if expr[body[2]][0] != expected:
+            continue
+        symbol = 'cudnnAdaptivePool_f32_bilinear_integer_origin_flat2'
+        stem = f'%integer_bilinear_{i}'
+        lines,scalars = [],[]
+        for j,k in enumerate([7,2,n,c,h,w,1,oh,ow,1]):
+            operand = stem+f'_p{j}';lines.append(f'{operand} = arith.constant {k} : i32');scalars.append(operand)
+        buffers = []
+        for j,(source,ty,count) in enumerate([(loads[0][0],loads[0][1],n*c*h*w),(view[1],view[4],n*c*oh*ow)]):
+            operand = stem+f'_b{j}'
+            lines += [f'{operand}_static = memref.reinterpret_cast {source} to offset: [0], sizes: [{count}], strides: [1] : {ty} to memref<{count}xf32>',f'{operand} = memref.cast {operand}_static : memref<{count}xf32> to memref<?xf32>']
+            buffers.append(operand)
+        lines += [f'kernel.launch @{symbol}({", ".join(scalars+buffers)}) : ({", ".join(["i32"]*10+["memref<?xf32>"]*2)}) -> ()']
+        edits.append((inst.span[0],inst.span[1],'\n    '.join(lines),symbol,[i]))
+    return edits
+
+
+def _render_tensor_scattered_convolutions(text, instances, bodies, body_forms):
+    """Prove a full NCHW transposed convolution through tensor loop carries."""
+    edits = []
+    value = r'%[\w.$-]+'
+    loops = parse_loops(text)
+    for i, inst in enumerate(instances):
+        if body_forms[i] != 'tensor':
+            continue
+        enclosing = sorted((loop for loop in loops if loop.span[0] < inst.span[0] < inst.span[1] < loop.span[1]), key=lambda loop: loop.span[0])
+        if len(enclosing) not in (3, 4):
+            continue
+        headers = []
+        for loop in enclosing:
+            start = text.rfind('\n', 0, loop.span[0]) + 1
+            header = re.fullmatch(rf'\s*({value})\s*=\s*affine\.for\s+({value})\s*=\s*0 to ([1-9]\d*) iter_args\(({value})\s*=\s*({value})\)\s*->\s*\((tensor<[^>]+>)\)\s*\{{', text[start:text.index('{', loop.span[0])+1])
+            if header is None:
+                break
+            headers.append((start, *header.groups()))
+        if len(headers) != len(enclosing):
+            continue
+        function = _enclosing_function_text(text, inst.span[0])
+        function_start = text.rfind('func.func', 0, inst.span[0])
+        chunk = text[inst.span[0]:inst.span[1]]
+        raw_maps = re.search(r'indexing_maps\s*=\s*\[([^]]+)\]', chunk)
+        if (function.count('linalg.generic') != 2 or raw_maps is None or
+                re.findall(r'"(parallel|reduction)"', chunk) != ['parallel'] * 3 or
+                [_compact_affine_map(_resolve_affine_map_text(text, m.strip())) for m in raw_maps[1].split(',')] != ['affine_map<(d0,d1,d2)->()>', 'affine_map<(d0,d1,d2)->(d0,d1,d2)>', 'affine_map<(d0,d1,d2)->(d0,d1,d2)>']):
+            continue
+        semantics = re.search(
+            rf'\^bb0\((?P<a>{value}):\s*f32,\s*(?P<b>{value}):\s*f32,\s*(?P<old>{value}):\s*f32\):\s*'
+            rf'(?P<p>{value})\s*=\s*arith\.mulf\s+(?P=a),\s*(?P=b)\s*:\s*f32\s*'
+            rf'(?P<s>{value})\s*=\s*arith\.addf\s+(?P=old),\s*(?P=p)\s*:\s*f32\s*'
+            rf'linalg\.yield\s+(?P=s)\s*:\s*f32\s*\}}\s*->\s*tensor<[^>]+>\s*$', chunk)
+        ins, outs = _extract_ssa_names(inst.ins_part), _extract_ssa_names(inst.outs_part)
+        if semantics is None or len(ins) != 2 or len(outs) != 1:
+            continue
+        prefix = text[text.index('{', enclosing[-1].span[0])+1:inst.span[0]]
+        view_lines = [line.strip() for line in prefix.strip().splitlines()]
+        views = []
+        if len(view_lines) != 3:
+            continue
+        for operand, line in zip(ins+outs, view_lines):
+            view = re.fullmatch(rf'{re.escape(operand)}\s*=\s*tensor\.extract_slice\s+({value})\[([^]]+)\]\s*\[([^]]+)\]\s*\[([^]]+)\]\s*:\s*(tensor<[^>]+>)\s*to\s*tensor<[^>]+>', line)
+            if view is None:
+                break
+            views.append(dict(base=view[1], offsets=[x.strip() for x in view[2].split(',')], sizes=[x.strip() for x in view[3].split(',')], strides=[x.strip() for x in view[4].split(',')], type=view[5]))
+        if len(views) != 3:
+            continue
+        iv = (['0'] if len(headers) == 3 else []) + [h[2] for h in headers]
+        batch, ic, height, width = ([1] if len(headers) == 3 else []) + [int(h[3]) for h in headers]
+        size = lambda s: int(s) if s.isdigit() else _constant_index_value(function, s)
+        sizes = [[size(s) for s in v['sizes']] for v in views]
+        if (sizes[0] != [1]*4 or len(sizes[1]) != 4 or sizes[1] != sizes[2] or sizes[1][0] != 1 or
+                any(x is None or x <= 0 for x in sizes[1]) or
+                [v['offsets'] for v in views] != [iv, [iv[1],'0','0','0'], [iv[0],'0',iv[2],iv[3]]] or
+                any(v['strides'] != ['1']*4 for v in views) or views[2]['base'] != headers[-1][4]):
+            continue
+        _, oc, kh, kw = sizes[1]
+        shapes = [[batch,ic,height,width], [ic,oc,kh,kw], [batch,oc,height+kh-1,width+kw-1]]
+        # Each carry is used exclusively by the next loop and returned unchanged
+        # except for the proven convolution update. Reject additional observers.
+        legal = True
+        for j, (outer, inner) in enumerate(zip(enclosing,enclosing[1:])):
+            if (headers[j+1][5] != headers[j][4] or headers[j+1][6] != headers[j][6] or
+                    text[text.index('{',outer.span[0])+1:headers[j+1][0]].strip() or
+                    not re.fullmatch(rf'\s*affine\.yield\s+{re.escape(headers[j+1][1])}\s*:\s*{re.escape(headers[j][6])}\s*',text[inner.span[1]:outer.span[1]-1])):
+                legal = False
+        offsets = r',\s*'.join(map(re.escape,views[2]['offsets']))
+        extents = r',\s*'.join(map(re.escape,views[2]['sizes']))
+        leaf_tail = re.fullmatch(rf'\s*({value})\s*=\s*tensor\.insert_slice\s+{re.escape(inst.result_ssa)}\s+into\s+{re.escape(headers[-1][4])}\[{offsets}\]\s*\[{extents}\]\s*\[1,\s*1,\s*1,\s*1\]\s*:\s*tensor<[^>]+>\s+into\s+{re.escape(headers[-1][6])}\s*affine\.yield\s+\1\s*:\s*{re.escape(headers[-1][6])}\s*',text[inst.span[1]:enclosing[-1].span[1]-1])
+        if not legal or leaf_tail is None:
+            continue
+        init_candidates = [(j,x) for j,x in enumerate(instances) if function_start < x.span[0] < headers[0][0]]
+        if len(init_candidates) != 1:
+            continue
+        init_i, init = init_candidates[0]
+        init_out = _extract_ssa_names(init.outs_part)
+        if body_forms[init_i] != 'tensor' or _extract_ssa_names(init.ins_part) or len(init_out) != 1:
+            continue
+        initial_view = _tensor_extract_slice_info(function,init_out[0],init.span[0]-function_start)
+        initial_chunk = text[init.span[0]:init.span[1]]
+        initial_maps = re.search(r'indexing_maps\s*=\s*\[([^]]+)\]',initial_chunk)
+        zero = re.search(rf'\^bb0\({value}:\s*f32\):\s*linalg\.yield\s+({value})\s*:\s*f32\s*\}}',initial_chunk)
+        if (initial_view is None or initial_maps is None or zero is None or parse_constants(function).get(zero[1]) != 0 or
+                re.findall(r'"(parallel|reduction)"',initial_chunk) != ['parallel']*len(headers) or
+                _compact_affine_map(_resolve_affine_map_text(text,initial_maps[1].strip())) != ('affine_map<(d0,d1,d2,d3)->(d0,d1,d2,d3)>' if len(headers) == 4 else 'affine_map<(d0,d1,d2)->(d0,d1,d2)>') or
+                initial_view['offsets'] != ['0']*4 or initial_view['strides'] != ['1']*4 or
+                [size(s) for s in initial_view['sizes']] != shapes[2]):
+            continue
+        initial_sizes = r',\s*'.join(map(re.escape,initial_view['sizes']))
+        init_tail = re.fullmatch(rf'\s*{re.escape(headers[0][5])}\s*=\s*tensor\.insert_slice\s+{re.escape(init.result_ssa)}\s+into\s+{re.escape(initial_view["source"])}\[0,\s*0,\s*0,\s*0\]\s*\[{initial_sizes}\]\s*\[1,\s*1,\s*1,\s*1\]\s*:\s*tensor<[^>]+>\s+into\s+{re.escape(headers[0][6])}\s*',text[init.span[1]:headers[0][0]])
+        sources = [_to_tensor_memref_source(function,v,inst.span[0]-function_start) for v in [views[0]['base'],views[1]['base'],initial_view['source']]]
+        if init_tail is None or any(s is None for s in sources) or len({s[0] for s in sources}) != 3 or any(not _plain_shape_compatible(s[1],'f32',shape) for s,shape in zip(sources,shapes)):
+            continue
+        tail = re.fullmatch(rf'\s*({value})\s*=\s*bufferization\.to_memref\s+{re.escape(headers[0][1])}\s*:\s*{re.escape(sources[2][1])}\s*memref\.copy\s+\1,\s*{re.escape(sources[2][0])}\s*:\s*{re.escape(sources[2][1])}\s+to\s+{re.escape(sources[2][1])}\s*return\s*\}}',text[enclosing[0].span[1]:function_start+len(function)])
+        if tail is None:
+            continue
+        lines,operands = [],[]
+        dynamic = 'memref<?x?x?x?xf32>'
+        for j, ((source,ty),shape) in enumerate(zip(sources,shapes)):
+            stem = f'%tensor_scatter_{i}_{j}'
+            static = 'memref<'+'x'.join(map(str,shape))+'xf32>'
+            strides = [math.prod(shape[k+1:]) for k in range(4)]
+            lines += [f'{stem}_static = memref.reinterpret_cast {source} to offset: [0], sizes: [{", ".join(map(str,shape))}], strides: [{", ".join(map(str,strides))}] : {ty} to {static}', f'{stem} = memref.cast {stem}_static : {static} to {dynamic}']
+            operands.append(stem)
+        symbol = 'cudnnConvolutionTranspose2D_f32_memref'
+        lines += [f'kernel.launch @{symbol}({", ".join(operands)}) : ({", ".join([dynamic]*3)}) -> ()', 'return']
+        edits.append((init.span[0],function_start+len(function)-1,'\n    '.join(lines)+'\n  ',symbol,[init_i,i]))
+    return edits
+
+
+def _render_scattered_convolutions(text, instances, bodies, body_forms):
+    """Fuse zero initialization and a complete tensor-convolution scatter nest."""
+    edits = []
+    value = r'%[\w.$-]+'
+    loops = parse_loops(text)
+    for i, inst in enumerate(instances):
+        if body_forms[i] != 'memref':
+            continue
+        enclosing = sorted((loop for loop in loops if loop.span[0] < inst.span[0] < inst.span[1] < loop.span[1]), key=lambda loop: loop.span[0])
+        if len(enclosing) not in (1, 5) or any(loop.kind != 'affine.for' or not re.fullmatch(r'0 to [1-9]\d*', loop.bounds) for loop in enclosing):
+            continue
+        rank = 4 if len(enclosing) == 1 else 3
+        function = _enclosing_function_text(text, inst.span[0])
+        if function.count('linalg.generic') != 1:
+            continue
+        chunk = text[inst.span[0]:inst.span[1]]
+        iterator_types = re.findall(r'"(parallel|reduction)"', chunk)
+        if iterator_types != (['parallel','reduction','parallel','parallel'] if rank == 4 else ['parallel'] * 3):
+            continue
+        identity = 'affine_map<(' + ','.join(f'd{j}' for j in range(rank)) + ')->(' + ','.join(f'd{j}' for j in range(rank)) + ')>'
+        raw_maps = re.search(r'indexing_maps\s*=\s*\[([^]]+)\]', chunk)
+        if raw_maps is None or [_compact_affine_map(_resolve_affine_map_text(text, m.strip())) for m in raw_maps[1].split(',')] != [identity] * 3:
+            continue
+        semantics = re.search(
+            rf'\^bb0\((?P<a>{value}):\s*f32,\s*(?P<b>{value}):\s*f32,\s*(?P<old>{value}):\s*f32\):\s*'
+            rf'(?P<product>{value})\s*=\s*arith\.mulf\s+(?P=a),\s*(?P=b)\s*:\s*f32\s*'
+            rf'(?P<sum>{value})\s*=\s*arith\.addf\s+(?P=old),\s*(?P=product)\s*:\s*f32\s*'
+            rf'linalg\.yield\s+(?P=sum)\s*:\s*f32\s*\}}', chunk)
+        ins, outs = _extract_ssa_names(inst.ins_part), _extract_ssa_names(inst.outs_part)
+        if semantics is None or len(ins) != 2 or len(outs) != 1:
+            continue
+        # Every outer loop contains only the next loop; no observer or extra
+        # update can be dropped by collapsing this whole nest.
+        legal = True
+        for outer, inner in zip(enclosing, enclosing[1:]):
+            begin = text.index('{', outer.span[0]) + 1
+            if (text[begin:inner.span[0]].strip() or not re.fullmatch(r'\s*(?:\{polygeist\.was_parallel\})?\s*', text[inner.span[1]:outer.span[1] - 1])):
+                legal = False
+        leaf = enclosing[-1]
+        prefix = text[text.index('{', leaf.span[0]) + 1:inst.span[0]]
+        if not legal or text[inst.span[1]:leaf.span[1] - 1].strip():
+            continue
+        view_lines = [line.strip() for line in prefix.strip().splitlines()]
+        views = []
+        if len(view_lines) != 3:
+            continue
+        for operand, line in zip(ins + outs, view_lines):
+            view = re.fullmatch(rf'{re.escape(operand)}\s*=\s*polygeist\.submap\(\s*({value}),\s*([^)]*)\)\s*\{{map\s*=\s*([^}}]+)\}}\s*:\s*\((memref<[^>]+>),[^)]*\)\s*->\s*memref<[^>]+>', line)
+            if view is None:
+                legal = False; break
+            views.append(dict(base=view[1],args=[s.strip() for s in view[2].split(',')],map=_compact_affine_map(_resolve_affine_map_text(text,view[3])),type=view[4]))
+        if not legal:
+            continue
+        extents = [[_constant_index_value(function, s) for s in v['args'][-rank:]] for v in views]
+        if any(e is None or e <= 0 for es in extents for e in es) or extents != [extents[0]] * 3:
+            continue
+        iv = [loop.induction for loop in enclosing]
+        bounds = [int(loop.bounds.split()[-1]) for loop in enclosing]
+        if rank == 3:
+            expected_maps = ['affine_map<(d0,d1,d2)[s0,s1,s2,s3]->(s0,s1,s2,s3)>',
+                'affine_map<(d0,d1,d2)[s0,s1]->(s0,s1,d0,d1,d2)>',
+                'affine_map<(d0,d1,d2)[s0,s1,s2,s3]->(s0,d0+s1,d1+s2,d2+s3)>']
+            expected_symbols = [[iv[j] for j in (0,2,3,4)],iv[:2],[iv[j] for j in (1,2,3,4)]]
+            ic, oc, depth, height, width = bounds
+            kd, kh, kw = extents[0]
+            shapes = [[ic,depth,height,width],[ic,oc,kd,kh,kw],[oc,depth+kd-1,height+kh-1,width+kw-1]]
+            symbol = 'cudnnConvolutionTranspose3D_f32_memref'
+        else:
+            expected_maps = ['affine_map<(d0,d1,d2,d3)[s0]->(s0,d0,d1)>',
+                'affine_map<(d0,d1,d2,d3)->(d2,d3,d1)>',
+                'affine_map<(d0,d1,d2,d3)[s0]->(d2+s0,d0,d3)>']
+            expected_symbols = [iv,[],iv]
+            batch, oc, kernel, ic = extents[0]
+            time = bounds[0]
+            shapes = [[time,batch,oc],[kernel,ic,oc],[time+kernel-1,batch,ic]]
+            symbol = 'cudnnConvolutionTBCBackward_f32_memref'
+        if any(v['map'] != m or v['args'][:-rank] != syms or not _plain_shape_compatible(v['type'],'f32',shape) for v,m,syms,shape in zip(views,expected_maps,expected_symbols,shapes)):
+            continue
+        if len({v['base'] for v in views}) != 3:
+            continue
+        # Initialization covers every physical output, including edges.
+        dest = views[2]
+        size = math.prod(shapes[2])
+        init = re.search(
+            rf'({value})\s*=\s*memref\.reinterpret_cast\s+{re.escape(dest["base"])}\s+to\s+offset:\s*\[0\],\s*sizes:\s*\[{size}\],\s*strides:\s*\[1\]\s*:\s*{re.escape(dest["type"])}\s+to\s+memref<{size}xf32>\s*'
+            rf'linalg\.fill\s+ins\(({value})\s*:\s*f32\)\s+outs\(\1\s*:\s*memref<{size}xf32>\)\s*$', text[:enclosing[0].span[0]])
+        if init is None or parse_constants(function).get(init[2]) != 0:
+            continue
+        end = enclosing[0].span[1]
+        start = text.rfind('func.func',0,inst.span[0])
+        if not re.fullmatch(r'\s*return\s*\}',text[end:start + len(function)]):
+            continue
+        lines, operands, types = [], [], []
+        for j,(view,shape) in enumerate(zip(views,shapes)):
+            stem = f'%scatter_conv_{i}_{j}'
+            static = 'memref<' + 'x'.join(map(str,shape)) + 'xf32>'
+            dynamic = 'memref<' + '?x' * len(shape) + 'f32>'
+            strides = [math.prod(shape[k+1:]) for k in range(len(shape))]
+            lines += [f'{stem}_static = memref.reinterpret_cast {view["base"]} to offset: [0], sizes: [{", ".join(map(str,shape))}], strides: [{", ".join(map(str,strides))}] : {view["type"]} to {static}',
+                      f'{stem} = memref.cast {stem}_static : {static} to {dynamic}']
+            operands.append(stem);types.append(dynamic)
+        lines += [f'kernel.launch @{symbol}({", ".join(operands)}) : ({", ".join(types)}) -> ()']
+        edits.append((init.start(),end,'\n    '.join(lines),symbol,[i]))
+    return edits
+
+
+def _decode_bounded_index_block(block, iv, extent, constants):
+    """Evaluate straight-line index code under a proven nonnegative loop bound."""
+    # Each value carries a symbolic expression and an inclusive integer range.
+    values = {k: (('constant', int(v)), int(v), int(v)) for k, v in constants.items() if float(v).is_integer()}
+    values[iv] = (('index',), 0, extent - 1)
+    value = r'%[\w.$-]+'
+    for line in block.strip().splitlines():
+        match = re.fullmatch(rf'\s*({value})\s*=\s*arith\.(cmpi|select|subi|addi|divsi|remsi)\s+(.+)\s*:\s*(?:index|i1)\s*', line)
+        if match is None:
+            return None
+        target, op, arguments = match.groups()
+        args = [a.strip() for a in arguments.split(',')]
+        predicate = args.pop(0) if op == 'cmpi' else None
+        if any(a not in values for a in args):
+            return None
+        operands = [values[a] for a in args]
+        if op == 'select':
+            if len(operands) != 3 or operands[0][1] != operands[0][2]:
+                return None
+            values[target] = operands[1 if operands[0][1] else 2]
+            continue
+        if len(operands) != 2:
+            return None
+        a, b = operands
+        if op == 'cmpi':
+            if predicate != 'slt' or not (a[2] < b[1] or a[1] >= b[2]):
+                return None
+            result = int(a[2] < b[1]); values[target] = (('constant', result), result, result)
+        elif op in ('addi', 'subi'):
+            low, high = (a[1] + b[1], a[2] + b[2]) if op == 'addi' else (a[1] - b[2], a[2] - b[1])
+            values[target] = ((op, a[0], b[0]), low, high)
+        elif b[1] != b[2] or b[1] <= 0 or a[1] < 0:
+            return None
+        elif op == 'divsi':
+            values[target] = (('floor', a[0], b[1]), a[1] // b[1], a[2] // b[1])
+        elif op == 'remsi':
+            values[target] = (('mod', a[0], b[1]), 0, min(a[2], b[1] - 1))
+        else:
+            return None
+    return values
+
+
+def _render_blocked_layout_copies(text):
+    """Recognize a bijective row/column split followed by an axis permutation."""
+    value = r'%[\w.$-]+'
+    pattern = re.compile(
+        rf'(?P<result>{value})\s*=\s*affine\.for\s+(?P<row>{value})\s*=\s*0\s+to\s+(?P<rows>\d+)\s+'
+        rf'iter_args\((?P<state>{value})\s*=\s*(?P<output>{value})\)\s*->\s*\((?P<outtype>tensor<\?x(?P<colblocks>\d+)x(?P<br>\d+)x(?P<bc>\d+)xf32>)\)\s*\{{'
+        rf'(?P<row_setup>.*?)'
+        rf'(?P<inner>{value})\s*=\s*affine\.for\s+(?P<col>{value})\s*=\s*0\s+to\s+(?P<cols>\d+)\s+'
+        rf'iter_args\((?P<innerstate>{value})\s*=\s*(?P=state)\)\s*->\s*\((?P=outtype)\)\s*\{{\s*'
+        rf'(?P<loaded>{value})\s*=\s*tensor\.extract\s+(?P<input>{value})\[(?P=row),\s*(?P=col)\]\s*:\s*tensor<\?x(?P=cols)xf32>'
+        rf'(?P<col_setup>.*?)'
+        rf'(?P<inserted>{value})\s*=\s*tensor\.insert\s+(?P=loaded)\s+into\s+(?P=innerstate)\[(?P<indices>[^]]+)\]\s*:\s*(?P=outtype)\s*'
+        rf'affine\.yield\s+(?P=inserted)\s*:\s*(?P=outtype)\s*\}}\s*'
+        rf'affine\.yield\s+(?P=inner)\s*:\s*(?P=outtype)\s*\}}\s*'
+        rf'(?P<memref>{value})\s*=\s*bufferization\.to_memref\s+(?P=result)\s*:\s*(?P<desttype>memref<\?x(?P=colblocks)x(?P=br)x(?P=bc)xf32>)\s*'
+        rf'memref\.copy\s+(?P=memref),\s*(?P<dest>{value})\s*:\s*(?P=desttype)\s+to\s+(?P=desttype)', re.S)
+    edits = []
+    for number, match in enumerate(pattern.finditer(text)):
+        rows, cols, br, bc, colblocks = [int(match[k]) for k in ('rows','cols','br','bc','colblocks')]
+        if min(rows, cols, br, bc) <= 0 or rows % br or cols % bc or cols // bc != colblocks:
+            continue
+        function = _enclosing_function_text(text, match.start())
+        constants = parse_constants(function)
+        row_values = _decode_bounded_index_block(match['row_setup'], match['row'], rows, constants)
+        col_values = _decode_bounded_index_block(match['col_setup'], match['col'], cols, constants)
+        indices = [v.strip() for v in match['indices'].split(',')]
+        if row_values is None or col_values is None or len(indices) != 4:
+            continue
+        expected = [('floor', ('index',), br), ('floor', ('index',), bc), ('mod', ('index',), br), ('mod', ('index',), bc)]
+        if any(values.get(index, (None,))[0] != target for values, index, target in zip([row_values,col_values,row_values,col_values], indices, expected)):
+            continue
+        source = _to_tensor_memref_source(text, match['input'], match.start())
+        dest = _to_tensor_memref_source(text, match['output'], match.start())
+        if (source is None or source[1] != f'memref<?x{cols}xf32>' or dest != (match['dest'], match['desttype']) or source[0] == dest[0]):
+            continue
+        start = text.rfind('func.func', 0, match.start())
+        if not re.fullmatch(r'\s*return\s*\}', text[match.end():start + len(function)]):
+            continue
+        # Both views are contiguous reshapes. cuTENSOR supplies the only
+        # physical permutation; no project-authored computational kernel runs.
+        rowblocks = rows // br
+        inshape, outshape = [rowblocks,br,colblocks,bc], [rowblocks,colblocks,br,bc]
+        stem = f'%blocked_copy_{number}'
+        lines = []
+        for label, base, original_type, dims in [('input',source[0],source[1],inshape),('output',dest[0],dest[1],outshape)]:
+            strides = [dims[1]*dims[2]*dims[3],dims[2]*dims[3],dims[3],1]
+            shape = 'x'.join(map(str,dims))+'xf32'
+            lines += [f'{stem}_{label}_view = memref.reinterpret_cast {base} to offset: [0], sizes: [{", ".join(map(str,dims))}], strides: [{", ".join(map(str,strides))}] : {original_type} to memref<{shape}>',
+                      f'{stem}_{label}_static = bufferization.to_tensor {stem}_{label}_view : memref<{shape}>',
+                      f'{stem}_{label} = tensor.cast {stem}_{label}_static : tensor<{shape}> to tensor<?x?x?x?xf32>']
+        symbol = 'cutensorPermute_f32_r4_tensor'
+        lines += [f'{stem}_result = kernel.launch @{symbol}({stem}_input, {stem}_output) {{cutensor_input_modes = array<i64: 0, 1, 2, 3>, cutensor_output_modes = array<i64: 0, 2, 1, 3>, polygeist.result_destinations = array<i64: 1>}} : (tensor<?x?x?x?xf32>, tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>']
+        # Lowering writes to the explicit destination. The result is a token
+        # for that write, and the whole source loop/output copy is consumed.
+        edits.append((match.start(), match.end(), '\n    '.join(lines), symbol))
+    return edits
+
+
+def _render_fixed_pool_backward(text, instances, bodies, body_forms):
+    """Prove disjoint two-element window gradients, including zeroed borders."""
+    edits = []
+    value = r"%[\w.$-]+"
+
+    def coefficients(map_text, rank):
+        match = re.fullmatch(r"affine_map<\([^)]*\)->\(([^,]*)\)>", _compact_affine_map(map_text))
+        polynomial = _affine_polynomial(match[1], rank) if match else None
+        if polynomial is None or any(sum(k) != 1 or any(k[-2:]) for k in polynomial):
+            return None
+        return [polynomial.get(tuple(int(j == k) for k in range(rank + 2)), 0) for j in range(rank)]
+
+    for i in range(len(instances) - 1):
+        init, pool = instances[i:i + 2]
+        function = _enclosing_function_text(text, init.span[0])
+        rank = len(bodies[i + 1].iterator_types)
+        spatial = (rank - 1) // 2
+        if (spatial not in (2, 3) or rank != 1 + 2 * spatial or
+                body_forms[i:i + 2] != ['tensor', 'tensor'] or
+                function != _enclosing_function_text(text, pool.span[0]) or
+                function.count('linalg.generic') != 2 or
+                bodies[i].iterator_types != ['parallel'] or
+                re.findall(r'"(parallel|reduction)"', text[pool.span[0]:pool.span[1]]) != ['parallel'] + ['reduction'] * spatial + ['parallel'] * spatial):
+            continue
+        identity = 'affine_map<(' + ','.join(f'd{j}' for j in range(rank)) + ')->(' + ','.join(f'd{j}' for j in range(rank)) + ')>'
+        if ([_compact_affine_map(m) for m in bodies[i].indexing_maps] != ['affine_map<(d0)->(d0)>'] or
+                [_compact_affine_map(_resolve_affine_map_text(text, m.strip())) for m in re.search(r'indexing_maps\s*=\s*\[([^]]+)\]', text[pool.span[0]:pool.span[1]])[1].split(',')] != [identity, identity]):
+            continue
+        operands = [_extract_ssa_names(p) for p in (init.outs_part, pool.ins_part, pool.outs_part)]
+        if any(len(p) != 1 for p in operands):
+            continue
+        init_view, input_view, output_view = [_tensor_submap_info(text, p[0], pool.span[0]) for p in operands]
+        if (any(v is None for v in (init_view, input_view, output_view)) or
+                len(init_view['sizes']) != 1 or
+                _compact_affine_map(init_view['map']) != 'affine_map<(d0)->(d0)>' or
+                input_view['sizes'] != output_view['sizes'] or len(input_view['sizes']) != rank):
+            continue
+        extents = [_constant_index_value(function, s) for s in input_view['sizes']]
+        if any(s is None or s <= 0 for s in extents):
+            continue
+        incoming = coefficients(input_view['map'], rank)
+        outgoing = coefficients(output_view['map'], rank)
+        if incoming is None or outgoing is None:
+            continue
+        nc, small, covered = extents[0], extents[1:1 + spatial], extents[1 + spatial:]
+        strides = [outgoing[0]] + outgoing[1 + spatial:] + [1]
+        # Last physical stride is one; adjacent stride ratios recover full
+        # dimensions, including odd trailing elements untouched by the loop.
+        if strides[-2] != 1 or any(s <= 0 for s in strides):
+            continue
+        full = [strides[j] // strides[j + 1] for j in range(spatial)]
+        if (any(strides[j] % strides[j + 1] for j in range(spatial)) or
+                any(c != 2 * o or o != f // 2 for c, o, f in zip(covered, small, full)) or
+                any(outgoing[j] for j in range(1, 1 + spatial))):
+            continue
+        expected_input = [0] * rank
+        step = 1
+        for j in range(spatial, -1, -1):
+            expected_input[j] = step
+            step *= extents[j]
+        total = nc
+        for dim in full:
+            total *= dim
+        if incoming != expected_input or _constant_index_value(function, init_view['sizes'][0]) != total:
+            continue
+        seed = re.search(rf"\^bb0\({value}:\s*f32\):\s*linalg\.yield\s+({value})\s*:\s*f32\s*\}}", text[init.span[0]:init.span[1]])
+        if seed is None or parse_constants(function).get(seed[1]) != 0:
+            continue
+        # Require exactly the initializer's writeback and the two views.
+        middle = text[init.span[1]:pool.span[0]]
+        initialized = re.match(rf"\s*({value})\s*=\s*polygeist\.submapInverse\(\s*{re.escape(init_view['source'])},\s*{re.escape(init.result_ssa)},\s*{re.escape(init_view['sizes'][0])}\)\s*\{{map\s*=\s*([^}}]+)\}}[^\n]*\n", middle)
+        if (initialized is None or initialized[1] != output_view['source'] or
+                _compact_affine_map(_resolve_affine_map_text(text, initialized[2])) != 'affine_map<(d0)->(d0)>' or
+                len(middle.strip().splitlines()) != 3):
+            continue
+        bb = re.search(rf"\^bb0\(({value}):\s*f32,\s*({value}):\s*f32\):", text[pool.span[0]:pool.span[1]])
+        if bb is None:
+            continue
+        expr = {bb[1]: ('input',), bb[2]: ('old',)}
+        constants = parse_constants(function)
+        result = None
+        valid = True
+        for line in bodies[i + 1].body_lines:
+            line = line.strip()
+            m = re.fullmatch(rf"({value})\s*=\s*linalg\.index\s+(\d+)\s*:\s*index", line)
+            if m:
+                expr[m[1]] = ('index', int(m[2])); continue
+            m = re.fullmatch(rf"({value})\s*=\s*affine\.apply\s+(.+)\(({value})\)", line)
+            if m:
+                amap = _compact_affine_map(_resolve_affine_map_text(text, m[2]))
+                if m[3] not in expr or amap not in ('affine_map<(d0)->(d0*2)>', 'affine_map<(d0)->(d0*2+2)>'):
+                    valid = False; break
+                expr[m[1]] = ('window', expr[m[3]], 2 if '+2' in amap else 0); continue
+            m = re.fullmatch(rf"({value})\s*=\s*arith\.(divf|addf|andi|select|cmpi)\s+(.+)\s*:\s*(?:f32|i1|index)", line)
+            if m:
+                args = [s.strip() for s in m[3].split(',')]
+                op = m[2]
+                if op == 'cmpi':
+                    op += '_' + args.pop(0)
+                terms = [expr.get(a, ('constant', constants[a]) if a in constants else None) for a in args]
+                if any(t is None for t in terms):
+                    valid = False; break
+                expr[m[1]] = (op, *terms); continue
+            m = re.fullmatch(rf"linalg\.yield\s+({value})\s*:\s*f32", line)
+            if m:
+                result = expr.get(m[1]); continue
+            valid = False; break
+        expected = ('addf', ('old',), ('divf', ('input',), ('constant', float(2 ** spatial))))
+        for dim in reversed(range(spatial)):
+            lower = ('cmpi_sge', ('index', 1 + spatial + dim), ('window', ('index', 1 + dim), 0))
+            upper = ('cmpi_slt', ('index', 1 + spatial + dim), ('window', ('index', 1 + dim), 2))
+            expected = ('select', ('andi', lower, upper), expected, ('old',))
+        result = expr.get(bodies[i + 1].yield_values[0]) if len(bodies[i + 1].yield_values) == 1 else None
+        if not valid or result != expected:
+            continue
+        source = _to_tensor_memref_source(text, input_view['source'], init.span[0])
+        dest = _to_tensor_memref_source(text, init_view['source'], init.span[0])
+        if (source is None or dest is None or source[1] != 'memref<?xf32>' or
+                dest[1] != 'memref<?xf32>' or source[0] == dest[0]):
+            continue
+        sizes = r',\s*'.join(map(re.escape, output_view['sizes']))
+        tail = re.match(rf"\s*({value})\s*=\s*polygeist\.submapInverse\(\s*{re.escape(output_view['source'])},\s*{re.escape(pool.result_ssa)},\s*{sizes}\)\s*\{{map\s*=\s*([^}}]+)\}}[^\n]*\n\s*({value})\s*=\s*bufferization\.to_memref\s+\1\s*:\s*memref<\?xf32>\s*memref\.copy\s+\3,\s*{re.escape(dest[0])}\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>", text[pool.span[1]:])
+        if tail is None or _compact_affine_map(_resolve_affine_map_text(text, tail[2])) != _compact_affine_map(output_view['map']):
+            continue
+        end = pool.span[1] + tail.end()
+        start = text.rfind('func.func', 0, init.span[0])
+        if not re.fullmatch(r'\s*return\s*\}', text[end:start + len(function)]):
+            continue
+        symbol = 'cudnnAveragePool_f32_flat2'
+        params = [5, spatial, 1, nc, *(full + [1] * (3 - spatial)), *(small + [1] * (3 - spatial))]
+        names = [f'%pool_backward_{i}_{j}' for j in range(10)]
+        lines = [f'{n} = arith.constant {p} : i32' for n, p in zip(names, params)]
+        lines += [f"kernel.launch @{symbol}({', '.join(names + [source[0], dest[0]])}) : ({', '.join(['i32'] * 10 + ['memref<?xf32>'] * 2)}) -> ()"]
+        edits.append((init.span[0], end, init.indent + init.indent.join(lines), symbol, [i, i + 1]))
+    return edits
+
+
+def _render_quantized_column_sums(text, instances, bodies, body_forms):
+    """Fuse a private zero-seeded signed-byte column sum and zero-point shift."""
+    edits = []
+    value = r"%[\w.$-]+"
+    for i in range(len(instances) - 2):
+        init, reduce, finish = instances[i:i + 3]
+        function = _enclosing_function_text(text, init.span[0])
+        if (body_forms[i:i + 3] != ["memref"] * 3 or
+                function != _enclosing_function_text(text, finish.span[0]) or
+                function.count("linalg.generic") != 3 or
+                [b.iterator_types for b in bodies[i:i + 3]] !=
+                [["parallel"], ["parallel", "reduction"], ["parallel"]] or
+                [[_compact_affine_map(m) for m in b.indexing_maps] for b in bodies[i:i + 3]] !=
+                [["affine_map<(d0)->(d0)>"],
+                 ["affine_map<(d0,d1)->(d1,d0)>", "affine_map<(d0,d1)->(d0)>"],
+                 ["affine_map<(d0)->(d0)>", "affine_map<(d0)->(d0)>"]]):
+            continue
+        seed = re.search(rf"\^bb0\({value}:\s*i32\):\s*linalg\.yield\s+({value})\s*:\s*i32\s*\}}", text[init.span[0]:init.span[1]])
+        reduction = re.search(
+            rf"\^bb0\((?P<x>{value}):\s*i8,\s*(?P<old>{value}):\s*i32\):\s*"
+            rf"(?P<wide>{value})\s*=\s*arith\.extsi\s+(?P=x)\s*:\s*i8\s+to\s+i32\s*"
+            rf"(?P<sum>{value})\s*=\s*arith\.addi\s+(?P=old),\s*(?P=wide)\s*:\s*i32\s*"
+            rf"linalg\.yield\s+(?P=sum)\s*:\s*i32\s*\}}", text[reduce.span[0]:reduce.span[1]])
+        epilogue = re.search(
+            rf"\^bb0\((?P<sum>{value}):\s*i32,\s*{value}:\s*i32\):\s*"
+            rf"(?P<result>{value})\s*=\s*arith\.subi\s+(?P=sum),\s*(?P<offset>{value})\s*:\s*i32\s*"
+            rf"linalg\.yield\s+(?P=result)\s*:\s*i32\s*\}}", text[finish.span[0]:finish.span[1]])
+        if (seed is None or parse_constants(function).get(seed[1]) != 0 or
+                reduction is None or epilogue is None or text[reduce.span[1]:finish.span[0]].strip()):
+            continue
+        operands = [_extract_ssa_names(p) for p in
+                    (init.outs_part, reduce.ins_part, reduce.outs_part, finish.ins_part, finish.outs_part)]
+        if any(len(p) != 1 for p in operands):
+            continue
+        temporary, inp, acc, final_inp, dest = [p[0] for p in operands]
+        if final_inp != temporary:
+            continue
+        middle = text[init.span[1]:reduce.span[0]]
+        views = re.fullmatch(
+            rf"\s*{re.escape(inp)}\s*=\s*memref\.subview\s+(?P<source>{value})\[0,\s*0\]\s*"
+            rf"\[(?P<rows>{value}),\s*(?P<cols>{value})\]\s*\[1,\s*1\]\s*:\s*"
+            rf"(?P<type>memref<\?x(?P<width>\d+)xi8>)\s+to\s*memref<\?x\?xi8,\s*strided<\[(?P=width),\s*1\]>>\s*"
+            rf"{re.escape(acc)}\s*=\s*memref\.reinterpret_cast\s+{re.escape(temporary)}\s+to\s+"
+            rf"offset:\s*\[0\],\s*sizes:\s*\[(?P=cols)\],\s*strides:\s*\[1\]\s*:\s*memref<\?xi32>\s+to\s*memref<(?P=width)xi32>\s*", middle)
+        if views is None:
+            continue
+        rows = _constant_index_value(function, views["rows"])
+        cols = int(views["width"])
+        if (rows is None or rows <= 0 or cols <= 0 or rows * cols > 2147483647 or
+                _constant_index_value(function, views["cols"]) != cols):
+            continue
+        # The accumulator is private, exactly sized, and has no extra observer.
+        if not re.search(rf"{re.escape(temporary)}\s*=\s*memref\.alloca\({re.escape(views['cols'])}\)\s*:\s*memref<\?xi32>", function):
+            continue
+        if len(re.findall(rf"(?<![\w.$-]){re.escape(temporary)}(?![\w.$-])", function)) != 4:
+            continue
+        offset = re.search(rf"{re.escape(epilogue['offset'])}\s*=\s*arith\.muli\s+({value}),\s*({value})\s*:\s*i32", function)
+        if offset is None or parse_constants(function).get(offset[2]) != rows:
+            continue
+        start = text.rfind("func.func", 0, init.span[0])
+        if not re.fullmatch(r"\s*return\s*\}", text[finish.span[1]:start + len(function)]):
+            continue
+        symbol, stem = "cubQuantColOffsets_i8_i32_memref", f"%column_sum_{i}"
+        lines = [
+            f"{stem}_static = memref.reinterpret_cast {views['source']} to offset: [0], sizes: [{rows}, {cols}], strides: [{cols}, 1] : {views['type']} to memref<{rows}x{cols}xi8>",
+            f"{stem}_input = memref.cast {stem}_static : memref<{rows}x{cols}xi8> to memref<?x?xi8>",
+            f"kernel.launch @{symbol}({stem}_input, {epilogue['offset']}, {dest}) : (memref<?x?xi8>, i32, memref<?xi32>) -> ()"]
+        edits.append((init.span[0], finish.span[1], init.indent + init.indent.join(lines), symbol, [i, i + 1, i + 2]))
+    return edits
+
+
+def _render_tensor_histograms(text, instances, bodies, body_forms):
+    """Recognize a zeroed histogram whose scatter loop carries a tensor."""
+    edits = []
+    value = r"%[\w.$-]+"
+    for i, init in enumerate(instances):
+        if (body_forms[i] != "tensor" or init.result_ssa is None or
+                init.result_type != "tensor<?xi32>" or
+                bodies[i].iterator_types != ["parallel"] or
+                [_compact_affine_map(m) for m in bodies[i].indexing_maps] !=
+                ["affine_map<(d0)->(d0)>"]):
+            continue
+        function = _enclosing_function_text(text, init.span[0])
+        if function.count("linalg.generic") != 1:
+            continue
+        seed = re.search(rf"\^bb0\({value}:\s*i32\):\s*linalg\.yield\s+({value})\s*:\s*i32\s*\}}", text[init.span[0]:init.span[1]])
+        if seed is None or parse_constants(function).get(seed[1]) != 0:
+            continue
+        tail = re.match(
+            rf"\s*(?P<result>{value})\s*=\s*affine\.for\s+(?P<iv>{value})\s*=\s*0\s+to\s+(?P<count>\d+)\s+"
+            rf"iter_args\((?P<state>{value})\s*=\s*{re.escape(init.result_ssa)}\)\s*->\s*\(tensor<\?xi32>\)\s*\{{\s*"
+            rf"(?P<sample>{value})\s*=\s*tensor\.extract\s+(?P<input>{value})\[(?P=iv)\]\s*:\s*tensor<\?xi32>\s*"
+            rf"(?P<bin>{value})\s*=\s*arith\.index_cast\s+(?P=sample)\s*:\s*i32\s+to\s+index\s*"
+            rf"(?P<old>{value})\s*=\s*tensor\.extract\s+(?P=state)\[(?P=bin)\]\s*:\s*tensor<\?xi32>\s*"
+            rf"(?P<next>{value})\s*=\s*arith\.addi\s+(?P=old),\s*(?P<one>{value})\s*:\s*i32\s*"
+            rf"(?P<updated>{value})\s*=\s*tensor\.insert\s+(?P=next)\s+into\s+(?P=state)\[(?P=bin)\]\s*:\s*tensor<\?xi32>\s*"
+            rf"affine\.yield\s+(?P=updated)\s*:\s*tensor<\?xi32>\s*\}}\s*"
+            rf"(?P<memref>{value})\s*=\s*bufferization\.to_memref\s+(?P=result)\s*:\s*memref<\?xi32>\s*"
+            rf"memref\.copy\s+(?P=memref),\s*(?P<dest>{value})\s*:\s*memref<\?xi32>\s+to\s+memref<\?xi32>",
+            text[init.span[1]:])
+        if (tail is None or not 0 < int(tail["count"]) <= 2147483647 or
+                parse_constants(function).get(tail["one"]) != 1):
+            continue
+        outputs = _extract_ssa_names(init.outs_part)
+        if len(outputs) != 1:
+            continue
+        source = _to_tensor_memref_source(text, tail["input"], init.span[0])
+        dest = _to_tensor_memref_source(text, outputs[0], init.span[0])
+        if (source is None or source[1] != "memref<?xi32>" or
+                dest != (tail["dest"], "memref<?xi32>") or source[0] == dest[0]):
+            continue
+        end = init.span[1] + tail.end()
+        function_start = text.rfind("func.func", 0, init.span[0])
+        if not re.fullmatch(r"\s*return\s*\}", text[end:function_start + len(function)]):
+            continue
+        count, stem = int(tail["count"]), f"%tensor_histogram_{i}"
+        symbol = "cubHistogramEvenI32ShiftZero_memref"
+        lines = [
+            f"{stem}_static = memref.reinterpret_cast {source[0]} to offset: [0], sizes: [{count}], strides: [1] : memref<?xi32> to memref<{count}xi32>",
+            f"{stem}_input = memref.cast {stem}_static : memref<{count}xi32> to memref<?xi32>",
+            f"{stem}_shift = arith.constant 0 : i32",
+            f"kernel.launch @{symbol}({stem}_input, {dest[0]}, {stem}_shift) : (memref<?xi32>, memref<?xi32>, i32) -> ()"]
+        edits.append((init.span[0], end, init.indent + init.indent.join(lines), symbol, [i]))
+    return edits
+
+
+def _render_vector_norms(text, instances, bodies, body_forms):
+    """Recognize an explicitly zero-seeded sum of squares and its square root."""
+    edits = []
+    value = r"%[\w.$-]+"
+    for i, inst in enumerate(instances):
+        body = bodies[i]
+        if (body_forms[i] != "tensor" or inst.result_ssa is None or
+                inst.result_type != "tensor<f32>" or
+                body.iterator_types != ["reduction"] or
+                [_compact_affine_map(m) for m in body.indexing_maps] !=
+                ["affine_map<(d0)->(d0)>", "affine_map<(d0)->()>"]):
+            continue
+        chunk = text[inst.span[0]:inst.span[1]]
+        semantics = re.search(
+            rf"\^bb0\((?P<x>{value}):\s*f32,\s*(?P<old>{value}):\s*f32\):\s*"
+            rf"(?P<square>{value})\s*=\s*arith\.mulf\s+(?P=x),\s*(?P=x)\s*:\s*f32\s*"
+            rf"(?P<sum>{value})\s*=\s*arith\.addf\s+(?P=old),\s*(?P=square)\s*:\s*f32\s*"
+            rf"linalg\.yield\s+(?P=sum)\s*:\s*f32\s*\}}", chunk)
+        inputs, outputs = _extract_ssa_names(inst.ins_part), _extract_ssa_names(inst.outs_part)
+        if semantics is None or len(inputs) != 1 or len(outputs) != 1:
+            continue
+        function = _enclosing_function_text(text, inst.span[0])
+        if function.count("linalg.generic") != 1:
+            continue
+        seed = re.search(rf"{re.escape(outputs[0])}\s*=\s*tensor\.insert\s+({value})\s+into\s+{value}\[\]\s*:\s*tensor<f32>", function)
+        if seed is None or parse_constants(function).get(seed[1]) != 0.0:
+            continue
+        source = _to_tensor_memref_source(text, inputs[0], inst.span[0])
+        if source is None or source[1] != "memref<?xf32>":
+            continue
+        tail = re.match(
+            rf"\s*(?P<sum>{value})\s*=\s*tensor\.extract\s+{re.escape(inst.result_ssa)}\[\]\s*:\s*tensor<f32>\s*"
+            rf"(?P<norm>{value})\s*=\s*math\.sqrt\s+(?P=sum)\s*:\s*f32\s*"
+            rf"(?P<insert>{value})\s*=\s*tensor\.insert\s+(?P=norm)\s+into\s+(?P<out>{value})\[(?P<zero>{value})\]\s*:\s*tensor<\?xf32>\s*"
+            rf"(?P<memref>{value})\s*=\s*bufferization\.to_memref\s+(?P=insert)\s*:\s*memref<\?xf32>\s*"
+            rf"memref\.copy\s+(?P=memref),\s*(?P<dest>{value})\s*:\s*memref<\?xf32>\s+to\s+memref<\?xf32>",
+            text[inst.span[1]:])
+        if tail is None or _constant_index_value(function, tail["zero"]) != 0:
+            continue
+        output = _to_tensor_memref_source(text, tail["out"], inst.span[0])
+        if output != (tail["dest"], "memref<?xf32>"):
+            continue
+        # The scalar is consumed only by this epilogue. Keeping an additional
+        # observer would require preserving the original reduction value.
+        end = inst.span[1] + tail.end()
+        function_start = text.rfind("func.func", 0, inst.span[0])
+        if not re.fullmatch(r"\s*return\s*\}", text[end:function_start + len(function)]):
+            continue
+        symbol = "cublasSnrm2_f32_memref"
+        replacement = (f"{inst.indent}kernel.launch @{symbol}({source[0]}, {output[0]}) : "
+                       "(memref<?xf32>, memref<?xf32>) -> ()")
+        edits.append((inst.span[0], end, replacement, symbol, [i]))
+    return edits
+
+
+def _render_seeded_row_reductions(text, instances, bodies, body_forms):
+    """Fuse explicit row initialization with NaN-aware sum or logical reduction."""
+    edits = []
+    value = r"%[\w.$-]+"
+    for i in range(len(instances) - 1):
+        init, reduce = instances[i:i + 2]
+        if body_forms[i:i + 2] != ["memref", "memref"]:
+            continue
+        function = _enclosing_function_text(text, init.span[0])
+        if (function != _enclosing_function_text(text, reduce.span[0]) or
+                function.count("linalg.generic") != 2 or init.indent != reduce.indent):
+            continue
+        if ([b.iterator_types for b in bodies[i:i + 2]] !=
+                [["parallel"], ["parallel", "reduction"]] or
+                [[_compact_affine_map(m) for m in b.indexing_maps] for b in bodies[i:i + 2]] !=
+                [["affine_map<(d0)->(d0)>"],
+                 ["affine_map<(d0,d1)->(d0,d1)>", "affine_map<(d0,d1)->(d0)>"]]):
+            continue
+        init_body = text[init.span[0]:init.span[1]]
+        body = text[reduce.span[0]:reduce.span[1]]
+        seed = re.search(rf"\^bb0\({value}:\s*(f32|i32)\):\s*linalg\.yield\s+({value})\s*:\s*\1\s*\}}", init_body)
+        if seed is None:
+            continue
+        elem, seed_value = seed.groups()
+        prefix = rf"\^bb0\((?P<x>{value}):\s*{elem},\s*(?P<old>{value}):\s*{elem}\):\s*"
+        nan_sum = re.search(prefix +
+            rf"(?P<valid>{value})\s*=\s*arith\.cmpf\s+oeq,\s*(?P=x),\s*(?P=x)\s*:\s*f32\s*"
+            rf"(?P<sum>{value})\s*=\s*arith\.addf\s+(?P=old),\s*(?P=x)\s*:\s*f32\s*"
+            rf"(?P<result>{value})\s*=\s*arith\.select\s+(?P=valid),\s*(?P=sum),\s*(?P=old)\s*:\s*f32\s*"
+            rf"linalg\.yield\s+(?P=result)\s*:\s*f32\s*\}}", body) if elem == "f32" else None
+        logical = re.search(prefix +
+            rf"(?P<a>{value})\s*=\s*arith\.cmpi\s+ne,\s*(?P=old),\s*(?P<zero>{value})\s*:\s*i32\s*"
+            rf"(?P<b>{value})\s*=\s*arith\.cmpi\s+ne,\s*(?P=x),\s*(?P=zero)\s*:\s*i32\s*"
+            rf"(?P<and>{value})\s*=\s*arith\.select\s+(?P=a),\s*(?P=b),\s*(?P<false>{value})\s*:\s*i1\s*"
+            rf"(?P<and_int>{value})\s*=\s*arith\.extui\s+(?P=and)\s*:\s*i1\s+to\s+i32\s*"
+            rf"(?P<c>{value})\s*=\s*arith\.cmpi\s+ne,\s*(?P=old),\s*(?P=zero)\s*:\s*i32\s*"
+            rf"(?P<d>{value})\s*=\s*arith\.cmpi\s+ne,\s*(?P=x),\s*(?P=zero)\s*:\s*i32\s*"
+            rf"(?P<or>{value})\s*=\s*arith\.select\s+(?P=c),\s*(?P<true>{value}),\s*(?P=d)\s*:\s*i1\s*"
+            rf"(?P<or_int>{value})\s*=\s*arith\.extui\s+(?P=or)\s*:\s*i1\s+to\s+i32\s*"
+            rf"(?P<result>{value})\s*=\s*arith\.select\s+(?P<flag>{value}),\s*(?P=and_int),\s*(?P=or_int)\s*:\s*i32\s*"
+            rf"linalg\.yield\s+(?P=result)\s*:\s*i32\s*\}}", body) if elem == "i32" else None
+        if nan_sum is not None:
+            if parse_constants(function).get(seed_value) != 0.0:
+                continue
+            symbol = "cubSegmentedNanSum_f32_memref"
+        elif logical is not None:
+            if (parse_constants(function).get(logical["zero"]) != 0.0 or
+                    not re.search(rf"{re.escape(logical['flag'])}\s*=\s*arith\.cmpi\s+ne,\s*{re.escape(seed_value)},\s*{re.escape(logical['zero'])}\s*:\s*i32", function) or
+                    any(not re.search(rf"{re.escape(logical[truth])}\s*=\s*arith\.constant\s+{truth}\b", function)
+                        for truth in ("true", "false"))):
+                continue
+            symbol = "cubSegmentedLogicalSelect_i32_memref"
+        else:
+            continue
+        inputs = _extract_ssa_names(reduce.ins_part)
+        outputs = _extract_ssa_names(reduce.outs_part)
+        initial_outputs = _extract_ssa_names(init.outs_part)
+        if len(inputs) != 1 or len(outputs) != 1 or len(initial_outputs) != 1:
+            continue
+        middle = text[init.span[1]:reduce.span[0]]
+        input_view = re.search(
+            rf"(?m)^\s*{re.escape(inputs[0])}\s*=\s*memref\.subview\s+({value})"
+            rf"\[0,\s*0\]\s*\[({value}),\s*({value})\]\s*\[1,\s*1\]\s*"
+            rf":\s*(memref<\?x(\d+)x{elem}>)\s+to", middle)
+        output_view = re.search(
+            rf"(?m)^\s*{re.escape(outputs[0])}\s*=\s*memref\.reinterpret_cast\s+{re.escape(initial_outputs[0])}"
+            rf"\s+to\s+offset:\s*\[0\],\s*sizes:\s*\[({value})\],\s*strides:\s*\[1\]\s*:\s*memref<\?x{elem}>\s+to", middle)
+        if input_view is None or output_view is None or len(middle.strip().splitlines()) != 2:
+            continue
+        source, rows_ssa, cols_ssa, source_type, cols_text = input_view.groups()
+        rows, cols = _constant_index_value(function, rows_ssa), int(cols_text)
+        if (rows is None or rows <= 0 or cols <= 0 or rows * cols > 2147483647 or
+                _constant_index_value(function, cols_ssa) != cols or output_view[1] != rows_ssa):
+            continue
+        stem = f"%rowreduce_{i}"
+        inp, out = stem + "_input", stem + "_output"
+        lines = [
+            f"{inp}_static = memref.reinterpret_cast {source} to offset: [0], sizes: [{rows}, {cols}], strides: [{cols}, 1] : {source_type} to memref<{rows}x{cols}x{elem}>",
+            f"{inp} = memref.cast {inp}_static : memref<{rows}x{cols}x{elem}> to memref<?x?x{elem}>",
+            f"{out}_static = memref.reinterpret_cast {initial_outputs[0]} to offset: [0], sizes: [{rows}], strides: [1] : memref<?x{elem}> to memref<{rows}x{elem}>",
+            f"{out} = memref.cast {out}_static : memref<{rows}x{elem}> to memref<?x{elem}>"]
+        if logical is not None:
+            operands, types = f"{inp}, {inp}, {seed_value}, {out}", "memref<?x?xi32>, memref<?x?xi32>, i32, memref<?xi32>"
+        else:
+            operands, types = f"{inp}, {out}", "memref<?x?xf32>, memref<?xf32>"
+        lines.append(f"kernel.launch @{symbol}({operands}) : ({types}) -> ()")
+        edits.append((init.span[0], reduce.span[1], init.indent + init.indent.join(lines), symbol, [i, i + 1]))
+    return edits
+
+
+def _render_csr_row_expansion(text):
+    """Match the reference CSR row-offset expansion, with zero-based CSR input."""
+    edits = []
+    pattern = re.compile(
+        r"affine\.for\s+(?P<row>%[\w.$-]+)\s*=\s*0\s+to\s+(?P<rows>\d+)\s*\{\s*"
+        r"(?P<row_i32>%[\w.$-]+)\s*=\s*arith\.index_cast\s+(?P=row)\s*:\s*index\s+to\s+i32\s*"
+        r"(?P<begin>%[\w.$-]+)\s*=\s*affine\.load\s+(?P<ptr>%[\w.$-]+)\[(?P=row)\]\s*:\s*memref<\?xi32>\s*"
+        r"%[\w.$-]+\s*=\s*scf\.while\s*\((?P<p>%[\w.$-]+)\s*=\s*(?P=begin)\)\s*:\s*\(i32\)\s*->\s*i32\s*\{\s*"
+        r"(?P<end>%[\w.$-]+)\s*=\s*affine\.load\s+(?P=ptr)\[(?P=row)\s*\+\s*1\]\s*:\s*memref<\?xi32>\s*"
+        r"(?P<test>%[\w.$-]+)\s*=\s*arith\.cmpi\s+slt,\s*(?P=p),\s*(?P=end)\s*:\s*i32\s*"
+        r"scf\.condition\((?P=test)\)\s*(?P=p)\s*:\s*i32\s*\}\s*do\s*\{\s*"
+        r"\^bb0\((?P=p):\s*i32\):\s*"
+        r"(?P<index>%[\w.$-]+)\s*=\s*arith\.index_cast\s+(?P=p)\s*:\s*i32\s+to\s+index\s*"
+        r"memref\.store\s+(?P=row_i32),\s*(?P<out>%[\w.$-]+)\[(?P=index)\]\s*:\s*memref<\?xi32>\s*"
+        r"(?P<next>%[\w.$-]+)\s*=\s*arith\.addi\s+(?P=p),\s*(?P<one>%[\w.$-]+)\s*:\s*i32\s*"
+        r"scf\.yield\s+(?P=next)\s*:\s*i32\s*\}\s*\}\s*")
+    for index, loop in enumerate(parse_loops(text)):
+        if loop.kind != "affine.for":
+            continue
+        match = pattern.fullmatch(text[loop.span[0]:loop.span[1]])
+        if match is None or not 0 < int(match["rows"]) < 2147483647:
+            continue
+        function = _enclosing_function_text(text, loop.span[0])
+        signature = function[:function.find("{")]
+        if (match["ptr"] == match["out"] or
+                any(not re.search(rf"{re.escape(match[key])}\s*:\s*memref<\?xi32>", signature)
+                    for key in ("ptr", "out")) or not re.search(
+                        rf"{re.escape(match['one'])}\s*=\s*arith\.constant\s+1\s*:\s*i32", function)):
+            continue
+        symbol = "cusparseXcsr2coo_i32_memref"
+        rows = f"%csr_expand_{index}_rows"
+        replacement = (f"{rows} = arith.constant {match['rows']} : index\n"
+                       f"kernel.launch @{symbol}({rows}, {match['ptr']}, {match['out']}) : "
+                       "(index, memref<?xi32>, memref<?xi32>) -> ()")
+        edits.append((loop.span[0], loop.span[1], replacement, symbol))
+    return edits
+
+
+def _render_seeded_argreductions(text, instances, bodies, body_forms):
+    """Recognize first-index, ordered row reductions from their dataflow."""
+    edits = []
+    for i in range(len(instances) - 3):
+        group = instances[i:i + 4]
+        if body_forms[i:i + 4] != ["memref"] * 4:
+            continue
+        init, seed, reduce, copy = group
+        function = _enclosing_function_text(text, init.span[0])
+        if (function != _enclosing_function_text(text, copy.span[0]) or
+                function.count("linalg.generic") != 4 or
+                re.search(r"\b(?:scf|affine)\.", function)):
+            continue
+        if len({op.indent for op in group}) != 1:
+            continue
+        maps = [[_compact_affine_map(m) for m in body.indexing_maps]
+                for body in bodies[i:i + 4]]
+        identity = "affine_map<(d0)->(d0)>"
+        if (maps != [[identity], [identity] * 2,
+                     ["affine_map<(d0,d1)->(d0,d1)>",
+                      "affine_map<(d0,d1)->(d0)>",
+                      "affine_map<(d0,d1)->(d0)>"], [identity] * 2] or
+                [body.iterator_types for body in bodies[i:i + 4]] !=
+                [["parallel"], ["parallel"], ["parallel", "reduction"], ["parallel"]]):
+            continue
+        chunks = [text[op.span[0]:op.span[1]] for op in group]
+        # Exact instruction counts exclude extra computation hidden among the
+        # matched comparisons/selects. View and type checks below bind every
+        # operand; neither function names nor argument positions are used.
+        if [len(re.findall(r"(?m)^\s*%[\w.$-]+\s*=", chunk))
+                for chunk in chunks] != [0, 0, 6, 0]:
+            continue
+        zero = re.search(r"linalg\.yield\s+(%[\w.$-]+)\s*:\s*i32", chunks[0])
+        if zero is None or not re.search(
+                rf"{re.escape(zero[1])}\s*=\s*arith\.constant\s+0\s*:\s*i32", function):
+            continue
+        copy_pattern = (r"\^bb0\((%[\w.$-]+):\s*{ty},\s*%[\w.$-]+:\s*{ty}\):"
+                        r"\s*linalg\.yield\s+\1\s*:\s*{ty}\s*\}}")
+        if (re.search(copy_pattern.format(ty="f32"), chunks[1]) is None or
+                re.search(copy_pattern.format(ty="i32"), chunks[3]) is None):
+            continue
+        semantics = re.search(
+            r"\^bb0\((?P<x>%[\w.$-]+):\s*f32,\s*(?P<oi>%[\w.$-]+):\s*i32,\s*"
+            r"(?P<ov>%[\w.$-]+):\s*f32\):\s*"
+            r"(?P<relative>%[\w.$-]+)\s*=\s*linalg\.index\s+1\s*:\s*index\s*"
+            r"(?P<absolute>%[\w.$-]+)\s*=\s*arith\.addi\s+(?P=relative),\s*"
+            r"(?P<one>%[\w.$-]+)\s*:\s*index\s*"
+            r"(?P<index>%[\w.$-]+)\s*=\s*arith\.index_cast\s+(?P=absolute)\s*:\s*index\s+to\s+i32\s*"
+            r"(?P<better>%[\w.$-]+)\s*=\s*arith\.cmpf\s+(?P<kind>ogt|olt),\s*(?P=x),\s*(?P=ov)\s*:\s*f32\s*"
+            r"(?P<ni>%[\w.$-]+)\s*=\s*arith\.select\s+(?P=better),\s*(?P=index),\s*(?P=oi)\s*:\s*i32\s*"
+            r"(?P<nv>%[\w.$-]+)\s*=\s*arith\.select\s+(?P=better),\s*(?P=x),\s*(?P=ov)\s*:\s*f32\s*"
+            r"linalg\.yield\s+(?P=ni),\s*(?P=nv)\s*:\s*i32,\s*f32\s*\}", chunks[2])
+        if semantics is None or _constant_index_value(function, semantics["one"]) != 1:
+            continue
+        ins = [_extract_ssa_names(op.ins_part) for op in group]
+        outs = [_extract_ssa_names(op.outs_part) for op in group]
+        if ([len(v) for v in ins] != [0, 1, 1, 1] or
+                [len(v) for v in outs] != [1, 1, 2, 1] or ins[3] != outs[0]):
+            continue
+
+        def view(value):
+            found = re.search(
+                rf"(?m)^\s*{re.escape(value)}\s*=\s*memref\.subview\s+"
+                r"(%[\w.$-]+)\[([^]]*)\]\s*\[([^]]*)\]\s*\[([^]]*)\]"
+                r"\s*:\s*(memref<[^>]+>)\s+to", function)
+            if found is None:
+                return None
+            return dict(base=found[1], offsets=found[2].replace(" ", ""),
+                        sizes=[s.strip() for s in found[3].split(",")],
+                        strides=found[4].replace(" ", ""), type=found[5])
+
+        first, rest, values, indices = map(view, [ins[1][0], ins[2][0], outs[1][0], outs[2][0]])
+        if any(v is None for v in (first, rest, values, indices)):
+            continue
+        shape = re.fullmatch(r"memref<(\?|\d+)x(\d+)xf32>", first["type"])
+        if shape is None:
+            continue
+        cols = int(shape[2])
+        rows = _constant_index_value(function, first["sizes"][0])
+        if (rows is None or rows <= 0 or cols <= 1 or rows * cols > 2147483647 or
+                first["offsets"] != "0,0" or first["strides"] != "1,1" or
+                first["sizes"][1:] != ["1"] or
+                rest["base"] != first["base"] or rest["type"] != first["type"] or
+                rest["offsets"] != "0,1" or rest["strides"] != "1,1" or
+                len(rest["sizes"]) != 2 or rest["sizes"][0] != first["sizes"][0] or
+                _constant_index_value(function, rest["sizes"][1]) != cols - 1 or
+                any(v["offsets"] != "0" or v["strides"] != "1" or
+                    v["sizes"] != first["sizes"][:1] for v in (values, indices)) or
+                indices["base"] != outs[0][0]):
+            continue
+        extent = first["sizes"][0]
+        if shape[1] != "?" and int(shape[1]) < rows:
+            continue
+        # Both accumulators are private, cover precisely the active rows, and
+        # have no escaping uses after the final copy.
+        valid = True
+        for buffer, element in ((indices["base"], "i32"), (values["base"], "f32")):
+            if not re.search(
+                    rf"{re.escape(buffer)}\s*=\s*memref\.alloca\(\s*{re.escape(extent)}\s*\)"
+                    rf"\s*:\s*memref<\?x{element}>", function):
+                valid = False
+        if not valid:
+            continue
+        value_view = re.search(
+            rf"{re.escape(outs[2][1])}\s*=\s*memref\.reinterpret_cast\s+"
+            rf"{re.escape(values['base'])}\s+to\s+offset:\s*\[0\],\s*"
+            rf"sizes:\s*\[{re.escape(extent)}\],\s*strides:\s*\[1\]", function)
+        output_types = _extract_ssa_types(copy.outs_part)
+        if value_view is None or output_types != ["memref<?xi32>"]:
+            continue
+        start, end = init.span[0], copy.span[1]
+        between = text[start:end]
+        for op in reversed(group):
+            between = between[:op.span[0] - start] + between[op.span[1] - start:]
+        if any(line.strip() and not re.match(
+                r"%[\w.$-]+\s*=\s*memref\.(subview|reinterpret_cast)\b", line.strip())
+                for line in between.splitlines()):
+            continue
+        function_tail = text[end:text.find("\n  }", end)]
+        defined = re.findall(r"(?m)^\s*(%[\w.$-]+)\s*=", text[start:end])
+        if any(re.search(rf"(?<![\w]){re.escape(value)}(?![\w])", function_tail)
+               for value in defined + [indices["base"], values["base"]]):
+            continue
+        symbol = "cubSegmentedArg" + ("Max" if semantics["kind"] == "ogt" else "Min") + "_f32_i32_memref"
+        prefix = f"%argreduce_{i}"
+        lines = [
+            f"{prefix}_input_static = memref.reinterpret_cast {first['base']} to offset: [0], sizes: [{rows}, {cols}], strides: [{cols}, 1] : {first['type']} to memref<{rows}x{cols}xf32>",
+            f"{prefix}_input = memref.cast {prefix}_input_static : memref<{rows}x{cols}xf32> to memref<?x?xf32>",
+            f"{prefix}_output_static = memref.reinterpret_cast {outs[3][0]} to offset: [0], sizes: [{rows}], strides: [1] : memref<?xi32> to memref<{rows}xi32>",
+            f"{prefix}_output = memref.cast {prefix}_output_static : memref<{rows}xi32> to memref<?xi32>",
+            f"kernel.launch @{symbol}({prefix}_input, {prefix}_output) : (memref<?x?xf32>, memref<?xi32>) -> ()"]
+        edits.append((start, end, init.indent + init.indent.join(lines), symbol, list(range(i, i + 4))))
+    return edits
+
+
 def rewrite_mlir(
     text: str,
     dry_run: bool = False,
@@ -6648,6 +7888,39 @@ def rewrite_mlir(
             report.append(("match", consumed, launch_name))
     emitted_launches = 0
     if enable_structured_rewrite:
+        for start, end, replacement, symbol in (
+                _render_csr_row_expansion(text) + _render_blocked_layout_copies(text) +
+                _render_prefix_lower_bounds(text)):
+            if (symbol in disabled_kernels or
+                    (only_kernels is not None and symbol not in only_kernels)):
+                continue
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", [], symbol))
+                continue
+            edits.append((start, end, replacement))
+            report.append(("match", [], symbol))
+            emitted_launches += 1
+        for start, end, replacement, symbol, consumed in (
+                _render_seeded_argreductions(text, instances, bodies, body_forms) +
+                _render_seeded_row_reductions(text, instances, bodies, body_forms) +
+                _render_vector_norms(text, instances, bodies, body_forms) +
+                _render_quantized_column_sums(text, instances, bodies, body_forms) +
+                _render_fixed_pool_backward(text, instances, bodies, body_forms) +
+                _render_integer_origin_bilinear(text, instances, bodies, body_forms) +
+                _render_tensor_scattered_convolutions(text, instances, bodies, body_forms) +
+                _render_scattered_convolutions(text, instances, bodies, body_forms) +
+                _render_joint_maxabs_products(text, instances, bodies, body_forms) +
+                _render_tensor_histograms(text, instances, bodies, body_forms)):
+            if (symbol in disabled_kernels or
+                    (only_kernels is not None and symbol not in only_kernels)):
+                continue
+            if max_launches is not None and emitted_launches >= max_launches:
+                report.append(("launch_limit", consumed, symbol))
+                continue
+            edits.append((start, end, replacement))
+            consumed_structured_bodies.update(consumed)
+            report.append(("match", consumed, symbol))
+            emitted_launches += 1
         for histogram_edits, symbol in _render_zeroed_i32_histograms(text):
             if max_launches is not None and emitted_launches >= max_launches:
                 report.append(("launch_limit", [], symbol))
@@ -7028,7 +8301,8 @@ def rewrite_mlir(
                 and "arith.mulf" in conv_text
                 and "arith.addf" in conv_text
                 and init_inst.result_ssa is not None
-                and conv_outs == [init_inst.result_ssa]
+                and (conv_outs == [init_inst.result_ssa] or
+                     _conv3d_bias_slice_writeback(text, init_inst, conv_inst))
                 and conv_inst.result_ssa is not None
                 and conv_inst.result_type is not None
                 and all(_sniff_elem_type(t) == "f32" for t in
@@ -7051,6 +8325,10 @@ def rewrite_mlir(
                     scalar_type_map=scalar_types,
                     result_count=conv_inst.result_count,
                 )
+                if conv_outs != [init_inst.result_ssa]:
+                    middle = text[init_inst.span[1]:conv_inst.span[0]]
+                    middle = re.sub(rf"(?<![\w.$-]){re.escape(init_inst.result_ssa)}(?![\w.$-])", init_outs[0], middle)
+                    edits.append((init_inst.span[1],conv_inst.span[0],middle))
                 edits.append((init_inst.span[0], init_inst.span[1], ""))
                 edits.append((conv_inst.span[0], conv_inst.span[1],
                               launch_line))
@@ -7206,6 +8484,26 @@ def rewrite_mlir(
             out_types = _extract_ssa_types(inst.outs_part)
             input_modes, output_modes = permutation
             rank = len(input_modes)
+            reverse_view = False
+            for value in ins + outs:
+                view = _tensor_submap_info(text, value, inst.span[0])
+                if view is None:
+                    continue
+                map_results = re.search(r"->\s*\((.*)\)>", view["map"])
+                if map_results is None:
+                    continue
+                for expression in _split_affine_results(map_results.group(1)):
+                    polynomial = _affine_polynomial(expression, rank=rank)
+                    if polynomial is not None and any(
+                            coefficient < 0 and any(powers[:rank])
+                            for powers, coefficient in polynomial.items()):
+                        reverse_view = True
+            if reverse_view:
+                # cuTENSOR requires positive physical strides. A reversal is
+                # not an ordinary permutation/copy, even with identity modes.
+                report.append(("negative_stride_permutation_reject", i, None))
+                i += 1
+                continue
             legal = (
                 len(ins) == len(in_types) == len(outs) == len(out_types) == 1
                 and inst.result_ssa is not None
@@ -8855,6 +10153,8 @@ def rewrite_mlir(
                 "memref<?x?x?x?xf32>", "memref<?x?x?x?xf32>",
                 "memref<?x?x?x?xf32>"
             ]
+            if entry.name == "cudnnConvolutionTBC_f32_memref":
+                dynamic_types = ["memref<?x?x?xf32>"] * 3
             if entry.name == "cudnnDepthwiseConvolution2D_f32_memref":
                 dynamic_types = [
                     "memref<?x?x?x?xf32>", "memref<?x?x?xf32>",
@@ -11342,6 +12642,27 @@ def rewrite_mlir(
             binds = {}
             if entry.name.endswith("_tensor"):
                 replace_full_span = True
+                # The final inverse may name the exp-shifted intermediate as
+                # its base. That definition disappears with the fused span;
+                # reconnect it to the same original storage after proving the
+                # dependency, while retaining the inverse's view and result.
+                inverse = re.match(
+                    rf"\s*%[\w.$-]+\s*=\s*polygeist\.submapInverse\("
+                    rf"(?P<base>%[\w.$-]+),\s*{re.escape(last.result_ssa or '')},",
+                    text[last.span[1]:])
+                if inverse is not None:
+                    base = inverse['base']
+                    deleted = re.search(
+                        rf"(?m)^\s*{re.escape(base)}\s*=",
+                        text[start:last.span[1]])
+                    if deleted:
+                        if (_trace_tensor_storage_base(text,base) != vector_base or
+                                _infer_tensor_type(text,base) != vector_type):
+                            report.append(("softmax_writeback_reject",i,entry.name))
+                            i += n
+                            continue
+                        edits.append((last.span[1]+inverse.start('base'),
+                                      last.span[1]+inverse.end('base'),vector_base))
             else:
                 last = LinalgInstance(
                     result_ssa=None,
@@ -11399,6 +12720,53 @@ def rewrite_mlir(
             # deleted max/sum intermediates.
             final_result = last.result_ssa
             final_type = last.result_type
+            slice_writeback = ""
+            output_view = _tensor_extract_slice_info(
+                text, out_names[0], vector_inst.span[0])
+            if output_view is not None:
+                final_outputs = _extract_ssa_names(last.outs_part)
+                final_view = (_tensor_extract_slice_info(
+                    text, final_outputs[0], last.span[0])
+                    if len(final_outputs) == 1 else None)
+                def index_value(value):
+                    return (int(value) if re.fullmatch(r"-?\d+", value)
+                            else _constant_index_value(text, value))
+                def same_indices(left, right):
+                    return len(left) == len(right) and all(
+                        a == b or (index_value(a) is not None and
+                                   index_value(a) == index_value(b))
+                        for a, b in zip(left, right))
+                valid_view = final_view is not None and all(
+                    same_indices(output_view[key], final_view[key])
+                    for key in ("offsets", "sizes", "strides"))
+                tail = re.match(
+                    rf"\s*(%[\w.$-]+)\s*=\s*tensor\.insert_slice\s+"
+                    rf"{re.escape(last.result_ssa or '')}\s+into\s+"
+                    rf"(%[\w.$-]+)\[([^]]*)\]\s*\[([^]]*)\]\s*"
+                    rf"\[([^]]*)\][^\n]*",
+                    text[last.span[1]:])
+                producer = (re.search(
+                    rf"(?m)^\s*{re.escape(final_view['source'])}\s*=\s*"
+                    rf"tensor\.insert_slice\s+{re.escape(vector_inst.result_ssa)}#0"
+                    rf"\s+into\s+{re.escape(output_view['source'])}\[([^]]*)\]"
+                    rf"\s*\[([^]]*)\]\s*\[([^]]*)\]",
+                    text[start:last.span[0]]) if valid_view else None)
+                valid_view = (valid_view and producer is not None and tail is not None
+                              and tail.group(2) == final_view['source'] and all(
+                    same_indices(output_view[key],
+                                 [v.strip() for v in producer.group(group).split(',')])
+                    for key, group in (("offsets", 1), ("sizes", 2), ("strides", 3))) and all(
+                    same_indices(output_view[key],
+                                 [v.strip() for v in tail.group(group).split(',')])
+                    for key, group in (("offsets", 3), ("sizes", 4), ("strides", 5))))
+                if not valid_view:
+                    report.append(("softmax_writeback_reject", i, entry.name))
+                    i += n
+                    continue
+                slice_writeback = re.sub(
+                    rf"(\binto\s+){re.escape(final_view['source'])}(?=\[)",
+                    rf"\g<1>{output_view['source']}", tail.group(0))
+                custom_edit_span = (start, last.span[1] + tail.end())
             if last.result_ssa is not None:
                 inverse_match = re.search(
                     rf"^\s*(%[\w.$-]+)\s*=\s*polygeist\.submapInverse\([^\n]*"
@@ -11454,6 +12822,7 @@ def rewrite_mlir(
                 operands, last.indent, {}, [], operand_types=operand_types,
                 scalar_type_map=scalar_types, result_count=last.result_count)
             custom_launch_line = "\n".join([*preserved_defs, rendered])
+            custom_launch_line += slice_writeback
             replace_full_span = True
 
         if entry.name == "whisperExpShiftSum_f32_tensor":
@@ -11938,6 +13307,11 @@ def rewrite_mlir(
                 emit_name = "cublasSgemm_broadcast3d_simple"
             elif (emit_name == "cublasDsyrk_alias"):
                 pass
+            elif entry.name in ("cublasSgemm_nn_zero",
+                                "cublasSgemm_strided_batched_nn_zero"):
+                # Keep the overwrite ABI and layout established above. The
+                # initialization was consumed, so beta=1 would read stale C.
+                pass
             elif (elem in ("f32", "f64") and
                   operand_ranks == [2, 2, 2]):
                 maps = bodies[i + n - 1].indexing_maps
@@ -12009,6 +13383,20 @@ def rewrite_mlir(
                           "cudnnReduceMinMax_f32"):
             elems = [_sniff_elem_type(t) for t in operand_types]
             ranks = [_shaped_rank(t) for t in operand_types]
+            if (entry.name in ("cudnnReduceMin_f32", "cudnnReduceMax_f32",
+                               "cudnnReduceMinMax_f32") and
+                    any(t.startswith("memref<") for t in operand_types[1:])):
+                # The overwrite-only reduction ABI cannot preserve an
+                # arbitrary scalar seed (often the excluded first element).
+                # Keep the original reduction until its seed is accounted for.
+                report.append(("unproven_reduction_seed", i, entry.name))
+                i += n
+                continue
+            layout = re.search(r"strided<\[([^]]+)\]", operand_types[0]) if operand_types else None
+            if ranks and ranks[0] == 1 and layout and layout[1].strip() != "1":
+                report.append(("noncontiguous_reduction_input", i, entry.name))
+                i += n
+                continue
             if entry.name == "reduce_sum_1D":
                 reduction_body = bodies[i]
                 diagonal = (

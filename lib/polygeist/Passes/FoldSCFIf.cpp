@@ -246,6 +246,17 @@ static bool isLoadLike(Operation &op) {
   return isa<memref::LoadOp, affine::AffineLoadOp>(op);
 }
 
+// A data-dependent while loop may reach its terminal index before evaluating
+// the guarded read in its condition. Do not speculate such reads: unlike a
+// counted affine loop, its carried indices have no statically bounded domain.
+static bool hasGuardedWhileRead(Operation *guard) {
+  if (!guard->getParentOfType<scf::WhileOp>())
+    return false;
+  bool hasRead = false;
+  guard->walk([&](Operation *op) { hasRead |= isLoadLike(*op); });
+  return hasRead;
+}
+
 static bool canSpeculateForSelect(Block *block) {
   for (Operation &op : block->getOperations()) {
     if (isa<scf::YieldOp, affine::AffineYieldOp>(op))
@@ -796,6 +807,8 @@ static bool foldScalarSCFIf(scf::IfOp ifOp, OpBuilder &b) {
 }
 
 static bool foldScalarAffineIf(affine::AffineIfOp ifOp, OpBuilder &b) {
+  if (hasGuardedWhileRead(ifOp))
+    return false;
   if (ifOp.getNumResults() == 0 || !ifOp.hasElse())
     return false;
   if (!canSpeculateForSelect(ifOp.getThenBlock()) ||
@@ -842,6 +855,8 @@ static bool foldScalarAffineIf(affine::AffineIfOp ifOp, OpBuilder &b) {
 }
 
 static bool foldSCFIf(scf::IfOp ifOp, OpBuilder &b) {
+  if (hasGuardedWhileRead(ifOp))
+    return false;
   Location loc = ifOp.getLoc();
 
   LLVM_DEBUG(llvm::dbgs() << "Working on scf.if:\n" << ifOp << "\n");

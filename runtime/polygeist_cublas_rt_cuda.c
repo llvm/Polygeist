@@ -5425,12 +5425,73 @@ cleanup:
   return ok;
 }
 
+// Coordinate-grid construction depends only on the descriptor dimensions.
+// All interpolation of input values is performed by the cuDNN sampler.
+static void integer_origin_bilinear_2x_f32(
+    int32_t N, int32_t C, int32_t H, int32_t W,
+    const float *input, float *output) {
+  typedef struct BilinearGridPlan {
+    int device, n, c, h, w;
+    cudnnTensorDescriptor_t x, y;
+    cudnnSpatialTransformerDescriptor_t sampler;
+    float *grid;
+    struct BilinearGridPlan *next;
+  } BilinearGridPlan;
+  static __thread BilinearGridPlan *plans = NULL;
+  int device = 0;
+  CUDA_CHECK(cudaGetDevice(&device));
+  BilinearGridPlan *plan = plans;
+  for (; plan; plan = plan->next)
+    if (plan->device == device && plan->n == N && plan->c == C &&
+        plan->h == H && plan->w == W)
+      break;
+  if (!plan) {
+    plan = (BilinearGridPlan *)calloc(1, sizeof(*plan));
+    if (!plan) abort();
+    plan->device = device; plan->n = N; plan->c = C;
+    plan->h = H; plan->w = W;
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->x));
+    CUDNN_CHECK(cudnnCreateTensorDescriptor(&plan->y));
+    CUDNN_CHECK(cudnnCreateSpatialTransformerDescriptor(&plan->sampler));
+    CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+        plan->x, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+    CUDNN_CHECK(cudnnSetTensor4dDescriptor(
+        plan->y, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, 2*H, 2*W));
+    int dims[4] = {N, C, 2*H, 2*W};
+    CUDNN_CHECK(cudnnSetSpatialTransformerNdDescriptor(
+        plan->sampler, CUDNN_SAMPLER_BILINEAR, CUDNN_DATA_FLOAT, 4, dims));
+    size_t bytes = (size_t)N * (2*H) * (2*W) * 2 * sizeof(float);
+    float *grid = (float *)malloc(bytes);
+    if (!grid) abort();
+    for (int n = 0; n < N; ++n)
+      for (int h = 0; h < 2*H; ++h)
+        for (int w = 0; w < 2*W; ++w) {
+          size_t k = ((size_t)n*(2*H)*(2*W) + h*(2*W) + w)*2;
+          grid[k] = W > 1 ? 2*fminf(w*0.5f, W-1)/(W-1)-1 : 0;
+          grid[k+1] = H > 1 ? 2*fminf(h*0.5f, H-1)/(H-1)-1 : 0;
+        }
+    CUDA_CHECK(cudaMalloc((void **)&plan->grid, bytes));
+    CUDA_CHECK(cudaMemcpy(plan->grid, grid, bytes, cudaMemcpyHostToDevice));
+    free(grid);
+    plan->next = plans; plans = plan;
+  }
+  float *x = (float *)register_host_safe((void *)input,
+      (size_t)N*C*H*W*sizeof(float));
+  float *y = (float *)register_host_safe(output,
+      (size_t)N*C*(2*H)*(2*W)*sizeof(float));
+  float one = 1.0f, zero = 0.0f;
+  CUDNN_CHECK(cudnnSpatialTfSamplerForward(
+      g_cudnn, plan->sampler, &one, plan->x, x, plan->grid,
+      &zero, plan->y, y));
+  sync_stream_if_outside_pipeline();
+}
+
 void polygeist_cudnn_adaptive_pool_f32(
     int32_t operation, int32_t rank, int32_t N, int32_t C,
     int32_t I0, int32_t I1, int32_t I2,
     int32_t O0, int32_t O1, int32_t O2,
     const void *ptr0, void *ptr1, void *ptr2) {
-  if (operation < 0 || operation > 6 || rank < 1 || rank > 3 ||
+  if (operation < 0 || operation > 7 || rank < 1 || rank > 3 ||
       N <= 0 || C <= 0 || I0 <= 0 || I1 <= 0 || I2 <= 0 ||
       O0 <= 0 || O1 <= 0 || O2 <= 0) {
     fprintf(stderr, "cuDNN adaptive pool: invalid parameters\n");
@@ -5438,6 +5499,17 @@ void polygeist_cudnn_adaptive_pool_f32(
   }
   polygeist_cublas_init();
   ensure_cudnn();
+  if (operation == 7) {
+    if (rank != 2 || I2 != 1 || O2 != 1 ||
+        I0 > INT32_MAX/2 || I1 > INT32_MAX/2 ||
+        O0 != 2*I0 || O1 != 2*I1) {
+      fprintf(stderr, "cuDNN integer-origin bilinear: invalid shape\n");
+      abort();
+    }
+    integer_origin_bilinear_2x_f32(N, C, I0, I1,
+        (const float *)ptr0, (float *)ptr1);
+    return;
+  }
   if (operation == 5) {
     fixed_average_pool_backward_convolution_f32(
         rank, N, C, I0, I1, I2, O0, O1, O2,
@@ -7300,45 +7372,45 @@ void polygeist_cublas_snrm2_f32(
   sync_stream_if_outside_pipeline();
 }
 
+static void *polygeist_cub_companion_symbol(const char *symbol);
+
 void polygeist_cublas_joint_maxabs_product_f32(
     int32_t NA, int32_t NB, const float *a, const float *b, float *output) {
+  if (NA < 0 || NB < 0 || !a || !b || !output) {
+    fprintf(stderr, "joint maximum-absolute-value reduction: invalid operands\n");
+    abort();
+  }
   polygeist_cublas_init();
   float *deviceA = (float *)register_host_safe(
       (void *)a, (size_t)NA * sizeof(float));
   float *deviceB = (float *)register_host_safe(
       (void *)b, (size_t)NB * sizeof(float));
-  int ia = 0, ib = 0;
-  CUBLAS_CHECK(cublasIsamax(g_handle, NA, deviceA, 1, &ia));
-  CUBLAS_CHECK(cublasIsamax(g_handle, NB, deviceB, 1, &ib));
+  float *deviceOutput = (float *)register_host_safe(output, sizeof(float));
+  float *maxima = NULL;
+  DEVICE_MALLOC(&maxima, 2 * sizeof(float));
+  typedef int (*MaxAbsFunction)(int32_t, const float *, float *, cudaStream_t);
+  static MaxAbsFunction maxabs = NULL;
+  if (!maxabs)
+    maxabs = (MaxAbsFunction)polygeist_cub_companion_symbol(
+        "polygeist_cub_maxabs_f32_cuda");
+  int status = maxabs(NA, deviceA, maxima, g_stream);
+  if (!status) status = maxabs(NB, deviceB, maxima + 1, g_stream);
+  if (status) {
+    fprintf(stderr, "CUB maximum-absolute-value reduction failed: %d\n", status);
+    abort();
+  }
+  // Multiply the two device scalars through the library as well. Neither
+  // selected input values nor numerical intermediate results visit the CPU.
+  const float one = 1.0f, zero = 0.0f;
+  cublasPointerMode_t previous;
+  CUBLAS_CHECK(cublasGetPointerMode(g_handle, &previous));
+  CUBLAS_CHECK(cublasSetPointerMode(g_handle, CUBLAS_POINTER_MODE_HOST));
+  CUBLAS_CHECK(cublasSgemm(g_handle, CUBLAS_OP_N, CUBLAS_OP_N,
+                          1, 1, 1, &one, maxima, 1, maxima + 1, 1,
+                          &zero, deviceOutput, 1));
+  CUBLAS_CHECK(cublasSetPointerMode(g_handle, previous));
   sync_stream_if_outside_pipeline();
-  float av = 0.0f, bv = 0.0f;
-  void *residentA = NULL, *residentB = NULL, *residentOutput = NULL;
-  if (ia > 0) {
-    if (pointer_is_device_resident((void *)a, &residentA))
-      CUDA_CHECK(cudaMemcpyAsync(&av, (float *)residentA + ia - 1,
-                                 sizeof(float), cudaMemcpyDeviceToHost,
-                                 g_stream));
-    else
-      av = a[ia - 1];
-  }
-  if (ib > 0) {
-    if (pointer_is_device_resident((void *)b, &residentB))
-      CUDA_CHECK(cudaMemcpyAsync(&bv, (float *)residentB + ib - 1,
-                                 sizeof(float), cudaMemcpyDeviceToHost,
-                                 g_stream));
-    else
-      bv = b[ib - 1];
-  }
-  if (residentA || residentB)
-    CUDA_CHECK(cudaStreamSynchronize(g_stream));
-  float product = fabsf(av) * fabsf(bv);
-  if (pointer_is_device_resident(output, &residentOutput)) {
-    CUDA_CHECK(cudaMemcpyAsync(residentOutput, &product, sizeof(float),
-                               cudaMemcpyHostToDevice, g_stream));
-    sync_stream_if_outside_pipeline();
-  } else {
-    output[0] = product;
-  }
+  DEVICE_FREE(maxima);
 }
 
 void polygeist_cudnn_feature_mask_scale_f32(
@@ -10201,8 +10273,9 @@ void polygeist_cuda_copy_strided_2d_f32(
     int32_t dst_row_stride, int32_t dst_col_stride,
     const float *X, float *Out) {
   if (rows <= 0 || cols <= 0) return;
-  if (src_col_stride != 1 || dst_col_stride != 1) {
-    fprintf(stderr, "cudaCopy strided f32 requires unit inner strides\n");
+  if (src_col_stride != 1 || dst_col_stride != 1 ||
+      src_row_stride < cols || dst_row_stride < cols) {
+    fprintf(stderr, "cudaCopy strided f32 requires positive row pitches and unit inner strides\n");
     abort();
   }
   polygeist_cublas_init();
@@ -10616,6 +10689,27 @@ void polygeist_cub_segmented_prefix_logical_and_i32(
 
 #define INIT_DISPATCH_BEGIN(label) polygeist_cublas_init(); double hs=timing_enabled()?wall_time_ms():0.0; timing_gpu_begin()
 #define INIT_DISPATCH_END(label,n,st) do{if(st){fprintf(stderr,"polygeist " label " failed: %d\n",st);abort();}timing_gpu_end(label,n,0,0,hs);}while(0)
+void polygeist_cub_prefix_max_lower_bounds_i32_sized(
+    int32_t rows, int32_t count, const int32_t *input,
+    int32_t output_count, int32_t *output) {
+  if (rows < 0 || rows > INT32_MAX-3 || count < 0 ||
+      output_count != rows+1 || !output || (count && !input)) {
+    fprintf(stderr, "CUB prefix lower bounds: invalid parameters\n");
+    abort();
+  }
+  typedef int (*F)(int32_t, int32_t, const int32_t *, int32_t *, cudaStream_t);
+  static F f = NULL;
+  if (!f) f = (F)polygeist_cub_companion_symbol(
+      "polygeist_cub_prefix_max_lower_bounds_i32_cuda");
+  INIT_DISPATCH_BEGIN("cubPrefixMaxLowerBounds_i32");
+  const int32_t *x = count ? (const int32_t *)register_host_safe(
+      (void *)input, (size_t)count*sizeof(int32_t)) : input;
+  int32_t *y = (int32_t *)register_host_safe(
+      output, (size_t)output_count*sizeof(int32_t));
+  int status = f(rows, count, x, y, g_stream);
+  INIT_DISPATCH_END("cubPrefixMaxLowerBounds_i32", count, status);
+}
+
 void polygeist_cub_histogram_even_i32_shift_zero(
     int32_t count, int32_t num_bins, const int32_t *samples,
     int32_t *histogram, int32_t right_shift) {

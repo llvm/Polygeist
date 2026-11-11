@@ -300,6 +300,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cusparse_sddmm_csr_f32_sized";
   if (libSym == "cusparseXcoo2csr_i32_memref")
     return "polygeist_cusparse_coo2csr_i32_sized";
+  if (libSym == "cubPrefixMaxLowerBounds_i32_memref")
+    return "polygeist_cub_prefix_max_lower_bounds_i32_sized";
   if (libSym == "cusparseXcsr2coo_i32_memref")
     return "polygeist_cusparse_csr2coo_i32_sized";
   if (libSym == "cusparseSpMV_JDS_f32_memref")
@@ -1147,6 +1149,24 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
                                           unsigned resultIndex = 0) {
   if (launch.getNumResults() <= resultIndex) return;
   Value res = launch.getResult(resultIndex);
+  tensor::ExtractSliceOp destinationSlice;
+  if (auto destinations = launch->getAttrOfType<DenseI64ArrayAttr>(
+          "polygeist.result_destinations")) {
+    if (resultIndex < destinations.size()) {
+      int64_t index = destinations[resultIndex];
+      if (index >= 0 && (uint64_t)index < launch.getNumOperands()) {
+        Value destination = launch.getOperand(index);
+        destinationSlice = stripTensorCasts(destination)
+                               .getDefiningOp<tensor::ExtractSliceOp>();
+        if (destinationSlice && updatedBaseTensor) {
+          OpBuilder b(launch);
+          if (Value base = tensorForOutputSliceSource(
+                  b, launch.getLoc(), destination))
+            updatedBaseTensor = base;
+        }
+      }
+    }
+  }
   SmallVector<tensor::InsertSliceOp> inserts;
   SmallVector<polygeist::SubmapInverseOp> inverses;
   SmallVector<tensor::CastOp> resultCasts;
@@ -1183,6 +1203,18 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
     }
   }
   for (auto insert : inserts) {
+    // Only bypass write-back into the very slice updated by the library.
+    // A slice has the launch's dynamic type, while the enclosing tensor may
+    // retain static extents and untouched elements outside the slice.
+    if (destinationSlice &&
+        (stripTensorCasts(insert.getDest()) !=
+             stripTensorCasts(destinationSlice.getSource()) ||
+         insert.getMixedOffsets() != destinationSlice.getMixedOffsets() ||
+         insert.getMixedSizes() != destinationSlice.getMixedSizes() ||
+         insert.getMixedStrides() != destinationSlice.getMixedStrides()))
+      continue;
+    if (insert.getResult().getType() != updatedBaseTensor.getType())
+      continue;
     insert.getResult().replaceAllUsesWith(updatedBaseTensor);
     insert.erase();
   }
@@ -4397,6 +4429,11 @@ lowerCusparseIndexConversion(LaunchOp launch, ModuleOp module, StringRef shim) {
     return launch.emitError(
         "cuSPARSE index conversion: expected index rows and rank-1 i32 "
         "input/output memrefs");
+  if (shim == "polygeist_cub_prefix_max_lower_bounds_i32_sized")
+    for (Value operand : launch.getOperands().drop_front())
+      if (!cast<MemRefType>(operand.getType()).getLayout().isIdentity())
+        return launch.emitError("CUB prefix lower bounds requires contiguous "
+                                "input/output memrefs");
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Value> args{valueAsI32(b, loc, launch.getOperand(0))};
   for (unsigned i = 1; i < 3; ++i) {
@@ -4833,6 +4870,12 @@ static LogicalResult lowerSaxpbyMemref(LaunchOp launch, ModuleOp module) {
       !launch.getOperand(3).getType().isF32())
     return launch.emitError(
         "bufferized cublasSaxpby requires rank-1 f32 vectors and scalars");
+  for (MemRefType type : {xType, yType}) {
+    SmallVector<int64_t> strides;
+    int64_t offset;
+    if (failed(getStridesAndOffset(type, strides, offset)) || strides[0] != 1)
+      return launch.emitError("cublasSaxpby requires unit-stride vectors");
+  }
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
@@ -6267,21 +6310,33 @@ static LogicalResult lowerCubSegmentedInclusiveProduct2DF32(
       launch.getNumResults() != (bufferized ? 0u : 2u))
     return launch.emitError(
         "CUB segmented product expects input, output, and final values");
+  auto finalShape = dyn_cast<ShapedType>(launch.getOperand(2).getType());
+  if (!finalShape || !finalShape.hasRank() || finalShape.getRank() != 1 ||
+      !finalShape.getElementType().isF32())
+    return launch.emitError("CUB segmented product requires f32 final values");
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value input = valueToMemrefPreservingSlice(b, loc, launch.getOperand(0));
   Value output =
       valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(1));
-  Value finalValues =
-      valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(2));
+  // A scan's final state is often a dead auxiliary reduction result. Do not
+  // materialize a host scratch tensor just to copy unused final values back.
+  bool needsFinalValues = bufferized || !launch.getResult(1).use_empty();
+  Value finalValues;
+  if (needsFinalValues)
+    finalValues =
+        valueToOutputMemrefPreservingSlice(b, loc, launch.getOperand(2));
   auto inputType = dyn_cast<MemRefType>(input.getType());
   auto outputType = dyn_cast<MemRefType>(output.getType());
-  auto finalType = dyn_cast<MemRefType>(finalValues.getType());
-  if (!inputType || !outputType || !finalType || inputType.getRank() != 2 ||
-      outputType.getRank() != 2 || finalType.getRank() != 1 ||
+  auto finalType = needsFinalValues
+                       ? dyn_cast<MemRefType>(finalValues.getType())
+                       : MemRefType();
+  if (!inputType || !outputType || inputType.getRank() != 2 ||
+      outputType.getRank() != 2 ||
+      (needsFinalValues && (!finalType || finalType.getRank() != 1 ||
+                           !finalType.getElementType().isF32())) ||
       !inputType.getElementType().isF32() ||
-      !outputType.getElementType().isF32() ||
-      !finalType.getElementType().isF32())
+      !outputType.getElementType().isF32())
     return launch.emitError(
         "CUB segmented product requires f32 [R,K], [R,K], [R]");
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
@@ -6293,13 +6348,16 @@ static LogicalResult lowerCubSegmentedInclusiveProduct2DF32(
       ValueRange{memrefDimAsI32(b, loc, input, 0),
                  memrefDimAsI32(b, loc, input, 1),
                  memrefDataPtr(b, loc, input),
-                 memrefDataPtr(b, loc, finalValues),
+                 needsFinalValues ? memrefDataPtr(b, loc, finalValues)
+                                  : b.create<LLVM::ZeroOp>(loc, ptr).getResult(),
                  memrefDataPtr(b, loc, output)});
   if (!bufferized) {
     Value outputTensor =
         memrefToTensor(b, loc, output, launch.getResult(0).getType());
-    Value finalTensor =
-        memrefToTensor(b, loc, finalValues, launch.getResult(1).getType());
+    Value finalTensor;
+    if (needsFinalValues)
+      finalTensor =
+          memrefToTensor(b, loc, finalValues, launch.getResult(1).getType());
     Value outputBase = resolveSubmapBase(launch.getOperand(1));
     Value updatedOutputBase;
     if (isa<RankedTensorType>(outputBase.getType())) {
@@ -7163,6 +7221,14 @@ static LogicalResult lowerCudnnReduction(LaunchOp launch, ModuleOp module,
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   Value inputMr = valueToMemrefPreservingSlice(b, loc, input);
+  if (!diagonal) {
+    auto type = dyn_cast<MemRefType>(inputMr.getType());
+    SmallVector<int64_t> strides;
+    int64_t offset;
+    if (!type || failed(getStridesAndOffset(type, strides, offset)) ||
+        strides.size() != 1 || strides[0] != 1)
+      return launch.emitError("cudnn reduction requires a unit-stride input");
+  }
   Value inputPtr = memrefDataPtr(b, loc, inputMr);
   auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes;
@@ -7879,9 +7945,37 @@ static LogicalResult lowerCudaCopy1DF32Memref(LaunchOp launch,
       !outputType.getElementType().isF32())
     return launch.emitError(
         "bufferized CUDA copy requires rank-1 f32 memrefs");
+  for (MemRefType type : {inputType, outputType}) {
+    SmallVector<int64_t> strides;
+    int64_t offset;
+    if (failed(getStridesAndOffset(type, strides, offset)) ||
+        (!ShapedType::isDynamic(strides[0]) && strides[0] <= 0))
+      return launch.emitError("bufferized CUDA copy requires positive strides");
+  }
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  if (!hasKnownContiguousLayout(inputType) ||
+      !hasKnownContiguousLayout(outputType)) {
+    auto input = b.create<memref::ExtractStridedMetadataOp>(
+        loc, launch.getOperand(0));
+    auto output = b.create<memref::ExtractStridedMetadataOp>(
+        loc, launch.getOperand(1));
+    Value one = b.create<arith::ConstantIntOp>(loc, 1, 32);
+    SmallVector<Type> types(6, b.getI32Type());
+    types.append({ptr, ptr});
+    auto shim = ensureShimDecl(module, "polygeist_cuda_copy_strided_2d_f32",
+                               types, b);
+    b.create<func::CallOp>(
+        loc, shim,
+        ValueRange{memrefDimAsI32(b, loc, launch.getOperand(0), 0), one,
+                   valueAsI32(b, loc, input.getStrides()[0]), one,
+                   valueAsI32(b, loc, output.getStrides()[0]), one,
+                   memrefDataPtr(b, loc, launch.getOperand(0)),
+                   memrefDataPtr(b, loc, launch.getOperand(1))});
+    launch.erase();
+    return success();
+  }
   auto shim = ensureShimDecl(module, "polygeist_cuda_copy_f32",
                              {b.getI32Type(), ptr, ptr}, b);
   b.create<func::CallOp>(
@@ -8430,6 +8524,7 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "cusparseSDDMM_CSR_f32_memref") {
         r = lowerCusparseCsrSddmm(launch, module);
       } else if (libSym == "cusparseXcoo2csr_i32_memref" ||
+                 libSym == "cubPrefixMaxLowerBounds_i32_memref" ||
                  libSym == "cusparseXcsr2coo_i32_memref") {
         r = lowerCusparseIndexConversion(launch, module, shim);
       } else if (libSym == "cusparseSpMV_JDS_f32_memref") {

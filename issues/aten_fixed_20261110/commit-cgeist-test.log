@@ -1,0 +1,5 @@
+-- Testing: 1 tests, 1 workers --
+PASS: cgeist :: Verification/logical-result.c (1 of 1)
+
+Testing Time: 0.16s
+  Passed: 1

@@ -2692,7 +2692,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     builder.create<mlir::scf::YieldOp>(loc, falsearray);
 
     builder.setInsertionPoint(oldblock, oldpoint);
-    return fixInteger(ifOp.getResult(0));
+    // C logical operators produce int 0 or 1, not a sign-extended i1.
+    return fixInteger(ifOp.getResult(0), /*forceUnsigned*/ true);
   }
   case clang::BinaryOperator::Opcode::BO_LOr: {
     mlir::Type types[] = {builder.getIntegerType(1)};
@@ -2717,7 +2718,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     builder.setInsertionPoint(oldblock, oldpoint);
 
-    return fixInteger(ifOp.getResult(0));
+    return fixInteger(ifOp.getResult(0), /*forceUnsigned*/ true);
   }
   default:
     break;

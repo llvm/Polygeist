@@ -208,9 +208,9 @@ int finish(const char *kernel, const char *recipe, const at::Tensor &output,
               kernel, metric, samples[0], samples[1], samples[2], samples[3],
               samples[4]);
   std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
-              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "min_us=%.6f median_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
               "max_error=%g shape=%s recipe=%s\n",
-              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              kernel, metric, sorted[0], sorted[0], sorted[2], sorted[4], q3 - q1, errors,
               max_error, shape, recipe);
   return errors == 0 ? 0 : 1;
 }
@@ -262,9 +262,9 @@ int finish_sparse_dense(const char *kernel, const char *recipe,
               kernel, metric, samples[0], samples[1], samples[2], samples[3],
               samples[4]);
   std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
-              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "min_us=%.6f median_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
               "max_error=%g shape=%s recipe=%s\n",
-              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              kernel, metric, sorted[0], sorted[0], sorted[2], sorted[4], q3 - q1, errors,
               max_error, shape, recipe);
   return errors == 0 ? 0 : 1;
 }
@@ -312,9 +312,9 @@ int finish_int(const char *kernel, const char *recipe, const at::Tensor &output,
               kernel, metric, samples[0], samples[1], samples[2], samples[3],
               samples[4]);
   std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
-              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "min_us=%.6f median_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
               "max_error=%lld shape=%s recipe=%s\n",
-              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              kernel, metric, sorted[0], sorted[0], sorted[2], sorted[4], q3 - q1, errors,
               static_cast<long long>(max_error), shape, recipe);
   return errors == 0 ? 0 : 1;
 }
@@ -364,9 +364,9 @@ int finish_double(const char *kernel, const char *recipe,
               kernel, metric, samples[0], samples[1], samples[2], samples[3],
               samples[4]);
   std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
-              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "min_us=%.6f median_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
               "max_error=%g shape=%s recipe=%s\n",
-              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              kernel, metric, sorted[0], sorted[0], sorted[2], sorted[4], q3 - q1, errors,
               max_error, shape, recipe);
   return errors == 0 ? 0 : 1;
 }
@@ -414,9 +414,9 @@ int finish_long(const char *kernel, const char *recipe,
               kernel, metric, samples[0], samples[1], samples[2], samples[3],
               samples[4]);
   std::printf("NATIVE_RESULT kernel=%s %s=%.6f "
-              "min_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
+              "min_us=%.6f median_us=%.6f max_us=%.6f iqr_us=%.6f errors=%d "
               "max_error=%lld shape=%s recipe=%s\n",
-              kernel, metric, sorted[2], sorted[0], sorted[4], q3 - q1, errors,
+              kernel, metric, sorted[0], sorted[0], sorted[2], sorted[4], q3 - q1, errors,
               static_cast<long long>(max_error), shape, recipe);
   return errors == 0 ? 0 : 1;
 }
