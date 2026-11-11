@@ -1,5 +1,7 @@
 """Generic fixes exercised by the FP32 reference import (no vendor execution)."""
 import os
+import re
+import tempfile
 from pathlib import Path
 import sys
 import unittest
@@ -12,6 +14,7 @@ import kernel_match as K
 import legalize_tensor_submaps as L
 import match_v2 as M
 import mlir_lite as ML
+import recipe as R
 
 
 def comparison(predicate, reverse=False):
@@ -69,9 +72,16 @@ class ImportedSoftmax(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.lib = ROOT / 'generic_solver/kernel_library_v3.mlir'
-        cls.app = ROOT / 'issues/fp32_softmax_import_20261111/application_debuf.mlir'
-        if not cls.app.is_file() or '@aten_softmax_f32(' not in cls.lib.read_text():
-            raise unittest.SkipTest('run the FP32 import/reproduction first')
+        source = ROOT / 'third_party/cnn-extracted/llama_forward_ops.c'
+        if not source.is_file() or '@aten_softmax_f32(' not in cls.lib.read_text():
+            raise unittest.SkipTest('run the FP32 reference import first')
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        steps = R.raise_c(R.PRODUCTION, str(source), 'kernel_llama_attention_softmax',
+                          str(Path(cls.temp.name) / 'application'), [])
+        if not steps.get('debuf') or not steps['debuf'].ok:
+            raise AssertionError('fresh softmax raising failed: ' + repr(steps))
+        cls.app = Path(steps['paths']['debuf'])
 
     def matches(self, text):
         with patch.dict(os.environ, POLYGEIST_NUMERIC_MODEL='strict'):
@@ -93,7 +103,10 @@ class ImportedSoftmax(unittest.TestCase):
         self.assertFalse(self.matches(self.app.read_text().replace('arith.divf', 'arith.mulf')))
 
     def test_incorrect_producer_result_does_not_match(self):
-        self.assertFalse(self.matches(self.app.read_text().replace('%12#1', '%12#0')))
+        text = self.app.read_text()
+        result = re.search(r'(%[\w.-]+)#1', text)
+        self.assertIsNotNone(result)
+        self.assertFalse(self.matches(text.replace(result[0], result[1]+'#0')))
 
     def test_changed_reduction_seed_does_not_match(self):
         self.assertFalse(self.matches(self.app.read_text().replace('0.000000e+00 : f32',

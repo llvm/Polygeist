@@ -1,0 +1,27 @@
+{
+  "kernel": "mass_apply_3d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_pa_mass_apply_3d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/mass_stage_sliced.c",
+    "-DBENCH_MASS_3D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/mass_apply_3d/program"
+  ],
+  "seconds": 63.17531602084637,
+  "source_sha256": "82f10136103b36fd496cb47f82709c9a3101b0968a03f216ebd5a407722e4cf3",
+  "program_sha256": "781e3b2641a12d4f852dd1bcbc139c4ad9b994fcabd1c1cbaec41a303346e7fb",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1"
+  ],
+  "calls": 6
+}

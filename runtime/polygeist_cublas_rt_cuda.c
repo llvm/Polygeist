@@ -9718,6 +9718,8 @@ static int build_pointwise_graph_plan(struct pointwise_graph_plan *p) {
   for (int node = 0; node < p->num_nodes; ++node) {
     uint32_t inst = pointwise_graph_inst(p, node);
     int opcode = (inst >> 24) & 0xff;
+    // Logical operators compute Boolean values; comparisons still consume FP32.
+    precision = opcode >= 30 && opcode <= 32 ? CUDNN_DATA_BOOLEAN : CUDNN_DATA_FLOAT;
     int lhs_ref = (inst >> 16) & 0xff;
     int rhs_ref = (inst >> 8) & 0xff;
     int third_ref = inst & 0xff;
@@ -11116,4 +11118,17 @@ void polygeist_gpu_region_timing_end(void) {
   free(region->marks);
   memset(region, 0, sizeof(*region));
   g_gpu_timing_region_depth--;
+}
+
+/* Device-buffer ABI wrapper. All arithmetic executes in the cuBLAS API. */
+void polygeist_cublas_geam_vector_f64(int32_t n, double alpha,
+                                    const double *x, double beta, double *y) {
+  polygeist_cublas_init();
+  double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
+  timing_gpu_begin();
+  /* A column vector is an n-by-1 column-major matrix. The documented in-place
+   * GEAM contract allows C == B when transb is N and ldc == ldb. */
+  CUBLAS_CHECK(cublasDgeam(g_handle, CUBLAS_OP_N, CUBLAS_OP_N, n, 1,
+                         &alpha, x, n, &beta, y, n, y, n));
+  timing_gpu_end("cublasDgeam", n, 1, 0, host_start_ms);
 }

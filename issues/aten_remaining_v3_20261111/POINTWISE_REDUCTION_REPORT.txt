@@ -1,0 +1,95 @@
+LoopLibrarian ATen pointwise/reduction milestone, 2026-11-11
+
+Completed targeted GPU cases: 49 unique fixtures. This is not a fresh 598-case
+coverage census, the paper's 271/598 result, its 28/52 native-library subset,
+or the complete 115-case Figure 5 performance comparison.
+
+New pointwise cases: clamp_min_scalar_cpu, clamp_max_scalar_cpu, gelu_cpu_exact,
+and hardswish. All 24 full-array checks pass (82,944 outputs), including normal
+and special-value inputs, signed-zero policy, input preservation and guards,
+host/resident modes, and two scalar parameter settings where applicable.
+Actual cuDNN execution is traced; no CPU fallback is counted.
+Seven reusable pinned scalar references pass 5,559 upstream-C++/C comparisons
+and all 21 Affine/Linalg/tensor validation checks. Four currently match.
+These are ATen-source references plus a mechanically constructed cuDNN graph;
+EqSat proves application/reference equivalence, not cuDNN implementation
+semantics. Generic backend opcode behavior is separately trusted/tested.
+
+New reduction case: prod. Genuine seeded CUB ThreadReduce implementation
+specializations supply reusable FP32/FP64 sum and FP32 product references.
+All 192 upstream-C++/C comparisons and nine raising validations pass. Separate
+DeviceReduce checks pass 240 calls over five sizes, four seeds and four input
+modes, preserving inputs and guards. FP32 tolerance is 1e-5+1e-4*abs(reference),
+FP64 tolerance is 1e-12+1e-10*abs(reference); NaN class, infinity and zero signs
+are checked. Parallel reduction may reassociate: no universal bitwise claim.
+Production strict matching proves prod against cub_reduce_product_f32. Its
+fresh binary passes all six normal/edge/negative-zero checks in host/resident
+modes, with real DeviceReduce traces, inputs and guards intact.
+
+Synchronized resident timings, minimum of five samples after five warmups:
+case                    raised ms      direct vendor ms
+clamp_min_scalar_cpu    0.052000999    0.051775932 cuDNN
+clamp_max_scalar_cpu    0.056064844    0.045984983 cuDNN
+gelu_cpu_exact          0.054785013    0.052960873 cuDNN
+hardswish              0.058400869    0.054111958 cuDNN
+prod                   0.026560068    0.024768829 CUB
+These baselines are direct vendor calls, not actual ATen CUDA. Raw logs include
+samples, board preflight and host load. GPU windows were serialized.
+
+Generic fixes:
+- Bounded exact conditional-selection identities prove hardswish without
+  reassociation or operation-name recognition. Positive/negative proof tests
+  and 122,500 selected special-value combinations pass.
+- Preserve negative-zero literals through parsing, structural comparison and
+  egglog encoding. Strict nonstructural proofs containing negative-zero atoms
+  are conservatively declined. Four focused regressions pass.
+- Parse the immutable library text once per exact content, using a bounded LRU.
+  Changed contents invalidate it; all provenance/ABI/backend checks still run.
+  Full ABI JSON is byte-identical. Fresh-process clamp-min match+verification
+  takes 86.127 seconds without reuse versus 6.063 seconds with reuse (14.20x).
+  Input, output and semantic-input hashes are identical. This is one measured
+  case, not a claim about whole-corpus speedup. Profiles are under
+  staged-adapter-cache/.
+- Accept canonical rank-option metadata in normalized proofs; malformed,
+  unknown or reordered options and changed compiler/cleanup still fail.
+  This verifier correction does not change matching semantics.
+
+Shared validation on current 167-record/117-RAISED/76-call catalog:
+- 165/165 Python tests pass in 47.517 seconds.
+- All 22 prior application match checks pass.
+- Llama retains 22 calls and byte-identical matched IR.
+- Runtime generation --check passes. All existing generated C wrapper bodies
+  are unchanged; only three CUB reductions were added. CPU/PVA files identical.
+- 148 frozen source/tool hashes remain unchanged through the product GPU run.
+The last fresh full Llama GPU execution was the scan milestone: all 32,000
+logits exactly matched prior/expert and 11.2899 ms versus 11.3069 ms. Current
+Llama validation is an IR replay, not another end-to-end timing experiment.
+
+Source scopes: the four pointwise binaries belong to their saved 164-record
+snapshot in pointwise-before-next-window/. Product belongs to the current
+167-record snapshot in reductions-source-before.json and
+reductions-source-and-results.json. Do not mix those proof hashes.
+
+Remaining targeted gaps:
+- mean: rank-zero reduction output versus reference one-element output view.
+- sum and sum_cpu_backend: independent row reductions versus one-vector ref;
+  generic slicing/layout normalization is needed.
+- clamp/hardtanh: retained nested-if fixture differs from min(max(x,lo),hi)
+  when lo>hi; no unproved parameter constraint is assumed.
+- hardsigmoid and gelu_tanh: strict floating operation-order differences;
+  gelu_tanh also has a literal truncation backend gap.
+
+Actual ATen CUDA caveat: frozen native43 report is separate at
+issues/aten43_native_cuda_20261111/REPORT.txt. 41/43 cases pass complete
+normal/edge outputs. Installed ATen2.6 hardswish_backward differs at endpoints
+from the pinned newer source; softshrink has signed-zero/NaN differences and
+rejects the scalar fixture's negative-lambda extension. All 40 fully correct,
+allocation-matched tiny cases are slower than native ATen (0.017-0.465x).
+Do not present direct-vendor timings as resolving these results or Figure 5.
+
+Primary evidence: validated-targeted-results.json, validated-targeted-timings.tsv,
+pointwise-followup-gpu-results.json, reductions/prod/gpu.json,
+reductions-shared-tests.log, reductions-previous-matches.log,
+reductions-llama-recheck.log, reductions-runtime-comparison.json,
+staged-cub-reductions/, staged-adapter-cache/.
+No commit or push was made for this milestone.

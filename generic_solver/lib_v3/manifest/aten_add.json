@@ -19,6 +19,7 @@
         "runtime_adapter": {
           "schema": 1,
           "kind": "pointwise_reference",
+          "alias_policy": "exact_or_disjoint",
           "extent_arg": "n"
         }
       },
@@ -30,7 +31,7 @@
       ],
       "assumptions": [
         "positive n <= INT_MAX",
-        "contiguous nonoverlapping FP32 arrays",
+        "contiguous FP32 arrays; output is disjoint from or exactly aliases an input with the same extent; no partial overlap",
         "finite inputs; floating reorderings only under relaxed model"
       ],
       "deviations": []

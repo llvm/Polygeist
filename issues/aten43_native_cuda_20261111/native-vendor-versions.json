@@ -1,0 +1,22 @@
+{
+  "libcudnn.so.9": 92501,
+  "libcutensor.so.2": 20700,
+  "loaded_library_paths": [
+    "ffff7d3d0000-ffff9def5000 r-xp 00000000 103:01 59922318                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcutensor.so.2.7.0",
+    "ffff9def5000-ffff9df05000 ---p 20b25000 103:01 59922318                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcutensor.so.2.7.0",
+    "ffff9df05000-ffff9e003000 r--p 20b25000 103:01 59922318                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcutensor.so.2.7.0",
+    "ffff9e003000-ffff9e00e000 rw-p 20c23000 103:01 59922318                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcutensor.so.2.7.0",
+    "ffffa5600000-ffffa5620000 r-xp 00000000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+    "ffffa5620000-ffffa562f000 ---p 00020000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+    "ffffa562f000-ffffa5630000 r--p 0001f000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+    "ffffa5630000-ffffa5631000 rw-p 00020000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+    "ffffa5631000-ffffa5800000 ---p 00031000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+    "ffffa5800000-ffffa5c09000 r-xp 00200000 103:01 59922274                  /home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1"
+  ],
+  "gpu_frequency_post_only": {
+    "/sys/class/devfreq/17000000.gpu/min_freq": "1300500000",
+    "/sys/class/devfreq/17000000.gpu/cur_freq": "1300500000",
+    "/sys/class/devfreq/17000000.gpu/max_freq": "1300500000",
+    "/sys/class/devfreq/17000000.gpu/target_freq": "1300500000"
+  }
+}

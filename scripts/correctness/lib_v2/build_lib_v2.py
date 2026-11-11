@@ -30,6 +30,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -582,20 +583,56 @@ def main() -> int:
     ap.add_argument("-j", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--incremental", action="store_true",
+                    help="reuse unchanged imports only after all three validation stages passed; "
+                         "omit this option to force a complete rebuild")
     ap.add_argument("--no-raise", action="store_true",
                     help="reuse existing raised/* artifacts (re-run analysis + defn emission)")
     ap.add_argument("--no-validate", action="store_true",
                     help="skip numerical validation (NOT recommended: unvalidated specs "
                          "are then emitted into the library)")
     a = ap.parse_args()
+    if a.incremental and (a.no_raise or a.no_validate):
+        ap.error('--incremental cannot be combined with --no-raise or --no-validate')
+    started = time.monotonic()
     rec = R.RECIPES[a.recipe]
     specs = load_specs()
     if a.only:
         specs = [s for s in specs if s.name in a.only or s.routine in a.only]
+    cache = None
+    if a.incremental:
+        from import_cache import ValidatedImports
+        try:
+            cache = ValidatedImports(sys.modules[__name__], rec)
+        except (OSError, ValueError) as error:
+            print(f'Import cache unavailable; running full validation: {error}', file=sys.stderr)
+    keys, reused = {}, set()
+
+    def build(spec):
+        if cache:
+            try:
+                keys[spec.name] = cache.inputs(spec)
+            except (OSError, ValueError) as error:
+                print(f'Cannot cache {spec.name}: {error}', file=sys.stderr)
+            else:
+                saved = cache.load(spec, keys[spec.name])
+                if saved is not None:
+                    reused.add(spec.name)
+                    saved['validation_reuse'] = {'input_sha256': keys[spec.name]}
+                    return saved
+        return build_one(spec, rec, a.timeout, not a.no_raise)
+
     with ThreadPoolExecutor(a.j) as ex:
-        results = list(ex.map(lambda s: build_one(s, rec, a.timeout, not a.no_raise), specs))
+        results = list(ex.map(build, specs))
     if not a.no_validate:
-        validate_results(results, {s.name: s for s in specs}, a.j)
+        validate_results([r for r in results if r['spec'] not in reused],
+                         {s.name: s for s in specs}, a.j)
+    if cache:
+        cache.verify_unchanged(specs, keys, a.j)
+        by_name = {r['spec']: r for r in results}
+        for spec in specs:
+            if spec.name in keys and spec.name not in reused:
+                cache.save(spec, keys[spec.name], by_name[spec.name])
     for r in results:
         print(f"{r['status']:12s} {r['spec']}  {r.get('reason', '')[:120]}")
     if not a.only:
@@ -609,6 +646,9 @@ def main() -> int:
             (LIB / "import_manifest.json").unlink(missing_ok=True)
         (RAISED / "build_results.json").write_text(json.dumps(
             [{k: v for k, v in r.items() if k != "defn"} for r in results], indent=1))
+    if a.incremental:
+        print(f'Import reuse: {len(reused)}/{len(specs)}; '
+              f'fresh: {len(specs) - len(reused)}; elapsed: {time.monotonic() - started:.3f}s')
     return 0
 
 

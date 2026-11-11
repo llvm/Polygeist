@@ -1,0 +1,208 @@
+{
+  "routine": "openblas_dgemm_accumulate",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; kernel/generic/gemm_small_matrix_kernel_*.c, interface/gemm.c L679-L683",
+  "specs": [
+    {
+      "name": "openblas_dgemm_nn_b1_alpha1",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "1",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_N",
+          "alpha": 1.0,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 1, beta == 1: ordinary library API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_nt_b1_alpha1",
+      "defines": {
+        "TRANSA": "'N'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "1",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_T",
+          "alpha": 1.0,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 1, beta == 1: ordinary library API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_nt.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tn_b1_alpha1",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'N'",
+        "BETA_CASE": "1",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_N",
+          "alpha": 1.0,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 1, beta == 1: ordinary library API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tn.c:L31-L56"
+    },
+    {
+      "name": "openblas_dgemm_tt_b1_alpha1",
+      "defines": {
+        "TRANSA": "'T'",
+        "TRANSB": "'T'",
+        "BETA_CASE": "1",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemm",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_T",
+          "alpha": 1.0,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemm"
+      },
+      "args": [
+        "M",
+        "N",
+        "K",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 1, beta == 1: ordinary library API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "gemm_small_matrix_kernel_tt.c:L31-L56"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "TRANSA": [
+        "'N'",
+        "'T'"
+      ],
+      "TRANSB": [
+        "'N'",
+        "'T'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANSA"
+        ]
+      },
+      {
+        "operands": [
+          "B"
+        ],
+        "flip": [
+          "TRANSB"
+        ]
+      }
+    ]
+  },
+  "ref_c": "openblas_dgemm.c",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/generic/gemm_small_matrix_kernel_nn.c",
+      "sha256": "c5c53dc8976afa639953317e5b62231b03df99af174ebcc837c1d8f5f8bb8b2d"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/generic/gemm_small_matrix_kernel_nt.c",
+      "sha256": "e41822080b20f953e2b65b9bce89650d46cc494c3c1f218149ce49947733c5b7"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/generic/gemm_small_matrix_kernel_tn.c",
+      "sha256": "2e3388f279da2bd6cddef0ebef96d05beffccc0d4f07601ab1e3159a5b87aff2"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/generic/gemm_small_matrix_kernel_tt.c",
+      "sha256": "6b6b40cde969fbcdeb9bfe81b246034400c3adbec122187a4de49ef62e1e8b3f"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/interface/gemm.c",
+      "sha256": "acbaa6fac3fd3054982b4dd71d07608d548a2771ffbb8ca0192683b3dc7500cf"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ]
+}

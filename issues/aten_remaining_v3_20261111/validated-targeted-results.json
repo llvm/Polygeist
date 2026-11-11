@@ -4486,5 +4486,3733 @@
       }
     },
     "evidence": "issues/aten_remaining_v3_20261111/rmsnorm-gpu-results.json"
+  },
+  {
+    "name": "add",
+    "run_id": "20261111T201223Z",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "build_rc": 0,
+    "program_sha256": "7449d23bd73f65f99361fbdf09e0b62717b794b4f2921103f301ac11d22f12f0",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "alias": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "alias": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "alias": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "alias": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "alias": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "alias": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "alias": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "alias": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4
+      }
+    },
+    "partial_overlap": {
+      "rc": 134,
+      "passed": true
+    },
+    "timing": {
+      "rc": 0,
+      "passed": true,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063392878
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.061760902
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.062017918
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.060865879
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063936949
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.067168951
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.064386129
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.075298071
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.071650028
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.067489862
+        }
+      ],
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.060865879,
+        "direct_cudnn": 0.061760902
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204128Z",
+    "name": "hardshrink",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "658142fea60021544c76dd4859c2ef3bb591e8ed11e6973d9d35de1e304103ff",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.06178689
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.062330961
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.064218998
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.07199502
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063419104
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.063740015
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.068411112
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.061947107
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061819077
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.061979055
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06178689,
+        "direct_cudnn": 0.061979055
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204422Z",
+    "name": "shrink_backward",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "45ce7262386801859a72ef8bc7ff682226ea4365afaa73d57e38cf09adecc605",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.065308809
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.0668118
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06258893
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.071548939
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066300869
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.061628103
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.065372944
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.061596155
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.064828873
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060476065
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061596155,
+        "direct_cudnn": 0.060476065
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204422Z",
+    "name": "softshrink",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "081fa945facb8ba864b3e89b1ed39dedb97d8c14ddee56d540d871ade7cb4349",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.060348988
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.056124926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.056732893
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.053468943
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.050589085
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.054908991
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.059165001
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.053149939
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.055388927
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.053756952
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.050589085,
+        "direct_cudnn": 0.053756952
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204729Z",
+    "name": "hardtanh_backward",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 2,
+    "build_rc": 0,
+    "program_sha256": "24378c72a7cffb8b0dd5bb445d4d6823a5e3a1a7113444c120a722e6b88ecf32",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.067549944
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.066237926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.063261986
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.072508812
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064638138
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.065725088
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.064221859
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.068797112
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.066973925
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.061758041
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.064638138,
+        "direct_cudnn": 0.061758041
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204729Z",
+    "name": "hardsigmoid_backward",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "b1da44722f8258cfda0ead5e67652381d472acc6e87622e98a34190923d4933b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.065950155
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064733982
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06319809
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.07682991
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.06306982
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.063133955
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.061789989
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.064285994
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.091451883
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.062942028
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06306982,
+        "direct_cudnn": 0.061789989
+      }
+    }
+  },
+  {
+    "run_id": "20261111T204846Z",
+    "name": "hardswish_backward",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "5e9164d3bf17259463b47ea04cd911ace567f4e622c1ce4f899ab88878786a83",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 0.000183116645
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 0.000183116645
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.066685915
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.068926096
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.068350792
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.078014135
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068861961
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.065566063
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.066366196
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.076446056
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.07670188
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.0674541
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.066685915,
+        "direct_cudnn": 0.065566063
+      }
+    }
+  },
+  {
+    "run_id": "20261111T205733Z",
+    "name": "addcmul",
+    "sizes": [
+      4096,
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "198d13c2dcc5decb2604791cb77fe9c9ee99b633f86517cdccce4e4a50030f03",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.069664001
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.069375992
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.071519852
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.071999073
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068704128
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.069726944
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.068383932
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.068414927
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.07225585
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.064351082
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.068414927,
+        "direct_cudnn": 0.064351082
+      }
+    }
+  },
+  {
+    "run_id": "20261111T205921Z",
+    "name": "addcdiv",
+    "sizes": [
+      4096,
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "53d71e4a023e5d128a00a6d6b68fe1d8356cde3d2cf7d348ffe66458f08219d7",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 5.3416806e-06
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 5.3416806e-06
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 3.05175781e-05,
+            "maxrel": 1.43893174e-05
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 3.05175781e-05,
+            "maxrel": 1.43893174e-05
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 7.62939453e-06,
+            "maxrel": 1.30046503e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 7.62939453e-06,
+            "maxrel": 1.30046503e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.068832159
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.069152117
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.069728136
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.078207016
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.073343992
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.077183962
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.069919109
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.073087931
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.073824167
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.066528082
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.068832159,
+        "direct_cudnn": 0.066528082
+      }
+    }
+  },
+  {
+    "program_sha256": "22788fb3c0c01a5b789177b3249d03e9cd14c9d1f72ad4bc34fc11dad1f237e6",
+    "host_uptime": " 13:49:43 up 447 days, 18:18,  2 users,  load average: 5.30, 5.72, 5.86\n",
+    "run_utc": "2026-11-11T21:49:43.747601+00:00",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      },
+      "edge": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      },
+      "zeros": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.033601999
+        },
+        {
+          "path": "direct_cub",
+          "sample": 0,
+          "ms": 0.037025928
+        },
+        {
+          "path": "direct_cub",
+          "sample": 1,
+          "ms": 0.032801151
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.03753686
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.032896996
+        },
+        {
+          "path": "direct_cub",
+          "sample": 2,
+          "ms": 0.034337997
+        },
+        {
+          "path": "direct_cub",
+          "sample": 3,
+          "ms": 0.032097101
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.033632994
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.03753686
+        },
+        {
+          "path": "direct_cub",
+          "sample": 4,
+          "ms": 0.03084898
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct CUB API; not native ATen",
+      "minimum_ms": {
+        "raised": 0.032896996,
+        "direct_cub": 0.03084898
+      }
+    },
+    "name": "cumsum",
+    "sizes": [
+      256,
+      256
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "family": "scan",
+    "evidence": "scan/cumsum/gpu.json"
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "clamp_min_scalar_cpu",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "00f7ca35370f7babf35de3eb5cb1b12120736ab14738032f63e544a15763f057",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.052000999
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.056577206
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.056736946
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.057888985
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.054305077
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.051775932
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.060321093
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056193113
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056192875
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.053313017
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.052000999,
+        "direct_cudnn": 0.051775932
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/pointwise-followup-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "gelu_cpu_exact",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "f097d11508c5fdc1e324588ba6c24dc2cf906b9fb25c1794b02a184a56b74621",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 0.000940733772
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 0.000940733772
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 8.94069672e-08,
+            "maxrel": 2.2077492e-05
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 8.94069672e-08,
+            "maxrel": 2.2077492e-05
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.056161165
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.053441048
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.064161062
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.059072971
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.055457115
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.054208994
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.052960873
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056480885
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.054785013
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.053120852
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.054785013,
+        "direct_cudnn": 0.052960873
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/pointwise-followup-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "clamp_max_scalar_cpu",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "3f7d2d556c2d8320509de9813f04f5e3337a24afb9b342a8dedbba1e2e61e115",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.056065083
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.045984983
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.054753065
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.0571208
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.059360981
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.05270505
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.056160927
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.058978081
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056064844
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059104919
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.056064844,
+        "direct_cudnn": 0.045984983
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/pointwise-followup-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "hardswish",
+    "sizes": [
+      256,
+      256
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "d063d3abbddb012b3a392c4558d3262050b2d6c19164f807a54ed679c59c9cab",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.08975138e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.08975138e-07
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.15255754e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.15255754e-08
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.058560848
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.054111958
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.063328981
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065600872
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063040972
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.05808115
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.058017015
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.064640999
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.058400869
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.056641102
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.058400869,
+        "direct_cudnn": 0.054111958
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/pointwise-followup-gpu-results.json"
+  },
+  {
+    "program_sha256": "6ee11d02117db66d5acdafd81ee6a96a208d04a9b9091c93c1f6099b193769fc",
+    "host_uptime": " 14:37:02 up 447 days, 19:06,  2 users,  load average: 5.33, 6.61, 7.08\n",
+    "run_utc": "2026-11-11T22:37:02.163127+00:00",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      },
+      "edge": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      },
+      "zeros": {
+        "rc": 0,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 1,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 3,
+        "typed_calls": 2,
+        "passed": true
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.026849031
+        },
+        {
+          "path": "direct_cub",
+          "sample": 0,
+          "ms": 0.028577089
+        },
+        {
+          "path": "direct_cub",
+          "sample": 1,
+          "ms": 0.02838397
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.027392864
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.027264118
+        },
+        {
+          "path": "direct_cub",
+          "sample": 2,
+          "ms": 0.025089025
+        },
+        {
+          "path": "direct_cub",
+          "sample": 3,
+          "ms": 0.028800011
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.029120922
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.026560068
+        },
+        {
+          "path": "direct_cub",
+          "sample": 4,
+          "ms": 0.024768829
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct CUB API; not native ATen",
+      "minimum_ms": {
+        "raised": 0.026560068,
+        "direct_cub": 0.024768829
+      }
+    },
+    "name": "prod",
+    "sizes": [
+      256,
+      1
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "evidence": "issues/aten_remaining_v3_20261111/reductions/prod/gpu.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "eq",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "1f9f8bed2cc808c3ebbe00097156e2a54c89a0678ff5c60bd5d1fa07e1cc0fd7",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.066369057
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064961195
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.062689066
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.064129114
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.065825939
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.06902504
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.06377697
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.067456961
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.062401056
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059968948
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.062401056,
+        "direct_cudnn": 0.059968948
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "ne",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "a0503ef8a1cb7be7fcb718f013ac813d0e6e6a2c68610e33cb0fa53f15cd2d9a",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.064033031
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064640999
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.079712868
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.066465855
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.062497139
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.062176943
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062497139
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.071361065
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.06236887
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.062304974
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06236887,
+        "direct_cudnn": 0.062176943
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "lt",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "4d8b9948a990b49fe995f07641f6f0ec47e434d931eeca50bb95cb7020578996",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.062401056
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.068672895
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.066080809
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065696955
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.069665194
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.074402094
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.069344997
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.071937084
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.06166482
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060704947
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06166482,
+        "direct_cudnn": 0.060704947
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "le",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "282b0b550192934ae497cd2527a59b8d87fbe2f5f73487e2aeca261df997ee1b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.061537027
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064864874
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.061281204
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061408997
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.062786102
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.068800926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062304974
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.065984964
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061600924
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060577154
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061408997,
+        "direct_cudnn": 0.060577154
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "gt",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "d07350960aa1720c32b6d885ebda2b0f009136d908669c916cef79cd21a181a3",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.064832926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.063105106
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06377697
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.062816858
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064673185
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.069314003
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.068161011
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.069120884
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.064896822
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.065057039
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.062816858,
+        "direct_cudnn": 0.063105106
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "ge",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "e537e0b9da97357ab114734486ed237e9d68cdccc91b3ba51a9adf139748f730",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063073158
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.068640947
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06064105
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061953068
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066272974
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.069440842
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.066306114
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.07158494
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061441183
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.062817097
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061441183,
+        "direct_cudnn": 0.06064105
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_and",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "89cd78cca8feaedbc26ae9b80f5f07ec9c3728731481015c9298726f8a909ac1",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.066272974
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.065665007
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.067553043
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065056801
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.070561171
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.068192959
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.06803298
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.067936897
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061184883
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.05836916
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061184883,
+        "direct_cudnn": 0.05836916
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_or",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "078f82765398acbecdd08a4199902720018c361cb2129d67da942d0053061484",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063361168
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.061953068
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.062241077
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.060096979
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.061024904
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.061825037
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.058944941
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.070401192
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.060992956
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059457064
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.060096979,
+        "direct_cudnn": 0.058944941
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_xor",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "ff1fb68ad6af517f4c5803ad40e49921f4efcf61559ca7953b4acd2631e829e8",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063777208
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.063393116
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.060000896
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.062464952
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064417124
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.060065031
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062912941
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060321093
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.063009024
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060961008
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.060321093,
+        "direct_cudnn": 0.060000896
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_not_f32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "28ac4480683dbeda63bdb75b8dc8d47c8b27aca7350e69622a596aacaa5617b5",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.059265137
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.057473183
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.055233002
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.053792953
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.0613451
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.067265034
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.059937
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056768894
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056289196
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.055616856
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.053792953,
+        "direct_cudnn": 0.055233002
+      }
+    },
+    "evidence": "issues/aten_remaining_v3_20261111/boolean-family-gpu-results.json"
   }
 ]

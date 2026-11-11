@@ -94,6 +94,8 @@ class Term(Expr):
     @classmethod
     def Lit(cls, value: f64Like) -> Term: ...
     @classmethod
+    def NegativeZero(cls) -> Term: ...
+    @classmethod
     def Access(cls, root: StringLike, mapping: StringLike) -> Term: ...
 
     def __add__(self, other: Term) -> Term: ...
@@ -126,6 +128,14 @@ class Term(Expr):
 a, b, c, d = vars_("a b c d", Term)
 
 
+def literal(value: float) -> Term:
+    """Build a scalar literal without losing -0 in egglog's primitive cache."""
+    value = float(value)
+    if value == 0.0 and math.copysign(1.0, value) < 0:
+        return Term.NegativeZero()
+    return Term.Lit(value)
+
+
 def numeric_model() -> str:
     model = os.environ.get("POLYGEIST_NUMERIC_MODEL", "strict")
     if model not in {"strict", "relaxed"}:
@@ -133,11 +143,66 @@ def numeric_model() -> str:
     return model
 
 
+def exact_integer_selection_rules():
+    """Integer order is total; selecting either equal operand has equal bits.
+
+    Both operands may be promoted with the same injective integer extension.
+    Floating comparisons and narrowing/noninjective conversions are excluded.
+    These scalar identities apply to every imported/application expression.
+    """
+    rules = []
+    casts = [None] + [
+        f"arith.{op}:i{src} to i{dst}"
+        for op in ("extsi", "extui")
+        for src in (8, 16, 32) for dst in (16, 32, 64) if src < dst
+    ]
+    for cast in casts:
+        x, y = ((a, b) if cast is None else
+                (Term.Unary(cast, a), Term.Unary(cast, b)))
+        for predicate in ("slt", "sle", "ult", "ule"):
+            rules.append(rewrite(Term.Select(Term.Cmp(predicate, x, y), a, b))
+                         .to(Term.Select(Term.Cmp(predicate, y, x), b, a)))
+            rules.append(rewrite(Term.Select(Term.Cmp(predicate, x, y), b, a))
+                         .to(Term.Select(Term.Cmp(predicate, y, x), a, b)))
+    return rules
+
+
+def exact_conditional_selection_rules():
+    """Move a known-false comparison through a selected literal arm.
+
+    The unchanged literal arm is returned on either side when its predicate
+    is true. Otherwise both sides perform the same ordered comparison and
+    selection. No floating arithmetic, NaN propagation, or zero sign changes.
+    Guards use the actual compared literals, not assumptions about inputs.
+    These bounded identities avoid general compare/select distribution.
+    """
+    predicate, value, alternative = vars_("predicate value alternative", Term)
+    literal, bound = vars_("literal bound", f64)
+    selected = Term.Select(predicate, Term.Lit(literal), value)
+    rules = []
+    for kind in ("olt", "ole"):
+        left_false = literal >= bound if kind == "olt" else literal > bound
+        right_false = bound >= literal if kind == "olt" else bound > literal
+        rules.append(rewrite(Term.Select(
+            Term.Cmp(kind, selected, Term.Lit(bound)), alternative, selected))
+            .to(Term.Select(predicate, Term.Lit(literal), Term.Select(
+                Term.Cmp(kind, value, Term.Lit(bound)), alternative, value)),
+                left_false))
+        rules.append(rewrite(Term.Select(
+            Term.Cmp(kind, Term.Lit(bound), selected), alternative, selected))
+            .to(Term.Select(predicate, Term.Lit(literal), Term.Select(
+                Term.Cmp(kind, Term.Lit(bound), value), alternative, value)),
+                right_false))
+    return rules
+
+
 def algebra_rules(include_distributivity: bool = True):
-    # Strict mode preserves the scalar operation tree. Relaxed mode explicitly
+    # Strict mode admits only exact selection identities. Relaxed mode also
     # permits real-arithmetic identities; runtime error still needs validation.
+    integer_rules = (exact_integer_selection_rules() +
+                     exact_conditional_selection_rules())
     if numeric_model() == "strict":
-        return ruleset(name="strict_scalar_operations")
+        return ruleset(*integer_rules, name="strict_scalar_operations")
     one = Term.Lit(1.0)
     zero = Term.Lit(0.0)
     # Numeric literal variables — required for the factoring + folding rules
@@ -147,6 +212,7 @@ def algebra_rules(include_distributivity: bool = True):
     (x,) = vars_("x", Term)
     c1, c2 = vars_("c1 c2", f64)
     rules = [
+        *integer_rules,
         # Commutativity
         rewrite(a + b).to(b + a),
         rewrite(a * b).to(b * a),
@@ -321,7 +387,7 @@ _GEN_RE = re.compile(
     # single string; parse_generics splits on commas to produce the
     # GenericBody.yield_values list.
     r"\^bb0\(([^)]*)\)\s*:\s*(.*?)\s*"
-    r"linalg\.yield\s+(%[\w_]+(?:\s*,\s*%[\w_]+)*)\s*:",
+    r"linalg\.yield\s+(%[\w$.\-]+(?:\s*,\s*%[\w$.\-]+)*)\s*:",
     re.DOTALL,
 )
 
@@ -614,7 +680,7 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
         env[name] = Term.Out(i)
     for cap in g.captures:
         if cap in g.constants:
-            env[cap] = Term.Lit(g.constants[cap])
+            env[cap] = literal(g.constants[cap])
         else:
             env[cap] = Term.Cap(cap)
 
@@ -622,7 +688,7 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
         if name in env:
             return env[name]
         if name in g.constants:
-            env[name] = Term.Lit(g.constants[name])
+            env[name] = literal(g.constants[name])
         else:
             env[name] = Term.Cap(name)
         return env[name]
@@ -641,7 +707,7 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
             if tok.startswith("%"):
                 return lookup(tok)
             try:
-                return Term.Lit(float(tok))
+                return literal(float(tok))
             except ValueError:
                 return Term.Lit(float("nan"))
 
@@ -664,7 +730,7 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
                 raise ValueError("non-finite scalar literal")
             if abs(value) >= 2 ** 53 and line.rsplit(":", 1)[1].strip().startswith("i"):
                 raise ValueError("integer literal exceeds exact scalar encoding")
-            env[result] = Term.Lit(value)
+            env[result] = literal(value)
         elif op_key == "mul":
             env[result] = resolve(arg_toks[0]) * resolve(arg_toks[1])
         elif op_key == "add":
@@ -718,9 +784,23 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
             else:
                 raise ValueError(f"unsupported scalar operation: {line.strip()}")
         elif op_key == "select":
-            env[result] = Term.Select(
-                resolve(arg_toks[0]), resolve(arg_toks[1]), resolve(arg_toks[2])
-            )
+            condition, yes, no = map(resolve, arg_toks)
+            if line.rsplit(":", 1)[1].strip() == "i1":
+                # The typed i1 select has exact Boolean semantics. Normalize
+                # its constant arms just as upstream Arith canonicalization
+                # does, without simplifying floating selects or predicates.
+                def bool_literal(token):
+                    value = g.constants.get(token)
+                    return value if value in (0.0, 1.0) else None
+                yes_constant, no_constant = map(bool_literal, arg_toks[1:])
+                if no_constant == 0.0:
+                    env[result] = Term.Binary("and", condition, yes)
+                elif yes_constant == 1.0:
+                    env[result] = Term.Binary("or", condition, no)
+                else:
+                    env[result] = Term.Select(condition, yes, no)
+            else:
+                env[result] = Term.Select(condition, yes, no)
         elif op_key in ("cmpf", "cmpi"):
             kind = arg_toks[0].strip()
             if " " in kind:
@@ -747,16 +827,41 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
 # Library + matcher.
 # ---------------------------------------------------------------------------
 
+def _literal_identity(node):
+    """Keep IEEE zero signs in otherwise structural scalar comparisons."""
+    if not isinstance(node, tuple):
+        return node
+    if node[0] == "Lit":
+        return ("LiteralBits", float(node[1]).hex())
+    return tuple(_literal_identity(child) for child in node)
+
+
+def _has_negative_zero(node) -> bool:
+    if not isinstance(node, tuple):
+        return False
+    if node[0] == "Lit":
+        return node[1] == 0 and math.copysign(1.0, node[1]) < 0
+    return any(_has_negative_zero(child) for child in node[1:])
+
+
 def equivalent(a: Term, b: Term, include_distributivity: bool = True) -> bool:
     """Are two Terms equivalent under the current algebra rules?"""
-    if _MATCHER_MODE == "syntactic":
+    left = _parse_term(_term_repr(a))
+    right = _parse_term(_term_repr(b))
+    # Raw f64 primitive atoms equate both zero signs. Our negative-zero atom
+    # is distinct; keep its strict proofs structural until algebraic rules
+    # for that atom have been reviewed explicitly.
+    strict_zero = (numeric_model() == "strict" and
+                   (_has_negative_zero(left) or _has_negative_zero(right)))
+    if _MATCHER_MODE == "syntactic" or strict_zero:
         started = time.perf_counter()
-        matched = _parse_term(_term_repr(a)) == _parse_term(_term_repr(b))
+        matched = _literal_identity(left) == _literal_identity(right)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         _MATCHER_TELEMETRY["proof_elapsed_ms"] += elapsed_ms
         _MATCHER_TELEMETRY["proof_elapsed_max_ms"] = max(
             _MATCHER_TELEMETRY["proof_elapsed_max_ms"], elapsed_ms)
-        _MATCHER_TELEMETRY["syntactic_comparisons"] += 1
+        if _MATCHER_MODE == "syntactic":
+            _MATCHER_TELEMETRY["syntactic_comparisons"] += 1
         if matched:
             _MATCHER_TELEMETRY["proofs_matched"] += 1
         return matched
@@ -1030,7 +1135,7 @@ def _parse_term(s: str):
         while i < len(s) and s[i] == " ":
             i += 1
         # Match `Term.<Ctor>(...)` leaf forms.
-        for ctor in ("In", "Out", "Cap", "Lit", "Access", "Sqrt", "Abs", "Exp",
+        for ctor in ("In", "Out", "Cap", "Lit", "NegativeZero", "Access", "Sqrt", "Abs", "Exp",
                      "Tanh", "Unary", "Binary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if s[i:i+len(tag)] == tag:
@@ -1071,7 +1176,7 @@ def _parse_term(s: str):
                             parsed_args.append(sub)
                         else:
                             parsed_args.append(a)
-                node = (ctor, *parsed_args)
+                node = ("Lit", -0.0) if ctor == "NegativeZero" else (ctor, *parsed_args)
                 return node, j + 1
         # Match a binary operator expression: <lhs> <op> <rhs>
         # The whole expression is parenthesized when nested, but the top
@@ -1137,7 +1242,7 @@ def _parse_term(s: str):
                 op_name = {"+": "Add", "-": "Sub", "*": "Mul", "/": "Div"}[op_char]
                 return (op_name, lhs, rhs), len(t)
         # Otherwise try parsing as a Term.Ctor leaf.
-        for ctor in ("In", "Out", "Cap", "Lit", "Sqrt", "Abs", "Exp",
+        for ctor in ("In", "Out", "Cap", "Lit", "NegativeZero", "Sqrt", "Abs", "Exp",
                      "Tanh", "Unary", "Binary", "Select", "Cmp"):
             tag = f"Term.{ctor}("
             if t.startswith(tag) and t.endswith(")"):
@@ -1166,7 +1271,7 @@ def _parse_term(s: str):
                     else:
                         sub, _ = parse_expr_str(a)
                         parsed_args.append(sub)
-                return (ctor, *parsed_args), len(t)
+                return (("Lit", -0.0) if ctor == "NegativeZero" else (ctor, *parsed_args)), len(t)
         return None, 0
 
     for name, rhs in let_defs:
@@ -1196,7 +1301,7 @@ def _unify(body, template, bindings: dict) -> Optional[dict]:
             return None
         name = template[1]
         if name in bindings:
-            return bindings if bindings[name] == body else None
+            return bindings if _literal_identity(bindings[name]) == _literal_identity(body) else None
         bindings = dict(bindings)
         bindings[name] = body
         return bindings
@@ -1225,7 +1330,7 @@ def _unify(body, template, bindings: dict) -> Optional[dict]:
         return None
     # Leaf variants compare directly.
     if template[0] in {"In", "Out", "Lit"}:
-        return bindings if template == body else None
+        return bindings if _literal_identity(template) == _literal_identity(body) else None
     children_t = template[1:]
     children_b = body[1:]
     if (numeric_model() == "relaxed" and template[0] in COMMUTATIVE_OPS
@@ -1262,7 +1367,7 @@ def _ast_to_term(node) -> Term:
     if op == "In": return Term.In(node[1])
     if op == "Out": return Term.Out(node[1])
     if op == "Cap": return Term.Cap(node[1])
-    if op == "Lit": return Term.Lit(float(node[1]))
+    if op == "Lit": return literal(float(node[1]))
     if op == "Access": return Term.Access(node[1], node[2])
     if op == "Add": return _ast_to_term(node[1]) + _ast_to_term(node[2])
     if op == "Sub": return _ast_to_term(node[1]) - _ast_to_term(node[2])
@@ -1333,6 +1438,16 @@ def _ac_identity_fingerprint(node):
     if not isinstance(node, tuple):
         return node
     op = node[0]
+    if (op == "Select" and node[1][0] == "Cmp" and
+            node[1][1] in {"slt", "sle", "ult", "ule"}):
+        # This is only a necessary-condition filter: let Egglog decide
+        # whether an integer ordered selection is invariant to operand order.
+        predicate = node[1]
+        compared = sorted((_ac_identity_fingerprint(x)
+                           for x in predicate[2:]), key=repr)
+        selected = sorted((_ac_identity_fingerprint(x)
+                           for x in node[2:]), key=repr)
+        return ("IntegerSelect", predicate[1], *compared, *selected)
     if op in {"Add", "Mul"}:
         children = []
         def gather(current):
@@ -1360,10 +1475,46 @@ def _ac_identity_fingerprint(node):
     ))
 
 
+def _conditional_proof_candidate(left, right) -> bool:
+    """Bound the additional EqSat search for conditional topology changes.
+
+    Selection rules preserve the set of scalar leaves but may duplicate their
+    occurrences in the printed tree. Count unique DAG nodes, as in the e-graph.
+    This only admits a proof attempt; Egglog still decides equivalence.
+    """
+    def summary(node):
+        nodes, leaves = set(), set()
+        has_select = False
+        def visit(current):
+            nonlocal has_select
+            if not isinstance(current, tuple) or current in nodes:
+                return
+            nodes.add(current)
+            has_select |= current[0] == "Select"
+            if current[0] in {"In", "Out", "Cap", "Lit", "Access"}:
+                leaves.add(current)
+            for child in current[1:]:
+                visit(child)
+        visit(node)
+        return nodes, leaves, has_select
+    ln, ll, ls = summary(left)
+    rn, rl, rs = summary(right)
+    return ls and rs and ll == rl and max(len(ln), len(rn)) <= 32
+
+
 def _egglog_accepts_binding(body_ast, template_ast, bindings: dict) -> bool:
     instantiated = _substitute_caps(template_ast, bindings)
-    if (_ac_identity_fingerprint(body_ast) !=
-            _ac_identity_fingerprint(instantiated)):
+    if (numeric_model() == "strict" and
+            (_has_negative_zero(body_ast) or _has_negative_zero(instantiated))):
+        matched = _literal_identity(body_ast) == _literal_identity(instantiated)
+        if matched:
+            _MATCHER_TELEMETRY["proofs_matched"] += 1
+        return matched
+    same_fingerprint = (_ac_identity_fingerprint(body_ast) ==
+                        _ac_identity_fingerprint(instantiated))
+    conditional_candidate = (not same_fingerprint and
+                             _conditional_proof_candidate(body_ast, instantiated))
+    if not same_fingerprint and not conditional_candidate:
         return False
     # Literal structural equality is already a complete proof and does not
     # benefit from equality saturation.  In particular, multi-term updates
@@ -1381,7 +1532,8 @@ def _egglog_accepts_binding(body_ast, template_ast, bindings: dict) -> bool:
     # saturate in a few milliseconds because distributivity is disabled and
     # the fingerprint already agrees.  Keep a conservative ceiling for truly
     # large graphs while allowing these ordinary library-sized formulas.
-    if max(_ast_node_count(body_ast), _ast_node_count(instantiated)) > 32:
+    if (not conditional_candidate and
+            max(_ast_node_count(body_ast), _ast_node_count(instantiated)) > 32):
         return False
     return equivalent(_ast_to_term(body_ast), _ast_to_term(instantiated),
                       include_distributivity=False)

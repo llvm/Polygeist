@@ -2499,6 +2499,51 @@ static void rewriteLinalgGeneric(MultiRootCtx &ctx,
   PatternRewriter &rewriter = *ctx.rewriter;
   rewriter.setInsertionPoint(generic);
 
+  // A memref view may repeat one scalar location over a reduction domain.
+  // Materializing that view as a tensor would duplicate the initial value,
+  // losing the loop-carried dependence. Keep such outputs at their physical
+  // rank and let the generic's scalar output carry state between iterations.
+  SmallVector<AffineMap> indexingMaps(generic.getIndexingMapsArray());
+  SmallVector<bool> scalarOutputs(generic.getNumDpsInits(), false);
+  bool hasScalarOutput = false;
+  auto iterators = generic.getIteratorTypesArray();
+  bool onlyReductions = llvm::all_of(iterators, [](utils::IteratorType type) {
+    return type == utils::IteratorType::reduction;
+  });
+  for (auto [i, out] : llvm::enumerate(generic.getOutputs())) {
+    auto chain = traceSubmapChainToRoot(out);
+    auto rootType = dyn_cast<MemRefType>(chain.rootMemref.getType());
+    if (!onlyReductions || chain.submaps.size() != 1 || !rootType ||
+        rootType.getRank() != 0)
+      continue;
+    auto map = chain.submaps.front().getMap();
+    if (map.getNumSymbols() || map.getNumResults())
+      continue;
+    // Distinct tensor outputs cannot stand in for aliased mutable locations.
+    // Leave such cases to the existing conservative memref route.
+    if (llvm::count_if(generic.getOutputs(), [&](Value value) {
+          return findRoot(value) == chain.rootMemref;
+        }) != 1 || llvm::any_of(generic.getInputs(), [&](Value value) {
+          return findRoot(value) == chain.rootMemref;
+        }))
+      return;
+    scalarOutputs[i] = true;
+    hasScalarOutput = true;
+    indexingMaps[generic.getNumDpsInputs() + i] =
+        AffineMap::get(generic.getNumLoops(), 0, {}, generic.getContext());
+  }
+  if (hasScalarOutput) {
+    // The remaining operands must still supply every loop bound. Do not
+    // remove the only shaped operand from which an extent can be recovered.
+    SmallVector<bool> supplied(generic.getNumLoops(), false);
+    for (AffineMap map : indexingMaps)
+      for (AffineExpr expression : map.getResults())
+        if (auto dim = expression.dyn_cast<AffineDimExpr>())
+          supplied[dim.getPosition()] = true;
+    if (!llvm::all_of(supplied, [](bool value) { return value; }))
+      return;
+  }
+
   SmallVector<Value> newInputs, newOutputs;
   SmallVector<Type> resultTypes;
   // Track each output's routing so we can write back into rootToTensor.
@@ -2517,9 +2562,13 @@ static void rewriteLinalgGeneric(MultiRootCtx &ctx,
     }
     newInputs.push_back(r->first);
   }
-  for (Value out : generic.getOutputs()) {
+  for (auto [i, out] : llvm::enumerate(generic.getOutputs())) {
     auto r = routeOperand(ctx, out);
     if (!r.has_value()) return;
+    if (scalarOutputs[i]) {
+      r->first = ctx.rootToTensor[findRoot(out)];
+      r->second = std::monostate{};
+    }
     newOutputs.push_back(r->first);
     resultTypes.push_back(r->first.getType());
     outRouting.push_back({findRoot(out), r->second});
@@ -2529,7 +2578,7 @@ static void rewriteLinalgGeneric(MultiRootCtx &ctx,
   StringAttr empty = StringAttr::get(generic.getContext());
   auto newGeneric = rewriter.create<linalg::GenericOp>(
       generic.getLoc(), ArrayRef<Type>(resultTypes), newInputs, newOutputs,
-      generic.getIndexingMaps(), generic.getIteratorTypes(), empty, empty);
+      rewriter.getAffineMapArrayAttr(indexingMaps), generic.getIteratorTypes(), empty, empty);
   rewriter.cloneRegionBefore(generic.getRegion(), newGeneric.getRegion(),
                              newGeneric.getRegion().end());
 
@@ -2924,6 +2973,10 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   for (Value root : roots) {
     if (auto alloc = root.getDefiningOp())
       speculative.setInsertionPointAfter(alloc);
+    else
+      // A preceding root may be a view defined later in the entry block.
+      // Argument snapshots must dominate all of their rewritten uses.
+      speculative.setInsertionPointToStart(&funcOp.getBody().front());
     auto memrefType = root.getType().cast<MemRefType>();
     auto tensorType = RankedTensorType::get(memrefType.getShape(),
                                              memrefType.getElementType());

@@ -44,7 +44,7 @@ def write(path, specs, results, recipe, library, compiler_paths):
     here = Path(__file__).resolve().parent
     common = record([here / name for name in (
         'recipe.py', 'build_lib_v2.py', 'validate_specs.py', 'spec_provenance.py',
-        'e2e_v2.py', 'legalize_tensor_submaps.py')]
+        'e2e_v2.py', 'legalize_tensor_submaps.py', 'mlir_lite.py', 'import_cache.py')]
                     + list(compiler_paths))
     rows = {}
     by_name = {r['spec']: r for r in results}
@@ -69,6 +69,8 @@ def write(path, specs, results, recipe, library, compiler_paths):
             recoveries=result.get('recoveries', {}),
             numerical_validation=result.get('validation'),
         )
+        if result.get('validation_reuse'):
+            rows[spec.name]['validation_reuse'] = result['validation_reuse']
     path.write_text(json.dumps(dict(schema=1, recipe=recipe.name,
                                    common_inputs=common, library=record([library]),
                                    specifications=rows), indent=2) + '\n')

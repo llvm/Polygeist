@@ -1,0 +1,40 @@
+{
+  "routine": "aten_ne",
+  "source": "Pinned ATen floating-input/floating-output scalar implementation",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/BinaryOpsKernel.cpp",
+      "sha256": "debaeadf5a64ee11090b2baff9fc1086775c8761f316965c819d95da77cb8269"
+    }
+  ],
+  "adaptation": "ne_kernel scalar lambda specialized to FP32 inputs and FP32 0/1 output. TensorIterator maps to a contiguous C loop. C++ explicit casts map to exact C conversions; the C++ lambda is retained for independent checks. cuDNN graph opcodes are mechanically selected from the imported reference, with vendor semantics validated separately; this is not cuDNN implementation source.",
+  "specs": [
+    {
+      "name": "aten_ne_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "b",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX; contiguous FP32 arrays",
+        "output disjoint from inputs; FP32 output represents boolean 0/1",
+        "floating exceptions and errno not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

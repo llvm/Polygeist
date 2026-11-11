@@ -27,6 +27,7 @@ RT = A.REPO / "runtime"
 HDR = RT / "polygeist_v2_rt.h"
 CPU = RT / "polygeist_v2_rt_cpu.c"
 CUDA = RT / "polygeist_v2_rt_cuda.c"
+PVA = RT / "polygeist_v2_rt_pva.c"
 
 
 def c_params(ca: A.CallAbi) -> list[str]:
@@ -216,6 +217,9 @@ def gen_cuda(calls) -> str:
 
 def gen_runtime_adapter_cuda(ca) -> str:
     cfg = ca.runtime_adapter
+    if cfg['kind'] == 'typed_c_wrapper':
+        from typed_wrapper import generate
+        return generate(ca, proto)
     extent = cfg['extent_arg']
     arrays = [p for p in ca.params if p.tkind == 'array']
     b = [f"{proto(ca)} {{\n",
@@ -226,8 +230,15 @@ def gen_runtime_adapter_cuda(ca) -> str:
     for i,p in enumerate(arrays):
         for q in arrays[i+1:]:
             if p.written or q.written:
-                b.append(f'  if (polygeist_v2_overlaps({p.name}, {p.name}_bytes, {q.name}, {q.name}_bytes))\n'
-                         f'    polygeist_v2_fatal("{ca.call}", "runtime adapter requires disjoint output");\n')
+                overlap=f'polygeist_v2_overlaps({p.name}, {p.name}_bytes, {q.name}, {q.name}_bytes)'
+                if cfg.get('alias_policy')=='exact_or_disjoint':
+                    # Validated identity-map pointwise references read only
+                    # the element they overwrite. The backend snapshots every
+                    # input before writing output; partial aliasing could still
+                    # change a sequential reference's later reads.
+                    overlap += f' && !({p.name} == {q.name} && {p.name}_bytes == {q.name}_bytes)'
+                b.append(f'  if ({overlap})\n'
+                         f'    polygeist_v2_fatal("{ca.call}", "unsupported output overlap");\n')
     b += ['  polygeist_v2_map_t pv2_map;\n',
           f'  polygeist_v2_map_init(&pv2_map, "{ca.call}", "{ca.header_symbol}");\n']
     for p in arrays:
@@ -304,6 +315,11 @@ def gen_descriptor_cuda(ca) -> str:
     return ''.join(b)
 
 
+def gen_pva(calls) -> str:
+    from typed_wrapper import generate
+    return ''.join(generate(ca, proto) for ca in calls.values() if 'pva' in ca.backends)
+
+
 def splice(path: Path, tag: str, body: str) -> str:
     text = path.read_text()
     m = re.search(rf"(/\* BEGIN GENERATED {tag} \*/\n)(.*?)(/\* END GENERATED {tag} \*/)", text, re.S)
@@ -323,7 +339,8 @@ def main() -> int:
         print(f"note: spec {s} not in the ABI table: {e}", file=sys.stderr)
     new = {HDR: splice(HDR, "PROTOTYPES", gen_header(calls)),
            CPU: splice(CPU, "WRAPPERS", gen_cpu(calls)),
-           CUDA: splice(CUDA, "WRAPPERS", gen_cuda(calls))}
+           CUDA: splice(CUDA, "WRAPPERS", gen_cuda(calls)),
+           PVA: splice(PVA, "WRAPPERS", gen_pva(calls))}
     if a.output_dir:
         a.output_dir.mkdir(parents=True, exist_ok=True)
         new = {a.output_dir / p.name: text for p, text in new.items()}

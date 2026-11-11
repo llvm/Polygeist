@@ -1,0 +1,35 @@
+{
+  "kernel": "diffusion_apply_3d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_pa_diffusion_apply_3d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/diffusion_stage_sliced.c",
+    "-DBENCH_DIFFUSION_3D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/diffusion_apply_3d/program"
+  ],
+  "seconds": 64.47325453907251,
+  "source_sha256": "482b7f8f6b154e99569a0902fb3890844d16183b8fc72f887448a2898da3cfb1",
+  "program_sha256": "6a80b2e4c10d7a0cb0c0cee84775153b29b6b389bdd8f437b13721b1e4408bf6",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1"
+  ],
+  "calls": 14
+}

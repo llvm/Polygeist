@@ -1,0 +1,173 @@
+{
+  "routine": "cub_reduce",
+  "source": "Pinned public CUB ThreadReduceSequential and seeded ThreadReduce contract",
+  "upstream_files": [
+    {
+      "path": "third_party/cuda_headers/cuda_cccl/include/cccl/cub/thread/thread_reduce.cuh",
+      "sha256": "f0dfb01c1cbd0eb590c14cf763370863ce1dd83483de1e105f0332f9105108b1"
+    },
+    {
+      "path": "third_party/cuda_headers/cuda_cccl/include/cccl/cub/device/device_reduce.cuh",
+      "sha256": "79dbfc30428098941bb0db6dac316d2ba94cde4351483837076e91334e5c9399"
+    }
+  ],
+  "adaptation": "The seeded overload prepends the seed to its input array. Inline that temporary into the retained sequential reduction loop, shift its index by one, specialize the scalar/operator types, and expose the return as one output element. Runtime n replaces static array length. DeviceReduce uses the same typed binary operator and seed with parallel association checked separately.",
+  "specs": [
+    {
+      "name": "cub_reduce_sum_f32",
+      "defines": {
+        "SCALAR": "float",
+        "REDUCE_PRODUCT": 0
+      },
+      "target": {
+        "library": "CUB",
+        "call": "DeviceReduce",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_cub_reduce_sum_f32",
+          "arguments": [
+            "n",
+            "seed",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "n"
+            ],
+            "output": [
+              1
+            ]
+          },
+          "bounds": {
+            "n": {
+              "min": 1,
+              "max": 2147483647
+            }
+          },
+          "alias_policy": "disjoint",
+          "linkage": "optional"
+        }
+      },
+      "args": [
+        "n",
+        "seed",
+        "input",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX, contiguous disjoint input and one-element output",
+        "parallel backend reassociation is checked within declared numerical tolerance"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "cub_reduce_sum_f64",
+      "defines": {
+        "SCALAR": "double",
+        "REDUCE_PRODUCT": 0
+      },
+      "target": {
+        "library": "CUB",
+        "call": "DeviceReduce",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_cub_reduce_sum_f64",
+          "arguments": [
+            "n",
+            "seed",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "n"
+            ],
+            "output": [
+              1
+            ]
+          },
+          "bounds": {
+            "n": {
+              "min": 1,
+              "max": 2147483647
+            }
+          },
+          "alias_policy": "disjoint",
+          "linkage": "optional"
+        }
+      },
+      "args": [
+        "n",
+        "seed",
+        "input",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX, contiguous disjoint input and one-element output",
+        "parallel backend reassociation is checked within declared numerical tolerance"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "cub_reduce_product_f32",
+      "defines": {
+        "SCALAR": "float",
+        "REDUCE_PRODUCT": 1
+      },
+      "target": {
+        "library": "CUB",
+        "call": "DeviceReduce",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_cub_reduce_product_f32",
+          "arguments": [
+            "n",
+            "seed",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "n"
+            ],
+            "output": [
+              1
+            ]
+          },
+          "bounds": {
+            "n": {
+              "min": 1,
+              "max": 2147483647
+            }
+          },
+          "alias_policy": "disjoint",
+          "linkage": "optional"
+        }
+      },
+      "args": [
+        "n",
+        "seed",
+        "input",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX, contiguous disjoint input and one-element output",
+        "parallel backend reassociation is checked within declared numerical tolerance"
+      ],
+      "deviations": []
+    }
+  ]
+}

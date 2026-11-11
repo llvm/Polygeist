@@ -1,0 +1,17 @@
+{
+  "rc": 0,
+  "program_sha256": "80c02efbfd3d347733a91a5a10dbabf0614d1bc34278e2cd74e601f1c5800a30",
+  "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-pcg-application-20261111",
+  "correctness_lines": [
+    "application=ex9p_mass_convection_2d correctness=PASS max_abs=3.4694469519536142e-18 max_rel=3.4694469519536142e-18 reference_checksum=-0.13436370077274082 raised_checksum=-0.13436370077274087 reference_delta_max=0.062766864482904527"
+  ],
+  "vendor_calls": [
+    "cublasDaxpy",
+    "cublasDgeam_openblas_daxpby_geam_f64",
+    "cublasDgemm"
+  ],
+  "actual_vendor_invocations": 48,
+  "all_outputs_pass": true,
+  "daxpy_observed": true,
+  "daxpby_observed": true
+}

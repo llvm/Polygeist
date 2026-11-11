@@ -1,0 +1,29 @@
+{
+  "kernel": "interp_grad_3d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_interp_grad_3d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+    "-DBENCH_INTERP_GRAD_3D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/interp_grad_3d/program"
+  ],
+  "seconds": 54.320191249251366,
+  "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+  "program_sha256": "f350bfcd4158efb099abdca0869820f036a951e8a86fcda3240e27def6b61b04",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemv_n_beta1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1"
+  ],
+  "calls": 8
+}

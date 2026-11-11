@@ -1,0 +1,11 @@
+{
+  "name": "diffusion_apply_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 4098,
+  "calls": [
+    "cublasDgemm"
+  ],
+  "program_sha256": "4ea1e12e3a4356fdbc8f2dc0fb73d82926f5fcf030b7ffe7eaedb4e8ed115e3a",
+  "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-diffusion_apply_2d-20261111"
+}

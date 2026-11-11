@@ -32,6 +32,22 @@ extern "C" {
 void polygeist_cublas_init(void);
 void polygeist_cublas_destroy(void);
 
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceScanInclusiveScanInit polygeist_cub_scan_inclusive_seed_f32 */
+void polygeist_cub_scan_inclusive_seed_f32(int32_t n, float seed,
+                                          const float *input, float *output);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_sum_f32 */
+void polygeist_cub_reduce_sum_f32(int32_t n, float seed, const float *input, float *output);
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_sum_f64 */
+void polygeist_cub_reduce_sum_f64(int32_t n, double seed, const double *input, double *output);
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_product_f32 */
+void polygeist_cub_reduce_product_f32(int32_t n, float seed, const float *input, float *output);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_value_sum_f32 */
+float polygeist_cub_reduce_value_sum_f32(int32_t n, float seed, const float *input);
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_value_sum_f64 */
+double polygeist_cub_reduce_value_sum_f64(int32_t n, double seed, const double *input);
+
 // Whole-algorithm operations recovered from imperative C loop nests.
 void polygeist_cub_histogram_even_i32_shift_zero(
     int32_t count, int32_t num_bins, const int32_t *samples,
@@ -998,6 +1014,19 @@ void polygeist_gpu_region_timing_begin(int64_t region_id);
 void polygeist_gpu_region_timing_enter(int32_t category);
 void polygeist_gpu_region_timing_leave(void);
 void polygeist_gpu_region_timing_end(void);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY cuBLAS cublasDgeam polygeist_cublas_geam_vector_f64 */
+void polygeist_cublas_geam_vector_f64(int32_t n, double alpha,
+                                    const double *x, double beta, double *y);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u8 */
+void polygeist_pva_morphology_dilate_3x3_u8(int32_t, int32_t, const uint8_t *, uint8_t *);
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s8 */
+void polygeist_pva_morphology_dilate_3x3_s8(int32_t, int32_t, const int8_t *, int8_t *);
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u16 */
+void polygeist_pva_morphology_dilate_3x3_u16(int32_t, int32_t, const uint16_t *, uint16_t *);
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s16 */
+void polygeist_pva_morphology_dilate_3x3_s16(int32_t, int32_t, const int16_t *, int16_t *);
 
 #ifdef __cplusplus
 }

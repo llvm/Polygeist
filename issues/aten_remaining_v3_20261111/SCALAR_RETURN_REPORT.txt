@@ -1,0 +1,64 @@
+ATen scalar-return reduction milestone — 2026-11-11
+
+Scope: 49 fully GPU-validated targeted cases remain complete. In addition,
+mean now has a validated production CUB sum replacement, followed by the
+original host division and scalar store. It is a partial GPU application,
+not an extra fully resident GPU case, native ATen comparison, or Figure 5 result.
+
+New source imports preserve the actual seeded CUB ThreadReduce scalar return
+for FP32 and FP64. They use the same production raising and strict matching.
+128 upstream C++/adapted-C checks and all six source-versus-raised stage checks
+pass. The separate actual DeviceReduce backend passes 160 shape/seed/special-
+value checks. Parallel reassociation is tested within the declared tolerance;
+EqSat does not establish universal bitwise equivalence to parallel CUB.
+
+Generic changes:
+- Typed wrapper bindings retain exact float/double return types, capture the
+  completed result, clean up temporary arguments, and then return it.
+- Kernel launch bufferization preserves ordinary scalar SSA results while
+  converting tensor operands and tensor destinations. Mixed scalar/tensor
+  results retain order; malformed destination/type metadata is rejected.
+- ABI preparation permits scalar returns with read-only tensor arguments;
+  it rejects wrong return types and undeclared writes.
+- Literal capture and ABI binding distinguish positive and negative zero.
+  A proven -0 constant cannot be rebound to an available +0 SSA constant.
+- MFEM owner's generic strided BLAS packing change is included in this shared
+  snapshot; its application execution evidence remains in that campaign.
+
+Mean validation:
+The unchanged FP64 fixture matches cub_reduce_value_sum_f64 and builds via
+polygeist_build.sh. All six normal/NaN-Inf/negative-zero checks pass, with
+host inputs or device inputs and a host scalar output. Full output, unchanged
+input, and guard checks pass; real DeviceReduce and typed-call traces are
+present. Output is poisoned before each invocation. Tolerance is
+1e-12 + 1e-10*abs(reference), with NaN class, infinity, and zero sign checked.
+
+Timing: five warmups, then five alternating synchronized samples, trace off.
+Minimum raised 0.032097101 ms; direct CUB plus identical host completion
+0.030497074 ms. This is not an actual ATen CUDA baseline. GPU was reserved
+exclusively. Board preflight, host uptime, every sample, raw logs, source/proof/
+binary hashes are retained under reductions/mean/ and
+scalar-launch-source-and-results.json.
+
+Shared validation on 169 catalog records / 78 typed calls:
+- 176 Python tests pass in 49.539 seconds.
+- Seven related compiler regressions pass, including old tensor-only behavior,
+  scalar-only/mixed results, and malformed metadata negative controls.
+- All 22 previous application match checks pass.
+- Llama retains 22 calls and byte-identical matched IR. This is a matcher replay,
+  not another full Llama execution/timing claim. Its last complete fresh GPU
+  run remains the scan milestone (32,000 logits exactly match prior/expert).
+- All 169 references were freshly processed after the compiler change
+  (33.059 s); generated runtime --check passes.
+- All 160 frozen source/tool/test hashes remained unchanged during validation.
+
+Remaining reductions: sum and sum_cpu_backend still do not match after generic
+row slicing with the new scalar-return references. Their outputs remain tensor
+slices threaded through the outer loop, unlike the scalar-return reference;
+initializer and output/view equivalence must be established generically.
+No hand-written sum recognizer or forced match was added.
+
+Evidence: scalar-launch-{shared-tests,previous-matches,llama-recheck}.log,
+scalar-launch-source-before.json, scalar-launch-source-and-results.json,
+staged-scalar-launch/, staged-cub-scalar-returns/, reductions/mean/.
+No commit or push.

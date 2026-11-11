@@ -1,0 +1,10 @@
+{
+  "validated_manifest": "/home/arjaiswal/Polygeist/issues/aten_remaining_v3_20261111/boolean-symbol-source-before.json",
+  "checked": 282,
+  "mismatches": [],
+  "restored_source_sha256": "0fee749d625d20ac9fa6909d18d791a302256e638feefa45444856fa9f3a3147",
+  "source_backup_sha256": "0fee749d625d20ac9fa6909d18d791a302256e638feefa45444856fa9f3a3147",
+  "initializer_test_removed": true,
+  "saved_wip": "/home/arjaiswal/Polygeist/issues/aten_remaining_v3_20261111/staged-initializer-fusion/commit-wip-saved",
+  "index_untouched": true
+}

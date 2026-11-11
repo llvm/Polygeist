@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -328,10 +329,19 @@ struct ExpandInverse : OpRewritePattern<SubmapInverseOp> {
     if (!contiguousPrefix(op.getBaseOriginal(), sizes, groups))
       return failure();
     auto baseType = cast<RankedTensorType>(op.getType());
-    // Dynamic expansion needs explicit dimension witnesses. Keep it unchanged
-    // until those witnesses can be preserved, rather than guessing a factor.
-    if (!baseType.hasStaticShape())
-      return failure();
+    // One unknown factor is inferable from the collapsed extent and the
+    // remaining nonzero static dimensions. Two unknown factors (or a zero
+    // divisor) require explicit dimension witnesses in this MLIR version.
+    for (const auto &group : groups) {
+      unsigned dynamic = 0;
+      bool zero = false;
+      for (int64_t dim : group) {
+        dynamic += baseType.isDynamicDim(dim);
+        zero |= baseType.getDimSize(dim) == 0;
+      }
+      if (dynamic > 1 || (dynamic && zero))
+        return failure();
+    }
     Value base = collapseTensor(rewriter, op.getLoc(), op.getBaseOriginal(), groups);
     auto collapsedSizes = collapseSizes(rewriter, op.getLoc(), sizes, groups);
     Value inverse = rewriter.create<SubmapInverseOp>(
@@ -365,11 +375,188 @@ struct CollapseTensorMemref : OpRewritePattern<tensor::CollapseShapeOp> {
   }
 };
 
+// Construct an optional lower-parallel-rank candidate using upstream tiling.
+// Every tiled loop is parallel and has unit step; reduction order is unchanged.
+// No scalar opcode, library name or workload identity participates in selection.
+static LogicalResult sliceParallelDimensions(Operation *root,
+                                            unsigned parallelLimit,
+                                            unsigned operandLimit) {
+  SmallVector<linalg::GenericOp> candidates;
+  root->walk([&](linalg::GenericOp op) {
+    if (op.hasTensorSemantics() && op.getNumDpsInits() == 1 &&
+        op.getNumResults() == 1)
+      candidates.push_back(op);
+  });
+  SmallVector<Operation *> tiledRoots;
+  IRRewriter rewriter(root->getContext());
+  for (auto op : candidates) {
+    SmallVector<int64_t> tileSizes(op.getNumLoops(), 0);
+    auto iterators = op.getIteratorTypesArray();
+    unsigned remaining = parallelLimit && op.getNumParallelLoops() > parallelLimit
+                             ? op.getNumParallelLoops() - parallelLimit : 0;
+    for (auto [i, type] : llvm::enumerate(iterators))
+      if (remaining && type == utils::IteratorType::parallel) {
+        tileSizes[i] = 1;
+        --remaining;
+      }
+    auto maps = op.getIndexingMapsArray();
+    // For projected permutations, removing a unit iterator removes exactly
+    // the corresponding operand dimension. Prefer a parallel coordinate
+    // shared by the most operands; this exposes independent batches even
+    // when the batch coordinate is not the leading physical dimension.
+    if (operandLimit && llvm::all_of(maps, [](AffineMap m) {
+          return m.isProjectedPermutation();
+        })) {
+      while (true) {
+        SmallVector<AffineMap> oversized;
+        for (AffineMap map : maps) {
+          unsigned rank = 0;
+          for (AffineExpr e : map.getResults())
+            rank += !tileSizes[e.cast<AffineDimExpr>().getPosition()];
+          if (rank > operandLimit)
+            oversized.push_back(map);
+        }
+        if (oversized.empty())
+          break;
+        int best = -1;
+        unsigned bestScore = 0;
+        for (unsigned i = 0; i < tileSizes.size(); ++i) {
+          if (tileSizes[i] || iterators[i] != utils::IteratorType::parallel)
+            continue;
+          auto includes = [&](AffineMap map) {
+            return llvm::any_of(map.getResults(), [&](AffineExpr e) {
+              return e.cast<AffineDimExpr>().getPosition() == i;
+            });
+          };
+          if (!llvm::any_of(oversized, includes))
+            continue;
+          unsigned score = llvm::count_if(maps, includes);
+          if (best < 0 || score > bestScore) {
+            best = i;
+            bestScore = score;
+          }
+        }
+        if (best < 0)
+          break;
+        tileSizes[best] = 1;
+      }
+    }
+    if (llvm::none_of(tileSizes, [](int64_t size) { return size != 0; }))
+      continue;
+    rewriter.setInsertionPoint(op);
+    linalg::LinalgTilingOptions options;
+    // Imported definitions are kernel.defn regions, not func.func. Keep tile
+    // constants local instead of using the convenience helper's FuncOp entry.
+    options.setTileSizeComputationFunction(
+        [tileSizes](OpBuilder &builder, Operation *operation) {
+          SmallVector<Value, 4> values;
+          for (int64_t size : tileSizes)
+            values.push_back(builder.create<arith::ConstantIndexOp>(
+                operation->getLoc(), size));
+          return values;
+        });
+    auto tiled = linalg::tileLinalgOp(rewriter, op, options);
+    if (failed(tiled))
+      return failure();
+    if (!tiled->loops.empty())
+      tiledRoots.push_back(tiled->loops.front());
+    rewriter.replaceOp(op, tiled->tensorResults);
+  }
+  RewritePatternSet patterns(root->getContext());
+  linalg::ControlDropUnitDims options;
+  options.rankReductionStrategy =
+      linalg::ControlDropUnitDims::RankReductionStrategy::ExtractInsertSlice;
+  linalg::populateFoldUnitExtentDimsPatterns(patterns, options);
+  // Clean only the new tiled regions. Keep semantic submap bounds explicit;
+  // unrelated region computations must not be changed by this candidate.
+  for (auto *dialect : root->getContext()->getLoadedDialects())
+    if (dialect->getNamespace() != "polygeist" &&
+        dialect->getNamespace() != "kernel")
+      dialect->getCanonicalizationPatterns(patterns);
+  for (RegisteredOperationName operation :
+       root->getContext()->getRegisteredOperations())
+    if (operation.getDialectNamespace() != "polygeist" &&
+        operation.getDialectNamespace() != "kernel")
+      operation.getCanonicalizationPatterns(patterns, root->getContext());
+  FrozenRewritePatternSet cleanup(std::move(patterns));
+  for (Operation *loop : tiledRoots) {
+    SmallVector<Operation *> operations;
+    loop->walk([&](Operation *nested) {
+      if (nested != loop)
+        operations.push_back(nested);
+    });
+    GreedyRewriteConfig config;
+    config.scope = &loop->getRegion(0);
+    if (failed(applyOpPatternsAndFold(operations, cleanup, config)))
+      return failure();
+  }
+  return success();
+}
+
+// A static rank-reduced tile already has exact extents. Expose those extents as
+// identity views for the same matcher used by source-imported references.
+static void exposeStaticSliceBounds(Operation *root) {
+  SmallVector<linalg::GenericOp> candidates;
+  root->walk([&](linalg::GenericOp op) {
+    if (op.getNumDpsInits() != 1 || op.getNumResults() != 1 ||
+        !op->getParentOfType<scf::ForOp>())
+      return;
+    bool needsBounds = false;
+    for (Value value : op->getOperands()) {
+      auto type = dyn_cast<RankedTensorType>(value.getType());
+      if (!type || !type.hasStaticShape() || type.getRank() == 0)
+        return;
+      needsBounds |= !value.getDefiningOp<SubmapOp>();
+    }
+    if (needsBounds)
+      candidates.push_back(op);
+  });
+  IRRewriter rewriter(root->getContext());
+  for (auto op : candidates) {
+    rewriter.setInsertionPoint(op);
+    Value originalOutput = op.getDpsInitOperand(0)->get();
+    bool wrapOutput = !originalOutput.getDefiningOp<SubmapOp>();
+    SmallVector<Value> outputSizes;
+    for (OpOperand &operand : op->getOpOperands()) {
+      if (operand.get().getDefiningOp<SubmapOp>())
+        continue;
+      auto type = cast<RankedTensorType>(operand.get().getType());
+      SmallVector<Value> sizes;
+      for (int64_t size : type.getShape())
+        sizes.push_back(rewriter.create<arith::ConstantIndexOp>(op.getLoc(), size));
+      auto view = rewriter.create<SubmapOp>(
+          op.getLoc(), type, operand.get(), sizes,
+          rewriter.getMultiDimIdentityMap(type.getRank()));
+      operand.set(view.getResult());
+      if (operand.getOperandNumber() == op.getNumDpsInputs())
+        outputSizes = sizes;
+    }
+    if (!wrapOutput)
+      continue;
+    rewriter.setInsertionPointAfter(op);
+    Value result = op.getResult(0);
+    auto type = cast<RankedTensorType>(result.getType());
+    auto restored = rewriter.create<SubmapInverseOp>(
+        op.getLoc(), type, originalOutput, result, outputSizes,
+        rewriter.getMultiDimIdentityMap(type.getRank()));
+    result.replaceAllUsesExcept(restored.getResult(), restored);
+  }
+}
+
 struct NormalizeLinalgMatchingViewsPass
     : NormalizeLinalgMatchingViewsBase<NormalizeLinalgMatchingViewsPass> {
   void runOnOperation() override {
+    if (maxParallelDims || maxOperandRank) {
+      RewritePatternSet outputs(&getContext());
+      populateNormalizeTensorReductionOutputPatterns(outputs);
+      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(outputs)))) {
+        signalPassFailure();
+        return;
+      }
+    }
     RewritePatternSet views(&getContext());
     views.add<ExposeProjectedSubmaps>(&getContext());
+    linalg::populateMoveInitOperandsToInputPattern(views);
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(views)))) {
       signalPassFailure();
       return;
@@ -377,8 +564,17 @@ struct NormalizeLinalgMatchingViewsPass
     RewritePatternSet collapse(&getContext());
     linalg::populateCollapseDimensions(collapse, parallelGroups);
     collapse.add<CollapseSubmap, ExpandInverse, CollapseTensorMemref>(&getContext());
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(collapse))))
+    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(collapse)))) {
       signalPassFailure();
+      return;
+    }
+    if (maxParallelDims || maxOperandRank) {
+      if (failed(sliceParallelDimensions(getOperation(), maxParallelDims, maxOperandRank))) {
+        signalPassFailure();
+        return;
+      }
+      exposeStaticSliceBounds(getOperation());
+    }
   }
 };
 } // namespace

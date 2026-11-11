@@ -1,0 +1,12 @@
+{
+  "name": "curlcurl_apply_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 3082,
+  "calls": [
+    "cublasDgemm",
+    "cublasDgemv"
+  ],
+  "program_sha256": "dd3c2bd336a8bf5809907a83701f596052b0f9199e497fc3dc57d772c027b50a",
+  "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-curlcurl_apply_2d-20261111"
+}

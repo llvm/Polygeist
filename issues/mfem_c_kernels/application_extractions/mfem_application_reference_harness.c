@@ -27,10 +27,18 @@
 #include "ex35p_pa_operators.c"
 #undef mfem_app_ex35p_hdiv_3d
 #elif defined(MFEM_APP_EX9P)
+/* Keep the direct-C helper definitions distinct when the raised application
+ * retains and transforms its dependencies. Computation is unchanged. */
+#define mfem_pa_mass_apply_2d_stage_sliced mfem_pa_mass_apply_2d_stage_sliced_reference
+#define mfem_pa_convection_apply_2d_stage_sliced mfem_pa_convection_apply_2d_stage_sliced_reference
+#define mfem_mass_pcg_step_2d mfem_mass_pcg_step_2d_reference
 #define mfem_app_ex9p_mass_convection_2d \
   mfem_app_ex9p_mass_convection_2d_reference
 #include "ex9p_mass_convection_2d.c"
 #undef mfem_app_ex9p_mass_convection_2d
+#undef mfem_pa_mass_apply_2d_stage_sliced
+#undef mfem_pa_convection_apply_2d_stage_sliced
+#undef mfem_mass_pcg_step_2d
 #elif defined(MFEM_APP_GRAD_DIV)
 #define mfem_app_grad_div_3d mfem_app_grad_div_3d_reference
 #include "grad_div_3d.c"

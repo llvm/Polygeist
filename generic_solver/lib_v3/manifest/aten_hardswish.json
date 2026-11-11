@@ -1,0 +1,39 @@
+{
+  "routine": "aten_hardswish",
+  "source": "Pinned ATen scalar implementation; reusable contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/Activation.cpp",
+      "sha256": "66cca1278103413ab9c566585004f58213a5f870a4daa07c0bc75bd2f30b19b1"
+    }
+  ],
+  "adaptation": "hardswish_kernel specialized to float. TensorIterator maps to a C loop. Standard min/max/clamp keep comparison/select semantics; float math overloads map to equivalent C functions. C++ constexpr constants expand at their use sites. Scalars remain parameters. The proprietary cuDNN backend graph is mechanically emitted from this reference, with separately tested opcode semantics; this is not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_hardswish_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

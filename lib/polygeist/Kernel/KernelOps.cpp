@@ -122,7 +122,8 @@ LogicalResult LaunchOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // Verify that the operand and result types match the kernel signature.  A
   // bufferized launch keeps the scalar operands unchanged, replaces tensor
   // operands with equivalent memrefs, and writes the kernel results into the
-  // destination operands recorded by polygeist.result_destinations.
+  // destination operands recorded by polygeist.result_destinations. Ordinary
+  // scalar results stay in SSA and use -1 in the corresponding metadata slot.
   auto kernelType = kernelOp.getFunctionType();
   bool isBufferized = (*this)->hasAttr("polygeist.bufferized");
   if (kernelType.getNumInputs() != getNumOperands())
@@ -163,17 +164,29 @@ LogicalResult LaunchOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
              << getOperand(i).getType() << " for operand number " << i;
 
   if (isBufferized) {
-    if (getNumResults() != 0)
-      return emitOpError("bufferized launch must not have SSA results");
     auto destinations = (*this)->getAttrOfType<DenseI64ArrayAttr>(
         "polygeist.result_destinations");
     if (!destinations || destinations.size() != kernelType.getNumResults())
       return emitOpError("bufferized launch requires one destination operand "
                          "index for every kernel result");
-    for (int64_t destination : destinations.asArrayRef())
-      if (destination < 0 || destination >= (int64_t)getNumOperands())
-        return emitOpError("bufferized launch destination operand index is "
-                           "out of range");
+    unsigned scalarResult = 0;
+    for (auto [index, destination] : llvm::enumerate(destinations.asArrayRef())) {
+      Type resultType = kernelType.getResult(index);
+      if (isa<TensorType>(resultType)) {
+        if (destination < 0 || destination >= (int64_t)getNumOperands())
+          return emitOpError("bufferized launch destination operand index is "
+                             "out of range");
+        if (!areBufferCompatible(resultType, getOperand(destination).getType()))
+          return emitOpError("bufferized launch destination type mismatch");
+      } else {
+        if (destination != -1 || scalarResult >= getNumResults() ||
+            getResult(scalarResult).getType() != resultType)
+          return emitOpError("bufferized launch scalar result mismatch");
+        ++scalarResult;
+      }
+    }
+    if (scalarResult != getNumResults())
+      return emitOpError("incorrect number of bufferized scalar results");
     return success();
   }
 

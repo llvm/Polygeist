@@ -1,0 +1,39 @@
+{
+  "routine": "aten_gelu_exact",
+  "source": "Pinned ATen scalar implementation; reusable contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/Gelu.h",
+      "sha256": "5fbc9b67e5b711f56a961342ee3398502bbf718de0747fc3f92eea011989142a"
+    }
+  ],
+  "adaptation": "scalar_gelu specialized to float. TensorIterator maps to a C loop. Standard min/max/clamp keep comparison/select semantics; float math overloads map to equivalent C functions. C++ constexpr constants expand at their use sites. Scalars remain parameters. The proprietary cuDNN backend graph is mechanically emitted from this reference, with separately tested opcode semantics; this is not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_gelu_exact_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

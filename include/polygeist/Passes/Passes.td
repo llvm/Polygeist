@@ -224,10 +224,14 @@ def NormalizeLinalgMatchingViews : Pass<"normalize-linalg-matching-views"> {
     representation for library matching; profitability is decided separately.
   }];
   let constructor = "mlir::polygeist::createNormalizeLinalgMatchingViewsPass()";
+  let options = [Option<"maxParallelDims", "max-parallel-dims", "unsigned",
+                        "0", "Optionally tile extra parallel dimensions by one">,
+                 Option<"maxOperandRank", "max-operand-rank", "unsigned",
+                        "0", "Optionally slice parallel coordinates of high-rank operands">];
   let dependentDialects = [
     "arith::ArithDialect", "bufferization::BufferizationDialect",
     "linalg::LinalgDialect", "memref::MemRefDialect", "tensor::TensorDialect",
-    "polygeist::PolygeistDialect",
+    "polygeist::PolygeistDialect", "scf::SCFDialect",
   ];
 }
 

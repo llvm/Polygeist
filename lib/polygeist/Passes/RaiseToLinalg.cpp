@@ -3338,6 +3338,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     SmallVector<std::pair<std::vector<Condition>, AffineStoreOp>> stores;
     SmallVector<std::pair<std::vector<Condition>, GenericOp>> linalgGenerics;
     bool check_reduction;
+    bool hasReductionOutput = false;
 
     // TODO Also collect all the linalg generics!
 
@@ -3820,6 +3821,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
           return failure();
         }
 
+        hasReductionOutput |= check_reduction;
+
         // Preserve the nested output projection.  In particular, a reduction
         // output map omits reduction iterators; only prepend the newly raised
         // outer loop dimension instead of turning all iterators into an
@@ -3976,6 +3979,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         return failure();
       }
 
+      hasReductionOutput |= check_reduction;
       auto newAffineMap = rewriter.getMultiDimIdentityMap(firstNDims + 1);
       affineMaps.push_back(newAffineMap);
       outputs.push_back(newMemref);
@@ -4008,12 +4012,12 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       // determine whether now we write to ourselves
     }
 
-    iteratorTypes.push_back(check_reduction ? utils::IteratorType::reduction
+    iteratorTypes.push_back(hasReductionOutput ? utils::IteratorType::reduction
                                             : utils::IteratorType::parallel);
 
     LLVM_DEBUG(llvm::dbgs() << "\n--- Creating linalg.generic ---\n");
     LLVM_DEBUG(llvm::dbgs() << "Iterator type for this loop: " 
-               << (check_reduction ? "reduction" : "parallel") << "\n");
+               << (hasReductionOutput ? "reduction" : "parallel") << "\n");
 
     if (linalgGenerics.size() == 1) {
       LLVM_DEBUG(llvm::dbgs() << "Extending iterator types from nested linalg.generic\n");

@@ -170,9 +170,15 @@ class Env:
         return e
 
 
+def same_literal(a, b) -> bool:
+    # Scalar equality must not identify the two IEEE zero signs. This identity
+    # also governs selection of an existing SSA constant for a proved capture.
+    return float(a).hex() == float(b).hex()
+
+
 def same_binding(a: tuple, b: tuple) -> bool:
     if a[0] == "lit" and b[0] == "lit":
-        return a[1] == b[1]
+        return same_literal(a[1], b[1])
     if a[0] != b[0]:
         return False
     if a[0] in ("ssa", "cast_i32", "ld"):
@@ -200,7 +206,9 @@ class Matcher:
         self.app_gbs: dict[int, object] = {}
         gens = [op for op in app.ops if op.name == "linalg.generic"]
         gens.sort(key=lambda o: o.start)
-        gbs = KM.parse_generics(app.text)
+        # Block argument names carry no semantics. Use the same output arity
+        # convention as imported references, including upstream-normalized IR.
+        gbs = KM.parse_generics(app.text, infer_outputs_from_yield=True)
         if len(gbs) != len(gens):
             raise RuntimeError(f"generic count mismatch {len(gbs)} vs {len(gens)}")
         for op, gb in zip(gens, gbs):
@@ -347,6 +355,18 @@ class Matcher:
         return t
 
     # -- body -------------------------------------------------------------
+    @staticmethod
+    def input_bindings(reference_inputs, application_inputs):
+        if reference_inputs == application_inputs:
+            yield from itertools.permutations(range(application_inputs))
+        elif (0 < application_inputs < reference_inputs and
+                application_inputs ** reference_inputs <= 256):
+            # Multiple formal read operands may refer to the same application
+            # tensor. Every application operand must still be represented.
+            for binding in itertools.product(range(application_inputs), repeat=reference_inputs):
+                if len(set(binding)) == application_inputs:
+                    yield binding
+
     def body_bindings(self, sop: ML.Op, aop: ML.Op, pi, rho):
         ck = (self.spec.name, sop.idx, aop.idx, pi, rho)
         if ck in self._body_cache:
@@ -364,11 +384,31 @@ class Matcher:
                 (reference.block_arg_types or [])):
             self._body_cache[ck] = None
             return None
-        if len(gb.ins_arg_names) == len(pi) and len(gb.outs_arg_names) == len(rho):
-            perm = dataclasses.replace(
-                gb, ins_arg_names=[gb.ins_arg_names[p] for p in pi],
-                outs_arg_names=[gb.outs_arg_names[r] for r in rho])
+        if len(gb.outs_arg_names) == len(rho):
             step = self.spec.entry.steps[self.spec.gidx[sop.idx]]
+            if len(gb.ins_arg_names) == len(pi):
+                perm = dataclasses.replace(
+                    gb, ins_arg_names=[gb.ins_arg_names[p] for p in pi],
+                    outs_arg_names=[gb.outs_arg_names[r] for r in rho])
+            elif len(rho) == 1:
+                # A duplicated name in the application block-argument list
+                # would lose one binding during scalar encoding. Substitute
+                # the reference input indices into the application's space.
+                def remap(node):
+                    if node[0] == "In":
+                        return ("In", pi[node[1]])
+                    return (node[0], *(remap(x) if isinstance(x, tuple) else x
+                                      for x in node[1:]))
+                def remap_term(term):
+                    return KM._ast_to_term(remap(KM._parse_term(KM._term_repr(term))))
+                step = dataclasses.replace(step, body=remap_term(step.body),
+                    num_ins=len(gb.ins_arg_names), body_per_yield=(
+                        [remap_term(t) for t in step.body_per_yield]
+                        if step.body_per_yield else None))
+                perm = gb
+            else:
+                self._body_cache[ck] = None
+                return None
             one = KM.CompositionEntry(name=self.spec.name, steps=[step], form="tensor")
             try:
                 term = KM.encode_body(perm)
@@ -585,7 +625,7 @@ class Matcher:
                 if not self.literal_allowed(sname, value, "int" if pty.startswith("i") else "float"):
                     return
                 gb = self.app_gbs[aop.idx]
-                cname = next((n for n, v in gb.constants.items() if v == value), None)
+                cname = next((n for n, v in gb.constants.items() if same_literal(v, value)), None)
                 ckey = self.akey(cname, aop) if cname else None
                 e = self.bind(env, sname, ("lit", value, self.spec.params[sname], ckey))
                 if e is not None:
@@ -595,7 +635,7 @@ class Matcher:
             if d and d[0].name == "arith.constant":
                 m = re.search(r"constant\s+([^\s:]+)", d[0].text)
                 try:
-                    if m and float(m.group(1)) == value:
+                    if m and same_literal(m.group(1), value):
                         yield env
                 except ValueError:
                     pass
@@ -748,20 +788,21 @@ class Matcher:
         if aop.idx in {g[3] for g in env.gens.values()}:
             return
         self.note(aop, "shape")
-        if len(sop.ins) != len(aop.ins) or len(sop.outs) != len(aop.outs):
+        if len(sop.ins) < len(aop.ins) or len(sop.outs) != len(aop.outs):
             return
         if sorted(sop.iters) != sorted(aop.iters):
             return
         nd = len(sop.iters)
         ni, no = len(sop.ins), len(sop.outs)
+        ai = len(aop.ins)
         try:
             s_tr = [self.trace(self.L, sop, i, False) for i in range(ni + no)]
-            a_tr = [self.trace(self.A, aop, i, True) for i in range(ni + no)]
+            a_tr = [self.trace(self.A, aop, i, True) for i in range(ai + no)]
         except ML.AffineParseError:
             return
         sgb = self.spec.gbs[sop.idx]
         s_locals = set(self._local_defs(sop.body))
-        for pi in itertools.permutations(range(ni)):
+        for pi in self.input_bindings(ni, ai):
             for rho in itertools.permutations(range(no)):
                 if rho[sk] != ak:
                     continue
@@ -774,7 +815,7 @@ class Matcher:
                         continue
                     pairs: list = []
                     ok = True
-                    amap = list(pi) + [ni + r for r in rho]
+                    amap = list(pi) + [ai + r for r in rho]
                     slice_base: dict = {}
                     for i in range(ni + no):
                         st, at = s_tr[i], a_tr[amap[i]]
@@ -825,6 +866,17 @@ class Matcher:
                     self.note(aop, "body-locals")
                     # operand bases last (they recurse into producers)
                     for i in range(ni + no):
+                        if (i >= ni and all(t == "parallel" for t in sop.iters)
+                                and s_tr[i].base in env.vals
+                                and self.unused_output(sgb, i - ni)
+                                and self.unused_output(self.app_gbs[aop.idx], amap[i] - ai)):
+                            # The surrounding inverse already binds the final
+                            # destination. A fully overwritten output view has
+                            # no initial-value dependency (e.g. tensor.empty
+                            # introduced by upstream init-to-input movement).
+                            if (self.full_output_map(sop, i) and
+                                    self.full_output_map(aop, amap[i])):
+                                continue
                         if i in slice_base:
                             pairs.append(("slice", s_tr[i].base, slice_base[i]))
                         else:
@@ -833,13 +885,27 @@ class Matcher:
                     e.opmap[sop.idx] = aop.idx
                     e.gens[sop.idx] = (pi, rho, sigma, aop.idx)
                     views = set()
-                    for i in range(ni + no):
-                        views.update(a_tr[i].views)
+                    for trace in a_tr:
+                        views.update(trace.views)
                     e.consumed = e.consumed | frozenset(views) | {aop.idx}
                     for r in self.match_seq(pairs, e, aop):
                         self.note(aop, "matched")
                         yield r
                     self.note(aop, "dataflow")
+
+    @staticmethod
+    def unused_output(body, index):
+        name = body.outs_arg_names[index]
+        used = set(re.findall(r"%[\w$.\-#]+", "\n".join(body.body_lines + body.yield_values)))
+        return name not in used
+
+    @staticmethod
+    def full_output_map(op, index):
+        nd = len(op.iters)
+        access = ML.map_apply(op.maps[index], ML.identity_dims(nd), [])
+        dims = [ML.pure_dim(d) for d in access]
+        return (len(dims) == nd and None not in dims and
+                sorted(dims) == list(range(nd)))
 
     def match_submap_inverse(self, sop, aop, env: Env) -> Iterator[Env]:
         def parts(mod, op):
@@ -857,7 +923,15 @@ class Matcher:
         e0 = env.copy()
         e0.opmap[sop.idx] = aop.idx
         e0.consumed = e0.consumed | {aop.idx}
-        for e1 in self.match_value(s_res, self.akey(a_res, aop), e0):
+        # Bind a formal destination before examining the producer, so a
+        # producer that does not read its initial output need not bind that
+        # parameter to an unrelated temporary tensor. Computed bases retain
+        # the existing producer-first traversal.
+        seeds = (self.match_value(s_base, self.akey(a_base, aop), e0)
+                 if s_base in self.spec.params else iter([e0]))
+        candidates = (e1 for seed in seeds
+                      for e1 in self.match_value(s_res, self.akey(a_res, aop), seed))
+        for e1 in candidates:
             sd = self.sdef(s_res)
             ad = self.A.def_of(a_res, aop)
             if not sd or not ad or sd[0].name != "linalg.generic" or sd[0].idx not in e1.gens:
@@ -1350,11 +1424,11 @@ def diagnose(matcher: Matcher, lib: Library, consumed: set[int]) -> list[dict]:
         for spec in lib.specs:
             matcher.spec = spec
             for sop in spec.generics:
-                if len(sop.ins) != len(aop.ins) or len(sop.outs) != len(aop.outs):
+                if len(sop.ins) < len(aop.ins) or len(sop.outs) != len(aop.outs):
                     continue
                 if sorted(sop.iters) != sorted(aop.iters):
                     continue
-                for pi in itertools.permutations(range(len(aop.ins))):
+                for pi in matcher.input_bindings(len(sop.ins), len(aop.ins)):
                     if matcher.body_bindings(sop, aop, pi, tuple(range(len(aop.outs)))) is not None:
                         hits.append(f"{spec.name}#step{spec.gidx[sop.idx]}")
                         break

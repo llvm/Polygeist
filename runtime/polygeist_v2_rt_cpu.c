@@ -123,6 +123,8 @@ static void polygeist_v2_require_alias(const char *call, const void *p,
 
 typedef size_t polygeist_v2_flen;
 
+#include "polygeist_v2_matrix_layout.inc"
+
 /* BEGIN GENERATED WRAPPERS */
 extern void daxpy_(const int *, const double *, const double *, const int *, double *, const int *);
 void polygeist_v2_cublasDaxpy(int32_t n, double alpha, const double *x, int64_t x_bytes, int32_t incx, double *y, int64_t y_bytes, int32_t incy) {

@@ -639,11 +639,8 @@ struct NormalizeTensorReductionOutputSubmap
       newOutputResults.push_back(getAffineDimExpr(loopDim, context));
       Value size = oldSizes[viewDim];
       auto constant = getConstantIndex(size);
-      if (!constant)
-        return rewriter.notifyMatchFailure(
-            generic, "reduced output requires static sizes");
       reducedSizes.push_back(size);
-      reducedShape.push_back(*constant);
+      reducedShape.push_back(constant ? *constant : ShapedType::kDynamic);
     }
 
     SmallVector<int64_t> inferredLoopRanges = generic.getStaticLoopRanges();
@@ -653,6 +650,7 @@ struct NormalizeTensorReductionOutputSubmap
     for (auto [newDim, loopDim] : llvm::enumerate(retainedLoops)) {
       int64_t inferred = inferredLoopRanges[loopDim];
       if (inferred != ShapedType::kDynamic &&
+          reducedShape[newDim] != ShapedType::kDynamic &&
           inferred != reducedShape[newDim])
         return rewriter.notifyMatchFailure(
             generic, "output submap size disagrees with inferred loop bound");
@@ -664,8 +662,21 @@ struct NormalizeTensorReductionOutputSubmap
           result.replaceDimsAndSymbols(loopReplacements, {}));
     AffineMap reducedSubmapMap = AffineMap::get(
         retainedLoops.size(), 0, reducedBaseResults, context);
-    std::optional<bool> reducedInjective =
-        isInjectiveOnStaticDomain(reducedSubmapMap, reducedShape);
+    // A rectangular slice/permutation is injective for every extent when
+    // each view dimension appears in at least one base coordinate. This
+    // structural proof also covers dynamic dimensions and translated slices.
+    std::optional<bool> reducedInjective;
+    if (auto rectangular = decomposeMapForLowering(reducedSubmapMap, {}, rewriter)) {
+      SmallVector<bool> represented(retainedLoops.size(), false);
+      for (const PerBaseDim &baseDim : rectangular->base)
+        if (baseDim.live)
+          represented[baseDim.viewDim] = true;
+      if (llvm::all_of(represented, [](bool used) { return used; }))
+        reducedInjective = true;
+    }
+    if (!reducedInjective)
+      reducedInjective =
+          isInjectiveOnStaticDomain(reducedSubmapMap, reducedShape);
     if (!reducedInjective || !*reducedInjective)
       return rewriter.notifyMatchFailure(
           generic, "reduced tensor destination is not proven injective");
@@ -706,11 +717,8 @@ struct NormalizeTensorReductionOutputSubmap
               generic, "cannot recover physical output dimension size");
         Value size = oldSizes[viewDim];
         auto constant = getConstantIndex(size);
-        if (!constant)
-          return rewriter.notifyMatchFailure(
-              generic, "physical reduced output requires static sizes");
         reducedSizes.push_back(size);
-        reducedShape.push_back(*constant);
+        reducedShape.push_back(constant ? *constant : ShapedType::kDynamic);
       }
       reducedSubmapMap = AffineMap::getMultiDimIdentityMap(
           retainedLoops.size(), context);
@@ -1627,6 +1635,45 @@ struct LowerSymbolBearingSubmapToExtractSlice
           expanded = rewriter.create<tensor::CastOp>(loc, outTy, expanded);
         rewriter.replaceOp(submap, expanded);
         return success();
+      }
+    }
+
+    // Prefer a bounded rectangular slice before the general gather path.
+    // A Linalg input map also supplies loop bounds: using the entire base
+    // for a smaller identity/translated view gives inconsistent domains.
+    // Preserve physical dimension order here; permutations still use the
+    // gather path below.
+    if (outTy.getRank() == (int64_t)numViewDims) {
+      auto rectangular =
+          decomposeMapForLowering(submapMap, symbols, rewriter);
+      auto viewSizes = getMixedSizeOperands(sizes, numViewDims, rewriter);
+      if (rectangular && viewSizes) {
+        unsigned nextDim = 0;
+        bool ordered = true;
+        for (const PerBaseDim &dim : rectangular->base)
+          if (dim.live)
+            ordered &= dim.viewDim == nextDim++;
+        if (ordered && nextDim == numViewDims) {
+          SmallVector<OpFoldResult> offsets, sliceSizes, strides;
+          for (const PerBaseDim &dim : rectangular->base) {
+            offsets.push_back(dim.offset);
+            sliceSizes.push_back(dim.live ? (*viewSizes)[dim.viewDim]
+                                          : rewriter.getIndexAttr(1));
+            strides.push_back(rewriter.getIndexAttr(1));
+          }
+          SmallVector<int64_t> shape;
+          for (OpFoldResult size : *viewSizes) {
+            auto constant = getConstantIntValue(size);
+            shape.push_back(constant ? *constant : ShapedType::kDynamic);
+          }
+          auto sliceType = RankedTensorType::get(shape, outTy.getElementType());
+          Value result = rewriter.create<tensor::ExtractSliceOp>(
+              loc, sliceType, submap.getBase(), offsets, sliceSizes, strides);
+          if (result.getType() != outTy)
+            result = rewriter.create<tensor::CastOp>(loc, outTy, result);
+          rewriter.replaceOp(submap, result);
+          return success();
+        }
       }
     }
 

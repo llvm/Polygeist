@@ -1,0 +1,42 @@
+{
+  "routine": "aten_addcdiv",
+  "source": "Pinned ATen scalar implementation; reusable parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp",
+      "sha256": "0aecb8dd000cb95bb55938ca715965f3be3ee68f9b99982e743061215ebdb4fa"
+    }
+  ],
+  "adaptation": "ATen addcdiv_cpu_kernel float scalar lambda. TensorIterator iteration becomes a C loop; scalar_t is float; scalar_t(0) is 0.0f; scalar parameters and operation order retained. Library API implementation is proprietary: the backend graph is mechanically emitted from this reference and its opcode semantics are separately trusted and tested.",
+  "specs": [
+    {
+      "name": "aten_addcdiv_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "self_val",
+        "t1_val",
+        "t2_val",
+        "output",
+        "scalar_val"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+[
+  {
+    "label": "catalog-cold",
+    "command": [
+      "/usr/bin/python3",
+      "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/build_lib_v2.py",
+      "-j",
+      "8",
+      "--incremental"
+    ],
+    "seconds": 31.432861290872097,
+    "host_load": "14:15:33 up 447 days, 18:44,  2 users,  load average: 6.71, 5.78, 5.63",
+    "inputs": 164,
+    "reused": 0,
+    "library_sha256": "3ecee1b9bc826cfcac8942519d9a5e28580e6776f62c5d9efb24f5b9e4529f93"
+  },
+  {
+    "label": "catalog-warm",
+    "command": [
+      "/usr/bin/python3",
+      "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/build_lib_v2.py",
+      "-j",
+      "8",
+      "--incremental"
+    ],
+    "seconds": 16.81158371269703,
+    "host_load": "14:16:04 up 447 days, 18:45,  2 users,  load average: 8.74, 6.40, 5.84",
+    "inputs": 164,
+    "reused": 109,
+    "library_sha256": "3ecee1b9bc826cfcac8942519d9a5e28580e6776f62c5d9efb24f5b9e4529f93"
+  },
+  {
+    "label": "catalog-full",
+    "command": [
+      "/usr/bin/python3",
+      "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/build_lib_v2.py",
+      "-j",
+      "8"
+    ],
+    "seconds": 23.707368075847626,
+    "host_load": "14:16:21 up 447 days, 18:45,  2 users,  load average: 8.28, 6.41, 5.85",
+    "inputs": 164,
+    "reused": 0,
+    "library_sha256": "3ecee1b9bc826cfcac8942519d9a5e28580e6776f62c5d9efb24f5b9e4529f93"
+  }
+]

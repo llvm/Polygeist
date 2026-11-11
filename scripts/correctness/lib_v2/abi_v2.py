@@ -68,6 +68,9 @@ HEADER_FAMILIES = {
 }
 
 
+from c_types import INTEGER_TYPES, parse_parameter
+
+
 class AbiError(Exception):
     pass
 
@@ -339,16 +342,15 @@ def spec_c_prototype(spec: str) -> tuple[str, list[SpecArg]]:
         raise AbiError(f"no definition of {spec} in preprocessed {src}")
     args = []
     for prm in _split_top(m.group(2)):
-        pm = re.fullmatch(r"(?:const\s+)?(int|long|double|float)\s+(\w+)\s*((?:\[[^\]]*\])*)", prm.strip())
-        if not pm:
-            raise AbiError(f"{spec}: cannot classify parameter {prm!r}")
-        ty, nm, dims = pm.groups()
-        dl = re.findall(r"\[([^\]]*)\]", dims)
+        try:
+            nm, ty, dl = parse_parameter(prm, text)
+        except ValueError as error:
+            raise AbiError(f"{spec}: cannot classify parameter {prm!r}: {error}") from error
         if dl:
-            ld = dl[-1].strip() if len(dl) >= 2 and re.fullmatch(r"\w+", dl[-1].strip()) else None
+            ld = dl[-1] if len(dl) >= 2 and re.fullmatch(r"\w+", dl[-1]) else None
             args.append(SpecArg(nm, "array", len(dl), ld, ctype=ty))
         else:
-            args.append(SpecArg(nm, "int" if ty in ("int", "long") else "scalar", ctype=ty))
+            args.append(SpecArg(nm, "int" if ty in INTEGER_TYPES else "scalar", ctype=ty))
     return m.group(1), args
 
 

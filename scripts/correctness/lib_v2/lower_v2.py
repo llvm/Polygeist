@@ -46,6 +46,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from c_types import MLIR_ELEMENT_TYPES
 import abi_v2 as A  # noqa: E402
 import recipe as R  # noqa: E402
 
@@ -54,7 +55,7 @@ LAUNCH_RE = re.compile(
     r"kernel\.launch\s+@(?P<sym>[\w$.\-]+)\((?P<ops>[^)]*)\)\s*"
     r"(?P<attrs>\{.*?\})?\s*:\s*\((?P<tys>.*)\)\s*->\s*(?P<rty>.*?)\s*$")
 
-ELEM_BYTES = {"f64": 8, "f32": 4, "i32": 4, "i64": 8}
+ELEM_BYTES = {"f64": 8, "f32": 4, "i8": 1, "i16": 2, "i32": 4, "i64": 8}
 
 
 class LowerError(Exception):
@@ -121,11 +122,19 @@ def insert_after_module_open(text: str, lines: str) -> str:
 # Stage 1: stub defns
 # ---------------------------------------------------------------------------
 
-def prepare(text: str, specs: dict) -> tuple[str, dict]:
+def prepare(text: str, specs: dict, calls: dict | None = None) -> tuple[str, dict]:
     """-> (text, defn name -> spec)"""
     text = strip_defns(text)
     sigs: dict[tuple, str] = {}
     lines = text.split("\n")
+    # Keep application symbols (including declarations and referenced external
+    # callees) separate from the temporary kernel definitions used for ABI
+    # preparation. A library spec can legitimately share an application's name.
+    existing = "\n".join(ln for ln in lines if not LAUNCH_RE.match(ln))
+    reserved = set()
+    for quoted, plain in re.findall(r'@(?:"((?:[^"\\]|\\.)*)"|([\w$.\-]+))', existing):
+        reserved.add(re.sub(r'\\([0-9A-Fa-f]{2})',
+                            lambda m: chr(int(m[1], 16)), quoted) if quoted else plain)
     for i, ln in enumerate(lines):
         m = LAUNCH_RE.match(ln)
         if not m:
@@ -138,10 +147,29 @@ def prepare(text: str, specs: dict) -> tuple[str, dict]:
         key = (sym, tys, rtys)
         if key not in sigs:
             n = sum(1 for k in sigs if k[0] == sym)
-            sigs[key] = sym if n == 0 else f"{sym}__v2sig{n}"
+            name = sym if n == 0 else f"{sym}__v2sig{n}"
+            while name in reserved:
+                n += 1
+                name = f"{sym}__v2sig{n}"
+            sigs[key] = name
+            reserved.add(name)
         name = sigs[key]
+        # Never trust a capability supplied in input IR. It is derived from
+        # the validated reference/backend contract, not the application name.
+        capability = "polygeist.elementwise_exact_alias"
+        attrs = [a for a in split_top((m.group("attrs") or "{}")[1:-1])
+                 if a.strip().split("=", 1)[0].strip() != capability]
+        call = (calls or {}).get(specs[sym].call)
+        cfg = call.runtime_adapter if call else None
+        if (cfg and cfg.get("kind") == "pointwise_reference" and
+                cfg.get("alias_policy") == "exact_or_disjoint"):
+            attrs.append(capability)
+        attr_text = " {" + ", ".join(attrs) + "}" if attrs else ""
+        prefix = ln[:m.start("attrs")] if m.group("attrs") else ln[:m.start("tys")].rsplit(":", 1)[0]
+        lines[i] = (prefix.rstrip() + attr_text + " : (" + m.group("tys") +
+                    ") -> " + m.group("rty"))
         if name != sym:
-            lines[i] = ln.replace(f"@{sym}(", f"@{name}(", 1)
+            lines[i] = lines[i].replace(f"@{sym}(", f"@{name}(", 1)
     stubs, names = [], {}
     for (sym, tys, rtys), name in sigs.items():
         sa: A.SpecAbi = specs[sym]
@@ -149,11 +177,12 @@ def prepare(text: str, specs: dict) -> tuple[str, dict]:
         args = ", ".join(f"%a{k}: {t}" for k, t in enumerate(tys))
         ret = f" -> ({', '.join(rtys)})" if len(rtys) > 1 else (f" -> {rtys[0]}" if rtys else "")
         if sa.ret != "void":
-            # value-returning spec (e.g. a dot product): the only result is
-            # the scalar; destinations cannot be expressed for tensor operands
-            if any(t.startswith("tensor<") for t in tys) or len(rtys) > 1:
-                raise LowerError(f"{sym}: value-returning spec with tensor operands is not "
-                                 "supported (kernel.launch bufferization needs destinations)")
+            # Read-only tensor inputs become memrefs while the ordinary scalar
+            # SSA result survives bufferization. Mutating return-value APIs need
+            # explicit tensor results as well and remain unsupported here.
+            expected = {"float": ("f32",), "double": ("f64",)}.get(sa.ret)
+            if written or rtys != expected:
+                raise LowerError(f"{sym}: unsupported scalar-return destination contract")
             body = ""
             if rtys:
                 body = (f"    %r = arith.constant 0.0 : {rtys[0]}\n"
@@ -353,6 +382,43 @@ class ArrayVal:
         raise LowerError(f"{what}: rank-{self.rank} operand has no BLAS layout")
 
 
+
+def matrix_needs_layout_adapter(ty: str) -> bool:
+    """Only potentially non-unit matrix views need a physical layout copy."""
+    if memref_info(ty)[0] != 2:
+        return False
+    shape = ty[len('memref<'):].split(',', 1)[0].split('x')
+    if shape[1] in ('0', '1'):
+        return False
+    layout = re.search(r'strided<\[([^]]+)\]', ty)
+    if layout:
+        return split_top(layout[1])[1].strip() != '1'
+    return ',' in ty  # nontrivial/unknown layout; helper has a no-copy fast path
+
+
+def pack_matrix(e: Emitter, av: ArrayVal, written: bool) -> str:
+    original = [av.ptr, av.bytes]
+    shape = [e.op(f"arith.index_cast {v} : index to i64", "dim")
+             for v in av.sizes + av.strides]
+    element = e.const(ELEM_BYTES[memref_info(av.ty)[1]], 'i32')
+    arguments = original + shape + [element]
+    types = '!llvm.ptr, i64, i64, i64, i64, i64, i32'
+    av.ptr = e.op(f"func.call @polygeist_v2_matrix_pack({', '.join(arguments)}) : ({types}) -> !llvm.ptr", 'packed')
+    c1 = e.const(1, 'index')
+    nonunit = e.op(f"arith.cmpi ne, {av.strides[1]}, {c1} : index", 'nonunit')
+    multiple = e.op(f"arith.cmpi ugt, {av.sizes[1]}, {c1} : index", 'multiple')
+    copied = e.op(f"arith.andi {nonunit}, {multiple} : i1", 'copied')
+    row = e.op(f"arith.select {copied}, {av.sizes[1]}, {av.strides[0]} : index", 'stride')
+    count = e.op(f"arith.muli {shape[0]}, {shape[1]} : i64", 'count')
+    size = e.const(ELEM_BYTES[memref_info(av.ty)[1]], 'i64')
+    dense = e.op(f"arith.muli {count}, {size} : i64", 'dense')
+    av.bytes = e.op(f"arith.select {copied}, {dense}, {av.bytes} : i64", 'bytes')
+    av.strides = [row, c1]
+    write = e.const(int(written), 'i32')
+    return (f"func.call @polygeist_v2_matrix_release({', '.join([av.ptr] + arguments + [write])}) : "
+            f"(!llvm.ptr, {types}, i32) -> ()")
+
+
 def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[list[str], str]:
     ind = m.group("ind")
     ops = split_top(m.group("ops"))
@@ -362,13 +428,14 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
         raise LowerError(f"{sa.spec}: launch has {len(ops)} operands, spec has {len(sa.args)}")
     e = Emitter(ind, tag)
     arrays: dict[int, ArrayVal] = {}
+    releases = []
     elem_of = {p.name: p.elem for p in ca.params if p.tkind == "array"}
 
     def array(i: int, pname: str) -> ArrayVal:
         if i not in arrays:
             if not tys[i].startswith("memref<"):
                 raise LowerError(f"{sa.spec}: array operand {sa.args[i].name} is {tys[i]} (not bufferized)")
-            spec_elem = {"double": "f64", "float": "f32"}[elem_of[pname]]
+            spec_elem = MLIR_ELEMENT_TYPES[elem_of[pname]]
             arrays[i] = ArrayVal(e, ops[i], tys[i], spec_elem)
             if ca.descriptor_adapter or ca.runtime_adapter:
                 param = next(p for p in ca.params if p.name == pname)
@@ -383,6 +450,34 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
             return e.const(int(b[1]), "i32")
         raise LowerError(f"{sa.spec}: cannot bind int from {b}")
 
+    # Adapt only the ordinary BLAS layout contract. Typed/descriptor adapters
+    # keep their own original extent/alias rules and are never repacked here.
+    packed_indices = set()
+    if not ca.descriptor_adapter and not ca.runtime_adapter:
+        for p in ca.params:
+            if p.tkind == 'int' and p.layout_of:
+                i = sa.binding[p.layout_of][1]
+                if matrix_needs_layout_adapter(tys[i]):
+                    packed_indices.add(i)
+    if packed_indices:
+        # Resolve every original descriptor before allocating any copy, so
+        # packing cannot hide original operand overlap from the ABI guards.
+        for p in ca.params:
+            if p.tkind == 'array':
+                array(sa.binding[p.name][1], p.name)
+        for i in sorted(packed_indices):
+            av = arrays[i]
+            c1 = e.const(1, 'index')
+            nonunit = e.op(f"arith.cmpi ne, {av.strides[1]}, {c1} : index", 'nonunit')
+            multiple = e.op(f"arith.cmpi ugt, {av.sizes[1]}, {c1} : index", 'multiple')
+            needed = e.op(f"arith.andi {nonunit}, {multiple} : i1", 'pack_needed')
+            flag = e.op(f"arith.extui {needed} : i1 to i32", 'pack_flag')
+            for j, other in arrays.items():
+                if i != j:
+                    e.raw(f"func.call @polygeist_v2_matrix_require_disjoint({av.ptr}, {av.bytes}, "
+                          f"{other.ptr}, {other.bytes}, {flag}) : (!llvm.ptr, i64, !llvm.ptr, i64, i32) -> ()")
+        for i in sorted(packed_indices):
+            releases.append(pack_matrix(e, arrays[i], sa.args[i].intent in ('out', 'inout')))
     args, atys = [], []
     for p in ca.params:
         b = sa.binding[p.name]
@@ -436,6 +531,8 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
         e.raw(f"{e.fresh('r')} = {call} -> {ret_ty}")
     else:
         e.raw(f"{call} -> ()")
+    for release in reversed(releases):
+        e.raw(release)
     decl = f"  func.func private @{callee}({', '.join(atys)})" + (f" -> {ret_ty}" if ret else "")
     return e.lines, decl
 
@@ -468,6 +565,13 @@ def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list,
                        "gpu_entry": ca.header_symbol,
                        "operand_types": split_top(m.group("tys"))})
     text = strip_defns("\n".join(out))
+    if 'func.call @polygeist_v2_matrix_pack(' in text:
+        decls['matrix_disjoint'] = ('  func.func private @polygeist_v2_matrix_require_disjoint('
+            '!llvm.ptr, i64, !llvm.ptr, i64, i32)')
+        decls['matrix_pack'] = ('  func.func private @polygeist_v2_matrix_pack('
+            '!llvm.ptr, i64, i64, i64, i64, i64, i32) -> !llvm.ptr')
+        decls['matrix_release'] = ('  func.func private @polygeist_v2_matrix_release('
+            '!llvm.ptr, !llvm.ptr, i64, i64, i64, i64, i64, i32, i32)')
     if decls:
         text = insert_after_module_open(text, "\n".join(decls.values()) + "\n")
     if "kernel.launch" in text:
@@ -493,7 +597,7 @@ def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
     bad = [s for s in used if s not in specs]
     if bad:
         raise LowerError("no ABI for " + ", ".join(f"{s} ({errors.get(s, 'not a lib_v2 spec')})" for s in bad))
-    text, names = prepare(text, specs)
+    text, names = prepare(text, specs, calls)
     if do_bufferize:
         text = bufferize(text, report["opt"], allow_legaliser)
     return rewrite(text, names, specs, calls, report["launches"], backend)

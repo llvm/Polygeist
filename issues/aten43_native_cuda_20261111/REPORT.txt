@@ -1,0 +1,118 @@
+43-case genuine ATen CUDA comparison — 2026-11-11
+
+41/43 cases pass every existing normal and edge output comparison with real
+ATen CUDA. All 43 produced fresh same-process timing samples. The raised paths
+continue to agree with their extracted CPU references. Two native/reference
+semantic differences remain; they are detailed below and not counted as passes.
+
+Performance at these existing tiny fixture sizes
+-----------------------------------------------
+40 cases have both full native correctness and matching preallocated-output
+timing boundaries. All 40 are slower than native ATen CUDA. Native/raised minimum
+latency ratios span 0.0171–0.4646x (geometric mean 0.2005x). Above one would mean raised
+is faster. Minimum and median, along with all five raw samples, are retained.
+
+RMSNorm passes correctness: raised 72.737 us, native ATen 123.681 us. Native
+rms_norm allocates its output while raised output is preallocated; that raw
+latency difference is not claimed as an allocation-matched speedup. The two
+semantically disagreeing cases have raw timings but no accepted speedup ratio.
+
+These are the frozen targeted fixtures: mostly 4096 elements, tanh/sigmoid/silu
+256 elements, and RMSNorm 128 elements. They are not the paper Figure 5 benchmark
+shapes and do not close its 115-case comparison. No new shapes or optimization
+variants were introduced. No shared compiler/matcher/runtime source was changed.
+
+Unresolved semantic differences
+------------------------------
+1. hardswish_backward: one normal output and 317 edge outputs per residency mode
+   differ at self=-3 or +3. Installed native PyTorch 24.12 uses self<-3 and self<=3;
+   the pinned current reference uses self<=-3 and self<3. This is an upstream
+   CUDA endpoint-gradient fix (97272e4b49, 2025-03-14), not a new raising failure.
+   Source-semantics analysis predicts exactly the observed 1 and 317 mismatches.
+   A native build aligned with the pinned corpus revision is needed for an exact
+   same-semantics comparison; changing the correct reference to the older bug
+   is not an appropriate fix.
+
+2. softshrink: with valid lambda 0.25, 122 normal outputs have raised -0 versus
+   native +0. The edge suite has 862 differences per mode: negative-zero and
+   NaN propagation. The extracted CPU scalar body multiplies the central result
+   by zero; current CUDA uses positive zero, so signed-zero behavior differs
+   even in current upstream source. The installed older CUDA additionally maps
+   NaN to zero; later upstream source preserves NaN. The existing lambda=-0.75
+   test is rejected by the native public API. That scalar-body extension cannot
+   be reported as public-API equivalence. No tolerance/NaN/zero policy was relaxed.
+
+Environment and method
+----------------------
+Real NVIDIA libtorch 2.6.0a0+df5bbc09d1.nv24.12 executes on Orin. Local cross-link
+and remote loaded libtorch/libc10 file hashes match. CUDA runtime 12.6, driver 13.3,
+cuDNN 92501 and cuTENSOR 20700 were recorded. CPU clocks were fixed at 2.2016 GHz;
+the post-run GPU frequency settings were fixed at 1.3005 GHz. Board/load/thermal/
+fan/power snapshots bracket the exclusive run. Fan settings were left unchanged.
+
+Both paths use the same C harness, resident inputs, five warmups and five
+alternating synchronized CLOCK_MONOTONIC samples. These are host latencies,
+not CUDA-event intervals and not Python-dispatch timings. ATen tensor wrappers
+and all correctness copies are outside timing. In-place inputs are reset outside
+every measurement. See METHODOLOGY.txt for API/allocation/source-version limits.
+
+Files
+-----
+summary.csv: all 43 cases with correctness status, minimum/median latencies,
+ratios where valid, and individual qualifications.
+comparison-results.json: every raw sample and complete-output check count.
+aggregate-summary.json: aggregate counts without unsupported speedup claims.
+native-api-map.json: exact dispatched ATen API and header/provenance mapping.
+frozen-43-results.json and frozen-artifact-index.json: original scope and hashes.
+source-audit/ and disagreement-audit.json: source versions and mismatch causes.
+comparison/<case>/*native.log: raw output, mismatches and timing samples.
+build_native.sh, build_comparison.py, run_comparison.py: reproduction commands.
+
+These artifacts remain local/uncommitted. The dependency sysroot and frozen
+objects are local prerequisites; this directory is not a standalone submission.
+
+Per-case results (latencies in microseconds; ratio=native_min/raised_min)
+---------------------------------------------------------------------
+abs                      pass     raised=   45.953 native=  18.113 ratio=0.3942
+neg                      pass     raised=   50.497 native=  18.496 ratio=0.3663
+exp                      pass     raised=   49.472 native=  22.049 ratio=0.4457
+log                      pass     raised=   47.393 native=  22.017 ratio=0.4646
+sqrt                     pass     raised=   59.969 native=  19.008 ratio=0.3170
+reciprocal               pass     raised=   49.761 native=  17.536 ratio=0.3524
+sin                      pass     raised=   56.353 native=  23.521 ratio=0.4174
+cos                      pass     raised=   44.833 native=  17.664 ratio=0.3940
+tanh                     pass     raised=   47.137 native=  17.728 ratio=0.3761
+sigmoid                  pass     raised=   58.881 native=  23.040 ratio=0.3913
+floor                    pass     raised=   60.161 native=  21.664 ratio=0.3601
+ceil                     pass     raised=   60.992 native=  21.281 ratio=0.3489
+erf                      pass     raised=   62.753 native=  26.337 ratio=0.4197
+pow                      pass     raised=   61.889 native=  27.264 ratio=0.4405
+atan2                    pass     raised=   68.289 native=  24.992 ratio=0.3660
+mul                      pass     raised=   67.713 native=  23.424 ratio=0.3459
+div                      pass     raised=   61.057 native=  23.072 ratio=0.3779
+square                   pass     raised=   60.129 native=  19.872 ratio=0.3305
+rsqrt                    pass     raised=   61.857 native=  21.248 ratio=0.3435
+sigmoid_backward         pass     raised=   56.577 native=  20.000 ratio=0.3535
+tanh_backward            pass     raised=   65.152 native=  21.216 ratio=0.3256
+silu                     pass     raised=   56.961 native=  17.793 ratio=0.3124
+silu_backward            pass     raised=   66.817 native=  19.392 ratio=0.2902
+acos                     pass     raised= 1122.319 native=  40.033 ratio=0.0357
+acosh                    pass     raised= 1137.519 native=  36.832 ratio=0.0324
+asin                     pass     raised= 1142.959 native=  39.681 ratio=0.0347
+asinh                    pass     raised= 1139.214 native=  31.424 ratio=0.0276
+atan                     pass     raised= 1117.070 native=  38.465 ratio=0.0344
+atanh                    pass     raised= 1118.798 native=  21.697 ratio=0.0194
+cosh                     pass     raised= 1502.228 native=  25.761 ratio=0.0171
+sinh                     pass     raised= 1149.007 native=  28.832 ratio=0.0251
+tan                      pass     raised= 1500.180 native=  28.736 ratio=0.0192
+threshold_backward       pass     raised=   60.961 native=  18.368 ratio=0.3013
+rms_norm                 pass     raised=   72.737 native= 123.681 ratio=qualified
+add                      pass     raised=   68.577 native=  25.184 ratio=0.3672
+hardshrink               pass     raised=   58.721 native=  22.176 ratio=0.3777
+shrink_backward          pass     raised=   66.176 native=  23.840 ratio=0.3603
+softshrink               mismatch raised=   55.392 native=  20.800 ratio=qualified
+hardtanh_backward        pass     raised=   60.737 native=  24.096 ratio=0.3967
+hardsigmoid_backward     pass     raised=   58.625 native=  19.872 ratio=0.3390
+hardswish_backward       mismatch raised=   61.185 native=  39.713 ratio=qualified
+addcmul                  pass     raised=   71.201 native=  19.616 ratio=0.2755
+addcdiv                  pass     raised=   62.464 native=  20.832 ratio=0.3335

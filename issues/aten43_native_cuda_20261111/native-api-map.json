@@ -1,0 +1,964 @@
+[
+  {
+    "name": "abs",
+    "api": "at::abs_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/abs.h",
+    "header_sha256": "3919cf9674feccf2768edeaf82627f18afb09713a5f0277dd47fa26288d5b766",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "neg",
+    "api": "at::neg_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/neg.h",
+    "header_sha256": "79b300cf99890b9153047e7d9bfc5c1952cd2e660f4606db258c51b4b6dd1661",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "exp",
+    "api": "at::exp_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/exp.h",
+    "header_sha256": "1d24f57457403a859c2a54825e5e9be9220b630dfe2a0c3ec21dc176afa0b939",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "log",
+    "api": "at::log_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/log.h",
+    "header_sha256": "9e5dd11d2e77575d1055b373086e9b3d5c12c550206ae6d3ee383d5b1690d310",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "sqrt",
+    "api": "at::sqrt_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/sqrt.h",
+    "header_sha256": "0907b0975feee36c5c7d5d657fd98059e0b0eaff4d5cc4cb63ac064644d18e8f",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "reciprocal",
+    "api": "at::reciprocal_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/reciprocal.h",
+    "header_sha256": "dc3eefefe167fc920b23005ed0980fa4c59365251f4dfdd10b0baed318718851",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "sin",
+    "api": "at::sin_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/sin.h",
+    "header_sha256": "16c71fa0aa25dfb321337947f4151ec279656569ff4605eabc9de8cc7d03758a",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "cos",
+    "api": "at::cos_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/cos.h",
+    "header_sha256": "a32d7adf3df34949a2648776a8c580dd1940db2ce5e77fa8f8cb40d5c6cce74c",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "tanh",
+    "api": "at::tanh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      256,
+      256
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/tanh.h",
+    "header_sha256": "7e6b7e734dc03d5ccfa08d45f60a8afd53e7a6df66db22e691e2feb3c3dea9c6",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "sigmoid",
+    "api": "at::sigmoid_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      256,
+      256
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/sigmoid.h",
+    "header_sha256": "f063e8331b4c98a133c19c379783986e84efc3b0da3ecf3f6e35f712dfa3a5b5",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "floor",
+    "api": "at::floor_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/floor.h",
+    "header_sha256": "53f7aad72f858486a3506165121d2390366c8b5c07d7a6b7a76f42d5f21ce958",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "ceil",
+    "api": "at::ceil_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/ceil.h",
+    "header_sha256": "625bdce61ef45306d9a3d7216cee86ac6209a341f5c70275e6c4ad189f7703a2",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "erf",
+    "api": "at::erf_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/erf.h",
+    "header_sha256": "9f721a6a3c1f471c9296a58e2b448f4c683b1fdee5fa77b58f8d7f05a00c4282",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "pow",
+    "api": "at::pow_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/pow.h",
+    "header_sha256": "597eb4a99febc37aa3ac9f29571ba81c62afc475db9a0c354af93128ebe929f1",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "atan2",
+    "api": "at::atan2_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/atan2.h",
+    "header_sha256": "98da9d437f2f1c52f3f34945d435258310deefdff26f2a2b764af0427b7879e4",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "mul",
+    "api": "at::mul_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/mul.h",
+    "header_sha256": "a0023c5862fab1ac35d0e947490bf5c8da5ecc33af83608ac7f9305fd32fa48b",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "div",
+    "api": "at::div_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/div.h",
+    "header_sha256": "1aac87cb058e4125e1669fb32ba40747cd668f308afe4a69caf4003018cdd540",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "square",
+    "api": "at::square_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/square.h",
+    "header_sha256": "8fd5fbec1c5345e37a695c271e04fd23b7bd7bd1a41195ea44de79275c35e467",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "rsqrt",
+    "api": "at::rsqrt_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/rsqrt.h",
+    "header_sha256": "33fa4955d49b74466191fb7d1dd76052b7b8b5686b59a03bfeaad41d318a20e1",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "sigmoid_backward",
+    "api": "at::sigmoid_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/sigmoid_backward.h",
+    "header_sha256": "cb79465d77a2df0359b479d1643e54b1f94165002d19352f2500dcf72d74ea22",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "tanh_backward",
+    "api": "at::tanh_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/tanh_backward.h",
+    "header_sha256": "d9749f716188dab5be2813218efc2016529fe0c8336a425c8a718d9484ad5943",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "silu",
+    "api": "at::silu_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      256,
+      256
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/silu.h",
+    "header_sha256": "d3c52a5ecddfaa940f30a49396637e3ba18c9304ec8d0f1f6ee3444cac4b53a2",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "silu_backward",
+    "api": "at::silu_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/silu_backward.h",
+    "header_sha256": "5041ae98d22699437c062d9b8bf06479b5588c4f747a71f099f6bd1110e38dc9",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "acos",
+    "api": "at::acos_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/acos.h",
+    "header_sha256": "d8aa0d8109fdaa56297749413afcb23a64e77b1be95b0317dfcc565f7e29b0da",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "acosh",
+    "api": "at::acosh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/acosh.h",
+    "header_sha256": "c7dfa8f98863a7915d49ca23edf6a7f1fa3dfcfc9da56a750472551f935fdd91",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "asin",
+    "api": "at::asin_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/asin.h",
+    "header_sha256": "048ee476cec3a05ccde93d3550d8b23370817da393a15273930f84abb0845606",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "asinh",
+    "api": "at::asinh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/asinh.h",
+    "header_sha256": "3da9108258bec2ae3f9fd624cc092e6294482241c7a7c07b5e8af66d763d82ee",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "atan",
+    "api": "at::atan_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/atan.h",
+    "header_sha256": "9b66f8d00338fa86cdfc352b91ff27f0b6df0d9a476898a7d74fa534fbf36a2a",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "atanh",
+    "api": "at::atanh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/atanh.h",
+    "header_sha256": "66086deeee5bafd8ebf09ca4e7aaf10dcfb6822544a8190a04b203b858a38df5",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "cosh",
+    "api": "at::cosh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/cosh.h",
+    "header_sha256": "489de220bbe0e202951ccec36def5269ff0ba10fce35d2ec0a4580cae345a7cf",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "sinh",
+    "api": "at::sinh_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/sinh.h",
+    "header_sha256": "e68b1efedd8f04b6495d5fd7276dfef780b36696b00b062534d6f93e4205f55e",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "tan",
+    "api": "at::tan_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/tan.h",
+    "header_sha256": "3722beb3990e3fa6b840847b3e4a03c7a64274476b6517d02f15a81ba3719e52",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "threshold_backward",
+    "api": "at::threshold_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/threshold_backward.h",
+    "header_sha256": "0da5c6182b769c3b9262c2a45454d4b8dd42e7b3c7070df7fc4b1e9314418e62",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  },
+  {
+    "name": "rms_norm",
+    "api": "at::rms_norm",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      128,
+      128,
+      128
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/rms_norm.h",
+    "header_sha256": "c4cb138f37b1f9d1c458fc853d1fd62a00600304fb6235c94ea961cfc46ab383",
+    "output": "allocating, exported outside timing",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        1e-05
+      ],
+      [
+        0.125
+      ]
+    ]
+  },
+  {
+    "name": "add",
+    "api": "at::Tensor::add_",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/add.h",
+    "header_sha256": "080d8b57b50c71e31ff7d32606e90f6e8b186502adbdea656be3f7b30cf19ab5",
+    "output": "in-place destination; reset before every timed invocation",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "hardshrink",
+    "api": "at::hardshrink_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/hardshrink.h",
+    "header_sha256": "d0a112c16b914ea35db4891614c43c7dcc804bbd33d32925bb1841d6164d13f4",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  },
+  {
+    "name": "shrink_backward",
+    "api": "at::hardshrink_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/hardshrink_backward.h",
+    "header_sha256": "0dc4a3af9f63dce014f27e931ee3922b901ee358c3a858dfd6d15006e47f57a5",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  },
+  {
+    "name": "softshrink",
+    "api": "at::softshrink_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/softshrink.h",
+    "header_sha256": "7037d1750e02ce43dad6db51b1b12e994bffc859106327460a54ad34417621d7",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  },
+  {
+    "name": "hardtanh_backward",
+    "api": "at::hardtanh_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 2,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/hardtanh_backward.h",
+    "header_sha256": "fa7012e4312a41297aee3ddc830f038b486366de27d2b3b53d1aaf8bbf70bc84",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25,
+        0.25
+      ],
+      [
+        -0.75,
+        0.75
+      ]
+    ]
+  },
+  {
+    "name": "hardsigmoid_backward",
+    "api": "at::hardsigmoid_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/hardsigmoid_backward.h",
+    "header_sha256": "052b7ce6e59354553d867623b5ac8bff48ac442a179eeca6ace34c7c9b378df1",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "hardswish_backward",
+    "api": "at::hardswish_backward_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 0,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/hardswish_backward.h",
+    "header_sha256": "8884e2a7a934a169201b743509b2d3660d672c793a499c7d8725113288ce83cd",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      []
+    ]
+  },
+  {
+    "name": "addcmul",
+    "api": "at::addcmul_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/addcmul.h",
+    "header_sha256": "51dd694555bddfeccd17eef229f0b99e46707a9d14a7ba30887e71f648813112",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  },
+  {
+    "name": "addcdiv",
+    "api": "at::addcdiv_out",
+    "backend": "genuine installed NVIDIA libtorch CUDA dispatcher",
+    "dtype": "float32",
+    "sizes": [
+      4096,
+      4096,
+      4096,
+      4096
+    ],
+    "layout": "contiguous; 1-D view of existing physical fixture arrays",
+    "scalars": 1,
+    "header": "/tmp/aten_native_sysroot_24_12/usr/local/lib/python3.12/dist-packages/torch/include/ATen/ops/addcdiv.h",
+    "header_sha256": "8991a6ff11c680053843c7736b412e9c8ec298c4c185a6aee505f41d108531b7",
+    "output": "preallocated out tensor",
+    "library_version": "2.6.0a0+df5bbc09d1.nv24.12",
+    "reference_source_commit": "d7af122d81a49b1fa7a31ba52bd57c026f092646",
+    "native_torch_build_commit": "df5bbc09d191fff3bdb592c184176e84669a7157",
+    "scalar_parameter_sets": [
+      [
+        0.25
+      ],
+      [
+        -0.75
+      ]
+    ]
+  }
+]

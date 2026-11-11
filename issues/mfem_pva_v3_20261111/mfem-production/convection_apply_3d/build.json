@@ -1,0 +1,31 @@
+{
+  "kernel": "convection_apply_3d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_pa_convection_apply_3d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/convection_stage_sliced.c",
+    "-DBENCH_CONVECTION_3D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/convection_apply_3d/program"
+  ],
+  "seconds": 50.77859341353178,
+  "source_sha256": "d6433547f1f30cacd91f4f49919ba50a65b3723c94db8743ed23cd37f482deea",
+  "program_sha256": "c9df31041703f81f1b11480621a8088db01ce0a74eba3d20e453226aaae8289b",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1"
+  ],
+  "calls": 10
+}

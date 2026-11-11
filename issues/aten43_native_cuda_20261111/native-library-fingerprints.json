@@ -1,0 +1,29 @@
+{
+  "cudnn": {
+    "path": "/home/[private]/cuda-12.6/lib64/libcudnn.so.9",
+    "version": 92501
+  },
+  "cutensor": {
+    "error": "/home/[private]/jetson-cuda-libs/libcutensor.so.2: cannot open shared object file: No such file or directory"
+  },
+  "libtorch.so": {
+    "sha256": "ae6e6c1c2c308a06519f98c77085ce109a4cbaaa0f2192aede255cb8e350b90e",
+    "bytes": 75224
+  },
+  "libtorch_cpu.so": {
+    "sha256": "db79d59694c99f68b76593c20588d175fbd511b16125325ec024fa71ba184034",
+    "bytes": 184409200
+  },
+  "libtorch_cuda.so": {
+    "sha256": "4f2bc304b946c42c0fa300dd090f9b292d3c1972d64680085e6bc78dc993757d",
+    "bytes": 526191336
+  },
+  "libc10.so": {
+    "sha256": "ef2f2374d295e619c4bbf171e73ff0cf78a0bc38d716a711f4605e444898c8dc",
+    "bytes": 1211984
+  },
+  "libc10_cuda.so": {
+    "sha256": "521a398b0e1093c785e7d23afd14ea86291e8f5ec848c64b41315f81f8896e5d",
+    "bytes": 674984
+  }
+}

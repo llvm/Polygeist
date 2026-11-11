@@ -1,0 +1,12 @@
+{
+  "name": "interp_grad_3d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 39938,
+  "calls": [
+    "cublasDgemm",
+    "cublasDgemv"
+  ],
+  "program_sha256": "f350bfcd4158efb099abdca0869820f036a951e8a86fcda3240e27def6b61b04",
+  "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_grad_3d-20261111"
+}

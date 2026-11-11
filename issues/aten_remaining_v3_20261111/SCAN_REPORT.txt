@@ -1,0 +1,60 @@
+CUB inclusive-scan production validation, 2026-11-11
+
+44 targeted ATen fixtures are now GPU-validated; cumsum adds one to the earlier 43.
+This count measures source-fixture/reference/backend correctness, not aggregate
+271/598 paper coverage or equivalence to every public ATen version. Genuine ATen
+CUDA comparison of the frozen earlier 43 is a separate report under
+issues/aten43_native_cuda_20261111; its version/domain mismatches remain explicit.
+
+The reference specializes the pinned public CUB seeded ThreadScanInclusive
+implementation to float/add while retaining extent and seed parameters. It is
+raised through the same production recipe as unchanged aten_cumsum.c. Ordinary
+strict Linalg matching proves the whole reference/application recurrence,
+including the differently ordered outputs. No scan recognizer or formula was
+added to the matcher. Typed emission calls actual CUB DeviceScan::InclusiveScanInit.
+Its parallel association is validated numerically, not claimed bitwise identical
+to the sequential reference for all inputs.
+
+Two generic compiler defects were fixed: raising must combine dependence
+classification across all outputs, and debufferization must preserve a repeated
+scalar destination as scalar tensor state instead of replicating its initial
+value. Scalar projection is guarded by alias and loop-bound checks. Both new
+regressions fail before and pass after; all 11 relevant compiler regressions pass.
+The reference and application each pass Affine/Linalg/tensor source comparisons
+exactly. There are 2,368 independent C++ CUB-body/C-reference scalar checks.
+
+All 6 production GPU checks pass: normal, NaN/infinity edge, signed-zero inputs,
+host and resident buffers; 1,536 full outputs plus unchanged inputs and guards.
+Finite tolerance is 1e-5+1e-4*abs(reference), matching NaN class/infinity and zero
+sign. Traces show real typed CUB calls; no CPU fallback. Independent raw CUB
+validation covers 3,072 outputs with four seeds and 12 real calls (max abs 4.77e-7).
+
+Serialized Orin timings, tracing off, minimum of five synchronized resident
+samples after five warmups:
+  raised cumsum: 0.032896996 ms
+  direct CUB: 0.030848980 ms
+The direct CUB path is not an actual ATen CUDA baseline. Raw samples and board/
+host state are recorded under scan/cumsum/.
+
+Optional vendor-wrapper linkage is explicit. An unused optional CUB wrapper no
+longer prevents unrelated Llama binaries from linking. Invoking it without the
+backend fails clearly. Compiled tests cover absent-unused, absent-invoked, and
+present-invoked cases. All other generated CUDA wrappers and entire CPU/PVA
+runtimes are unchanged by this linkage fix.
+
+Freshly raising Llama retains all 22 calls. A full rebuild and GPU execution
+preserve all 32,000 logits exactly against both the earlier validated binary and
+expert. Paired minimum timings: 11.289855957 ms before, 11.306879997 ms after.
+The 22 prior match cases all pass on the corrected compiler/catalog. The old
+softmax unittest used a saved IR snapshot from the old scalar-state lowering;
+it now reraises the original tracked source and retains all positive/negative
+controls. All 10 focused softmax checks pass. All 147 shared Python tests pass in 287.441 seconds. The existing 43 GPU
+artifacts were preserved, not all rerun after these changes.
+
+Catalog: 156 records, 66 typed calls. Full import and runtime generation completed.
+Evidence: scan/cumsum/{match.json,build.json,gpu.json,*log}, scan-llama-recheck/,
+scan-llama-regression/{correctness.json,runs.json}, scan-previous-matches.json,
+scan-compiler-regressions.log, scan-optional-runtime-comparison.json.
+
+Frozen source/compiler/runtime and both fresh binary hashes: scan-source-state.json;
+matching source copies: scan-source-snapshot/. No commit or push.

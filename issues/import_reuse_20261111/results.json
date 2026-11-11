@@ -1,0 +1,45 @@
+[
+  {
+    "label": "cold",
+    "seconds": 4.293596193194389,
+    "reused": [],
+    "library_sha256": "30887033a594fdd5ba7cb5ea890b4193e85fe9a542b6037679943a3c03e470b7"
+  },
+  {
+    "label": "warm",
+    "seconds": 0.811210997402668,
+    "reused": [
+      "aten_abs_f32",
+      "aten_addcmul_f32",
+      "openblas_dgemm_nn",
+      "opencv_morphology_dilate_u8"
+    ],
+    "library_sha256": "30887033a594fdd5ba7cb5ea890b4193e85fe9a542b6037679943a3c03e470b7"
+  },
+  {
+    "label": "one-source-changed",
+    "seconds": 1.8731428906321526,
+    "reused": [
+      "aten_abs_f32",
+      "openblas_dgemm_nn",
+      "opencv_morphology_dilate_u8"
+    ],
+    "library_sha256": "30887033a594fdd5ba7cb5ea890b4193e85fe9a542b6037679943a3c03e470b7"
+  },
+  {
+    "label": "one-artifact-changed",
+    "seconds": 1.9270593076944351,
+    "reused": [
+      "aten_addcmul_f32",
+      "openblas_dgemm_nn",
+      "opencv_morphology_dilate_u8"
+    ],
+    "library_sha256": "30887033a594fdd5ba7cb5ea890b4193e85fe9a542b6037679943a3c03e470b7"
+  },
+  {
+    "label": "forced-full",
+    "seconds": 1.0900292471051216,
+    "reused": [],
+    "library_sha256": "30887033a594fdd5ba7cb5ea890b4193e85fe9a542b6037679943a3c03e470b7"
+  }
+]

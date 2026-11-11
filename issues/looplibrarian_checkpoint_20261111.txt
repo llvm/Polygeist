@@ -1,0 +1,59 @@
+LoopLibrarian local checkpoint -- 2026-11-11
+
+Completed work included
+  ATen: 59 targeted cases pass GPU correctness. Mean is separate: GPU CUB
+  reduction with host division/store. The validated campaign passed 182 Python
+  tests, 22 previous-match checks, and retained byte-identical 22-call Llama IR.
+  Catalog: 179 imported reference records and 88 typed calls. These counts are
+  not the paper's full ATen coverage or its 115-case performance evaluation.
+
+  MFEM: all 18 supported fixtures pass fresh execution, 1,305,600 values checked.
+  The integrated PCG application checks 161 values across six buffers. The 135
+  lowered calls have a different granularity from the historical 128 sites.
+
+  PVA: morphology passes four integer dtype routes (4/18 total routes), with
+  49,152 values checked per route. Remaining operators are not claimed complete.
+  The included image adapter only marshals buffers and calls external APIs;
+  its other entry points do not establish validated source-to-library matches.
+
+  Native ATen comparison: 41/43 pass the existing full correctness checks;
+  all 43 have timings. Native ATen is faster in all 40 fully correct comparisons
+  with matching allocation boundaries. These small fixtures are not Figure 5.
+  RMSNorm allocation differences, hardswish-backward version differences and
+  softshrink numerical/domain differences are documented in the native report.
+
+  Development reuse: catalog validation cache and reference parsing cache retain
+  source/artifact checks. The recorded speed measurements have their original
+  scopes; the single-case parsing speedup is not a corpus-wide performance claim.
+
+Evidence
+  issues/aten_remaining_v3_20261111/{COMMIT_HANDOFF.txt,*_REPORT.txt}
+  issues/mfem_pva_v3_20261111/{REPORT.txt,FINAL_STATUS.json}
+  issues/aten43_native_cuda_20261111/{REPORT.txt,METHODOLOGY.txt,summary.csv}
+  issues/import_reuse_20261111/REPORT.txt
+
+Commit boundary and provenance
+  Initializer-fusion work is saved locally and excluded from this checkpoint.
+  Older unrelated dirty changes remain outside this commit, including cgeist,
+  legacy PVA/CUB matching, and the same-buffer dependence guard in RaiseToLinalg.
+  The measured compiler includes those older local changes; source-state hashes
+  in the reports describe that measured workspace. This commit alone is not a
+  freshly rebuilt, clean-checkout reproduction of those compiler binaries.
+  Generated reference, upstream source and CSV bytes retain their recorded
+  hashes and original whitespace. Build binaries and private SDKs are excluded.
+
+External source dependency
+  Morphology imports public OpenCV sources at commit
+  8bc22eba5946100e9b2470c60939c3f2588c28d7. A fresh setup needs a checkout of
+  https://github.com/opencv/opencv.git at third_party/opencv at that revision.
+  The manifest verifies modules/imgproc/src/opencl/morph.cl and
+  modules/imgproc/src/morph.dispatch.cpp by SHA-256. This is an external source
+  checkout, not a parent-repository submodule. PyTorch/CCCL source checkouts and
+  the PVA SDK remain external dependencies too. Artifact packaging is pending.
+
+Commit-time checks
+  Exported the staged runtime/scripts/catalog to an isolated temporary directory.
+  Generated runtime --check passes against the staged mixed header; 23 targeted
+  contract/scalar-return/matrix/cache tests pass. GCC syntax checks pass for the
+  staged public runtime header and generated CPU runtime. These checks reuse
+  external compiler/source dependencies and do not replace a clean rebuild.

@@ -100,7 +100,10 @@ def semantic_inputs():
     paths += [MATCH.SPEC_DIR / 'import_manifest.json']
     paths += [ROOT / 'runtime' / name for name in (
         'polygeist_v2_rt.h', 'polygeist_v2_rt_cpu.c', 'polygeist_v2_rt_cuda.c',
-        'polygeist_cublas_rt.h', 'polygeist_cublas_rt_cuda.c')]
+        'polygeist_cublas_rt.h', 'polygeist_cublas_rt_cuda.c',
+        'polygeist_v2_rt_pva.c', 'polygeist_pva_image_rt.c',
+        'polygeist_cub_scan_rt.cu', 'polygeist_cuda_graph_rt.h',
+        'polygeist_v2_matrix_layout.inc')]
     return PROVENANCE.record([path for path in paths if path.is_file()])
 
 
@@ -185,7 +188,12 @@ def normalize_matched_application(text, library, normalize):
 
 
 def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
-          region_budget=60, region=True, normalize_parallel=False):
+          region_budget=60, region=True, normalize_parallel=False, max_parallel_dims=0, max_operand_rank=0):
+    if not isinstance(max_parallel_dims, int) or max_parallel_dims < 0:
+        raise SpecificationError('parallel rank limit must be a nonnegative integer')
+    if not isinstance(max_operand_rank, int) or max_operand_rank < 0:
+        raise SpecificationError('operand rank limit must be a nonnegative integer')
+    normalize_parallel = normalize_parallel or max_parallel_dims > 0 or max_operand_rank > 0
     if semantic_configuration()['numeric_model'] not in {'strict', 'relaxed'}:
         raise SpecificationError('unknown numerical model')
     if re.search(r'\bkernel\.launch\s+@', text):
@@ -204,6 +212,13 @@ def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
             # This produces a candidate, not a claim of profitability. The
             # ordinary path remains available for measured candidate selection.
             option = '--normalize-linalg-matching-views'
+            rank_options = []
+            if max_parallel_dims:
+                rank_options.append('max-parallel-dims=' + str(max_parallel_dims))
+            if max_operand_rank:
+                rank_options.append('max-operand-rank=' + str(max_operand_rank))
+            if rank_options:
+                option += '=' + ' '.join(rank_options)
             baseline, baseline_matches, baseline_diagnostics = MATCH.run(
                 text, MATCH.DEFAULT_LIB, region=region,
                 region_budget=region_budget, allowed_specs=allowed)
@@ -296,7 +311,11 @@ def verify(text, proof, *, backend=None):
     if proof.get('matcher_sha256') != digest(Path(MATCH.__file__).read_text()):
         raise SpecificationError('stored match evidence uses a different matcher revision')
     normalization = proof.get('view_normalization')
-    if normalization and (normalization.get('pass_name') != '--normalize-linalg-matching-views' or
+    if normalization and (not re.fullmatch(
+                          r'--normalize-linalg-matching-views(?:=(?:'
+                          r'max-parallel-dims=[1-9][0-9]*(?: max-operand-rank=[1-9][0-9]*)?'
+                          r'|max-operand-rank=[1-9][0-9]*))?',
+                          str(normalization.get('pass_name', ''))) or
                           normalization.get('cleanup') != ['--cse'] or
                           normalization.get('compiler_sha256') !=
                           PROVENANCE.file_hash(Path(RECIPE.POLYGEIST_OPT))):
@@ -324,6 +343,10 @@ def main(argv=None):
     p.add_argument('--backend', choices=['cpu', 'cuda', 'pva'],
                    default=os.environ.get('POLYGEIST_ABI_BACKEND', 'cuda'))
     p.add_argument('--no-region-match', action='store_true')
+    p.add_argument('--max-parallel-dims', type=int, default=0,
+                   help='optional upstream tiling candidate with this parallel rank limit')
+    p.add_argument('--max-operand-rank', type=int, default=0,
+                   help='optional upstream slicing candidate with this operand rank limit')
     p.add_argument('--normalize-parallel-dims', action='store_true',
                    help='produce a dimension-collapse candidate using the same pass on both sides')
     p.add_argument('--numeric-model', choices=['strict', 'relaxed'],
@@ -345,7 +368,9 @@ def main(argv=None):
                               max_launches=args.max_launches,
                               region_budget=args.region_budget,
                               region=not args.no_region_match,
-                              normalize_parallel=args.normalize_parallel_dims)
+                              normalize_parallel=args.normalize_parallel_dims,
+                              max_parallel_dims=args.max_parallel_dims,
+                              max_operand_rank=args.max_operand_rank)
         if args.report:
             args.report.write_text(json.dumps(proof, indent=2) + '\n')
         if not args.dry_run:

@@ -30,7 +30,8 @@
  *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *   AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED (full text in LICENSE).
  *
- * Macros: TRANSA, TRANSB ('N' or 'T'); BETA_CASE 0 (B0 kernel) or 2.
+ * Macros: TRANSA, TRANSB ('N' or 'T'); BETA_CASE 0 (B0), 1, or 2.
+ * BETA_CASE=1 specializes the ordinary beta argument to one.
  */
 #ifndef NETLIB_SPEC
 #error "NETLIB_SPEC must name the specialised function"
@@ -69,7 +70,7 @@
 #else
 #define B_KJ B[k][j]   /* B[k*ldb+j] */
 #endif
-#if BETA_CASE == 0
+#if BETA_CASE != 2
 #define BETA_PARAM
 #else
 #define BETA_PARAM OPENBLAS_SCALAR beta,
@@ -96,6 +97,8 @@ void NETLIB_SPEC(MATRIX_PARAMS ALPHA_PARAM
       }
 #if BETA_CASE == 0
       C_JI = SCALED_RESULT;
+#elif BETA_CASE == 1
+      C_JI = C_JI + SCALED_RESULT;
 #else
       C_JI = C_JI * beta + SCALED_RESULT;
 #endif

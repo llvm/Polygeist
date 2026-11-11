@@ -1,0 +1,60 @@
+Activation family production validation, 2026-11-11
+
+Completed targeted ATen cases: 41 (six added to the prior 35). This is a targeted
+validated set, not paper-wide 271/598 coverage or Figure 5's 115-case native ATen
+CUDA performance result.
+
+All six unchanged fixtures raise, match, lower, build and execute real cuDNN:
+hardshrink, shrink_backward, softshrink, hardtanh_backward,
+hardsigmoid_backward, hardswish_backward. Five reusable parameterized references
+come from pinned upstream ATen scalar bodies; 1,845 independent upstream-C++/C
+reference checks pass. Hardshrink reuses shrink_backward with both formal input
+arrays bound to the same application tensor. No new hardshrink specification.
+
+Generic changes:
+- Follow captured pure scalar expressions when mechanically building vendor
+  graphs; retain dynamic scalar parameters and reject effects/unknown values.
+- Encode typed Boolean select through exact Boolean operators. Floating selects,
+  comparison predicates, precision and signed-zero policy remain unchanged.
+- Permit bounded repeated input bindings in the shared Linalg matcher, retaining
+  element types, access maps, extents, destinations and output-read checks.
+- Assign BOOLEAN math precision to cuDNN logical AND/OR/NOT nodes. Comparisons
+  still use FP32 and predicate storage uses INT8. The original failed plan and
+  isolated corrective diagnostic are preserved under activation-before-logical-
+  precision/ and ACTIVATION_LOGICAL_PRECISION.txt.
+
+Trust boundary: EqSat compares the application with the imported ATen reference.
+The cuDNN implementation is proprietary; graph opcode semantics are trusted and
+separately tested. This is not imported cuDNN source, independent target-library
+source evidence, or an EqSat coverage-benefit experiment.
+
+GPU: all 40 checks pass, covering 163,840 output values plus all inputs
+and guards. Normal/edge cases include signed zero, NaN, infinity and threshold
+boundaries; parameterized cases use two parameter sets, each with host and
+resident buffers. Finite tolerance is 1e-5 + 1e-4*abs(reference), matching NaN
+classes and infinities and preserving zero sign. Raised and direct vendor results
+match bitwise except NaN payloads. No CPU fallback is counted.
+
+Resident timings: minimum of five synchronized samples after five warmups;
+tracing off, serialized Orin window. Direct cuDNN is not native ATen.
+  hardshrink: raised 0.061787 ms; direct cuDNN 0.061979 ms
+  shrink_backward: raised 0.061596 ms; direct cuDNN 0.060476 ms
+  softshrink: raised 0.050589 ms; direct cuDNN 0.053757 ms
+  hardtanh_backward: raised 0.064638 ms; direct cuDNN 0.061758 ms
+  hardsigmoid_backward: raised 0.063070 ms; direct cuDNN 0.061790 ms
+  hardswish_backward: raised 0.066686 ms; direct cuDNN 0.065566 ms
+
+Regression: all 124 Python tests and all 22 prior application match checks pass
+(18 PolyBench, 3 ATen, 1 MFEM). Generated runtime and scoped diff checks pass.
+Fresh full Llama matching retains 22 calls and byte-identical IR. Runtime-only
+relink of the last fresh validated compiler objects preserves all 32,000 logits
+exactly versus the previous executable and actual expert. Same-window minima:
+11.295424 ms before / 11.312640 ms after. Earlier 35 ATen GPU cases retain their
+frozen results; they were not all rebuilt and rerun for this milestone.
+
+Evidence: activation-source-state.json (186 source hashes, six binary hashes),
+activation-source-snapshot/, activation-gpu-results.json, activation/*,
+activation-final-regression-tests.log, activation-previous-matches.json,
+activation-final-llama-recheck/, activation-llama-runtime-regression/.
+
+Native public-API comparison scope follow-up (2026-11-11): the separate frozen43 comparison against installed ATen2.6 found that softshrink rejects negative lambda, although the extracted scalar body/reference accepts it. Those earlier negative-lambda checks establish scalar-reference/backend behavior only. The native comparison also identifies signed-zero/NaN and version-dependent hardswish-backward boundary differences; see the native43 agent's independent report. No public-API equivalence claim follows from the scalar fixture count.

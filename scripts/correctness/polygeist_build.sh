@@ -383,6 +383,12 @@ MATCHER_ARGS=(--backend "$ABI_BACKEND" --report "$WORK/match.json")
 if [ "${POLYGEIST_NORMALIZE_PARALLEL_DIMS:-0}" != 0 ]; then
   MATCHER_ARGS+=(--normalize-parallel-dims)
 fi
+if [ "${POLYGEIST_MATCH_MAX_PARALLEL_DIMS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-parallel-dims "$POLYGEIST_MATCH_MAX_PARALLEL_DIMS")
+fi
+if [ "${POLYGEIST_MATCH_MAX_OPERAND_RANK:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-operand-rank "$POLYGEIST_MATCH_MAX_OPERAND_RANK")
+fi
 if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != 0 ]; then
   MATCHER_ARGS+=(--max-launches 0)
 fi
@@ -753,7 +759,10 @@ SPEC_RUNTIME_OBJECTS=()
 if [ "$N_CALL" -gt 0 ]; then
   $PYTHON "$SCRIPTS/lib_v2/gen_v2_runtime.py" --output-dir "$WORK/spec_runtime" \
     >"$WORK/spec_runtime.log" 2>&1
-  if [ "$TARGET" = jetson ]; then
+  if [ "$ABI_BACKEND" = pva ]; then
+    $CC -O2 -ffunction-sections -fdata-sections -I"$REPO_ROOT/runtime" \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_pva.c" -o "$WORK/spec_runtime.o"
+  elif [ "$TARGET" = jetson ]; then
     $CC -O2 -ffunction-sections -fdata-sections -I"$CUDA_CROSS/include" \
       -I"$REPO_ROOT/runtime" \
       -I"$REPO_ROOT/third_party/cuda_headers/cusolver/include" \
@@ -766,6 +775,23 @@ if [ "$N_CALL" -gt 0 ]; then
     RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
   fi
   SPEC_RUNTIME_OBJECTS+=("$WORK/spec_runtime.o")
+fi
+
+# CUB is a template library; its fixed C ABI is compiled with the pinned public
+# CCCL headers. Generated wrappers call this ABI after proving the reference.
+if [ "${POLYGEIST_ENABLE_CUB:-0}" != "0" ]; then
+  if [ "$TARGET" != jetson ] || [ "$ABI_BACKEND" != cuda ]; then
+    echo "ERROR: CUB runtime requires the Jetson CUDA backend" >&2
+    exit 1
+  fi
+  "${POLYGEIST_NVCC:-/usr/local/cuda-12.6/bin/nvcc}" -O2 -std=c++17 \
+    -arch="${POLYGEIST_GPU_ARCH:-sm_87}" \
+    -ccbin="${POLYGEIST_CROSS_CXX:-aarch64-linux-gnu-g++}" -target-dir sbsa-linux \
+    -Xcompiler=-fPIC,-ffunction-sections,-fdata-sections \
+    -I"$REPO_ROOT/third_party/cuda_headers/cuda_cccl/include/cccl" -I"$RT" \
+    -c "$RT/polygeist_cub_scan_rt.cu" -o "$WORK/cub_runtime.o"
+  SPEC_RUNTIME_OBJECTS+=("$WORK/cub_runtime.o")
+  RT_LIBS="-lstdc++ $RT_LIBS"
 fi
 
 # Kernel (lifted) — use Polygeist clang for both host and cross.

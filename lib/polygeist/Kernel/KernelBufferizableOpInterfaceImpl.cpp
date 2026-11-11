@@ -14,17 +14,22 @@ using namespace mlir::polygeist::kernel;
 
 namespace {
 
-static FailureOr<SmallVector<unsigned>> getResultDestinations(LaunchOp launch) {
+static FailureOr<SmallVector<int64_t>> getResultDestinations(LaunchOp launch) {
   auto attr = launch->getAttrOfType<DenseI64ArrayAttr>(
       "polygeist.result_destinations");
   if (attr) {
     if (attr.size() != launch.getNumResults())
       return failure();
-    SmallVector<unsigned> result;
-    for (int64_t value : attr.asArrayRef()) {
-      if (value < 0 || value >= (int64_t)launch.getNumOperands())
+    SmallVector<int64_t> result;
+    for (auto [index, value] : llvm::enumerate(attr.asArrayRef())) {
+      if (isa<TensorType>(launch.getResult(index).getType())) {
+        if (value < 0 || value >= (int64_t)launch.getNumOperands() ||
+            !isa<TensorType>(launch.getOperand(value).getType()))
+          return failure();
+      } else if (value != -1) {
         return failure();
-      result.push_back((unsigned)value);
+      }
+      result.push_back(value);
     }
     return result;
   }
@@ -39,8 +44,12 @@ static FailureOr<SmallVector<unsigned>> getResultDestinations(LaunchOp launch) {
   if (!yield || yield.getNumOperands() != launch.getNumResults())
     return failure();
 
-  SmallVector<unsigned> result;
+  SmallVector<int64_t> result;
   for (Value yielded : yield.getOperands()) {
+    if (!isa<TensorType>(yielded.getType())) {
+      result.push_back(-1);
+      continue;
+    }
     auto arg = dyn_cast<BlockArgument>(yielded);
     if (!arg || arg.getOwner() != &defn.getBody().front() ||
         arg.getArgNumber() >= launch.getNumOperands())
@@ -66,6 +75,17 @@ struct LaunchOpInterface
     if (failed(destinations))
       return false;
     return llvm::is_contained(*destinations, operand.getOperandNumber());
+  }
+
+  bool isNotConflicting(Operation *op, OpOperand *read, OpOperand *write,
+                        const AnalysisState &) const {
+    // Typed ABI preparation grants this capability only after validating an
+    // elementwise reference and an exact-alias-safe backend. The two accesses
+    // must belong to this launch and use the same tensor value. Reads by other
+    // operations, shifted views, and unannotated kernels remain conservative.
+    return op->hasAttr("polygeist.elementwise_exact_alias") &&
+           read->getOwner() == op && write->getOwner() == op &&
+           read->get() == write->get();
   }
 
   AliasingValueList getAliasingValues(Operation *op, OpOperand &operand,
@@ -103,21 +123,24 @@ struct LaunchOpInterface
       operands.push_back(*buffer);
     }
 
-    SmallVector<Value> resultBuffers;
-    resultBuffers.reserve(destinations->size());
-    for (unsigned operandNumber : *destinations)
-      resultBuffers.push_back(operands[operandNumber]);
+    SmallVector<Type> scalarTypes;
+    for (Type type : launch.getResultTypes())
+      if (!isa<TensorType>(type))
+        scalarTypes.push_back(type);
 
     OperationState state(launch.getLoc(), LaunchOp::getOperationName());
     state.addOperands(operands);
+    state.addTypes(scalarTypes);
     state.addAttributes(launch->getAttrs());
     state.addAttribute("polygeist.bufferized", rewriter.getUnitAttr());
     state.attributes.set("polygeist.result_destinations",
-                       rewriter.getDenseI64ArrayAttr(llvm::to_vector(
-                           llvm::map_range(*destinations, [](unsigned value) {
-                             return (int64_t)value;
-                           }))));
-    rewriter.create(state);
+                         rewriter.getDenseI64ArrayAttr(*destinations));
+    Operation *bufferized = rewriter.create(state);
+    SmallVector<Value> resultBuffers;
+    unsigned scalarResult = 0;
+    for (int64_t operandNumber : *destinations)
+      resultBuffers.push_back(operandNumber < 0
+          ? bufferized->getResult(scalarResult++) : operands[operandNumber]);
     replaceOpWithBufferizedValues(rewriter, op, resultBuffers);
     return success();
   }

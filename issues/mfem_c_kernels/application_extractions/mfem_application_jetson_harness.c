@@ -402,9 +402,12 @@ int main(void) {
   double reference_checksum = 0.0;
   double raised_checksum = 0.0;
   double reference_delta_max = 0.0;
+  int finite_outputs = 1;
   for (int output = 0; output < OUTPUT_COUNT; ++output) {
     double output_max_abs = 0.0;
     for (int64_t i = 0; i < output_extents[output]; ++i) {
+      finite_outputs = finite_outputs && isfinite(reference_state[output][i]) &&
+                       isfinite(raised_state[output][i]);
       double abs_error = fabs(reference_state[output][i] - raised_state[output][i]);
       double scale = fmax(1.0, fabs(reference_state[output][i]));
       double rel_error = abs_error / scale;
@@ -432,7 +435,7 @@ int main(void) {
     printf("output=%d max_abs=%.17g\n", output, output_max_abs);
 #endif
   }
-  int correct = isfinite(max_abs) && max_rel <= 1.0e-10 &&
+  int correct = finite_outputs && isfinite(max_abs) && max_rel <= 1.0e-10 &&
                 reference_delta_max > 1.0e-14;
   printf("application=%s correctness=%s max_abs=%.17g max_rel=%.17g "
          "reference_checksum=%.17g raised_checksum=%.17g "
