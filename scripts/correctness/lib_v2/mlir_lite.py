@@ -160,6 +160,12 @@ def _result_types(op_text: str, name: str, nres: int) -> list[str]:
     if nres == 0:
         return []
     tail0 = op_text.rsplit(" : ", 1)[-1].strip() if " : " in op_text else ""
+    if name in ("memref.collapse_shape", "memref.expand_shape",
+                "tensor.collapse_shape", "tensor.expand_shape"):
+        # Reshapes spell both types, including layouts: `: source into result`.
+        # Only the result describes the new descriptor's rank and strides.
+        types = tail0.rsplit(" into ", 1)
+        return [types[1].strip()] if len(types) == 2 else []
     if name == "bufferization.to_tensor":
         return [tail0.replace("memref<", "tensor<")]
     if name in ("arith.cmpi", "arith.cmpf"):

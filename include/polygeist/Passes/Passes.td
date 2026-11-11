@@ -215,6 +215,22 @@ def LowerPolygeistSubmap : Pass<"lower-polygeist-submap"> {
   ];
 }
 
+def NormalizeLinalgMatchingViews : Pass<"normalize-linalg-matching-views"> {
+  let summary = "Expose projected tensor views and collapse compatible parallel dimensions";
+  let description = [{
+    Normalize projected submaps without widening their iteration domains, then
+    use upstream Linalg dimension collapsing for consecutive parallel loops.
+    Reduction iterators are never collapsed. This constructs an alternative
+    representation for library matching; profitability is decided separately.
+  }];
+  let constructor = "mlir::polygeist::createNormalizeLinalgMatchingViewsPass()";
+  let dependentDialects = [
+    "arith::ArithDialect", "bufferization::BufferizationDialect",
+    "linalg::LinalgDialect", "memref::MemRefDialect", "tensor::TensorDialect",
+    "polygeist::PolygeistDialect",
+  ];
+}
+
 def LowerKernelLaunch : Pass<"lower-kernel-launch", "::mlir::ModuleOp"> {
   let summary = "Inline kernel.defn bodies in place of kernel.launch ops";
   let description = [{
@@ -455,6 +471,8 @@ def PrepareGpuResidualPipeline
            "Exact function whose residual work is prepared.">,
     Option<"tileSize", "tile-size", "int64_t", /*default=*/"0",
            "Flatten and tile independent parallel loops before GPU mapping.">,
+    Option<"assumeNoAlias", "assume-no-alias", "bool", /*default=*/"false",
+           "Caller guarantees distinct function memref arguments do not alias.">,
   ];
 }
 

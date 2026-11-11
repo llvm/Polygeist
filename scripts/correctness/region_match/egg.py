@@ -43,7 +43,7 @@ from egglog import (EGraph, Expr, StringLike, String, i64, i64Like, function, re
                     rewrite, rule, ruleset, union, vars_, var)
 
 from .affine import Aff, atom_info, is_atom  # noqa: E402
-from .equations import F, FBin, FConst, FParam, FRead, FSel, FSum, FUn  # noqa: E402
+from .equations import F, FBin, FConst, FIndex, FParam, FRead, FSel, FSum, FUn  # noqa: E402
 
 Term = km.Term
 
@@ -277,6 +277,8 @@ def encode(f: F, ns: str, arr_name, bound: Optional[str] = None) -> Term:
         return rm_elem(RmArr(arr_name(f.arr, f.ver)), enc_idx(f.idx, ns))
     if isinstance(f, FConst):
         return Term.Lit(f.v)
+    if isinstance(f, FIndex):
+        return Term.Unary("integer-data", rm_ixv(enc_ix(f.value, ns)))
     if isinstance(f, FParam):
         return rm_param(RmArr(arr_name(f.name, "param")))
     if isinstance(f, FBin):

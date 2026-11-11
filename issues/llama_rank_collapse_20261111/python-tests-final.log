@@ -1,0 +1,359 @@
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_abs.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_acos.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_acosh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_add.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_asin.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_asinh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atan.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atan2.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atanh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_ceil.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_cos.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_cosh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_div.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_erf.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_exp.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_floor.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_leaky_relu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_log.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_mul.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_neg.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_pow.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_reciprocal.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_rsqrt.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_scaled_add.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sigmoid.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sigmoid_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_silu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_silu_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sin.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sinh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_softmax.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sqrt.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tan.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tanh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tanh_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_threshold.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/bincount.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/csc_matvec.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/csr_matvec.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/cutlass_rmsnorm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dpotf2.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsymm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsyr2k.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsyrk.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dtrmm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dtrsv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/ggml_swiglu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_daxpby.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_daxpy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dgemm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dgemv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dger.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dscal.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_scopy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_sgemm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_sgemv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_somatcopy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/sparskit_amux.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.............................................../home/arjaiswal/Polygeist/scripts/correctness/region_match/matcher.py:203: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpiq5oh5fz/manifest/catalog.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mpath))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........../home/arjaiswal/Polygeist/scripts/correctness/region_match/matcher.py:2074: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpqkav2kmm/kernel_library_v3.mlir' mode='r' encoding='UTF-8'>
+  txt = open(lib).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............................................/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_abs.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_acos.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_acosh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_add.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_asin.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_asinh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atan.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atan2.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_atanh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_ceil.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_cos.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_cosh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_div.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_erf.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_exp.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_floor.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_leaky_relu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_log.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_mul.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_neg.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_pow.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_reciprocal.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_rsqrt.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_scaled_add.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sigmoid.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sigmoid_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_silu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_silu_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sin.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sinh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_softmax.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_sqrt.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tan.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tanh.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_tanh_backward.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/aten_threshold.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/bincount.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/csc_matvec.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/csr_matvec.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/cutlass_rmsnorm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dpotf2.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsymm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsyr2k.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dsyrk.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dtrmm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/dtrsv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/ggml_swiglu.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_daxpby.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_daxpy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dgemm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dgemv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dger.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_dscal.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_scopy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_sgemm.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_sgemv.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/openblas_somatcopy.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/abi_v2.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/arjaiswal/Polygeist/generic_solver/lib_v3/manifest/sparskit_amux.json' mode='r' encoding='UTF-8'>
+  man = json.load(open(mp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...
+----------------------------------------------------------------------
+Ran 104 tests in 168.130s
+
+OK

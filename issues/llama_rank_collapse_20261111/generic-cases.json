@@ -1,0 +1,22 @@
+[
+  {
+    "case": "kernel_shared",
+    "build_rc": 0,
+    "run_rc": 0,
+    "emitted": [
+      "openblas_sgemv_t_beta0_alpha1"
+    ]
+  },
+  {
+    "case": "kernel_per_group",
+    "build_rc": 0,
+    "run_rc": 0,
+    "emitted": []
+  },
+  {
+    "case": "kernel_indexed",
+    "build_rc": 0,
+    "run_rc": 0,
+    "emitted": []
+  }
+]

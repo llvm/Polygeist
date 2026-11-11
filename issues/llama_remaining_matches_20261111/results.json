@@ -1,0 +1,556 @@
+{
+  "coverage": {
+    "llama": {
+      "cases": 19,
+      "matched": 15,
+      "abi_lowered": 15,
+      "complete_loop_replacement": 14,
+      "errors": 0
+    }
+  },
+  "correctness": {
+    "llama_resident_vs_llama_ggml": {
+      "count": 32000,
+      "max_abs": 0.0,
+      "rms_error": 0.0,
+      "unequal": 0,
+      "strict_failures": 0,
+      "cross_implementation_failures": 0
+    },
+    "llama_resident_vs_oracle": {
+      "count": 32000,
+      "max_abs": 0.000522999999994056,
+      "rms_error": 0.00025597146837090485,
+      "unequal": 32000,
+      "strict_failures": 0,
+      "cross_implementation_failures": 0
+    },
+    "llama_ggml_vs_oracle": {
+      "count": 32000,
+      "max_abs": 0.000522999999994056,
+      "rms_error": 0.00025597146837090485,
+      "unequal": 32000,
+      "strict_failures": 0,
+      "cross_implementation_failures": 0
+    },
+    "llama_native_vs_oracle": {
+      "count": 32000,
+      "max_abs": 0.0047560000000004266,
+      "rms_error": 0.002279225018983452,
+      "unequal": 32000,
+      "strict_failures": 6971,
+      "cross_implementation_failures": 0
+    },
+    "oracle_log_sha256": "c7d6b663d53cc4df415b75c5aafc197c02de51f8383931468780385447f471af",
+    "passed": true,
+    "llama_resident_vs_llama_native": {
+      "count": 32000,
+      "max_abs": 0.005117399999999606,
+      "rms_error": 0.0023930732272195356,
+      "unequal": 32000,
+      "strict_failures": 7922,
+      "cross_implementation_failures": 0
+    }
+  },
+  "timing": {
+    "protocol": "five warmups followed by five measured samples; minimum; resident arrays; explicit GPU synchronization",
+    "source_shape": {
+      "model_dim": 4096,
+      "ffn_dim": 11008,
+      "vocab": 32000,
+      "seq_len": 2048,
+      "heads": 32,
+      "token": 7,
+      "pos": 1024
+    },
+    "raised_resident_samples": [
+      {
+        "sample": 0,
+        "wall_ms": 15.537420988,
+        "device_ms": 15.531392097
+      },
+      {
+        "sample": 1,
+        "wall_ms": 15.472811937,
+        "device_ms": 15.467264175
+      },
+      {
+        "sample": 2,
+        "wall_ms": 15.506156921,
+        "device_ms": 15.500415802
+      },
+      {
+        "sample": 3,
+        "wall_ms": 15.477578878,
+        "device_ms": 15.471712112
+      },
+      {
+        "sample": 4,
+        "wall_ms": 15.504812002,
+        "device_ms": 15.490559578
+      }
+    ],
+    "expert_ggml_cuda_samples_ms": [
+      9.703,
+      9.719,
+      9.72,
+      9.705,
+      9.718
+    ],
+    "native_cpu_samples_ms": [
+      272.410667181,
+      272.65572691,
+      272.81873703,
+      272.844784975,
+      272.984884977
+    ],
+    "minimum_ms": {
+      "raised_synchronized_wall": 15.472811937,
+      "raised_cuda_events": 15.467264175,
+      "expert_synchronized_wall": 9.703,
+      "native_cpu": 272.410667181
+    },
+    "raised_over_expert": 1.5946420629702154,
+    "cpu_over_raised": 17.605763470154173,
+    "setup_inclusive_amortized_ms": 347.646012115,
+    "expert_attribution": "Actual freshly linked llama_extended_ggml_bench.cpp using existing ggml CUDA build; dependency hashes in full-inference/ggml-library-hashes.json",
+    "board_before": "full-inference/preflight.json",
+    "board_after": "full-inference/preflight-after.json",
+    "host_uptime": "full-inference/host-uptime.txt"
+  },
+  "vendor": {
+    "stats": [
+      {
+        "backend": "cuda",
+        "call": "cublasScopy",
+        "entry": "cublasScopy_v2",
+        "count": "10",
+        "lib_ms": "1.265664",
+        "h2d_ms": "0.067296",
+        "d2h_ms": "0.034560",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cudnnBackendExecute_cutlass_rmsnorm_f32",
+        "entry": "cudnnBackendExecute",
+        "count": "30",
+        "lib_ms": "312.817421",
+        "h2d_ms": "0.207552",
+        "d2h_ms": "0.116896",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cublasSgemv",
+        "entry": "cublasSgemv_v2",
+        "count": "70",
+        "lib_ms": "117.039457",
+        "h2d_ms": "0.496928",
+        "d2h_ms": "0.072992",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cublasSgeam",
+        "entry": "cublasSgeam",
+        "count": "10",
+        "lib_ms": "4.317792",
+        "h2d_ms": "0.070688",
+        "d2h_ms": "0.010720",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cudnnSoftmaxForward",
+        "entry": "cudnnSoftmaxForward",
+        "count": "10",
+        "lib_ms": "15.493600",
+        "h2d_ms": "0.071744",
+        "d2h_ms": "0.027744",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cudnnBackendExecute_aten_add_f32",
+        "entry": "cudnnBackendExecute",
+        "count": "20",
+        "lib_ms": "335.103890",
+        "h2d_ms": "0.139648",
+        "d2h_ms": "0.078560",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      },
+      {
+        "backend": "cuda",
+        "call": "cudnnBackendExecute_ggml_swiglu_f32",
+        "entry": "cudnnBackendExecute",
+        "count": "10",
+        "lib_ms": "298.902926",
+        "h2d_ms": "0.066144",
+        "d2h_ms": "0.049760",
+        "h2d_bytes": "0",
+        "d2h_bytes": "0"
+      }
+    ],
+    "trace_correctness": {
+      "count": 32000,
+      "max_abs": 0.0,
+      "rms_error": 0.0,
+      "unequal": 0,
+      "strict_failures": 0,
+      "cross_implementation_failures": 0
+    },
+    "per_iteration_imported_calls": 16,
+    "per_call_staged_bytes": 0
+  },
+  "regression_tests": {
+    "python": 74,
+    "previous_application_matches": 22,
+    "gpu_compiler": 6,
+    "diff_check_pass": true,
+    "generated_runtime_check_pass": true
+  },
+  "catalog": {
+    "registry": 104,
+    "import_errors": {
+      "numpy_bincount": "reference import has no validated semantic stage: PARTIAL",
+      "numpy_bincount_accumulate": "reference import has no validated semantic stage: NOT_RAISED",
+      "numpy_bincount_weights": "reference import has no validated semantic stage: PARTIAL",
+      "scipy_csc_matvec": "reference import has no validated semantic stage: NOT_RAISED",
+      "scipy_csc_matvec_beta0": "reference import has no validated semantic stage: PARTIAL",
+      "scipy_csc_matvec_i64": "reference import has no validated semantic stage: NOT_RAISED",
+      "scipy_csc_matvec_beta0_i64": "reference import has no validated semantic stage: PARTIAL",
+      "scipy_csr_matvec": "reference import has no validated semantic stage: NOT_RAISED",
+      "scipy_csr_matvec_beta0": "reference import has no validated semantic stage: NOT_RAISED",
+      "scipy_csr_matvec_i64": "reference import has no validated semantic stage: NOT_RAISED",
+      "scipy_csr_matvec_beta0_i64": "reference import has no validated semantic stage: NOT_RAISED",
+      "sparskit_amux": "reference import has no validated semantic stage: NOT_RAISED"
+    },
+    "import_manifest_sha256": "0a7a2324e546d34f4347d0f345c920c54705852c3eb3491980a5ca0684dc2fa0",
+    "cpu": {
+      "eligible": 85,
+      "names": [
+        "netlib_dpotf2_l",
+        "netlib_dpotf2_u",
+        "netlib_dsymm_ll",
+        "netlib_dsymm_ll_beta0",
+        "netlib_dsymm_lu",
+        "netlib_dsymm_lu_alpha0",
+        "netlib_dsymm_lu_alpha0_beta0",
+        "netlib_dsymm_lu_beta0",
+        "netlib_dsymm_rl",
+        "netlib_dsymm_rl_beta0",
+        "netlib_dsymm_ru",
+        "netlib_dsymm_ru_beta0",
+        "netlib_dsyr2k_ln",
+        "netlib_dsyr2k_ln_alpha0",
+        "netlib_dsyr2k_ln_alpha0_beta0",
+        "netlib_dsyr2k_ln_beta0",
+        "netlib_dsyr2k_ln_beta1",
+        "netlib_dsyr2k_lt",
+        "netlib_dsyr2k_lt_beta0",
+        "netlib_dsyr2k_un",
+        "netlib_dsyr2k_un_alpha0",
+        "netlib_dsyr2k_un_alpha0_beta0",
+        "netlib_dsyr2k_un_beta0",
+        "netlib_dsyr2k_un_beta1",
+        "netlib_dsyr2k_ut",
+        "netlib_dsyr2k_ut_beta0",
+        "netlib_dsyrk_ln",
+        "netlib_dsyrk_ln_alpha0",
+        "netlib_dsyrk_ln_alpha0_beta0",
+        "netlib_dsyrk_ln_beta0",
+        "netlib_dsyrk_ln_beta1",
+        "netlib_dsyrk_lt",
+        "netlib_dsyrk_lt_beta0",
+        "netlib_dsyrk_un",
+        "netlib_dsyrk_un_alpha0",
+        "netlib_dsyrk_un_alpha0_beta0",
+        "netlib_dsyrk_un_beta0",
+        "netlib_dsyrk_un_beta1",
+        "netlib_dsyrk_ut",
+        "netlib_dsyrk_ut_beta0",
+        "netlib_dtrmm_llnn",
+        "netlib_dtrmm_llnu",
+        "netlib_dtrmm_lltn",
+        "netlib_dtrmm_lltu",
+        "netlib_dtrmm_lunn",
+        "netlib_dtrmm_lunn_alpha0",
+        "netlib_dtrmm_lunu",
+        "netlib_dtrmm_lutn",
+        "netlib_dtrmm_lutu",
+        "netlib_dtrmm_rlnn",
+        "netlib_dtrmm_rlnu",
+        "netlib_dtrmm_rltn",
+        "netlib_dtrmm_rltu",
+        "netlib_dtrmm_runn",
+        "netlib_dtrmm_runu",
+        "netlib_dtrmm_rutn",
+        "netlib_dtrmm_rutu",
+        "netlib_dtrsv_lnn",
+        "netlib_dtrsv_lnu",
+        "netlib_dtrsv_ltn",
+        "netlib_dtrsv_ltu",
+        "netlib_dtrsv_unn",
+        "netlib_dtrsv_unu",
+        "netlib_dtrsv_utn",
+        "netlib_dtrsv_utu",
+        "openblas_daxpy",
+        "openblas_dgemm_nn",
+        "openblas_dgemm_nn_b0",
+        "openblas_dgemm_nt",
+        "openblas_dgemm_nt_b0",
+        "openblas_dgemm_tn",
+        "openblas_dgemm_tn_b0",
+        "openblas_dgemm_tt",
+        "openblas_dgemm_tt_b0",
+        "openblas_dgemv_n",
+        "openblas_dgemv_n_beta0",
+        "openblas_dgemv_n_beta1",
+        "openblas_dgemv_t",
+        "openblas_dgemv_t_beta0",
+        "openblas_dgemv_t_beta1",
+        "openblas_dger",
+        "openblas_dscal",
+        "openblas_scopy_f32",
+        "openblas_sgemv_n_beta0_alpha1",
+        "openblas_sgemv_t_beta0_alpha1"
+      ],
+      "original_catalog_eligible": 82,
+      "added": [
+        "openblas_scopy_f32",
+        "openblas_sgemv_n_beta0_alpha1",
+        "openblas_sgemv_t_beta0_alpha1"
+      ]
+    },
+    "cuda": {
+      "eligible": 90,
+      "names": [
+        "aten_add_f32",
+        "aten_softmax_f32",
+        "cutlass_rmsnorm_f32",
+        "ggml_swiglu_f32",
+        "netlib_dpotf2_l",
+        "netlib_dpotf2_u",
+        "netlib_dsymm_ll",
+        "netlib_dsymm_ll_beta0",
+        "netlib_dsymm_lu",
+        "netlib_dsymm_lu_alpha0",
+        "netlib_dsymm_lu_alpha0_beta0",
+        "netlib_dsymm_lu_beta0",
+        "netlib_dsymm_rl",
+        "netlib_dsymm_rl_beta0",
+        "netlib_dsymm_ru",
+        "netlib_dsymm_ru_beta0",
+        "netlib_dsyr2k_ln",
+        "netlib_dsyr2k_ln_alpha0",
+        "netlib_dsyr2k_ln_alpha0_beta0",
+        "netlib_dsyr2k_ln_beta0",
+        "netlib_dsyr2k_ln_beta1",
+        "netlib_dsyr2k_lt",
+        "netlib_dsyr2k_lt_beta0",
+        "netlib_dsyr2k_un",
+        "netlib_dsyr2k_un_alpha0",
+        "netlib_dsyr2k_un_alpha0_beta0",
+        "netlib_dsyr2k_un_beta0",
+        "netlib_dsyr2k_un_beta1",
+        "netlib_dsyr2k_ut",
+        "netlib_dsyr2k_ut_beta0",
+        "netlib_dsyrk_ln",
+        "netlib_dsyrk_ln_alpha0",
+        "netlib_dsyrk_ln_alpha0_beta0",
+        "netlib_dsyrk_ln_beta0",
+        "netlib_dsyrk_ln_beta1",
+        "netlib_dsyrk_lt",
+        "netlib_dsyrk_lt_beta0",
+        "netlib_dsyrk_un",
+        "netlib_dsyrk_un_alpha0",
+        "netlib_dsyrk_un_alpha0_beta0",
+        "netlib_dsyrk_un_beta0",
+        "netlib_dsyrk_un_beta1",
+        "netlib_dsyrk_ut",
+        "netlib_dsyrk_ut_beta0",
+        "netlib_dtrmm_llnn",
+        "netlib_dtrmm_llnu",
+        "netlib_dtrmm_lltn",
+        "netlib_dtrmm_lltu",
+        "netlib_dtrmm_lunn",
+        "netlib_dtrmm_lunn_alpha0",
+        "netlib_dtrmm_lunu",
+        "netlib_dtrmm_lutn",
+        "netlib_dtrmm_lutu",
+        "netlib_dtrmm_rlnn",
+        "netlib_dtrmm_rlnu",
+        "netlib_dtrmm_rltn",
+        "netlib_dtrmm_rltu",
+        "netlib_dtrmm_runn",
+        "netlib_dtrmm_runu",
+        "netlib_dtrmm_rutn",
+        "netlib_dtrmm_rutu",
+        "netlib_dtrsv_lnn",
+        "netlib_dtrsv_lnu",
+        "netlib_dtrsv_ltn",
+        "netlib_dtrsv_ltu",
+        "netlib_dtrsv_unn",
+        "netlib_dtrsv_unu",
+        "netlib_dtrsv_utn",
+        "netlib_dtrsv_utu",
+        "openblas_daxpy",
+        "openblas_dgemm_nn",
+        "openblas_dgemm_nn_b0",
+        "openblas_dgemm_nt",
+        "openblas_dgemm_nt_b0",
+        "openblas_dgemm_tn",
+        "openblas_dgemm_tn_b0",
+        "openblas_dgemm_tt",
+        "openblas_dgemm_tt_b0",
+        "openblas_dgemv_n",
+        "openblas_dgemv_n_beta0",
+        "openblas_dgemv_n_beta1",
+        "openblas_dgemv_t",
+        "openblas_dgemv_t_beta0",
+        "openblas_dgemv_t_beta1",
+        "openblas_dger",
+        "openblas_dscal",
+        "openblas_scopy_f32",
+        "openblas_sgemv_n_beta0_alpha1",
+        "openblas_sgemv_t_beta0_alpha1",
+        "openblas_somatcopy_f32"
+      ],
+      "original_catalog_eligible": 82,
+      "added": [
+        "aten_add_f32",
+        "aten_softmax_f32",
+        "cutlass_rmsnorm_f32",
+        "ggml_swiglu_f32",
+        "openblas_scopy_f32",
+        "openblas_sgemv_n_beta0_alpha1",
+        "openblas_sgemv_t_beta0_alpha1",
+        "openblas_somatcopy_f32"
+      ]
+    }
+  },
+  "individual_kernels": {
+    "gemv": {
+      "cases": 14,
+      "correct": true,
+      "paper_ms": {
+        "qkv_projection": {
+          "raised": 1.245301008,
+          "direct_cublas": 1.270390034
+        },
+        "attention_scores": {
+          "raised": 0.235332012,
+          "direct_cublas": 0.23210001
+        },
+        "attention_output": {
+          "raised": 0.239012003,
+          "direct_cublas": 0.238692045
+        },
+        "output_projection": {
+          "raised": 0.432807922,
+          "direct_cublas": 0.430599213
+        },
+        "gate_up_projection": {
+          "raised": 2.157060146,
+          "direct_cublas": 2.157572985
+        },
+        "down_projection": {
+          "raised": 1.111219168,
+          "direct_cublas": 1.104786873
+        },
+        "lm_head_projection": {
+          "raised": 3.146548986,
+          "direct_cublas": 3.144820929
+        }
+      },
+      "maxabs_cpu": 5.06639481e-06,
+      "maxabs_vendor": 0.0
+    },
+    "pointwise": {
+      "cases": 4,
+      "correct": true,
+      "paper_ms": {
+        "residual_add": {
+          "raised": 0.060480833,
+          "legacy_cudnn_graph": 0.05849719
+        },
+        "swiglu": {
+          "raised": 0.064065218,
+          "legacy_cudnn_graph": 0.061825037
+        }
+      },
+      "maxabs_cpu": 9.31322575e-10,
+      "maxabs_vendor": 0.0
+    },
+    "rms": {
+      "cases": 6,
+      "correct": true,
+      "paper_ms": {
+        "attention_rmsnorm": {
+          "raised": 0.062914133,
+          "legacy_cudnn_norm": 0.058945179
+        },
+        "ffn_rmsnorm": {
+          "raised": 0.06633687,
+          "legacy_cudnn_norm": 0.062657118
+        },
+        "final_rmsnorm": {
+          "raised": 0.064450026,
+          "legacy_cudnn_norm": 0.060289145
+        }
+      },
+      "maxabs_cpu": 4.47034836e-08,
+      "maxabs_vendor": 0.0
+    },
+    "copy": {
+      "cases": 4,
+      "correct": true,
+      "paper_ms": {
+        "token_embedding": {
+          "raised": 0.031360149,
+          "direct_cublas": 0.028928995
+        },
+        "kv_cache_rw": null
+      },
+      "maxabs_cpu": 0.0,
+      "maxabs_vendor": 0.0
+    }
+  },
+  "remaining": {
+    "remaining_original_sites": [
+      {
+        "sites": [
+          "rope_interleaved",
+          "rope_split"
+        ],
+        "genuine_reference": "third_party/ggml/src/ggml-cpu/ops.cpp:rotate_pairs<float>",
+        "gap": "Reference uses interleaved cos/sin cache and one row; applications use two separately indexed tables across heads. Existing common matcher does not synthesize the required data-layout packing or batched API adapter. cuBLAS SROT instead shares scalar c/s across its vector and updates x/y in place. No eligible reference/typed CUDA binding proves either complete site."
+      },
+      {
+        "sites": [
+          "attention_mask_if",
+          "attention_mask_select"
+        ],
+        "genuine_reference": "third_party/ggml/src/ggml-cpu/ops.cpp:ggml_compute_forward_diag_mask_inf",
+        "gap": "Public ggml operation masks with negative infinity, while fixtures use finite -FLT_MAX. Substituting it would change program semantics. The current generic cuDNN adapter handles identity pointwise rows, not index generation, comparisons and selection; an equivalent finite-fill reference and an indexed typed adapter remain needed."
+      }
+    ],
+    "whole_inference_limit": "Fresh source build emits 16 proven imported-library calls. All 32,000 logits exactly equal actual ggml CUDA. Four split-head rank-three Q/K projections still execute generic GPU code because imported SGEMV bodies have rank-two arrays. Synchronized resident minimum is 15.472811937 ms versus expert 9.703 ms, so reported performance is not yet recovered.",
+    "files": {
+      "third_party/cnn-extracted/llama_forward_ops.c": "d3418261c839f9f768c3a6f03943d0e70dd48ba085c2bbfb7c7b2ad492fbc5e4",
+      "third_party/cnn-extracted/llama2_extended_forward_bench.c": "d25bba69cd274053e2e19e2107b9468337d10b5961cb70cde42ceb88d5ce9f83",
+      "third_party/ggml/src/ggml-cpu/ops.cpp": "54062e031f4c42a8ec95d4ffac1e43020e78e6e51f64d0d7de5df2caa64ce220",
+      "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/rot.c": "3805532a53c18733e470cda8e87f35f1f3ed418873b735b3e9cc94cf2794587c"
+    },
+    "projection_follow_up": "Existing upstream MLIR dimension-collapse patterns alone are insufficient: raised polygeist.submap views broadcast operands over the loop space, so compatible reshape propagation through these views must also be proved generically. An alternative is a validated equivalent batched GEMV reference, typed 64-bit batch strides and declarative three-dimensional layout binding. Neither is implemented or claimed here.",
+    "original_cpu_output_comparison": "Fresh GPU versus fresh original CPU has maximum absolute error 0.0051174 and 7,922 failures at atol=0.001 and rtol=0.0001. GPU versus real ggml expert has zero error over 32,000 logits. Historical FP64 oracle is retained as context, not freshly rerun."
+  },
+  "scope": "15/19 isolated sites;14 complete and KV-cache partial. Whole inference is correct against expert but slower. No commit or push by this agent. Subsequent root ATen work may extend live catalog; captured snapshot defines this result."
+}

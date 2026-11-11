@@ -1,0 +1,40 @@
+{
+  "routine": "aten_div",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/BinaryOpsKernel.cpp",
+      "sha256": "debaeadf5a64ee11090b2baff9fc1086775c8761f316965c819d95da77cb8269"
+    }
+  ],
+  "adaptation": "",
+  "specs": [
+    {
+      "name": "aten_div_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "b",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

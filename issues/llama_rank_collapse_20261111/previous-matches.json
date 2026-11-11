@@ -1,0 +1,260 @@
+[
+  {
+    "suite": "polybench",
+    "name": "atax",
+    "previous": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_n_beta0"
+    ],
+    "current": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_n_beta0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "bicg",
+    "previous": [
+      "openblas_dgemv_n_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "current": [
+      "openblas_dgemv_n_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "3mm",
+    "previous": [
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0"
+    ],
+    "current": [
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "cholesky",
+    "previous": [
+      "netlib_dpotf2_u"
+    ],
+    "current": [
+      "netlib_dpotf2_u"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "2mm",
+    "previous": [
+      "openblas_dgemm_nn"
+    ],
+    "current": [
+      "openblas_dgemm_nn"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "correlation",
+    "previous": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "current": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "covariance",
+    "previous": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "current": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "doitgen",
+    "previous": [
+      "openblas_dgemv_n_beta0"
+    ],
+    "current": [
+      "openblas_dgemv_n_beta0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "gemm",
+    "previous": [
+      "openblas_dgemm_nn"
+    ],
+    "current": [
+      "openblas_dgemm_nn"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "gemver",
+    "previous": [
+      "openblas_dgemv_n_beta1",
+      "openblas_daxpy",
+      "openblas_dgemv_t_beta1"
+    ],
+    "current": [
+      "openblas_dgemv_n_beta1",
+      "openblas_daxpy",
+      "openblas_dgemv_t_beta1"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "gesummv",
+    "previous": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "current": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "ludcmp",
+    "previous": [
+      "netlib_dtrsv_ltn"
+    ],
+    "current": [
+      "netlib_dtrsv_ltn"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "mvt",
+    "previous": [
+      "openblas_dgemv_t_beta1",
+      "openblas_dgemv_n_beta1"
+    ],
+    "current": [
+      "openblas_dgemv_t_beta1",
+      "openblas_dgemv_n_beta1"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "symm",
+    "previous": [
+      "netlib_dsymm_ru"
+    ],
+    "current": [
+      "netlib_dsymm_ru"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "syr2k",
+    "previous": [
+      "netlib_dsyr2k_ut"
+    ],
+    "current": [
+      "netlib_dsyr2k_ut"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "syrk",
+    "previous": [
+      "netlib_dsyrk_ut"
+    ],
+    "current": [
+      "netlib_dsyrk_ut"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "trisolv",
+    "previous": [
+      "netlib_dtrsv_utn"
+    ],
+    "current": [
+      "netlib_dtrsv_utn"
+    ],
+    "same": true
+  },
+  {
+    "suite": "polybench",
+    "name": "trmm",
+    "previous": [
+      "netlib_dtrmm_rutu"
+    ],
+    "current": [
+      "netlib_dtrmm_rutu"
+    ],
+    "same": true
+  },
+  {
+    "suite": "aten",
+    "name": "aten_addmm",
+    "previous": [
+      "openblas_dgemm_nn"
+    ],
+    "current": [
+      "openblas_dgemm_nn"
+    ],
+    "same": true
+  },
+  {
+    "suite": "aten",
+    "name": "aten_mm",
+    "previous": [
+      "openblas_dgemm_nn_b0"
+    ],
+    "current": [
+      "openblas_dgemm_nn_b0"
+    ],
+    "same": true
+  },
+  {
+    "suite": "aten",
+    "name": "aten_mv",
+    "previous": [
+      "openblas_dgemv_t_beta1"
+    ],
+    "current": [
+      "openblas_dgemv_t_beta1"
+    ],
+    "same": true
+  },
+  {
+    "suite": "mfem-pcg",
+    "name": "pcg_step",
+    "previous": [
+      "openblas_daxpy"
+    ],
+    "current": [
+      "openblas_daxpy"
+    ],
+    "same": true
+  }
+]

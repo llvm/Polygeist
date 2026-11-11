@@ -1,0 +1,40 @@
+{
+  "routine": "aten_silu_backward",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/Activation.cpp",
+      "sha256": "66cca1278103413ab9c566585004f58213a5f870a4daa07c0bc75bd2f30b19b1"
+    }
+  ],
+  "adaptation": "",
+  "specs": [
+    {
+      "name": "aten_silu_backward_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "dy",
+        "x",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -191,6 +191,8 @@ if __name__ == '__main__':
     parser.add_argument('--stage', choices=['raise', 'debufferize'])
     parser.add_argument('--function')
     parser.add_argument('--whole-program', action='store_true')
+    parser.add_argument('--keep-dependencies', action='store_true',
+                        help='raise the selected entry and its transitive callees')
     args = parser.parse_args()
     if args.stage:
         if not args.input or not args.output or not args.function:
@@ -202,6 +204,8 @@ if __name__ == '__main__':
             cmd = [POLYGEIST_OPT, '--select-func=' + selection, args.input, '-o', args.output]
         elif args.stage == 'raise':
             cmd = PRODUCTION.raise_cmd(args.input, args.function, args.output)
+            if args.keep_dependencies:
+                cmd[1] = '--select-func=func-name=' + args.function
         else:
             cmd = PRODUCTION.debuf_cmd(args.input, args.output)
         result = run_with_legal_input(cmd, args.input, args.output, 300)

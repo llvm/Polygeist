@@ -1,0 +1,42 @@
+{
+  "baseline_vs_expert": {
+    "count": 32000,
+    "max_abs": 0.0,
+    "rms_error": 0.0,
+    "unequal": 0,
+    "strict_failures": 0,
+    "cross_implementation_failures": 0
+  },
+  "candidate_vs_expert": {
+    "count": 32000,
+    "max_abs": 0.0,
+    "rms_error": 0.0,
+    "unequal": 0,
+    "strict_failures": 0,
+    "cross_implementation_failures": 0
+  },
+  "previous_vs_expert": {
+    "count": 32000,
+    "max_abs": 0.0,
+    "rms_error": 0.0,
+    "unequal": 0,
+    "strict_failures": 0,
+    "cross_implementation_failures": 0
+  },
+  "historical_vs_expert": {
+    "count": 32000,
+    "max_abs": 0.0,
+    "rms_error": 0.0,
+    "unequal": 0,
+    "strict_failures": 0,
+    "cross_implementation_failures": 0
+  },
+  "candidate_vs_baseline": {
+    "count": 32000,
+    "max_abs": 0.0,
+    "rms_error": 0.0,
+    "unequal": 0,
+    "strict_failures": 0,
+    "cross_implementation_failures": 0
+  }
+}

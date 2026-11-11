@@ -6,10 +6,46 @@ Status legend: **RAISED** = every loop became `linalg.generic`, the debufferized
 
 Validation columns: `defn` = the debufferized tensor function (what `--lower-kernel-launch` inlines), lowered via `legalize_tensor_submaps.py` + the production residual lowering; `linalg` = the memref-form Linalg before debufferization, lowered with the in-tree loop path (an independent second route).  EXACT = bitwise equal on deterministic random inputs (sizes 7/5/6, padded leading dims 16, increments 2).
 
-Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
+Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 90, UNVALIDATED: 4 (total 140)
 
 | spec | routine | status | generics | residual (debuf) | validation defn / linalg | reason |
 |---|---|---|---:|---|---|---|
+| `aten_abs_f32` | aten_abs | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_acos_f32` | aten_acos | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_acosh_f32` | aten_acosh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_add_f32` | aten_add | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_asin_f32` | aten_asin | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_asinh_f32` | aten_asinh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_atan_f32` | aten_atan | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_atan2_f32` | aten_atan2 | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_atanh_f32` | aten_atanh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_ceil_f32` | aten_ceil | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_cos_f32` | aten_cos | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_cosh_f32` | aten_cosh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_div_f32` | aten_div | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_erf_f32` | aten_erf | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_exp_f32` | aten_exp | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_floor_f32` | aten_floor | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_leaky_relu_f32` | aten_leaky_relu | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_log_f32` | aten_log | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_mul_f32` | aten_mul | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_neg_f32` | aten_neg | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_pow_f32` | aten_pow | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_reciprocal_f32` | aten_reciprocal | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_rsqrt_f32` | aten_rsqrt | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_scaled_add_f32` | aten_scaled_add | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_sigmoid_f32` | aten_sigmoid | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_sigmoid_backward_f32` | aten_sigmoid_backward | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_silu_f32` | aten_silu | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_silu_backward_f32` | aten_silu_backward | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_sin_f32` | aten_sin | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_sinh_f32` | aten_sinh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_softmax_f32` | aten_softmax | RAISED | 3 | - | EXACT / EXACT |  |
+| `aten_sqrt_f32` | aten_sqrt | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_tan_f32` | aten_tan | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_tanh_f32` | aten_tanh | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_tanh_backward_f32` | aten_tanh_backward | RAISED | 1 | - | EXACT / EXACT |  |
+| `aten_threshold_f32` | aten_threshold | RAISED | 1 | - | EXACT / EXACT |  |
 | `numpy_bincount` | bincount | PARTIAL | 1 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
 | `numpy_bincount_accumulate` | bincount | NOT_RAISED | 0 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for |
 | `numpy_bincount_weights` | bincount | PARTIAL | 1 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
@@ -21,6 +57,8 @@ Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
 | `scipy_csr_matvec_beta0` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 | `scipy_csr_matvec_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 | `scipy_csr_matvec_beta0_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
+| `cutlass_rmsnorm_f32` | cutlass_rmsnorm | RAISED | 2 | - | EXACT / EXACT |  |
+| `cutlass_rmsnorm_parameterized_f32` | cutlass_rmsnorm_parameterized | RAISED | 2 | - | EXACT / EXACT |  |
 | `netlib_dpotf2_u` | dpotf2 | PARTIAL | 3 | affine.for | EXACT / EXACT | 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory accesses) |
 | `netlib_dpotf2_l` | dpotf2 | PARTIAL | 3 | affine.for | EXACT / LOWER_FAIL | 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory accesses) |
 | `netlib_dsymm_lu_beta0` | dsymm | PARTIAL | 2 | affine.for | EXACT / EXACT | 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory accesses) |
@@ -86,6 +124,7 @@ Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
 | `netlib_dtrsv_lnu` | dtrsv | PARTIAL | 1 | affine.for | EXACT / EXACT | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
 | `netlib_dtrsv_ltn` | dtrsv | PARTIAL | 1 | affine.for | LOWER_FAIL / EXACT | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
 | `netlib_dtrsv_ltu` | dtrsv | PARTIAL | 1 | affine.for | LOWER_FAIL / EXACT | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
+| `ggml_swiglu_f32` | ggml_swiglu | RAISED | 1 | - | EXACT / EXACT |  |
 | `openblas_daxpby` | openblas_daxpby | RAISED | 1 | - | EXACT / EXACT |  |
 | `openblas_daxpby_beta0` | openblas_daxpby | RAISED | 1 | - | EXACT / EXACT |  |
 | `openblas_daxpy` | openblas_daxpy | RAISED | 1 | - | EXACT / EXACT |  |
@@ -105,6 +144,11 @@ Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
 | `openblas_dgemv_t` | openblas_dgemv | RAISED | 2 | - | WITHIN_1e-12 / WITHIN_1e-12 |  |
 | `openblas_dger` | openblas_dger | RAISED | 1 | - | EXACT / LOWER_FAIL |  |
 | `openblas_dscal` | openblas_dscal | RAISED | 1 | - | EXACT / EXACT |  |
+| `openblas_scopy_f32` | openblas_scopy | RAISED | 1 | - | EXACT / EXACT |  |
+| `openblas_sgemm_nn_m1_b0_alpha1` | openblas_sgemm | RAISED | 2 | - | EXACT / EXACT |  |
+| `openblas_sgemv_n_beta0_alpha1` | openblas_sgemv | RAISED | 2 | - | EXACT / LOWER_FAIL |  |
+| `openblas_sgemv_t_beta0_alpha1` | openblas_sgemv | RAISED | 2 | - | EXACT / EXACT |  |
+| `openblas_somatcopy_f32` | openblas_somatcopy | RAISED | 1 | - | EXACT / EXACT |  |
 | `sparskit_amux` | sparskit_amux | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 
 ## Minimal reproducers for non-RAISED specs

@@ -1,0 +1,39 @@
+{
+  "routine": "aten_acosh",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/cpu/vec/vec_base.h",
+      "sha256": "58ec91e4c6782ef7d9c9f90e4177d8bb5fffc24b667891559817eb7a97f4802a"
+    }
+  ],
+  "adaptation": "Generic vector map applies the pinned scalar std function per FP32 lane; cuTENSOR opcode binding is trusted and separately tested.",
+  "specs": [
+    {
+      "name": "aten_acosh_f32",
+      "target": {
+        "library": "cuTENSOR",
+        "call": "cutensorPermute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "unary_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+[
+  {
+    "name": "abs",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_abs_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 5752.304
+  },
+  {
+    "name": "neg",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_neg_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2889.592
+  },
+  {
+    "name": "exp",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_exp_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2808.17
+  },
+  {
+    "name": "log",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_log_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2848.115
+  },
+  {
+    "name": "sqrt",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_sqrt_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2861.935
+  },
+  {
+    "name": "reciprocal",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_reciprocal_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 3008.902
+  },
+  {
+    "name": "sin",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_sin_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2840.314
+  },
+  {
+    "name": "cos",
+    "n": 4096,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_cos_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2968.955
+  },
+  {
+    "name": "tanh",
+    "n": 256,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_tanh_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2940.05
+  },
+  {
+    "name": "sigmoid",
+    "n": 256,
+    "build_rc": 0,
+    "numeric_model": "strict",
+    "pipeline": "imported-specifications-only",
+    "emitted": [
+      "aten_sigmoid_f32"
+    ],
+    "backend": "cuda",
+    "spec_suite": "lib_v3",
+    "elapsed_ms": 2854.225
+  }
+]

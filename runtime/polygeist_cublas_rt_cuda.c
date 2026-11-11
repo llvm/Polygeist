@@ -156,6 +156,16 @@ static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
 static int            g_atexit_registered = 0;
 static int            g_pipeline_depth = 0;
+static int            g_require_gpu_libraries = 0;
+
+void polygeist_require_gpu_libraries_begin(void) {
+  ++g_require_gpu_libraries;
+}
+
+void polygeist_require_gpu_libraries_end(void) {
+  if (g_require_gpu_libraries <= 0) abort();
+  --g_require_gpu_libraries;
+}
 static int            g_timing_enabled = -1;
 static FILE          *g_timing_file = NULL;
 
@@ -1459,7 +1469,10 @@ static int make_bool_backend_tensor_ex(
     *last_status = status;
     return 0;
   }
-  cudnnDataType_t dtype = CUDNN_DATA_BOOLEAN;
+  // Comparisons and logical operators produce exact 0/1 values. Keep these
+  // virtual intermediates in byte storage: packed BOOLEAN tensors fail
+  // cuDNN 9.25.1 runtime compilation on the tested CUDA target.
+  cudnnDataType_t dtype = CUDNN_DATA_INT8;
   int64_t alignment = 1;
   if (!set_backend_attr(*desc, CUDNN_ATTR_TENSOR_DATA_TYPE,
                         CUDNN_TYPE_DATA_TYPE, 1, &dtype, name, last_status) ||
@@ -9252,29 +9265,31 @@ struct rmsnorm_f32_plan {
   int32_t n;
   size_t bytes;
   float epsilon;
-  float *x, *weight, *bias, *out;
+  float *x, *weight, *out;
   void *workspace;
-  cudnnBackendDescriptor_t x_desc, weight_desc, bias_desc, epsilon_desc;
+  cudnnBackendDescriptor_t x_desc, weight_desc, epsilon_desc;
   cudnnBackendDescriptor_t out_desc, norm_op, op_graph;
   cudnnBackendDescriptor_t heur, engine_cfg, plan, variant_pack;
 };
 
 static struct rmsnorm_f32_plan g_rmsnorm_f32_cache[RMSNORM_F32_CACHE_CAP];
 
-static struct rmsnorm_f32_plan *find_rmsnorm_f32_plan(int32_t n) {
+static struct rmsnorm_f32_plan *find_rmsnorm_f32_plan(int32_t n, float epsilon) {
   for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i)
-    if (g_rmsnorm_f32_cache[i].in_use && g_rmsnorm_f32_cache[i].n == n)
+    if (g_rmsnorm_f32_cache[i].in_use && g_rmsnorm_f32_cache[i].n == n &&
+        memcmp(&g_rmsnorm_f32_cache[i].epsilon, &epsilon, sizeof(epsilon)) == 0)
       return &g_rmsnorm_f32_cache[i];
   return NULL;
 }
 
-static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t n) {
+static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t n, float epsilon) {
   for (int i = 0; i < RMSNORM_F32_CACHE_CAP; ++i) {
     struct rmsnorm_f32_plan *p = &g_rmsnorm_f32_cache[i];
     if (!p->in_use) {
       memset(p, 0, sizeof(*p));
       p->in_use = 1;
       p->n = n;
+      p->epsilon = epsilon;
       return p;
     }
   }
@@ -9285,27 +9300,22 @@ static struct rmsnorm_f32_plan *alloc_rmsnorm_f32_plan(int32_t n) {
 static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
   cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
   p->bytes = (size_t)p->n * sizeof(float);
-  p->epsilon = 1.0e-5f;
   // The variant pack retains these addresses across pipeline invocations.
   // They must not belong to the per-invocation temporary allocation pool.
   CUDA_CHECK(cudaMalloc((void **)&p->x, p->bytes));
   CUDA_CHECK(cudaMalloc((void **)&p->weight, p->bytes));
-  CUDA_CHECK(cudaMalloc((void **)&p->bias, p->bytes));
   CUDA_CHECK(cudaMalloc((void **)&p->out, p->bytes));
-  CUDA_CHECK(cudaMemsetAsync(p->bias, 0, p->bytes, g_stream));
 
   int64_t dims[4] = {1, p->n, 1, 1};
   int64_t strides[4] = {p->n, 1, 1, 1};
   int64_t scalar_dims[4] = {1, 1, 1, 1};
   int64_t scalar_strides[4] = {1, 1, 1, 1};
-  int64_t uid_x = 'x', uid_weight = 's', uid_bias = 'b';
+  int64_t uid_x = 'x', uid_weight = 's';
   int64_t uid_epsilon = 'e', uid_out = 'y';
   if (!make_f32_backend_tensor(&p->x_desc, uid_x, dims, strides, 4, false,
                                "rmsnorm.x", &status) ||
       !make_f32_backend_tensor(&p->weight_desc, uid_weight, dims, strides, 4,
                                false, "rmsnorm.weight", &status) ||
-      !make_f32_backend_tensor(&p->bias_desc, uid_bias, dims, strides, 4,
-                               false, "rmsnorm.bias", &status) ||
       !make_f32_backend_tensor(&p->epsilon_desc, uid_epsilon, scalar_dims,
                                scalar_strides, 4, true, "rmsnorm.epsilon",
                                &status) ||
@@ -9330,9 +9340,6 @@ static int build_rmsnorm_f32_plan(struct rmsnorm_f32_plan *p) {
       !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
                         CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->weight_desc,
                         "rmsnorm.weight_desc", &status) ||
-      !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
-                        CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->bias_desc,
-                        "rmsnorm.bias_desc", &status) ||
       !set_backend_attr(p->norm_op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
                         CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &p->epsilon_desc,
                         "rmsnorm.epsilon_desc", &status) ||
@@ -9414,14 +9421,16 @@ rms_heur_cleanup:
   status = cudnnBackendCreateDescriptor(
       CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->variant_pack);
   if (status != CUDNN_STATUS_SUCCESS) return 0;
-  int64_t uids[5] = {uid_x, uid_weight, uid_bias, uid_epsilon, uid_out};
-  void *ptrs[5] = {p->x, p->weight, p->bias, &p->epsilon, p->out};
+  // RMSNorm has no additive bias. Supplying +0 changes negative zero to +0
+  // and adds work absent from the imported reference; cuDNN permits omission.
+  int64_t uids[4] = {uid_x, uid_weight, uid_epsilon, uid_out};
+  void *ptrs[4] = {p->x, p->weight, &p->epsilon, p->out};
   return set_backend_attr(
              p->variant_pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
-             CUDNN_TYPE_VOID_PTR, 5, ptrs, "rmsnorm.variant.ptrs", &status) &&
+             CUDNN_TYPE_VOID_PTR, 4, ptrs, "rmsnorm.variant.ptrs", &status) &&
          set_backend_attr(
              p->variant_pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
-             CUDNN_TYPE_INT64, 5, uids, "rmsnorm.variant.uids", &status) &&
+             CUDNN_TYPE_INT64, 4, uids, "rmsnorm.variant.uids", &status) &&
          set_backend_attr(
              p->variant_pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
              CUDNN_TYPE_VOID_PTR, 1, &p->workspace,
@@ -9432,16 +9441,29 @@ rms_heur_cleanup:
 
 void polygeist_rmsnorm_f32(
     int32_t n, const float *x, const float *weight, float *out) {
+  polygeist_rmsnorm_f32_epsilon(n, x, weight, out, 1.0e-5f);
+}
+
+void polygeist_rmsnorm_f32_epsilon(
+    int32_t n, const float *x, const float *weight, float *out, float epsilon) {
   if (n <= 0) return;
+  if (!isfinite(epsilon) || epsilon <= 0.0f) {
+    fprintf(stderr, "polygeist runtime: RMSNorm requires finite positive epsilon\n");
+    abort();
+  }
   polygeist_cublas_init();
   ensure_cudnn();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
-  struct rmsnorm_f32_plan *p = find_rmsnorm_f32_plan(n);
+  struct rmsnorm_f32_plan *p = find_rmsnorm_f32_plan(n, epsilon);
   if (!p) {
-    p = alloc_rmsnorm_f32_plan(n);
+    p = alloc_rmsnorm_f32_plan(n, epsilon);
     if (!build_rmsnorm_f32_plan(p)) p->unsupported = 1;
   }
   if (p->unsupported) {
+    if (g_require_gpu_libraries) {
+      fprintf(stderr, "polygeist runtime: required cuDNN RMSNorm plan unavailable\n");
+      abort();
+    }
     if (g_active_cuda_graph) {
       fprintf(stderr, "polygeist runtime: RMSNorm is not CUDA-Graph safe "
                       "without a cuDNN execution plan\n");
@@ -9450,7 +9472,7 @@ void polygeist_rmsnorm_f32(
     sync_stream_if_outside_pipeline();
     float ss = 0.0f;
     for (int32_t i = 0; i < n; ++i) ss += x[i] * x[i];
-    float scale = 1.0f / sqrtf(ss / (float)n + 1.0e-5f);
+    float scale = 1.0f / sqrtf(ss / (float)n + epsilon);
     for (int32_t i = 0; i < n; ++i) out[i] = weight[i] * x[i] * scale;
     timing_host_only("hostRmsNorm_f32", n, 1, 0, host_start_ms);
     return;
@@ -10011,6 +10033,10 @@ void polygeist_cudnn_pointwise_graph_f32(
     }
   }
   if (!p || p->unsupported) {
+    if (g_require_gpu_libraries) {
+      fprintf(stderr, "polygeist runtime: required cuDNN pointwise plan unavailable\n");
+      abort();
+    }
     if (graph_diagnostics)
       fprintf(stderr,
               "polygeist runtime: generic cuDNN pointwise graph fallback "
@@ -10895,10 +10921,13 @@ void polygeist_cutensor_unary_f32(
   cutensorPlanPreference_t preference = NULL;
   cutensorPlan_t plan = NULL;
   CUTENSOR_CHECK(cutensorCreate(&handle));
+  uint32_t input_alignment = 128, output_alignment = 128;
+  while ((uintptr_t)dx % input_alignment) input_alignment >>= 1;
+  while ((uintptr_t)dout % output_alignment) output_alignment >>= 1;
   CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &desc_x, 1, extent, stride, CUDA_R_32F, 128));
+      handle, &desc_x, 1, extent, stride, CUDA_R_32F, input_alignment));
   CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &desc_out, 1, extent, stride, CUDA_R_32F, 128));
+      handle, &desc_out, 1, extent, stride, CUDA_R_32F, output_alignment));
   CUTENSOR_CHECK(cutensorCreatePermutation(
       handle, &operation, desc_x, mode, cutensor_unary_operator(op),
       desc_out, mode, CUTENSOR_COMPUTE_DESC_32F));

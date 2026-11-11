@@ -12,9 +12,10 @@ Used by BOTH matchers so they accept exactly the same literal bindings:
 
 Rules (no routine knowledge; per-routine facts come only from the manifest):
   1. the value must be finite;
-  2. a float literal 0.0 is never bound: it deletes every product it multiplies,
-     so the spec would drop reads whose NaN/Inf the application does not
-     propagate (and the library carries explicit alpha0/beta0 specs);
+  2. a float literal 0.0 is rejected unless the caller proves every use is
+     a comparison or selected value. Multiplicative zeros can delete reads
+     whose NaN/Inf the application must propagate; BLAS carries explicit
+     alpha0/beta0 specs for that different behavior;
   3. the value must satisfy every relational assumption the manifest entry
      states about that parameter (`alpha != 0`, `beta != 0 and beta != 1`,
      `incx > 0`, `incx == 1`, ...).
@@ -40,7 +41,20 @@ _OPS = {"==": lambda a, b: a == b, "!=": lambda a, b: a != b, ">=": lambda a, b:
         "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, "<": lambda a, b: a < b}
 
 
-def literal_ok(entry: dict, cname: str, value: float, kind: str = "float") -> tuple[bool, str]:
+def zero_preserves_reads(operations, ssa_name: str) -> bool:
+    """Conservative use proof over the imported body, with no routine names.
+
+    Comparison operands and selected values cannot annihilate tensor reads.
+    Unknown uses, arithmetic, and forwarding through other operations reject.
+    Container free uses are represented by their nested direct users.
+    """
+    users = [op for op in operations if ssa_name in op.operands]
+    return bool(users) and all(op.name in ("arith.cmpf", "arith.select")
+                               for op in users)
+
+
+def literal_ok(entry: dict, cname: str, value: float, kind: str = "float",
+               *, zero_read_preserving: bool = False) -> tuple[bool, str]:
     """(allowed, reason).  kind is 'float' or 'int'."""
     try:
         v = float(value)
@@ -48,7 +62,7 @@ def literal_ok(entry: dict, cname: str, value: float, kind: str = "float") -> tu
         return False, f"{cname}: literal {value!r} is not numeric"
     if not math.isfinite(v):
         return False, f"{cname}: non-finite literal"
-    if kind == "float" and v == 0.0:
+    if kind == "float" and v == 0.0 and not zero_read_preserving:
         return False, f"{cname} := 0.0 would delete reads (NaN/Inf semantics differ)"
     for op, w in assumption_constraints(entry).get(cname, []):
         if not _OPS[op](v, w):

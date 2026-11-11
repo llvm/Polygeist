@@ -1,0 +1,133 @@
+ATen remaining v3 recovery — started 2026-11-11
+
+Authorized scope: proceed directly from existing pinned application fixtures
+to reusable library imports, shared raising/equality-saturation fixes and typed
+library emission. Do not start with a whole-corpus inventory/sweep or re-extract
+existing fixtures. Targeted build/match/execution checks accompany each family.
+
+Current milestone: remaining pointwise operations and parameterized activation
+references. Existing first-ten results are frozen under aten_first10_20261111.
+Next families: reductions/scans/normalizations; dense/batched linear algebra,
+convolution/pooling; layout/indexing/sparse operations where supported.
+
+Architecture: genuine or explicitly identified equivalent reference source ->
+production raising -> v3 imported MLIR -> shared matchers -> typed backend.
+No application-name recognizers, handwritten matcher formulas, mixed-precision
+equivalence claims, or CPU fallbacks counted as GPU. cuDNN opcode graphs use
+ATen references plus a trusted/tested backend binding, not cuDNN source import.
+
+Paper targets remain 271/598 overall coverage, 28/52 native-library cases, and
+115 non-elementwise comparisons against actual ATen CUDA. Pointwise direct
+cuDNN timings do not satisfy that Figure 5 baseline requirement.
+
+All work remains uncommitted. Shared production edits are coordinated with
+the Llama agent; completed Llama/PolyBench binaries and proof snapshots remain
+untouched. GPU timing windows are serialized on Orin.
+
+Pointwise milestone (2026-11-11): 16 reusable FP32 references imported; all
+16 source-to-raised stages validated and typed cuDNN graph contracts accepted.
+14 of 17 selected existing fixtures match under the strict numeric model.
+Square reuses the multiplication reference through the region matcher.
+80 shared Python tests pass. Local GPU builds and 22 previous application
+match regressions are still running. Early GPU checks exposed a genuine
+cuDNN tan accuracy gap near poles (two of 4096 normal values exceed the
+declared 1e-5 + 1e-4*abs(reference) tolerance; generated output agrees exactly
+with direct cuDNN). It will not be counted as validated GPU correctness.
+Remaining selected gaps: threshold zero-literal policy; leaky_relu >= versus
+upstream > semantics; rank-four in-place add shape and dataflow handling.
+Root owns shared view/collapse/reshape and SGEMM work; coordinate changes.
+
+Frozen pointwise milestone: all 14 matched fixtures built; 13/14 pass both
+normal and edge GPU checks and have synchronized resident timing pairs.
+Tan alone fails normal CPU-reference tolerance (2/4096), while all 14 agree
+with direct cuDNN. All 80 shared tests, all 22 previous application matches,
+and generated-runtime --check pass. These are targeted results, not a fresh
+598-case coverage claim or native ATen CUDA Figure 5 timings.
+Compiler backup for this milestone: issues/llama_rank_collapse_20261111/bin-before.
+Shared source/catalog/compiler and Orin reservations released to root.
+Subsequent source changes do not alter the frozen results.
+
+Next family in progress: eight more pinned unary references (acos/acosh/asin/
+asinh/atan/atanh/cosh/sinh), all freshly RAISED in the coordinated 139-spec
+import and all eight cuTENSOR typed bindings accepted. Added generic pure
+scalar-call declaration preservation to the importer; added typed cuTENSOR
+primitive lowering and corrected descriptor alignment for offset device
+pointers. Six focused safety tests pass. Awaiting root's shared proof/build
+freeze before application matching and GPU execution.
+
+One standalone runtime-generation import-path regression was caught before
+GPU execution: pointwise_graph imported kernel_match before its helper
+initialized the parent import path. Current frozen builds explicitly set
+PYTHONPATH; the two-line source reorder is queued for the next coordinated
+refresh. No change to generated computational semantics.
+
+2026-11-11 frozen follow-up: all 94 shared Python tests pass. All eight
+cuTENSOR application fixtures now match under strict semantics; builds are
+in progress. Threshold backward matches the reusable threshold reference
+with the generic comparison/select zero-literal proof and its GPU binary
+is built. GPU execution waits for root's serialized Llama timing window.
+The cuTENSOR build batch is temporarily paused after its first binary so
+root can fix a generic collapse-shape result-type parser issue; refreshed
+proofs will record the subsequent stable source hashes.
+
+GPU follow-up: acos, acosh and asin pass all normal/edge full-array, input
+and guard checks in host and resident modes, and have synchronized direct
+cuTENSOR timing pairs. Threshold matching/build succeeds but cuDNN 9.25.1
+runtime compilation fails before any vendor execution. Required-library
+mode aborts; no fallback counted. Explicit scalar broadcast through a
+cuDNN identity graph did not resolve the backend compiler failure. Detailed
+cuDNN logs and isolated diagnostics are retained. Remaining unary binaries
+are being built; root identified and is fixing a separate generic macro-
+type parser regression affecting two old PolyBench region matches.
+
+Threshold failure isolated: changing only the vendor's virtual boolean
+storage from packed CUDNN_DATA_BOOLEAN to CUDNN_DATA_INT8 makes the original
+two-node comparison/select graph compile. The diagnostic binary executes
+the already-proved replacement and passes all eight full checks exactly
+(normal/edge x two threshold values x host/resident). No arithmetic rules,
+reference formulas, fixtures or tolerances changed. This generic backend
+fix is queued for the next stable source refresh.
+
+All eight cuTENSOR unary cases now pass normal/edge GPU correctness and
+resident timings; first five and last three source snapshots are preserved.
+Root's shared 104-test and 22-case prior coverage checks passed before this
+refresh. Integrated generic INT8 virtual-boolean storage, runtime CLI import
+ordering, TAN's equivalent cuTENSOR primitive binding, and the parameterized
+CUTLASS RMSNorm reference/API. Existing default-epsilon RMSNorm wrapper and
+reference remain intact. Full 140-reference source reimport begins next;
+new production proofs, GPU builds/checks and shared regressions follow.
+
+140-reference/54-call production refresh completed. All 108 shared Python
+checks and generated-runtime --check pass. The 22 previous application match
+checks are still running (correlation and covariance both retain coverage).
+Fresh threshold_backward and TAN production builds now pass normal/edge,
+full-array/input/guard GPU checks and timing pairs. 33 unique targeted cases
+are fully GPU validated across this campaign and the original first ten.
+
+Parameterized RMSNorm raises/matches/builds and passes normal inputs, but
+its edge checks found 21 signed-zero differences caused by the runtime's
+unnecessary +0 bias input. An isolated runtime that omits cuDNN RMSNorm's
+optional bias passes all normal/edge checks at both epsilon values and the
+legacy default-epsilon wrapper checks. Production integration and rerun
+are pending the current regression snapshot; no failed edge result is
+counted as complete. Original logs and before-fix source hashes are saved.
+
+The refresh regression finished: all 22 prior matches pass (18 PolyBench,
+three ATen, one MFEM), plus all 108 Python tests and generated-runtime check.
+Optional-bias removal is now integrated; the fresh RMSNorm proof/build pass.
+Production normal/edge/legacy GPU validation is running, followed by a full
+Llama runtime-only regression using frozen validated compiler objects.
+All earlier artifacts remain untouched; current hashes are saved separately.
+
+Commit boundary, 2026-11-11: 34 unique targeted GPU cases are complete.
+Production RMSNorm passes normal/finite-edge/two-epsilon/legacy/timing checks.
+Full Llama runtime regression has 32,000 exact logits against both previous
+candidate and expert, with minima 11.241248131 ms before / 11.229056358 after.
+The 108-test suite and 22 prior matches passed before this runtime-only fix.
+
+Paused at root's requested commit boundary. Unfinished in-place-add changes
+were saved completely under inplace-wip-saved/ (five modified sources, three
+new tests, patch, manifests, binaries). Validated production sources and both
+compiler binaries are restored; all 169 snapshot hashes match, and the WIP
+patch reapplies cleanly. Do not commit inplace-wip-saved or diagnostic binaries.
+Await root's commit completion before reapplying/continuing.

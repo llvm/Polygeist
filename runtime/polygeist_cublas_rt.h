@@ -141,6 +141,10 @@ void polygeist_custen_stencil2d_xy_f64(
 // instead of changing every per-kernel shim ABI.
 void polygeist_cublas_pipeline_begin(void);
 void polygeist_cublas_pipeline_end(void);
+// Imported GPU-only bindings reject unsupported vendor plans instead of
+// entering a legacy CPU fallback. Nesting follows the existing thread model.
+void polygeist_require_gpu_libraries_begin(void);
+void polygeist_require_gpu_libraries_end(void);
 
 // Optional CUDA Graph scope. The compiler only emits these calls around shims
 // marked `polygeist.cuda_graph_safe`. begin returns nonzero when the enclosed
@@ -831,8 +835,13 @@ void polygeist_cudnn_conv_bn_relu_fused(
 
 // llama2.c RMSNorm, FP32:
 //   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
+/* POLYGEIST_VENDOR_ADAPTER cuDNN cudnnBackendExecute */
 void polygeist_rmsnorm_f32(
     int32_t N, const float *X, const float *Weight, float *Out);
+// Parameterized RMSNorm: finite positive Epsilon is retained by each plan.
+/* POLYGEIST_VENDOR_ADAPTER cuDNN cudnnBackendExecute */
+void polygeist_rmsnorm_f32_epsilon(
+    int32_t N, const float *X, const float *Weight, float *Out, float Epsilon);
 // cuDNN backend operation graph: Out = relu(alpha * X + Bias).
 void polygeist_cudnn_pointwise_affine_relu_f32(
     int32_t N, float alpha, const float *X, const float *Bias, float *Out);

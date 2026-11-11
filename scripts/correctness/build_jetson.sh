@@ -189,6 +189,10 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   # outlining pipeline: first to expose copies/injective write-backs, then to
   # register mapped bases and mark launches capture-safe.
   GPU_FN=$POLYGEIST_GPU_RESIDUAL_FUNCTION
+  GPU_PREPARE_ARGS="function=${GPU_FN}"
+  if [ "${POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS:-0}" != "0" ]; then
+    GPU_PREPARE_ARGS="$GPU_PREPARE_ARGS assume-no-alias=true"
+  fi
   GPU_ARCH=${POLYGEIST_GPU_ARCH:-sm_87}
   $MLIR_OPT --empty-tensor-to-alloc-tensor \
     --one-shot-bufferize=bufferize-function-boundaries \
@@ -198,7 +202,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   # still explicit. Planning them into globals first would hide the closed
   # copy chain and make full KV-cache/activation round trips permanent.
   $POLYGEIST_OPT \
-    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    "--prepare-gpu-residual-pipeline=${GPU_PREPARE_ARGS}" \
     $WORK/bufferized.mlir -o $WORK/bufferized_prepared.mlir
   mv $WORK/bufferized_prepared.mlir $WORK/bufferized.mlir
   if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
@@ -210,12 +214,12 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
     mv $WORK/bufferized_persistent.mlir $WORK/bufferized.mlir
   fi
   $POLYGEIST_OPT \
-    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    "--prepare-gpu-residual-pipeline=${GPU_PREPARE_ARGS}" \
     $WORK/bufferized.mlir -o $WORK/gpu_prepared.mlir
   $MLIR_OPT --convert-linalg-to-parallel-loops \
     $WORK/gpu_prepared.mlir -o $WORK/gpu_parallel.mlir
   $POLYGEIST_OPT \
-    "--prepare-gpu-residual-pipeline=function=${GPU_FN} tile-size=256" \
+    "--prepare-gpu-residual-pipeline=${GPU_PREPARE_ARGS} tile-size=256" \
     $WORK/gpu_parallel.mlir -o $WORK/gpu_tiled.mlir
   $MLIR_OPT --gpu-map-parallel-loops --convert-parallel-loops-to-gpu \
     --gpu-kernel-outlining \
@@ -223,7 +227,7 @@ if [ -n "${POLYGEIST_GPU_RESIDUAL_FUNCTION:-}" ]; then
   $POLYGEIST_OPT --merge-gpu-modules \
     $WORK/gpu_outlined.mlir -o $WORK/gpu_merged.mlir
   $POLYGEIST_OPT \
-    "--prepare-gpu-residual-pipeline=function=${GPU_FN}" \
+    "--prepare-gpu-residual-pipeline=${GPU_PREPARE_ARGS}" \
     $WORK/gpu_merged.mlir -o $WORK/gpu_registered.mlir
   GRAPH_INPUT=$WORK/gpu_registered.mlir
   if [ "${POLYGEIST_INLINE_GPU_ENTRY_CALLS:-0}" != "0" ]; then

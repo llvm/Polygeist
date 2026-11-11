@@ -1,0 +1,23 @@
+polybench atax PASS
+polybench bicg PASS
+polybench 3mm PASS
+polybench cholesky PASS
+polybench 2mm PASS
+polybench correlation PASS
+polybench covariance PASS
+polybench doitgen PASS
+polybench gemm PASS
+polybench gemver PASS
+polybench gesummv PASS
+polybench ludcmp PASS
+polybench mvt PASS
+polybench symm PASS
+polybench syr2k PASS
+polybench syrk PASS
+polybench trisolv PASS
+polybench trmm PASS
+aten aten_addmm PASS
+aten aten_mm PASS
+aten aten_mv PASS
+mfem-pcg pcg_step PASS
+PASS 22 previously successful application matches retained

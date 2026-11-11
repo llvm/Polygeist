@@ -1,0 +1,40 @@
+{
+  "routine": "aten_pow",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/cpu/vec/vec_base.h",
+      "sha256": "58ec91e4c6782ef7d9c9f90e4177d8bb5fffc24b667891559817eb7a97f4802a"
+    }
+  ],
+  "adaptation": "Vector lane operands renamed to scalar row operands a and b.",
+  "specs": [
+    {
+      "name": "aten_pow_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "b",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

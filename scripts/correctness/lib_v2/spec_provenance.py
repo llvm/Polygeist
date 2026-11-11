@@ -43,7 +43,8 @@ def check(files):
 def write(path, specs, results, recipe, library, compiler_paths):
     here = Path(__file__).resolve().parent
     common = record([here / name for name in (
-        'recipe.py', 'build_lib_v2.py', 'validate_specs.py', 'spec_provenance.py')]
+        'recipe.py', 'build_lib_v2.py', 'validate_specs.py', 'spec_provenance.py',
+        'e2e_v2.py', 'legalize_tensor_submaps.py')]
                     + list(compiler_paths))
     rows = {}
     by_name = {r['spec']: r for r in results}
@@ -51,8 +52,18 @@ def write(path, specs, results, recipe, library, compiler_paths):
         result = by_name[spec.name]
         prefix = path.parent / 'raised' / spec.name
         artifacts = [Path(str(prefix) + ext) for ext in ('.mlir', '_linalg.mlir', '_debuf.mlir')]
+        inputs = [spec.fragment, spec.ref_c]
+        manifest = json.loads(spec.fragment.read_text())
+        upstreams = list(manifest.get('upstream_files', []))
+        if manifest.get('upstream'):
+            upstreams.append(manifest['upstream'])
+        for upstream in upstreams:
+            source = (ROOT / upstream['path']).resolve()
+            if not source.is_relative_to(ROOT) or file_hash(source) != upstream['sha256']:
+                raise ValueError(f'upstream reference changed: {spec.name}')
+            inputs.append(source)
         rows[spec.name] = dict(
-            status=result['status'], inputs=record([spec.fragment, spec.ref_c]),
+            status=result['status'], inputs=record(inputs),
             artifacts=record([p for p in artifacts if p.is_file()]),
             commands=result.get('commands', []),
             recoveries=result.get('recoveries', {}),

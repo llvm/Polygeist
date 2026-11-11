@@ -35,7 +35,7 @@ def c_params(ca: A.CallAbi) -> list[str]:
         if p.tkind in ("enum", "int"):
             out.append(f"int32_t {p.name}")
         elif p.tkind == "scalar":
-            out.append(f"double {p.name}")
+            out.append(f"{p.elem} {p.name}")
         elif p.tkind == "array":
             cq = "const " if not p.written else ""
             out.append(f"{cq}{p.elem} *{p.name}")
@@ -61,6 +61,8 @@ def gen_header(calls) -> str:
 def gen_cpu(calls) -> str:
     out = []
     for ca in calls.values():
+        if "cpu" not in ca.backends:
+            continue
         f = ca.fortran
         abi = {p.name: p for p in ca.params}
         fargs, decl, nchar = [], [], 0
@@ -71,12 +73,12 @@ def gen_cpu(calls) -> str:
             elif a["kind"] in ("int", "info"):
                 fargs.append("const int *" if a["kind"] == "int" else "int *")
             elif a["kind"] == "scalar":
-                fargs.append("const double *")
+                fargs.append(f"const {abi[a['abi']].elem} *")
             elif a["kind"] == "array":
                 p = abi[a["abi"]]
                 fargs.append(("const " if not p.written else "") + f"{p.elem} *")
         fargs += ["polygeist_v2_flen"] * nchar
-        fret = "double" if f["is_function"] else "void"
+        fret = ca.returns if f["is_function"] else "void"
         out.append(f"extern {fret} {f['entry']}({', '.join(fargs)});\n")
         # enum -> CHARACTER converters (only constants some manifest uses)
         for ety, table in sorted(f["enum_chars"].items()):
@@ -119,7 +121,7 @@ def gen_cpu(calls) -> str:
                 body.append(f"  (void){p.name}_bytes;\n")
         call = f"{f['entry']}({', '.join(call_args + lens)})"
         if f["is_function"]:
-            body.append(f"  double polygeist_v2_r = {call};\n")
+            body.append(f"  {ca.returns} polygeist_v2_r = {call};\n")
         else:
             body.append(f"  {call};\n")
         for a in f["args"]:
@@ -140,6 +142,14 @@ def gen_cpu(calls) -> str:
 def gen_cuda(calls) -> str:
     out = []
     for ca in calls.values():
+        if "cuda" not in ca.backends:
+            continue
+        if ca.runtime_adapter:
+            out.append(gen_runtime_adapter_cuda(ca))
+            continue
+        if ca.descriptor_adapter:
+            out.append(gen_descriptor_cuda(ca))
+            continue
         hp = A.resolve_proto(ca.library, ca.call)
         abi = {p.name: p for p in ca.params}
         managed = {m.name: m for m in ca.managed}
@@ -175,7 +185,7 @@ def gen_cuda(calls) -> str:
                 b.append(f"  int *{mg.name} = polygeist_v2_devinfo();\n")
                 expr[mg.name] = mg.name
             elif mg.role == "result":
-                b.append(f"  double {mg.name} = 0;\n")
+                b.append(f"  {ca.returns} {mg.name} = 0;\n")
                 expr[mg.name] = f"&{mg.name}"
         if ca.buffer_size_symbol:
             bargs = []
@@ -202,6 +212,96 @@ def gen_cuda(calls) -> str:
         b.append("}\n\n")
         out.append("".join(b))
     return "".join(out)
+
+
+def gen_runtime_adapter_cuda(ca) -> str:
+    cfg = ca.runtime_adapter
+    extent = cfg['extent_arg']
+    arrays = [p for p in ca.params if p.tkind == 'array']
+    b = [f"{proto(ca)} {{\n",
+         f'  if ({extent} <= 0) polygeist_v2_fatal("{ca.call}", "nonpositive dimension");\n']
+    for p in arrays:
+        b.append(f'  if ({p.layout} != 1 || !{p.name} || {p.name}_bytes < (int64_t){extent} * sizeof(float))\n'
+                 f'    polygeist_v2_fatal("{ca.call}", "runtime adapter requires a contiguous FP32 row");\n')
+    for i,p in enumerate(arrays):
+        for q in arrays[i+1:]:
+            if p.written or q.written:
+                b.append(f'  if (polygeist_v2_overlaps({p.name}, {p.name}_bytes, {q.name}, {q.name}_bytes))\n'
+                         f'    polygeist_v2_fatal("{ca.call}", "runtime adapter requires disjoint output");\n')
+    b += ['  polygeist_v2_map_t pv2_map;\n',
+          f'  polygeist_v2_map_init(&pv2_map, "{ca.call}", "{ca.header_symbol}");\n']
+    for p in arrays:
+        b.append(f'  int pv2_k_{p.name} = polygeist_v2_map_add(&pv2_map, {p.name}, {p.name}_bytes, {int(p.written)});\n')
+    b += ['  polygeist_v2_map_to_device(&pv2_map);\n',
+          '  polygeist_require_gpu_libraries_begin();\n',
+          '  polygeist_cublas_pipeline_begin();\n']
+    if cfg['kind']=='pointwise_reference':
+        graph=cfg['graph']
+        args=[extent]+[str(v)+'LL' for v in graph['words']]+[str(graph['nodes'])]
+        scalar_arguments={index:name for name,index in graph.get('scalar_arguments',{}).items()}
+        args += [scalar_arguments.get(i,repr(float(v))+'f')
+                 for i,v in enumerate(graph['scalars']+[0.0]*(8-len(graph['scalars'])))]
+        args += ['1']*5
+        args += [f'polygeist_v2_map_dev(&pv2_map, pv2_k_{v})' for v in graph['inputs']]+['NULL']*(4-len(graph['inputs']))
+        args += [f'polygeist_v2_map_dev(&pv2_map, pv2_k_{graph["output"]})']
+    elif cfg['kind']=='unary_reference':
+        primitive=cfg['primitive']
+        args=[primitive['opcode'],extent,
+              f'polygeist_v2_map_dev(&pv2_map, pv2_k_{primitive["input"]})',
+              f'polygeist_v2_map_dev(&pv2_map, pv2_k_{primitive["output"]})']
+    else:
+        array_names={p.name for p in arrays}
+        args=[f'polygeist_v2_map_dev(&pv2_map, pv2_k_{v})' if v in array_names else v for v in cfg['ordered_arguments']]
+    b.append(f'  {cfg["entry"]}({", ".join(args)});\n')
+    b += ['  polygeist_cublas_pipeline_end();\n',
+          '  polygeist_require_gpu_libraries_end();\n',
+          '  polygeist_v2_map_to_host(&pv2_map);\n', '}\n\n']
+    return ''.join(b)
+
+
+def gen_descriptor_cuda(ca) -> str:
+    """Marshal an already-selected API using its validated typed contract."""
+    hp = A.resolve_proto(ca.library, ca.call)
+    vendor = ca.descriptor_adapter['vendor_arguments']
+    arrays = [p for p in ca.params if p.tkind == 'array']
+    b = [f"{proto(ca)} {{\n"]
+    for p in ca.params:
+        if p.tkind == 'int' and not p.layout_of:
+            b.append(f'  if ({p.name} <= 0) polygeist_v2_fatal("{ca.call}", "nonpositive descriptor dimension");\n')
+    for p in arrays:
+        d = next(v for v in vendor.values() if v['kind'] == 'tensor4d' and v['array'] == p.name)
+        n = d['dimensions'][3]
+        b.append(f'  if ({p.layout} != 1 || !{p.name} || {p.name}_bytes < (int64_t){n} * sizeof(float))\n'
+                 f'    polygeist_v2_fatal("{ca.call}", "descriptor requires a sufficiently large contiguous FP32 row");\n')
+    for i, p in enumerate(arrays):
+        for q in arrays[i + 1:]:
+            b.append(f'  if (polygeist_v2_overlaps({p.name}, {p.name}_bytes, {q.name}, {q.name}_bytes))\n'
+                     f'    polygeist_v2_fatal("{ca.call}", "descriptor adapter requires nonoverlapping arrays");\n')
+    b += ['  polygeist_v2_map_t pv2_map;\n',
+          f'  polygeist_v2_map_init(&pv2_map, "{ca.call}", "{hp.name}");\n']
+    for p in arrays:
+        b.append(f'  int pv2_k_{p.name} = polygeist_v2_map_add(&pv2_map, {p.name}, {p.name}_bytes, {int(p.written)});\n')
+    b.append('  polygeist_v2_map_to_device(&pv2_map);\n')
+    expr = {}
+    for p in hp.params:
+        v = vendor[p.name]
+        kind = v['kind']
+        if kind == 'handle':
+            expr[p.name] = 'polygeist_v2_cudnn()'
+        elif kind == 'enum':
+            expr[p.name] = v['value']
+        elif kind == 'array':
+            expr[p.name] = f'polygeist_v2_map_dev(&pv2_map, pv2_k_{v["name"]})'
+        elif kind == 'scalar_pointer':
+            b.append(f'  const float pv2_{p.name} = {float(v["value"])}f;\n')
+            expr[p.name] = f'&pv2_{p.name}'
+        elif kind == 'tensor4d':
+            dims = ', '.join(map(str, v['dimensions']))
+            b.append(f'  cudnnTensorDescriptor_t pv2_{p.name} = polygeist_v2_tensor4d({v["format"]}, {v["data_type"]}, {dims});\n')
+            expr[p.name] = f'pv2_{p.name}'
+    b.append(f'  POLYGEIST_V2_CUDNN({hp.name}({", ".join(expr[p.name] for p in hp.params)}));\n')
+    b.append('  polygeist_v2_map_to_host(&pv2_map);\n}\n\n')
+    return ''.join(b)
 
 
 def splice(path: Path, tag: str, body: str) -> str:

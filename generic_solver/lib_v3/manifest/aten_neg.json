@@ -1,0 +1,39 @@
+{
+  "routine": "aten_neg",
+  "source": "Pinned ATen scalar implementation; contiguous FP32 specialization",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/UnaryOpsKernel.cpp",
+      "sha256": "15cf2f206fc3274a2c263ce279984e5a425ac573082032367dd415e747eff637"
+    }
+  ],
+  "specs": [
+    {
+      "name": "aten_neg_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous nonoverlapping FP32 arrays",
+        "errno and floating exception flags are not observed",
+        "floating reorderings require the relaxed model"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -56,12 +56,15 @@ def c_param_kinds(spec: str, fn_args: list[tuple[str, str]], names: list[str],
                 out.append({"kind": "int", "name": nm, "val": 2})
             else:
                 out.append({"kind": "int", "name": nm, "val": next(size_vals)})
-        elif ty == "f64":
-            out.append({"kind": "dbl", "name": nm, "val": next(scal_vals)})
-        elif re.match(r"memref<\?x\?xf64>", ty):
-            out.append({"kind": "arr2", "name": nm})
-        elif re.match(r"memref<\?xf64>", ty):
-            out.append({"kind": "arr1", "name": nm})
+        elif ty in ("f32", "f64"):
+            out.append({"kind": "dbl", "name": nm, "val": next(scal_vals),
+                        "ctype": "float" if ty == "f32" else "double"})
+        elif re.fullmatch(r"memref<\?x\?xf(?:32|64)>", ty):
+            out.append({"kind": "arr2", "name": nm,
+                        "ctype": "float" if "f32" in ty else "double"})
+        elif re.fullmatch(r"memref<\?xf(?:32|64)>", ty):
+            out.append({"kind": "arr1", "name": nm,
+                        "ctype": "float" if "f32" in ty else "double"})
         else:
             raise ValueError(f"unsupported parameter type {ty}")
     return out
@@ -72,19 +75,20 @@ def harness(spec: str, params: list[dict], ret: str | None) -> str:
     # reference prototype (C ABI, VLA parameters decay to pointers)
     ref_args, impl_args = [], []
     for p in params:
+        ct = p.get("ctype", "double")
         if p["kind"] == "int":
             ref_args.append("int")
             impl_args.append("int32_t")
         elif p["kind"] == "dbl":
-            ref_args.append("double")
-            impl_args.append("double")
+            ref_args.append(ct)
+            impl_args.append(ct)
         elif p["kind"] == "arr2":
-            ref_args.append("double *")
-            impl_args += ["double *", "double *", "int64_t", "int64_t", "int64_t", "int64_t", "int64_t"]
+            ref_args.append(ct + " *")
+            impl_args += [ct + " *", ct + " *", "int64_t", "int64_t", "int64_t", "int64_t", "int64_t"]
         else:
-            ref_args.append("double *")
-            impl_args += ["double *", "double *", "int64_t", "int64_t", "int64_t"]
-    rt = "double" if ret == "f64" else "void"
+            ref_args.append(ct + " *")
+            impl_args += [ct + " *", ct + " *", "int64_t", "int64_t", "int64_t"]
+    rt = {"f32": "float", "f64": "double"}.get(ret, "void")
     L.append(f"{rt} {spec}_ref({', '.join(ref_args)});")
     L.append(f"{rt} {spec}_impl({', '.join(impl_args)});")
     L.append("static double rnd(unsigned *s) { *s = *s * 1103515245u + 12345u; "
@@ -94,7 +98,7 @@ def harness(spec: str, params: list[dict], ret: str | None) -> str:
     for p in params:
         if p["kind"] in ("arr2", "arr1"):
             n = ROWS * LD if p["kind"] == "arr2" else VEC
-            L.append(f"  static double {p['name']}_r[{n}], {p['name']}_i[{n}];")
+            L.append(f"  static {p.get('ctype', 'double')} {p['name']}_r[{n}], {p['name']}_i[{n}];")
             L.append(f"  for (int t = 0; t < {n}; t++) {{ {p['name']}_r[t] = rnd(&seed); "
                      f"{p['name']}_i[t] = {p['name']}_r[t]; }}")
     ra, ia = [], []
@@ -111,21 +115,27 @@ def harness(spec: str, params: list[dict], ret: str | None) -> str:
         else:
             ra.append(f"{p['name']}_r")
             ia += [f"{p['name']}_i", f"{p['name']}_i", "0", str(VEC), "1"]
-    if ret == "f64":
-        L.append(f"  double rr = {spec}_ref({', '.join(ra)});")
-        L.append(f"  double ri = {spec}_impl({', '.join(ia)});")
+    if rt != "void":
+        L.append(f"  {rt} rr = {spec}_ref({', '.join(ra)});")
+        L.append(f"  {rt} ri = {spec}_impl({', '.join(ia)});")
     else:
         L.append(f"  {spec}_ref({', '.join(ra)});")
         L.append(f"  {spec}_impl({', '.join(ia)});")
     L.append("  double maxabs = 0, maxrel = 0; long bad = 0;")
-    L.append("#define CMP(a, b) do { double d_ = fabs((a) - (b)); if (d_ > maxabs) maxabs = d_; "
-             "double r_ = d_ / (fabs(a) > 1e-300 ? fabs(a) : 1e-300); if (d_ > 0 && r_ > maxrel) maxrel = r_; "
-             "if (!(d_ <= 1e-12 + 1e-12 * fabs(a))) bad++; } while (0)")
+    # Classify nonfinite results before subtracting: inf-inf and NaN-NaN
+    # are NaN even when both implementations return the same result class.
+    # NaN payloads/signs are not compared; opposite infinities still fail.
+    L.append("#define CMP(a, b) do { double a_ = (a), b_ = (b); "
+             "if (!isfinite(a_) || !isfinite(b_)) { "
+             "if (!((isnan(a_) && isnan(b_)) || a_ == b_)) bad++; "
+             "} else { double d_ = fabs(a_ - b_); if (d_ > maxabs) maxabs = d_; "
+             "double r_ = d_ / (fabs(a_) > 1e-300 ? fabs(a_) : 1e-300); if (d_ > 0 && r_ > maxrel) maxrel = r_; "
+             "if (!(d_ <= 1e-12 + 1e-12 * fabs(a_))) bad++; } } while (0)")
     for p in params:
         if p["kind"] in ("arr2", "arr1"):
             n = ROWS * LD if p["kind"] == "arr2" else VEC
             L.append(f"  for (int t = 0; t < {n}; t++) CMP({p['name']}_r[t], {p['name']}_i[t]);")
-    if ret == "f64":
+    if rt != "void":
         L.append("  CMP(rr, ri);")
     L.append('  printf("maxabs=%.3e maxrel=%.3e bad=%ld\\n", maxabs, maxrel, bad);')
     L.append("  return bad ? 1 : 0;")

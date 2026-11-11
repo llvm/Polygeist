@@ -1,0 +1,21 @@
+{
+  "selected": "candidate",
+  "reason": "measured improvement exceeds margin",
+  "median_ratio": 0.732630172013451,
+  "minimum_improvement": 0.02,
+  "measurements": {
+    "baseline": {
+      "minimum_ms": 15.369888306,
+      "median_ms": 15.418944359,
+      "samples": 5
+    },
+    "candidate": {
+      "minimum_ms": 11.247136116,
+      "median_ms": 11.296383858,
+      "samples": 5
+    }
+  },
+  "scope": "this recorded input and measurement context",
+  "baseline_profile": "/home/arjaiswal/Polygeist/issues/llama_rank_collapse_20261111/baseline-profile.json",
+  "candidate_profile": "/home/arjaiswal/Polygeist/issues/llama_rank_collapse_20261111/candidate-profile.json"
+}

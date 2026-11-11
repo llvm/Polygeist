@@ -13,10 +13,14 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/Pass.h"
 #include "polygeist/Passes/Passes.h"
 
 #include "llvm/ADT/DenseSet.h"
+
+#include <optional>
 
 using namespace mlir;
 
@@ -35,6 +39,18 @@ static Value stripMemrefCasts(Value value) {
       continue;
     }
     break;
+  }
+  return value;
+}
+
+static Value memrefRoot(Value value) {
+  while (Operation *op = value.getDefiningOp()) {
+    if (auto view = dyn_cast<ViewLikeOpInterface>(op))
+      value = view.getViewSource();
+    else if (auto cast = dyn_cast<memref::CastOp>(op))
+      value = cast.getSource();
+    else
+      break;
   }
   return value;
 }
@@ -217,7 +233,10 @@ struct PrepareGpuResidualPipelinePass
     // without speculating about modulo, clamped, or reduction-like writes.
     SmallVector<scf::ForOp> injectiveCopies;
     function.walk([&](scf::ForOp loop) {
-      if (!isa_and_nonnull<scf::ForOp>(loop->getParentOp()))
+      // This pass runs on both sides of Linalg lowering. Preserve sequential
+      // inner loops of an already parallelized, nonrectangular outer domain.
+      if (!loop->getParentOfType<scf::ForOp>() &&
+          !loop->getParentOfType<scf::ParallelOp>())
         injectiveCopies.push_back(loop);
     });
     for (scf::ForOp outer : injectiveCopies) {
@@ -297,11 +316,20 @@ struct PrepareGpuResidualPipelinePass
         continue;
 
       SmallVector<Value> lower, upper, step;
+      bool rectangular = true;
       for (scf::ForOp loop : nest) {
         lower.push_back(loop.getLowerBound());
         upper.push_back(loop.getUpperBound());
         step.push_back(loop.getStep());
+        for (Value bound : {loop.getLowerBound(), loop.getUpperBound(),
+                            loop.getStep()})
+          rectangular &= !outer.getRegion().isAncestor(bound.getParentRegion());
       }
+      // An inner bound can depend on an outer induction variable. Moving it
+      // outside the nest would both change the domain and leave a dangling
+      // SSA use when the original loop is erased.
+      if (!rectangular)
+        continue;
       OpBuilder builder(outer);
       auto parallel =
           builder.create<scf::ParallelOp>(outer.getLoc(), lower, upper, step);
@@ -312,6 +340,102 @@ struct PrepareGpuResidualPipelinePass
       for (Operation &op : inner.getBody()->without_terminator())
         builder.clone(op, mapping);
       outer.erase();
+    }
+
+    // Keep nonrectangular domains intact when each outer iteration owns a
+    // disjoint row. Every access to a written buffer must use the same direct
+    // outer coordinate. Other reads require disjoint storage, proven by a
+    // local allocation or the caller's explicit function-argument contract.
+    SmallVector<scf::ForOp> rowLoops;
+    function.walk([&](scf::ForOp loop) {
+      if (!loop->getParentOfType<scf::ForOp>() &&
+          !loop->getParentOfType<scf::ParallelOp>())
+        rowLoops.push_back(loop);
+    });
+    for (scf::ForOp outer : rowLoops) {
+      if (outer.getNumRegionIterArgs() || outer.getNumResults())
+        continue;
+      SmallVector<memref::StoreOp> stores;
+      outer.walk([&](memref::StoreOp store) { stores.push_back(store); });
+      if (stores.empty())
+        continue;
+      memref::StoreOp store = stores.front();
+      Value destination = stripMemrefCasts(store.getMemref());
+      std::optional<unsigned> rowAxis;
+      for (auto [axis, index] : llvm::enumerate(store.getIndices()))
+        if (index == outer.getInductionVar())
+          rowAxis = axis;
+      if (!rowAxis)
+        continue;
+      bool independent = true;
+      for (memref::StoreOp write : stores)
+        independent &= stripMemrefCasts(write.getMemref()) == destination &&
+                       write.getIndices().size() > *rowAxis &&
+                       write.getIndices()[*rowAxis] == outer.getInductionVar();
+      outer.walk([&](Operation *op) {
+        if (auto load = dyn_cast<memref::LoadOp>(op)) {
+          Value source = stripMemrefCasts(load.getMemref());
+          if (source == destination) {
+            independent &= load.getIndices().size() > *rowAxis &&
+                           load.getIndices()[*rowAxis] == outer.getInductionVar();
+          } else {
+            Value sourceRoot = memrefRoot(source);
+            Value destinationRoot = memrefRoot(destination);
+            auto sourceArg = dyn_cast<BlockArgument>(sourceRoot);
+            auto destinationArg = dyn_cast<BlockArgument>(destinationRoot);
+            bool distinctArguments = assumeNoAlias && sourceArg && destinationArg &&
+                sourceArg.getOwner() == &function.getBody().front() &&
+                destinationArg.getOwner() == &function.getBody().front();
+            bool allocation = sourceRoot.getDefiningOp<memref::AllocOp>() ||
+                              destinationRoot.getDefiningOp<memref::AllocOp>();
+            independent &= sourceRoot != destinationRoot &&
+                           (distinctArguments || allocation);
+          }
+        } else if (auto loop = dyn_cast<scf::ForOp>(op)) {
+          independent &= loop.getNumRegionIterArgs() == 0 &&
+                         loop.getNumResults() == 0;
+        } else if (!isa<memref::StoreOp, scf::IfOp, scf::YieldOp>(op) &&
+                   !isMemoryEffectFree(op)) {
+          independent = false;
+        }
+      });
+      if (!independent)
+        continue;
+      OpBuilder builder(outer);
+      auto parallel = builder.create<scf::ParallelOp>(
+          outer.getLoc(), ValueRange{outer.getLowerBound()},
+          ValueRange{outer.getUpperBound()}, ValueRange{outer.getStep()});
+      IRMapping mapping;
+      mapping.map(outer.getInductionVar(), parallel.getInductionVars().front());
+      builder.setInsertionPointToStart(parallel.getBody());
+      for (Operation &op : outer.getBody()->without_terminator())
+        builder.clone(op, mapping);
+      outer.erase();
+    }
+
+    // A scalar boundary write is still part of the selected computation.
+    // Outline it as a one-work-item region so it stays ordered with adjacent
+    // device operations and does not force the destination back to the host.
+    SmallVector<memref::StoreOp> scalarStores;
+    function.walk([&](memref::StoreOp store) {
+      // A plain stack scalar may still be read by residual host control flow.
+      // Do not create device access to it merely to perform initialization.
+      if (memrefRoot(store.getMemref()).getDefiningOp<memref::AllocaOp>())
+        return;
+      if (!store->getParentOfType<scf::ForOp>() &&
+          !store->getParentOfType<scf::ParallelOp>() &&
+          !store->getParentOfType<linalg::LinalgOp>())
+        scalarStores.push_back(store);
+    });
+    for (memref::StoreOp store : scalarStores) {
+      OpBuilder builder(store);
+      Value zero = builder.create<arith::ConstantIndexOp>(store.getLoc(), 0);
+      Value one = builder.create<arith::ConstantIndexOp>(store.getLoc(), 1);
+      auto parallel = builder.create<scf::ParallelOp>(
+          store.getLoc(), ValueRange{zero}, ValueRange{one}, ValueRange{one});
+      builder.setInsertionPointToStart(parallel.getBody());
+      builder.clone(*store);
+      store.erase();
     }
 
     // LowerSubmapInverse marks affine write-backs only after proving their

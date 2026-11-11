@@ -1,0 +1,82 @@
+ATen v3 recovery refresh, 2026-11-11
+
+Current validated scope
+34 unique targeted fixtures pass raising, matching, typed GPU emission,
+normal and edge correctness, and synchronized resident timing pairs:
+original ten + thirteen additional pointwise + eight further unary + TAN
+rebound to cuTENSOR + threshold_backward + parameterized RMSNorm. The corresponding binaries,
+proofs, source snapshots, board metadata, and raw samples are preserved.
+validated-targeted-results.json and validated-targeted-timings.tsv merge
+only cases with all required checks passing; older failures remain in
+family-specific evidence.
+
+The current catalog has 140 specification records and the runtime generator
+accepts 54 typed calls. Those totals are different from ATen fixture coverage.
+All 108 shared Python tests, generated runtime --check, and all 22 prior-match
+checks passed before the final runtime-only no-bias correction. Fresh RMSNorm
+and full Llama GPU validation passed after that correction.
+
+Integrated fixes
+- Generic comparison/select literal handling retains array reads while
+  allowing a zero comparison threshold; unknown/arithmetic uses still fail.
+- Pure typed scalar library declarations survive reference import.
+- Typed unary cuTENSOR emission binds exact imported primitive operations;
+  pointer alignment is obtained from the actual pointer rather than assumed.
+- FP32 scalar captures are emitted as parameters, not hardcoded values.
+- cuDNN virtual comparison tensors use INT8 0/1 storage. On the installed
+  cuDNN 9.25.1, packed BOOLEAN storage failed runtime graph compilation;
+  INT8 permits the unchanged two-node threshold graph to execute correctly.
+- TAN now uses cuTENSOR because the tested cuDNN implementation exceeded the
+  unchanged CPU tolerance near tangent poles. The new backend passes it.
+- Standalone runtime generation initializes its import path before loading
+  kernel_match; no external PYTHONPATH is required for that CLI.
+- A parameterized CUTLASS RMSNorm reference retains the upstream epsilon
+  parameter. Typed runtime emission preserves FP32 epsilon, and plan caching
+  distinguishes exact epsilon bits. The old fixed-epsilon API remains.
+
+RMSNorm production completion
+The relaxed shared region matcher proves the existing fixture against the
+pinned CUTLASS reference. Fresh import/proof/build, normal and finite-edge
+GPU correctness at epsilon 1e-5 and 0.125, legacy default-epsilon API checks,
+and resident timing pairs all pass. Removing the runtime's unnecessary +0
+bias preserves signed zero; old failures and isolated diagnostic evidence
+remain saved. All ten full checks pass through actual cuDNN execution.
+
+Full Llama runtime regression uses the frozen validated compiler objects and
+the fresh runtime, preserving the original executable. All 32,000 logits
+are exactly equal to both the previous candidate and expert. Same-window
+minimum runtimes: 11.241248131 ms before, 11.229056358 ms after. This isolates
+the runtime change; it is not a fresh compiler benchmark. Evidence and hashes
+are in llama-runtime-regression/.
+
+Trust and measurement boundaries
+Pointwise application/reference matching uses pinned ATen scalar source and
+shared raising/EqSat. Emission then mechanically builds a vendor graph from
+the proven scalar body. This does not import proprietary cuDNN/cuTENSOR
+implementation source or prove their numerical implementation with EqSat.
+Backend opcode semantics are trusted and independently tested. These matches
+do not by themselves demonstrate an EqSat coverage gain.
+CUTLASS RMSNorm is an independent equivalent reference for the cuDNN API;
+its arithmetic reassociation requires the declared relaxed floating model.
+
+Correctness checks compare full output arrays, preserved input arrays and
+allocation guards in host/resident modes. Floating tolerance is
+1e-5 + 1e-4*abs(reference), with matching nonfinite classes and signed zero
+checked separately. Required-library mode forbids CPU fallback. Vendor traces
+confirm real execution. Timings use five warmups followed by five synchronized
+resident samples, report the minimum, and disable tracing during measurement.
+The paired baseline is direct cuDNN/cuTENSOR from the same imported reference,
+not actual ATen CUDA. These unary/elementwise measurements are not Figure 5's
+115 non-elementwise comparison. No 271/598 or 28/52 aggregate claim is made.
+
+Remaining concrete gaps
+Rank-4 in-place add needs generic input/output-role and destination/view
+normalization plus a validated exact-alias backend contract. The unfinished patch
+uses upstream Linalg normalization and is safely saved in inplace-wip-saved/.
+It was restored out of production for the requested commit; all 169 source
+snapshot hashes and both compiler hashes match the validated no-bias state. Leaky-ReLU has a
+real strict semantic difference (>= versus > at signed zero for negative
+slopes), so it is not forced to match. Resident reductions/scans, batched
+linear algebra, convolution/pooling, and broader layouts still need reusable
+imports and typed execution support. Actual ATen CUDA baselines remain needed
+for the full published performance comparison. No commit or push was made.

@@ -13,7 +13,9 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 import time
 
 HERE = Path(__file__).resolve().parent
@@ -22,6 +24,7 @@ sys.path.insert(0, str(HERE / 'lib_v2'))
 import abi_v2 as ABI
 import match_v2 as MATCH
 import spec_provenance as PROVENANCE
+import recipe as RECIPE
 
 
 class SpecificationError(ValueError):
@@ -60,7 +63,7 @@ def registry():
 
 
 def capabilities(rows, backend, disabled=(), only=None):
-    _calls, bound, errors = ABI.build_table()
+    calls, bound, errors = ABI.build_table()
     allowed = set()
     rejected = {}
     for name, row in rows.items():
@@ -82,6 +85,8 @@ def capabilities(rows, backend, disabled=(), only=None):
             rejected[name] = 'outside explicit API/specification filter'
         elif name not in bound:
             rejected[name] = errors.get(name, 'no validated target ABI binding')
+        elif backend not in calls[bound[name].call].backends:
+            rejected[name] = 'validated API adapter unavailable for requested backend'
         else:
             allowed.add(name)
     return allowed, rejected
@@ -94,7 +99,8 @@ def semantic_inputs():
     paths += sorted((HERE / 'region_match').glob('*.py'))
     paths += [MATCH.SPEC_DIR / 'import_manifest.json']
     paths += [ROOT / 'runtime' / name for name in (
-        'polygeist_v2_rt.h', 'polygeist_v2_rt_cpu.c', 'polygeist_v2_rt_cuda.c')]
+        'polygeist_v2_rt.h', 'polygeist_v2_rt_cpu.c', 'polygeist_v2_rt_cuda.c',
+        'polygeist_cublas_rt.h', 'polygeist_cublas_rt_cuda.c')]
     return PROVENANCE.record([path for path in paths if path.is_file()])
 
 
@@ -110,8 +116,76 @@ def semantic_configuration():
                 spec_suite=MATCH.SUITE)
 
 
+def restore_library_metadata(original, normalized):
+    """Preserve the imported ABI metadata across an MLIR printer round-trip.
+
+    SSA spelling is not semantic, but the imported metadata deliberately uses
+    the C parameter names. Restore argument spellings by position and give all
+    other SSA values fresh names so they cannot shadow those parameters.
+    """
+    before = {f.name: f for f in MATCH.ML.Module(original).funcs}
+    edits = []
+    for function in MATCH.ML.Module(normalized).funcs:
+        old = before[function.name]
+        if len(old.args) != len(function.args):
+            raise SpecificationError('normalization changed an imported library ABI')
+        rename = {new[0]: prior[0] for new, prior in zip(function.args, old.args)}
+        prefix = '%normalized_'
+        while any(name.startswith(prefix) for name, _ in old.args):
+            prefix += '_'
+        body = normalized[function.start:function.end]
+        body = re.sub(r'%[\w$.\-]+',
+                      lambda m: rename.get(m[0], prefix + m[0][1:]), body)
+        edits.append((function.start, function.end, body))
+    for start, end, body in reversed(edits):
+        normalized = normalized[:start] + body + normalized[end:]
+    metadata = re.findall(r'^\s*//\s*lib_v2-meta:.*$', original, re.MULTILINE)
+    return '\n'.join(metadata) + '\n' + normalized
+
+
+def normalize_matched_application(text, library, normalize):
+    """Preserve already-proven calls as opaque typed calls during normalization.
+
+    Region matches use memref ABIs and Linalg matches use tensor ABIs. Preserve
+    each exact signature, without inventing a new semantic library definition.
+    Opaque func.call has conservative effects, so normalization cannot delete
+    or combine it. The existing proof, not these declarations, authorizes it.
+    """
+    prefix = '__polygeist_preserved_launch_'
+    while '@' + prefix in text:
+        prefix += '_'
+    edits, declarations, names = [], [], {}
+    for op in MATCH.ML.Module(text).ops:
+        if op.name != 'kernel.launch':
+            continue
+        symbol = re.search(r'kernel\.launch\s+@([\w.$-]+)', op.text)[1]
+        bridge = prefix + str(len(names))
+        names[bridge] = symbol
+        start = op.text.index('(', op.text.index('kernel.launch'))
+        end = MATCH.ML.matching_paren(op.text, start)
+        signature = op.text[end + 1:].strip().removeprefix(':').strip()
+        declarations.append(f'  func.func private @{bridge}{signature}')
+        changed = op.text.replace('kernel.launch @' + symbol, 'func.call @' + bridge, 1)
+        edits.append((op.start, op.end, changed))
+    for start, end, changed in reversed(edits):
+        text = text[:start] + changed + text[end:]
+    end = text.rfind('}')
+    if end < 0:
+        raise SpecificationError('application must be an MLIR module')
+    text = text[:end] + '\n' + '\n'.join(declarations) + '\n' + text[end:]
+    normalized = normalize(text)
+    for bridge, symbol in names.items():
+        call = r'(?<![\w.])(?:func\.)?call @' + re.escape(bridge) + r'\('
+        if len(re.findall(call, normalized)) != 1:
+            raise SpecificationError('normalization changed an existing library call')
+        normalized = re.sub(call, 'kernel.launch @' + symbol + '(', normalized)
+        normalized = re.sub(r'^\s*func\.func private @' + re.escape(bridge) +
+                            r'\([^\n]*\n', '', normalized, flags=re.MULTILINE)
+    return normalized
+
+
 def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
-          region_budget=60, region=True):
+          region_budget=60, region=True, normalize_parallel=False):
     if semantic_configuration()['numeric_model'] not in {'strict', 'relaxed'}:
         raise SpecificationError('unknown numerical model')
     if re.search(r'\bkernel\.launch\s+@', text):
@@ -123,10 +197,48 @@ def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
     if max_launches == 0:
         allowed = set()
     started = time.monotonic()
+    normalization = None
     if allowed:
-        output, matches, diagnostics = MATCH.run(
-            text, MATCH.DEFAULT_LIB, region=region,
-            region_budget=region_budget, allowed_specs=allowed)
+        if normalize_parallel:
+            # Both sides undergo the identical generic IR transformation.
+            # This produces a candidate, not a claim of profitability. The
+            # ordinary path remains available for measured candidate selection.
+            option = '--normalize-linalg-matching-views'
+            baseline, baseline_matches, baseline_diagnostics = MATCH.run(
+                text, MATCH.DEFAULT_LIB, region=region,
+                region_budget=region_budget, allowed_specs=allowed)
+            def normalize(source):
+                result = subprocess.run([RECIPE.POLYGEIST_OPT, option, '--cse'],
+                                        input=source, text=True, capture_output=True,
+                                        timeout=120)
+                if result.returncode:
+                    raise SpecificationError('view normalization failed: ' + result.stderr[-2000:])
+                return result.stdout
+            # Preserve matches already established by either shared matcher.
+            # Normalize only their residual computations; a representation
+            # change must not make an existing region match disappear.
+            original_library = MATCH.DEFAULT_LIB.read_text()
+            application = normalize_matched_application(baseline, original_library, normalize)
+            library = restore_library_metadata(original_library, normalize(original_library))
+            normalization = dict(
+                pass_name=option,
+                cleanup=['--cse'],
+                compiler_sha256=PROVENANCE.file_hash(Path(RECIPE.POLYGEIST_OPT)),
+                matched_baseline_sha256=digest(baseline),
+                application_sha256=digest(application),
+                library_sha256=digest(library))
+            with tempfile.TemporaryDirectory(prefix='polygeist-matching-views-') as directory:
+                path = Path(directory) / 'library.mlir'
+                path.write_text(library)
+                output, matches, diagnostics = MATCH.run(
+                    application, path, region=False, region_budget=region_budget,
+                    allowed_specs=allowed)
+            matches = baseline_matches + matches
+            diagnostics['baseline'] = baseline_diagnostics
+        else:
+            output, matches, diagnostics = MATCH.run(
+                text, MATCH.DEFAULT_LIB, region=region,
+                region_budget=region_budget, allowed_specs=allowed)
     else:
         output, matches, diagnostics = text, [], {}
     emitted = re.findall(r'\bkernel\.launch\s+@([\w.$-]+)', output)
@@ -161,6 +273,8 @@ def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
         emitted=emitted, matches=evidence, rejected_specifications=rejected,
         diagnostics=diagnostics,
         validation_stage='recognition-and-ABI-binding; vendor execution not yet checked')
+    if normalization:
+        proof['view_normalization'] = normalization
     return output, proof
 
 
@@ -181,6 +295,12 @@ def verify(text, proof, *, backend=None):
         raise SpecificationError('stored match evidence uses a different specification library')
     if proof.get('matcher_sha256') != digest(Path(MATCH.__file__).read_text()):
         raise SpecificationError('stored match evidence uses a different matcher revision')
+    normalization = proof.get('view_normalization')
+    if normalization and (normalization.get('pass_name') != '--normalize-linalg-matching-views' or
+                          normalization.get('cleanup') != ['--cse'] or
+                          normalization.get('compiler_sha256') !=
+                          PROVENANCE.file_hash(Path(RECIPE.POLYGEIST_OPT))):
+        raise SpecificationError('stored evidence uses a different view normalization compiler')
     for item in proof.get('matches', []):
         for row in item['references']:
             for key in ('manifest', 'reference'):
@@ -204,6 +324,8 @@ def main(argv=None):
     p.add_argument('--backend', choices=['cpu', 'cuda', 'pva'],
                    default=os.environ.get('POLYGEIST_ABI_BACKEND', 'cuda'))
     p.add_argument('--no-region-match', action='store_true')
+    p.add_argument('--normalize-parallel-dims', action='store_true',
+                   help='produce a dimension-collapse candidate using the same pass on both sides')
     p.add_argument('--numeric-model', choices=['strict', 'relaxed'],
                    default=os.environ.get('POLYGEIST_NUMERIC_MODEL', 'strict'))
     p.add_argument('--region-budget', type=int, default=60)
@@ -222,7 +344,8 @@ def main(argv=None):
                               disabled=args.disable_kernel, only=args.only_kernel,
                               max_launches=args.max_launches,
                               region_budget=args.region_budget,
-                              region=not args.no_region_match)
+                              region=not args.no_region_match,
+                              normalize_parallel=args.normalize_parallel_dims)
         if args.report:
             args.report.write_text(json.dumps(proof, indent=2) + '\n')
         if not args.dry_run:

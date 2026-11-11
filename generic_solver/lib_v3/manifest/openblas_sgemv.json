@@ -1,0 +1,103 @@
+{
+  "routine": "openblas_sgemv",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/gemv.c, kernel/arm/{scal,gemv_n,gemv_t}.c; FLOAT=float specialization of the same upstream C kernels",
+  "specs": [
+    {
+      "name": "openblas_sgemv_n_beta0_alpha1",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "0",
+        "OPENBLAS_SCALAR": "float",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasSgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0,
+          "alpha": 1.0
+        },
+        "openblas_call": "cblas_sgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 0",
+        "alpha == 1: ordinary API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_n.c"
+    },
+    {
+      "name": "openblas_sgemv_t_beta0_alpha1",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "0",
+        "OPENBLAS_SCALAR": "float",
+        "ALPHA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasSgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0,
+          "alpha": 1.0
+        },
+        "openblas_call": "cblas_sgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 0",
+        "alpha == 1: ordinary API parameter specialization"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_t.c"
+    }
+  ],
+  "ref_c": "openblas_dgemv.c",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/interface/gemv.c",
+      "sha256": "0c53e50dac15087fc51cc14232e63b74c273a763fb25c338120e5208eafcaac6"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/scal.c",
+      "sha256": "db4c028546c30863e96b7c28dadab6bd9e219323612a860b9ba9b5400830482f"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/gemv_n.c",
+      "sha256": "a391db27baf282bd5f06bf1b53d17d2f131471ef09042817f6b2dae4c3c5c312"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/gemv_t.c",
+      "sha256": "2d8bfde330a21d356b9490635bd26a626ae6a0531def74e329665fce9a7a8f75"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ]
+}

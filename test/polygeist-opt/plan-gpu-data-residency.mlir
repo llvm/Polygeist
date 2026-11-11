@@ -152,10 +152,9 @@ module attributes {gpu.container_module} {
   }
 }
 
-// Dynamic local scratch remains mapped-host storage because the downstream
-// GPU-to-LLVM path cannot reconcile its mixed launch/library descriptor.
+// Dynamic local scratch shared by launches and library calls stays on device.
 // DYNAMIC-LABEL: func.func @dynamic_library_scratch
-// DYNAMIC: %[[BUFFER:.*]] = memref.alloc({{.*}}) : memref<?xf32>
+// DYNAMIC: %[[BUFFER:[^, ]+]], %{{.*}} = gpu.alloc async {{.*}} : memref<?xf32>
 // DYNAMIC: gpu.launch_func {{.*}}args(%[[BUFFER]] : memref<?xf32>)
 
 // RESIDENT-LABEL: func.func @device_region

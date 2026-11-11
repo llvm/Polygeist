@@ -1,0 +1,30 @@
+Additional cuTENSOR unary family — frozen 2026-11-11
+
+All eight pinned FP32 scalar references raise, strictly match, build, and pass
+normal/edge GPU checks. Each check covers complete outputs, unmodified inputs,
+guards, host and resident paths, NaN/Inf classes and signed zero. The declared
+CPU comparison tolerance is 1e-5 + 1e-4*abs(reference); direct cuTENSOR output
+agrees bitwise except NaN payload/sign. Required-vendor mode permits no CPU
+fallback. Real cutensorPermute execution is recorded in each trace.
+
+Trust boundary: application/reference matching uses pinned ATen scalar bodies.
+The generic typed backend maps the imported primitive to its cuTENSOR opcode.
+Proprietary cuTENSOR source is not imported, and these cases do not establish
+an equality-saturation coverage benefit.
+
+Resident milliseconds, minimum of five synchronized samples after five warmups:
+case       raised        direct cuTENSOR
+acos           1.072402         1.073778
+acosh          1.090898         1.094418
+asin           1.045874         1.063122
+asinh          1.073682         1.078802
+atan           1.089970         1.075410
+atanh          1.060402         1.059666
+cosh           1.092306         1.082546
+sinh           1.081714         1.063473
+
+These are direct-vendor comparisons, not native ATen CUDA Figure 5 results.
+Frozen proof/binary hashes: unary-build-state.json. First five cases use
+unary-source-snapshot; the last three additionally use the generic region
+parser correction in unary-postparser-source-snapshot. All eight original
+binaries and their results remain intact during the next source refresh.

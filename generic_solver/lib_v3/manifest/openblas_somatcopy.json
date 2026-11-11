@@ -1,0 +1,53 @@
+{
+  "routine": "openblas_somatcopy",
+  "source": "OpenBLAS v0.3.31 portable C kernel, pinned public release",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/omatcopy_cn.c",
+      "sha256": "3156cf4cbf8f88ce55aa3b6441aa5e7c0f75783b1610381fd5702ed8387a6873"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/interface/omatcopy.c",
+      "sha256": "ea80c9767456efe2c954862be2b6db46c994edd4b6604d670ab54cc5f6e550dd"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ],
+  "specs": [
+    {
+      "name": "openblas_somatcopy_f32",
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasSgeam",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_N",
+          "transb": "CUBLAS_OP_N",
+          "alpha": 1.0,
+          "beta": 0.0,
+          "B": "A",
+          "ldb": "lda"
+        },
+        "backends": [
+          "cuda"
+        ]
+      },
+      "assumptions": [
+        "m > 0, n > 0",
+        "lda >= m, ldc >= m",
+        "alpha == 1; column-major no transpose",
+        "nonoverlapping input and output"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "routine": "openblas_scopy",
+  "source": "OpenBLAS v0.3.31 portable C kernel, pinned public release",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/copy.c",
+      "sha256": "f12f30c52551d1e82b6c2be052229d4dc89f832e4cff588a71a911c4521391a7"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ],
+  "specs": [
+    {
+      "name": "openblas_scopy_f32",
+      "args": [
+        "n",
+        "x",
+        "y"
+      ],
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasScopy",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        }
+      },
+      "assumptions": [
+        "n >= 0",
+        "inc_x == inc_y == 1",
+        "nonoverlapping input and output"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -18,7 +18,6 @@ MANIFEST = OUT / "generated_provenance.csv"
 
 UNARY = {
     # name: (C expression, upstream token)
-    "abs": ("x[i] < 0.0f ? -x[i] : x[i]", "abs_kernel"),
     "neg": ("-x[i]", "neg_kernel"),
     "reciprocal": ("1.0f / x[i]", "reciprocal_kernel"),
     "sign": ("(float)((0.0f < x[i]) - (x[i] < 0.0f))", "sign_kernel"),
@@ -45,6 +44,7 @@ BINARY = {
 # call prevents loop-to-Linalg conversion instead of silently simplifying the
 # ATen operation.
 MATH_UNARY = {
+    "abs": ("fabsf(x[i])", "abs_kernel", "fabsf"),
     "frac": ("x[i] - truncf(x[i])", "frac_kernel", "truncf"),
     "sinc": ("x[i] == 0.0f ? 1.0f : sinf(3.14159265358979323846f * x[i]) / (3.14159265358979323846f * x[i])", "sinc_kernel", "sinf"),
     "sinh": ("sinhf(x[i])", "sinh_kernel", "sinhf"),

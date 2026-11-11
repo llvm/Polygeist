@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .affine import Aff, Cons, NonAffine, ge, le, lt, eq, negate, atom, is_atom
+from .affine import Aff, Cons, NonAffine, ge, le, lt, eq, negate, atom, is_atom, atoms_in
 from .mlir_parse import Func, Op, parse_affine_map, parse_affine_set, parse_affine_expr, _split_top
 
 
@@ -126,6 +126,12 @@ class EConst(Expr):
 @dataclass(eq=False)
 class EParam(Expr):
     name: str
+
+
+@dataclass(eq=False)
+class EIndex(Expr):
+    """Integer index data, retained beneath its explicit numeric conversion."""
+    value: Aff
 
 
 @dataclass(eq=False)
@@ -455,6 +461,12 @@ class Executor:
                 self.env[res[0]] = Undef()
             elif isinstance(v, FVal):
                 self.env[res[0]] = FVal(EUn(n + ':' + m.group(2) + ' to ' + m.group(3), v.e))
+            elif isinstance(v, (CondAff, CondF)) and m.group(2) == 'i1' and n in ('arith.extui', 'arith.extsi'):
+                # Boolean data can occur in an unrelated region of the same
+                # function. Keep the conversion and condition explicit; i1
+                # true has the bit pattern 1, interpreted by the typed cast.
+                value = ESel(v, EIndex(Aff.cst(1)), EIndex(Aff.cst(0)))
+                self.env[res[0]] = FVal(EUn(n + ':i1 to ' + m.group(3), value))
             elif isinstance(v, IdxVal):
                 from .affine import implies
                 src, dst = m.group(2), m.group(3)
@@ -560,7 +572,13 @@ class Executor:
             if isinstance(v, FVal):
                 value = v.e
             elif isinstance(v, IdxVal):
-                value = self.int_as_data(v.aff, m.group(1))
+                # Parameters used in arithmetic (e.g. a dimension converted
+                # to float) remain integer expressions under the typed cast.
+                # Loaded integers retain their existing memory-read identity.
+                if n in ("arith.sitofp", "arith.uitofp") and not atoms_in(v.aff.vars()):
+                    value = EIndex(v.aff)
+                else:
+                    value = self.int_as_data(v.aff, m.group(1))
             else:
                 raise Unsupported("unsupported numeric conversion operand")
             self.env[res[0]] = FVal(EUn(n + ":" + m.group(2) + " to " + m.group(3), value))

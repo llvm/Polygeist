@@ -30,7 +30,7 @@ from .affine import (Aff, Cons, NonAffine, atom_info, atom_table, atoms_in, boun
                      feasible, feasible_dnf, ge,
                      implies, implies_all, le, lex_lt_dnf, lt, negate, project, simplify,
                      subtract)
-from .symexec import (Buffer, CondAff, CondF, EBin, EConst, EParam, ERead, ESel, EUn,
+from .symexec import (Buffer, CondAff, CondF, EBin, EConst, EIndex, EParam, ERead, ESel, EUn,
                       EUndef, Expr, Program, Stmt, Unsupported)
 
 
@@ -84,6 +84,17 @@ class FParam(F):
 
     def __repr__(self):
         return self.name
+
+
+class FIndex(F):
+    def __init__(self, value):
+        self.value = value
+
+    def key(self):
+        return ("integer-data", self.value)
+
+    def __repr__(self):
+        return f"integer({self.value})"
 
 
 class FBin(F):
@@ -158,6 +169,8 @@ def fmap_aff(f: F, fn) -> F:
     """Apply fn to every Aff (indices, bounds, constraints)."""
     if isinstance(f, FRead):
         return FRead(f.arr, f.ver, [fn(a) for a in f.idx])
+    if isinstance(f, FIndex):
+        return FIndex(fn(f.value))
     if isinstance(f, (FConst, FParam, FAcc)):
         return f
     if isinstance(f, FBin):
@@ -365,11 +378,42 @@ def _privatise_scalars(stmts: list[Stmt]) -> tuple[list[Stmt], list[str]]:
     return stmts, notes
 
 
+def _incoming_scalar_constants(prog: Program, window: set[int], selected: list[Stmt]):
+    """Carry proven private scalar constants across a region boundary.
+
+    The initialization stays in the original program. A version check excludes
+    every intervening write, including opaque library calls. No argument memory,
+    conditional initialization, or computed value is assumed constant here.
+    """
+    if not window or not prog.snaps:
+        return []
+    lo = min(window)
+    needed = {s.buf.id for s in selected}
+    for s in selected:
+        needed.update(r.buf.id for r in _expr_reads(s.value, []))
+    prior = {}
+    for s in prog.stmts:
+        if s.top < lo and s.buf.id in needed:
+            prior[s.buf.id] = s
+    out = []
+    for s in prior.values():
+        if (s.buf.kind != 'scratch' or s.buf.rank != 0 or s.vars or s.idx or
+                s.domain or s.guard or not isinstance(s.value, EConst)):
+            continue
+        initialized = prog.snaps[s.top + 1][2].get(s.buf.id)
+        incoming = prog.snaps[lo][2].get(s.buf.id)
+        if initialized is not None and initialized == incoming:
+            out.append(s)
+    return out
+
+
 class Builder:
     def __init__(self, prog: Program, window: set[int]):
         self.prog = prog
         self.window = window
-        self.stmts, self.priv_notes = _privatise_scalars([s for s in prog.stmts if s.top in window])
+        selected = [s for s in prog.stmts if s.top in window]
+        incoming = _incoming_scalar_constants(prog, window, selected)
+        self.stmts, self.priv_notes = _privatise_scalars(incoming + selected)
         self.writers: dict[int, list[Stmt]] = {}
         for s in self.stmts:
             self.writers.setdefault(s.buf.id, []).append(s)
@@ -380,6 +424,7 @@ class Builder:
                       "regions": 0, "chains": 0}
         self.warnings: list[str] = []
         self.params = set(prog.params)
+        self.stats["incoming_scalar_constants"] = len(incoming)
 
     # -- instance description -----------------------------------------
     def inst(self, W: Stmt, ev_idx: list[Aff], suffix: str) -> list[Cons]:
@@ -667,6 +712,8 @@ class Builder:
             return self.resolve(e, W, sigma, ctx, buf, evaff)
         if isinstance(e, EConst):
             return FConst(e.v)
+        if isinstance(e, EIndex):
+            return FIndex(e.value.subst(sigma))
         if isinstance(e, EParam):
             return FParam(e.name)
         if isinstance(e, EBin):
@@ -885,6 +932,43 @@ def canonicalize(f: F, ctx: list[Cons], params: set[str]) -> F:
     f = _orient_sums(f, ctx)
     f = _simplify_sel(f, ctx)
     f = _rename_bound(f, 0)
+    return f
+
+
+def fold_integer_casts(f: F, bindings=None) -> F:
+    """Evaluate bound integer-to-float casts with their actual IEEE type.
+
+    Unbound values and unsupported precision/range remain explicit casts.
+    In particular this never removes FP32/FP64 conversions or rounds symbolic
+    integers as if they were real-valued parameters.
+    """
+    import re
+    import struct
+    bindings = bindings or {}
+    if isinstance(f, FUn):
+        a = fold_integer_casts(f.a, bindings)
+        m = re.fullmatch(r"arith\.(sitofp|uitofp):i(8|16|32|64) to (f32|f64)", f.op)
+        if m and isinstance(a, FIndex):
+            subst = {k: (v if isinstance(v, Aff) else Aff.var(v)) for k,v in bindings.items()}
+            value = a.value.subst(subst)
+            if value.is_const():
+                n, bits = value.const, int(m[2])
+                low, high = (-(1 << (bits-1)), 1 << (bits-1)) if m[1] == 'sitofp' else (0, 1 << bits)
+                if low <= n < high and (m[3] == 'f64' or abs(n) <= 2**53):
+                    rounded = float(n)
+                    if m[3] == 'f32':
+                        rounded = struct.unpack('f',struct.pack('f',rounded))[0]
+                    return FConst(rounded)
+        return FUn(f.op,a)
+    if isinstance(f,FBin):
+        return FBin(f.op,fold_integer_casts(f.a,bindings),fold_integer_casts(f.b,bindings))
+    if isinstance(f,FSum):
+        return FSum(f.var,f.lo,f.hi,fold_integer_casts(f.body,bindings))
+    if isinstance(f,FSel):
+        cond=f.cond
+        if cond[0]=='cmpf':
+            cond=(cond[0],cond[1],fold_integer_casts(cond[2],bindings),fold_integer_casts(cond[3],bindings))
+        return FSel(cond,fold_integer_casts(f.a,bindings),fold_integer_casts(f.b,bindings))
     return f
 
 

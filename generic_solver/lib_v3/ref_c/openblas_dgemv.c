@@ -37,16 +37,26 @@
 #ifndef NETLIB_SPEC
 #error "NETLIB_SPEC must name the specialised function"
 #endif
+#ifndef OPENBLAS_SCALAR
+#define OPENBLAS_SCALAR double
+#endif
+#if ALPHA_CASE == 1
+#define ALPHA_PARAM
+#define ALPHA_VALUE ((OPENBLAS_SCALAR)1)
+#else
+#define ALPHA_PARAM OPENBLAS_SCALAR alpha,
+#define ALPHA_VALUE alpha
+#endif
 #if BETA_CASE == 2
-#define BETA_PARAM double beta,
+#define BETA_PARAM OPENBLAS_SCALAR beta,
 #else
 #define BETA_PARAM
 #endif
 
-void NETLIB_SPEC(int m, int n, double alpha, int lda, double A[][lda],
-                 double x[], BETA_PARAM double y[]) {
+void NETLIB_SPEC(int m, int n, ALPHA_PARAM int lda, OPENBLAS_SCALAR A[][lda],
+                 OPENBLAS_SCALAR x[], BETA_PARAM OPENBLAS_SCALAR y[]) {
   long i, j, ix, iy;
-  double temp;
+  OPENBLAS_SCALAR temp;
 #if BETA_CASE != 1
   { /* SCAL_K(leny, 0, 0, beta, y, 1, NULL, 0, NULL, 0): scal.c dummy2 == 0 */
     long si = 0, sj = 0;
@@ -66,7 +76,7 @@ void NETLIB_SPEC(int m, int n, double alpha, int lda, double A[][lda],
   /* gemv_n.c: a_ptr = a + j*lda -> A[j] */
   ix = 0;
   for (j = 0; j < n; j++) {
-    temp = alpha * x[ix];
+    temp = ALPHA_VALUE * x[ix];
     iy = 0;
     for (i = 0; i < m; i++) {
       y[iy] += temp * A[j][i];
@@ -84,7 +94,7 @@ void NETLIB_SPEC(int m, int n, double alpha, int lda, double A[][lda],
       temp += A[j][i] * x[ix];
       ix += 1;
     }
-    y[iy] += alpha * temp;
+    y[iy] += ALPHA_VALUE * temp;
     iy += 1;
   }
 #endif

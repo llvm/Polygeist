@@ -51,7 +51,8 @@ PRECISION = ('\n#undef DATA_PRINTF_MODIFIER\n'
              '#define DATA_PRINTF_MODIFIER "%0.17g "\n')
 
 LOWER_TO_LLVM = [
-    "--convert-math-to-llvm", "--empty-tensor-to-alloc-tensor", "--lower-affine",
+    "--convert-math-to-llvm", "--convert-math-to-libm",
+    "--empty-tensor-to-alloc-tensor", "--lower-affine",
     "--one-shot-bufferize=bufferize-function-boundaries",
     "--convert-linalg-to-loops", "--convert-scf-to-cf", "--expand-strided-metadata",
     "--lower-affine", "--convert-arith-to-llvm", "--convert-index-to-llvm",

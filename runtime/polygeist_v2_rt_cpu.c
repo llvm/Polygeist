@@ -133,16 +133,6 @@ void polygeist_v2_cublasDaxpy(int32_t n, double alpha, const double *x, int64_t 
   polygeist_v2_done("cublasDaxpy", "daxpy_", polygeist_v2_t0);
 }
 
-extern double ddot_(const int *, const double *, const int *, const double *, const int *);
-double polygeist_v2_cublasDdot(int32_t n, const double *x, int64_t x_bytes, int32_t incx, const double *y, int64_t y_bytes, int32_t incy) {
-  double polygeist_v2_t0 = polygeist_v2_now_ms();
-  (void)x_bytes;
-  (void)y_bytes;
-  double polygeist_v2_r = ddot_(&n, x, &incx, y, &incy);
-  polygeist_v2_done("cublasDdot", "ddot_", polygeist_v2_t0);
-  return polygeist_v2_r;
-}
-
 extern void dgemm_(const char *, const char *, const int *, const int *, const int *, const double *, const double *, const int *, const double *, const int *, const double *, double *, const int *, polygeist_v2_flen, polygeist_v2_flen);
 static char polygeist_v2_cublasDgemm_cublasOperation_t_char(int32_t v) {
   switch (v) {
@@ -366,6 +356,53 @@ void polygeist_v2_cublasDtrsv(int32_t uplo, int32_t trans, int32_t diag, int32_t
   (void)x_bytes;
   dtrsv_(&pv2_c_uplo, &pv2_c_trans, &pv2_c_diag, &n, A, &lda, x, &incx, (polygeist_v2_flen)1, (polygeist_v2_flen)1, (polygeist_v2_flen)1);
   polygeist_v2_done("cublasDtrsv", "dtrsv_", polygeist_v2_t0);
+}
+
+extern void scopy_(const int *, const float *, const int *, float *, const int *);
+void polygeist_v2_cublasScopy(int32_t n, const float *x, int64_t x_bytes, int32_t incx, float *y, int64_t y_bytes, int32_t incy) {
+  double polygeist_v2_t0 = polygeist_v2_now_ms();
+  (void)x_bytes;
+  (void)y_bytes;
+  scopy_(&n, x, &incx, y, &incy);
+  polygeist_v2_done("cublasScopy", "scopy_", polygeist_v2_t0);
+}
+
+extern void sgemm_(const char *, const char *, const int *, const int *, const int *, const float *, const float *, const int *, const float *, const int *, const float *, float *, const int *, polygeist_v2_flen, polygeist_v2_flen);
+static char polygeist_v2_cublasSgemm_cublasOperation_t_char(int32_t v) {
+  switch (v) {
+  case 0: return 'N';
+  }
+  polygeist_v2_fatal("cublasSgemm", "enum value without a Fortran flag");
+  return 0;
+}
+void polygeist_v2_cublasSgemm(int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, float alpha, const float *A, int64_t A_bytes, int32_t lda, const float *B, int64_t B_bytes, int32_t ldb, float beta, float *C, int64_t C_bytes, int32_t ldc) {
+  double polygeist_v2_t0 = polygeist_v2_now_ms();
+  char pv2_c_transa = polygeist_v2_cublasSgemm_cublasOperation_t_char(transa);
+  char pv2_c_transb = polygeist_v2_cublasSgemm_cublasOperation_t_char(transb);
+  (void)A_bytes;
+  (void)B_bytes;
+  (void)C_bytes;
+  sgemm_(&pv2_c_transa, &pv2_c_transb, &m, &n, &k, &alpha, A, &lda, B, &ldb, &beta, C, &ldc, (polygeist_v2_flen)1, (polygeist_v2_flen)1);
+  polygeist_v2_done("cublasSgemm", "sgemm_", polygeist_v2_t0);
+}
+
+extern void sgemv_(const char *, const int *, const int *, const float *, const float *, const int *, const float *, const int *, const float *, float *, const int *, polygeist_v2_flen);
+static char polygeist_v2_cublasSgemv_cublasOperation_t_char(int32_t v) {
+  switch (v) {
+  case 0: return 'N';
+  case 1: return 'T';
+  }
+  polygeist_v2_fatal("cublasSgemv", "enum value without a Fortran flag");
+  return 0;
+}
+void polygeist_v2_cublasSgemv(int32_t trans, int32_t m, int32_t n, float alpha, const float *A, int64_t A_bytes, int32_t lda, const float *x, int64_t x_bytes, int32_t incx, float beta, float *y, int64_t y_bytes, int32_t incy) {
+  double polygeist_v2_t0 = polygeist_v2_now_ms();
+  char pv2_c_trans = polygeist_v2_cublasSgemv_cublasOperation_t_char(trans);
+  (void)A_bytes;
+  (void)x_bytes;
+  (void)y_bytes;
+  sgemv_(&pv2_c_trans, &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy, (polygeist_v2_flen)1);
+  polygeist_v2_done("cublasSgemv", "sgemv_", polygeist_v2_t0);
 }
 
 extern void dpotrf_(const char *, const int *, double *, const int *, int *, polygeist_v2_flen);

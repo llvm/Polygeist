@@ -1,5 +1,1833 @@
 [
  {
+  "spec": "aten_abs_f32",
+  "routine": "aten_abs",
+  "wrapper": "generic_solver/lib_v3/raised/aten_abs_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_abs_f32.c --function=aten_abs_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_abs_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_abs_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_abs_f32.mlir -o generic_solver/lib_v3/raised/aten_abs_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_abs_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_abs_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_abs_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_acos_f32",
+  "routine": "aten_acos",
+  "wrapper": "generic_solver/lib_v3/raised/aten_acos_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_acos_f32.c --function=aten_acos_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_acos_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_acos_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_acos_f32.mlir -o generic_solver/lib_v3/raised/aten_acos_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_acos_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_acos_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_acos_f32",
+   "declarations": [
+    "func.func private @acosf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_acosh_f32",
+  "routine": "aten_acosh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_acosh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_acosh_f32.c --function=aten_acosh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_acosh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_acosh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_acosh_f32.mlir -o generic_solver/lib_v3/raised/aten_acosh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_acosh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_acosh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_acosh_f32",
+   "declarations": [
+    "func.func private @acoshf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_add_f32",
+  "routine": "aten_add",
+  "wrapper": "generic_solver/lib_v3/raised/aten_add_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_add_f32.c --function=aten_add_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_add_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_add_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_add_f32.mlir -o generic_solver/lib_v3/raised/aten_add_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_add_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_add_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_add_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "y",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_asin_f32",
+  "routine": "aten_asin",
+  "wrapper": "generic_solver/lib_v3/raised/aten_asin_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_asin_f32.c --function=aten_asin_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_asin_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_asin_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_asin_f32.mlir -o generic_solver/lib_v3/raised/aten_asin_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_asin_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_asin_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_asin_f32",
+   "declarations": [
+    "func.func private @asinf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_asinh_f32",
+  "routine": "aten_asinh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_asinh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_asinh_f32.c --function=aten_asinh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_asinh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_asinh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_asinh_f32.mlir -o generic_solver/lib_v3/raised/aten_asinh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_asinh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_asinh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_asinh_f32",
+   "declarations": [
+    "func.func private @asinhf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_atan_f32",
+  "routine": "aten_atan",
+  "wrapper": "generic_solver/lib_v3/raised/aten_atan_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_atan_f32.c --function=aten_atan_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_atan_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_atan_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_atan_f32.mlir -o generic_solver/lib_v3/raised/aten_atan_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_atan_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_atan_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_atan_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_atan2_f32",
+  "routine": "aten_atan2",
+  "wrapper": "generic_solver/lib_v3/raised/aten_atan2_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_atan2_f32.c --function=aten_atan2_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_atan2_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_atan2_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_atan2_f32.mlir -o generic_solver/lib_v3/raised/aten_atan2_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_atan2_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_atan2_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_atan2_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_atanh_f32",
+  "routine": "aten_atanh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_atanh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_atanh_f32.c --function=aten_atanh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_atanh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_atanh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_atanh_f32.mlir -o generic_solver/lib_v3/raised/aten_atanh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_atanh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_atanh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_atanh_f32",
+   "declarations": [
+    "func.func private @atanhf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_ceil_f32",
+  "routine": "aten_ceil",
+  "wrapper": "generic_solver/lib_v3/raised/aten_ceil_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_ceil_f32.c --function=aten_ceil_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_ceil_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_ceil_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_ceil_f32.mlir -o generic_solver/lib_v3/raised/aten_ceil_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_ceil_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_ceil_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_ceil_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_cos_f32",
+  "routine": "aten_cos",
+  "wrapper": "generic_solver/lib_v3/raised/aten_cos_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_cos_f32.c --function=aten_cos_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_cos_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_cos_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_cos_f32.mlir -o generic_solver/lib_v3/raised/aten_cos_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_cos_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_cos_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_cos_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_cosh_f32",
+  "routine": "aten_cosh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_cosh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_cosh_f32.c --function=aten_cosh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_cosh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_cosh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_cosh_f32.mlir -o generic_solver/lib_v3/raised/aten_cosh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_cosh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_cosh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_cosh_f32",
+   "declarations": [
+    "func.func private @coshf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_div_f32",
+  "routine": "aten_div",
+  "wrapper": "generic_solver/lib_v3/raised/aten_div_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_div_f32.c --function=aten_div_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_div_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_div_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_div_f32.mlir -o generic_solver/lib_v3/raised/aten_div_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_div_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_div_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_div_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_erf_f32",
+  "routine": "aten_erf",
+  "wrapper": "generic_solver/lib_v3/raised/aten_erf_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_erf_f32.c --function=aten_erf_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_erf_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_erf_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_erf_f32.mlir -o generic_solver/lib_v3/raised/aten_erf_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_erf_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_erf_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_erf_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_exp_f32",
+  "routine": "aten_exp",
+  "wrapper": "generic_solver/lib_v3/raised/aten_exp_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_exp_f32.c --function=aten_exp_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_exp_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_exp_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_exp_f32.mlir -o generic_solver/lib_v3/raised/aten_exp_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_exp_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_exp_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_exp_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_floor_f32",
+  "routine": "aten_floor",
+  "wrapper": "generic_solver/lib_v3/raised/aten_floor_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_floor_f32.c --function=aten_floor_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_floor_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_floor_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_floor_f32.mlir -o generic_solver/lib_v3/raised/aten_floor_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_floor_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_floor_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_floor_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_leaky_relu_f32",
+  "routine": "aten_leaky_relu",
+  "wrapper": "generic_solver/lib_v3/raised/aten_leaky_relu_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_leaky_relu_f32.c --function=aten_leaky_relu_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_leaky_relu_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_leaky_relu_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_leaky_relu_f32.mlir -o generic_solver/lib_v3/raised/aten_leaky_relu_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_leaky_relu_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_leaky_relu_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_leaky_relu_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output",
+    "negval"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_log_f32",
+  "routine": "aten_log",
+  "wrapper": "generic_solver/lib_v3/raised/aten_log_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_log_f32.c --function=aten_log_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_log_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_log_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_log_f32.mlir -o generic_solver/lib_v3/raised/aten_log_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_log_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_log_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_log_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_mul_f32",
+  "routine": "aten_mul",
+  "wrapper": "generic_solver/lib_v3/raised/aten_mul_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_mul_f32.c --function=aten_mul_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_mul_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_mul_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_mul_f32.mlir -o generic_solver/lib_v3/raised/aten_mul_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_mul_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_mul_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_mul_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_neg_f32",
+  "routine": "aten_neg",
+  "wrapper": "generic_solver/lib_v3/raised/aten_neg_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_neg_f32.c --function=aten_neg_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_neg_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_neg_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_neg_f32.mlir -o generic_solver/lib_v3/raised/aten_neg_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_neg_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_neg_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_neg_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_pow_f32",
+  "routine": "aten_pow",
+  "wrapper": "generic_solver/lib_v3/raised/aten_pow_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_pow_f32.c --function=aten_pow_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_pow_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_pow_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_pow_f32.mlir -o generic_solver/lib_v3/raised/aten_pow_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_pow_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_pow_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_pow_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_reciprocal_f32",
+  "routine": "aten_reciprocal",
+  "wrapper": "generic_solver/lib_v3/raised/aten_reciprocal_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_reciprocal_f32.c --function=aten_reciprocal_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_reciprocal_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_reciprocal_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_reciprocal_f32.mlir -o generic_solver/lib_v3/raised/aten_reciprocal_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_reciprocal_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_reciprocal_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_reciprocal_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_rsqrt_f32",
+  "routine": "aten_rsqrt",
+  "wrapper": "generic_solver/lib_v3/raised/aten_rsqrt_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_rsqrt_f32.c --function=aten_rsqrt_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_rsqrt_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_rsqrt_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_rsqrt_f32.mlir -o generic_solver/lib_v3/raised/aten_rsqrt_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_rsqrt_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_rsqrt_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_rsqrt_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_scaled_add_f32",
+  "routine": "aten_scaled_add",
+  "wrapper": "generic_solver/lib_v3/raised/aten_scaled_add_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_scaled_add_f32.c --function=aten_scaled_add_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_scaled_add_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_scaled_add_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_scaled_add_f32.mlir -o generic_solver/lib_v3/raised/aten_scaled_add_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_scaled_add_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_scaled_add_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_scaled_add_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "self",
+    "other",
+    "output",
+    "alpha"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_sigmoid_f32",
+  "routine": "aten_sigmoid",
+  "wrapper": "generic_solver/lib_v3/raised/aten_sigmoid_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_sigmoid_f32.c --function=aten_sigmoid_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_sigmoid_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_sigmoid_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_sigmoid_f32.mlir -o generic_solver/lib_v3/raised/aten_sigmoid_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_sigmoid_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_sigmoid_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_sigmoid_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_sigmoid_backward_f32",
+  "routine": "aten_sigmoid_backward",
+  "wrapper": "generic_solver/lib_v3/raised/aten_sigmoid_backward_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_sigmoid_backward_f32.c --function=aten_sigmoid_backward_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_sigmoid_backward_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_sigmoid_backward_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_sigmoid_backward_f32.mlir -o generic_solver/lib_v3/raised/aten_sigmoid_backward_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_sigmoid_backward_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_sigmoid_backward_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_sigmoid_backward_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_silu_f32",
+  "routine": "aten_silu",
+  "wrapper": "generic_solver/lib_v3/raised/aten_silu_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_silu_f32.c --function=aten_silu_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_silu_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_silu_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_silu_f32.mlir -o generic_solver/lib_v3/raised/aten_silu_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_silu_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_silu_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_silu_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_silu_backward_f32",
+  "routine": "aten_silu_backward",
+  "wrapper": "generic_solver/lib_v3/raised/aten_silu_backward_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_silu_backward_f32.c --function=aten_silu_backward_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_silu_backward_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_silu_backward_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_silu_backward_f32.mlir -o generic_solver/lib_v3/raised/aten_silu_backward_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_silu_backward_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_silu_backward_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_silu_backward_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "dy",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_sin_f32",
+  "routine": "aten_sin",
+  "wrapper": "generic_solver/lib_v3/raised/aten_sin_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_sin_f32.c --function=aten_sin_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_sin_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_sin_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_sin_f32.mlir -o generic_solver/lib_v3/raised/aten_sin_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_sin_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_sin_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_sin_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_sinh_f32",
+  "routine": "aten_sinh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_sinh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_sinh_f32.c --function=aten_sinh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_sinh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_sinh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_sinh_f32.mlir -o generic_solver/lib_v3/raised/aten_sinh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_sinh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_sinh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_sinh_f32",
+   "declarations": [
+    "func.func private @sinhf(f32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>, polygeist.pure}"
+   ],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_softmax_f32",
+  "routine": "aten_softmax",
+  "wrapper": "generic_solver/lib_v3/raised/aten_softmax_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_softmax_f32.c --function=aten_softmax_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_softmax_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_softmax_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_softmax_f32.mlir -o generic_solver/lib_v3/raised/aten_softmax_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_softmax_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_softmax_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 3,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 6
+  },
+  "linalg_analysis": {
+   "generics": 3,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 5,
+   "submaps": 6
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_softmax_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "input",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_sqrt_f32",
+  "routine": "aten_sqrt",
+  "wrapper": "generic_solver/lib_v3/raised/aten_sqrt_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_sqrt_f32.c --function=aten_sqrt_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_sqrt_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_sqrt_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_sqrt_f32.mlir -o generic_solver/lib_v3/raised/aten_sqrt_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_sqrt_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_sqrt_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_sqrt_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_tan_f32",
+  "routine": "aten_tan",
+  "wrapper": "generic_solver/lib_v3/raised/aten_tan_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_tan_f32.c --function=aten_tan_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_tan_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_tan_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_tan_f32.mlir -o generic_solver/lib_v3/raised/aten_tan_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_tan_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_tan_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_tan_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_tanh_f32",
+  "routine": "aten_tanh",
+  "wrapper": "generic_solver/lib_v3/raised/aten_tanh_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_tanh_f32.c --function=aten_tanh_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_tanh_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_tanh_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_tanh_f32.mlir -o generic_solver/lib_v3/raised/aten_tanh_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_tanh_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_tanh_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_tanh_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_tanh_backward_f32",
+  "routine": "aten_tanh_backward",
+  "wrapper": "generic_solver/lib_v3/raised/aten_tanh_backward_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_tanh_backward_f32.c --function=aten_tanh_backward_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_tanh_backward_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_tanh_backward_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_tanh_backward_f32.mlir -o generic_solver/lib_v3/raised/aten_tanh_backward_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_tanh_backward_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_tanh_backward_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_tanh_backward_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "a",
+    "b",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "aten_threshold_f32",
+  "routine": "aten_threshold",
+  "wrapper": "generic_solver/lib_v3/raised/aten_threshold_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/aten_threshold_f32.c --function=aten_threshold_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/aten_threshold_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=aten_threshold_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/aten_threshold_f32.mlir -o generic_solver/lib_v3/raised/aten_threshold_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/aten_threshold_f32_linalg.mlir -o generic_solver/lib_v3/raised/aten_threshold_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "aten_threshold_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "other",
+    "output",
+    "threshold",
+    "value"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
   "spec": "numpy_bincount",
   "routine": "bincount",
   "wrapper": "generic_solver/lib_v3/raised/numpy_bincount.c",
@@ -445,6 +2273,109 @@
   }
  },
  {
+  "spec": "cutlass_rmsnorm_f32",
+  "routine": "cutlass_rmsnorm",
+  "wrapper": "generic_solver/lib_v3/raised/cutlass_rmsnorm_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/cutlass_rmsnorm_f32.c --function=cutlass_rmsnorm_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/cutlass_rmsnorm_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=cutlass_rmsnorm_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/cutlass_rmsnorm_f32.mlir -o generic_solver/lib_v3/raised/cutlass_rmsnorm_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/cutlass_rmsnorm_f32_linalg.mlir -o generic_solver/lib_v3/raised/cutlass_rmsnorm_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 5
+  },
+  "linalg_analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 2,
+   "submaps": 5
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "cutlass_rmsnorm_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "input",
+    "weight",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "cutlass_rmsnorm_parameterized_f32",
+  "routine": "cutlass_rmsnorm_parameterized",
+  "wrapper": "generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32.c --function=cutlass_rmsnorm_parameterized_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=cutlass_rmsnorm_parameterized_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32.mlir -o generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32_linalg.mlir -o generic_solver/lib_v3/raised/cutlass_rmsnorm_parameterized_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 5
+  },
+  "linalg_analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 2,
+   "submaps": 5
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "cutlass_rmsnorm_parameterized_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "input",
+    "weight",
+    "output",
+    "epsilon"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
   "spec": "netlib_dpotf2_u",
   "routine": "dpotf2",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dpotf2_u.c",
@@ -706,6 +2637,7 @@
   "reason": "defn could not be executed for validation (RUN_FAIL; memref-Linalg route: LOWER_FAIL)",
   "meta": {
    "spec": "netlib_dsymm_ru_beta0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -769,6 +2701,7 @@
   "reason": "defn could not be executed for validation (RUN_FAIL; memref-Linalg route: LOWER_FAIL)",
   "meta": {
    "spec": "netlib_dsymm_ru",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -833,6 +2766,7 @@
   "reason": "defn could not be executed for validation (RUN_FAIL; memref-Linalg route: LOWER_FAIL)",
   "meta": {
    "spec": "netlib_dsymm_rl_beta0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -896,6 +2830,7 @@
   "reason": "defn could not be executed for validation (RUN_FAIL; memref-Linalg route: LOWER_FAIL)",
   "meta": {
    "spec": "netlib_dsymm_rl",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -960,6 +2895,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsymm_lu_alpha0_beta0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -1024,6 +2960,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsymm_lu_alpha0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -1089,6 +3026,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_un_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1152,6 +3090,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_un_beta1",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1215,6 +3154,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_un",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1357,6 +3297,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_ln_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1420,6 +3361,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_ln_beta1",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1483,6 +3425,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_ln",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1625,6 +3568,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_un_alpha0_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1690,6 +3634,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_un_alpha0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1756,6 +3701,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_ln_alpha0_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1821,6 +3767,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyr2k_ln_alpha0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1887,6 +3834,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_un_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -1946,6 +3894,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_un_beta1",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2005,6 +3954,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_un",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2065,6 +4015,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ut_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2124,6 +4075,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ut",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2184,6 +4136,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ln_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2243,6 +4196,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ln_beta1",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2302,6 +4256,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ln",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2362,6 +4317,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_lt_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2421,6 +4377,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_lt",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2481,6 +4438,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_un_alpha0_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2541,6 +4499,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_un_alpha0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2602,6 +4561,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ln_alpha0_beta0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -2662,6 +4622,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dsyrk_ln_alpha0",
+   "declarations": [],
    "params": [
     "n",
     "k",
@@ -3347,6 +5308,7 @@
   "reason": "",
   "meta": {
    "spec": "netlib_dtrmm_lunn_alpha0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -3691,6 +5653,57 @@
   }
  },
  {
+  "spec": "ggml_swiglu_f32",
+  "routine": "ggml_swiglu",
+  "wrapper": "generic_solver/lib_v3/raised/ggml_swiglu_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/ggml_swiglu_f32.c --function=ggml_swiglu_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/ggml_swiglu_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=ggml_swiglu_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/ggml_swiglu_f32.mlir -o generic_solver/lib_v3/raised/ggml_swiglu_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/ggml_swiglu_f32_linalg.mlir -o generic_solver/lib_v3/raised/ggml_swiglu_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 3
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "ggml_swiglu_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "gate",
+    "output"
+   ],
+   "outputs": [
+    "output"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
   "spec": "openblas_daxpby",
   "routine": "openblas_daxpby",
   "wrapper": "generic_solver/lib_v3/raised/openblas_daxpby.c",
@@ -3718,6 +5731,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_daxpby",
+   "declarations": [],
    "params": [
     "n",
     "alpha",
@@ -3769,6 +5783,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_daxpby_beta0",
+   "declarations": [],
    "params": [
     "n",
     "alpha",
@@ -3819,6 +5834,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_daxpy",
+   "declarations": [],
    "params": [
     "n",
     "alpha",
@@ -3869,6 +5885,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_nn_b0",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -3887,8 +5904,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -3933,6 +5950,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_nn",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -3952,8 +5970,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -3998,6 +6016,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_nt_b0",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4016,8 +6035,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4062,6 +6081,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_nt",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4081,8 +6101,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4127,6 +6147,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_tn_b0",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4145,8 +6166,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4191,6 +6212,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_tn",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4210,8 +6232,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4256,6 +6278,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_tt_b0",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4274,8 +6297,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4320,6 +6343,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemm_tt",
+   "declarations": [],
    "params": [
     "M",
     "N",
@@ -4339,8 +6363,8 @@
    "returns": [],
    "leading_dims": {
     "lda": "A",
-    "ldb": "B",
-    "ldc": "C"
+    "ldc": "C",
+    "ldb": "B"
    },
    "unreferenced": [
     "lda",
@@ -4385,6 +6409,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_n_beta0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4442,6 +6467,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_n_beta1",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4499,6 +6525,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_n",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4557,6 +6584,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_t_beta0",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4614,6 +6642,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_t_beta1",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4671,6 +6700,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dgemv_t",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4729,6 +6759,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dger",
+   "declarations": [],
    "params": [
     "m",
     "n",
@@ -4786,6 +6817,7 @@
   "reason": "",
   "meta": {
    "spec": "openblas_dscal",
+   "declarations": [],
    "params": [
     "n",
     "alpha",
@@ -4797,6 +6829,286 @@
    "returns": [],
    "leading_dims": {},
    "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "openblas_scopy_f32",
+  "routine": "openblas_scopy",
+  "wrapper": "generic_solver/lib_v3/raised/openblas_scopy_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_scopy_f32.c --function=openblas_scopy_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_scopy_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=openblas_scopy_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_scopy_f32.mlir -o generic_solver/lib_v3/raised/openblas_scopy_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_scopy_f32_linalg.mlir -o generic_solver/lib_v3/raised/openblas_scopy_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "openblas_scopy_f32",
+   "declarations": [],
+   "params": [
+    "n",
+    "x",
+    "y"
+   ],
+   "outputs": [
+    "y"
+   ],
+   "returns": [],
+   "leading_dims": {},
+   "unreferenced": []
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "openblas_sgemm_nn_m1_b0_alpha1",
+  "routine": "openblas_sgemm",
+  "wrapper": "generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1.c --function=openblas_sgemm_nn_m1_b0_alpha1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=openblas_sgemm_nn_m1_b0_alpha1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1.mlir -o generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_sgemm_nn_m1_b0_alpha1_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 4
+  },
+  "linalg_analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 4
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "openblas_sgemm_nn_m1_b0_alpha1",
+   "declarations": [],
+   "params": [
+    "N",
+    "K",
+    "A",
+    "ldb",
+    "B",
+    "C"
+   ],
+   "outputs": [
+    "C"
+   ],
+   "returns": [],
+   "leading_dims": {
+    "ldb": "B"
+   },
+   "unreferenced": [
+    "ldb"
+   ]
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "openblas_sgemv_n_beta0_alpha1",
+  "routine": "openblas_sgemv",
+  "wrapper": "generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1.c --function=openblas_sgemv_n_beta0_alpha1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=openblas_sgemv_n_beta0_alpha1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1.mlir -o generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_sgemv_n_beta0_alpha1_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 5
+  },
+  "linalg_analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 5
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "openblas_sgemv_n_beta0_alpha1",
+   "declarations": [],
+   "params": [
+    "m",
+    "n",
+    "lda",
+    "A",
+    "x",
+    "y"
+   ],
+   "outputs": [
+    "y"
+   ],
+   "returns": [],
+   "leading_dims": {
+    "lda": "A"
+   },
+   "unreferenced": [
+    "lda"
+   ]
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "LOWER_FAIL",
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "openblas_sgemv_t_beta0_alpha1",
+  "routine": "openblas_sgemv",
+  "wrapper": "generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1.c --function=openblas_sgemv_t_beta0_alpha1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=openblas_sgemv_t_beta0_alpha1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1.mlir -o generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_sgemv_t_beta0_alpha1_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 4
+  },
+  "linalg_analysis": {
+   "generics": 2,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 4
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "openblas_sgemv_t_beta0_alpha1",
+   "declarations": [],
+   "params": [
+    "m",
+    "n",
+    "lda",
+    "A",
+    "x",
+    "y"
+   ],
+   "outputs": [
+    "y"
+   ],
+   "returns": [],
+   "leading_dims": {
+    "lda": "A"
+   },
+   "unreferenced": [
+    "lda"
+   ]
+  },
+  "validation": {
+   "defn": "EXACT",
+   "defn_maxabs": 0.0,
+   "linalg": "EXACT",
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
+  }
+ },
+ {
+  "spec": "openblas_somatcopy_f32",
+  "routine": "openblas_somatcopy",
+  "wrapper": "generic_solver/lib_v3/raised/openblas_somatcopy_f32.c",
+  "commands": [
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_somatcopy_f32.c --function=openblas_somatcopy_f32 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_somatcopy_f32.mlir",
+   "build/bin/polygeist-opt '--select-func=func-name=openblas_somatcopy_f32 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_somatcopy_f32.mlir -o generic_solver/lib_v3/raised/openblas_somatcopy_f32_linalg.mlir",
+   "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_somatcopy_f32_linalg.mlir -o generic_solver/lib_v3/raised/openblas_somatcopy_f32_debuf.mlir"
+  ],
+  "recoveries": {},
+  "analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "linalg_analysis": {
+   "generics": 1,
+   "loops": [],
+   "loop_count": 0,
+   "memref_access": 0,
+   "submaps": 2
+  },
+  "status": "RAISED",
+  "reason": "",
+  "meta": {
+   "spec": "openblas_somatcopy_f32",
+   "declarations": [],
+   "params": [
+    "m",
+    "n",
+    "lda",
+    "A",
+    "ldc",
+    "C"
+   ],
+   "outputs": [
+    "C"
+   ],
+   "returns": [],
+   "leading_dims": {
+    "lda": "A",
+    "ldc": "C"
+   },
+   "unreferenced": [
+    "lda",
+    "ldc"
+   ]
   },
   "validation": {
    "defn": "EXACT",

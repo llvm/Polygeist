@@ -290,12 +290,10 @@ def cast_int(e: Emitter, v: str, ty: str) -> str:
     raise LowerError(f"cannot pass {ty} as int")
 
 
-def cast_scalar(e: Emitter, v: str, ty: str) -> str:
-    if ty == "f64":
+def cast_scalar(e: Emitter, v: str, ty: str, target: str) -> str:
+    if ty == target:
         return v
-    if ty in ("f32", "f16", "bf16"):
-        return e.op(f"arith.extf {v} : {ty} to f64", "f")
-    raise LowerError(f"cannot pass {ty} as double scalar")
+    raise LowerError(f"cannot pass {ty} as {target} library scalar")
 
 
 class ArrayVal:
@@ -372,6 +370,10 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
                 raise LowerError(f"{sa.spec}: array operand {sa.args[i].name} is {tys[i]} (not bufferized)")
             spec_elem = {"double": "f64", "float": "f32"}[elem_of[pname]]
             arrays[i] = ArrayVal(e, ops[i], tys[i], spec_elem)
+            if ca.descriptor_adapter or ca.runtime_adapter:
+                param = next(p for p in ca.params if p.name == pname)
+                if arrays[i].rank != param.rank:
+                    raise LowerError(f"{sa.spec}: descriptor array rank mismatch")
         return arrays[i]
 
     def int_value(b) -> str:
@@ -390,13 +392,14 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
             args.append(e.const(b[1], "i32"))
             atys.append("i32")
         elif p.tkind == "scalar":
+            scalar_ty = {"float": "f32", "double": "f64"}[p.elem]
             if b[0] in ("arg", "alias"):
-                args.append(cast_scalar(e, ops[b[1]], tys[b[1]]))
+                args.append(cast_scalar(e, ops[b[1]], tys[b[1]], scalar_ty))
             elif b[0] == "const_num":
-                args.append(e.const(float(b[1]), "f64"))
+                args.append(e.const(float(b[1]), scalar_ty))
             else:
                 raise LowerError(f"{sa.spec}: scalar {p.name} unbound")
-            atys.append("f64")
+            atys.append(scalar_ty)
         elif p.tkind == "array":
             if b[0] not in ("arg", "alias"):
                 raise LowerError(f"{sa.spec}: array {p.name} unbound")
@@ -421,22 +424,24 @@ def lower_launch(m: re.Match, sa: A.SpecAbi, ca: A.CallAbi, tag: str) -> tuple[l
     callee = f"polygeist_v2_{ca.call}"
     res = m.group("res")
     ret = ca.returns
+    ret_ty = {"float": "f32", "double": "f64"}.get(ret)
     # bufferized launches have no results; the only SSA result a library call
     # can produce is the scalar of a value-returning spec
-    if rtys and not (ret and rtys == ["f64"]):
+    if rtys and not (ret and rtys == [ret_ty]):
         raise LowerError(f"{sa.spec}: unlowerable launch results {rtys} (not bufferized?)")
     call = f"func.call @{callee}({', '.join(args)}) : ({', '.join(atys)})"
     if ret and rtys and res:
-        e.raw(f"{res} = {call} -> f64")
+        e.raw(f"{res} = {call} -> {ret_ty}")
     elif ret:
-        e.raw(f"{e.fresh('r')} = {call} -> f64")
+        e.raw(f"{e.fresh('r')} = {call} -> {ret_ty}")
     else:
         e.raw(f"{call} -> ()")
-    decl = f"  func.func private @{callee}({', '.join(atys)})" + (" -> f64" if ret else "")
+    decl = f"  func.func private @{callee}({', '.join(atys)})" + (f" -> {ret_ty}" if ret else "")
     return e.lines, decl
 
 
-def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list) -> str:
+def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list,
+            backend: str = "cpu") -> str:
     out, decls = [], {}
     for n, ln in enumerate(text.split("\n")):
         m = LAUNCH_RE.match(ln)
@@ -450,12 +455,17 @@ def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list) -> s
         sa = specs[spec]
         ca = calls[sa.call]
         lines, decl = lower_launch(m, sa, ca, str(n))
+        if backend == "cuda":
+            # The CUDA ABI accepts resident device pointers. This is not a
+            # graph-capture promise: a wrapper may allocate or synchronize.
+            decl += " attributes {polygeist.gpu_runtime}"
         prev = decls.setdefault(ca.call, decl)
         if prev != decl:
             raise LowerError(f"inconsistent declarations for {ca.call}")
         out.extend(lines)
         report.append({"spec": spec, "call": f"polygeist_v2_{ca.call}",
-                       "cpu_entry": ca.fortran["entry"], "gpu_entry": ca.header_symbol,
+                       "cpu_entry": ca.fortran["entry"] if ca.fortran else None,
+                       "gpu_entry": ca.header_symbol,
                        "operand_types": split_top(m.group("tys"))})
     text = strip_defns("\n".join(out))
     if decls:
@@ -466,7 +476,7 @@ def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list) -> s
 
 
 def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
-          allow_legaliser: bool = True) -> str:
+          allow_legaliser: bool = True, backend: str = "cpu") -> str:
     report = report if report is not None else {}
     report.setdefault("launches", [])
     report.setdefault("opt", [])
@@ -486,7 +496,7 @@ def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
     text, names = prepare(text, specs)
     if do_bufferize:
         text = bufferize(text, report["opt"], allow_legaliser)
-    return rewrite(text, names, specs, calls, report["launches"])
+    return rewrite(text, names, specs, calls, report["launches"], backend)
 
 
 def main() -> int:
@@ -499,11 +509,13 @@ def main() -> int:
                     help="fail instead of falling back to legalize_tensor_submaps.py "
                          "when production view lowering leaves tensor submaps")
     ap.add_argument("--report")
+    ap.add_argument("--backend", choices=("cpu", "cuda", "pva"), default="cpu",
+                    help="runtime ABI backend; CUDA declarations accept device pointers")
     a = ap.parse_args()
     report: dict = {}
     try:
         out = lower(Path(a.input).read_text(), not a.no_bufferize, report,
-                    allow_legaliser=not a.no_legaliser)
+                    allow_legaliser=not a.no_legaliser, backend=a.backend)
     except LowerError as ex:
         print(f"lower_v2: error: {ex}", file=sys.stderr)
         if a.report:

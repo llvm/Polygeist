@@ -360,6 +360,9 @@ if [ "$HARNESS_INPUT" = "$INPUT" ]; then
 fi
 SHARED_SCOPE=()
 [ "$WHOLE_PROGRAM" -eq 0 ] || SHARED_SCOPE+=(--whole-program)
+if [ "${POLYGEIST_KEEP_DEPENDENCIES:-0}" != "0" ]; then
+  SHARED_SCOPE+=(--keep-dependencies)
+fi
 $PYTHON "$SCRIPTS/lib_v2/recipe.py" --stage raise --function "$FUNCTION" \
   "${SHARED_SCOPE[@]}" --input "$WORK/affine.mlir" --output "$WORK/raised.mlir" \
   >"$WORK/raise.json"
@@ -377,6 +380,9 @@ fi
 # ─── Step 3: imported-specification matching ──────────────────────────
 echo "  [3/9] imported specifications: Linalg then generic region matching"
 MATCHER_ARGS=(--backend "$ABI_BACKEND" --report "$WORK/match.json")
+if [ "${POLYGEIST_NORMALIZE_PARALLEL_DIMS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--normalize-parallel-dims)
+fi
 if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != 0 ]; then
   MATCHER_ARGS+=(--max-launches 0)
 fi
@@ -403,7 +409,7 @@ fi
 # ─── Steps 4-5: mechanical lowering of specification bindings ──────────
 echo "  [4-5/9] imported specification ABI -> external library calls"
 if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
-  -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
+  --backend "$ABI_BACKEND" -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
   if grep -q 'kernel.launch' "$SEMANTIC_INPUT" || [ ! -f "$WORK/affine.mlir" ]; then
     cat "$WORK/abi.err" >&2; exit 1
   fi
@@ -421,7 +427,7 @@ if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
   SEMANTIC_INPUT=$WORK/matched.mlir
   $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
   $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
-    -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
+    --backend "$ABI_BACKEND" -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
   echo "         retained original affine IR after residual view-lowering failure (zero matches)"
 fi
 cat "$WORK/abi.err"
@@ -721,7 +727,7 @@ else
       exit 1
     }
     RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$CUTENSOR_ROOT/include")
-    RT_LIBS="-L$CUTENSOR_ROOT/lib -lcutensor $RT_LIBS"
+    RT_LIBS="-L$CUTENSOR_ROOT/lib -l:libcutensor.so.2 $RT_LIBS"
     echo "         + cuTENSOR runtime from $CUTENSOR_ROOT"
   fi
   if [ "$STENCIL_BACKEND" = "custen" ]; then
@@ -749,9 +755,11 @@ if [ "$N_CALL" -gt 0 ]; then
     >"$WORK/spec_runtime.log" 2>&1
   if [ "$TARGET" = jetson ]; then
     $CC -O2 -ffunction-sections -fdata-sections -I"$CUDA_CROSS/include" \
+      -I"$REPO_ROOT/runtime" \
       -I"$REPO_ROOT/third_party/cuda_headers/cusolver/include" \
+      -I"$CUDNN_CROSS_INC" \
       -c "$WORK/spec_runtime/polygeist_v2_rt_cuda.c" -o "$WORK/spec_runtime.o"
-    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -lcublas -lcusolver -lcudart $RT_LIBS"
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB -lcudnn -lcublas -lcusolver -lcudart $RT_LIBS"
   else
     $CC -O2 -ffunction-sections -fdata-sections \
       -c "$WORK/spec_runtime/polygeist_v2_rt_cpu.c" -o "$WORK/spec_runtime.o"

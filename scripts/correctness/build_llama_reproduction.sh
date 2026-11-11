@@ -27,6 +27,7 @@ POLYGEIST_KEEP_WORK=1 POLYGEIST_BUILD_WORK_DIR="$OUT/nonresident-work" \
   --harness="$BENCH/llama_extended_timing_harness.c" "$SOURCE" \
   "${DEFS[@]}" -DWARMUP=5 -DMEASURE=5 -o "$OUT/llama_nonresident"
 POLYGEIST_WRAP_KERNEL_PIPELINE=0 POLYGEIST_DISABLE_POINTWISE_MATCHING=0 \
+POLYGEIST_KEEP_DEPENDENCIES=1 \
 POLYGEIST_CGEIST_FLAGS="--no-inline --memref-fullrank" POLYGEIST_SKIP_LINK=1 \
 POLYGEIST_KEEP_WORK=1 POLYGEIST_BUILD_WORK_DIR="$OUT/session-work" \
   "$HERE/polygeist_build.sh" --target=jetson \
@@ -43,7 +44,8 @@ POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS=1 \
 POLYGEIST_ENTRY_FUNCTION=kernel_llama2_extended_forward_session \
 POLYGEIST_INLINE_GPU_ENTRY_CALLS=1 \
   "$HERE/build_jetson.sh" "$OUT/session-work/abi.mlir" "$OUT/llama_resident" \
-  "$OUT/session-work/wrapper.o" "$OUT/session-work/harness.o" "$OUT/iteration-timing.o"
+  "$OUT/session-work/wrapper.o" "$OUT/session-work/harness.o" \
+  "$OUT/session-work/spec_runtime.o" "$OUT/iteration-timing.o"
 "$CXX" -O3 -std=c++17 "${DEFS[@]}" "$HERE/llama_extended_ggml_bench.cpp" \
   -I"$REPO_ROOT/third_party/whisper.cpp/ggml/include" \
   -L"$GGML_BUILD/ggml/src" -L"$GGML_BUILD/ggml/src/ggml-cuda" \

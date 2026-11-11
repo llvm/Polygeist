@@ -133,6 +133,100 @@ class Emitter:
         return acc
 
 
+def split_independent_outputs(text: str) -> tuple[str, int]:
+    """Split pure, independent tensor outputs before legalizing broadcast views.
+
+    A raised loop can write an elementwise result and a reduction accumulator
+    together. Their composed output accesses need different iterator kinds in
+    ordinary Linalg. Splitting is safe only when no result reads another
+    output's previous value. Keep each result's scalar dependency closure;
+    duplicating pure arithmetic does not change the reduction's evaluation order.
+    """
+    mod = ML.Module(text)
+    count = 0
+    for f in reversed(mod.funcs):
+        edits, replacements = [], {}
+        for g in f.ops:
+            if (g.name != "linalg.generic" or g.parent is not None or
+                    len(g.outs) < 2 or len(g.results) != len(g.outs) or
+                    not all(t.startswith("tensor<") for t in g.in_types + g.out_types)):
+                continue
+            try:
+                traces = [trace(mod, g, len(g.ins) + j) for j in range(len(g.outs))]
+            except ML.AffineParseError:
+                continue
+            if not any(t[3] for t in traces):
+                continue
+            children = [op for op in mod.ops if op.parent == g.idx]
+            if (not children or children[-1].name != "linalg.yield" or
+                    any(op.regions or not op.name.startswith(("arith.", "math.", "linalg.index"))
+                        for op in children[:-1])):
+                continue
+            defs = {r: op for op in children[:-1] for r in op.results}
+            block = re.search(r"\^bb\d+\((.*?)\):", g.text)
+            if block is None:
+                continue
+            args = ML.split_top(block.group(1))
+            names = [a.split(":", 1)[0].strip() for a in args]
+            ni = len(g.ins)
+            if len(names) != ni + len(g.outs) or len(children[-1].operands) != len(g.outs):
+                continue
+            output_names = set(names[ni:])
+            pieces, new_results = [], []
+            for j, (result, out, ty, tr) in enumerate(zip(g.results, g.outs, g.out_types, traces)):
+                pending = [children[-1].operands[j]]
+                seen, needed = set(), set()
+                while pending:
+                    v = pending.pop()
+                    if v in seen:
+                        continue
+                    seen.add(v)
+                    if v in defs:
+                        op = defs[v]
+                        needed.add(op.idx)
+                        pending.extend(op.operands)
+                if (seen & output_names) - {names[ni + j]}:
+                    break
+                classified = [classify(p) for p in tr[1]]
+                if any(c is None for c in classified):
+                    break
+                kept = [c[1] for c in classified if c[0] == "dim"]
+                if len(kept) != len(set(kept)):
+                    break
+                if any(k not in kept and it != "reduction" for k, it in enumerate(g.iters)):
+                    break
+                iters = ["parallel" if k in kept else "reduction" for k in range(len(g.iters))]
+                em = Emitter(re.match(r"\s*", g.header).group(0))
+                fresh = em.fresh("out")
+                hdr = ML.inline_aliases(g.header, mod.aliases)
+                hdr = re.sub(r"^([ \t]*)%[^=]+ =", lambda m: m[1] + fresh + " =", hdr)
+                maps = g.maps[:ni] + [g.maps[ni + j]]
+                hdr = re.sub(r"indexing_maps\s*=\s*\[.*?\](?=,\s*iterator_types)",
+                             lambda _: "indexing_maps = [" + ", ".join(maps) + "]", hdr)
+                hdr = re.sub(r"iterator_types\s*=\s*\[[^]]*\]",
+                             lambda _: "iterator_types = [" + ", ".join('"' + it + '"' for it in iters) + "]", hdr)
+                hdr = re.sub(r"outs\(.*?\)\s*\{\s*$", f"outs({out} : {ty}) {{", hdr)
+                body = "".join(op.text for op in children[:-1] if op.idx in needed)
+                ind = em.indent
+                elem = args[ni + j].split(":", 1)[1].strip()
+                pieces.append(hdr + "\n" + ind + "^bb0(" + ", ".join(args[:ni] + [args[ni + j]]) + "):\n" +
+                              body + ind + "  linalg.yield " + children[-1].operands[j] + " : " + elem + "\n" +
+                              ind + "} -> " + ty + "\n")
+                new_results.append((result, fresh))
+            else:
+                edits.append((g.start - f.start, g.end - f.start, "".join(pieces)))
+                replacements.update(new_results)
+        if not edits:
+            continue
+        ft = text[f.start:f.end]
+        for s, e, replacement in reversed(edits):
+            ft = ft[:s] + replacement + ft[e:]
+        ft = ML.SSA_RE.sub(lambda m: replacements.get(m.group(0), m.group(0)), ft)
+        text = text[:f.start] + ft + text[f.end:]
+        count += len(edits)
+    return text, count
+
+
 def legalize_func_ops(mod: ML.Module) -> list[tuple[int, int, str]]:
     edits = []
     for g in mod.ops:
@@ -258,11 +352,12 @@ def legalize_func_ops(mod: ML.Module) -> list[tuple[int, int, str]]:
 def legalize(text: str) -> tuple[str, int]:
     used = [int(x) for x in re.findall(r"%lgz_[a-z]+(\d+)", text)]
     _COUNTER[0] = max([_COUNTER[0], *used])
+    text, splits = split_independent_outputs(text)
     mod = ML.Module(text)
     edits = legalize_func_ops(mod)
     for s, e, rep in sorted(edits, key=lambda t: -t[0]):
         text = text[:s] + rep + text[e:]
-    return text, len(edits)
+    return text, len(edits) + splits
 
 
 def main() -> int:

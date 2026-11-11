@@ -1,0 +1,51 @@
+Llama FP32 reference recovery — measured snapshot, 2026-11-11
+
+Outcome
+
+Fifteen of the nineteen isolated Llama sites now match validated library references and lower to real CUDA libraries. Fourteen sites are fully replaced. KV-cache read/write remains a partial match: its two matrix copies use cuBLAS, while two cache-row stores remain generic. This recovers the original published fourteen at their original scope and additionally supports token embedding. The two RoPE layouts and two attention-mask forms remain unsupported.
+
+The fresh full inference build passes the user-agreed comparison: all 32,000 output logits exactly equal the actual ggml CUDA expert implementation. The current build uses sixteen proven imported-library calls and generic GPU code for the remaining work. This is a fresh source-to-executable run, not an old retained implementation.
+
+Performance is still incomplete. With the same input dimensions, resident data, five warmups and minimum of five synchronized wall-time samples, ours takes 15.472811937 ms and ggml CUDA takes 9.703 ms. Ours is 1.594642 times slower. The CUDA-event minimum for ours is 15.467264175 ms and is recorded separately. The complete session, including residency setup and warmups, amortizes to 347.646012115 ms/token; that is not the resident timing comparison. No restoration of the earlier paper performance is claimed.
+
+What changed
+
+The new references come from pinned OpenBLAS, ATen, ggml and CUTLASS source. Their FP32 arithmetic is retained. OpenBLAS GEMV imports use the alpha=1, beta=0 configurations actually needed by these calls. The unconstrained transpose GEMV import failed its independent exact validation because distribution of alpha changes FP32 rounding; it was not made eligible by weakening the numerical gate.
+
+Reference adaptations are independently checked against compilations of the actual upstream fragments. The references and applications then use the same raising recipe. Applications match the validated imported MLIR through the shared Linalg or generic region matcher. No benchmark-name dispatcher, handwritten operation recognizer, FP32-to-FP64 conversion, or handwritten matching body was added.
+
+The shared fixes preserve typed integer dimension expressions, track incoming private scalar constants without ignoring intervening writes, handle region-local SSA names correctly, and allow a dynamic tensor read to bind a static shape while still checking precision, rank, source and indices. A dependency-preserving entry option lets the same recipe retain and inline the inference callee in the session harness.
+
+Typed API adapters now bind genuine FP32 cuBLAS calls and cuDNN operations. Pointwise cuDNN graphs are emitted mechanically from the already-proven imported scalar instructions. RMSNorm uses an explicitly typed existing vendor adapter. GPU-required execution forbids silently taking the runtime's CPU fallback. Backend eligibility remains explicit; unsupported CPU bindings are rejected.
+
+The full-rank softmax miss was a generic tensor.extract type-comparison bug. Recovering the complete strict proof removed its max/sum scratch computation. Before that fix, GPU initialization and host reduction accesses shared stack scratch and caused an illegal GPU access. The parallel GPU campaign also added conservative scratch handling; mixed host/device scratch is not blindly promoted.
+
+Validation
+
+All 28 newly built isolated GPU executables pass full-output checks: fourteen GEMV, four pointwise, six RMSNorm and four copy executables across small and paper dimensions. These supplement the previously completed softmax tests. Direct-vendor comparisons are labelled accurately: GEMV/copy use direct cuBLAS, and pointwise/RMSNorm use the existing cuDNN adapter. They are not labelled expert ggml numbers.
+
+Independent native-reference checks pass: eight OpenBLAS GEMV cases, fifteen ATen/ggml/CUTLASS cases, and eight OpenBLAS copy cases. Each eligible import has a genuinely validated semantic stage. The tensor route for the selected references validates exactly. A pre-existing independent memref-lowering limitation remains for normal GEMV, so no claim is made that every intermediate route validates.
+
+Softmax matches under the strict model. RMSNorm needs the declared relaxed model for reciprocal association; strict matching is not claimed. Whole inference uses the relaxed model, as recorded in its proofs. Tested inputs are finite; no extra NaN/Inf equivalence claim is made.
+
+The vendor trace records 160 actual imported calls over ten inference iterations, all with zero per-call H2D/D2H staging bytes. Its full output equals the timed run. Startup copies occur at the residency boundary and are included only in the separately reported complete-session wall time.
+
+The original CPU output comparison remains separate: GPU versus fresh original CPU has maximum absolute error 0.0051174, with 7,922 strict-gate failures at atol=0.001 and rtol=0.0001. GPU versus actual ggml has zero error over all 32,000 logits. A historical FP64 oracle log is retained as context and clearly marked as not freshly rerun.
+
+Seventy-four focused Python tests, twenty-two previously successful application matches, and six GPU compiler test files pass. The generated-runtime check and git diff --check pass. Full import/revalidation was repeated after compiler changes. The captured catalog has 104 specifications, 54 validated tensor bodies, 85 CPU-eligible and 90 CUDA-eligible bindings; 82 original eligible specifications remain on each backend.
+
+Remaining work
+
+The two RoPE applications use separately indexed cosine/sine tables across heads. The actual ggml reference uses an interleaved cache for a row; the common matcher and typed ABI do not yet prove and implement that layout adaptation. cuBLAS SROT has different shared-scalar/in-place semantics and is not a valid substitute without a proof and adapter.
+
+The actual ggml mask reference fills with negative infinity. These fixtures fill with finite -FLT_MAX. Substituting the reference would change semantics. A genuine equivalent finite-fill reference and generic indexed pointwise/select adapter are still needed.
+
+Four split-head Q/K projections in full inference use rank-three arrays and currently execute generic GPU code. The imported GEMV references have rank-two arrays. Upstream Linalg dimension-collapse patterns alone are insufficient because our submap views broadcast operands over the loop space. A generic, proved reshape propagation or a validated equivalent batched GEMV reference with typed stride/layout binding is still needed. This is a concrete remaining coverage/performance gap; it is not evidence that all of the measured slowdown comes from these four kernels.
+
+Two KV-cache row stores also remain generic. The isolated KV resident timing was intentionally not reported as wholly accelerated.
+
+Artifacts and state
+
+results.json contains coverage, correctness, raw timing samples, vendor call statistics, catalog counts and remaining gaps. CHANGES.txt lists source changes. REPRODUCE.txt lists commands. provenance-final.json and source-snapshot/ identify the measured compiler, runtime, reference, harness and matcher state. Each kernel directory contains build, proof, correctness and timing logs.
+
+No jobs from this agent remain active. No commit, push, extra agent or worktree was created. Parent's independent PolyBench CPU commit is 3763f6dc. Subsequent parent ATen work may extend the live catalog; this report refers to the captured measured snapshot.

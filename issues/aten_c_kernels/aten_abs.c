@@ -3,10 +3,11 @@
 #define N 4096
 #endif
 #define ATEN_CONST __attribute__((const))
+extern ATEN_CONST float fabsf(float);
 void aten_abs(float x[N], float out[N]) {
 #pragma scop
   for (int i = 0; i < N; ++i) {
-    out[i] = x[i] < 0.0f ? -x[i] : x[i];
+    out[i] = fabsf(x[i]);
   }
 #pragma endscop
 }

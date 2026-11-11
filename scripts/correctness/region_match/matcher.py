@@ -22,8 +22,8 @@ from typing import Optional
 from .affine import (Aff, Cons, atom_info, atoms_in, bounds_of, deps, eq, feasible, ge, implies,
                      implies_all, is_atom, le, lt, project, register_atoms, simplify, subtract)
 from .egg import RmArr, RmIx, Term, check_equal, enc_ix, encode, rm_param
-from .equations import (Equation, F, FBin, FConst, FParam, FRead, FSel, FSum, FUn, Reject, System,
-                        ZERO, build_system, canonicalize, fsubst, fwalk, _freshen, _simplify_sel)
+from .equations import (Equation, F, FBin, FConst, FIndex, FParam, FRead, FSel, FSum, FUn, Reject, System,
+                        ZERO, build_system, canonicalize, fold_integer_casts, fsubst, fwalk, _freshen, _simplify_sel)
 from .mlir_parse import parse_module
 from .literal_policy import candidate_float_literals, literal_ok
 from .symexec import NonAffine, Program, Unsupported, execute
@@ -73,11 +73,23 @@ def _c_prototype_dims(c_path: str) -> dict[str, tuple[str, int]]:
     parsing; used only to materialise leading-dimension operands)."""
     out = {}
     try:
-        src = open(c_path).read()
+        with open(c_path) as source:
+            src = source.read()
     except OSError:
         return out
-    for m in re.finditer(r"\b(?:double|float)\s+(\w+)\s*((?:\[[^\]]*\])+)", src):
-        name, dims = m.group(1), re.findall(r"\[([^\]]*)\]", m.group(2))
+    # The scalar type can be a typedef or a macro shared by precision variants.
+    # It does not determine these dimension relationships; actual element types
+    # still come from the compiler IR. Ignore comments and control statements.
+    src = re.sub(r"/\*.*?\*/|//[^\n]*", "", src, flags=re.S)
+    # Inspect a macro's replacement, not its name: `#define READ A[k]` is an
+    # expression, whereas `#define PARAMS scalar_t A[][ld]` is a declaration.
+    src = re.sub(r"(?m)^[ \t]*#[ \t]*define[ \t]+\w+(?:\([^\n)]*\))?[ \t]*", "", src)
+    src = re.sub(r"(?m)^[ \t]*#[^\n]*", "", src)
+    for m in re.finditer(r"\b([A-Za-z_]\w*)\s+(\w+)\s*((?:\[[^\]]*\])+)", src):
+        if m.group(1) in {"return", "case", "goto", "sizeof", "_Alignof",
+                           "if", "else", "while", "for", "do", "switch"}:
+            continue
+        name, dims = m.group(2), re.findall(r"\[([^\]]*)\]", m.group(3))
         for k, d in enumerate(dims):
             d = d.strip()
             if re.fullmatch(r"[A-Za-z_]\w*", d):
@@ -190,8 +202,9 @@ def _load_specs_uncached(spec_dir: str, log=None) -> list[Spec]:
     for mpath in sorted(glob.glob(os.path.join(spec_dir, "manifest", "*.json"))):
         man = json.load(open(mpath))
         routine = man.get("routine", os.path.basename(mpath)[:-5])
-        dims = _c_prototype_dims(os.path.join(spec_dir, "ref_c", f"{routine}.c"))
         for entry in man.get("specs", []):
+            reference = entry.get("ref_c", man.get("ref_c", f"{routine}.c"))
+            dims = _c_prototype_dims(os.path.join(spec_dir, "ref_c", reference))
             sp = _load_one(spec_dir, man, routine, dims, entry, log)
             if sp is not None:
                 sp.sig = signature(sp.system)
@@ -239,14 +252,14 @@ def load_specs(spec_dir: str, log=None, use_cache: Optional[bool] = None) -> lis
     (pickle keyed by `_cache_key`; any change to a raised spec file, manifest,
     C reference or matcher source invalidates it).  REGION_MATCH_NO_CACHE=1
     disables the disk cache."""
-    key = os.path.abspath(spec_dir)
+    ck = _cache_key(spec_dir)
+    key = (os.path.abspath(spec_dir), ck)
     if key in _SPEC_CACHE:
         return _SPEC_CACHE[key]
     if use_cache is None:
         use_cache = os.environ.get("REGION_MATCH_NO_CACHE", "") in ("", "0")
     path = None
     if use_cache:
-        ck = _cache_key(spec_dir)
         path = os.path.join(cache_dir(), f"specs-{ck[:32]}.pkl")
         try:
             with open(path, "rb") as fh:
@@ -313,6 +326,8 @@ def _used_params(sysm: System) -> set[str]:
                     out |= {v for v in deps(a.vars()) if v.startswith("p")}
             if isinstance(x, FSum):
                 out |= {v for v in deps(x.lo.vars() | x.hi.vars()) if v.startswith("p")}
+            if isinstance(x, FIndex):
+                out |= {v for v in deps(x.value.vars()) if v.startswith("p")}
     return out
 
 
@@ -322,7 +337,11 @@ def _arr_info(sysm: System, name: str):
 
 
 def _fun_ops(sysm: System) -> set[str]:
-    return {x.op for e in sysm.equations for x in fwalk(e.formula) if isinstance(x, FUn)}
+    # A dimension conversion may become a literal after binding the integer
+    # extent. This is only a search filter; the typed conversion is preserved
+    # in the proof unless its exact constant evaluation succeeds.
+    return {x.op for e in sysm.equations for x in fwalk(e.formula) if isinstance(x, FUn)
+            and not (isinstance(x.a,FIndex) and x.op.startswith(('arith.sitofp:','arith.uitofp:')))}
 
 
 def _fparams(sysm: System) -> list[str]:
@@ -377,7 +396,7 @@ def _solve_param(sa: Aff, aa: Aff, s_params: list) -> Optional[tuple[str, Aff]]:
     if _index_part(aa) != ipart:
         return None
     rest = aa - ipart
-    if not rest.terms or not _closed_value(rest):
+    if not _closed_value(rest):
         return None
     return sp, (rest - Aff.cst(sa.const)).scale(k)
 
@@ -753,8 +772,8 @@ def compare_systems(app: System, spec: System, b: Binding, ns_spec="s:",
                 fs = next((e.formula for e, d in s_eqs if implies_all(P, d)), None)
                 if fs is None:
                     fs = FRead(s_out, "in", [Aff.var(f"v{k}") for k in range(rank)])
-                fa = _simplify_formula(fa, P)
-                fs = _simplify_formula(fs, Ps)
+                fa = _simplify_formula(fold_integer_casts(fa), P)
+                fs = _simplify_formula(fold_integer_casts(fs, b.params), Ps)
                 facts_a, facts_s = [], []
                 _mask_facts(fa, P, facts_a)
                 _mask_facts(fs, Ps, facts_s)
@@ -861,11 +880,10 @@ def validate_stages(ref: System, other: System) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def _defined_names(op) -> set[str]:
-    out = set(r.split("#")[0] for r in op.results)
-    for reg in op.regions:
-        for o in reg:
-            out |= _defined_names(o)
-    return out
+    # Only operation results are visible in the enclosing block. Definitions
+    # inside its regions cannot be live-outs; other regions may reuse their
+    # textual SSA names without referring to them.
+    return {r.split("#")[0] for r in op.results}
 
 
 def _windows(prog: Program):
@@ -2049,7 +2067,9 @@ def _launch_output_resolver(specs: list[Spec], spec_dir: str):
     table: dict[str, list[int]] = {}
     for sp in specs:
         table[sp.name] = [k for k, (ssa, _t) in enumerate(sp.func_args) if ssa in sp.system.outputs]
-    lib = os.path.join(os.path.dirname(os.path.abspath(spec_dir)), "kernel_library_v2.mlir")
+    suite = os.path.basename(os.path.normpath(spec_dir))
+    lib = os.path.join(os.path.dirname(os.path.abspath(spec_dir)),
+                       f"kernel_library_{suite.removeprefix('lib_')}.mlir")
     try:
         txt = open(lib).read()
         for m in re.finditer(r"//\s*lib_v2-meta:\s*(\{.*\})\s*$", txt, re.M):

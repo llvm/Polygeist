@@ -1,0 +1,43 @@
+{
+  "routine": "ggml_swiglu",
+  "source": "Pinned upstream scalar implementation; documented adaptations in ref_c/ggml_swiglu.c",
+  "upstream_files": [
+    {
+      "path": "third_party/ggml/src/ggml-cpu/vec.cpp",
+      "sha256": "7070d9c1d4bf1ae6de2c9ce6b2f4e9b47e7ec2386377658542db53d2f850e0b0"
+    },
+    {
+      "path": "third_party/ggml/src/ggml-cpu/vec.h",
+      "sha256": "926330bae1c5d003bd654035426e31381fafcdca23ffcc23201d219dbb97cbeb"
+    }
+  ],
+  "specs": [
+    {
+      "name": "ggml_swiglu_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "gate",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous nonoverlapping FP32 arrays",
+        "finite inputs; floating reorderings only under relaxed model"
+      ],
+      "deviations": []
+    }
+  ]
+}

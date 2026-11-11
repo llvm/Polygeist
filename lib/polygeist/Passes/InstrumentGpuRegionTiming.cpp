@@ -59,7 +59,8 @@ static bool isRuntimeDispatch(func::CallOp call) {
 
   auto calleeOp = SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(
       call, call.getCalleeAttr());
-  return calleeOp && calleeOp->hasAttr("polygeist.gpu_resident_callee");
+  return calleeOp && (calleeOp->hasAttr("polygeist.gpu_resident_callee") ||
+                      calleeOp->hasAttr("polygeist.gpu_runtime"));
 }
 
 static bool isDispatch(Operation *op) {

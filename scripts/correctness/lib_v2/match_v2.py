@@ -215,7 +215,9 @@ class Matcher:
     def literal_allowed(self, sname: str, value, kind: str) -> bool:
         """Shared policy with the region matcher (region_match/literal_policy)."""
         entry = self.lib.entries.get(self.spec.name, {})
-        ok, why = SP.literal_ok(entry, sname.lstrip("%"), value, kind)
+        ok, why = SP.literal_ok(
+            entry, sname.lstrip("%"), value, kind,
+            zero_read_preserving=SP.zero_preserves_reads(self.spec.func.ops, sname))
         if not ok:
             self.policy_rejections.append(f"{self.spec.name}: {why}")
         return ok
@@ -618,8 +620,25 @@ class Matcher:
             return
         sop, sk = sd
         aop = self.A.ops[akey[1]] if akey[0] == "op" else None
+        # A dynamic reference extent can become a folded constant after its
+        # parameters bind (e.g. n - 1 with n=32). Evaluate only integer/index
+        # expressions with known operands, preserving representable ranges.
+        if aop is not None and aop.name == "arith.constant":
+            av = self.integer_constant(self.A, aop)
+            sv = self.bound_integer(sname, env)
+            sty = sop.result_types[sk] if sk < len(sop.result_types) else None
+            if av is not None and sv is not None and sty == self.atype(akey) and av == sv:
+                yield env
+                return
         if sop.idx in env.opmap:
             if aop is not None and env.opmap[sop.idx] == aop.idx:
+                if sop.name == "linalg.generic":
+                    # Reusing an already-proved multi-output producer must
+                    # retain the proven output permutation, not just its op ID.
+                    if env.gens[sop.idx][1][sk] != akey[2]:
+                        return
+                elif sk != akey[2]:
+                    return
                 yield env
             return
         if sop.name == "linalg.generic":
@@ -651,12 +670,31 @@ class Matcher:
             return
         if sop.regions or aop.regions:
             return
-        if self.L.skeleton(sop) != self.A.skeleton(aop):
-            return
+        ss, aa = self.L.skeleton(sop), self.A.skeleton(aop)
+        if ss != aa:
+            # A ranked tensor read retains its indices and element type when
+            # a dynamic reference shape specializes to an application shape.
+            # Compare that shape using the same one-way compatibility rule as
+            # parameter binding; the source tensor and every index are still
+            # matched below. Other operation attributes remain exact.
+            if sop.name != "tensor.extract" or not sop.operands or not aop.operands:
+                return
+            sty = self.L.value_type(sop.operands[0], sop)
+            aty = self.A.value_type(aop.operands[0], aop)
+            if not sty or not aty or not types_compatible(sty, aty):
+                return
+            if aa.replace(aty, sty) != ss:
+                return
         if len(sop.operands) != len(aop.operands):
             return
         e = env.copy()
         e.opmap[sop.idx] = aop.idx
+        if (sop.name == "tensor.insert" and len(sop.operands) == 2 and
+                re.fullmatch(r"tensor<[^x<>]+>", sop.result_types[sk])):
+            # A rank-zero insertion overwrites the tensor's only element; its
+            # prior value (empty, undef, or initialized) cannot affect the result.
+            yield from self.match_value(sop.operands[0], self.akey(aop.operands[0], aop), e)
+            return
         orders = [list(range(len(sop.operands)))]
         if sop.name in ML.COMMUTATIVE and len(sop.operands) == 2:
             orders.append([1, 0])
@@ -664,6 +702,47 @@ class Matcher:
             pairs = [("val", sop.operands[i], self.akey(aop.operands[j], aop))
                      for i, j in zip(range(len(sop.operands)), order)]
             yield from self.match_seq(pairs, e, aop)
+
+    @staticmethod
+    def integer_constant(mod, op):
+        if op.name != "arith.constant":
+            return None
+        m = re.search(r"constant\s+(-?\d+)\s*:\s*(?:index|i\d+)\s*$", op.text.strip())
+        return int(m[1]) if m else None
+
+    def bound_integer(self, name, env, depth=0):
+        if depth > 16:
+            return None
+        if name in env.vals:
+            b = env.vals[name]
+            if b[0] == "int":
+                return b[1]
+            if b[0] in ("ssa", "cast_i32") and b[1][0] == "op":
+                return self.integer_constant(self.A, self.A.ops[b[1][1]])
+            return None
+        d = self.sdef(name)
+        if d is None:
+            return None
+        op, k = d
+        ty = op.result_types[k] if k < len(op.result_types) else ""
+        if ty != "index" and not re.fullmatch(r"i\d+", ty):
+            return None
+        value = self.integer_constant(self.L, op)
+        if value is None:
+            vals = [self.bound_integer(v, env, depth + 1) for v in op.operands]
+            if any(v is None for v in vals):
+                return None
+            if op.name == "arith.index_cast" and len(vals) == 1:
+                value = vals[0]
+            elif len(vals) == 2 and op.name in ("arith.addi", "arith.subi", "arith.muli"):
+                a, b = vals
+                value = {"arith.addi": lambda: a + b, "arith.subi": lambda: a - b,
+                         "arith.muli": lambda: a * b}[op.name]()
+            else:
+                return None
+        # Use the conservative 32-bit range for target-dependent index values.
+        bits = 32 if ty == "index" else int(ty[1:])
+        return value if -(1 << (bits - 1)) <= value < (1 << (bits - 1)) else None
 
     def match_generic(self, sop, sk, aop, ak, env: Env) -> Iterator[Env]:
         if aop.idx in {g[3] for g in env.gens.values()}:
@@ -740,7 +819,7 @@ class Matcher:
                                 break
                             pairs += extra
                         else:
-                            pairs.insert(0, ("cap", cap, leaf, aop))
+                            pairs.append(("cap", cap, leaf, aop))
                     if not ok:
                         continue
                     self.note(aop, "body-locals")
@@ -948,6 +1027,13 @@ def memref_origin(M: "Matcher", lib: "Library", key, depth: int = 0):
         return None
     op = A.ops[key[1]]
     k = key[2]
+
+    # A validated collapse is a new descriptor of the same storage. Keep that
+    # descriptor's rank/strides rather than tracing to the higher-rank base.
+    # The compiler creates this only after upstream contiguity validation.
+    if op.name == "memref.collapse_shape":
+        ty = M.atype(key)
+        return key if ty and ty.startswith("memref") else None
 
     def via(name):
         return memref_origin(M, lib, M.akey(name, op), depth + 1)

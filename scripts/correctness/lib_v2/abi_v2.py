@@ -63,6 +63,8 @@ CLANG = os.environ.get("CLANG", str(REPO / "llvm-project/build/bin/clang"))
 HEADER_FAMILIES = {
     "cuBLAS": ["cublas/include/cublas_api.h", "cublas/include/cublas_v2.h"],
     "cuSOLVER": ["cublas/include/cublas_api.h", "cusolver/include/cusolverDn.h"],
+    "cuDNN": ["cudnn/include/cudnn_graph.h", "cudnn/include/cudnn_ops.h"],
+    "cuTENSOR": ["cutensor/include/cutensor.h", "cutensor/include/cutensor/types.h"],
 }
 
 
@@ -167,7 +169,7 @@ def header_info(library: str):
                 nxt += 1
             enums[m.group(2)] = vals
         flat = re.sub(r"\s+", " ", text)
-        for m in re.finditer(r"\b(\w+_t)\s+(?:CUBLASWINAPI|CUSOLVERAPI)\s+(\w+)\s*\(([^;{}]*?)\)\s*;", flat):
+        for m in re.finditer(r"\b(\w+(?:_t|Status_t))\s+(?:(?:CUBLASWINAPI|CUSOLVERAPI|CUDNNWINAPI)\s+)?(\w+)\s*\(([^;{}]*?)\)\s*;", flat):
             ret, name, plist = m.groups()
             params = [_parse_c_param(p) for p in _split_top(plist) if p and p != "void"]
             if all(params):
@@ -261,7 +263,7 @@ def fortran_proto(routine: str) -> FProto:
     names = [x.strip().upper() for x in m.group(4).split(",") if x.strip()]
     decl: dict[str, FParam] = {}
     for s in stmts[i0 + 1:]:
-        d = re.match(r"\s*(CHARACTER|INTEGER|DOUBLE PRECISION)\b\s*(.*)$", s, re.I)
+        d = re.match(r"\s*(CHARACTER|INTEGER|DOUBLE PRECISION|REAL)\b\s*(.*)$", s, re.I)
         if not d:
             continue
         ftype = d.group(1).upper()
@@ -298,6 +300,7 @@ class SpecArg:
     rank: int = 0
     vla_ld: Optional[str] = None  # `double A[][lda]` -> "lda"
     intent: Optional[str] = None  # arrays: "in" | "out" | "inout"
+    ctype: Optional[str] = None
 
 
 def _manifest_entries() -> dict[str, tuple[dict, dict]]:
@@ -343,9 +346,9 @@ def spec_c_prototype(spec: str) -> tuple[str, list[SpecArg]]:
         dl = re.findall(r"\[([^\]]*)\]", dims)
         if dl:
             ld = dl[-1].strip() if len(dl) >= 2 and re.fullmatch(r"\w+", dl[-1].strip()) else None
-            args.append(SpecArg(nm, "array", len(dl), ld))
+            args.append(SpecArg(nm, "array", len(dl), ld, ctype=ty))
         else:
-            args.append(SpecArg(nm, "int" if ty in ("int", "long") else "scalar"))
+            args.append(SpecArg(nm, "int" if ty in ("int", "long") else "scalar", ctype=ty))
     return m.group(1), args
 
 
@@ -478,6 +481,9 @@ class CallAbi:
     buffer_size_params: list = field(default_factory=list)
     fortran: Optional[dict] = None
     specs: list = field(default_factory=list)
+    descriptor_adapter: Optional[dict] = None
+    runtime_adapter: Optional[dict] = None
+    backends: list = field(default_factory=lambda: ["cpu", "cuda"])
 
 
 @dataclass
@@ -506,7 +512,13 @@ def bind_spec(spec: str) -> SpecAbi:
     for k, a in enumerate(args):
         if a.kind == "array":
             a.intent = intents.get(k, "in")
+    if tgt.get("runtime_adapter"):
+        import runtime_adapter
+        return runtime_adapter.bind_spec(sys.modules[__name__], spec, tgt, ret, args)
     proto = resolve_proto(library, call)
+    if tgt.get("descriptor_adapter"):
+        import descriptor_abi
+        return descriptor_abi.bind_spec(sys.modules[__name__], spec, tgt, ret, args, proto)
     tparams = proto.params[1:]          # drop the library handle
     binding: dict[str, tuple] = {}
     names = {a.name: k for k, a in enumerate(args)}
@@ -605,7 +617,14 @@ def build_table(specs: Optional[list[str]] = None) -> tuple[dict[str, CallAbi], 
 
 
 def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
-    library = manifest_entry(sas[0].spec)[1]["target"]["library"]
+    target = manifest_entry(sas[0].spec)[1]["target"]
+    library = target["library"]
+    if target.get("runtime_adapter"):
+        import runtime_adapter
+        return runtime_adapter.build_call(sys.modules[__name__], call, sas)
+    if target.get("descriptor_adapter"):
+        import descriptor_abi
+        return descriptor_abi.build_call(sys.modules[__name__], call, sas)
     proto = resolve_proto(library, call)
     tparams = proto.params[1:]
     # kind per target param, consistent across specs
@@ -628,6 +647,8 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
             else:
                 a = sa.args[b[1]]
                 seen.add(a.kind)
+                if a.kind in ("array", "scalar") and a.ctype != p.base:
+                    raise AbiError(f"{sa.spec}.{p.name}: reference {a.ctype} != vendor {p.base}")
                 if a.kind == "array":
                     ranks.setdefault(p.name, a.rank)
                     if ranks[p.name] != a.rank:
@@ -667,6 +688,8 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
         ap = AbiParam(p.name, k)
         if k == "enum":
             ap.enum_type = p.base
+        if k == "scalar":
+            ap.elem = p.base
         if k == "array":
             ap.elem = p.base
             ap.const = p.ctype.startswith("const")
@@ -679,8 +702,11 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
                     ap.layout_of = arr
         params.append(ap)
     managed = _classify_managed(proto, managed_names, returns, library)
+    return_types = {sa.ret for sa in sas if sa.ret != "void"}
+    if len(return_types) > 1:
+        raise AbiError(f"{call}: inconsistent return types")
     ca = CallAbi(call, library, proto.name, params, managed,
-                 returns="double" if returns else None, specs=sorted(sa.spec for sa in sas))
+                 returns=next(iter(return_types), None), specs=sorted(sa.spec for sa in sas))
     if any(m.role == "workspace" for m in managed):
         protos, _, _ = header_info(library)
         bs = protos.get(proto.name + "_bufferSize")
@@ -688,7 +714,15 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
             raise AbiError(f"{proto.name} has a workspace but no {proto.name}_bufferSize")
         ca.buffer_size_symbol = bs.name
         ca.buffer_size_params = [asdict(p) for p in bs.params[1:]]
-    ca.fortran = _fortran_binding(ca, sas)
+    backend_sets = [set(manifest_entry(sa.spec)[1]["target"].get("backends", ["cpu", "cuda"]))
+                    for sa in sas]
+    if any(not b or not b <= {"cpu", "cuda"} for b in backend_sets):
+        raise AbiError(f"{call}: invalid backend declaration")
+    if any(b != backend_sets[0] for b in backend_sets):
+        raise AbiError(f"{call}: inconsistent backend declarations")
+    ca.backends = sorted(backend_sets[0])
+    if "cpu" in ca.backends:
+        ca.fortran = _fortran_binding(ca, sas)
     return ca
 
 
@@ -700,8 +734,8 @@ def _fortran_binding(ca: CallAbi, sas: list[SpecAbi]) -> dict:
     def compat(f: FParam, a: AbiParam) -> bool:
         return ((f.kind == "char" and a.tkind == "enum") or
                 (f.kind == "int" and a.tkind == "int") or
-                (f.kind == "scalar" and a.tkind == "scalar") or
-                (f.kind == "array" and a.tkind == "array"))
+                (f.kind in ("scalar", "array") and a.tkind == f.kind and
+                 a.elem == {"REAL": "float", "DOUBLE PRECISION": "double"}.get(f.ftype)))
     pairs, rest_f, rest_a = _pair(fp.params, abi, lambda f: f.name, lambda a: a.name, compat)
     args = []
     for i, f in enumerate(fp.params):
@@ -768,7 +802,7 @@ def main() -> int:
         sig = ", ".join(f"{p.tkind}:{p.name}" + (f"[ld={p.layout}]" if p.layout else "") +
                         ("!" if p.written else "") for p in v.params)
         print(f"{c:18s} ({sig})" + (f" managed={[m.role for m in v.managed]}" if v.managed else "")
-              + f"  cpu={v.fortran['entry']}")
+              + f"  cpu={v.fortran['entry'] if v.fortran else 'unavailable'}")
     for s, e in errors.items():
         print(f"ERROR {s}: {e}", file=sys.stderr)
     return 0

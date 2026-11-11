@@ -32,6 +32,13 @@ static bool isGpuRuntimeCall(Operation *op) {
   auto call = dyn_cast<func::CallOp>(op);
   if (!call)
     return false;
+  // An imported CUDA ABI may use any symbol name. The declaration promises
+  // that pointer arguments accept device storage, without requiring capture
+  // safety or asynchronous execution.
+  auto function = SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(
+      call, call.getCalleeAttr());
+  if (function && function->hasAttr("polygeist.gpu_runtime"))
+    return true;
   StringRef callee = call.getCallee();
   return callee.starts_with("polygeist_cublas_") ||
          callee.starts_with("polygeist_cublaslt_") ||
@@ -105,6 +112,14 @@ static bool hasOnlyDeviceOrDescriptorUses(Value root) {
         continue;
       if (isGpuRuntimeCall(owner))
         continue;
+      // Extents/strides are values, not aliases of the storage. Their use to
+      // size another allocation does not constitute a host access to root.
+      if (isa<memref::DimOp>(owner))
+        continue;
+      if (auto metadata = dyn_cast<memref::ExtractStridedMetadataOp>(owner)) {
+        worklist.push_back(metadata.getBaseBuffer());
+        continue;
+      }
       // A compiler-generated private helper is part of the selected
       // function's ownership region. Follow the corresponding formal
       // argument instead of forcing frontends to inline a large repeated
@@ -154,12 +169,6 @@ static void collectHostRegistrations(
         worklist.append(user->getResults().begin(), user->getResults().end());
     }
   }
-}
-
-static bool hasSimpleDynamicLaunchUses(Value root) {
-  return llvm::all_of(root.getUsers(), [](Operation *user) {
-    return isa<gpu::LaunchFuncOp, memref::DeallocOp>(user);
-  });
 }
 
 static bool hasGpuDispatch(func::FuncOp function) {
@@ -269,15 +278,29 @@ struct PlanGpuDataResidencyPass
     // device allocations as well.  This scans the selected function itself;
     // pipelines with an owned helper run it once more after inlining so the
     // scratch allocation can be hoisted into the outer lifetime.
+    // Static stack scratch has the same device-only ownership requirements.
+    // Normalize eligible allocas into the allocation representation below;
+    // that path hoists static storage and releases it at each function return.
+    // Keep dynamic stack allocations and any host-visible scratch unchanged.
+    SmallVector<memref::AllocaOp> stackAllocations;
+    function.walk([&](memref::AllocaOp allocation) {
+      if (allocation.getType().hasStaticShape() &&
+          hasOnlyDeviceOrDescriptorUses(allocation.getResult()))
+        stackAllocations.push_back(allocation);
+    });
+    for (memref::AllocaOp allocation : stackAllocations) {
+      OpBuilder builder(allocation);
+      auto temporary = builder.create<memref::AllocOp>(
+          allocation.getLoc(), allocation.getType(), ValueRange{},
+          allocation.getAlignmentAttr());
+      allocation.getResult().replaceAllUsesWith(temporary.getResult());
+      allocation.erase();
+    }
     SmallVector<memref::AllocOp> localAllocations;
     function.walk([&](memref::AllocOp allocation) {
-      // GPU-to-LLVM can expand a dynamic gpu.alloc used directly by outlined
-      // launches. It cannot yet reconcile the descriptor when that allocation
-      // also flows through a view or library-pointer extraction. Keep mixed
-      // dynamic scratch on the mapped-host fallback.
-      if ((allocation.getType().hasStaticShape() ||
-           hasSimpleDynamicLaunchUses(allocation.getResult())) &&
-          hasOnlyDeviceOrDescriptorUses(allocation.getResult()))
+      // The GPU pipeline expands descriptor metadata before GPU-to-LLVM, so
+      // dynamic scratch can also feed views and imported runtime pointers.
+      if (hasOnlyDeviceOrDescriptorUses(allocation.getResult()))
         localAllocations.push_back(allocation);
     });
 

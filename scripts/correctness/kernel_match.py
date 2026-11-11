@@ -730,6 +730,12 @@ def encode_body_yields(g: GenericBody) -> list[Term]:
                 lhs_tok, rhs_tok = arg_toks[1], arg_toks[2]
             else:
                 raise ValueError(f"malformed comparison: {line.strip()}")
+            # Reversing both operands and the direction is exact, including
+            # ordered/unordered floating comparisons and signed integers.
+            reversed_kind = {"ogt": "olt", "oge": "ole", "ugt": "ult",
+                             "uge": "ule", "sgt": "slt", "sge": "sle"}
+            if kind in reversed_kind:
+                kind, lhs_tok, rhs_tok = reversed_kind[kind], rhs_tok, lhs_tok
             env[result] = Term.Cmp(kind, resolve(lhs_tok), resolve(rhs_tok))
         else:
             raise ValueError(f"unsupported scalar operation: {line.strip()}")

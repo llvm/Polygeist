@@ -180,12 +180,40 @@ def vla_leading_dims(ref_c: Path, fn_hint: str | None = None) -> dict[str, str]:
         src = ref_c.read_text()
     except OSError:
         return {}
+    # The array declarator supplies layout independently of its element type
+    # (which may also be a source macro). Comments are not declarations.
+    src = re.sub(r"/\*.*?\*/|//[^\n]*", "", src, flags=re.S)
     return {m.group(2): m.group(1)
-            for m in re.finditer(r"double\s+(\w+)\s*\[\s*\]\s*\[\s*(\w+)\s*\]", src)}
+            for m in re.finditer(r"\b(\w+)\s*\[\s*\]\s*\[\s*(\w+)\s*\]", src)}
 
 
 class DefnError(Exception):
     pass
+
+
+def scalar_call_declarations(module_text: str, body: str) -> list[str]:
+    """Preserve externally declared pure scalar calls, including their types.
+
+    Calls with memory arguments, missing declarations, or observable effects
+    are not admissible in a tensor reference. No callee name is privileged.
+    """
+    declarations = {}
+    for line in module_text.splitlines():
+        match = re.fullmatch(
+            r'\s*func\.func private @([\w.$-]+)\(([^()]*)\) -> ([\w]+)'
+            r' attributes \{([^{}]*)\}\s*', line)
+        if not match:
+            continue
+        name, arguments, result, attrs = match.groups()
+        scalar = lambda ty: re.fullmatch(r'(?:bf16|f16|f32|f64|i[1-9][0-9]*|index)', ty.strip())
+        if 'polygeist.pure' in {a.strip() for a in attrs.split(',')} and scalar(result) and all(
+                scalar(arg) for arg in arguments.split(',') if arg.strip()):
+            declarations[name] = line.strip()
+    callees = set(re.findall(r'func\.call @([\w.$-]+)\(', body))
+    missing = callees - set(declarations)
+    if missing:
+        raise DefnError('scalar call lacks a pure typed external declaration: ' + ', '.join(sorted(missing)))
+    return [declarations[name] for name in sorted(callees)]
 
 
 def to_defn(debuf_text: str, spec: Spec) -> tuple[str, dict]:
@@ -258,10 +286,11 @@ def to_defn(debuf_text: str, spec: Spec) -> tuple[str, dict]:
     for old, ty in params:
         if ty.startswith("memref<") and re.search(rf"{re.escape(old)}(?![\w])", joined):
             raise DefnError(f"parameter {old} is still used in memref form")
+    declarations = scalar_call_declarations(debuf_text, joined)
     for ln in text_lines:
         s = ln.strip()
         mm = re.match(r"(?:%[\w:#]+\s*=\s*)?([a-z_]+\.[a-zA-Z_.]+)", s)
-        if mm and not _ALLOWED_OPS.match(mm.group(1)) and not s.startswith("^"):
+        if mm and mm.group(1) != "func.call" and not _ALLOWED_OPS.match(mm.group(1)) and not s.startswith("^"):
             raise DefnError(f"non-tensor op remains: {mm.group(1)}")
     # Order outputs by parameter order.
     order = {old: i for i, (old, _) in enumerate(params)}
@@ -306,12 +335,13 @@ def to_defn(debuf_text: str, spec: Spec) -> tuple[str, dict]:
         res = f" -> {res_types[0]}"
     elif res_types:
         res = f" -> ({', '.join(res_types)})"
-    body_text = inline_aliases(debuf_text, "\n".join(out_body))
+    body_text = inline_aliases(debuf_text, "\n".join(out_body)).rstrip()
     defn = f"  kernel.defn @{spec.name}({', '.join(sig)}){res} {{{body_text}\n  }}"
     # Metadata used by the matcher for ABI completion (not for recognition).
     used = set(re.findall(r"%[\w]+", body_text))
     meta = {
         "spec": spec.name,
+        "declarations": declarations,
         "params": [pname[o][1:] for o, _ in params],
         "outputs": [pname[o][1:] for o, _ in outputs],
         "returns": ret_types,
@@ -322,9 +352,9 @@ def to_defn(debuf_text: str, spec: Spec) -> tuple[str, dict]:
     return defn, meta
 
 
-def verify_defn(defn: str) -> tuple[bool, str]:
+def verify_defn(defn: str, declarations=()) -> tuple[bool, str]:
     with tempfile.NamedTemporaryFile("w", suffix=".mlir", delete=False) as fh:
-        fh.write("module {\n" + defn + "\n}\n")
+        fh.write("module {\n" + "\n".join(declarations) + "\n" + defn + "\n}\n")
         path = fh.name
     r = R.run([R.POLYGEIST_OPT, path, "-o", "/dev/null"], 60)
     Path(path).unlink(missing_ok=True)
@@ -393,7 +423,7 @@ def build_one(spec: Spec, rec: R.Recipe, timeout: int, do_raise: bool) -> dict:
     except DefnError as e:
         st.update(status="PARTIAL", reason=f"not tensor-clean: {e}")
         return st
-    ok, err = verify_defn(defn)
+    ok, err = verify_defn(defn, meta["declarations"])
     if not ok:
         st.update(status="FAIL_DEFN", reason=(err.strip().splitlines() or ["?"])[0][:300])
         return st
@@ -533,6 +563,9 @@ def write_library(results: list[dict], rec: R.Recipe) -> None:
            "// (parameter names, written outputs, VLA leading dimensions).  The matcher",
            "// derives its recognition patterns from the defn bodies only.",
            "module {"]
+    declarations = sorted({d for r in results if r["status"] == "RAISED"
+                           for d in r['meta'].get('declarations', [])})
+    out.extend('  ' + d for d in declarations)
     for r in results:
         if r["status"] != "RAISED":
             continue
