@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -41,7 +41,7 @@ RESOURCE_DIR = "/usr/lib/clang/14"
 # Optimisation flag passed through to cgeist by the PolyBench campaign
 # (POLYBENCH_COMPILE_OPT / polygeist_build.sh gcc passthrough).  Specs get the
 # same flag so that cgeist's front-end canonicalisation is identical.
-COMMON_CFLAGS = ["-O3"]
+COMMON_CFLAGS = ["-O3", "--no-inline"]
 
 
 @dataclass
@@ -105,6 +105,7 @@ class StepResult:
     cmd: list[str]
     stderr: str
     timed_out: bool = False
+    recovery: dict | None = None
 
 
 def run(cmd: list[str], timeout: int) -> StepResult:
@@ -114,6 +115,25 @@ def run(cmd: list[str], timeout: int) -> StepResult:
     except subprocess.TimeoutExpired as e:
         err = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         return StepResult(False, -9, cmd, err[-4000:], timed_out=True)
+
+
+def run_with_legal_input(cmd, inp, out, timeout):
+    """A failed optional raising stage must not discard its legal input."""
+    attempt = run(cmd, timeout)
+    if attempt.ok:
+        return attempt
+    retained = run(['cp', str(inp), str(out)], timeout)
+    retained.recovery = asdict(attempt)
+    return retained
+
+
+def pass_pipeline(flags):
+    passes = []
+    for flag in flags:
+        name, sep, options = flag.removeprefix('--').partition('=')
+        item = name + ('{' + options + '}' if sep else '')
+        passes.append('func.func(' + item + ')' if name == 'affine-parallelize' else item)
+    return ','.join(passes)
 
 
 def raise_c(recipe: Recipe, src: str, fn: str, out_prefix: str, cflags: list[str],
@@ -135,11 +155,11 @@ def raise_c(recipe: Recipe, src: str, fn: str, out_prefix: str, cflags: list[str
     res["cgeist"] = r
     if not r.ok:
         return res
-    r = run(recipe.raise_cmd(affine, fn, linalg), timeout)
+    r = run_with_legal_input(recipe.raise_cmd(affine, fn, linalg), affine, linalg, timeout)
     res["raise"] = r
     if not r.ok:
         return res
-    r = run(recipe.debuf_cmd(linalg, debuf), timeout)
+    r = run_with_legal_input(recipe.debuf_cmd(linalg, debuf), linalg, debuf, timeout)
     res["debuf"] = r
     if r.ok and recipe is CAMPAIGN:
         t = Path(debuf).read_text()
@@ -151,3 +171,46 @@ def raise_c(recipe: Recipe, src: str, fn: str, out_prefix: str, cflags: list[str
 
 def shell_line(cmd: list[str]) -> str:
     return " ".join(shlex.quote(c) for c in cmd)
+
+
+def production_arguments(stage: str) -> list[str]:
+    """The runtime builder and reference importer consume the same pass list."""
+    return list({'frontend': [*COMMON_CFLAGS, *PRODUCTION.cgeist_tail],
+                 'raise': PRODUCTION.raise_passes,
+                 'debufferize': PRODUCTION.debuf_passes}[stage])
+
+
+if __name__ == '__main__':
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(description='Shared source/specification raising recipe')
+    parser.add_argument('--emit', choices=['frontend', 'raise', 'debufferize'])
+    parser.add_argument('--pipeline', action='store_true')
+    parser.add_argument('--input')
+    parser.add_argument('--output')
+    parser.add_argument('--stage', choices=['raise', 'debufferize'])
+    parser.add_argument('--function')
+    parser.add_argument('--whole-program', action='store_true')
+    args = parser.parse_args()
+    if args.stage:
+        if not args.input or not args.output or not args.function:
+            parser.error('--stage requires --input, --output, and --function')
+        flags = production_arguments(args.stage)
+        if args.whole_program:
+            selection = (f'func-name={args.function} preserve-module=true '
+                         f'pipeline={pass_pipeline(flags)}')
+            cmd = [POLYGEIST_OPT, '--select-func=' + selection, args.input, '-o', args.output]
+        elif args.stage == 'raise':
+            cmd = PRODUCTION.raise_cmd(args.input, args.function, args.output)
+        else:
+            cmd = PRODUCTION.debuf_cmd(args.input, args.output)
+        result = run_with_legal_input(cmd, args.input, args.output, 300)
+        print(json.dumps(asdict(result), indent=2))
+        raise SystemExit(0 if result.ok else 1)
+    if not args.emit:
+        parser.error('choose --emit or --stage')
+    flags = production_arguments(args.emit)
+    if args.pipeline:
+        print(pass_pipeline(flags))
+    else:
+        print('\n'.join(flags))

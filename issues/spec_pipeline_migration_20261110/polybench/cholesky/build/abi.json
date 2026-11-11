@@ -1,0 +1,16 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dpotf2_u",
+   "call": "polygeist_v2_cusolverDnDpotrf",
+   "cpu_entry": "dpotrf_",
+   "gpu_entry": "cusolverDnDpotrf",
+   "operand_types": [
+    "i32",
+    "i32",
+    "memref<?x?xf64>"
+   ]
+  }
+ ],
+ "opt": []
+}

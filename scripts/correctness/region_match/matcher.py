@@ -127,6 +127,13 @@ def _load_one(spec_dir, man, routine, dims, entry, log):
     name = entry["name"]
     stages = [("cgeist-affine", os.path.join(spec_dir, "raised", f"{name}.mlir")),
               ("debufferized", os.path.join(spec_dir, "raised", f"{name}_debuf.mlir"))]
+    import_path = os.path.join(spec_dir, 'import_manifest.json')
+    if os.path.exists(import_path):
+        from lib_v2.spec_provenance import validated_stages
+        with open(import_path) as source:
+            imported = json.load(source).get('specifications', {}).get(name, {})
+        permitted = validated_stages(imported)
+        stages = [(stage, path) for stage, path in stages if stage in permitted]
     loaded, errors = {}, {}
     fixed_ssa, fixed_c = None, {}
     for stage, p in stages:
@@ -160,6 +167,7 @@ def _load_one(spec_dir, man, routine, dims, entry, log):
     argtypes = [(argnames[ssa], ty) for ssa, ty in prog.func.args]
     spec = Spec(name, routine, man, entry, system, list(prog.func.args), argnames, argtypes, dims,
                 stage, "", dict(fixed_c))
+    spec.source_dir = spec_dir
     if "cgeist-affine" in loaded and "debufferized" in loaded:
         dprog, dsys = loaded["debufferized"]
         ok, info = validate_stages(system, dsys)
@@ -196,12 +204,16 @@ def _cache_key(spec_dir: str) -> str:
     matcher sources (and kernel_match, whose rules validate stages), the
     manifests, the C references (VLA dims) and every raised spec file."""
     h = hashlib.sha256()
+    from kernel_match import numeric_model
+    h.update(numeric_model().encode())
+    h.update(os.environ.get("EQSAT_ABLATION", "full").encode())
     h.update(f"fmt{_CACHE_FORMAT} py{sys.version_info[:3]}".encode())
     files = sorted(glob.glob(os.path.join(_HERE, "*.py")))
     files.append(os.path.join(os.path.dirname(_HERE), "kernel_match.py"))
     files += sorted(glob.glob(os.path.join(spec_dir, "manifest", "*.json")))
     files += sorted(glob.glob(os.path.join(spec_dir, "ref_c", "*.c")))
     files += sorted(glob.glob(os.path.join(spec_dir, "raised", "*.mlir")))
+    files += glob.glob(os.path.join(spec_dir, 'import_manifest.json'))
     for f in files:
         h.update(os.path.relpath(f, spec_dir).encode())
         try:
@@ -576,6 +588,9 @@ def _simplify_formula(f: F, ctx: list[Cons]) -> F:
 
 
 def _fold_zero(f: F) -> F:
+    from kernel_match import numeric_model
+    if numeric_model() == 'strict':
+        return f
     if isinstance(f, FBin):
         a, b = _fold_zero(f.a), _fold_zero(f.b)
         if f.op in ("add", "sub") and b == ZERO:
@@ -1354,6 +1369,30 @@ def transposed_equivalent(spec: Spec, b: Binding):
         if src_of[c] in spec.fixed_ints:
             fixed[c] = spec.fixed_ints[src_of[c]]
     ls = _LaunchSpec(target["name"], spec.func_args, spec.argnames, spec.dims, fixed)
+    # Manifest layout rules propose ABI bindings; they are not semantic
+    # axioms. Prove the proposed replacement against its imported body.
+    target_spec = _load_one(spec.source_dir, spec.manifest, spec.routine,
+                            spec.dims, target, None)
+    if target_spec is None:
+        raise Reject('layout target has no interpretable reference body')
+    target_ssa = {c: s for s, c in target_spec.argnames.items()}
+    proof_arrays, proof_params, proof_fparams = {}, {}, {}
+    for c in cargs:
+        new, old = target_ssa.get(c), ssa_of.get(src_of[c])
+        if new is None or old is None:
+            raise Reject('layout target parameter is unbound')
+        if new in target_spec.system.arrays:
+            p = b.arrays[old][2]
+            inverse = tuple(p.index(k) for k in range(len(p)))
+            proof_arrays[new] = (old, old if new in target_spec.system.outputs else None, inverse)
+        if 'p' + new in target_spec.system.params:
+            proof_params['p' + new] = 'p' + old
+        if new in target_spec.system.float_params:
+            proof_fparams[new] = old
+    proof = compare_systems(spec.system, target_spec.system,
+                            Binding(proof_arrays, proof_params, proof_fparams))
+    if not proof.ok:
+        raise Reject('layout metadata is not proved by the reference bodies: ' + proof.reason)
     rule_txt = "; ".join(f"{'+'.join(r_['operands'])} transposed -> flip {','.join(r_.get('flip', []))}"
                          + (f", swap {r_['swap']}" if r_.get("swap") else "") for r_ in chosen)
     note = (f"{spec.name} proved with operands {sorted(T)} stored transposed; launched as the "
@@ -1485,6 +1524,8 @@ def _emit_one(E: _Emit, spec: Spec, b: Binding):
     if all(list(p) == sorted(p) for (_i, _o, p) in b.arrays.values()):
         return spec.name, _launch(E, _as_launch_spec(spec), b), None
     ls, b2, note = transposed_equivalent(spec, b)
+    if ls.name not in E.allowed_specs:
+        raise Reject(f'layout replacement target {ls.name} is unavailable')
     return ls.name, _launch(E, ls, b2, ignore_perms=True), note
 
 
@@ -1881,6 +1922,7 @@ def match_function(text: str, prog: Program, specs: list[Spec], log=None, stats=
         last_err = None
         for cand in found:
             E = _Emit(prog, uid)
+            E.allowed_specs = {candidate.name for candidate in specs}
             try:
                 if cand["kind"] in ("single", "partial"):
                     E.prepare(plan, _plan_written(app.outputs, [cand["b"]]))
@@ -2021,8 +2063,13 @@ def _launch_output_resolver(specs: list[Spec], spec_dir: str):
     return lambda name: table.get(name)
 
 
-def match_text(mlir_text: str, spec_dir: str, log=None, stats=None) -> list[RegionMatch]:
+def match_text(mlir_text: str, spec_dir: str, log=None, stats=None,
+               allowed_specs=None) -> list[RegionMatch]:
     specs = load_specs(spec_dir, log)
+    if allowed_specs is not None:
+        specs = [s for s in specs if s.name in allowed_specs]
+    if not specs:
+        return []
     funcs, aliases = parse_module(mlir_text)
     resolver = _launch_output_resolver(specs, spec_dir)
     out = []

@@ -128,7 +128,7 @@ def prepare(text: str, specs: dict) -> tuple[str, dict]:
     lines = text.split("\n")
     for i, ln in enumerate(lines):
         m = LAUNCH_RE.match(ln)
-        if not m or not m.group("sym").startswith(("netlib_", "openblas_")):
+        if not m:
             continue
         sym = m.group("sym")
         if sym not in specs:

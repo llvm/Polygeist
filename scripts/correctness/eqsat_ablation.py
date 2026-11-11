@@ -47,6 +47,8 @@ def mode() -> tuple[str, frozenset]:
 
 def scalar_rule_groups(km) -> dict[str, list]:
     """kernel_match.algebra_rules(include_distributivity=False), by category."""
+    if km.numeric_model() == "strict":
+        return {}
     T = km.Term
     a, b, c = vars_("a b c", T)
     (x,) = vars_("x", T)
@@ -68,18 +70,21 @@ def scalar_rule_groups(km) -> dict[str, list]:
 
 
 @functools.lru_cache(maxsize=None)
-def _scalar_ruleset_cached(km, exclude: frozenset):
+def _scalar_ruleset_cached(km, exclude: frozenset, numeric_model):
     rules = [r for cat, rs in scalar_rule_groups(km).items() if cat not in exclude for r in rs]
     return ruleset(*rules)
 
 
 def scalar_ruleset(km, exclude: frozenset):
-    return _scalar_ruleset_cached(km, frozenset(exclude))
+    return _scalar_ruleset_cached(km, frozenset(exclude), km.numeric_model())
 
 
 def install_linalg_level(km) -> tuple[str, frozenset]:
     """Apply the ablation to kernel_match's scalar equivalence check."""
     m, cats = mode()
+    if not hasattr(km, "_unablated_algebra_rules"):
+        km._unablated_algebra_rules = km.algebra_rules
+    km.algebra_rules = km._unablated_algebra_rules
     if m == "none":
         km.configure_matcher("syntactic")
     elif m == "drop":

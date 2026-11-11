@@ -1,0 +1,70 @@
+LoopLibrarian: specification-only production matching
+2026-11-10
+
+STATUS
+Core architecture repairs are implemented. Full catalog and paper-result migration is incomplete.
+Implementation and validation used the main worktree and existing compiler binaries.
+No pushes, new worktrees, or C++ compiler rebuilds were used.
+
+IMPLEMENTED
+- polygeist_build.sh and kernel_match_rewrite.py use spec_match.py: imported Linalg bodies plus the generic region matcher.
+- Removed handwritten computational templates, operation-specific predicates, structured recognizers, and benchmark-body self-matching.
+- Applications and references share recipe.py, including delinearization and preservation of call boundaries until replacement.
+- Unsupported optional raising stages retain their legal input and record the rejected pass. Unlowerable unmatched tensor views retain original Affine IR and count as zero matches.
+- Reference import records compiler/source/artifact hashes and separate numerical checks of Affine, memref-Linalg, and debufferized stages. Only independently validated semantic stages are available to the generic matcher.
+- Failed tensor stages remain excluded. Earlier valid Affine stages recover SYMM and TRMM through generic matching, without special recognizers.
+- Cast operations retain their types. Unsupported scalar operations are rejected instead of becoming wildcards. Narrowing index conversions require a range proof.
+- Added shared subview/reinterpret_cast handling and log1p/expm1 support. Basic views are supported; arbitrary layouts and parametric index products are not yet generally supported.
+- Strict scalar matching is the default. Relaxed mode explicitly permits real-arithmetic identities and reduction reassociation. It is not a bitwise floating-point guarantee or an automatic approximation-error proof.
+- Generic relaxed rules can contract a common coefficient and combine sums with identical binders and bounds. These recover SYR2K; different-range sums are rejected.
+- Layout metadata only proposes bindings: the target reference body must prove the transformation, and the final target must pass backend filtering.
+- Match reports pin IR, matcher/configuration, import inputs, runtime templates, and resolved vendor ABI declarations; resume requires matching evidence.
+- Mechanical ABI lowering reaches actual OpenBLAS CPU calls or cuBLAS/cuSOLVER CUDA bindings. Generated runtime adapters stay in build directories.
+
+VALIDATION
+- 23 focused regression tests pass (unit-tests.log).
+- 26 existing matcher feature checks pass (region-features-v2.json).
+- Both previously demonstrated PVA false positives are rejected and preserve original computation. This is safe rejection, not recovered PVA library coverage.
+- Fresh reference import: 96 manifest specifications; 46 tensor definitions. Other references can be usable at a separately validated Affine stage.
+- Fresh PolyBench results so far: 17/17 cases completed; 17 correct; 17 executed actual library calls.
+- PolyBench scope: MINI, double, whole program, x86 host, one OpenBLAS thread, relaxed numeric model. All printed array values use 17 significant digits.
+- Correctness tolerance: 1e-12 absolute plus 1e-12 times the largest reference magnitude in each output array; NaN/Inf positions are checked separately.
+- Vendor traces, outputs, compile durations, process durations, and machine load are in polybench/results.json and per-case folders.
+- Process durations and per-call traces are validation measurements, not repeated steady-state performance or reproduction of the paper speedups.
+
+POLYBENCH CASES (current combined run)
+case           correctness  external calls  specifications
+2mm            PASS         True            openblas_dgemm_nn
+3mm            PASS         True            openblas_dgemm_nn_b0, openblas_dgemm_nn_b0, openblas_dgemm_nn_b0
+atax           PASS         True            openblas_dgemv_t_beta0, openblas_dgemv_n_beta0
+bicg           PASS         True            openblas_dgemv_n_beta0, openblas_dgemv_t_beta0
+cholesky       PASS         True            netlib_dpotf2_u
+correlation    PASS         True            openblas_dgemm_nt_b0
+covariance     PASS         True            openblas_dgemm_nt_b0
+doitgen        PASS         True            openblas_dgemv_n_beta0
+gemm           PASS         True            openblas_dgemm_nn
+gemver         PASS         True            openblas_dgemv_n_beta1, openblas_daxpy, openblas_dgemv_t_beta1
+gesummv        PASS         True            openblas_dgemv_t_beta0, openblas_dgemv_t_beta0
+mvt            PASS         True            openblas_dgemv_t_beta1, openblas_dgemv_n_beta1
+symm           PASS         True            netlib_dsymm_ru
+syr2k          PASS         True            netlib_dsyr2k_ut
+syrk           PASS         True            netlib_dsyrk_ut
+trisolv        PASS         True            netlib_dtrsv_utn
+trmm           PASS         True            netlib_dtrmm_rutu
+
+REMAINING
+- Import the missing non-BLAS semantic references and declarative API bindings. The legacy 279-definition runtime catalog (107 ABI-only bodies) is not the 96-specification source-derived catalog and cannot authorize recognition.
+- Remove or separately validate the documented manual reference adaptations (VLA reshaping, specialization, and removed guards) against upstream library implementations. Current provenance establishes generation, not upstream semantic equivalence.
+- Extend the generic representation for remaining data-dependent/parametric indices, affine min/max, ordered scans, and indirect/conditional effects. Six fresh PVA fixtures still encounter shared-IR limitations (pva-shared-recipe/results.json).
+- PVA has zero eligible imported backend bindings. Its former handwritten recognizers remain removed; no PVA timing campaign is required.
+- Integrate validated non-BLAS GPU adapters, persistent workspace, and numerical precision controls into the common evidence/ABI flow. The main driver rejects unsupported workspace/TF32 requests.
+- Migrate and rerun ATen coverage/performance, Llama expert comparison, MFEM, PVA coverage/correctness, GPU PolyBench, and remaining paper comparisons through this driver. Previous legacy-path results remain historical evidence.
+- Re-establish paper-size/hardware speedups, compilation costs, and rebuttal EqSat counts/graph sizes under the same catalog and explicit numerical model. They were not established by this MINI correctness sweep.
+
+PRESERVATION AND EVIDENCE
+- before/ contains initial matcher/build sources, the initial tracked diff, and a complete archive of the original generated lib_v3 artifacts.
+- The initial audit inventory was restored against those preserved sources: 144 composition-producing functions, 44 rewrite helpers, and 3/12 supported symbolic probes.
+- The three pre-existing runtime/polygeist_v2_rt.* edits are unchanged from the initial diff.
+- Original compiler/runtime fixes and earlier benchmark evidence were retained. No prior paper measurements were overwritten.
+- final-source-hashes.json and execution-environment.json identify this implementation and run environment.
+- README: generic_solver/lib_v3/README.md. Tests: scripts/correctness/tests/test_spec_pipeline.py.

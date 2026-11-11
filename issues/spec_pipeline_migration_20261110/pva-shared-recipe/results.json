@@ -1,0 +1,300 @@
+[
+  {
+    "case": "box_filter3x3",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_box_filter3x3",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/box_filter3x3.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_box_filter3x3 externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/box_filter3x3.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/box_filter3x3_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--linalg-debufferize=use-multi-root=true",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/box_filter3x3_linalg.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/box_filter3x3_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "%2 is not an affine index (Undef)"
+  },
+  {
+    "case": "gaussian_filter3x3",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_gaussian_filter3x3",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/gaussian_filter3x3.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_gaussian_filter3x3 externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/gaussian_filter3x3.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/gaussian_filter3x3_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--linalg-debufferize=use-multi-root=true",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/gaussian_filter3x3_linalg.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/gaussian_filter3x3_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "%2 is not an affine index (Undef)"
+  },
+  {
+    "case": "bilateral_filter3x3",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_bilateral_filter3x3",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/bilateral_filter3x3.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_bilateral_filter3x3 externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/bilateral_filter3x3.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/bilateral_filter3x3_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--linalg-debufferize=use-multi-root=true",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/bilateral_filter3x3_linalg.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/bilateral_filter3x3_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "%6 is not an affine index (Undef)"
+  },
+  {
+    "case": "morphology_dilate3x3",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_morphology_dilate3x3",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/morphology_dilate3x3.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_morphology_dilate3x3 externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/morphology_dilate3x3.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/morphology_dilate3x3_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--linalg-debufferize=use-multi-root=true",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/morphology_dilate3x3_linalg.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/morphology_dilate3x3_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "%2 is not an affine index (Undef)"
+  },
+  {
+    "case": "image_histogram_u8",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_image_histogram_u8",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/image_histogram_u8.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_image_histogram_u8 externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/image_histogram_u8.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/image_histogram_u8_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "cp",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/image_histogram_u8_linalg.mlir",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/image_histogram_u8_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "%3 is not an affine index (Undef)"
+  },
+  {
+    "case": "histogram_equalization",
+    "stages": {
+      "cgeist": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/cgeist",
+          "/home/arjaiswal/Polygeist/test/Inputs/pva_matchers/image_processing.c",
+          "--function=fixture_histogram_equalization",
+          "--resource-dir=/usr/lib/clang/14",
+          "-O3",
+          "--no-inline",
+          "--raise-scf-to-affine",
+          "-fPIC",
+          "-S",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/histogram_equalization.mlir"
+        ],
+        "stderr": ""
+      },
+      "raise": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--select-func=func-name=fixture_histogram_equalization externalize-dependencies=true",
+          "--delinearize-memref-accesses",
+          "--remove-iter-args",
+          "--affine-parallelize",
+          "--raise-affine-to-linalg-pipeline",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/histogram_equalization.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/histogram_equalization_linalg.mlir"
+        ],
+        "stderr": ""
+      },
+      "debuf": {
+        "ok": true,
+        "command": [
+          "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+          "--linalg-debufferize=use-multi-root=true",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/histogram_equalization_linalg.mlir",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/pva-shared-recipe/histogram_equalization_debuf.mlir"
+        ],
+        "stderr": ""
+      }
+    },
+    "symbolic_execution": "rejected",
+    "reason": "unsupported integer conversion operand"
+  }
+]

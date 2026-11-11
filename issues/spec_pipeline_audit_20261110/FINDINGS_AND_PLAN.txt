@@ -1,0 +1,252 @@
+LoopLibrarian: specification-driven matching audit and repair plan
+2026-11-10
+
+DECISION
+
+The only recognition path is comparison of the application with imported
+library computations. Both sides use the same frontend, raising, and
+canonicalization machinery. Raise as much as is semantically legal into
+Linalg; preserve remaining loops, conditionals, and memory operations.
+The Linalg matcher and generic region matcher are two implementations of this
+same specification-comparison design. Neither may fall back to a handwritten
+operation recognizer when comparison fails.
+
+Library-specific reference source and declarative API bindings are inputs to
+the compiler. Shared IR semantics, equivalence rules with explicit numerical
+conditions, and mechanical ABI/runtime adapters remain compiler components.
+Moving an operation-specific recognizer into a manifest would not fix the
+problem. A specification must contain the imported computation, not an empty
+signature, an expected match label, or a Python formula substituted for it.
+
+SCOPE AND EVIDENCE
+
+This is a local implementation audit at the HEAD and source hashes in
+inventory-summary.json. It includes the uncommitted reproduction changes.
+The inventory is regenerated with:
+  /usr/bin/python3 issues/spec_pipeline_audit_20261110/inventory.py
+
+No new compiler build, benchmark timing, or full coverage sweep was performed.
+Twelve existing fixtures were parsed and symbolically interpreted to identify
+the first unsupported construct. This is not a coverage count. Previously
+demonstrated PVA counterexamples are retained in pva-counterexamples.json and
+the accompanying input/output MLIR files.
+
+The CSV inventories list all current library definitions, lib_v3 manifest
+entries, CompositionEntry-producing functions, and rewrite helpers. A helper
+appearing in the inventory is not by itself evidence that it is incorrect:
+some helpers only emit a proven call or import semantic bodies. The report
+distinguishes confirmed design bypasses from areas requiring further proof.
+
+FINDINGS
+
+F01. Runtime reproduction and source-derived recognition use different drivers.
+  scripts/correctness/polygeist_build.sh:434,483 invokes
+  kernel_match_rewrite.py with structured rewriting enabled.
+  scripts/correctness/lib_v2/match_v2.py:1285 runs the source-derived Linalg
+  matcher and then splice_region_matches (line 1307).
+  The runtime build does not invoke that driver. The recent EqSat coverage
+  run and runtime benchmarks consequently establish different facts.
+  Repair: one production orchestration path for spec loading, both matchers,
+  selection, rewriting, and target lowering. Benchmark drivers invoke it.
+
+F02. There are executable recognition bypasses, not merely ABI adapters.
+  kernel_match_rewrite.py:8423 directly selects operations through helpers,
+  including seeded reductions, prefix offsets, reversal, mean, pooling,
+  scattered convolutions, histograms, and whole-image PVA recognition.
+  Other existing helpers recognize sparse operations, factorizations,
+  covariance/correlation, SYMM and TRMM. The new PVA recognizer is at 6189;
+  reverse/mean/prefix/value-reduction helpers begin at 7970/8000/8031/8071.
+  kernel_match.py also contains Python-authored CompositionEntry formulas
+  and special structural predicates, including guarded im2col and DFT.
+  Only a subset of entries is replaced with MLIR-derived bodies through
+  _MLIR_SEMANTIC_SOURCE_NAMES and _replace_python_bodies_with_mlir_library.
+  Repair: replace semantic formulas and recognizers with imported reference
+  bodies plus general matching capabilities. Preserve pure emission helpers
+  only when their inputs come from a verified specification match.
+
+F03. The semantic specification catalog does not cover the runtime catalog.
+  Current kernel_library_phase2.mlir: 279 definitions, of which 107 have only
+  kernel.yield. The remaining bodies are not automatically evidence of
+  provenance from a real library; their import provenance must be audited.
+  Current lib_v3 manifests: 96 specifications; the retained raising report
+  records 46 RAISED, 38 PARTIAL, 8 NOT_RAISED, and 4 UNVALIDATED.
+  kernel_library_v3.mlir contains 46 nonempty emitted definitions. Partial
+  specifications can still be considered by the generic region matcher.
+  These are local implementation counts, not the paper's 257-spec table.
+  Repair: a single registry containing source/revision/hash, imported IR,
+  parameters, numerical conditions, target API, and validation state.
+  ABI-only entries cannot participate in recognition. Audit/import missing
+  references for the CUB, cuDNN, PVA, tensor, and other runtime operations.
+
+F04. Imported source is not yet a uniform, untouched-source flow.
+  lib_v3 uses source-cited C transliterations. Its README documents manual
+  flat-address-to-VLA changes because spec extraction/ABI handling could not
+  accept the original flat parameter. It also documents specialization,
+  dropped quick returns, and removed zero-skip guards.
+  Example: openblas_dger.json records removing a guard with different NaN/Inf
+  propagation. Some layout-transpose equivalences are supplied in manifests
+  and consumed by region_match/matcher.py, rather than uniformly established
+  from the chosen target specification.
+  Repair: pin source inputs and derive representation changes using shared
+  compiler passes. Keep semantic conditions enforceable, not prose-only.
+  Re-prove transformed/specialized candidates against imported semantics.
+  Declarative API constants/bindings remain permitted; unverified semantic
+  equivalence assertions must not authorize replacement.
+  An opaque vendor call/header is not its implementation. Existing mappings
+  such as an OpenBLAS/CBLAS reference to cuBLAS need explicit provenance and
+  target-contract validation. Missing reference source stays a reported gap.
+  Do not copy gated PVA SDK source into the public repository.
+
+F05. Raising is duplicated and the recipes have drifted.
+  lib_v2/recipe.py says its production pass list mirrors polygeist_build.sh,
+  but includes --delinearize-memref-accesses; the runtime builder currently
+  does not invoke that pass. Separate recipes also control view normalization
+  and tensor/memref forms.
+  Repair: one shared raising configuration used by application and spec
+  import. Preserve stage dumps and compiler/configuration hashes. Select
+  canonical forms from semantics rather than corpus or function names.
+  Never parallelize a sequential scan merely to obtain Linalg.
+
+F06. The generic engine is missing reusable IR support.
+  First-rejection probes of twelve current fixture forms found:
+    MSE: memref.reinterpret_cast unsupported.
+    Gaussian: memref.subview unsupported.
+    Both log-sigmoid forms: math.log1p unsupported.
+    Box, bilateral, morphology, histogram: product of nonconstant affine
+      expressions, arising in the flattened image/index representation.
+    Equalization: an undefined symbolic value used as an affine index.
+  Prefix offsets, reversal, and depthwise fixtures passed symbolic execution;
+  this does not establish a library-spec match or successful ABI lowering.
+  Additional explicit limitations include symbolic slice strides,
+  result-producing conditionals, data-dependent scf.if, and loop forms outside
+  the current restricted subset. See region_match/symexec.py.
+  Repair: shared typed operation semantics; view/offset/stride composition;
+  parametric indexing; guarded reads; and ordered/loop-carried memory effects.
+  Add capabilities only as needed by imported references and target programs.
+  Unsupported cases must reject without an operation-specific fallback.
+
+F07. Numerical semantics need an explicit, shared acceptance policy.
+  kernel_match.py algebra_rules includes reassociation and multiplication by
+  zero. These are not unconditional IEEE floating-point identities.
+  region_match/symexec.py treats several integer extensions/truncations as
+  identity for affine index values, while other cases become undefined;
+  complete width/signedness semantics cannot be inferred from that model.
+  PVA currently permits user-supplied approximation budgets, but recording
+  a budget and passing fixtures does not prove a bound for all inputs.
+  Repair: preserve types, rounding and signedness in the semantic model;
+  enable rules only under justified numeric conditions. Default matching
+  compares the actual reference computation. Approximate equivalence requires
+  a separately justified contract; a tolerance alone cannot authorize it.
+  This finding identifies proof obligations, not newly demonstrated failures
+  of every current floating-point or integer match.
+
+F08. Two PVA replacements are demonstrably unsound.
+  In valid raised MLIR, changing morphology's comparison from sgt to slt still
+  emits pvaMorphologyDilate_3x3_u8 with numerical_contract="exact".
+  Changing histogram initialization from zero to one still emits the
+  overwrite histogram call, also marked exact.
+  The recognizer checks operation presence/counts and argument positions
+  without proving those computations. Renaming invariance does not cure this.
+  Repair: disable these unproved production routes first. Replace the entire
+  recognizer with reference-spec matching, not additional keyword filters.
+  Keep the counterexamples as mandatory negative regression tests.
+
+F09. Recognition-to-vendor execution is not one complete general path.
+  lib_v2/abi_v2.py and lower_v2.py provide a useful manifest/header-derived
+  foundation, but currently assume a restricted set of libraries, scalar/
+  pointer roles, types and spec-name prefixes. They are not a ready generic
+  lowering for every cuDNN graph, CUB template, PVA, or tensor runtime route.
+  The old phase2 runtime adapters must be connected to proven bindings rather
+  than preserving the recognizers that currently feed them.
+  Repair: target capability/type/layout checks plus declared parameter maps,
+  effects, enums, buffer roles, handles/workspaces and template instantiation
+  boundaries. Lowering only marshals a selected target call. Composite library
+  replacements must be proven against a composition of imported computations.
+  Graph compilation and contraction lowering must carry the same provenance;
+  generic arithmetic-to-API dispatch is not sufficient evidence of import.
+
+F10. Reference execution and vendor execution have different meanings.
+  validate_specs.py checks raised IR against the C transliteration.
+  e2e_v2.py can inline the specification or call spec_c_* for region matches.
+  Those checks are valuable for raising and rewriting correctness, but do not
+  establish execution of the target vendor implementation.
+  Repair: separately record import/raising validation, equivalence matching,
+  ABI validation, actual external call trace, complete-output correctness,
+  and only then runtime. All paper rows must use the common production driver.
+
+F11. Generality testing and reporting are insufficient.
+  Existing rename and negative tests passed but missed F08. Runtime successes
+  establish behavior for the tested inputs; they do not establish that a
+  source-derived matcher produced the replacement or is generally sound.
+  Repair: negative cases for changed seeds/comparisons/bounds/effects and
+  numeric conditions; positive changes of names, argument order, dimensions,
+  equivalent indexing, and embedding in a larger function. Test safe rejection
+  when a transformation is not supported. Add an extensibility test where an
+  available external-library operation is added using reference/ABI metadata
+  without editing recognition code. EqSat on/off must use this same driver,
+  catalog, legality checks and inputs, with no alternate fallback recognizers.
+
+IMPLEMENTATION ORDER AND COMPLETION GATES
+
+1. Contain and record.
+   Keep the current working tree/evidence; do not discard measurements.
+   Retain the PVA counterexamples; block unproved recognizers from the new
+   authoritative production path. Introduce stage-specific evidence and mark
+   old runtime results as legacy-path validation until migrated. Do not claim
+   that all prior numeric results are false, or that coverage is preserved.
+
+2. Build one production driver around specification comparison.
+   Reuse match_v2.py plus region_match; share raising with build_lib_v2.py.
+   Require every library replacement to carry its imported-spec identity,
+   source/configuration hash, matched region, operand binding, numerical
+   conditions and legality result. Only the two spec-driven engines can
+   authorize a call. Merely attaching a spec label to an old recognizer does
+   not satisfy this requirement.
+   Gate: existing source-derived BLAS matches traverse this path into real
+   vendor calls with complete-output correctness and no legacy fallback.
+
+3. Repair the shared representation and fill the reference catalog.
+   Start with missing views/casts, parameterized indexing and math operations;
+   then ordered reductions/scans and indirect/conditional memory effects.
+   Import actual reference implementations through the same pipeline, record
+   any required source adapter and assumptions, and validate them separately.
+   Preserve residual Affine/SCF when raising further would change semantics.
+   Gate: each formerly special-cased operation either has a spec-derived proof
+   and legal target binding or remains explicitly unsupported.
+
+4. Complete declarative target lowering and remove duplicate recognition.
+   Reuse correct allocation, descriptor, stream, transfer and ABI adapter code.
+   Generate bindings from the registry or consume declared bindings; validate
+   full types, layouts, outputs and side effects before emitting calls.
+   Delete Python computational templates, structural special predicates and
+   algorithm-specific recognizers once their general replacement is in place.
+   Gate: every emitted library launch is traceable to imported computation;
+   adding a supported library operation needs no new recognizer.
+
+5. Revalidate the paper through the one driver.
+   Run focused negative tests first, then existing CPU/GPU PolyBench, ATen
+   coverage/performance, Llama, MFEM and PVA correctness. Retain agreed Llama
+   expert-GPU comparison, and keep PVA timings out of scope. Run comparisons
+   and EqSat measurements with the same compiler/catalog and explicit modes.
+   Time only configurations passing the required full-output checks; preserve
+   all raw samples/provenance and regenerate tables/figures from these results.
+   Gate: every reported row identifies source -> spec -> proof -> binding ->
+   external execution -> correctness -> timing. Missing coverage is reported,
+   never restored with a hidden recognizer or benchmark-name exception.
+
+WHAT WE KEEP
+
+The general raising-dependence fix, integer-conversion fix, and view-writeback
+fixes remain useful. Preserve correct library runtime adapters and the test
+harnesses. Preserve previous measurements as evidence of the implementations
+that actually ran. The change is to how replacement is justified and how
+claims are attributed; a wholesale deletion of compiler/runtime work is not
+needed.
+
+STATUS
+
+The audit, inventories, support probes and repair plan are complete.
+The architectural migration is not implemented by this audit. No production
+compiler/matcher/runtime files were changed, and nothing was committed/pushed.
+Per-case achievable coverage under the exclusive specification-driven path is
+not yet established. It must be measured as that path is completed.

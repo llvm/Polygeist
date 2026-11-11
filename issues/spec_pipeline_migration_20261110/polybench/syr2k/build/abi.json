@@ -1,0 +1,34 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dsyr2k_ut",
+   "call": "polygeist_v2_cublasDsyr2k",
+   "cpu_entry": "dsyr2k_",
+   "gpu_entry": "cublasDsyr2k_v2",
+   "operand_types": [
+    "i32",
+    "i32",
+    "f64",
+    "i32",
+    "memref<?x?xf64>",
+    "i32",
+    "memref<?x?xf64>",
+    "f64",
+    "i32",
+    "memref<?x?xf64>"
+   ]
+  }
+ ],
+ "opt": [
+  {
+   "cmd": "--lower-polygeist-submap --canonicalize-polygeist",
+   "rc": 0,
+   "stderr": ""
+  },
+  {
+   "cmd": "--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=allow-unknown-ops bufferize-function-boundaries --canonicalize --cse",
+   "rc": 0,
+   "stderr": ""
+  }
+ ]
+}

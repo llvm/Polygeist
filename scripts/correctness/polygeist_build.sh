@@ -77,23 +77,14 @@
 #   POLYGEIST_MINIMAL_CUDNN_RUNTIME=1
 #                       As above, but retain cuDNN plus cuBLAS for convolution,
 #                       pooling, normalization, and activation routes.
+#   POLYGEIST_NUMERIC_MODEL=strict|relaxed
+#                       Strict preserves scalar operation trees (default).
+#                       Relaxed permits real-arithmetic reassociation and
+#                       identities; numerical output checks remain required.
 #   POLYGEIST_DISABLE_LIBRARY_MATCHING=1
 #                       Preserve residual Linalg instead of emitting any
 #                       kernel.launch operations. Useful for isolating raising
 #                       correctness from matcher/ABI/runtime correctness.
-#   POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE=0|1|auto
-#                       Compatibility path for flat, complete library calls.
-#                       Lower views before debufferization; this removes the
-#                       tensor writeback shell but can hide view structure
-#                       needed by newer composition matching. `auto` evaluates
-#                       both IR forms and selects fewer residual operations,
-#                       breaking ties in favor of more legal library launches.
-#   POLYGEIST_BUFFERIZE_BEFORE_ABI=auto|0|1
-#                       Bufferize destination-style kernel.launch operations
-#                       before CUDA ABI lowering. `auto` (the default) enables
-#                       this for modules containing only the migrated generic
-#                       cuDNN pointwise-graph ABI. Use 0 for the legacy tensor
-#                       ABI or 1 to test newly migrated launch families.
 #   POLYGEIST_EXPORT_OBJECT_DIR=/path
 #                       Copy kernel.o, wrapper.o, runtime objects, and the
 #                       matched/ABI MLIR into this directory for a larger
@@ -147,7 +138,6 @@ CLANG="${CLANG:-$REPO_ROOT/llvm-project/build/bin/clang}"
 PYTHON=$PYTHON
 SCRIPTS=$REPO_ROOT/scripts/correctness
 RT=$REPO_ROOT/runtime
-KERNEL_LIB=$REPO_ROOT/generic_solver/kernel_library_phase2.mlir
 
 # Cross toolchain (used only when --target=jetson).
 CUDA_CROSS="${POLYGEIST_CUDA_CROSS_ROOT:-/usr/local/cuda-12.6/targets/sbsa-linux}"
@@ -167,6 +157,7 @@ WHOLE_PROGRAM=0
 GCC_PASSTHROUGH=()
 RT_CFLAGS=()
 STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
+ABI_BACKEND="${POLYGEIST_ABI_BACKEND:-cuda}"
 
 usage() {
   sed -n '3,40p' "$0" | sed 's/^# \?//'
@@ -201,6 +192,19 @@ done
 case "$TARGET" in host|jetson-cpu|jetson) ;; *)
   echo "ERROR: --target must be 'host', 'jetson-cpu', or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
 esac
+if [ -z "${POLYGEIST_ABI_BACKEND:-}" ] && [ "$TARGET" != jetson ]; then
+  ABI_BACKEND=cpu
+fi
+case "$ABI_BACKEND" in cpu|cuda|pva) ;; *)
+  echo "ERROR: POLYGEIST_ABI_BACKEND must be 'cpu', 'cuda', or 'pva'" >&2; exit 1 ;;
+esac
+if { [ "$ABI_BACKEND" = cpu ] && [ "$TARGET" = jetson ]; } ||
+   { [ "$ABI_BACKEND" != cpu ] && [ "$TARGET" != jetson ]; }; then
+  echo "ERROR: backend $ABI_BACKEND does not match execution target $TARGET" >&2; exit 1
+fi
+if [ "$ABI_BACKEND" = pva ] && [ "$TARGET" != jetson ]; then
+  echo "ERROR: PVA ABI lowering requires --target=jetson" >&2; exit 1
+fi
 CROSS_AARCH64=0
 if [ "$TARGET" != "host" ]; then CROSS_AARCH64=1; fi
 [ -z "$OUT" ] && OUT="$(basename "$INPUT" .c)"
@@ -282,15 +286,15 @@ echo "[polygeist] gcc passthrough: ${GCC_PASSTHROUGH[*]:-(none)}"
 # ─── Steps 1-4: produce or reuse matched/composed semantic MLIR ─────────
 if [ -n "$SEMANTIC_MLIR" ]; then
   echo "  [1-4/9] reuse stored semantic MLIR: $SEMANTIC_MLIR"
-  # Stored matcher artifacts omit library kernel.defn symbols. Synthesize
-  # verifier-only definitions from each concrete launch signature while
-  # preserving any network definition already created by composition.
-  $PYTHON $SCRIPTS/mfem_network_compose.py --inject-only \
-    "$SEMANTIC_MLIR" $WORK/with_defns_composed.mlir
-  SEMANTIC_INPUT=$WORK/with_defns_composed.mlir
+  MATCH_PROOF="${POLYGEIST_MATCH_PROOF:?resumed MLIR requires its specification match report}"
+  $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_MLIR" --verify-report "$MATCH_PROOF" --backend "$ABI_BACKEND"
+  cp "$SEMANTIC_MLIR" "$WORK/matched.mlir"
+  cp "$MATCH_PROOF" "$WORK/match.json"
+  SEMANTIC_INPUT=$WORK/matched.mlir
 else
 # ─── Step 1: cgeist lifts the kernel function to affine MLIR ────────────
 echo "  [1/9] cgeist → affine MLIR"
+mapfile -t SHARED_FRONTEND_ARGS < <($PYTHON "$SCRIPTS/lib_v2/recipe.py" --emit frontend)
 CGEIST_EXTRA_FLAGS=()
 if [ -n "${POLYGEIST_CGEIST_FLAGS:-}" ]; then
   read -r -a CGEIST_EXTRA_FLAGS <<< "$POLYGEIST_CGEIST_FLAGS"
@@ -306,9 +310,9 @@ if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
 fi
 cgeist "$INPUT" --function="$CGEIST_FUNCTION" \
   --resource-dir=/usr/lib/clang/14 \
+  "${SHARED_FRONTEND_ARGS[@]}" \
   "${CGEIST_EXTRA_FLAGS[@]}" \
   "${GCC_PASSTHROUGH[@]}" \
-  --raise-scf-to-affine -fPIC -S \
   -o $WORK/affine.mlir 2>$WORK/cgeist.err || {
     echo "ERROR: cgeist failed; see $WORK/cgeist.err" >&2; cat $WORK/cgeist.err >&2; exit 1; }
 
@@ -333,7 +337,7 @@ if [ "$WHOLE_PROGRAM" -eq 0 ] && \
     "${CGEIST_EXTRA_FLAGS[@]}" \
     "${GCC_PASSTHROUGH[@]}" \
     -Dstatic= \
-    --raise-scf-to-affine -fPIC -S \
+    "${SHARED_FRONTEND_ARGS[@]}" \
     -o "$WORK/affine.mlir" 2>"$WORK/cgeist.err" || {
       echo "ERROR: cgeist static-linkage retry failed; see $WORK/cgeist.err" >&2
       cat "$WORK/cgeist.err" >&2
@@ -354,314 +358,75 @@ if [ "$HARNESS_INPUT" = "$INPUT" ]; then
   # bodies through the selected kernel's lowering pipeline.
   SELECT_FUNC_ARGS=(--select-func="func-name=$FUNCTION externalize-dependencies=true")
 fi
-if [ "$DEBUFFERIZE" -eq 1 ]; then
-  SUBMAP_PASS=()
-  SUBMAP_MODE="${POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE:-0}"
-  if [ "$SUBMAP_MODE" = "1" ]; then
-    SUBMAP_PASS=(--lower-polygeist-submap)
-    echo "  [2/9] polygeist-opt: raise + lower-submap + debufferize"
-  elif [ "$SUBMAP_MODE" = "auto" ]; then
-    echo "  [2/9] polygeist-opt: raise + debufferize (auto view selection)"
-  else
-    echo "  [2/9] polygeist-opt: raise + debufferize (preserve submaps)"
-  fi
-  # Joint multi-root reconstruction preserves coupled results from one
-  # multi-output generic.  The older recursive mode can silently retain only
-  # one root (as exposed by the MFEM H(curl)/H(div) applications), so keep it
-  # only as an explicit diagnostic opt-out.
-  DEBUFFERIZE_PASS=(--linalg-debufferize)
-  if [ "${POLYGEIST_DEBUFFERIZE_MULTI_ROOT:-1}" != "0" ]; then
-    DEBUFFERIZE_PASS=(--linalg-debufferize=use-multi-root=true)
-    echo "         using joint multi-root debufferization"
-  fi
-  if [ "$WHOLE_PROGRAM" -ne 0 ]; then
-    SUBMAP_PIPELINE=
-    [ "${#SUBMAP_PASS[@]}" -eq 0 ] || SUBMAP_PIPELINE=,lower-polygeist-submap
-    DEBUFFERIZE_PIPELINE='linalg-debufferize'
-    if [ "${POLYGEIST_DEBUFFERIZE_MULTI_ROOT:-1}" != "0" ]; then
-      DEBUFFERIZE_PIPELINE='linalg-debufferize{use-multi-root=true}'
-    fi
-    SELECTED_PIPELINE="remove-iter-args,func.func(affine-parallelize),raise-affine-to-linalg-pipeline${SUBMAP_PIPELINE},${DEBUFFERIZE_PIPELINE}"
-    SELECT_FUNC_ARGS=("--select-func=func-name=$FUNCTION preserve-module=true pipeline=$SELECTED_PIPELINE")
-    polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
-      $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err
-  else
-    polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
-      --remove-iter-args --affine-parallelize \
-      --raise-affine-to-linalg-pipeline \
-      "${SUBMAP_PASS[@]}" \
-      "${DEBUFFERIZE_PASS[@]}" \
-      $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err
-  fi || {
-      echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
+SHARED_SCOPE=()
+[ "$WHOLE_PROGRAM" -eq 0 ] || SHARED_SCOPE+=(--whole-program)
+$PYTHON "$SCRIPTS/lib_v2/recipe.py" --stage raise --function "$FUNCTION" \
+  "${SHARED_SCOPE[@]}" --input "$WORK/affine.mlir" --output "$WORK/raised.mlir" \
+  >"$WORK/raise.json"
+if [ "$DEBUFFERIZE" -ne 0 ]; then
+  $PYTHON "$SCRIPTS/lib_v2/recipe.py" --stage debufferize --function "$FUNCTION" \
+    "${SHARED_SCOPE[@]}" --input "$WORK/raised.mlir" --output "$WORK/linalg.mlir" \
+    >"$WORK/debufferize.json"
 else
-  echo "  [2/9] polygeist-opt: raise + lower-submap (memref linalg)"
+  cp "$WORK/raised.mlir" "$WORK/linalg.mlir"
+fi
+
+if [ -n "${POLYGEIST_PVA_APPROXIMATION_BUDGETS:-}" ]; then
+  echo "ERROR: an error budget alone cannot authorize a specification match" >&2; exit 1
+fi
+# ─── Step 3: imported-specification matching ──────────────────────────
+echo "  [3/9] imported specifications: Linalg then generic region matching"
+MATCHER_ARGS=(--backend "$ABI_BACKEND" --report "$WORK/match.json")
+if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-launches 0)
+fi
+if [ -n "${POLYGEIST_MATCH_MAX_LAUNCHES:-}" ]; then
+  MATCHER_ARGS+=(--max-launches "$POLYGEIST_MATCH_MAX_LAUNCHES")
+fi
+$PYTHON "$SCRIPTS/spec_match.py" "$WORK/linalg.mlir" \
+  "${MATCHER_ARGS[@]}" -o "$WORK/matched.mlir" 2>"$WORK/match.err" || {
+  cat "$WORK/match.err" >&2; exit 1;
+}
+cat "$WORK/match.err"
+SEMANTIC_INPUT=$WORK/matched.mlir
+fi
+
+# Only specification-proven launches reach target lowering. Legacy graph
+# composition/backend-selection passes may not introduce unproved replacements.
+$PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ] || \
+   [ "${POLYGEIST_ALLOW_TF32:-0}" != 0 ]; then
+  echo "ERROR: workspace/precision transformations require specification evidence integration" >&2
+  exit 1
+fi
+
+# ─── Steps 4-5: mechanical lowering of specification bindings ──────────
+echo "  [4-5/9] imported specification ABI -> external library calls"
+if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
+  -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
+  if grep -q 'kernel.launch' "$SEMANTIC_INPUT" || [ ! -f "$WORK/affine.mlir" ]; then
+    cat "$WORK/abi.err" >&2; exit 1
+  fi
+  # No call was selected. Preserve the original lifted program if residual
+  # tensor views cannot be lowered. This recovery authorizes zero matches.
+  cp "$WORK/abi.json" "$WORK/residual-lowering-failure.json"
+  cp "$WORK/match.json" "$WORK/attempted-match.json"
   if [ "$WHOLE_PROGRAM" -ne 0 ]; then
-    SELECTED_PIPELINE='remove-iter-args,func.func(affine-parallelize),raise-affine-to-linalg-pipeline,lower-polygeist-submap'
-    SELECT_FUNC_ARGS=("--select-func=func-name=$FUNCTION preserve-module=true pipeline=$SELECTED_PIPELINE")
-    polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
-      $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err
+    cp "$WORK/affine.mlir" "$WORK/residual.mlir"
   else
-    polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
-      --remove-iter-args --affine-parallelize \
-      --raise-affine-to-linalg-pipeline \
-      --lower-polygeist-submap \
-      $WORK/affine.mlir -o $WORK/linalg.mlir 2>$WORK/raise.err
-  fi || {
-      echo "ERROR: raise pass failed; see $WORK/raise.err" >&2; cat $WORK/raise.err >&2; exit 1; }
-fi
-
-# ─── Step 3: matcher (linalg.generic → kernel.launch) ───────────────────
-echo "  [3/9] matcher: linalg.generic → kernel.launch"
-# Structured loop matching is part of the production matcher.  It recognizes
-# loop-carried idioms such as the source-faithful Parboil SGEMM, MG stencils,
-# histograms, and sparse matrix-vector products before ABI lowering.
-MATCHER_ARGS=(--enable-structured-rewrite)
-case "$STENCIL_BACKEND" in
-  cudnn|custen) ;;
-  *)
-    echo "ERROR: POLYGEIST_STENCIL_BACKEND must be cudnn or custen" >&2
-    exit 1
-    ;;
-esac
-MATCHER_ARGS+=(--stencil-backend "$STENCIL_BACKEND")
-if [ "${POLYGEIST_DISABLE_POINTWISE_MATCHING:-0}" != "0" ]; then
-  MATCHER_ARGS+=(--disable-pointwise-matching)
-  echo "         generic pointwise matching disabled"
-fi
-if [ -n "${POLYGEIST_DISABLED_KERNELS:-}" ]; then
-  IFS=',' read -r -a DISABLED_KERNEL_LIST <<< "$POLYGEIST_DISABLED_KERNELS"
-  for disabled_kernel in "${DISABLED_KERNEL_LIST[@]}"; do
-    MATCHER_ARGS+=(--disable-kernel "$disabled_kernel")
-  done
-  echo "         disabled named kernels: ${POLYGEIST_DISABLED_KERNELS}"
-fi
-if [ -n "${POLYGEIST_ONLY_KERNELS:-}" ]; then
-  IFS=',' read -r -a ONLY_KERNEL_LIST <<< "$POLYGEIST_ONLY_KERNELS"
-  for only_kernel in "${ONLY_KERNEL_LIST[@]}"; do
-    MATCHER_ARGS+=(--only-kernel "$only_kernel")
-  done
-  echo "         only named kernels: ${POLYGEIST_ONLY_KERNELS}"
-fi
-if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != "0" ]; then
-  cp $WORK/linalg.mlir $WORK/matched.mlir
-  : > $WORK/match.err
-  echo "         all library matching disabled; preserving residual Linalg"
-else
-  if [ -n "${POLYGEIST_MATCH_MAX_LAUNCHES:-}" ]; then
-    MATCHER_ARGS+=(--max-launches "${POLYGEIST_MATCH_MAX_LAUNCHES}")
-    echo "         limiting emitted launches to ${POLYGEIST_MATCH_MAX_LAUNCHES}"
+    polygeist-opt "${SELECT_FUNC_ARGS[@]}" "$WORK/affine.mlir" -o "$WORK/residual.mlir"
   fi
-  $PYTHON $SCRIPTS/kernel_match_rewrite.py \
-    "${MATCHER_ARGS[@]}" \
-    $WORK/linalg.mlir > $WORK/matched.mlir 2>$WORK/match.err
+  $PYTHON "$SCRIPTS/spec_match.py" "$WORK/residual.mlir" --backend "$ABI_BACKEND" \
+    --max-launches 0 -o "$WORK/matched.mlir" --report "$WORK/match.json"
+  SEMANTIC_INPUT=$WORK/matched.mlir
+  $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
+  $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
+    -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
+  echo "         retained original affine IR after residual view-lowering failure (zero matches)"
 fi
-N_LAUNCH=$(grep -c 'kernel\.launch' $WORK/matched.mlir || true)
-
-# Projected slices can be represented either as explicit submaps or as
-# normalized tensor slices.  Both forms are semantics-preserving, but each can
-# expose different library definitions.  In auto mode, evaluate the alternate
-# raised IR and select solely from compiler-visible residual structure and
-# ABI-lowerable launch count.  Function and benchmark names are never inputs.
-if [ "${SUBMAP_MODE:-0}" = "auto" ] && [ "$DEBUFFERIZE" -eq 1 ] && \
-   [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" = "0" ]; then
-  echo "         evaluating normalized-submap alternative"
-  if [ "$WHOLE_PROGRAM" -ne 0 ]; then
-    ALT_DEBUFFERIZE_PIPELINE='linalg-debufferize'
-    if [ "${POLYGEIST_DEBUFFERIZE_MULTI_ROOT:-1}" != "0" ]; then
-      ALT_DEBUFFERIZE_PIPELINE='linalg-debufferize{use-multi-root=true}'
-    fi
-    ALT_PIPELINE="remove-iter-args,func.func(affine-parallelize),raise-affine-to-linalg-pipeline,lower-polygeist-submap,${ALT_DEBUFFERIZE_PIPELINE}"
-    ALT_SELECT_ARGS=("--select-func=func-name=$FUNCTION preserve-module=true pipeline=$ALT_PIPELINE")
-    polygeist-opt "${ALT_SELECT_ARGS[@]}" \
-      $WORK/affine.mlir -o $WORK/linalg.normalized.mlir \
-      2>$WORK/raise.normalized.err
-  else
-    polygeist-opt "${SELECT_FUNC_ARGS[@]}" \
-      --remove-iter-args --affine-parallelize \
-      --raise-affine-to-linalg-pipeline --lower-polygeist-submap \
-      "${DEBUFFERIZE_PASS[@]}" \
-      $WORK/affine.mlir -o $WORK/linalg.normalized.mlir \
-      2>$WORK/raise.normalized.err
-  fi || {
-    echo "ERROR: normalized-submap raise failed; see $WORK/raise.normalized.err" >&2
-    cat $WORK/raise.normalized.err >&2
-    exit 1
-  }
-  $PYTHON $SCRIPTS/kernel_match_rewrite.py \
-    "${MATCHER_ARGS[@]}" \
-    $WORK/linalg.normalized.mlir > $WORK/matched.normalized.mlir \
-    2>$WORK/match.normalized.err
-  ALT_LAUNCH=$(grep -c 'kernel\.launch' $WORK/matched.normalized.mlir || true)
-  BASE_RESIDUAL=$(grep -Ec 'linalg\.|polygeist\.submapInverse|affine\.(for|parallel|while)|scf\.(for|parallel|while)' $WORK/matched.mlir || true)
-  ALT_RESIDUAL=$(grep -Ec 'linalg\.|polygeist\.submapInverse|affine\.(for|parallel|while)|scf\.(for|parallel|while)' $WORK/matched.normalized.mlir || true)
-  if [ "$ALT_RESIDUAL" -lt "$BASE_RESIDUAL" ] || \
-     { [ "$ALT_RESIDUAL" -eq "$BASE_RESIDUAL" ] && \
-       [ "$ALT_LAUNCH" -gt "$N_LAUNCH" ]; }; then
-    cp $WORK/linalg.normalized.mlir $WORK/linalg.mlir
-    cp $WORK/matched.normalized.mlir $WORK/matched.mlir
-    cp $WORK/match.normalized.err $WORK/match.err
-    N_LAUNCH=$ALT_LAUNCH
-    echo "         selected normalized submaps: residual $BASE_RESIDUAL -> $ALT_RESIDUAL, launches $N_LAUNCH"
-  else
-    echo "         selected preserved submaps: residual $BASE_RESIDUAL vs $ALT_RESIDUAL, launches $N_LAUNCH vs $ALT_LAUNCH"
-  fi
-fi
-echo "         matched $N_LAUNCH kernel.launch op(s)"
-if [ "${N_LAUNCH:-0}" -eq 0 ]; then
-  echo "         no ABI-lowerable matches; continuing with residual Linalg"
-fi
-
-# ─── Step 4: inject canonical kernel.defn declarations ──────────────────
-# The matched MLIR references @cublasDgemm / @cudnnConvolution2D_9tap / etc.
-# but doesn't define them. The kernel.launch op's verifier needs the symbols
-# to exist. We pull all the kernel.defn entries from kernel_library_phase2.mlir
-# and inject them inside the matched module's attribute block. The lowering
-# pass dead-strips unused defns afterwards, so injecting all of them is safe
-# regardless of which one(s) the matcher emitted.
-echo "  [4/9] inject canonical defns from kernel_library_phase2.mlir"
-# Extract the kernel.defn blocks from the library (everything between the
-# outer module { ... }), strip the wrapping module line, and inject.
-DEFNS=$(sed -n '/^module {$/,/^}$/p' "$KERNEL_LIB" | sed '1d; $d')
-awk -v defns="$DEFNS" '
-  /^module attributes/ && !done { print; print defns; done=1; next }
-  { print }
-' $WORK/matched.mlir > $WORK/with_defns.mlir
-
-# Compose neighboring, already-proven binary Einstein contractions before any
-# runtime ABI decision. The pass also absorbs purely multiplicative pointwise
-# coefficient stages and an additive contraction sink, but refuses regions
-# with escaping intermediates or unsupported scalar combiners. Disable only
-# for differential testing of the former pairwise-call path.
-SEMANTIC_INPUT=$WORK/with_defns.mlir
-if [ "${POLYGEIST_COMPOSE_CUTENSORNET_NETWORKS:-1}" != 0 ]; then
-  # Distinct tensor.empty roots model independent C scratch allocations and
-  # may be simultaneously live. Do not run global CSE at this boundary: even
-  # a function with no selected network can otherwise be miscompiled later.
-  polygeist-opt --compose-cutensornet-networks \
-    "$SEMANTIC_INPUT" -o $WORK/with_defns_composed.mlir \
-    2>$WORK/compose_cutensornet.err || {
-      echo "ERROR: cuTensorNet network composition failed; see $WORK/compose_cutensornet.err" >&2
-      cat $WORK/compose_cutensornet.err >&2
-      exit 1
-    }
-  SEMANTIC_INPUT=$WORK/with_defns_composed.mlir
-fi
-# Close the fresh-lowering branch begun by the semantic-MLIR reuse decision.
-fi
-
-# A repeated C function exposes the lifetime in which scratch and device
-# buffers may persist. Plan its tensor workspace while view structure is still
-# available, after semantic composition has finished.
-if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
-  PERSISTENT_FN=$POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION
-  polygeist-opt \
-    "--plan-persistent-gpu-workspace=function=${PERSISTENT_FN}" \
-    "$SEMANTIC_INPUT" -o $WORK/semantic_persistent_workspace.mlir
-  SEMANTIC_INPUT=$WORK/semantic_persistent_workspace.mlir
-  # Whole-function sessions acquire tensor iter_args during debufferization.
-  # Lower their views before partial bufferization so the later copy-back is
-  # visible. An explicit override supports layout-preservation experiments.
-  PERSISTENT_LOWER_SUBMAPS=${POLYGEIST_PERSISTENT_WORKSPACE_LOWER_SUBMAPS:-auto}
-  if [ "$PERSISTENT_LOWER_SUBMAPS" = 1 ] || \
-     { [ "$PERSISTENT_LOWER_SUBMAPS" = auto ] && \
-       grep -q 'iter_args' "$SEMANTIC_INPUT"; }; then
-    polygeist-opt --lower-polygeist-submap \
-      "$SEMANTIC_INPUT" -o $WORK/semantic_persistent_views.mlir
-    SEMANTIC_INPUT=$WORK/semantic_persistent_views.mlir
-  fi
-fi
-
-# Target-specific backend selection remains opt-in because TF32 relaxes FP32
-# multiplication precision. It runs only after semantic matching/composition;
-# source names and benchmark identities are not selection inputs.
-if [ "${POLYGEIST_ALLOW_TF32:-0}" != "0" ]; then
-  polygeist-opt \
-    "--select-contraction-backend=allow-tf32=true target-arch=${POLYGEIST_GPU_ARCH:-sm_87}" \
-    "$SEMANTIC_INPUT" -o $WORK/semantic_backend_selected.mlir
-  SEMANTIC_INPUT=$WORK/semantic_backend_selected.mlir
-fi
-
-# Bufferize tensor semantics before translating a launch into a CUDA runtime
-# ABI.  This preserves tensor.insert/extract_slice ordering through the normal
-# MLIR destination/alias analysis instead of reconstructing it later from an
-# already-erased tensor SSA chain.  Roll this out per ABI family: handlers that
-# have not learned the memref launch form continue through the legacy path.
-ABI_INPUT=$SEMANTIC_INPUT
-PRE_ABI_BUFFERIZE=${POLYGEIST_BUFFERIZE_BEFORE_ABI:-auto}
-N_POINTWISE_GRAPH=$(grep -c 'kernel\.launch @cudnnPointwiseGraph_f32' \
-  "$SEMANTIC_INPUT" || true)
-N_CURRENT_LAUNCH=$(grep -c 'kernel\.launch' "$SEMANTIC_INPUT" || true)
-N_TENSOR_NETWORK=$(grep -c 'kernel\.launch @cutensornetNetwork_' \
-  "$SEMANTIC_INPUT" || true)
-N_POLYGEIST_SUBMAP=$(grep -c 'polygeist\.submap' "$SEMANTIC_INPUT" || true)
-N_BUFFERIZABLE_VECTOR_BLAS=$(grep -Ec 'kernel\.launch @(memset_zero_1D|cublasDgemv|cublasDgemv_T|cublasDaxpby)\(' \
-  "$SEMANTIC_INPUT" || true)
-N_AXPBY=$(grep -c 'kernel\.launch @cublasDaxpby(' "$SEMANTIC_INPUT" || true)
-if [ "$PRE_ABI_BUFFERIZE" = auto ]; then
-  if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ] && \
-     [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; then
-    PRE_ABI_BUFFERIZE=1
-  elif [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
-       [ "$N_AXPBY" -gt 0 ] && \
-       [ "$N_BUFFERIZABLE_VECTOR_BLAS" -eq "$N_CURRENT_LAUNCH" ] && \
-       [ "$N_POLYGEIST_SUBMAP" -eq 0 ]; then
-    PRE_ABI_BUFFERIZE=1
-  elif [ "${N_CURRENT_LAUNCH:-0}" -gt 0 ] && \
-     { [ "${N_POINTWISE_GRAPH:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] || \
-       { [ "${N_TENSOR_NETWORK:-0}" -eq "${N_CURRENT_LAUNCH:-0}" ] && \
-         [ "${N_POLYGEIST_SUBMAP:-0}" -eq 0 ]; }; }; then
-    PRE_ABI_BUFFERIZE=1
-  else
-    PRE_ABI_BUFFERIZE=0
-  fi
-fi
-if [ "$PRE_ABI_BUFFERIZE" != 0 ]; then
-  echo "         one-shot bufferization before ABI lowering"
-  cp "$SEMANTIC_INPUT" $WORK/with_defns_writable.mlir
-  sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict writable :|g' \
-    $WORK/with_defns_writable.mlir
-  polygeist-opt --empty-tensor-to-alloc-tensor \
-    '--one-shot-bufferize=allow-unknown-ops bufferize-function-boundaries' \
-    --canonicalize --cse \
-    $WORK/with_defns_writable.mlir -o $WORK/pre_abi_bufferized.mlir \
-    2>$WORK/pre_abi_bufferize.err || {
-      echo "ERROR: pre-ABI bufferization failed; see $WORK/pre_abi_bufferize.err" >&2
-      cat $WORK/pre_abi_bufferize.err >&2
-      exit 1
-    }
-  ABI_INPUT=$WORK/pre_abi_bufferized.mlir
-fi
-
-# ─── Step 5: ABI lowering kernel.launch → func.call to runtime shim ─────
-echo "  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)"
-if [ "${POLYGEIST_DEVICE_RESIDENT_ABI:-0}" != "0" ]; then
-  ABI_PASSES=(--lower-kernel-launch-to-cublas=device-resident-cutensornet=true)
-else
-  ABI_PASSES=(--lower-kernel-launch-to-cublas)
-fi
-WRAP_KERNEL_PIPELINE="${POLYGEIST_WRAP_KERNEL_PIPELINE:-}"
-if [ -z "$WRAP_KERNEL_PIPELINE" ]; then
-  if [ "$TARGET" = "jetson" ]; then WRAP_KERNEL_PIPELINE=1
-  else WRAP_KERNEL_PIPELINE=0
-  fi
-fi
-if [ "$WRAP_KERNEL_PIPELINE" != "0" ]; then
-  if [ "${POLYGEIST_CUDA_GRAPH:-0}" != "0" ]; then
-    CUDA_GRAPH_PASS="cuda-graphs=true"
-    if [ "${POLYGEIST_CUDA_GRAPH_HOST_CUTENSORNET:-0}" != "0" ]; then
-      CUDA_GRAPH_PASS+=" capture-host-mapped-cutensornet=true"
-    fi
-    ABI_PASSES+=("--wrap-kernel-launch-pipeline=$CUDA_GRAPH_PASS")
-  else
-    ABI_PASSES+=(--wrap-kernel-launch-pipeline)
-  fi
-fi
-polygeist-opt "${ABI_PASSES[@]}" \
-  $ABI_INPUT -o $WORK/abi.mlir 2>$WORK/abi.err || {
-    echo "ERROR: ABI lowering failed; see $WORK/abi.err" >&2; cat $WORK/abi.err >&2; exit 1; }
-N_CALL=$(grep -cE 'call @polygeist_' $WORK/abi.mlir || true)
-echo "         emitted $N_CALL func.call to runtime shim"
+cat "$WORK/abi.err"
+N_CALL=$(grep -cE 'call @polygeist_v2_' "$WORK/abi.mlir" || true)
+echo "         emitted $N_CALL external-library runtime calls"
 
 # ─── Step 6: lower to LLVM dialect + translate to LLVM IR ───────────────
 echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
@@ -678,9 +443,6 @@ echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
 # one-shot bufferization may then select the same physical buffer for results
 # that are simultaneously live.  View lowering does not require CSE.
 ABI_CLEANUP_PASSES=(--lower-polygeist-submap --canonicalize-polygeist)
-if grep -Eq 'cublas[DS]gemv_T_zero' "$SEMANTIC_INPUT"; then
-  ABI_CLEANUP_PASSES=(--remove-iter-args "${ABI_CLEANUP_PASSES[@]}")
-fi
 polygeist-opt "${ABI_CLEANUP_PASSES[@]}" \
   $WORK/abi.mlir -o $WORK/abi_canon.mlir 2>>$WORK/abi.err || {
     echo "ERROR: polygeist submap cleanup failed; see $WORK/abi.err" >&2
@@ -872,6 +634,31 @@ else
            -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
            -lcudart -lm -lpthread -ldl \
            -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+  if [ "$ABI_BACKEND" = pva ]; then
+    PVA_SOLUTIONS_ROOT="${PVASOL_ROOT:?set PVASOL_ROOT for PVA builds}"
+    PVA_CUPVA_ROOT="${CUPVA_SDK_ROOT:?set CUPVA_SDK_ROOT for PVA builds}"
+    PVA_STAGED_LIBS="${PVA_LIB_STAGE:?set PVA_LIB_STAGE for PVA builds}"
+    PVA_TARGET_RPATH="${POLYGEIST_PVA_TARGET_RPATH:-/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia}"
+    PVA_OPERATOR_INC="$PVA_SOLUTIONS_ROOT/public/src/operator/include"
+    PVA_NVCV_INC="$PVA_SOLUTIONS_ROOT/public/3rdparty/cvcuda/src/nvcv/src/include"
+    for required in "$PVA_OPERATOR_INC/OpBoxFilter.h" \
+                    "$PVA_NVCV_INC/nvcv/Tensor.h" \
+                    "$PVA_CUPVA_ROOT/include/cupva_host.h" \
+                    "$PVA_STAGED_LIBS/libpva_operator.so"; do
+      [ -e "$required" ] || {
+        echo "ERROR: required staged PVA build input missing: $required" >&2
+        exit 1
+      }
+    done
+    RT_SRC=$RT/polygeist_pva_image_rt.c
+    RT_CFLAGS+=("-I$PVA_OPERATOR_INC" "-I$PVA_NVCV_INC"
+               "-I$PVA_CUPVA_ROOT/include")
+    RT_LIBS="-L$PVA_STAGED_LIBS -L$CUDA_CROSS/lib \
+             -lpva_operator -lnvcv_types -lcupva_host -lcudart \
+             -lm -lpthread -ldl -Wl,--allow-shlib-undefined \
+             -Wl,-rpath,$PVA_TARGET_RPATH"
+    echo "         + staged PVA Solutions runtime adapter"
+  fi
   if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
     RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
                "-DPOLYGEIST_DISABLE_CUSOLVER"
@@ -954,6 +741,23 @@ else
              -Wl,-rpath,$CUSTEN_LIB_DIR:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
     echo "         + external cuSten backend from $POLYGEIST_CUSTEN_LIB"
   fi
+fi
+
+SPEC_RUNTIME_OBJECTS=()
+if [ "$N_CALL" -gt 0 ]; then
+  $PYTHON "$SCRIPTS/lib_v2/gen_v2_runtime.py" --output-dir "$WORK/spec_runtime" \
+    >"$WORK/spec_runtime.log" 2>&1
+  if [ "$TARGET" = jetson ]; then
+    $CC -O2 -ffunction-sections -fdata-sections -I"$CUDA_CROSS/include" \
+      -I"$REPO_ROOT/third_party/cuda_headers/cusolver/include" \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_cuda.c" -o "$WORK/spec_runtime.o"
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -lcublas -lcusolver -lcudart $RT_LIBS"
+  else
+    $CC -O2 -ffunction-sections -fdata-sections \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_cpu.c" -o "$WORK/spec_runtime.o"
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+  fi
+  SPEC_RUNTIME_OBJECTS+=("$WORK/spec_runtime.o")
 fi
 
 # Kernel (lifted) — use Polygeist clang for both host and cross.
@@ -1118,6 +922,7 @@ if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
   cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/harness.o" "$WORK/rt.o" \
      "$WORK/mlir_runner_utils.o" "$MATCHED_EXPORT" "$WORK/abi.mlir" \
      "$WORK/abi_canon.mlir" \
+     "${SPEC_RUNTIME_OBJECTS[@]}" "$WORK/match.json" "$WORK/abi.json" \
      "$POLYGEIST_EXPORT_OBJECT_DIR/"
   echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
 fi
@@ -1135,6 +940,7 @@ $CC -O2 \
   $WORK/mlir_runner_utils.o \
   "${POLYBENCH_OBJS[@]}" \
   "${CUSTOM_CUDA_OBJS[@]}" \
+  "${SPEC_RUNTIME_OBJECTS[@]}" \
   $RT_LIBS \
   -Wl,--gc-sections \
   -o "$OUT"

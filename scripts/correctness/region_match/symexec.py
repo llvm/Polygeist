@@ -444,9 +444,29 @@ class Executor:
                 self.env[res[0]] = IdxVal(Aff.cst(int(v)))
             return
         if n in ("arith.index_cast", "arith.index_castui", "arith.extsi", "arith.extui", "arith.trunci"):
-            m = re.match(r"\S+\s+(%[\w$.#-]+)", rest)
+            m = re.match(r"\S+\s+(%[\w$.#-]+)\s*:\s*(\S+)\s+to\s+(\S+)", rest)
+            if not m:
+                raise Unsupported('unparsed integer conversion')
             v = self.get(m.group(1))
-            self.env[res[0]] = v if isinstance(v, IdxVal) else Undef()
+            if isinstance(v, FVal):
+                self.env[res[0]] = FVal(EUn(n + ':' + m.group(2) + ' to ' + m.group(3), v.e))
+            elif isinstance(v, IdxVal):
+                from .affine import implies
+                src, dst = m.group(2), m.group(3)
+                source_bits = 64 if src == 'index' else int(src[1:])
+                target_bits = 64 if dst == 'index' else int(dst[1:])
+                unsigned = n in ('arith.extui', 'arith.index_castui')
+                if unsigned and not implies(self.domain, ge(v.aff, 0)):
+                    raise Unsupported('unsigned index conversion may change a negative value')
+                if target_bits < source_bits:
+                    low = 0 if unsigned else -(1 << (target_bits - 1))
+                    high = (1 << (target_bits if unsigned else target_bits - 1)) - 1
+                    if not (implies(self.domain, ge(v.aff, low)) and
+                            implies(self.domain, le(v.aff, high))):
+                        raise Unsupported('narrowing index conversion may truncate')
+                self.env[res[0]] = v
+            else:
+                raise Unsupported('unsupported integer conversion operand')
             return
         if n in ("arith.addi", "arith.subi", "arith.muli"):
             m = re.match(r"\S+\s+(%[\w$.#-]+),\s*(%[\w$.#-]+)", rest)
@@ -454,7 +474,7 @@ class Executor:
             if isinstance(a, FVal) or isinstance(b, FVal):
                 # integer data (e.g. a count read back from memory)
                 try:
-                    opn = {"arith.addi": "add", "arith.subi": "sub", "arith.muli": "mul"}[n]
+                    opn = n + ':' + rest.rsplit(':', 1)[1].strip()
                     self.env[res[0]] = FVal(EBin(opn, self.fval(m.group(1)), self.fval(m.group(2))))
                 except Unsupported:
                     self.env[res[0]] = Undef()
@@ -522,22 +542,23 @@ class Executor:
             self.env[res[0]] = FVal(EBin(opn, self.fval(m.group(1)), self.fval(m.group(2))))
             return
         if n in ("arith.negf", "math.sqrt", "math.exp", "math.log", "math.absf", "math.tanh",
-                 "math.rsqrt", "math.sin", "math.cos"):
+                 "math.rsqrt", "math.sin", "math.cos", "math.log1p", "math.expm1"):
             m = re.match(r"\S+\s+(%[\w$.#-]+)", rest)
             self.env[res[0]] = FVal(EUn(n.split(".")[1], self.fval(m.group(1))))
             return
-        if n in ("arith.sitofp", "arith.uitofp", "arith.extf", "arith.truncf"):
-            m = re.match(r"\S+\s+(%[\w$.#-]+)", rest)
+        if n in ("arith.sitofp", "arith.uitofp", "arith.extf", "arith.truncf",
+                 "arith.fptosi", "arith.fptoui", "arith.bitcast"):
+            m = re.match(r"\S+\s+(%[\w$.#-]+)\s*:\s*(\S+)\s+to\s+(\S+)", rest)
+            if not m:
+                raise Unsupported("unparsed numeric conversion")
             v = self.get(m.group(1))
             if isinstance(v, FVal):
-                self.env[res[0]] = v
+                value = v.e
             elif isinstance(v, IdxVal):
-                try:
-                    self.env[res[0]] = FVal(self.int_as_data(v.aff, m.group(1)))
-                except Unsupported:
-                    self.env[res[0]] = Undef()
+                value = self.int_as_data(v.aff, m.group(1))
             else:
-                self.env[res[0]] = Undef()
+                raise Unsupported("unsupported numeric conversion operand")
+            self.env[res[0]] = FVal(EUn(n + ":" + m.group(2) + " to " + m.group(3), value))
             return
         if n == "arith.cmpi":
             m = re.match(r"arith\.cmpi\s+(\w+),\s*(%[\w$.#-]+),\s*(%[\w$.#-]+)", rest)
@@ -688,6 +709,49 @@ class Executor:
             return "pure"
         if n == "tensor.extract_slice":
             self._extract_slice(op, rest)
+            return "pure"
+        if n == "memref.subview":
+            m = re.match(
+                r"memref\.subview\s+(%[\w$.#-]+)\[(.*?)\]\s*\[(.*?)\]"
+                r"\s*\[(.*?)\]\s*:\s*memref<.*>\s+to\s+(memref<.*>)$", rest)
+            if not m:
+                raise Unsupported(f"cannot parse memref.subview: {rest}")
+            base = self.get(m.group(1))
+            if not isinstance(base, MemVal):
+                raise Unsupported("subview of a non-memref")
+            parts = [[self.idx(x) for x in _split_top(m.group(k))]
+                     for k in (2, 3, 4)]
+            if len({len(p) for p in parts}) != 1:
+                raise Unsupported("subview metadata arity")
+            self.env[res[0]] = self._slice_view(
+                base, *parts, _rank_of(m.group(5)))
+            return "pure"
+        if n == "memref.reinterpret_cast":
+            m = re.match(
+                r"memref\.reinterpret_cast\s+(%[\w$.#-]+)\s+to\s+"
+                r"offset:\s*\[(.*?)\],\s*sizes:\s*\[(.*?)\],\s*"
+                r"strides:\s*\[(.*?)\]\s*:\s*(memref<.*>)\s+to\s+(memref<.*>)$",
+                rest)
+            if not m:
+                raise Unsupported(f"cannot parse reinterpret_cast: {rest}")
+            base = self.get(m.group(1))
+            # Reinterpret offsets refer to underlying storage, not to the
+            # source view. Until storage descriptors are explicit, accept only
+            # a full contiguous rank-one base; never guess through a view.
+            if (not isinstance(base, MemVal) or base.buf.rank != 1 or
+                    base.view is not None or "strided<" in m.group(5)):
+                raise Unsupported("reinterpret_cast requires a contiguous flat base")
+            offset = self.idx(m.group(2))
+            sizes = [self.idx(x) for x in _split_top(m.group(3))]
+            strides = [self.idx(x) for x in _split_top(m.group(4))]
+            if len(sizes) != len(strides) or len(sizes) != _rank_of(m.group(6)):
+                raise Unsupported("reinterpret_cast metadata arity")
+            coordinate = offset
+            for k, stride in enumerate(strides):
+                if not stride.is_const():
+                    raise Unsupported("symbolic reinterpret_cast stride")
+                coordinate += Aff.var(f"@v{k}").scale(stride.const)
+            self.env[res[0]] = MemVal(base.buf, View([coordinate], sizes))
             return "pure"
         if n == "tensor.insert_slice":
             self._insert_slice(op, rest, T(0))

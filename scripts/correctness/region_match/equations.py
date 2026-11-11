@@ -576,6 +576,11 @@ class Builder:
                     raise Reject(f"read of uninitialised scratch {buf}")
                 f = replace_acc(f, prev)
             return f
+        # This summary separates the incoming accumulator from a sum, which
+        # permits reassociation. Do not use it in strict scalar-order mode.
+        from kernel_match import numeric_model
+        if numeric_model() == "strict":
+            raise Reject("reduction summary requires relaxed numerical model")
         # reduction chain over the fiber ------------------------------
         self.stats["chains"] += 1
         if prev is None:
@@ -669,8 +674,6 @@ class Builder:
                         self.conv(e.b, W, sigma, ctx, buf, evaff))
         if isinstance(e, EUn):
             a = self.conv(e.a, W, sigma, ctx, buf, evaff)
-            if e.op == "negf":
-                return FBin("mul", FConst(-1.0), a)
             return FUn(e.op, a)
         if isinstance(e, ESel):
             if isinstance(e.cond, CondAff):

@@ -18,8 +18,8 @@ Pipeline (see issues/region_match/REPORT.md):
 from .matcher import RegionMatch, load_specs, match_text
 
 
-def match_regions(mlir_text: str, spec_dir: str) -> list[RegionMatch]:
-    return match_text(mlir_text, spec_dir)
+def match_regions(mlir_text: str, spec_dir: str, allowed_specs=None) -> list[RegionMatch]:
+    return match_text(mlir_text, spec_dir, allowed_specs=allowed_specs)
 
 
 __all__ = ["RegionMatch", "match_regions", "load_specs"]

@@ -1,0 +1,20 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dtrmm_rutu",
+   "call": "polygeist_v2_cublasDtrmm",
+   "cpu_entry": "dtrmm_",
+   "gpu_entry": "cublasDtrmm_v2",
+   "operand_types": [
+    "i32",
+    "i32",
+    "f64",
+    "i32",
+    "memref<?x?xf64>",
+    "i32",
+    "memref<?x?xf64>"
+   ]
+  }
+ ],
+ "opt": []
+}

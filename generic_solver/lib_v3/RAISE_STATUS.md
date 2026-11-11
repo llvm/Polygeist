@@ -11,16 +11,16 @@ Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
 | spec | routine | status | generics | residual (debuf) | validation defn / linalg | reason |
 |---|---|---|---:|---|---|---|
 | `numpy_bincount` | bincount | PARTIAL | 1 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
-| `numpy_bincount_accumulate` | bincount | NOT_RAISED | 0 | affine.for |  | no linalg.generic after raising; residual affine.for |
+| `numpy_bincount_accumulate` | bincount | NOT_RAISED | 0 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for |
 | `numpy_bincount_weights` | bincount | PARTIAL | 1 | affine.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory accesses) |
-| `scipy_csc_matvec` | csc_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csc_matvec` | csc_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 | `scipy_csc_matvec_beta0` | csc_matvec | PARTIAL | 1 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for, scf.for (2 loop ops, 0 scalar memory accesses) |
-| `scipy_csc_matvec_i64` | csc_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csc_matvec_i64` | csc_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 | `scipy_csc_matvec_beta0_i64` | csc_matvec | PARTIAL | 1 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | 1 linalg.generic but residual affine.for, scf.for (2 loop ops, 0 scalar memory accesses) |
-| `scipy_csr_matvec` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
-| `scipy_csr_matvec_beta0` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
-| `scipy_csr_matvec_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
-| `scipy_csr_matvec_beta0_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csr_matvec` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csr_matvec_beta0` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csr_matvec_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
+| `scipy_csr_matvec_beta0_i64` | csr_matvec | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 | `netlib_dpotf2_u` | dpotf2 | PARTIAL | 3 | affine.for | EXACT / EXACT | 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory accesses) |
 | `netlib_dpotf2_l` | dpotf2 | PARTIAL | 3 | affine.for | EXACT / LOWER_FAIL | 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory accesses) |
 | `netlib_dsymm_lu_beta0` | dsymm | PARTIAL | 2 | affine.for | EXACT / EXACT | 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory accesses) |
@@ -105,7 +105,7 @@ Summary: NOT_RAISED: 8, PARTIAL: 38, RAISED: 46, UNVALIDATED: 4 (total 96)
 | `openblas_dgemv_t` | openblas_dgemv | RAISED | 2 | - | WITHIN_1e-12 / WITHIN_1e-12 |  |
 | `openblas_dger` | openblas_dger | RAISED | 1 | - | EXACT / LOWER_FAIL |  |
 | `openblas_dscal` | openblas_dscal | RAISED | 1 | - | EXACT / EXACT |  |
-| `sparskit_amux` | sparskit_amux | NOT_RAISED | 0 | affine.for, scf.for |  | no linalg.generic after raising; residual affine.for, scf.for |
+| `sparskit_amux` | sparskit_amux | NOT_RAISED | 0 | affine.for, scf.for | UNSUPPORTED_SIGNATURE / UNSUPPORTED_SIGNATURE | no linalg.generic after raising; residual affine.for, scf.for |
 
 ## Minimal reproducers for non-RAISED specs
 
@@ -118,7 +118,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/numpy_bincount/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only numpy_bincount`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount.c --function=numpy_bincount --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount.c --function=numpy_bincount --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount.mlir
 build/bin/polygeist-opt '--select-func=func-name=numpy_bincount externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount.mlir -o generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_debuf.mlir
 ```
@@ -127,8 +127,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/numpy_bincount_accumulate/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only numpy_bincount_accumulate`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_accumulate.c --function=numpy_bincount_accumulate --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_accumulate.c --function=numpy_bincount_accumulate --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir
 build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_accumulate externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_debuf.mlir
 ```
@@ -140,7 +142,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/numpy_bincount_weights/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only numpy_bincount_weights`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_weights.c --function=numpy_bincount_weights --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_weights.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_weights.c --function=numpy_bincount_weights --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_weights.mlir
 build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_weights externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_weights.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_debuf.mlir
 ```
@@ -149,8 +151,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csc_matvec/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csc_matvec`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec.c --function=scipy_csc_matvec --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec.c --function=scipy_csc_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_debuf.mlir
 ```
@@ -162,7 +166,7 @@ Reason: 1 linalg.generic but residual affine.for, scf.for (2 loop ops, 0 scalar 
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csc_matvec_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csc_matvec_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c --function=scipy_csc_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c --function=scipy_csc_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_debuf.mlir
 ```
@@ -171,8 +175,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csc_matvec_i64/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csc_matvec_i64`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c --function=scipy_csc_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c --function=scipy_csc_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_debuf.mlir
 ```
@@ -184,7 +190,7 @@ Reason: 1 linalg.generic but residual affine.for, scf.for (2 loop ops, 0 scalar 
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csc_matvec_beta0_i64/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csc_matvec_beta0_i64`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c --function=scipy_csc_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c --function=scipy_csc_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_debuf.mlir
 ```
@@ -193,8 +199,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csr_matvec/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csr_matvec`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_debuf.mlir
 ```
@@ -203,8 +211,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csr_matvec_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csr_matvec_beta0`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c --function=scipy_csr_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c --function=scipy_csr_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_debuf.mlir
 ```
@@ -213,8 +223,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csr_matvec_i64/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csr_matvec_i64`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c --function=scipy_csr_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c --function=scipy_csr_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_debuf.mlir
 ```
@@ -223,8 +235,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/scipy_csr_matvec_beta0_i64/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only scipy_csr_matvec_beta0_i64`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c --function=scipy_csr_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c --function=scipy_csr_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir
 build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_debuf.mlir
 ```
@@ -236,7 +250,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dpotf2_u/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dpotf2_u`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_u.c --function=netlib_dpotf2_u --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_u.c --function=netlib_dpotf2_u --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_u externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_debuf.mlir
 ```
@@ -248,7 +262,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 4 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dpotf2_l/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dpotf2_l`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_l.c --function=netlib_dpotf2_l --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_l.c --function=netlib_dpotf2_l --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_l externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_debuf.mlir
 ```
@@ -260,7 +274,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_lu_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_lu_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c --function=netlib_dsymm_lu_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c --function=netlib_dsymm_lu_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_debuf.mlir
 ```
@@ -272,7 +286,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 6 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_lu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_lu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu.c --function=netlib_dsymm_lu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu.c --function=netlib_dsymm_lu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_debuf.mlir
 ```
@@ -284,7 +298,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_ll_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_ll_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c --function=netlib_dsymm_ll_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c --function=netlib_dsymm_ll_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_debuf.mlir
 ```
@@ -296,7 +310,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 6 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_ll/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_ll`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll.c --function=netlib_dsymm_ll --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll.c --function=netlib_dsymm_ll --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_debuf.mlir
 ```
@@ -308,7 +322,7 @@ Reason: defn could not be executed for validation (RUN_FAIL; memref-Linalg route
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_ru_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_ru_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c --function=netlib_dsymm_ru_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c --function=netlib_dsymm_ru_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_debuf.mlir
 ```
@@ -320,7 +334,7 @@ Reason: defn could not be executed for validation (RUN_FAIL; memref-Linalg route
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_ru/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_ru`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru.c --function=netlib_dsymm_ru --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru.c --function=netlib_dsymm_ru --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_debuf.mlir
 ```
@@ -332,7 +346,7 @@ Reason: defn could not be executed for validation (RUN_FAIL; memref-Linalg route
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_rl_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_rl_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c --function=netlib_dsymm_rl_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c --function=netlib_dsymm_rl_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_debuf.mlir
 ```
@@ -344,7 +358,7 @@ Reason: defn could not be executed for validation (RUN_FAIL; memref-Linalg route
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsymm_rl/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsymm_rl`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl.c --function=netlib_dsymm_rl --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl.c --function=netlib_dsymm_rl --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_debuf.mlir
 ```
@@ -356,7 +370,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsyr2k_ut_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsyr2k_ut_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c --function=netlib_dsyr2k_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c --function=netlib_dsyr2k_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_debuf.mlir
 ```
@@ -368,7 +382,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 6 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsyr2k_ut/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsyr2k_ut`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c --function=netlib_dsyr2k_ut --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c --function=netlib_dsyr2k_ut --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_debuf.mlir
 ```
@@ -380,7 +394,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 5 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsyr2k_lt_beta0/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsyr2k_lt_beta0`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c --function=netlib_dsyr2k_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c --function=netlib_dsyr2k_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_debuf.mlir
 ```
@@ -392,7 +406,7 @@ Reason: 2 linalg.generic but residual affine.for (2 loop ops, 6 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dsyr2k_lt/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dsyr2k_lt`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c --function=netlib_dsyr2k_lt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c --function=netlib_dsyr2k_lt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_debuf.mlir
 ```
@@ -404,7 +418,7 @@ Reason: 1 linalg.generic but residual affine.for (2 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lunu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lunu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c --function=netlib_dtrmm_lunu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c --function=netlib_dtrmm_lunu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_debuf.mlir
 ```
@@ -416,7 +430,7 @@ Reason: 1 linalg.generic but residual affine.for (2 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lunn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lunn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c --function=netlib_dtrmm_lunn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c --function=netlib_dtrmm_lunn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_debuf.mlir
 ```
@@ -428,7 +442,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lutu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lutu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c --function=netlib_dtrmm_lutu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c --function=netlib_dtrmm_lutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_debuf.mlir
 ```
@@ -440,7 +454,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lutn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lutn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c --function=netlib_dtrmm_lutn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c --function=netlib_dtrmm_lutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_debuf.mlir
 ```
@@ -452,7 +466,7 @@ Reason: 1 linalg.generic but residual affine.for (2 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_llnu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_llnu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c --function=netlib_dtrmm_llnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c --function=netlib_dtrmm_llnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_debuf.mlir
 ```
@@ -464,7 +478,7 @@ Reason: 1 linalg.generic but residual affine.for (2 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_llnn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_llnn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c --function=netlib_dtrmm_llnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c --function=netlib_dtrmm_llnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_debuf.mlir
 ```
@@ -476,7 +490,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lltu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lltu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_debuf.mlir
 ```
@@ -488,7 +502,7 @@ Reason: 3 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_lltn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_lltn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c --function=netlib_dtrmm_lltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c --function=netlib_dtrmm_lltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_debuf.mlir
 ```
@@ -500,7 +514,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_runu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_runu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runu.c --function=netlib_dtrmm_runu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runu.c --function=netlib_dtrmm_runu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_debuf.mlir
 ```
@@ -512,7 +526,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_runn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_runn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runn.c --function=netlib_dtrmm_runn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runn.c --function=netlib_dtrmm_runn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_debuf.mlir
 ```
@@ -524,7 +538,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rutu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rutu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c --function=netlib_dtrmm_rutu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c --function=netlib_dtrmm_rutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_debuf.mlir
 ```
@@ -536,7 +550,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rutn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rutn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c --function=netlib_dtrmm_rutn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c --function=netlib_dtrmm_rutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_debuf.mlir
 ```
@@ -548,7 +562,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rlnu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rlnu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c --function=netlib_dtrmm_rlnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c --function=netlib_dtrmm_rlnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_debuf.mlir
 ```
@@ -560,7 +574,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rlnn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rlnn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c --function=netlib_dtrmm_rlnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c --function=netlib_dtrmm_rlnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_debuf.mlir
 ```
@@ -572,7 +586,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rltu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rltu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c --function=netlib_dtrmm_rltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c --function=netlib_dtrmm_rltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_debuf.mlir
 ```
@@ -584,7 +598,7 @@ Reason: 2 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrmm_rltn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrmm_rltn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c --function=netlib_dtrmm_rltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c --function=netlib_dtrmm_rltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_debuf.mlir
 ```
@@ -596,7 +610,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_unn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_unn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unn.c --function=netlib_dtrsv_unn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unn.c --function=netlib_dtrsv_unn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_debuf.mlir
 ```
@@ -608,7 +622,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_unu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_unu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unu.c --function=netlib_dtrsv_unu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unu.c --function=netlib_dtrsv_unu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_debuf.mlir
 ```
@@ -620,7 +634,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_utn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_utn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utn.c --function=netlib_dtrsv_utn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utn.c --function=netlib_dtrsv_utn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_debuf.mlir
 ```
@@ -632,7 +646,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_utu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_utu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utu.c --function=netlib_dtrsv_utu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utu.c --function=netlib_dtrsv_utu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_debuf.mlir
 ```
@@ -644,7 +658,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_lnn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_lnn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c --function=netlib_dtrsv_lnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c --function=netlib_dtrsv_lnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_debuf.mlir
 ```
@@ -656,7 +670,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_lnu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_lnu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c --function=netlib_dtrsv_lnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c --function=netlib_dtrsv_lnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_debuf.mlir
 ```
@@ -668,7 +682,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_ltn/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_ltn`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c --function=netlib_dtrsv_ltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c --function=netlib_dtrsv_ltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_debuf.mlir
 ```
@@ -680,7 +694,7 @@ Reason: 1 linalg.generic but residual affine.for (1 loop ops, 0 scalar memory ac
 Validation harness (defn route): `generic_solver/lib_v2/raised/validate/netlib_dtrsv_ltu/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only netlib_dtrsv_ltu`.
 
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c --function=netlib_dtrsv_ltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c --function=netlib_dtrsv_ltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir
 build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_debuf.mlir
 ```
@@ -689,8 +703,10 @@ build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/
 
 Reason: no linalg.generic after raising; residual affine.for, scf.for
 
+Validation harness (defn route): `generic_solver/lib_v2/raised/validate/sparskit_amux/defn/` (`harness.c`, `ref_wrapper.c`, `log.txt`); rerun with `scripts/correctness/lib_v2/validate_specs.py --only sparskit_amux`.
+
 ```sh
-build/bin/cgeist generic_solver/lib_v3/raised/sparskit_amux.c --function=sparskit_amux --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/sparskit_amux.mlir
+build/bin/cgeist generic_solver/lib_v3/raised/sparskit_amux.c --function=sparskit_amux --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/sparskit_amux.mlir
 build/bin/polygeist-opt '--select-func=func-name=sparskit_amux externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/sparskit_amux.mlir -o generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir
 build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir -o generic_solver/lib_v3/raised/sparskit_amux_debuf.mlir
 ```

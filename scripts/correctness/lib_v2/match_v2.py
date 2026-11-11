@@ -10,7 +10,7 @@ kernel_library_v2.mlir (netlib reference code raised by the same pipeline as
 the application).  There are no Term formulas and no routine-specific code in
 this file.  The existing matcher is reused by import:
 
-  * kernel_match._replace_python_bodies_with_mlir_library / _mlir_semantic_entries
+  * kernel_match._mlir_semantic_entries
     turn the defn bodies into CompositionEntry steps (body Term templates with
     Cap wildcards + arity / iterator-count gates);
   * kernel_match.parse_generics / encode_body build the application body Terms;
@@ -121,12 +121,8 @@ class Library:
             d = json.loads(m.group(1))
             metas[d["spec"]] = d
         names = [f.name for f in self.mod.funcs]
-        # Composition entries come from the defn bodies through the existing
-        # kernel_match machinery (dispatch-only stubs are replaced by the
-        # MLIR-derived semantic steps).
-        KM._MLIR_SEMANTIC_SOURCE_NAMES = set(names)
-        stubs = [KM.CompositionEntry(name=n, steps=[], form="tensor") for n in names]
-        entries = {e.name: e for e in KM._replace_python_bodies_with_mlir_library(stubs)}
+        # Scalar templates are derived only from imported definition bodies.
+        entries = KM._mlir_semantic_entries(path)
         regions = dict(KM._kernel_defn_regions(text))
         # manifest entries (assumptions drive the shared literal policy)
         self.entries: dict[str, dict] = {}
@@ -143,7 +139,7 @@ class Library:
             yop = next(op for op in reversed(f.ops) if op.name == "kernel.yield")
             self.specs.append(Spec(
                 name=f.name, order=order, func=f, meta=metas.get(f.name, {}),
-                entry=entries[f.name], generics=gens,
+                entry=entries.get(f.name, KM.CompositionEntry(f.name, [])), generics=gens,
                 gidx={g.idx: i for i, g in enumerate(gens)},
                 gbs={g.idx: gb for g, gb in zip(gens, gb_list)},
                 yields=list(yop.operands), yield_op=yop, params=dict(f.args)))
@@ -353,8 +349,19 @@ class Matcher:
         ck = (self.spec.name, sop.idx, aop.idx, pi, rho)
         if ck in self._body_cache:
             return self._body_cache[ck]
+        if self.spec.gidx[sop.idx] >= len(self.spec.entry.steps):
+            return None
         gb = self.app_gbs[aop.idx]
         res = None
+        reference = self.spec.gbs[sop.idx]
+        # Scalar algebra does not establish ABI precision or conversion
+        # semantics. Compare the actual block types under the operand binding.
+        types = gb.block_arg_types or []
+        order = list(pi) + [len(gb.ins_arg_names) + r for r in rho]
+        if ([types[k] for k in order if k < len(types)] !=
+                (reference.block_arg_types or [])):
+            self._body_cache[ck] = None
+            return None
         if len(gb.ins_arg_names) == len(pi) and len(gb.outs_arg_names) == len(rho):
             perm = dataclasses.replace(
                 gb, ins_arg_names=[gb.ins_arg_names[p] for p in pi],
@@ -1197,7 +1204,8 @@ class _RegionTimeout(Exception):
     pass
 
 
-def splice_region_matches(text: str, report: list, budget: int = 600) -> str:
+def splice_region_matches(text: str, report: list, budget: int = 600,
+                          allowed_specs=None) -> str:
     try:
         sys.path.insert(0, str(HERE.parent))
         from region_match import match_regions  # type: ignore
@@ -1211,7 +1219,7 @@ def splice_region_matches(text: str, report: list, budget: int = 600) -> str:
     old = signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(budget)
     try:
-        regions = match_regions(text, str(SPEC_DIR))
+        regions = match_regions(text, str(SPEC_DIR), allowed_specs=allowed_specs)
     except _RegionTimeout:
         report.append({"region_match": f"timeout after {budget}s"})
         return text
@@ -1229,8 +1237,6 @@ def splice_region_matches(text: str, report: list, budget: int = 600) -> str:
             report.append({"region_match": r.spec, "recognition_only": True,
                            "binding": r.binding, "evidence": r.evidence})
             continue
-        if not r.spec.startswith(("netlib_", "openblas_")):
-            raise AssertionError(f"region matcher emitted non-netlib spec {r.spec}")
         if any(not (r.span[1] <= s or r.span[0] >= e) for s, e in launches):
             report.append({"region_match_skipped": r.spec, "reason": "overlaps a linalg-level launch"})
             continue
@@ -1282,9 +1288,11 @@ def diagnose(matcher: Matcher, lib: Library, consumed: set[int]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def run(text: str, lib_path: Path, region: bool = True, diag: bool = False,
-        region_budget: int = 600):
+        region_budget: int = 600, allowed_specs=None):
     import_kernel_match(lib_path)
     lib = Library(lib_path)
+    if allowed_specs is not None:
+        lib.specs = [s for s in lib.specs if s.name in allowed_specs]
     app = ML.Module(text)
     matcher = Matcher(lib, app)
     all_matches, rejected = [], []
@@ -1304,11 +1312,13 @@ def run(text: str, lib_path: Path, region: bool = True, diag: bool = False,
     alts = sorted({(m["spec"], app.ops[m["root"]].results[0]) for m in all_matches}
                   - {(m["spec"], app.ops[m["root"]].results[0]) for m in selected})
     if region:
-        out = splice_region_matches(out, report, region_budget)
+        out = splice_region_matches(out, report, region_budget, allowed_specs)
     syms = re.findall(r"kernel\.launch\s+@([\w$.\-]+)", out)
     names = lib.names()
+    known = set(lib.entries)
     for s in syms:
-        assert s.startswith(("netlib_", "openblas_")), f"non-library launch @{s}"
+        assert s in known, f"launch @{s} has no imported specification"
+        assert allowed_specs is None or s in allowed_specs, f"unavailable target @{s}"
     for m in selected:
         assert m["spec"] in names
     extra = {"literal_policy_rejections": sorted(set(matcher.policy_rejections))[:50],

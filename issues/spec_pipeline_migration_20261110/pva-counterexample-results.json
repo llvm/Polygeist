@@ -1,0 +1,14 @@
+[
+  {
+    "case": "morphology_dilate3x3-changed_computation",
+    "retained_original": true,
+    "library_calls": 0,
+    "status": "PASS"
+  },
+  {
+    "case": "histogram-nonzero-initialization",
+    "retained_original": true,
+    "library_calls": 0,
+    "status": "PASS"
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "rc": 0,
+  "cmd": [
+    "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+    "--select-func=func-name=kernel_trmm preserve-module=true pipeline=linalg-debufferize{use-multi-root=true}",
+    "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/trmm/build/raised.mlir",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/trmm/build/linalg.mlir"
+  ],
+  "stderr": "",
+  "timed_out": false,
+  "recovery": null
+}

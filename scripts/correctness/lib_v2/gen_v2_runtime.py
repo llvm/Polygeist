@@ -215,6 +215,8 @@ def splice(path: Path, tag: str, body: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--output-dir", type=Path,
+                    help="write generated runtime beside build artifacts, preserving source templates")
     a = ap.parse_args()
     calls, _specs, errors = A.build_table()
     for s, e in sorted(errors.items()):
@@ -222,14 +224,17 @@ def main() -> int:
     new = {HDR: splice(HDR, "PROTOTYPES", gen_header(calls)),
            CPU: splice(CPU, "WRAPPERS", gen_cpu(calls)),
            CUDA: splice(CUDA, "WRAPPERS", gen_cuda(calls))}
-    stale = [p for p, t in new.items() if p.read_text() != t]
+    if a.output_dir:
+        a.output_dir.mkdir(parents=True, exist_ok=True)
+        new = {a.output_dir / p.name: text for p, text in new.items()}
+    stale = [p for p, t in new.items() if not p.exists() or p.read_text() != t]
     if a.check:
         for p in stale:
             print(f"stale: {p}", file=sys.stderr)
         return 1 if stale else 0
     for p in stale:
         p.write_text(new[p])
-        print(f"wrote {p.relative_to(A.REPO)}")
+        print(f"wrote {p}")
     print(f"{len(calls)} calls: {', '.join(calls)}")
     return 0
 

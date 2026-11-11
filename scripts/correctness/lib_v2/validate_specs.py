@@ -155,7 +155,7 @@ def validate(spec_name: str, manifest_spec: dict, ref_c: Path, meta_lds: set[str
     d.mkdir(parents=True, exist_ok=True)
     log = d / "log.txt"
     log.write_text("")
-    debuf = RAISED / f"{spec_name}_debuf.mlir"
+    debuf = RAISED / (f"{spec_name}.mlir" if level == 'affine' else f"{spec_name}_debuf.mlir")
     res = {"spec": spec_name}
     if not debuf.exists():
         return {**res, "verdict": "NO_ARTIFACT"}
@@ -170,7 +170,9 @@ def validate(spec_name: str, manifest_spec: dict, ref_c: Path, meta_lds: set[str
         params = c_param_kinds(spec_name, f.args, names, meta_lds)
     except ValueError as e:
         return {**res, "verdict": "UNSUPPORTED_SIGNATURE", "why": str(e)}
-    if level == "linalg":
+    if level == 'affine':
+        ll = lower_memref_linalg(debuf, d, spec_name, log)
+    elif level == "linalg":
         ll = lower_memref_linalg(RAISED / f"{spec_name}_linalg.mlir", d, spec_name, log)
     else:
         ll = E.lower(debuf, d, "spec", spec_name, log)

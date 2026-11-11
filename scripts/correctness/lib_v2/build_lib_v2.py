@@ -36,6 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import recipe as R  # noqa: E402
+import spec_provenance
 
 REPO = R.REPO
 # Spec suite: generic_solver/<suite> (default lib_v3, the OpenBLAS-derived suite;
@@ -352,6 +353,8 @@ def build_one(spec: Spec, rec: R.Recipe, timeout: int, do_raise: bool) -> dict:
             if r is None:
                 break
             steps["commands"].append(R.shell_line(r.cmd).replace(str(REPO) + "/", ""))
+            if r.recovery:
+                steps.setdefault('recoveries', {})[step] = r.recovery
             if not r.ok:
                 steps["failure"] = {
                     "status": f"FAIL_{step.upper()}",
@@ -362,6 +365,7 @@ def build_one(spec: Spec, rec: R.Recipe, timeout: int, do_raise: bool) -> dict:
         steps_json.write_text(json.dumps(steps, indent=1))
     steps = json.loads(steps_json.read_text()) if steps_json.exists() else {"commands": [], "failure": None}
     st["commands"] = steps.get("commands", [])
+    st['recoveries'] = steps.get('recoveries', {})
     if steps.get("failure"):
         st.update(steps["failure"])
         return st
@@ -406,18 +410,20 @@ def validate_results(results: list[dict], specs: dict, jobs: int) -> None:
     with the C source become UNSOUND; specs that cannot be executed become
     UNVALIDATED.  Neither enters kernel_library_v2.mlir."""
     import validate_specs as V
-    todo = [r for r in results if r["status"] in ("RAISED", "PARTIAL")]
+    todo = [r for r in results if r["status"] in ("RAISED", "PARTIAL", "NOT_RAISED")]
 
     def one(r):
         s = specs[r["spec"]]
         lds = set(vla_leading_dims(s.ref_c).keys())
         dv = V.validate(s.name, s.raw, s.ref_c, lds, "defn")
         lv = V.validate(s.name, s.raw, s.ref_c, lds, "linalg")
-        return r, dv, lv
+        av = V.validate(s.name, s.raw, s.ref_c, lds, "affine")
+        return r, dv, lv, av
     with ThreadPoolExecutor(jobs) as ex:
-        for r, dv, lv in ex.map(one, todo):
+        for r, dv, lv, av in ex.map(one, todo):
             r["validation"] = {"defn": dv.get("verdict"), "defn_maxabs": dv.get("maxabs"),
-                               "linalg": lv.get("verdict"), "linalg_maxabs": lv.get("maxabs")}
+                               "linalg": lv.get("verdict"), "linalg_maxabs": lv.get("maxabs"),
+                               "affine": av.get("verdict"), "affine_maxabs": av.get("maxabs")}
             if r["status"] != "RAISED":
                 continue
             if dv.get("verdict") in GOOD:
@@ -562,6 +568,12 @@ def main() -> int:
     if not a.only:
         write_status(results, rec)
         write_library(results, rec)
+        if not a.no_raise and not a.no_validate:
+            spec_provenance.write(LIB / "import_manifest.json", specs, results,
+                                  rec, LIBRARY_OUT, [R.CGEIST, R.POLYGEIST_OPT])
+        else:
+            # Re-analysis cannot attest that old IR came from current inputs.
+            (LIB / "import_manifest.json").unlink(missing_ok=True)
         (RAISED / "build_results.json").write_text(json.dumps(
             [{k: v for k, v in r.items() if k != "defn"} for r in results], indent=1))
     return 0

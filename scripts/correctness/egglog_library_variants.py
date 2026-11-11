@@ -26,7 +26,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from kernel_match import (  # noqa: E402
     EGraph,
     Term,
-    _MLIR_SEMANTIC_SOURCE_NAMES,
     _ast_to_term,
     _kernel_defn_regions,
     _parse_term,
@@ -206,8 +205,7 @@ def main() -> int:
             for step_index, step in enumerate(entry.steps):
                 terms = step.body_per_yield or [step.body]
                 for yield_index, term in enumerate(terms):
-                    origin = ("mlir" if entry.name in _MLIR_SEMANTIC_SOURCE_NAMES
-                              else "python")
+                    origin = "mlir"
                     formulas.append(("production", origin, entry.name,
                                      f"{entry_index}:{step_index}:{yield_index}", term))
 

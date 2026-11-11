@@ -1,0 +1,31 @@
+{
+ "launches": [
+  {
+   "spec": "openblas_dgemv_n_beta0",
+   "call": "polygeist_v2_cublasDgemv",
+   "cpu_entry": "dgemv_",
+   "gpu_entry": "cublasDgemv_v2",
+   "operand_types": [
+    "i32",
+    "i32",
+    "f64",
+    "i32",
+    "memref<?x?xf64>",
+    "memref<?xf64, strided<[1], offset: ?>>",
+    "memref<?xf64>"
+   ]
+  }
+ ],
+ "opt": [
+  {
+   "cmd": "--lower-polygeist-submap --canonicalize-polygeist",
+   "rc": 0,
+   "stderr": ""
+  },
+  {
+   "cmd": "--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=allow-unknown-ops bufferize-function-boundaries --canonicalize --cse",
+   "rc": 0,
+   "stderr": ""
+  }
+ ]
+}

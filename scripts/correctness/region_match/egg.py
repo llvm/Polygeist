@@ -153,11 +153,18 @@ def _region_rule_groups() -> dict:
         rewrite(rm_sum(r, lo, hi, rm_param(arr) * h)).to(rm_param(arr) * rm_sum(r, lo, hi, h)),
         rewrite(rm_param(arr) * rm_sum(r, lo, hi, h)).to(rm_sum(r, lo, hi, rm_param(arr) * h)),
         rewrite(rm_sum(r, lo, hi, zero)).to(zero),
+        # Contraction direction only. The binder and both bounds must be
+        # identical; reassociation is permitted only in relaxed mode.
+        rewrite(rm_sum(r, lo, hi, h) + rm_sum(r, lo, hi, t1))
+        .to(rm_sum(r, lo, hi, h + t1)),
     ]
     groups["subdiv"] = [
         # real-field identities (exact over R, not bitwise in IEEE-754)
         rewrite(t1 - t2).to(t1 + Term.Lit(-1.0) * t2),
         rewrite(t1 / t2).to(t1 * (one / t2)),
+        # Contract a common coefficient without the unbounded expansion of
+        # distributivity. Used only under the explicit relaxed model.
+        rewrite(t1 * h + t1 * t2).to(t1 * (h + t2)),
         rewrite(t1 - zero).to(t1),
         rewrite(Term.Lit(-0.0)).to(zero),
     ]
@@ -195,20 +202,18 @@ _RULES = None
 
 
 def rules():
-    """Rule schedule; honours EQSAT_ABLATION (default: all rules, unchanged)."""
-    global _RULES
-    if _RULES is None:
-        import eqsat_ablation as _abl  # scripts/correctness is on sys.path (above)
-        m, cats = _abl.mode()
-        if m == "full":
-            _RULES = _rules() + km.algebra_rules(include_distributivity=False)
-        elif m == "none":
-            _RULES = ruleset(name="region_match_no_rules")
-        else:
-            kept = [r for cat, rs in _region_rule_groups().items() if cat not in cats for r in rs]
-            _RULES = (ruleset(*kept, name="region_match_ablation")
-                      + _abl.scalar_ruleset(km, cats))
-    return _RULES
+    """Select rules for the explicit numerical model and ablation."""
+    import eqsat_ablation as abl
+    m, cats = abl.mode()
+    if m == "none":
+        return ruleset(name="region_match_no_rules")
+    groups = _region_rule_groups()
+    if km.numeric_model() == "strict":
+        groups = {"index": groups["index"], "perm": groups.get("perm", [])}
+    kept = [rule for name, group in groups.items() if name not in cats for rule in group]
+    scalar = (km.algebra_rules(include_distributivity=False) if m == "full"
+              else abl.scalar_ruleset(km, cats))
+    return ruleset(*kept, name="region_match_rules") + scalar
 
 
 # ---------------------------------------------------------------------------

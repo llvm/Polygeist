@@ -1,0 +1,14 @@
+[
+  "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+  "--target=host",
+  "--whole-program",
+  "--function=kernel_atax",
+  "-o",
+  "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/atax/raised.exe",
+  "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/atax/atax.c",
+  "-DMINI_DATASET",
+  "-DDATA_TYPE_IS_DOUBLE",
+  "-DPOLYBENCH_DUMP_ARRAYS",
+  "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities",
+  "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/atax"
+]

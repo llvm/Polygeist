@@ -1,0 +1,2513 @@
+{
+  "schema": 1,
+  "recipe": "production",
+  "common_inputs": {
+    "scripts/correctness/lib_v2/recipe.py": "529bda8896d9a66f5b08b5712c841a5809dda4bc890d16cc8f4b155e7eefd783",
+    "scripts/correctness/lib_v2/build_lib_v2.py": "ad366a37e4f0feec06f9e35eb12d9a9b46d9c595eb109aff52ad8d301c573228",
+    "scripts/correctness/lib_v2/validate_specs.py": "43c636f9f7c5d128102d77b67fc68b53b1c9292a97ad119092e8e5d4e512e46b",
+    "scripts/correctness/lib_v2/spec_provenance.py": "2ff78dfcc552100df0b9f35d1f248014ec2ec2aaf1dd2b46c05628fc8b81c0a7",
+    "build/bin/cgeist": "3109134240eae55e613b8188b5bff0bfd437e988596ea7f49e56bd67240e33f9",
+    "build/bin/polygeist-opt": "f56b11bf957f7a610625ece2ead752d953c9305bf3642426eff792e66e648a99"
+  },
+  "library": {
+    "generic_solver/kernel_library_v3.mlir": "5cbd077d495bd0e2d2e79800d213a84322f5e5d8592cd58432a9ffb4db76da62"
+  },
+  "specifications": {
+    "numpy_bincount": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/bincount.json": "976685229df8694480babb382d87352a12d944d8bc1a84ec4c22ba193a52b8c5",
+        "generic_solver/lib_v3/ref_c/bincount.c": "e4a9639fbe7d356a44057894499de16504c5da909a5cdd2e921a3cef807e56e4"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/numpy_bincount.mlir": "bae4b89a9933d6025072d7b6e42d7947bb6608fb03c41cba91f6b2ada8838e7f",
+        "generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir": "51356bd4e625dfdb0b4a54be6ae84fd4ec624bdd4e77fe5d1df46bd3c916f5db",
+        "generic_solver/lib_v3/raised/numpy_bincount_debuf.mlir": "67544b130f005e60fbadc58693d04a34c771c601f406c16470439ce7286e42a5"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount.c --function=numpy_bincount --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount.mlir -o generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "numpy_bincount_accumulate": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/bincount.json": "976685229df8694480babb382d87352a12d944d8bc1a84ec4c22ba193a52b8c5",
+        "generic_solver/lib_v3/ref_c/bincount.c": "e4a9639fbe7d356a44057894499de16504c5da909a5cdd2e921a3cef807e56e4"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir": "491e797e5677ae205fd37adb2be5cc6fae0cbab481c2f78540707cc3adbeaa4d",
+        "generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir": "5d6089a7215f2bef3b366e917f75fa1cf34e47dafec7d4ff2aebafd6600ff926",
+        "generic_solver/lib_v3/raised/numpy_bincount_accumulate_debuf.mlir": "59d2b5c401e4b010d5f1ce46231cf226dda71aed4fad811025c74b9be8847853"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_accumulate.c --function=numpy_bincount_accumulate --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_accumulate externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "numpy_bincount_weights": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/bincount.json": "976685229df8694480babb382d87352a12d944d8bc1a84ec4c22ba193a52b8c5",
+        "generic_solver/lib_v3/ref_c/bincount.c": "e4a9639fbe7d356a44057894499de16504c5da909a5cdd2e921a3cef807e56e4"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/numpy_bincount_weights.mlir": "b4c7e960b718012e764a34f386f8e30f79b2b6a3ce5cdb092fe89d98ab4c1075",
+        "generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir": "2d84a6e3afe79f658ccc132a1067f75a73f894599c87096a1267a64a24e05407",
+        "generic_solver/lib_v3/raised/numpy_bincount_weights_debuf.mlir": "85bc26fea9869d0e991798a4e943b26556022ea35d21761e2257847255a2a2f4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_weights.c --function=numpy_bincount_weights --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_weights.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_weights externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_weights.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csc_matvec": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csc_matvec.json": "cdd9f0b9ea18c062bb2992f9a158f4f5eceffa41ff338689adfd70125ef74d64",
+        "generic_solver/lib_v3/ref_c/csc_matvec.c": "f7f7dc0f33b699ab2d534bb8ae85805747fe480348d2508e91cbb0b0a4551aa0"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csc_matvec.mlir": "e53b4671de79a88682e461aabe9b2d93a01bf5c8c138c2fb126cc1861975476e",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir": "fca3e226e7dbaeadd22ade1efe649c0eeacd0892cd544487791c17be4a5f5166",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_debuf.mlir": "ea6c8aeb28ad1fab5a0dd63246ae5b88282ec6aa779200c1d6899fb768d86618"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec.c --function=scipy_csc_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csc_matvec_beta0": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csc_matvec.json": "cdd9f0b9ea18c062bb2992f9a158f4f5eceffa41ff338689adfd70125ef74d64",
+        "generic_solver/lib_v3/ref_c/csc_matvec.c": "f7f7dc0f33b699ab2d534bb8ae85805747fe480348d2508e91cbb0b0a4551aa0"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir": "fd96b6b85f535d6d2b1793f6903c05045e060703930d53e521ba2ecd4f4ec341",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir": "3ff51f0e0d4fae3a33aa1fab37ccdb481d8c41c44850abdcc67509272d0d17d5",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_debuf.mlir": "15faaf13ca7bec92fa983468be9be8bf629d643d332a5e49da38bfc3ffaeb7e1"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c --function=scipy_csc_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csc_matvec_i64": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csc_matvec.json": "cdd9f0b9ea18c062bb2992f9a158f4f5eceffa41ff338689adfd70125ef74d64",
+        "generic_solver/lib_v3/ref_c/csc_matvec.c": "f7f7dc0f33b699ab2d534bb8ae85805747fe480348d2508e91cbb0b0a4551aa0"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir": "80c4b215ace02a2aadd8c30576bb030fb9d7a5c05fb5b603d4735710ee9f7cab",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir": "a53d06ea97c2f698b548113d5185d622d9dde94d25a889dd068a4f4155802d10",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_i64_debuf.mlir": "a2763a6ae868f9ec0da59f71ff8b959ca93d9417d06f3a63ef64537beb40c581"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c --function=scipy_csc_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csc_matvec_beta0_i64": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csc_matvec.json": "cdd9f0b9ea18c062bb2992f9a158f4f5eceffa41ff338689adfd70125ef74d64",
+        "generic_solver/lib_v3/ref_c/csc_matvec.c": "f7f7dc0f33b699ab2d534bb8ae85805747fe480348d2508e91cbb0b0a4551aa0"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir": "b82d5b755225a710942bbd3ecfe74e30beb942bbd6a03ef4075e736abd4014a4",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir": "04f014a9b1614e0377353fe4c0a0e66f3458a465e5c2c8b20b59bec0a0e211b2",
+        "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_debuf.mlir": "1946e77b236e15f2b84d9b7da0511bf295d6b16f3920a552aae56468568c692d"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c --function=scipy_csc_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csr_matvec": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csr_matvec.json": "23c0d3ba05d56caa49e620c359b3fa8dde13bc3a89381b13db24d729b9848b4f",
+        "generic_solver/lib_v3/ref_c/csr_matvec.c": "9f8dd6d1d34bb20ff7882a51b182167726ff50dff56d32b154581258a587141e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csr_matvec.mlir": "25a0c5f5ef3ae088f858c2f0112e3b80b9706f72edfd004b676e1282736e26c3",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir": "d07191fed56cb73eafd4e95c7868e001fe637e1f634cf4217a75f6d6c65ff750",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_debuf.mlir": "401d6ec64edf5674dca969750943ec67a086bf3b9a378eb136c0a73acebab31e"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csr_matvec_beta0": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csr_matvec.json": "23c0d3ba05d56caa49e620c359b3fa8dde13bc3a89381b13db24d729b9848b4f",
+        "generic_solver/lib_v3/ref_c/csr_matvec.c": "9f8dd6d1d34bb20ff7882a51b182167726ff50dff56d32b154581258a587141e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir": "fddace4526d5b714c82a3a2e792b682de37f35333225705160b83de0d3d98e72",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir": "18c400a321b969fc22b042c2d500caa9abcbf5ea19ffae6578895b71ae146cc7",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_debuf.mlir": "9e1ffcc9ed82ed9b514100434d5b85fed22da8f92eb91295573e78cbf8fab150"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c --function=scipy_csr_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csr_matvec_i64": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csr_matvec.json": "23c0d3ba05d56caa49e620c359b3fa8dde13bc3a89381b13db24d729b9848b4f",
+        "generic_solver/lib_v3/ref_c/csr_matvec.c": "9f8dd6d1d34bb20ff7882a51b182167726ff50dff56d32b154581258a587141e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir": "68a7c62955fe898ea33b58b2240b014e0a40dc67284fd35719def74c183b3e67",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir": "5f4dec7842d21afc80c046a1acaa05e11a55e1fc07245256ce67bd9e6b3237b4",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_i64_debuf.mlir": "fb5c92c16211e3db172ca9470ea3f34e9e423d64d9c746947d8cf41dc7c73ec4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c --function=scipy_csr_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "scipy_csr_matvec_beta0_i64": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/csr_matvec.json": "23c0d3ba05d56caa49e620c359b3fa8dde13bc3a89381b13db24d729b9848b4f",
+        "generic_solver/lib_v3/ref_c/csr_matvec.c": "9f8dd6d1d34bb20ff7882a51b182167726ff50dff56d32b154581258a587141e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir": "5b0f2041f5157b2d33044871b36a81128d17c03eadf291ba84d3445f9d1b8b1f",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir": "184ce3161edec78ac6cada7cd600e128d3b2a689bf05e1fac31b81b48cecb9a3",
+        "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_debuf.mlir": "e5a92a4377d736824348b4af38b7853f3566a5ea287c0c5d794c28a676833af9"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c --function=scipy_csr_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    },
+    "netlib_dpotf2_u": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dpotf2.json": "818e15d55a3d4168d1be56cf10e41ba554fca8502407fb6c5334e4c4facf038b",
+        "generic_solver/lib_v3/ref_c/dpotf2.c": "0b66ceae7fac09b94fc2f990b7a6fb7658922a9d8221ee23a81e55180d68693b"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir": "86e30f80d32e9e527240003d8fb9a4bded33e9f8120759bffa8bdc783b88e105",
+        "generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir": "19a5f67a2107f565fa62af6611d8c69e0c7a3263ed59bd3a41a99d17797c56f4",
+        "generic_solver/lib_v3/raised/netlib_dpotf2_u_debuf.mlir": "19a5f67a2107f565fa62af6611d8c69e0c7a3263ed59bd3a41a99d17797c56f4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_u.c --function=netlib_dpotf2_u --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_u externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dpotf2_l": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dpotf2.json": "818e15d55a3d4168d1be56cf10e41ba554fca8502407fb6c5334e4c4facf038b",
+        "generic_solver/lib_v3/ref_c/dpotf2.c": "0b66ceae7fac09b94fc2f990b7a6fb7658922a9d8221ee23a81e55180d68693b"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir": "11cae2f7c7e9365a11abc7896ac397a7e730e477a3b0807882d5b7a4710cd5e1",
+        "generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir": "c879c77892bbedd8250ab1a5a4610de3630c8cf666acd041a7f9a3c0ace77364",
+        "generic_solver/lib_v3/raised/netlib_dpotf2_l_debuf.mlir": "c879c77892bbedd8250ab1a5a4610de3630c8cf666acd041a7f9a3c0ace77364"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_l.c --function=netlib_dpotf2_l --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_l externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_lu_beta0": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir": "a0b301f319b379f3ad8023aaf6c1a864dd2e16ddd97148cc0a724af450bef53e",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir": "427ff882ec33c32db546180c9c5627ac44ef38f5dbc7a60aa8738ea34550fc94",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_debuf.mlir": "427ff882ec33c32db546180c9c5627ac44ef38f5dbc7a60aa8738ea34550fc94"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c --function=netlib_dsymm_lu_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_lu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir": "e95a3d06ea11088ff94371218f2c0a85d9e5e2eaed5dadba5f38b990ee287167",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir": "758be4968fe0a8070d17a924d5e184a2bd2e82459b601b09c25f2b62c21085e1",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_debuf.mlir": "758be4968fe0a8070d17a924d5e184a2bd2e82459b601b09c25f2b62c21085e1"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu.c --function=netlib_dsymm_lu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_ll_beta0": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir": "a0896c0215bb259563136dce179c1296f3e2000dfce79831e376e7f0b642b8a0",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir": "ad178d8c3a948136cfac46813740555f049a6f0675f4e0b9540fb9ef142ae0e4",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_debuf.mlir": "ad178d8c3a948136cfac46813740555f049a6f0675f4e0b9540fb9ef142ae0e4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c --function=netlib_dsymm_ll_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_ll": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir": "b91f529ec23a59d019f5d408d9da270cdd8f657a6d44385886143cd2ad8c2194",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir": "bc49158dae0111004c59eb739f90908e3255ed8d257a1646f1ed0a2e47df68d1",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ll_debuf.mlir": "bc49158dae0111004c59eb739f90908e3255ed8d257a1646f1ed0a2e47df68d1"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll.c --function=netlib_dsymm_ll --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_ru_beta0": {
+      "status": "UNVALIDATED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir": "48f805aadd1e8484c955cd0da75c7f83dd5a87b97cf07677c0b32584aca52510",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir": "3cd6c7c288544c52cce32a80384dc992422983a5036749b1a6ba1331c387fca3",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_debuf.mlir": "d7d228fd21249a9bf4d0648f86ae479f28a5d34b2f6e20e2205f1d9f4cbf9668"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c --function=netlib_dsymm_ru_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "RUN_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_ru": {
+      "status": "UNVALIDATED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir": "99641ce8f8f84cc733bded7aa2f2864461f4deed159489a088bfb7b3e8519b0e",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir": "777bc885c9d1683826a0d8b830530a9098ee1ed068466005c11a090c07bf2fac",
+        "generic_solver/lib_v3/raised/netlib_dsymm_ru_debuf.mlir": "51e4671f0d695b572c00759d1fbb34dbd3e8f0bfd8fe42d063f53915074ae6ca"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru.c --function=netlib_dsymm_ru --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "RUN_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_rl_beta0": {
+      "status": "UNVALIDATED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir": "a545b9eaf08f18ebb832fbbee4326281d70b39f10f55a49161dd81bf18d8f89c",
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir": "8878da0b4ca1934433692f6cacc8b369baa07e8983bebd40f4bf1500a68ce52e",
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_debuf.mlir": "cc973dc5374a377734c9fbae649b3bfa6eec59ad18a1ec92675a2dc15391682f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c --function=netlib_dsymm_rl_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "RUN_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_rl": {
+      "status": "UNVALIDATED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir": "c19658829943ba0ca3faded6baf3507a277e8c8112c0adbfd08fabb31dff1cff",
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir": "a952016f5706a7d2c8fc706a2772da9814dc45a39bef04f2c53900b93308fc13",
+        "generic_solver/lib_v3/raised/netlib_dsymm_rl_debuf.mlir": "bd0be8f29e9253d212c1f39fd0e163fa7634eb73d34c40d76e324ed2bb32a2df"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl.c --function=netlib_dsymm_rl --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "RUN_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_lu_alpha0_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir": "2b104b16e23cbddb5649f6f26aca2f432dcf93fe2082329ff8eb6dbc6e259ce3",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_linalg.mlir": "b32be59c8a93cfc45e14d74552e7bee15c04b39d5a94f8e77101ac5c360ec72e",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_debuf.mlir": "0454e4f94a0ea2c854b0564ca975d02a9e88baa593210c0bcaca18f9650f36f8"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.c --function=netlib_dsymm_lu_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsymm_lu_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsymm.json": "02316724e9bfac852629136f393d73d1a9deb41eb9fd5d5d3dcd55fe2805e706",
+        "generic_solver/lib_v3/ref_c/dsymm.c": "6af7e4a39dce7c10747584d0cd534e85f0316b6996b49a89564cf8e964b7d3f6"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir": "4bbe9ab18d6e2c366eba9aeaacc628365a090288c0fd6cf3a067dce9b923ab2b",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_linalg.mlir": "03f05421ec97f5a942c713dea531484aba103a5599c1d2e07edcc229e61eda44",
+        "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_debuf.mlir": "9cdb8127e2e3e6b7e891ba4050ab9b580fc7794f6576123ecc3c1374a4e1eb7c"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.c --function=netlib_dsymm_lu_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_un_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir": "91c0c756e988c35275cd4667d84a5de439e4da10474f4117407ecef284d2c046",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_linalg.mlir": "f6af1cbf8eab6163445256d5d4c41c2ff37697cad968757b1d190c8b577eba65",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_debuf.mlir": "1c91d2d14223e32bebdf5228bc45d753b622143b7aa69ecafc134e6ed5ab78c5"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.c --function=netlib_dsyr2k_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_un_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir": "169bcdbbc857d83b6698b577356d76f9bf4cf28af904e622936796ddee666861",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_linalg.mlir": "7d3e34001ff100e1ce07370ca5935c540d876e4a0ec73d75ac0a359ddde773a6",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_debuf.mlir": "4537c3f1c527eb4bad6ab6a66c902700cd37f14f32044d0c0fc91f1c8c07c4f1"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.c --function=netlib_dsyr2k_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_un": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir": "7a6f92c7eae429a069ea5f3a0a5f1001a0b67f4dc9bda247572d3a955410ce7c",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_linalg.mlir": "7df30f457c6dfc99025cd5f450579161ebf3896c0efca5ddb455c402d795dbb0",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_debuf.mlir": "afd310ffcc5ac89f1fc16115cd3ad028bd30a82ffaf66c40923a64edac8338fb"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un.c --function=netlib_dsyr2k_un --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ut_beta0": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir": "5b8f35377e02240f645a2fc28408219675a5b6286023d0b90f89ac4233cefd73",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir": "5047fcb613da2912356012849d587cf4d4c6d85b783a6990f55f667652fe02b5",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_debuf.mlir": "5047fcb613da2912356012849d587cf4d4c6d85b783a6990f55f667652fe02b5"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c --function=netlib_dsyr2k_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ut": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir": "3d27430a7a568ef4b67e4e306638f3c70e27a7acd48eacc1e2bd4757a8c75fa2",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir": "aee4042f3e73d6b0514671246a8b228cf44b84e5bb65b6f3dfab2515501bc841",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_debuf.mlir": "aee4042f3e73d6b0514671246a8b228cf44b84e5bb65b6f3dfab2515501bc841"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c --function=netlib_dsyr2k_ut --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ln_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir": "6cab473930127a042ec9f96e4b2086e7f2d7881a6b3df6a54e0a5bbaed0138a5",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_linalg.mlir": "df980c77d5ce85f880a2a304dc3054f8ebe360feea3d4cd6bb6154ac6baa4f74",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_debuf.mlir": "d6fddaf6054b39ce11d3576ef7a664a3146adda018b58956b1d0c8c39d411f5a"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.c --function=netlib_dsyr2k_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ln_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir": "bf7e1be85698aadb4296a8152d195be98954089f31b52dbfe1a1ce7d62f78aca",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_linalg.mlir": "1a0a6d231cd9ec8ba8f64aae70dfe3b5dd86787d30142e5b86d95adac233dc12",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_debuf.mlir": "ab4a1b6e0328e9c5f427062457731f0cc7020b0197a536755b1785933a51e380"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.c --function=netlib_dsyr2k_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ln": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir": "4cb16366e9be2dcf2142333bec223e72c843604ed70c02bfa827580a68eeff60",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_linalg.mlir": "01e20f571517f57a437177eeeb7a2ed5bc3b019f8a5f5b5e9dd3f90d951fb528",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_debuf.mlir": "aebdc956c7a263064def8c0ac6b6cbbf5c8a7084dc3b52bcc9849802da78d600"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln.c --function=netlib_dsyr2k_ln --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_lt_beta0": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir": "c29c0316256f797875fd4cb98bf11697cecf4e75a6d997c46283377dbfa54dd6",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir": "98fdcd7d08f68a1296f9faba35d843c928c39be5b423f88b5d859f52b3bf4a95",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_debuf.mlir": "98fdcd7d08f68a1296f9faba35d843c928c39be5b423f88b5d859f52b3bf4a95"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c --function=netlib_dsyr2k_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_lt": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir": "9abd0dc4903430c99aaf79dd98954d46be3fb8697bef921de2a8e40aeb28dc58",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir": "1dd39159a766c3872b839eb6dba7ca9a6ceb6d115009dd2e3753bdabe8e4dc3d",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_debuf.mlir": "1dd39159a766c3872b839eb6dba7ca9a6ceb6d115009dd2e3753bdabe8e4dc3d"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c --function=netlib_dsyr2k_lt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_un_alpha0_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir": "5b5b61617f5dddc97424132d79d6e27ef2a9e54d0fa4c91cbf3114cae0a18382",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_linalg.mlir": "3083eb15f74ddd0889f8c08735acab05ce06061194309f2185c67da24262abdf",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_debuf.mlir": "245c00bd7fe5f74758562157d0ff3ca0a12b5ab35c0f32bcfcb1896533216249"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.c --function=netlib_dsyr2k_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_un_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir": "a81838b2c4cdddd58f3011d908824be082befb483ae6075c61f94ae6649b557c",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_linalg.mlir": "f86b103f4133097d346b9cb3e3689c560914d92a4d3dbfb1851cdfba3021b973",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_debuf.mlir": "bc90866c95419f20f6be136f8e6c14af1da1402e8796be76fcb9509c5cfa0b02"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.c --function=netlib_dsyr2k_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ln_alpha0_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir": "06b6c4f1333c3daee54b5c931e0653c9ccf5e396c0cbd45a765c3595a06e8624",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_linalg.mlir": "7fbbbd76c46d77054b1ade9d09c2d7793d50470e779cba32a1e4c65a994576f8",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_debuf.mlir": "755786ced767bb686eb2732199028c1acbacd410025698f357c4daa6cef2c6e8"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.c --function=netlib_dsyr2k_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyr2k_ln_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyr2k.json": "53f8634c01e48c3104678729375e0e7c8cd4c2868f81a4f801c1fda7cbf0b30c",
+        "generic_solver/lib_v3/ref_c/dsyr2k.c": "6d136d4a5a4f54e2bab511e10060b620dd60092b70bb4eb5d9bc4c823f05242f"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir": "2b5d6d1546f8a8fa3f84b58d32ea4164a5078333d6eb7c91e8eb0ed73468570f",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_linalg.mlir": "649bf8d39388dd4376a4f89b68a98f11af00b38b4b04af151b242c4f917b56ab",
+        "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_debuf.mlir": "1a5891cb473084e1a59a7732a2000f831dfa3b1a0502c4b48a6d4ba7c71db7e6"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.c --function=netlib_dsyr2k_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_un_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir": "a2fb64273372c4782242bbe374d47da41d0e6156272348f4e3cc107c86885c1c",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_linalg.mlir": "807881fa6d23d2d9a3216cf5aeb41d47a2017e66d9e4bd4a81cb2e4c955bcfa0",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_debuf.mlir": "19876a8154f743bde78b283a5f11b39b7ef93fc8ce420560a55586dc97e0bae0"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.c --function=netlib_dsyrk_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_un_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir": "36281d3054a74dd30093aaeac9ca107b41f848a6e84a7ed27317d4b69b62dcb9",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_linalg.mlir": "d32a9d8bac58b2e0fa940c1e838b1fc46568fa81a4be33f8af63bbb0cd1f6340",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_debuf.mlir": "8840d72f6d933d3e2d23bae283ada2b15049501adfc3e2572097d0e791fd6175"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.c --function=netlib_dsyrk_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_un": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir": "9d49ec5dbdf4a0084e18d88f4f83fa1bdbe441b0a78626e6c3328378c1ea971d",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_linalg.mlir": "54e9de8b8483eaa6d0f4ae432489e7fb4ba7e5b27fd066e59e0c229673b4694c",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_debuf.mlir": "79ae9bf65794e91c1e5586aa61c3e1dc1c4d35d7e4a67480cec26fb209088682"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un.c --function=netlib_dsyrk_un --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ut_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir": "407a44f3162f4cb2b3bad990edc208f8f5e3b53b7f589a2a510e176657b668a5",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_linalg.mlir": "446af2e686cae6ae58f79cc1099b8bbc1e6486a06263cdd78b6e91b8c030b086",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_debuf.mlir": "5e7d9de25c6cbc096eb89bd16937f17aef01fdf3e1a7fa1ba729bff7b0f3c9d5"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.c --function=netlib_dsyrk_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ut_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ut": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir": "3564fbae6178b0b8497b3998fd0541ad97311307ee125b546cec943aebdc57fc",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut_linalg.mlir": "07c73d443798b4cde7c7c67a82e517c7c244bfbe05fe1a5bc3f6963f93ad8e05",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ut_debuf.mlir": "e75baef81e26024452aae136458d63bc01d2a80a9dfac26696ac89c6ba675465"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut.c --function=netlib_dsyrk_ut --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ut externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ut_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ln_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir": "e6e12380a1d710685b1911ca61cd0a365627b8abc4baa56f90e6f134c9aaa8de",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_linalg.mlir": "31cdde94d6298688f36079ddc196662b60870bb9d2035d5dc393bbe1adc15b29",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_debuf.mlir": "71e72bb285792dd14fd0fc76cc5031fcf9de96be5ab641228c5f654f5d152c3f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.c --function=netlib_dsyrk_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ln_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir": "ecbb05a0ffc19c13396346b6b29a4f5b3917d8a9ff913bda1b5a3f22979cf1cb",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_linalg.mlir": "844886521042a505c777efb5fcae450b90eb1bc82d51fdb809030007a50c9911",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_debuf.mlir": "1867067674dc09c0db8ab298c7ae67ae01d2eba0bc81db18e7d892f3bb69d7af"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.c --function=netlib_dsyrk_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ln": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir": "1c21d2b84612b103deba7e10b0034879943cab8b29d02e37a0267a50641b5b3b",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_linalg.mlir": "f3b64d3590a1651e98a86f096d764e2a0ffd23678070e1e3ef0fe1366b54bd44",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_debuf.mlir": "c003fdf6d21dfbb8c3161b5295e43adbf12e65ecd6cae64ee6abca1d5acfe1a1"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln.c --function=netlib_dsyrk_ln --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_lt_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir": "f80bdcfe91d0d25663bf877d859da033e5b7c512443fe62493bb0076cf3031cf",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_linalg.mlir": "8cb81b493a3ab2068f1c4cf50cd06c1e8401981fd6dc9c1e3c54c48689e78e89",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_debuf.mlir": "f8d08a1ba2c8febee3b4633095070c9f10d90ae1f1ebbbba8a2b64ca8de75ce6"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.c --function=netlib_dsyrk_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_lt_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_lt": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir": "e152d55698b173c846171b3bc8e39a9e41ebef31eaf606fceb5a4c89490ab957",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir": "85a89148994f76f21d19dbb427a50d28620524f9ba9e08702c2641898cf07f85",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_lt_debuf.mlir": "c630a7c94307157fdf9ed59137be59609e8365ba9e6f1ea611281f08155237d0"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt.c --function=netlib_dsyrk_lt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_un_alpha0_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir": "828833883e75f8449a6b5485a337717aca2cdfd7c19b771bf193e99445a909ef",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_linalg.mlir": "4c6d1a01c41aa419fa76ff79fc92aac3e76467e59baaeec8871e42085080c4c6",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_debuf.mlir": "adf21a5dce71a1145e21f7e2c791eb4bf2ca4561d778d6fa479849dd78098be4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.c --function=netlib_dsyrk_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_un_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir": "6a460fda82aa780943780722ece8a3cc405d7fe79a66c1ed8811f1ad606c1969",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_linalg.mlir": "4c14f1d529d9e41fb678bb446f70392c76400bc6ff98dca4f7d8e4d4844943b1",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_debuf.mlir": "b5889c820e1352deef980bb32925399cf69d39ddec5010d4ceb5515ec86e2782"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.c --function=netlib_dsyrk_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ln_alpha0_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir": "25b8572382848d05a3a05d045b52530a837111038fe581262be9ca2c3086d2e6",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_linalg.mlir": "8b8e89ad40304762016b869cd9d630de2f2c620250bd6f04aa5c84b5573487bf",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_debuf.mlir": "78e27ec4ebebcd317fb2de3924254a479321bf4ad6c14be3683bd18a3d383dd9"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.c --function=netlib_dsyrk_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dsyrk_ln_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dsyrk.json": "83739b4e7457614dcdf30dc6a34c33196d5d5f41905b3fddf0660eacfe844595",
+        "generic_solver/lib_v3/ref_c/dsyrk.c": "7013fc0bd22153f72ec80d6b10a91a5bae00026d8e3c7c1497bc1694cefed0e3"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir": "5221fcdfef838f125ae4c30e60343058c23a003b7093e5916a8fdf5cb8dff9bc",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_linalg.mlir": "0f2a49f32d93c528be74d4647c944995178bfce229b1cc206446e95d304e77eb",
+        "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_debuf.mlir": "e2115037d4e7d4700884e63854a84dde8a45c5cc5033140b8529e69c8604635b"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.c --function=netlib_dsyrk_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lunu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir": "59031696e7171d771b50c99d99576763066397fcd1d4032d53ae32267de26a65",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir": "7609e654eb0c4fe6ddb29c42aab5e9617d4849a32828ba46dd1ead238d0c11b8",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunu_debuf.mlir": "f17e2189587e8c123001b2af91c6cc3e963bffab0e5357f82b9642cbb7a1d147"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c --function=netlib_dtrmm_lunu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lunn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir": "3b01098ec1b92f9d89b8780e3eb2b91a9f2759466f55001fa380b3fc36384d0e",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir": "f2fff04c29dffe60a2f6db2206efa25aa827913eec4b004c3daaa5d3f26416c5",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_debuf.mlir": "ae58e746692211f15a245a0ead1bab55b52a812fc4b8fbf58da5fbd479890fc4"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c --function=netlib_dtrmm_lunn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lutu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir": "82aa45e156ff9124f074c92e949c920f7dc357771af108f45b18b33ef1f15121",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir": "028902cc789042484cbb4ac163e23bbbd2622f66950329f205ae910bce24424f",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutu_debuf.mlir": "028902cc789042484cbb4ac163e23bbbd2622f66950329f205ae910bce24424f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c --function=netlib_dtrmm_lutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lutn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir": "400b13db4bfa2eedb58094ff21a8bf6985304d4b4547c08a5ad5c97275a5cc12",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir": "b2cba1215ef5b50eb9f13a33d451619bd23ec4c81c522fcdfb1cd62283ded06c",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lutn_debuf.mlir": "b2cba1215ef5b50eb9f13a33d451619bd23ec4c81c522fcdfb1cd62283ded06c"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c --function=netlib_dtrmm_lutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_llnu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir": "921fb436da1b18242a0a528b84f7797fadecd57e720bc1fd65540e9ccb4e60d5",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir": "d46a06fe1dbcd62a4c7e45e1f8d3b8f40ec245d08d49791d4f881814c0461595",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnu_debuf.mlir": "091e47674c4546e432db3c874d03d136adb2540a604b6d8eb137b66d64ce861a"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c --function=netlib_dtrmm_llnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_llnn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir": "40c626d0b6413fe0030b30b2b42c0c305bc959dd6e7c93ac95648c4f9ef5feb5",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir": "33013ba7567e5021cd5ffdd18741a71985db5fa5c2752edffd366237e7167975",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_llnn_debuf.mlir": "a254cab89c924457dde41b062598c92a0e759f2dbaa6669a26470a0dc2b1a546"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c --function=netlib_dtrmm_llnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lltu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir": "760d80dbd7d4228713d6f147b77a3ec166dc05b96e68de378ba539e848fc7567",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir": "4847b1c8e6e6dab8f9722278d37e84468752e0cc1db422fdebde8eec91859e3e",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltu_debuf.mlir": "4847b1c8e6e6dab8f9722278d37e84468752e0cc1db422fdebde8eec91859e3e"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lltn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir": "9e4f391bd3a1e6be80eabca1b64b760c299edbc02924530d237b6d36c90d12ec",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir": "8002f8309dfca9219fb95ba302548bbd70e4b51c297dec00dc02a4cd3a82b82c",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lltn_debuf.mlir": "8002f8309dfca9219fb95ba302548bbd70e4b51c297dec00dc02a4cd3a82b82c"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c --function=netlib_dtrmm_lltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_runu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir": "0b7e8395b118e7e8499c3a25aa5b9d921de5698bfd80e385822a439016ae08c3",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir": "b28f22e214a5bc39c14dfcf91d8b5bbc7c0181e6877fcd830fdee7f3e5771d0c",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runu_debuf.mlir": "99434b963f814bd3566dfab7d1efc3cc6f738a50ebdb59e830ab36a0fda57c4f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runu.c --function=netlib_dtrmm_runu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_runn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir": "1e648a1e95d89b9cc4dc0c2075779d0bfb3094e4d51bc2904d2bc4b0fdce486a",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir": "2369abad2b1efb5399cb4926667eae548b9d7615001ed99398652cef7726a440",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_runn_debuf.mlir": "6d4da9670275901f7f8c94f484cdb3534371c519226825d54c81a25de84eec09"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runn.c --function=netlib_dtrmm_runn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rutu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir": "994d8d8670ceb74e289dba2ec0c3a8a7ad76bd8bb198c756cfe9b9b1f16dfd62",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir": "2273c35534ae8da542b4938a6dd381c9459260a034146ae3c91b31043f49c040",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutu_debuf.mlir": "a9e7676c98baca126225fd7172cba11b2f517bac335b92bbc998da54eb596515"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c --function=netlib_dtrmm_rutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSOUND",
+        "defn_maxabs": 3.16,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rutn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir": "1594953ef2b493f4afb85e7e4c4230644cf0306e0dff24d445eb95dcf4a4662d",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir": "99981eeb19a5e9fbd0d7f7aaab513b4dbe272e586edac0e85814cfc75e8552ac",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rutn_debuf.mlir": "3b733f512ba803c859cce05dc9263a0db9ec9ff985ec0a6c6d194603ffb376cd"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c --function=netlib_dtrmm_rutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSOUND",
+        "defn_maxabs": 1.907,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rlnu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir": "5571224ec22dce107ee01c4a7b545a998f224eb953cb94ebc56e5677f04ff0bb",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir": "dfa7df5686145fd4ea3dc07ffb13dbfaa9e664ef173b70a92c50b9b06c347a66",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_debuf.mlir": "15edea1c240b9b08b2fb305efd2340f4b4bf44503908a91259f7bc6ed79d31df"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c --function=netlib_dtrmm_rlnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rlnn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir": "bf875bf02c486fdcd7a7b2c8bd88331c031b442bc05a770d8033b8535bf163f5",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir": "5ebbb3fd9dffcbef095e9e37d0a1fb39d9ab231363d74f686947dabc605ef5a2",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_debuf.mlir": "25431c776e4bb97679e53348378161b37a5371137d48052418f69b1d6c9d174f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c --function=netlib_dtrmm_rlnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rltu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir": "356db1683d595e789b80e1a49dc035a617bfe5f2a8330da400287d154231a4bf",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir": "4450374263d599577ec28bec4a00ee9b33af03dc648230e79e45cf4c5623af22",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltu_debuf.mlir": "5c8eb619c4b3a5ba5592d7644d7b859ec814d28743e7554db40e6248789f3f7b"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c --function=netlib_dtrmm_rltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSOUND",
+        "defn_maxabs": 2.747,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_rltn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir": "3671cf321e61c2185ceb3200b5285b4587d4ae0edf742027cc6144c153899494",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir": "1f08447ea42eb8940e1c064dbda2d0a28ab6a76ed3d71be382419e1a3f3c80cd",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_rltn_debuf.mlir": "8645cadddb163188a65c1d20050a1b3ef43399d0e7e2f19f5a4227e65e013d04"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c --function=netlib_dtrmm_rltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSOUND",
+        "defn_maxabs": 2.637,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrmm_lunn_alpha0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrmm.json": "fd54f049cd56e65ae4135e7d907c3b6ef849ba04fababf367e507bfe762aa190",
+        "generic_solver/lib_v3/ref_c/dtrmm.c": "8110fbd309c7c4efda50a3fb43bdd1ba6736173d60376f79d52b232ff357f845"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir": "e2eeb0c16b756f581e2a7e328997d02c4ab3272fe8865fcf3d030014b7629db2",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_linalg.mlir": "671e99ac194146f3fb9e170980013b175da4b91a622ead4aec78ad252fbf1e68",
+        "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_debuf.mlir": "7af39e216e028cdb3b9c887f12a0fc7fa5116383e70a004a6d5bce94320800fe"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.c --function=netlib_dtrmm_lunn_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunn_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_unn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir": "5e3f3a2d1cef3f17442b2c982d6f7da9911f6a3a4d46162c897826e006885a2b",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir": "ee5e8cfad5d787e584dcee07622379bb120f5ebe389931992dd83c992be10902",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unn_debuf.mlir": "6900f91a9442241589e927221604fb8aae9b57abb7d516d851bdf9e4abdb4a98"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unn.c --function=netlib_dtrsv_unn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_unu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir": "87ba0c941bd2f28414c9e1a700a3f7e97dc7193d7ebeb672b1097a9a1166a3a5",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir": "3a49b8d65cedde0e9958504699fb721aa82a257628028a8d3c312035e8052f63",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_unu_debuf.mlir": "ef9439c6ffb111dbc93d355487b822875886ed512b674556a388cf632e96a1ad"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unu.c --function=netlib_dtrsv_unu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_utn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir": "149be8f7b6e780952d4047569c6abbb828ecc4e99676286b15103e553067b9c5",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir": "02d4ee05cf4c440cfe04d3850fb34d00d2c53ebffa8a2f8bac59bbed6e1473f6",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utn_debuf.mlir": "bd08c3510763c0b6c1558074f6b085633247fd90bfee5b416355f0849f24ccad"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utn.c --function=netlib_dtrsv_utn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_utu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir": "be7b2149dbca2ec2ad355d64befec74ff46434d9a1c32ef9b908f9b99df921c4",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir": "498a3e91591856fc649f6f1bfc30f1771de3cd66e5ab7bdb8c8e316099f380ce",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_utu_debuf.mlir": "c299c9c6306b23a787fb5905a91232435edd8a66720a5b97a7f6127061f1de8f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utu.c --function=netlib_dtrsv_utu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_lnn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir": "b5ec9011e9884586bad2a44d250afe4fcaa197cf5dd277c54bae7ab09e95e501",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir": "71f619dbf0d31e2aadad9f90031bb3763049a3cf6709b5364a6eff3dc6ae2c54",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnn_debuf.mlir": "92ae6f0e8130fd3a95416a15461dace02a3d1010705e996f79b88709ba98529e"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c --function=netlib_dtrsv_lnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_lnu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir": "9dc22f8759f856f44864f17cb1863d172c2f3b51aefaa43c309ca73f38d72f08",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir": "a6084ea0a6e606d6566cb3ef16aa09c8bc5730453247359afae69d88c221dc5a",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_lnu_debuf.mlir": "c193aed63de1696dcb24a2f0179235b4de8d4abdd3590b6c2e34848d81f8ce11"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c --function=netlib_dtrsv_lnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_ltn": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir": "f998c651bfe8ec1fcde4fb842aec6583c541e730d56364cc9f286a2cec334290",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir": "3eea50f9c0818db6a35904a153877a1907c49ef7f2e2a04c3b813bf95815f36b",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltn_debuf.mlir": "f1a1f228d5285af5e740ace9828ceb765c614882d0899e240ffd96963ce2655f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c --function=netlib_dtrsv_ltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "netlib_dtrsv_ltu": {
+      "status": "PARTIAL",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/dtrsv.json": "415019e68aab9f276e8cf6b5072213cb3e1043662431e5755dd356451586bd73",
+        "generic_solver/lib_v3/ref_c/dtrsv.c": "727b5a58d033510762e4fdfe7b3f905a6e5685e2e0ef75409f9b5edbd03b7c8e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir": "7f8959a52cec20c19f288a7f2cd6578e1e35675dad19ab3426ec6cd5c2f0e5df",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir": "58113f50281057dc081c574002f7343909296686a287f2b2be886d1df380e898",
+        "generic_solver/lib_v3/raised/netlib_dtrsv_ltu_debuf.mlir": "3ba5f8646b26c46c8828155bef635be8d9eaca555bbefc77eadb8a58c24522ed"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c --function=netlib_dtrsv_ltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "LOWER_FAIL",
+        "defn_maxabs": null,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_daxpby": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_daxpby.json": "872208bde1d575db8d4945b6b8271ae7712bf6fc0fb6479501c7ea9949dc60fb",
+        "generic_solver/lib_v3/ref_c/openblas_daxpby.c": "27610ccfe719416337b51cfca26ba0247c30970a1d3d9c1c0358e496cec8c7db"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_daxpby.mlir": "2e98150cab5f9ef55fb4e905fb3a4699d1882a7449a00751b0d3c82f9f755db9",
+        "generic_solver/lib_v3/raised/openblas_daxpby_linalg.mlir": "725e4e3e821d85c816c041fb1fc1c3653c959fb39202726f3a978440bc84b6be",
+        "generic_solver/lib_v3/raised/openblas_daxpby_debuf.mlir": "9b65a0834c6a2885bc3e21efc2f67f8e3c54758f85c450d46100375f02fcc164"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby.c --function=openblas_daxpby --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpby externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpby.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpby_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_daxpby_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_daxpby.json": "872208bde1d575db8d4945b6b8271ae7712bf6fc0fb6479501c7ea9949dc60fb",
+        "generic_solver/lib_v3/ref_c/openblas_daxpby.c": "27610ccfe719416337b51cfca26ba0247c30970a1d3d9c1c0358e496cec8c7db"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir": "630b10ead492a591120a75b97af3f197b64969c457c4d3bc7d93ad35a529e0cd",
+        "generic_solver/lib_v3/raised/openblas_daxpby_beta0_linalg.mlir": "113a6ea1cd726ea842a44f23dd477851ee9d748695d5d45de245e4f397cc2a6a",
+        "generic_solver/lib_v3/raised/openblas_daxpby_beta0_debuf.mlir": "5bc3c990cde3b9ad22ac700f480fa6b54d3d4db5d4867e6ad7b4455b3d93cb88"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby_beta0.c --function=openblas_daxpby_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpby_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpby_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_daxpy": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_daxpy.json": "91fa8068ea1ecaa22b1a4011fe64a07cb06e79ccfd60e05f269899976a0878c8",
+        "generic_solver/lib_v3/ref_c/openblas_daxpy.c": "4dff2b2ae3f67f8b67a9494c32784a9954f98911b663c032af014aeb0041eed5"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_daxpy.mlir": "924240cf385c96548d32f7d07224399c24e49e6161653c1626ee8c5514c03655",
+        "generic_solver/lib_v3/raised/openblas_daxpy_linalg.mlir": "be683885f4b4a122a8173b4f3afe1ff2070ad4cec2c733064c5d339a7aa184dc",
+        "generic_solver/lib_v3/raised/openblas_daxpy_debuf.mlir": "459f47f0999a73dba684ddd8c288258baa8d6b080417ea81406348a55da440d7"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpy.c --function=openblas_daxpy --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpy.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpy externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpy.mlir -o generic_solver/lib_v3/raised/openblas_daxpy_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpy_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpy_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_nn_b0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir": "502ef602999aa627c8932e9a6309ffcc8cfb805e30801fe90eb6e8fc8f0284d5",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_linalg.mlir": "98db6603c767a714c8f0e0e06232f062552b320394c8d2b2d1733f2e545e8b4d",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_debuf.mlir": "15b8b2872505d8767643420bc35352dd1ea0de122dbde13dee7f4fe73a383765"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.c --function=openblas_dgemm_nn_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nn_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_nn": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir": "05cf28ee28076b9d1c2f7ed146f90e4a3613a0af92652c237889f25ad6093db2",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn_linalg.mlir": "c41affaf2c7dca0a97fb4f248e011649560b0de4bbde40b4ba5e61528f2b7514",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nn_debuf.mlir": "6a951b3ad44de18dd9c3073fb1c9514ba67af9a9b65df5d07594034e40889039"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn.c --function=openblas_dgemm_nn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nn_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 8.882e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 8.882e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_nt_b0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir": "ed8da9d00e218a653b74af0ec22f3f9ce0a203153a5b466d1301fbf6b6def3bc",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_linalg.mlir": "dea4a1a8cc30ccb0fa8739285e24df4f7e23f1ba45f4ba804584a28e4789be5d",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_debuf.mlir": "af12f8f85311688f4012ed6e20c449e2c918a46c18fd5da8fd22270e1da4ff35"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.c --function=openblas_dgemm_nt_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nt_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_nt": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir": "e8604758a68b140b2d9c02a5fcd46dff846329b3b6c449f3c89053c78c9c86fa",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt_linalg.mlir": "c034b8e006654ebe988d67db0b886cd8f1a90c811b70da496a41d6d7e0797686",
+        "generic_solver/lib_v3/raised/openblas_dgemm_nt_debuf.mlir": "080e019a96c97243a54a35b60baf3e3d8fdb7437b82095df0130eacfe838fe54"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt.c --function=openblas_dgemm_nt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nt_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_tn_b0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir": "4ac7f1e7601bcb1acf8bb045cb94c7580903d3ab4f8177dfd16eee6144fd53f9",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_linalg.mlir": "52f2ce9ca6cc71d38e04c2ac4e0a21f3eca46b86c6c41b3cb359d013dcfcd3e5",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_debuf.mlir": "5b0678c82053377663e068aa958fbd98de9d9d123eb9684e41964a98901a731f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.c --function=openblas_dgemm_tn_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tn_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 2.776e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 2.776e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_tn": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir": "07a8601e4ecd46fe4e1e7849dfd81e722b4e1973ee835a48c8d416c60177beb3",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn_linalg.mlir": "6f0d7f02de8bf340c9fb07e384b43ed2d79b8dbfbcad5d82b3f7674b11faa4dd",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tn_debuf.mlir": "116a38896fc4b4dfca4522da05f4162cb8a3b773cda6a3c7f5a9d737289beb40"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn.c --function=openblas_dgemm_tn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tn_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_tt_b0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir": "c887ea95d3565f23a3b59d66614af945c7cf99d059453c7f313987a1b3a2803c",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_linalg.mlir": "66898f3c7387461daa0540da5a9a85694a58ed0b56fdbe1e1d671bfc7dc41d74",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_debuf.mlir": "c262487a7186d216e39727f324c0e0a83ef38e034cba8f79ac2956e5a254e00f"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.c --function=openblas_dgemm_tt_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tt_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemm_tt": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemm.json": "59c95e043d9db5f40f88fa0880c1137bfaa327d901ab2ef354b186b99883f859",
+        "generic_solver/lib_v3/ref_c/openblas_dgemm.c": "9f4eba7f680603f1f48fb6afcf4ed91a7430905e9cdea2e80d4c81d2397b1fb1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir": "6f9b43948096a56b385be78cd5d28889024d639438a1ac78a5f00f0315e958b9",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt_linalg.mlir": "e631554a5bd9c3bfaf79f793705f42c58f71f230b291631f7b36b40a36acc5cd",
+        "generic_solver/lib_v3/raised/openblas_dgemm_tt_debuf.mlir": "da9d1db0d4ebc2aea1ff8a21dc98f6b6a772e9468dd0659a0880658de52d8160"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt.c --function=openblas_dgemm_tt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tt_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_n_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir": "fc4505eda57d63e769427299afa9b8d93d3372bb25c2b41fb14f4bf9cb913e86",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_linalg.mlir": "efcbe40e451be7d87fb0a2d630432248ed9df8057663677eaeac291f9f6b502e",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_debuf.mlir": "25d5908161476fdf72085ad8ba1d3bafca830828e119417e51cd8c5283979680"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.c --function=openblas_dgemv_n_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_n_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir": "b2e8849f548a4ddf86ea0104577eeafa332b327fd900943310e145d389fb9a6c",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_linalg.mlir": "3d24ff2a45e55c37925f41d688b86d194b5a9a42ce43059b788b1c561afb043d",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_debuf.mlir": "2e9c101223b488e1650a5d4d9e08a98df24030a952d86a7efd369b58896d54b3"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.c --function=openblas_dgemv_n_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_n": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_n.mlir": "67e6d8838d5e81293667fc90c731fe94116cc7de9ff2fa35061c7f41a3cd8000",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_linalg.mlir": "9e412894bbf24a2393cbfda20d38261cafc958cbbae98621f78317930d8e8e6a",
+        "generic_solver/lib_v3/raised/openblas_dgemv_n_debuf.mlir": "1f6d848e592706e0abede7a058aca79d2f6c2db8c9736534777bdf01e84abcb2"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n.c --function=openblas_dgemv_n --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_t_beta0": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir": "63fbbc49fb829ec9e32af96b087d427c8b001d6f3f06ae2a899f78130fd0f17e",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_linalg.mlir": "5e5165142be253e06ffaadf70b395267229cb10fc2c61d1774da89c855f1d0df",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_debuf.mlir": "1b905c4ce8ef68bfaa75034bb8811c65fceb6894b05f9ff8ea64fa98044c6f6b"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.c --function=openblas_dgemv_t_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 2.22e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 2.22e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_t_beta1": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir": "9399a6ab36245a0315d0d9889836b103ffc67bbf30697617af0f003bfa881226",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_linalg.mlir": "597c14d1b9308c8606f9109480aaf22836f1ef2c595d47c81856684fa79cfa5c",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_debuf.mlir": "be0404d28e990df5481cb4ab5205b19fee9bff58c4c24e20cdf1aed924c0ecaa"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.c --function=openblas_dgemv_t_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 2.22e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 2.22e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dgemv_t": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dgemv.json": "8ec8686080f01bf8c783f6e2abacec2549ab4c25f537177196d6ec6f4123f6f8",
+        "generic_solver/lib_v3/ref_c/openblas_dgemv.c": "980bdc21d697368d2ab55475d63b7b5a3504dfa07127e757a042adca69fe536e"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dgemv_t.mlir": "1d7992b4a29877a74ae6d5263e98911a0e398d18b518fe98e3fd7b6f7c1be1c4",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_linalg.mlir": "ba9097786fc413e8e714f58e3ac33528488cd1eda696d554dd079c53f987354a",
+        "generic_solver/lib_v3/raised/openblas_dgemv_t_debuf.mlir": "da3a4b298c77fde43a3e583c9d4ed7eefcdfa41198eb4a3f1dc14f8b9b531441"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t.c --function=openblas_dgemv_t --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "WITHIN_1e-12",
+        "defn_maxabs": 4.441e-16,
+        "linalg": "WITHIN_1e-12",
+        "linalg_maxabs": 4.441e-16,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dger": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dger.json": "9126d3d7c43468640507bd053c3bec438674afe3f717af95a583399229b0b196",
+        "generic_solver/lib_v3/ref_c/openblas_dger.c": "0cefb7ce2d07afa2d484800836c671a92188c04690ba230de5dbfd68b2d77be5"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dger.mlir": "0750a76d08eb89d84198f060bcf9fb35ed69dd706fb5a956547164e100c19eeb",
+        "generic_solver/lib_v3/raised/openblas_dger_linalg.mlir": "e83712345612f28d001cd63ce4f48d016df4c817776bdaba423b4dae2abbc80a",
+        "generic_solver/lib_v3/raised/openblas_dger_debuf.mlir": "21949d63e598755330ee47ebc754c2b896fa598abf971baa67f32b5714519ae7"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dger.c --function=openblas_dger --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dger.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dger externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dger.mlir -o generic_solver/lib_v3/raised/openblas_dger_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dger_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dger_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "LOWER_FAIL",
+        "linalg_maxabs": null,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "openblas_dscal": {
+      "status": "RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/openblas_dscal.json": "54de01c1673f6b4cd15c1310162d9acd69fcc7286d817113c2311149adb57f75",
+        "generic_solver/lib_v3/ref_c/openblas_dscal.c": "de4e4c0ae7aa7983a6034853e6e8bea2e49ed8afca5957792a6e45ca10ab7dfc"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/openblas_dscal.mlir": "c4287559e16e89ba2d017b4d86b9c9eada6d4ccc48c5ec741561e565ab83fc02",
+        "generic_solver/lib_v3/raised/openblas_dscal_linalg.mlir": "45ad4fa61c8f4477ac0c34c71c4b1d099b7725c5c6f7b2a05f8db1192e3704f1",
+        "generic_solver/lib_v3/raised/openblas_dscal_debuf.mlir": "1292d5ab05381d72808ef79ff0678e1be9e5768775343b71f15a39e5aa7bdede"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dscal.c --function=openblas_dscal --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dscal.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=openblas_dscal externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dscal.mlir -o generic_solver/lib_v3/raised/openblas_dscal_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dscal_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dscal_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "EXACT",
+        "defn_maxabs": 0.0,
+        "linalg": "EXACT",
+        "linalg_maxabs": 0.0,
+        "affine": "EXACT",
+        "affine_maxabs": 0.0
+      }
+    },
+    "sparskit_amux": {
+      "status": "NOT_RAISED",
+      "inputs": {
+        "generic_solver/lib_v3/manifest/sparskit_amux.json": "cfd1ab14768cd34e5e166256b4684e1792756505dc4da9ac01c722dbe02f22d4",
+        "generic_solver/lib_v3/ref_c/sparskit_amux.c": "ee14baef2ff6eefdc69e55d7382c5fc718c42d2537ad405ec16c7dc538dee3d1"
+      },
+      "artifacts": {
+        "generic_solver/lib_v3/raised/sparskit_amux.mlir": "ca53668a6fa821c119156ceec3fd3605595d0d53d0889bb10eda93b36045d025",
+        "generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir": "56150859c227f8a405641807bdcd47934fbe7f8c2879b1b311542a28ad8ccdfb",
+        "generic_solver/lib_v3/raised/sparskit_amux_debuf.mlir": "ab95a1ec0e7ad3cad974ef572021a80db474d5f78f397b7ff964e7b905be8668"
+      },
+      "commands": [
+        "build/bin/cgeist generic_solver/lib_v3/raised/sparskit_amux.c --function=sparskit_amux --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/sparskit_amux.mlir",
+        "build/bin/polygeist-opt '--select-func=func-name=sparskit_amux externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/sparskit_amux.mlir -o generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir",
+        "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir -o generic_solver/lib_v3/raised/sparskit_amux_debuf.mlir"
+      ],
+      "recoveries": {},
+      "numerical_validation": {
+        "defn": "UNSUPPORTED_SIGNATURE",
+        "defn_maxabs": null,
+        "linalg": "UNSUPPORTED_SIGNATURE",
+        "linalg_maxabs": null,
+        "affine": "UNSUPPORTED_SIGNATURE",
+        "affine_maxabs": null
+      }
+    }
+  }
+}

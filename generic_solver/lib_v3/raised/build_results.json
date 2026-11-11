@@ -4,10 +4,11 @@
   "routine": "bincount",
   "wrapper": "generic_solver/lib_v3/raised/numpy_bincount.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount.c --function=numpy_bincount --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount.c --function=numpy_bincount --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount.mlir -o generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -32,7 +33,9 @@
    "defn": "UNSUPPORTED_SIGNATURE",
    "defn_maxabs": null,
    "linalg": "UNSUPPORTED_SIGNATURE",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
   }
  },
  {
@@ -40,10 +43,11 @@
   "routine": "bincount",
   "wrapper": "generic_solver/lib_v3/raised/numpy_bincount_accumulate.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_accumulate.c --function=numpy_bincount_accumulate --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_accumulate.c --function=numpy_bincount_accumulate --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_accumulate externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_accumulate.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_accumulate_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_accumulate_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -63,17 +67,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for"
+  "reason": "no linalg.generic after raising; residual affine.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "numpy_bincount_weights",
   "routine": "bincount",
   "wrapper": "generic_solver/lib_v3/raised/numpy_bincount_weights.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_weights.c --function=numpy_bincount_weights --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_weights.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/numpy_bincount_weights.c --function=numpy_bincount_weights --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/numpy_bincount_weights.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=numpy_bincount_weights externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/numpy_bincount_weights.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/numpy_bincount_weights_linalg.mlir -o generic_solver/lib_v3/raised/numpy_bincount_weights_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -98,7 +111,9 @@
    "defn": "UNSUPPORTED_SIGNATURE",
    "defn_maxabs": null,
    "linalg": "UNSUPPORTED_SIGNATURE",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
   }
  },
  {
@@ -106,10 +121,11 @@
   "routine": "csc_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csc_matvec.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec.c --function=scipy_csc_matvec --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec.c --function=scipy_csc_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -131,17 +147,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "scipy_csc_matvec_beta0",
   "routine": "csc_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c --function=scipy_csc_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.c --function=scipy_csc_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -168,7 +193,9 @@
    "defn": "UNSUPPORTED_SIGNATURE",
    "defn_maxabs": null,
    "linalg": "UNSUPPORTED_SIGNATURE",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
   }
  },
  {
@@ -176,10 +203,11 @@
   "routine": "csc_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c --function=scipy_csc_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_i64.c --function=scipy_csc_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_i64_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -201,17 +229,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "scipy_csc_matvec_beta0_i64",
   "routine": "csc_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c --function=scipy_csc_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.c --function=scipy_csc_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csc_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csc_matvec_beta0_i64_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -238,7 +275,9 @@
    "defn": "UNSUPPORTED_SIGNATURE",
    "defn_maxabs": null,
    "linalg": "UNSUPPORTED_SIGNATURE",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
   }
  },
  {
@@ -246,10 +285,11 @@
   "routine": "csr_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csr_matvec.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -271,17 +311,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "scipy_csr_matvec_beta0",
   "routine": "csr_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c --function=scipy_csr_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.c --function=scipy_csr_matvec_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -303,17 +352,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "scipy_csr_matvec_i64",
   "routine": "csr_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c --function=scipy_csr_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_i64.c --function=scipy_csr_matvec_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_i64_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -335,17 +393,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "scipy_csr_matvec_beta0_i64",
   "routine": "csr_matvec",
   "wrapper": "generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c --function=scipy_csr_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.c --function=scipy_csr_matvec_beta0_i64 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec_beta0_i64 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_beta0_i64_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -367,17 +434,26 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  },
  {
   "spec": "netlib_dpotf2_u",
   "routine": "dpotf2",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dpotf2_u.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_u.c --function=netlib_dpotf2_u --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_u.c --function=netlib_dpotf2_u --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_u externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_u.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_u_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_u_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -402,7 +478,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -410,10 +488,11 @@
   "routine": "dpotf2",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dpotf2_l.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_l.c --function=netlib_dpotf2_l --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dpotf2_l.c --function=netlib_dpotf2_l --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dpotf2_l externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dpotf2_l.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dpotf2_l_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dpotf2_l_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -438,7 +517,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -446,10 +527,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c --function=netlib_dsymm_lu_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.c --function=netlib_dsymm_lu_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -474,7 +556,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -482,10 +566,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_lu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu.c --function=netlib_dsymm_lu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu.c --function=netlib_dsymm_lu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -510,7 +595,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -518,10 +605,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c --function=netlib_dsymm_ll_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.c --function=netlib_dsymm_ll_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -546,7 +634,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -554,10 +644,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_ll.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll.c --function=netlib_dsymm_ll --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ll.c --function=netlib_dsymm_ll --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ll externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ll.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ll_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ll_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -582,7 +673,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -590,10 +683,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c --function=netlib_dsymm_ru_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.c --function=netlib_dsymm_ru_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [],
@@ -642,7 +736,9 @@
    "defn": "RUN_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -650,10 +746,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_ru.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru.c --function=netlib_dsymm_ru --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_ru.c --function=netlib_dsymm_ru --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_ru externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_ru.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_ru_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_ru_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [],
@@ -703,7 +800,9 @@
    "defn": "RUN_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -711,10 +810,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c --function=netlib_dsymm_rl_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.c --function=netlib_dsymm_rl_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [],
@@ -763,7 +863,9 @@
    "defn": "RUN_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -771,10 +873,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_rl.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl.c --function=netlib_dsymm_rl --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_rl.c --function=netlib_dsymm_rl --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_rl externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_rl.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_rl_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_rl_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [],
@@ -824,7 +927,9 @@
    "defn": "RUN_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -832,10 +937,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.c --function=netlib_dsymm_lu_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.c --function=netlib_dsymm_lu_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -885,7 +991,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -893,10 +1001,11 @@
   "routine": "dsymm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.c --function=netlib_dsymm_lu_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.c --function=netlib_dsymm_lu_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsymm_lu_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsymm_lu_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -947,7 +1056,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -955,10 +1066,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.c --function=netlib_dsyr2k_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.c --function=netlib_dsyr2k_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1007,7 +1119,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1015,10 +1129,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.c --function=netlib_dsyr2k_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.c --function=netlib_dsyr2k_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1067,7 +1182,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1075,10 +1192,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_un.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un.c --function=netlib_dsyr2k_un --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un.c --function=netlib_dsyr2k_un --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1128,7 +1246,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1136,10 +1256,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c --function=netlib_dsyr2k_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.c --function=netlib_dsyr2k_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -1164,7 +1285,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1172,10 +1295,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c --function=netlib_dsyr2k_ut --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ut.c --function=netlib_dsyr2k_ut --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ut externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ut.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ut_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ut_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -1200,7 +1324,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1208,10 +1334,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.c --function=netlib_dsyr2k_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.c --function=netlib_dsyr2k_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1260,7 +1387,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1268,10 +1397,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.c --function=netlib_dsyr2k_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.c --function=netlib_dsyr2k_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1320,7 +1450,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1328,10 +1460,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ln.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln.c --function=netlib_dsyr2k_ln --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln.c --function=netlib_dsyr2k_ln --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1381,7 +1514,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1389,10 +1524,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c --function=netlib_dsyr2k_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.c --function=netlib_dsyr2k_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -1417,7 +1553,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1425,10 +1563,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c --function=netlib_dsyr2k_lt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_lt.c --function=netlib_dsyr2k_lt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_lt_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -1453,7 +1592,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1461,10 +1602,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.c --function=netlib_dsyr2k_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.c --function=netlib_dsyr2k_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1515,7 +1657,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1523,10 +1667,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.c --function=netlib_dsyr2k_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.c --function=netlib_dsyr2k_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_un_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_un_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1578,7 +1723,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1586,10 +1733,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.c --function=netlib_dsyr2k_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.c --function=netlib_dsyr2k_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1640,7 +1788,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1648,10 +1798,11 @@
   "routine": "dsyr2k",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.c --function=netlib_dsyr2k_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.c --function=netlib_dsyr2k_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyr2k_ln_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyr2k_ln_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1703,7 +1854,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1711,10 +1864,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.c --function=netlib_dsyrk_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.c --function=netlib_dsyrk_un_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1759,7 +1913,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1767,10 +1923,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.c --function=netlib_dsyrk_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.c --function=netlib_dsyrk_un_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -1815,7 +1972,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1823,10 +1982,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_un.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un.c --function=netlib_dsyrk_un --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un.c --function=netlib_dsyrk_un --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1872,7 +2032,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1880,10 +2042,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.c --function=netlib_dsyrk_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.c --function=netlib_dsyrk_ut_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ut_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1928,7 +2091,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1936,10 +2101,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ut.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut.c --function=netlib_dsyrk_ut --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ut.c --function=netlib_dsyrk_ut --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ut externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ut.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ut_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ut_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -1985,7 +2151,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -1993,10 +2161,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.c --function=netlib_dsyrk_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.c --function=netlib_dsyrk_ln_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -2041,7 +2210,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2049,10 +2220,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.c --function=netlib_dsyrk_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.c --function=netlib_dsyrk_ln_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -2097,7 +2269,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2105,10 +2279,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ln.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln.c --function=netlib_dsyrk_ln --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln.c --function=netlib_dsyrk_ln --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -2154,7 +2329,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2162,10 +2339,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.c --function=netlib_dsyrk_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.c --function=netlib_dsyrk_lt_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_lt_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -2210,7 +2388,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2218,10 +2398,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_lt.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt.c --function=netlib_dsyrk_lt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_lt.c --function=netlib_dsyrk_lt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_lt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_lt.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_lt_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_lt_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -2267,7 +2448,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2275,10 +2458,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.c --function=netlib_dsyrk_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.c --function=netlib_dsyrk_un_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -2324,7 +2508,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2332,10 +2518,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.c --function=netlib_dsyrk_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.c --function=netlib_dsyrk_un_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_un_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_un_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -2382,7 +2569,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2390,10 +2579,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.c --function=netlib_dsyrk_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.c --function=netlib_dsyrk_ln_alpha0_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_alpha0_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -2439,7 +2629,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2447,10 +2639,11 @@
   "routine": "dsyrk",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.c --function=netlib_dsyrk_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.c --function=netlib_dsyrk_ln_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dsyrk_ln_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dsyrk_ln_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -2497,7 +2690,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2505,10 +2700,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c --function=netlib_dtrmm_lunu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunu.c --function=netlib_dtrmm_lunu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -2533,7 +2729,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2541,10 +2739,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c --function=netlib_dtrmm_lunn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn.c --function=netlib_dtrmm_lunn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -2569,7 +2768,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2577,10 +2778,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c --function=netlib_dtrmm_lutu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutu.c --function=netlib_dtrmm_lutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -2605,7 +2807,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2613,10 +2817,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c --function=netlib_dtrmm_lutn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lutn.c --function=netlib_dtrmm_lutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lutn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -2641,7 +2846,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2649,10 +2856,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c --function=netlib_dtrmm_llnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnu.c --function=netlib_dtrmm_llnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -2677,7 +2885,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2685,10 +2895,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c --function=netlib_dtrmm_llnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_llnn.c --function=netlib_dtrmm_llnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_llnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_llnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_llnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_llnn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -2713,7 +2924,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2721,10 +2934,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -2749,7 +2963,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2757,10 +2973,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c --function=netlib_dtrmm_lltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltn.c --function=netlib_dtrmm_lltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 3,
    "loops": [
@@ -2785,7 +3002,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2793,10 +3012,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_runu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runu.c --function=netlib_dtrmm_runu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runu.c --function=netlib_dtrmm_runu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -2821,7 +3041,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2829,10 +3051,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_runn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runn.c --function=netlib_dtrmm_runn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_runn.c --function=netlib_dtrmm_runn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_runn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_runn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_runn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_runn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -2857,7 +3080,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2865,10 +3090,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c --function=netlib_dtrmm_rutu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutu.c --function=netlib_dtrmm_rutu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -2893,7 +3119,9 @@
    "defn": "UNSOUND",
    "defn_maxabs": 3.16,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2901,10 +3129,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c --function=netlib_dtrmm_rutn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rutn.c --function=netlib_dtrmm_rutn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rutn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rutn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rutn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rutn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -2929,7 +3158,9 @@
    "defn": "UNSOUND",
    "defn_maxabs": 1.907,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2937,10 +3168,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c --function=netlib_dtrmm_rlnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.c --function=netlib_dtrmm_rlnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -2965,7 +3197,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -2973,10 +3207,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c --function=netlib_dtrmm_rlnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.c --function=netlib_dtrmm_rlnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rlnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rlnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rlnn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -3001,7 +3236,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3009,10 +3246,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c --function=netlib_dtrmm_rltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltu.c --function=netlib_dtrmm_rltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -3037,7 +3275,9 @@
    "defn": "UNSOUND",
    "defn_maxabs": 2.747,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3045,10 +3285,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c --function=netlib_dtrmm_rltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_rltn.c --function=netlib_dtrmm_rltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_rltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_rltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_rltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_rltn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [
@@ -3073,7 +3314,9 @@
    "defn": "UNSOUND",
    "defn_maxabs": 2.637,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3081,10 +3324,11 @@
   "routine": "dtrmm",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.c --function=netlib_dtrmm_lunn_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.c --function=netlib_dtrmm_lunn_alpha0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lunn_alpha0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lunn_alpha0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -3129,7 +3373,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3137,10 +3383,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_unn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unn.c --function=netlib_dtrsv_unn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unn.c --function=netlib_dtrsv_unn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3165,7 +3412,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3173,10 +3422,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_unu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unu.c --function=netlib_dtrsv_unu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_unu.c --function=netlib_dtrsv_unu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_unu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_unu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_unu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_unu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3201,7 +3451,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3209,10 +3461,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_utn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utn.c --function=netlib_dtrsv_utn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utn.c --function=netlib_dtrsv_utn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3237,7 +3490,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3245,10 +3500,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_utu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utu.c --function=netlib_dtrsv_utu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_utu.c --function=netlib_dtrsv_utu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_utu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_utu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_utu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_utu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3273,7 +3529,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3281,10 +3539,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c --function=netlib_dtrsv_lnn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnn.c --function=netlib_dtrsv_lnn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3309,7 +3568,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3317,10 +3578,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c --function=netlib_dtrsv_lnu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_lnu.c --function=netlib_dtrsv_lnu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_lnu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_lnu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_lnu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_lnu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3345,7 +3607,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3353,10 +3617,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c --function=netlib_dtrsv_ltn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltn.c --function=netlib_dtrsv_ltn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltn.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltn_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3381,7 +3646,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3389,10 +3656,11 @@
   "routine": "dtrsv",
   "wrapper": "generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c --function=netlib_dtrsv_ltu --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrsv_ltu.c --function=netlib_dtrsv_ltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrsv_ltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrsv_ltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrsv_ltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrsv_ltu_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [
@@ -3417,7 +3685,9 @@
    "defn": "LOWER_FAIL",
    "defn_maxabs": null,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3425,10 +3695,11 @@
   "routine": "openblas_daxpby",
   "wrapper": "generic_solver/lib_v3/raised/openblas_daxpby.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby.c --function=openblas_daxpby --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby.c --function=openblas_daxpby --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpby externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpby.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpby_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -3465,7 +3736,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3473,10 +3746,11 @@
   "routine": "openblas_daxpby",
   "wrapper": "generic_solver/lib_v3/raised/openblas_daxpby_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby_beta0.c --function=openblas_daxpby_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpby_beta0.c --function=openblas_daxpby_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpby_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpby_beta0.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpby_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpby_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -3512,7 +3786,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3520,10 +3796,11 @@
   "routine": "openblas_daxpy",
   "wrapper": "generic_solver/lib_v3/raised/openblas_daxpy.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpy.c --function=openblas_daxpy --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpy.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_daxpy.c --function=openblas_daxpy --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_daxpy.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_daxpy externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_daxpy.mlir -o generic_solver/lib_v3/raised/openblas_daxpy_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_daxpy_linalg.mlir -o generic_solver/lib_v3/raised/openblas_daxpy_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -3559,7 +3836,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3567,10 +3846,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.c --function=openblas_dgemm_nn_b0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.c --function=openblas_dgemm_nn_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nn_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nn_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_b0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3620,7 +3900,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3628,10 +3910,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_nn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn.c --function=openblas_dgemm_nn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nn.c --function=openblas_dgemm_nn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nn.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nn_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3682,7 +3965,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 8.882e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 8.882e-16
+   "linalg_maxabs": 8.882e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3690,10 +3975,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.c --function=openblas_dgemm_nt_b0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.c --function=openblas_dgemm_nt_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nt_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nt_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_b0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3743,7 +4029,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3751,10 +4039,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_nt.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt.c --function=openblas_dgemm_nt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_nt.c --function=openblas_dgemm_nt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_nt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_nt.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_nt_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_nt_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3805,7 +4094,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3813,10 +4104,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.c --function=openblas_dgemm_tn_b0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.c --function=openblas_dgemm_tn_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tn_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tn_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_b0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3866,7 +4158,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 2.776e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 2.776e-16
+   "linalg_maxabs": 2.776e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3874,10 +4168,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_tn.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn.c --function=openblas_dgemm_tn --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tn.c --function=openblas_dgemm_tn --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tn externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tn.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tn_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tn_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3928,7 +4223,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3936,10 +4233,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.c --function=openblas_dgemm_tt_b0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.c --function=openblas_dgemm_tt_b0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tt_b0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tt_b0.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_b0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -3989,7 +4287,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -3997,10 +4297,11 @@
   "routine": "openblas_dgemm",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemm_tt.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt.c --function=openblas_dgemm_tt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemm_tt.c --function=openblas_dgemm_tt --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemm_tt externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemm_tt.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemm_tt_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemm_tt_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -4051,7 +4352,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4059,10 +4362,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.c --function=openblas_dgemv_n_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.c --function=openblas_dgemv_n_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n_beta0.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -4105,7 +4409,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4113,10 +4419,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.c --function=openblas_dgemv_n_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.c --function=openblas_dgemv_n_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n_beta1.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -4159,7 +4466,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4167,10 +4476,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_n.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n.c --function=openblas_dgemv_n --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_n.c --function=openblas_dgemv_n --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_n.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_n externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_n.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_n_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_n_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -4214,7 +4524,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4222,10 +4534,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.c --function=openblas_dgemv_t_beta0 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.c --function=openblas_dgemv_t_beta0 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t_beta0 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t_beta0.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta0_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -4268,7 +4581,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 2.22e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 2.22e-16
+   "linalg_maxabs": 2.22e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4276,10 +4591,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.c --function=openblas_dgemv_t_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.c --function=openblas_dgemv_t_beta1 --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t_beta1 externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t_beta1.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_beta1_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -4322,7 +4638,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 2.22e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 2.22e-16
+   "linalg_maxabs": 2.22e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4330,10 +4648,11 @@
   "routine": "openblas_dgemv",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dgemv_t.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t.c --function=openblas_dgemv_t --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dgemv_t.c --function=openblas_dgemv_t --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dgemv_t.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dgemv_t externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dgemv_t.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dgemv_t_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dgemv_t_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 2,
    "loops": [],
@@ -4377,7 +4696,9 @@
    "defn": "WITHIN_1e-12",
    "defn_maxabs": 4.441e-16,
    "linalg": "WITHIN_1e-12",
-   "linalg_maxabs": 4.441e-16
+   "linalg_maxabs": 4.441e-16,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4385,10 +4706,11 @@
   "routine": "openblas_dger",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dger.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dger.c --function=openblas_dger --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dger.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dger.c --function=openblas_dger --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dger.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dger externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dger.mlir -o generic_solver/lib_v3/raised/openblas_dger_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dger_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dger_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -4431,7 +4753,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "LOWER_FAIL",
-   "linalg_maxabs": null
+   "linalg_maxabs": null,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4439,10 +4763,11 @@
   "routine": "openblas_dscal",
   "wrapper": "generic_solver/lib_v3/raised/openblas_dscal.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dscal.c --function=openblas_dscal --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dscal.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/openblas_dscal.c --function=openblas_dscal --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/openblas_dscal.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=openblas_dscal externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/openblas_dscal.mlir -o generic_solver/lib_v3/raised/openblas_dscal_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/openblas_dscal_linalg.mlir -o generic_solver/lib_v3/raised/openblas_dscal_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 1,
    "loops": [],
@@ -4477,7 +4802,9 @@
    "defn": "EXACT",
    "defn_maxabs": 0.0,
    "linalg": "EXACT",
-   "linalg_maxabs": 0.0
+   "linalg_maxabs": 0.0,
+   "affine": "EXACT",
+   "affine_maxabs": 0.0
   }
  },
  {
@@ -4485,10 +4812,11 @@
   "routine": "sparskit_amux",
   "wrapper": "generic_solver/lib_v3/raised/sparskit_amux.c",
   "commands": [
-   "build/bin/cgeist generic_solver/lib_v3/raised/sparskit_amux.c --function=sparskit_amux --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/sparskit_amux.mlir",
+   "build/bin/cgeist generic_solver/lib_v3/raised/sparskit_amux.c --function=sparskit_amux --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/sparskit_amux.mlir",
    "build/bin/polygeist-opt '--select-func=func-name=sparskit_amux externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/sparskit_amux.mlir -o generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir",
    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/sparskit_amux_linalg.mlir -o generic_solver/lib_v3/raised/sparskit_amux_debuf.mlir"
   ],
+  "recoveries": {},
   "analysis": {
    "generics": 0,
    "loops": [
@@ -4510,6 +4838,14 @@
    "submaps": 0
   },
   "status": "NOT_RAISED",
-  "reason": "no linalg.generic after raising; residual affine.for, scf.for"
+  "reason": "no linalg.generic after raising; residual affine.for, scf.for",
+  "validation": {
+   "defn": "UNSUPPORTED_SIGNATURE",
+   "defn_maxabs": null,
+   "linalg": "UNSUPPORTED_SIGNATURE",
+   "linalg_maxabs": null,
+   "affine": "UNSUPPORTED_SIGNATURE",
+   "affine_maxabs": null
+  }
  }
 ]
