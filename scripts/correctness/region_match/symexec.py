@@ -448,7 +448,12 @@ class Executor:
             if not m:
                 raise Unsupported('unparsed integer conversion')
             v = self.get(m.group(1))
-            if isinstance(v, FVal):
+            if isinstance(v, Undef):
+                # Metadata used only by an existing launch need not be affine.
+                # Keep it unknown: using it in a loop bound, index, or element
+                # equation will still reject that proof at the point of use.
+                self.env[res[0]] = Undef()
+            elif isinstance(v, FVal):
                 self.env[res[0]] = FVal(EUn(n + ':' + m.group(2) + ' to ' + m.group(3), v.e))
             elif isinstance(v, IdxVal):
                 from .affine import implies

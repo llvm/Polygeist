@@ -1146,14 +1146,14 @@ class Rewriter:
     def rewrite(self, selected: list[dict]) -> str:
         edits = {}
         deleted: set[int] = set()
-        extra_uses: list[str] = []
+        extra_uses: list[tuple[ML.Op, str]] = []
         roots = set()
         for m in selected:
             text, uses = self.render(m)
             root = self.A.ops[m["root"]]
             edits[root.idx] = text
             roots.add(root.idx)
-            extra_uses += uses
+            extra_uses += [(root, u) for u in uses]
         candidates = set()
         for m in selected:
             candidates |= {i for i in m["consumed"] if i not in roots}
@@ -1167,20 +1167,25 @@ class Rewriter:
         changed = True
         while changed:
             changed = False
-            live_uses: dict[str, int] = {}
+            live_defs: set[int] = set()
             for op in self.A.ops:
                 if op.idx in deleted or (nested_in.get(op.idx, set()) & deleted):
                     continue
                 if op.idx in roots:
                     continue
                 for u in op.uses:
-                    live_uses[u] = live_uses.get(u, 0) + 1
-            for u in extra_uses:
-                b = ML.base_name(u)
-                live_uses[b] = live_uses.get(b, 0) + 1
+                    definition = (self.A.def_of(u, op) or
+                                  self.A.def_of(u + "#0", op))
+                    if definition:
+                        live_defs.add(definition[0].idx)
+            for root, u in extra_uses:
+                definition = (self.A.def_of(u, root) or
+                              self.A.def_of(ML.base_name(u) + "#0", root))
+                if definition:
+                    live_defs.add(definition[0].idx)
             for i in sorted(candidates - deleted):
                 op = self.A.ops[i]
-                if all(live_uses.get(ML.base_name(r), 0) == 0 for r in op.results):
+                if op.results and i not in live_defs:
                     deleted.add(i)
                     changed = True
         text = self.A.text

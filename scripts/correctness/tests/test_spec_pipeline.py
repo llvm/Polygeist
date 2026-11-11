@@ -72,6 +72,21 @@ class ScalarSemantics(unittest.TestCase):
 
 
 class MemorySemantics(unittest.TestCase):
+    def test_unused_metadata_conversion_does_not_block_analysis(self):
+        p = program('''%md:4 = memref.extract_strided_metadata %a : memref<64xf64> -> memref<f64>, index, index, index
+    %stride = arith.index_cast %md#3 : index to i32
+    %v = memref.load %a[%zero] : memref<64xf64>
+    memref.store %v, %b[%zero] : memref<1xf64>''')
+        self.assertIsInstance(p.stmts[-1].value, ERead)
+
+    def test_unknown_metadata_cannot_authorize_an_index(self):
+        with self.assertRaises(Unsupported):
+            program('''%md:4 = memref.extract_strided_metadata %a : memref<64xf64> -> memref<f64>, index, index, index
+    %stride = arith.index_cast %md#3 : index to i32
+    %index = arith.index_cast %stride : i32 to index
+    %v = memref.load %a[%index] : memref<64xf64>
+    memref.store %v, %b[%zero] : memref<1xf64>''')
+
     def test_composed_subviews_keep_offsets_and_strides(self):
         p = program('''%s = memref.subview %a[3] [8] [2] : memref<64xf64> to memref<8xf64, strided<[2], offset: 3>>
     %t = memref.subview %s[1] [3] [2] : memref<8xf64, strided<[2], offset: 3>> to memref<3xf64, strided<[4], offset: 5>>
@@ -200,6 +215,22 @@ class ImportedPipeline(unittest.TestCase):
     def test_imported_positive_and_evidence(self):
         self.assertEqual(self.proof['emitted'], ['openblas_dgemm_nn'])
         SM.verify(self.output, self.proof, backend='cpu')
+
+    def test_repeated_ssa_names_in_another_function_do_not_keep_dead_work(self):
+        funcs, _ = parse_module(self.input)
+        func = funcs[0]
+        other = self.input[func.start:func.end].replace(
+            '@' + func.name + '(', '@unrelated(').replace('arith.mulf', 'arith.subf')
+        insertion = self.input.rfind('}')
+        combined = self.input[:insertion] + other + '\n' + self.input[insertion:]
+        output, proof = SM.match(combined, backend='cpu',
+                                 only=['openblas_dgemm_nn'], region=False)
+        funcs, _ = parse_module(output)
+        matched = next(f for f in funcs if f.name == func.name)
+        unrelated = next(f for f in funcs if f.name == 'unrelated')
+        self.assertEqual(proof['emitted'], ['openblas_dgemm_nn'])
+        self.assertNotIn('linalg.generic', output[matched.start:matched.end])
+        self.assertIn('linalg.generic', output[unrelated.start:unrelated.end])
 
     def test_wrong_computation_is_not_matched(self):
         bad = self.input.replace('arith.mulf', 'arith.subf')
