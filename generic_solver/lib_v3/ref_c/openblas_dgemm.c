@@ -42,9 +42,30 @@
 #ifndef ALPHA_CASE
 #define ALPHA_CASE 2
 #endif
-/* Ordinary API specialization: M=1 and unit lda/ldc. The VLA rows then
- * contain one element, so A[k][0] and C[j][0] have the flat addresses A[k]
- * and C[j]. No benchmark dimensions or algebraic matcher are involved. */
+/* Ordinary dimension specializations of the same column-major GEMM.
+ * Unit physical dimensions use flat pointers with identical addresses.
+ * No scalar arithmetic or accumulation order is changed. */
+#if defined(OPENBLAS_UNIT_K) && defined(OPENBLAS_UNIT_M)
+#error "unit-K and unit-M specializations are separate"
+#endif
+#if defined(OPENBLAS_UNIT_N) && !defined(OPENBLAS_UNIT_M)
+#error "unit-N specialization also requires unit-M"
+#endif
+#ifdef OPENBLAS_UNIT_K
+#if TRANSA != 'N' || TRANSB != 'N'
+#error "unit-K specialization requires non-transposed operands"
+#endif
+#define M_LIMIT M
+#define N_LIMIT N
+#define K_LIMIT 1
+#define MATRIX_PARAMS int M, int N, OPENBLAS_SCALAR A[],
+#define B_PARAMS OPENBLAS_SCALAR B[],
+#define OUTPUT_PARAMS int ldc, OPENBLAS_SCALAR C[][ldc]
+#define A_IK A[i]
+#define B_KJ B[j]
+#define C_JI C[j][i]
+#else
+#define K_LIMIT K
 #ifdef OPENBLAS_UNIT_M
 #if TRANSA != 'N'
 #error "unit-M specialization requires non-transposed A"
@@ -52,23 +73,39 @@
 #define M_LIMIT 1
 #define A_IK A[k]
 #define C_JI C[j]
-#define MATRIX_PARAMS int N, int K, OPENBLAS_SCALAR A[],
 #define OUTPUT_PARAMS OPENBLAS_SCALAR C[]
+#ifdef OPENBLAS_UNIT_N
+#if TRANSB != 'N'
+#error "unit-N specialization requires non-transposed B"
+#endif
+#define N_LIMIT 1
+#define MATRIX_PARAMS int K, OPENBLAS_SCALAR A[],
+#define B_PARAMS OPENBLAS_SCALAR B[],
+#define B_KJ B[k]
+#else
+#define N_LIMIT N
+#define MATRIX_PARAMS int N, int K, OPENBLAS_SCALAR A[],
+#endif
 #else
 #define M_LIMIT M
+#define N_LIMIT N
 #define MATRIX_PARAMS int M, int N, int K, int lda, OPENBLAS_SCALAR A[][lda],
 #define OUTPUT_PARAMS int ldc, OPENBLAS_SCALAR C[][ldc]
 #define C_JI C[j][i]
 #if TRANSA == 'N'
-#define A_IK A[k][i]   /* A[i+k*lda] */
+#define A_IK A[k][i]
 #else
-#define A_IK A[i][k]   /* A[i*lda+k] */
+#define A_IK A[i][k]
 #endif
-#endif /* OPENBLAS_UNIT_M */
+#endif
+#ifndef OPENBLAS_UNIT_N
+#define B_PARAMS int ldb, OPENBLAS_SCALAR B[][ldb],
 #if TRANSB == 'N'
-#define B_KJ B[j][k]   /* B[k+j*ldb] */
+#define B_KJ B[j][k]
 #else
-#define B_KJ B[k][j]   /* B[k*ldb+j] */
+#define B_KJ B[k][j]
+#endif
+#endif
 #endif
 #if BETA_CASE != 2
 #define BETA_PARAM
@@ -85,14 +122,14 @@
 #endif
 
 void NETLIB_SPEC(MATRIX_PARAMS ALPHA_PARAM
-                 int ldb, OPENBLAS_SCALAR B[][ldb], BETA_PARAM OUTPUT_PARAMS) {
+                 B_PARAMS BETA_PARAM OUTPUT_PARAMS) {
   long i, j, k;
   OPENBLAS_SCALAR result = 0.0;
 
   for (i = 0; i < M_LIMIT; i++) {
-    for (j = 0; j < N; j++) {
+    for (j = 0; j < N_LIMIT; j++) {
       result = 0.0;
-      for (k = 0; k < K; k++) {
+      for (k = 0; k < K_LIMIT; k++) {
         result += A_IK * B_KJ;
       }
 #if BETA_CASE == 0

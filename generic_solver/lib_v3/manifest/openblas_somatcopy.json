@@ -13,6 +13,10 @@
     {
       "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
       "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/omatcopy_ct.c",
+      "sha256": "4c6472f55d7b2eed6403056fc1072f167cf527e69d7ed329627255b861ab13e4"
     }
   ],
   "specs": [
@@ -47,7 +51,80 @@
         "alpha == 1; column-major no transpose",
         "nonoverlapping input and output"
       ],
-      "deviations": []
+      "deviations": [],
+      "defines": {
+        "TRANS": "'N'"
+      }
+    },
+    {
+      "name": "openblas_somatcopy_transpose_f32",
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "ldc",
+        "C"
+      ],
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasSgeam",
+        "fixed_args": {
+          "transa": "CUBLAS_OP_T",
+          "transb": "CUBLAS_OP_T",
+          "alpha": 1.0,
+          "beta": 0.0,
+          "B": "A",
+          "ldb": "lda"
+        },
+        "backends": [
+          "cuda"
+        ]
+      },
+      "assumptions": [
+        "m > 0, n > 0",
+        "lda >= n, ldc >= m",
+        "alpha == 1; column-major transpose; m,n are output rows,columns",
+        "nonoverlapping input and output"
+      ],
+      "deviations": [],
+      "defines": {
+        "TRANS": "'T'"
+      }
     }
-  ]
+  ],
+  "layout_transpose": {
+    "about": "Metadata proposes a binding only; the existing region matcher proves it against both imported bodies.",
+    "flags": {
+      "TRANS": [
+        "'N'",
+        "'T'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANS"
+        ],
+        "swap": []
+      },
+      {
+        "operands": [
+          "C"
+        ],
+        "flip": [
+          "TRANS"
+        ],
+        "swap": [
+          [
+            "m",
+            "n"
+          ]
+        ]
+      }
+    ]
+  }
 }

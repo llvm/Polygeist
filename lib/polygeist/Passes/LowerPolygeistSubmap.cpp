@@ -553,31 +553,48 @@ struct NormalizeTensorReductionOutputSubmap
 
   LogicalResult matchAndRewrite(linalg::GenericOp generic,
                                 PatternRewriter &rewriter) const final {
-    if (generic.getOutputs().size() != 1 || generic.getNumResults() != 1)
+    if (generic.getOutputs().empty() ||
+        generic.getOutputs().size() != generic.getNumResults())
       return failure();
+    for (unsigned output = 0; output < generic.getNumResults(); ++output) {
+      // A multi-output operation can carry private recurrence state whose
+      // final tensor is unused. Keep all externally observed results intact.
+      if (generic.getNumResults() != 1 &&
+          !generic.getResult(output).use_empty())
+        continue;
+      if (succeeded(normalizeOutput(generic, output, rewriter)))
+        return success();
+    }
+    return failure();
+  }
 
-    auto submap = generic.getOutputs().front().getDefiningOp<SubmapOp>();
+  LogicalResult normalizeOutput(linalg::GenericOp generic, unsigned output,
+                                PatternRewriter &rewriter) const {
+    auto submap = generic.getOutputs()[output].getDefiningOp<SubmapOp>();
     if (!submap || submap.getMap().getNumSymbols() != 0 ||
         !isa<RankedTensorType>(submap.getBase().getType()) ||
         !isa<RankedTensorType>(submap.getType()))
       return failure();
 
-    Value oldResult = generic.getResult(0);
-    if (!oldResult.hasOneUse())
-      return rewriter.notifyMatchFailure(
-          generic, "tensor reduction output does not have one terminal use");
-    auto inverse = dyn_cast<SubmapInverseOp>(*oldResult.getUsers().begin());
-    if (!inverse || inverse.getViewModified() != oldResult ||
-        stripTensorCasts(inverse.getBaseOriginal()) !=
-            stripTensorCasts(submap.getBase()) ||
-        inverse.getMap() != submap.getMap() ||
-        !sameTrailingOperands(inverse->getOperands().drop_front(2),
-                              submap->getOperands().drop_front(1)))
-      return rewriter.notifyMatchFailure(
-          generic, "tensor reduction output lacks a matching inverse");
+    Value oldResult = generic.getResult(output);
+    SubmapInverseOp inverse;
+    if (!oldResult.use_empty()) {
+      if (!oldResult.hasOneUse())
+        return rewriter.notifyMatchFailure(
+            generic, "tensor reduction output does not have one terminal use");
+      inverse = dyn_cast<SubmapInverseOp>(*oldResult.getUsers().begin());
+      if (!inverse || inverse.getViewModified() != oldResult ||
+          stripTensorCasts(inverse.getBaseOriginal()) !=
+              stripTensorCasts(submap.getBase()) ||
+          inverse.getMap() != submap.getMap() ||
+          !sameTrailingOperands(inverse->getOperands().drop_front(2),
+                                submap->getOperands().drop_front(1)))
+        return rewriter.notifyMatchFailure(
+            generic, "tensor reduction output lacks a matching inverse");
+    }
 
     SmallVector<AffineMap> maps(generic.getIndexingMapsArray());
-    unsigned outputOperandNumber = generic.getNumDpsInputs();
+    unsigned outputOperandNumber = generic.getNumDpsInputs() + output;
     AffineMap outputMap = maps[outputOperandNumber];
     AffineMap submapMap = submap.getMap();
     unsigned numLoops = generic.getNumLoops();
@@ -734,18 +751,26 @@ struct NormalizeTensorReductionOutputSubmap
         submap.getLoc(), reducedType, submap.getBase(), reducedSizes,
         reducedSubmapMap);
     StringAttr empty = StringAttr::get(context);
+    SmallVector<Type> resultTypes(generic.getResultTypes());
+    SmallVector<Value> outputs(generic.getOutputs());
+    resultTypes[output] = reducedType;
+    outputs[output] = reducedSubmap.getResult();
     auto newGeneric = rewriter.create<linalg::GenericOp>(
-        generic.getLoc(), TypeRange{reducedType}, generic.getInputs(),
-        ValueRange{reducedSubmap.getResult()}, maps, iteratorTypes, empty,
-        empty);
+        generic.getLoc(), resultTypes, generic.getInputs(), outputs, maps,
+        iteratorTypes, empty, empty);
     rewriter.cloneRegionBefore(generic.getRegion(), newGeneric.getRegion(),
                                newGeneric.getRegion().end());
 
-    rewriter.setInsertionPointAfter(newGeneric);
-    auto newInverse = rewriter.create<SubmapInverseOp>(
-        inverse.getLoc(), inverse.getType(), inverse.getBaseOriginal(),
-        newGeneric.getResult(0), reducedSizes, reducedSubmapMap);
-    rewriter.replaceOp(inverse, newInverse.getResult());
+    if (inverse) {
+      rewriter.setInsertionPointAfter(newGeneric);
+      auto newInverse = rewriter.create<SubmapInverseOp>(
+          inverse.getLoc(), inverse.getType(), inverse.getBaseOriginal(),
+          newGeneric.getResult(output), reducedSizes, reducedSubmapMap);
+      rewriter.replaceOp(inverse, newInverse.getResult());
+    }
+    for (unsigned index = 0; index < generic.getNumResults(); ++index)
+      if (index != output)
+        generic.getResult(index).replaceAllUsesWith(newGeneric.getResult(index));
     rewriter.eraseOp(generic);
     if (submap->use_empty())
       rewriter.eraseOp(submap);
@@ -1515,7 +1540,19 @@ struct LowerSymbolBearingSubmapToExtractSlice
       // inverse.  Eliminate the type-identical case directly so cleanup does
       // not depend on the broad canonicalizer (which may fold rank-expanding
       // DPS output views through linalg.generic incorrectly).
-      if (submapMap.isIdentity() && submap.getBase().getType() == outTy) {
+      bool fullExtent = submap.getSizes().size() ==
+                        static_cast<size_t>(baseTy.getRank());
+      for (auto [axis, size] : llvm::enumerate(submap.getSizes())) {
+        auto bound = getConstantIntValue(size);
+        bool equal = !baseTy.isDynamicDim(axis) && bound &&
+                     *bound == baseTy.getDimSize(axis);
+        if (auto dimension = size.getDefiningOp<tensor::DimOp>())
+          equal |= dimension.getSource() == submap.getBase() &&
+                   dimension.getConstantIndex() == static_cast<int64_t>(axis);
+        fullExtent &= equal;
+      }
+      if (submapMap.isIdentity() && submap.getBase().getType() == outTy &&
+          fullExtent) {
         rewriter.replaceOp(submap, submap.getBase());
         return success();
       }

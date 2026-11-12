@@ -507,8 +507,14 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return libSym == "cublasSdot_memref" ? "polygeist_cublas_dot_f32"
                                          : "polygeist_cublas_dot_f64";
   if (libSym == "cubSegmentedArgMax_f32_i32_memref" ||
-      libSym == "cubSegmentedArgMin_f32_i32_memref")
+      libSym == "cubSegmentedArgMin_f32_i32_memref" ||
+      libSym == "cubSegmentedValueMax_f32_memref" ||
+      libSym == "cubSegmentedValueMin_f32_memref")
     return "polygeist_cub_segmented_argreduce_f32";
+  if (libSym == "cublasReverse1D_f32_memref")
+    return "polygeist_cublas_reverse_f32";
+  if (libSym == "cubMean1D_f32_memref")
+    return "polygeist_cub_mean1d_f32";
   if (libSym == "cubQuantColOffsets_i8_i32_memref")
     return "polygeist_cub_quant_col_offsets_i8_i32";
   if (libSym == "cubAdjacentDifference_f32_memref")
@@ -780,6 +786,24 @@ static Value snapshotOpaqueCallResult(OpBuilder &b, Location loc, Value source) 
   Value snapshot = b.create<memref::AllocOp>(loc, type, dynamicSizes);
   b.create<memref::CopyOp>(loc, source, snapshot);
   return snapshot;
+}
+
+// A terminal tensor-to-memref copy back to the exact mutated destination
+// needs no SSA snapshot: the external call has already written that buffer.
+// Keep snapshots for all computed views and for results with other consumers.
+static bool eraseDirectOutputWriteback(Value result, Value destination) {
+  if (!result.hasOneUse())
+    return false;
+  auto toMemref = dyn_cast<bufferization::ToMemrefOp>(*result.getUsers().begin());
+  if (!toMemref || !toMemref.getResult().hasOneUse())
+    return false;
+  auto copy = dyn_cast<memref::CopyOp>(*toMemref.getResult().getUsers().begin());
+  if (!copy || copy.getSource() != toMemref.getResult() ||
+      copy.getTarget() != destination)
+    return false;
+  copy.erase();
+  toMemref.erase();
+  return true;
 }
 
 static ShapedType getRankedShapedType(Value v) {
@@ -1143,6 +1167,61 @@ static Value tensorForSliceSource(OpBuilder &b, Location loc, Value tensorValue)
   return memrefToTensor(b, loc, srcMr, srcTy);
 }
 
+// Repeated raising can spell the same slice bound with distinct SSA values.
+// Compare only this small, pure index-expression grammar; do not CSE tensor
+// allocation roots or infer equality between unrelated runtime values.
+static bool sameSliceIndex(Value lhs, Value rhs, unsigned depth = 0) {
+  if (lhs == rhs)
+    return true;
+  if (!lhs || !rhs || lhs.getType() != rhs.getType() || depth == 12)
+    return false;
+  Operation *a = lhs.getDefiningOp(), *b = rhs.getDefiningOp();
+  if (!a || !b || a->getName() != b->getName() ||
+      a->getAttrs() != b->getAttrs() || a->getNumOperands() != b->getNumOperands() ||
+      a->getNumResults() != 1 || b->getNumResults() != 1 ||
+      !isa<arith::ConstantOp, arith::AddIOp, arith::SubIOp, arith::IndexCastOp,
+           affine::AffineApplyOp>(a))
+    return false;
+  for (auto pair : llvm::zip(a->getOperands(), b->getOperands()))
+    if (!sameSliceIndex(std::get<0>(pair), std::get<1>(pair), depth + 1))
+      return false;
+  return true;
+}
+
+static bool sameSliceComponents(ArrayRef<OpFoldResult> lhs,
+                                ArrayRef<OpFoldResult> rhs) {
+  if (lhs.size() != rhs.size())
+    return false;
+  for (auto pair : llvm::zip(lhs, rhs)) {
+    OpFoldResult a = std::get<0>(pair), b = std::get<1>(pair);
+    if (a == b)
+      continue;
+    if (!a.is<Value>() || !b.is<Value>() ||
+        !sameSliceIndex(a.get<Value>(), b.get<Value>()))
+      return false;
+  }
+  return true;
+}
+
+static Value stripNoopSliceInserts(Value value) {
+  value = stripTensorCasts(value);
+  for (unsigned depth = 0; depth < 8; ++depth) {
+    auto insert = value.getDefiningOp<tensor::InsertSliceOp>();
+    if (!insert)
+      break;
+    auto extract = stripTensorCasts(insert.getSource())
+                       .getDefiningOp<tensor::ExtractSliceOp>();
+    if (!extract || stripTensorCasts(extract.getSource()) !=
+                        stripTensorCasts(insert.getDest()) ||
+        !sameSliceComponents(extract.getMixedOffsets(), insert.getMixedOffsets()) ||
+        !sameSliceComponents(extract.getMixedSizes(), insert.getMixedSizes()) ||
+        !sameSliceComponents(extract.getMixedStrides(), insert.getMixedStrides()))
+      break;
+    value = stripTensorCasts(insert.getDest());
+  }
+  return value;
+}
+
 static void rewireTensorSliceLaunchResult(LaunchOp launch,
                                           Value updatedViewTensor,
                                           Value updatedBaseTensor,
@@ -1207,11 +1286,11 @@ static void rewireTensorSliceLaunchResult(LaunchOp launch,
     // A slice has the launch's dynamic type, while the enclosing tensor may
     // retain static extents and untouched elements outside the slice.
     if (destinationSlice &&
-        (stripTensorCasts(insert.getDest()) !=
-             stripTensorCasts(destinationSlice.getSource()) ||
-         insert.getMixedOffsets() != destinationSlice.getMixedOffsets() ||
-         insert.getMixedSizes() != destinationSlice.getMixedSizes() ||
-         insert.getMixedStrides() != destinationSlice.getMixedStrides()))
+        (stripNoopSliceInserts(insert.getDest()) !=
+             stripNoopSliceInserts(destinationSlice.getSource()) ||
+         !sameSliceComponents(insert.getMixedOffsets(), destinationSlice.getMixedOffsets()) ||
+         !sameSliceComponents(insert.getMixedSizes(), destinationSlice.getMixedSizes()) ||
+         !sameSliceComponents(insert.getMixedStrides(), destinationSlice.getMixedStrides())))
       continue;
     if (insert.getResult().getType() != updatedBaseTensor.getType())
       continue;
@@ -4786,8 +4865,8 @@ static LogicalResult lowerDaxpbyMemref(LaunchOp launch, ModuleOp module);
 static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
   if (launch->hasAttr("polygeist.bufferized"))
     return lowerDaxpbyMemref(launch, module);
-  if (launch.getNumOperands() != 4)
-    return launch.emitError("cublasDaxpby: expected 4 operands (x, y, α, β)");
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 1)
+    return launch.emitError("cublasDaxpby: expected 4 operands (x, y, α, β) and one result");
   Value x = launch.getOperand(0);
   Value y = launch.getOperand(1);
   Value alpha = launch.getOperand(2);
@@ -4815,20 +4894,22 @@ static LogicalResult lowerDaxpby(LaunchOp launch, ModuleOp module) {
                                        argTypes, b);
   b.create<func::CallOp>(loc, shim,
       ValueRange{N, alpha, x_ptr, beta, y_ptr});
-  Value yBase = resolveSubmapBase(y);
-  // The opaque BLAS call mutated y_mr. Re-materializing the original
-  // tensor would recover its pre-call value; expose the updated storage as
-  // a fresh SSA result before downstream tensor bufferization.
-  Value yBaseMr = yBase == y ? snapshotOpaqueCallResult(b, loc, y_mr)
-                            : tensorToMemref(b, loc, yBase);
-  Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
-  rewireLaunchResult(launch, out);
+  if (eraseDirectOutputWriteback(launch.getResult(0), y_mr)) {
+    launch.erase();
+    return success();
+  }
+  // The call updated the materialized view, which need not alias its base.
+  // Keep the functional view result and its insert/submapInverse write-back;
+  // replacing them with the old base discards updates to computed tensors.
+  Value out = memrefToTensor(b, loc, snapshotOpaqueCallResult(b, loc, y_mr),
+                            launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
   launch.erase();
   return success();
 }
 
 static LogicalResult lowerSaxpby(LaunchOp launch, ModuleOp module) {
-  if (launch.getNumOperands() != 4 || launch.getNumResults() > 1)
+  if (launch.getNumOperands() != 4 || launch.getNumResults() != 1)
     return launch.emitError("cublasSaxpby: expected x, y, alpha, beta and one result");
   Value x = launch.getOperand(0), y = launch.getOperand(1);
   Value alpha = launch.getOperand(2), beta = launch.getOperand(3);
@@ -4849,11 +4930,16 @@ static LogicalResult lowerSaxpby(LaunchOp launch, ModuleOp module) {
   func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_saxpby", types, b);
   b.create<func::CallOp>(loc, shim, ValueRange{
       N, alpha, memrefBasePtr(b, loc, x_mr), beta, memrefBasePtr(b, loc, y_mr)});
-  Value yBase = resolveSubmapBase(y);
-  Value yBaseMr = yBase == y ? snapshotOpaqueCallResult(b, loc, y_mr)
-                            : tensorToMemref(b, loc, yBase);
-  Value out = memrefToTensor(b, loc, yBaseMr, yBase.getType());
-  rewireLaunchResult(launch, out);
+  if (eraseDirectOutputWriteback(launch.getResult(0), y_mr)) {
+    launch.erase();
+    return success();
+  }
+  // The call updated the materialized view, which need not alias its base.
+  // Keep the functional view result and its insert/submapInverse write-back;
+  // replacing them with the old base discards updates to computed tensors.
+  Value out = memrefToTensor(b, loc, snapshotOpaqueCallResult(b, loc, y_mr),
+                            launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
   launch.erase();
   return success();
 }
@@ -6374,6 +6460,28 @@ static LogicalResult lowerCubSegmentedInclusiveProduct2DF32(
   return success();
 }
 
+static LogicalResult lowerContiguousUnaryF32(LaunchOp launch,
+                                              ModuleOp module, StringRef shimName) {
+  if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
+    return launch.emitError("contiguous unary operation expects input and output");
+  for (Value value : launch.getOperands()) {
+    auto type = dyn_cast<MemRefType>(value.getType());
+    if (!type || type.getRank() != 1 || !type.getElementType().isF32() ||
+        !type.getLayout().isIdentity())
+      return launch.emitError("contiguous unary operation requires rank-1 f32 buffers");
+  }
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  auto ptr = LLVM::LLVMPointerType::get(b.getContext());
+  auto shim = ensureShimDecl(module, shimName, {b.getI32Type(), ptr, ptr}, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{
+      memrefDimAsI32(b, loc, launch.getOperand(0), 0),
+      memrefDataPtr(b, loc, launch.getOperand(0)),
+      memrefDataPtr(b, loc, launch.getOperand(1))});
+  launch.erase();
+  return success();
+}
+
 static LogicalResult lowerCubExclusiveSum1DI32(LaunchOp launch,
                                                 ModuleOp module) {
   if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
@@ -6881,22 +6989,23 @@ static LogicalResult lowerCublasDotMemref(LaunchOp launch, ModuleOp module,
 }
 
 static LogicalResult lowerCubSegmentedArgReduceF32(
-    LaunchOp launch, ModuleOp module, bool isMin) {
+    LaunchOp launch, ModuleOp module, bool isMin, bool returnValue = false) {
   if (launch.getNumOperands() != 2 || launch.getNumResults() != 0)
     return launch.emitError("segmented arg-reduction expects input and output");
   auto inputType = dyn_cast<MemRefType>(launch.getOperand(0).getType());
   auto outputType = dyn_cast<MemRefType>(launch.getOperand(1).getType());
   if (!inputType || !outputType || inputType.getRank() != 2 ||
       outputType.getRank() != 1 || !inputType.getElementType().isF32() ||
-      !outputType.getElementType().isInteger(32))
-    return launch.emitError("segmented arg-reduction requires 2D f32 to 1D i32");
+      (returnValue ? !outputType.getElementType().isF32()
+                   : !outputType.getElementType().isInteger(32)))
+    return launch.emitError("segmented reduction requires 2D f32 input and matching 1D output");
   OpBuilder b(launch);
   Location loc = launch.getLoc();
   auto ptr = LLVM::LLVMPointerType::get(b.getContext());
   auto shim = ensureShimDecl(
       module, "polygeist_cub_segmented_argreduce_f32",
       {b.getI32Type(), b.getI32Type(), b.getI32Type(), ptr, ptr}, b);
-  Value op = b.create<arith::ConstantIntOp>(loc, isMin ? 1 : 0, 32);
+  Value op = b.create<arith::ConstantIntOp>(loc, (isMin ? 1 : 0) + (returnValue ? 2 : 0), 32);
   b.create<func::CallOp>(
       loc, shim,
       ValueRange{op, memrefDimAsI32(b, loc, launch.getOperand(0), 0),
@@ -8789,6 +8898,11 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerCubInclusiveSum1DF32(launch, module);
       } else if (libSym == "cubSegmentedInclusiveProduct2D_f32_tensor") {
         r = lowerCubSegmentedInclusiveProduct2DF32(launch, module);
+      } else if (libSym == "cublasReverse1D_f32_memref" ||
+                 libSym == "cubMean1D_f32_memref") {
+        r = lowerContiguousUnaryF32(launch, module,
+            libSym == "cublasReverse1D_f32_memref" ? "polygeist_cublas_reverse_f32"
+                                                   : "polygeist_cub_mean1d_f32");
       } else if (libSym == "cubExclusiveSum1D_i32_memref") {
         r = lowerCubExclusiveSum1DI32(launch, module);
       } else if (libSym == "cubCountNonzero1D_f32_tensor" ||
@@ -8803,6 +8917,10 @@ struct LowerKernelLaunchToCuBLASPass
                  libSym == "cublasDdot_memref") {
         r = lowerCublasDotMemref(
             launch, module, libSym == "cublasSdot_memref");
+      } else if (libSym == "cubSegmentedValueMax_f32_memref" ||
+                 libSym == "cubSegmentedValueMin_f32_memref") {
+        r = lowerCubSegmentedArgReduceF32(
+            launch, module, libSym == "cubSegmentedValueMin_f32_memref", true);
       } else if (libSym == "cubSegmentedArgMax_f32_i32_memref" ||
                  libSym == "cubSegmentedArgMin_f32_i32_memref") {
         r = lowerCubSegmentedArgReduceF32(

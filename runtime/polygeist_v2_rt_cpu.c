@@ -124,6 +124,7 @@ static void polygeist_v2_require_alias(const char *call, const void *p,
 typedef size_t polygeist_v2_flen;
 
 #include "polygeist_v2_matrix_layout.inc"
+#include "polygeist_v2_memref_copy.inc"
 
 /* BEGIN GENERATED WRAPPERS */
 extern void daxpy_(const int *, const double *, const double *, const int *, double *, const int *);
@@ -405,6 +406,32 @@ void polygeist_v2_cublasSgemv(int32_t trans, int32_t m, int32_t n, float alpha, 
   (void)y_bytes;
   sgemv_(&pv2_c_trans, &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy, (polygeist_v2_flen)1);
   polygeist_v2_done("cublasSgemv", "sgemv_", polygeist_v2_t0);
+}
+
+extern void ssyr2k_(const char *, const char *, const int *, const int *, const float *, const float *, const int *, const float *, const int *, const float *, float *, const int *, polygeist_v2_flen, polygeist_v2_flen);
+static char polygeist_v2_cublasSsyr2k_cublasFillMode_t_char(int32_t v) {
+  switch (v) {
+  case 1: return 'U';
+  }
+  polygeist_v2_fatal("cublasSsyr2k", "enum value without a Fortran flag");
+  return 0;
+}
+static char polygeist_v2_cublasSsyr2k_cublasOperation_t_char(int32_t v) {
+  switch (v) {
+  case 1: return 'T';
+  }
+  polygeist_v2_fatal("cublasSsyr2k", "enum value without a Fortran flag");
+  return 0;
+}
+void polygeist_v2_cublasSsyr2k(int32_t uplo, int32_t trans, int32_t n, int32_t k, float alpha, const float *A, int64_t A_bytes, int32_t lda, const float *B, int64_t B_bytes, int32_t ldb, float beta, float *C, int64_t C_bytes, int32_t ldc) {
+  double polygeist_v2_t0 = polygeist_v2_now_ms();
+  char pv2_c_uplo = polygeist_v2_cublasSsyr2k_cublasFillMode_t_char(uplo);
+  char pv2_c_trans = polygeist_v2_cublasSsyr2k_cublasOperation_t_char(trans);
+  (void)A_bytes;
+  (void)B_bytes;
+  (void)C_bytes;
+  ssyr2k_(&pv2_c_uplo, &pv2_c_trans, &n, &k, &alpha, A, &lda, B, &ldb, &beta, C, &ldc, (polygeist_v2_flen)1, (polygeist_v2_flen)1);
+  polygeist_v2_done("cublasSsyr2k", "ssyr2k_", polygeist_v2_t0);
 }
 
 extern void dpotrf_(const char *, const int *, double *, const int *, int *, polygeist_v2_flen);

@@ -1,0 +1,156 @@
+{
+  "routine": "aten_softmax_backward",
+  "source": "Pinned PyTorch ATen CPU _vec_softmax_backward<float> scalar row, SoftMaxKernel.cpp:208-286",
+  "upstream": {
+    "path": "third_party/pytorch/aten/src/ATen/native/cpu/SoftMaxKernel.cpp",
+    "sha256": "8a49d0f097857b201af82c01c0d3da5edbc12fec9eb3bd8c496638069f67dcef"
+  },
+  "specs": [
+    {
+      "name": "aten_softmax_backward_f32",
+      "args": [
+        "n",
+        "grad",
+        "output",
+        "result"
+      ],
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnSoftmaxBackward",
+        "backends": [
+          "cuda"
+        ],
+        "descriptor_adapter": {
+          "schema": 1,
+          "parameters": [
+            {
+              "name": "n",
+              "kind": "int",
+              "source": "n"
+            },
+            {
+              "name": "dy",
+              "kind": "array",
+              "source": "grad",
+              "element": "float",
+              "rank": 1,
+              "layout": "incdy"
+            },
+            {
+              "name": "incdy",
+              "kind": "int",
+              "source": 1,
+              "layout_of": "dy"
+            },
+            {
+              "name": "y",
+              "kind": "array",
+              "source": "output",
+              "element": "float",
+              "rank": 1,
+              "layout": "incy"
+            },
+            {
+              "name": "incy",
+              "kind": "int",
+              "source": 1,
+              "layout_of": "y"
+            },
+            {
+              "name": "dx",
+              "kind": "array",
+              "source": "result",
+              "element": "float",
+              "rank": 1,
+              "layout": "incdx"
+            },
+            {
+              "name": "incdx",
+              "kind": "int",
+              "source": 1,
+              "layout_of": "dx"
+            }
+          ],
+          "vendor_arguments": {
+            "handle": {
+              "kind": "handle"
+            },
+            "algo": {
+              "kind": "enum",
+              "value": "CUDNN_SOFTMAX_ACCURATE"
+            },
+            "mode": {
+              "kind": "enum",
+              "value": "CUDNN_SOFTMAX_MODE_INSTANCE"
+            },
+            "alpha": {
+              "kind": "scalar_pointer",
+              "type": "float",
+              "value": 1.0
+            },
+            "beta": {
+              "kind": "scalar_pointer",
+              "type": "float",
+              "value": 0.0
+            },
+            "yDesc": {
+              "kind": "tensor4d",
+              "array": "y",
+              "format": "CUDNN_TENSOR_NCHW",
+              "data_type": "CUDNN_DATA_FLOAT",
+              "dimensions": [
+                1,
+                1,
+                1,
+                "n"
+              ]
+            },
+            "y": {
+              "kind": "array",
+              "name": "y"
+            },
+            "dyDesc": {
+              "kind": "tensor4d",
+              "array": "dy",
+              "format": "CUDNN_TENSOR_NCHW",
+              "data_type": "CUDNN_DATA_FLOAT",
+              "dimensions": [
+                1,
+                1,
+                1,
+                "n"
+              ]
+            },
+            "dy": {
+              "kind": "array",
+              "name": "dy"
+            },
+            "dxDesc": {
+              "kind": "tensor4d",
+              "array": "dx",
+              "format": "CUDNN_TENSOR_NCHW",
+              "data_type": "CUDNN_DATA_FLOAT",
+              "dimensions": [
+                1,
+                1,
+                1,
+                "n"
+              ]
+            },
+            "dx": {
+              "kind": "array",
+              "name": "dx"
+            }
+          }
+        }
+      },
+      "assumptions": [
+        "n > 0",
+        "contiguous FP32 grad, output and result",
+        "all arrays nonoverlapping"
+      ],
+      "deviations": [],
+      "source_lines": "SoftMaxKernel.cpp:208-286; scalar_t=float, outer_size=inner_size=1"
+    }
+  ]
+}

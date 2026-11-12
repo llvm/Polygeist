@@ -49,3 +49,6 @@ The histogram CDF recurrence is still represented by a parallel
 `linalg.generic`, which is not a valid prefix-sum lowering.  Histogram
 equalization must not be counted as an automatic PVA match until that semantic
 issue is corrected and end-to-end output comparison passes.
+
+The typed image_processing.c fixtures and their numerical contracts are described in
+scripts/correctness/run_pva_all_raised_dtypes.sh and run_pva_raised_numerical_contracts.sh.

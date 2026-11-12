@@ -94,7 +94,8 @@ def capabilities(rows, backend, disabled=(), only=None):
 
 def semantic_inputs():
     paths = [HERE / name for name in (
-        'spec_match.py', 'kernel_match.py', 'eqsat_ablation.py')]
+        'spec_match.py', 'kernel_match.py', 'eqsat_ablation.py',
+        'polygeist_build.sh', 'build_jetson.sh')]
     paths += sorted((HERE / 'lib_v2').glob('*.py'))
     paths += sorted((HERE / 'region_match').glob('*.py'))
     paths += [MATCH.SPEC_DIR / 'import_manifest.json']
@@ -103,7 +104,9 @@ def semantic_inputs():
         'polygeist_cublas_rt.h', 'polygeist_cublas_rt_cuda.c',
         'polygeist_v2_rt_pva.c', 'polygeist_pva_image_rt.c',
         'polygeist_cub_scan_rt.cu', 'polygeist_cuda_graph_rt.h',
-        'polygeist_v2_matrix_layout.inc')]
+        'polygeist_v2_matrix_layout.inc', 'polygeist_v2_memref_copy.inc',
+        'polygeist_pointwise_partition.h', 'polygeist_pointwise_rounding.inc',
+        'polygeist_pointwise_division.inc', 'polygeist_thrust_rt.cu')]
     return PROVENANCE.record([path for path in paths if path.is_file()])
 
 
@@ -188,11 +191,16 @@ def normalize_matched_application(text, library, normalize):
 
 
 def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
-          region_budget=60, region=True, normalize_parallel=False, max_parallel_dims=0, max_operand_rank=0):
+          region_budget=60, region=True, normalize_parallel=False, max_parallel_dims=0, max_operand_rank=0,
+          fuse_initializers=False):
     if not isinstance(max_parallel_dims, int) or max_parallel_dims < 0:
         raise SpecificationError('parallel rank limit must be a nonnegative integer')
     if not isinstance(max_operand_rank, int) or max_operand_rank < 0:
         raise SpecificationError('operand rank limit must be a nonnegative integer')
+    if not isinstance(fuse_initializers, bool):
+        raise SpecificationError('initializer fusion must be a boolean')
+    if fuse_initializers and not (max_parallel_dims or max_operand_rank):
+        raise SpecificationError('initializer fusion requires a parallel tiling rank limit')
     normalize_parallel = normalize_parallel or max_parallel_dims > 0 or max_operand_rank > 0
     if semantic_configuration()['numeric_model'] not in {'strict', 'relaxed'}:
         raise SpecificationError('unknown numerical model')
@@ -217,6 +225,8 @@ def match(text, *, backend='cuda', disabled=(), only=None, max_launches=None,
                 rank_options.append('max-parallel-dims=' + str(max_parallel_dims))
             if max_operand_rank:
                 rank_options.append('max-operand-rank=' + str(max_operand_rank))
+            if fuse_initializers:
+                rank_options.append('fuse-initializers=true')
             if rank_options:
                 option += '=' + ' '.join(rank_options)
             baseline, baseline_matches, baseline_diagnostics = MATCH.run(
@@ -314,7 +324,7 @@ def verify(text, proof, *, backend=None):
     if normalization and (not re.fullmatch(
                           r'--normalize-linalg-matching-views(?:=(?:'
                           r'max-parallel-dims=[1-9][0-9]*(?: max-operand-rank=[1-9][0-9]*)?'
-                          r'|max-operand-rank=[1-9][0-9]*))?',
+                          r'|max-operand-rank=[1-9][0-9]*)(?: fuse-initializers=true)?)?',
                           str(normalization.get('pass_name', ''))) or
                           normalization.get('cleanup') != ['--cse'] or
                           normalization.get('compiler_sha256') !=
@@ -347,6 +357,8 @@ def main(argv=None):
                    help='optional upstream tiling candidate with this parallel rank limit')
     p.add_argument('--max-operand-rank', type=int, default=0,
                    help='optional upstream slicing candidate with this operand rank limit')
+    p.add_argument('--fuse-initializers', action='store_true',
+                   help='use upstream scalar-initializer fusion inside parallel tiles')
     p.add_argument('--normalize-parallel-dims', action='store_true',
                    help='produce a dimension-collapse candidate using the same pass on both sides')
     p.add_argument('--numeric-model', choices=['strict', 'relaxed'],
@@ -370,7 +382,8 @@ def main(argv=None):
                               region=not args.no_region_match,
                               normalize_parallel=args.normalize_parallel_dims,
                               max_parallel_dims=args.max_parallel_dims,
-                              max_operand_rank=args.max_operand_rank)
+                              max_operand_rank=args.max_operand_rank,
+                              fuse_initializers=args.fuse_initializers)
         if args.report:
             args.report.write_text(json.dumps(proof, indent=2) + '\n')
         if not args.dry_run:

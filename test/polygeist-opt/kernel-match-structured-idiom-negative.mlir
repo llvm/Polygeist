@@ -56,4 +56,6 @@ module {
 // CHECK-NOT: extracted=affine_stencil
 // CHECK-NOT: kind=indirect_histogram
 // CHECK-NOT: kind=csr_spmv
-// CHECK: total: 0 matched / 1 bodies
+// The first function is a valid pointwise sum despite not being a stencil.
+// CHECK: match{{.*}}cudnnPointwiseGraph_f32
+// CHECK: total: 1 matched / 1 bodies

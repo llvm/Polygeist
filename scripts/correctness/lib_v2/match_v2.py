@@ -153,9 +153,10 @@ class Library:
 # ---------------------------------------------------------------------------
 
 class Env:
-    __slots__ = ("vals", "opmap", "gens", "consumed")
+    __slots__ = ("vals", "opmap", "gens", "consumed", "views")
 
     def __init__(self):
+        self.views: dict = {}     # proved logical slices of intermediate tensors
         self.vals: dict = {}       # spec value name -> binding tuple
         self.opmap: dict = {}      # spec op idx -> app op idx
         self.gens: dict = {}       # spec generic idx -> (pi, rho, sigma, app idx)
@@ -163,6 +164,7 @@ class Env:
 
     def copy(self) -> "Env":
         e = Env()
+        e.views = dict(self.views)
         e.vals = dict(self.vals)
         e.opmap = dict(self.opmap)
         e.gens = dict(self.gens)
@@ -517,12 +519,12 @@ class Matcher:
         return pairs
 
     def compare_reduced(self, st: Trace, at: Trace, sigma):
-        """Spec input of rank k vs application input of rank K > k whose
+        """Reference tensor of rank k vs application tensor of rank K > k whose
         K - k extra access components are loop invariant.  The spec parameter
-        is then bound to the rank-reducing slice of the application array at
-        those fixed coordinates.  Returns (pairs, slice-binding) or None."""
+        is bound to a rank-reducing slice; intermediate producers must also prove
+        their computations at those coordinates. Returns pairs and a slice binding."""
         k, K = len(st.access), len(at.access)
-        if K <= k or not isinstance(st.base, str) or st.base not in self.spec.params:
+        if K <= k or not isinstance(st.base, str):
             return None
         fixed = [j for j, pa in enumerate(at.access)
                  if all(a[0] != "d" for mono in pa for a in mono)]
@@ -593,9 +595,18 @@ class Matcher:
             aty = self.atype(base)
             if aty is None or not aty.startswith("tensor<"):
                 return
-            e = self.bind(env, sname, ("slice", base, fixed, offs, rank))
-            if e is not None:
-                yield from self.match_seq(rest, e, ctx)
+            binding = ("slice", base, fixed, offs, rank)
+            if sname in env.views and not same_binding(env.views[sname], binding):
+                return
+            e = env.copy()
+            e.views[sname] = binding
+            if sname in self.spec.params:
+                e = self.bind(e, sname, binding)
+                if e is not None:
+                    yield from self.match_seq(rest, e, ctx)
+            else:
+                for proved in self.match_value(sname, base, e):
+                    yield from self.match_seq(rest, proved, ctx)
 
     def match_unit(self, sname: str, env: Env) -> Optional[Env]:
         d = self.sdef(sname)
@@ -705,6 +716,36 @@ class Matcher:
                     e.opmap[sop.idx] = akey[1] if akey[0] == "op" else -1
                     yield e
             return
+        # A scalar read from a proved rank-reduced input must retain every
+        # fixed coordinate and every remaining index. No tensor element type
+        # conversion or shifted-row equivalence is implied by the view.
+        if (sop.name == "tensor.extract" and aop is not None and
+                aop.name == sop.name and sop.operands and aop.operands):
+            binding = env.vals.get(sop.operands[0]) or env.views.get(sop.operands[0])
+            if binding and binding[0] == "slice":
+                _, base, fixed, offsets, rank = binding
+                if self.akey(aop.operands[0], aop) != base:
+                    return
+                indices = aop.operands[1:]
+                if len(indices) != rank or sop.result_types != aop.result_types:
+                    return
+                for dim, offset in zip(fixed, offsets):
+                    key = self.akey(indices[dim], aop)
+                    if offset[0] == "key":
+                        if key != offset[1]:
+                            return
+                    elif (key is None or key[0] != "op" or
+                          self.integer_constant(self.A, self.A.ops[key[1]]) != offset[1]):
+                        return
+                kept = [v for i, v in enumerate(indices) if i not in fixed]
+                if len(kept) != len(sop.operands) - 1:
+                    return
+                e = env.copy()
+                e.opmap[sop.idx] = aop.idx
+                pairs = [("val", sv, self.akey(av, aop))
+                         for sv, av in zip(sop.operands[1:], kept)]
+                yield from self.match_seq(pairs, e, aop)
+                return
         # generic structural op equality
         if aop is None or aop.name != sop.name or sk != akey[2]:
             return
@@ -820,7 +861,7 @@ class Matcher:
                     for i in range(ni + no):
                         st, at = s_tr[i], a_tr[amap[i]]
                         r = self.compare_access(st.access, at.access, sigma)
-                        if r is None and i < ni:
+                        if r is None:
                             r = self.compare_reduced(st, at, sigma)
                             if r is not None:
                                 r, slice_base[i] = r
@@ -831,6 +872,10 @@ class Matcher:
                     if not ok:
                         continue
                     self.note(aop, "access")
+                    # Bind formal slices before scalar captures read them.
+                    pairs = [("slice", s_tr[i].base, binding)
+                             for i, binding in slice_base.items()
+                             if s_tr[i].base in self.spec.params] + pairs
                     # iteration extents
                     s_ext, a_ext = {}, {}
                     for i in range(ni + no):
@@ -927,8 +972,26 @@ class Matcher:
         # producer that does not read its initial output need not bind that
         # parameter to an unrelated temporary tensor. Computed bases retain
         # the existing producer-first traversal.
-        seeds = (self.match_value(s_base, self.akey(a_base, aop), e0)
-                 if s_base in self.spec.params else iter([e0]))
+        slice_binding = None
+        try:
+            dims = ML.identity_dims(len(s_sizes))
+            sa = ML.map_apply(s_map, dims, [{(("v", v),): 1} for v in s_syms])
+            aa = ML.map_apply(a_map, dims, [{(("v", self.akey(v, aop)),): 1} for v in a_syms])
+            reduced = self.compare_reduced(Trace(s_base, sa, {}, []),
+                Trace(self.akey(a_base, aop), aa, {}, []), tuple(range(len(dims))))
+            if reduced is not None:
+                initial_pairs, slice_binding = reduced
+                result_view = ("slice", ("op", aop.idx, 0), *slice_binding[2:])
+                if (sop.results[0] in e0.views and
+                        not same_binding(e0.views[sop.results[0]], result_view)):
+                    return
+                e0.views[sop.results[0]] = result_view
+                seeds = self.match_seq(initial_pairs + [("slice", s_base, slice_binding)], e0, aop)
+            else:
+                seeds = (self.match_value(s_base, self.akey(a_base, aop), e0)
+                         if s_base in self.spec.params else iter([e0]))
+        except ML.AffineParseError:
+            return
         candidates = (e1 for seed in seeds
                       for e1 in self.match_value(s_res, self.akey(a_res, aop), seed))
         for e1 in candidates:
@@ -948,6 +1011,10 @@ class Matcher:
             except ML.AffineParseError:
                 continue
             pairs = self.compare_access(s_acc, a_acc, sigma)
+            if pairs is None and slice_binding is not None:
+                fixed = slice_binding[2]
+                pairs = self.compare_access(s_acc,
+                    [v for i, v in enumerate(a_acc) if i not in fixed], sigma)
             if pairs is None:
                 continue
             # sizes: result dim j <-> iteration dim
@@ -961,7 +1028,8 @@ class Matcher:
                 pairs.append(("val", s_sizes[j], self.akey(a_sizes[a_rd.index(sigma[d])], aop)))
             if not ok:
                 continue
-            pairs.append(("val", s_base, self.akey(a_base, aop)))
+            pairs.append(("slice", s_base, slice_binding) if slice_binding is not None
+                         else ("val", s_base, self.akey(a_base, aop)))
             yield from self.match_seq(pairs, e1, aop)
 
     # -- driver ---------------------------------------------------------------
@@ -1013,7 +1081,19 @@ class Matcher:
         if any(self.A.ops[g].block != root.block for g in gens):
             return {"spec": spec.name, "root": root.idx, "rejected": "generics in different blocks"}
         consumed = set(env.consumed) | set(v for v in env.opmap.values() if v >= 0)
-        return {"spec": spec.name, "order": spec.order, "root": root.idx, "binds": binds,
+        result_view = env.views.get(spec.yields[0])
+        result_type = self.L.value_type(spec.yields[0], spec.yield_op)
+        if result_view is None and not types_compatible(result_type, root.result_types[0]):
+            return {"spec": spec.name, "root": root.idx,
+                    "rejected": "result rank/type needs a proved destination slice"}
+        if result_view is not None:
+            outputs = spec.meta.get("outputs", [])
+            destination = binds.get("%" + outputs[0]) if len(outputs) == 1 else None
+            if (destination is None or destination[0] != "slice" or
+                    destination[2:] != result_view[2:]):
+                return {"spec": spec.name, "root": root.idx,
+                        "rejected": "returned slice differs from output destination"}
+        return {"result_view": result_view, "spec": spec.name, "order": spec.order, "root": root.idx, "binds": binds,
                 "consumed": consumed, "generics": sorted(gens),
                 "gens": {self.L.ops[k].results[0]: {"pi": v[0], "rho": v[1], "sigma": v[2],
                                                     "app": self.A.ops[v[3]].results[0]}
@@ -1201,6 +1281,7 @@ class Rewriter:
         pre, ops, tys, uses = [], [], [], []
         c1 = None
         rendered: dict[str, str] = {}
+        slices: dict = {}
         args = list(spec.func.args)
         # leading dimensions refer to their (rendered) array: render them last
         order = [i for i, (p, _) in enumerate(args) if m["binds"][p][0] not in ("ld", "ld_slice")] + \
@@ -1275,6 +1356,7 @@ class Rewriter:
                 nm = self.fresh("slice")
                 pre.append(f"{indent}{nm} = tensor.extract_slice {src}[{', '.join(offs_t)}] "
                            f"[{', '.join(sizes_t)}] [{', '.join(strides_t)}] : {sty} to {pty}")
+                slices[p] = (src, sty, offs_t, sizes_t, strides_t)
                 uses.append(src)
             elif kind == "ld":
                 arr, aty = self.M.aname(b[1]), self.M.atype(b[1])
@@ -1299,7 +1381,15 @@ class Rewriter:
         line = (f"{indent}{launch_res} = kernel.launch @{spec.name}({', '.join(ops)}) : "
                 f"({', '.join(tys)}) -> {rty}")
         lines = pre + [line]
-        if launch_res != res_name:
+        if m.get("result_view") is not None:
+            output = "%" + spec.meta["outputs"][0]
+            src, sty, offsets, sizes, strides = slices[output]
+            if sty != aty:
+                raise RuntimeError("returned slice parent type differs from destination")
+            lines.append(f"{indent}{res_name} = tensor.insert_slice {launch_res} into {src}"
+                         f"[{', '.join(offsets)}] [{', '.join(sizes)}] [{', '.join(strides)}]"
+                         f" : {rty} into {aty}")
+        elif launch_res != res_name:
             lines.append(f"{indent}{res_name} = tensor.cast {launch_res} : {rty} to {aty}")
         return "\n".join(lines) + "\n", uses
 

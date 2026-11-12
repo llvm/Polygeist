@@ -389,6 +389,9 @@ fi
 if [ "${POLYGEIST_MATCH_MAX_OPERAND_RANK:-0}" != 0 ]; then
   MATCHER_ARGS+=(--max-operand-rank "$POLYGEIST_MATCH_MAX_OPERAND_RANK")
 fi
+if [ "${POLYGEIST_MATCH_FUSE_INITIALIZERS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--fuse-initializers)
+fi
 if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != 0 ]; then
   MATCHER_ARGS+=(--max-launches 0)
 fi
@@ -414,8 +417,14 @@ fi
 
 # ─── Steps 4-5: mechanical lowering of specification bindings ──────────
 echo "  [4-5/9] imported specification ABI -> external library calls"
+ABI_DEALLOC_ARGS=()
+if [ "$WHOLE_PROGRAM" -ne 0 ] && [ "$TARGET" = host ] && \
+   [ "${POLYGEIST_BUFFER_DEALLOC:-auto}" != 0 ]; then
+  ABI_DEALLOC_ARGS+=(--deallocate)
+fi
 if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
-  --backend "$ABI_BACKEND" -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
+  --backend "$ABI_BACKEND" "${ABI_DEALLOC_ARGS[@]}" \
+  -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
   if grep -q 'kernel.launch' "$SEMANTIC_INPUT" || [ ! -f "$WORK/affine.mlir" ]; then
     cat "$WORK/abi.err" >&2; exit 1
   fi
@@ -433,11 +442,13 @@ if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
   SEMANTIC_INPUT=$WORK/matched.mlir
   $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
   $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
-    --backend "$ABI_BACKEND" -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
+    --backend "$ABI_BACKEND" "${ABI_DEALLOC_ARGS[@]}" \
+    -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
   echo "         retained original affine IR after residual view-lowering failure (zero matches)"
 fi
 cat "$WORK/abi.err"
-N_CALL=$(grep -cE 'call @polygeist_v2_' "$WORK/abi.mlir" || true)
+# Memory-layout/copy helpers are runtime support, not library matches.
+N_CALL=$($PYTHON -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("launches", [])))' "$WORK/abi.json")
 echo "         emitted $N_CALL external-library runtime calls"
 
 # ─── Step 6: lower to LLVM dialect + translate to LLVM IR ───────────────
@@ -508,7 +519,10 @@ sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restr
 # runtime may still use registered host buffers after the function returns,
 # so the GPU target keeps the old behaviour. POLYGEIST_BUFFER_DEALLOC=0|1
 # overrides; if the pass rejects the module the build continues without it.
+# Whole host programs resolve lifetimes before ABI lowering above, while
+# library calls still expose memref uses to allocation-based deallocation.
 BUFFER_DEALLOC=${POLYGEIST_BUFFER_DEALLOC:-auto}
+if [ "${#ABI_DEALLOC_ARGS[@]}" -ne 0 ]; then BUFFER_DEALLOC=0; fi
 if [ "$BUFFER_DEALLOC" = auto ]; then
   if [ "$TARGET" = jetson ]; then BUFFER_DEALLOC=0; else BUFFER_DEALLOC=1; fi
 fi
@@ -531,6 +545,14 @@ if [ "$BUFFER_DEALLOC" != 0 ]; then
   else
     echo "  WARNING: buffer deallocation failed, temporaries will leak; see $WORK/dealloc.err" >&2
   fi
+fi
+# Keep exported ABI IR available to higher-level GPU outlining/residency.
+# Only the final host lowering needs a runtime copy for device-pointer inputs.
+if [ "$ABI_BACKEND" = cuda ]; then
+  $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$WORK/abi_canon.mlir" \
+    --backend cuda --memory-copies-only -o "$WORK/abi_memory.mlir" \
+    2>"$WORK/memory-copy.err"
+  mv "$WORK/abi_memory.mlir" "$WORK/abi_canon.mlir"
 fi
 C_STYLE_ABI=0
 GPU_TO_LLVM_ARGS=()
@@ -756,7 +778,8 @@ else
 fi
 
 SPEC_RUNTIME_OBJECTS=()
-if [ "$N_CALL" -gt 0 ]; then
+N_RUNTIME_CALL=$(grep -cE 'call @polygeist_v2_' "$WORK/abi_canon.mlir" || true)
+if [ "$N_RUNTIME_CALL" -gt 0 ]; then
   $PYTHON "$SCRIPTS/lib_v2/gen_v2_runtime.py" --output-dir "$WORK/spec_runtime" \
     >"$WORK/spec_runtime.log" 2>&1
   if [ "$ABI_BACKEND" = pva ]; then
@@ -771,10 +794,25 @@ if [ "$N_CALL" -gt 0 ]; then
     RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB -lcudnn -lcublas -lcusolver -lcudart $RT_LIBS"
   else
     $CC -O2 -ffunction-sections -fdata-sections \
+      -I"$REPO_ROOT/runtime" \
       -c "$WORK/spec_runtime/polygeist_v2_rt_cpu.c" -o "$WORK/spec_runtime.o"
     RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
   fi
   SPEC_RUNTIME_OBJECTS+=("$WORK/spec_runtime.o")
+fi
+
+# Pointwise DIV stages use the actual Thrust FP32 transform implementation.
+# Precise division and subnormal support are part of this backend's contract.
+if [ "$TARGET" = jetson ] && [ "$ABI_BACKEND" = cuda ]; then
+  "${POLYGEIST_NVCC:-/usr/local/cuda-12.6/bin/nvcc}" -O2 -std=c++17 \
+    -arch="${POLYGEIST_GPU_ARCH:-sm_87}" \
+    -ccbin="${POLYGEIST_CROSS_CXX:-aarch64-linux-gnu-g++}" -target-dir sbsa-linux \
+    --fmad=false --ftz=false --prec-div=true \
+    -Xcompiler=-fPIC,-ffunction-sections,-fdata-sections \
+    -I"$REPO_ROOT/third_party/cuda_headers/cuda_cccl/include/cccl" -I"$RT" \
+    -c "$RT/polygeist_thrust_rt.cu" -o "$WORK/thrust_runtime.o"
+  SPEC_RUNTIME_OBJECTS+=("$WORK/thrust_runtime.o")
+  RT_LIBS="-lstdc++ $RT_LIBS"
 fi
 
 # CUB is a template library; its fixed C ABI is compiled with the pinned public

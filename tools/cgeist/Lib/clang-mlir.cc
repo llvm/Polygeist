@@ -1545,14 +1545,17 @@ mlir::Value add(MLIRScanner &sc, mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create<AddIOp>(loc, lhs, rhs);
 }
 
-mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
+mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val,
+                                     bool isUnsigned) {
   assert(val && "Expect non-null value");
 
   if (auto op = val.getDefiningOp<ConstantIntOp>())
     return getConstantIndex(op.value());
 
-  return builder.create<arith::IndexCastOp>(
-      loc, mlir::IndexType::get(val.getContext()), val);
+  auto indexType = mlir::IndexType::get(val.getContext());
+  if (isUnsigned)
+    return builder.create<arith::IndexCastUIOp>(loc, indexType, val);
+  return builder.create<arith::IndexCastOp>(loc, indexType, val);
 }
 
 mlir::Value MLIRScanner::castScalarToBool(mlir::Location loc,
@@ -1820,7 +1823,9 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   auto rhs = Visit(expr->getRHS()).getValue(loc, builder);
   // Check the RHS has been successfully emitted
   assert(rhs);
-  auto idx = castToIndex(getMLIRLocation(expr->getRBracketLoc()), rhs);
+  auto rhsType = expr->getRHS()->getType().getCanonicalType();
+  auto idx = castToIndex(getMLIRLocation(expr->getRBracketLoc()), rhs,
+                         rhsType->isUnsignedIntegerType());
   if (isa<clang::VectorType>(
           expr->getLHS()->getType()->getUnqualifiedDesugaredType())) {
     assert(moo.isReference);
@@ -4272,6 +4277,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     assert(scalar);
     auto postTy = getMLIRType(E->getType()).cast<mlir::IntegerType>();
+    bool signedType = true;
+    auto sourceType = E->getSubExpr()->getType().getCanonicalType();
+    if (auto bit = dyn_cast<clang::BuiltinType>(&*sourceType)) {
+      if (bit->isUnsignedInteger())
+        signedType = false;
+      if (bit->isSignedInteger())
+        signedType = true;
+    }
     if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
       return ValueCategory(
           builder.create<mlir::LLVM::PtrToIntOp>(loc, postTy, scalar),
@@ -4279,22 +4292,17 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     if (scalar.getType().isa<mlir::IndexType>() ||
         postTy.isa<mlir::IndexType>()) {
-      return ValueCategory(builder.create<IndexCastOp>(loc, postTy, scalar),
-                           false);
+      if (signedType)
+        return ValueCategory(builder.create<IndexCastOp>(loc, postTy, scalar),
+                             false);
+      return ValueCategory(
+          builder.create<arith::IndexCastUIOp>(loc, postTy, scalar), false);
     }
     if (!scalar.getType().isa<mlir::IntegerType>()) {
       E->dump();
       llvm::errs() << " scalar: " << scalar << "\n";
     }
     auto prevTy = scalar.getType().cast<mlir::IntegerType>();
-    bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
-      if (bit->isUnsignedInteger())
-        signedType = false;
-      if (bit->isSignedInteger())
-        signedType = true;
-    }
-
     if (prevTy == postTy)
       return ValueCategory(scalar, /*isReference*/ false);
     if (prevTy.getWidth() < postTy.getWidth()) {

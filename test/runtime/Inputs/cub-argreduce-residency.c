@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-typedef int (*reduce_t)(int32_t,int32_t,int32_t,const float*,int32_t*,cudaStream_t);
+#include <string.h>
+typedef int (*reduce_t)(int32_t,int32_t,int32_t,const float*,void*,cudaStream_t);
 #define CUDA(x) do { if((x)!=cudaSuccess) return 2; } while(0)
 int main(int argc,char **argv) {
   if(argc!=2)return 2;
@@ -33,12 +34,13 @@ int main(int argc,char **argv) {
       x[r*cols+c]=v;
     }
     CUDA(cudaMemcpy(dx+3,x,count*sizeof(float),cudaMemcpyHostToDevice));
-    for(int op=0;op<2;++op) {
+    for(int op=0;op<4;++op) {
       for(int r=0;r<rows;++r) {
         expected[r]=0;float best=x[r*cols];
-        for(int c=1;c<cols;++c)if(op?x[r*cols+c]<best:x[r*cols+c]>best) {
+        for(int c=1;c<cols;++c)if((op&1)?x[r*cols+c]<best:x[r*cols+c]>best) {
           best=x[r*cols+c];expected[r]=c;
         }
+        if(op>=2)memcpy(&expected[r],&best,sizeof(best));
       }
       for(int mask=0;mask<4;++mask) {
         int rc=reduce(op,rows,cols,(mask&1)?dx+3:x,(mask&2)?dout+3:got,0);
@@ -52,6 +54,30 @@ int main(int argc,char **argv) {
     }
     CUDA(cudaFree(dx));CUDA(cudaFree(dout));free(x);
   }
-  printf("PASS CUB arg reduction residency: %d cases\n",cases);
+  typedef int (*prefix_t)(int32_t,const int32_t*,int32_t*,cudaStream_t);
+  prefix_t prefix=(prefix_t)dlsym(lib,"polygeist_cub_exclusive_sum1d_i32_cuda");
+  if(!prefix)return 2;
+  const int lengths[]={0,1,7,64};
+  int prefix_cases=0;
+  for(int k=0;k<4;++k) {
+    int n=lengths[k];int32_t x[64],expected[65],got[65],*dx,*dy;
+    expected[0]=0;
+    for(int i=0;i<n;++i){x[i]=i%5-2;expected[i+1]=expected[i]+x[i];}
+    CUDA(cudaMalloc((void**)&dx,67*sizeof(int32_t)));
+    CUDA(cudaMalloc((void**)&dy,68*sizeof(int32_t)));
+    if(n)CUDA(cudaMemcpy(dx+3,x,n*sizeof(int32_t),cudaMemcpyHostToDevice));
+    for(int mask=0;mask<4;++mask) {
+      int rc=prefix(n,(mask&1)?dx+3:x,(mask&2)?dy+3:got,0);
+      if(rc)return 1;
+      if(mask&2)CUDA(cudaMemcpy(got,dy+3,(n+1)*sizeof(int32_t),cudaMemcpyDeviceToHost));
+      for(int i=0;i<=n;++i)if(got[i]!=expected[i]) {
+        fprintf(stderr,"prefix mismatch n=%d mask=%d index=%d\n",n,mask,i);return 1;
+      }
+      ++prefix_cases;
+    }
+    CUDA(cudaFree(dx));CUDA(cudaFree(dy));
+  }
+  printf("PASS CUB prefix residency: %d cases\n",prefix_cases);
+  printf("PASS CUB index/value reduction residency: %d cases\n",cases);
   return 0;
 }

@@ -14,8 +14,9 @@ static void require_cuda(cudaError_t status, const char *operation) {
   }
 }
 
-extern "C" void polygeist_cub_scan_inclusive_seed_f32(
-    int32_t n, float seed, const float *input, float *output) {
+template<class Op>
+static void cub_scan_inclusive_seed(
+    int32_t n, float seed, const float *input, float *output, Op op) {
   cudaStream_t stream = (cudaStream_t)polygeist_cuda_graph_stream();
   int device;
   require_cuda(cudaGetDevice(&device), "device");
@@ -26,7 +27,7 @@ extern "C" void polygeist_cub_scan_inclusive_seed_f32(
   if (!scratch) { scratch = new Scratch{device, nullptr, 0, head}; head = scratch; }
   size_t bytes = 0;
   require_cuda(cub::DeviceScan::InclusiveScanInit(nullptr, bytes, input, output,
-      cuda::std::plus<float>{}, seed, n, stream), "scratch query");
+      op, seed, n, stream), "scratch query");
   if (bytes > scratch->capacity) {
     // This is reached only when reserving a larger shape, before replay/capture.
     require_cuda(cudaStreamSynchronize(stream), "scratch synchronization");
@@ -36,10 +37,19 @@ extern "C" void polygeist_cub_scan_inclusive_seed_f32(
     scratch->capacity = bytes;
   }
   require_cuda(cub::DeviceScan::InclusiveScanInit(scratch->pointer, bytes, input,
-      output, cuda::std::plus<float>{}, seed, n, stream), "inclusive scan");
+      output, op, seed, n, stream), "inclusive scan");
   const char *trace = std::getenv("POLYGEIST_CUB_TRACE");
   if (trace && *trace && std::strcmp(trace, "0"))
     std::fprintf(stderr, "POLYGEIST_CUB_CALL entry=DeviceScanInclusiveScanInit n=%d\n", n);
+}
+
+extern "C" void polygeist_cub_scan_inclusive_seed_f32(
+    int32_t n, float seed, const float *input, float *output) {
+  cub_scan_inclusive_seed(n, seed, input, output, cuda::std::plus<float>{});
+}
+extern "C" void polygeist_cub_scan_product_seed_f32(
+    int32_t n, float seed, const float *input, float *output) {
+  cub_scan_inclusive_seed(n, seed, input, output, cuda::std::multiplies<float>{});
 }
 
 // Fixed typed ABI for CUB DeviceReduce. The generated adapter marshals buffers.

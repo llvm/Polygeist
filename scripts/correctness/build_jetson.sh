@@ -380,6 +380,14 @@ elif [ -n "${POLYGEIST_CUTENSOR_ROOT:-}" ]; then
 fi
 $AARCH64_CC -O3 -I$CUDA/include -I$CUDNN_INC "${RT_EXTRA_CFLAGS[@]}" \
             -c $RT/polygeist_cublas_rt_cuda.c -o $WORK/rt.o
+# The CUDA runtime's FP32 DIV stages require the real Thrust template backend.
+"${POLYGEIST_NVCC:-/usr/local/cuda-12.6/bin/nvcc}" -O2 -std=c++17 \
+  -arch="${POLYGEIST_GPU_ARCH:-sm_87}" \
+  -ccbin="${POLYGEIST_CROSS_CXX:-aarch64-linux-gnu-g++}" -target-dir sbsa-linux \
+  --fmad=false --ftz=false --prec-div=true \
+  -Xcompiler=-fPIC,-ffunction-sections,-fdata-sections \
+  -I"$RT/../third_party/cuda_headers/cuda_cccl/include/cccl" -I"$RT" \
+  -c "$RT/polygeist_thrust_rt.cu" -o "$WORK/thrust_runtime.o"
 HARNESS_OBJS=()
 for item in "${HARNESS[@]}"; do
   case "$item" in
@@ -405,12 +413,12 @@ echo "  [6/6] link against aarch64 cuBLAS + cudart stubs"
 # libcublas). Both are aarch64 ELF; the actual .so files resolve against
 # JetPack's installed CUDA at runtime via RUNPATH.
 $AARCH64_CC -O2 \
-    $WORK/kernel.o $WORK/rt.o "${HARNESS_OBJS[@]}" \
+    $WORK/kernel.o $WORK/rt.o $WORK/thrust_runtime.o "${HARNESS_OBJS[@]}" \
     -L$CUDA/lib -L$CUDA/lib/stubs -L$CUDNN_LIB \
     "${RT_EXTRA_LIBS[@]}" \
     "${ACCEL_LIBS[@]}" -lcudart \
     "${RT_LINK_FLAGS[@]}" \
-    -lm -lpthread -ldl \
+    -lm -lpthread -ldl -lstdc++ \
     '-Wl,-rpath,$ORIGIN:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu' \
     -o "$OUT_EXE"
 

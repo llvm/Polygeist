@@ -458,7 +458,7 @@ class AbiParam:
     enum_type: Optional[str] = None
     elem: Optional[str] = None  # array element C type
     const: bool = False
-    rank: Optional[int] = None  # array rank (consistent across specs)
+    rank: Optional[int] = None  # common array rank; None for a validated flat-pointer rank family
     layout_of: Optional[str] = None   # int param: layout param of this array
     layout: Optional[str] = None      # array param: its layout int param
     written: bool = False
@@ -631,7 +631,7 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
     tparams = proto.params[1:]
     # kind per target param, consistent across specs
     kinds: dict[str, str] = {}
-    ranks: dict[str, int] = {}
+    ranks: dict[str, set[int]] = {}
     written: dict[str, bool] = {}
     managed_names: list[str] = []
     returns = any(sa.ret != "void" for sa in sas)
@@ -652,9 +652,7 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
                 if a.kind in ("array", "scalar") and a.ctype != p.base:
                     raise AbiError(f"{sa.spec}.{p.name}: reference {a.ctype} != vendor {p.base}")
                 if a.kind == "array":
-                    ranks.setdefault(p.name, a.rank)
-                    if ranks[p.name] != a.rank:
-                        raise AbiError(f"param {p.name}: inconsistent array rank across specs")
+                    ranks.setdefault(p.name, set()).add(a.rank)
                     if b[0] == "arg" and a.intent in ("out", "inout"):
                         written[p.name] = True
                     if b[0] == "alias" and a.intent in ("out", "inout"):
@@ -672,6 +670,16 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
         else:
             kinds[p.name] = seen.pop()
     links = _layout_links(tparams, kinds)
+    # Ordinary BLAS pointers are flat. A vector-shaped API specialization and
+    # a matrix-shaped reference can share the same wrapper: lowering obtains
+    # each leading dimension from that reference's actual memref descriptor.
+    # Keep this limited to the rank-1/rank-2 layout contract implemented there.
+    for name, variants in ranks.items():
+        if len(variants) > 1:
+            if variants != {1, 2}:
+                raise AbiError(f"param {name}: unsupported array rank family")
+            if name not in links:
+                raise AbiError(f"param {name}: mixed array ranks require a layout parameter")
     # cross-check rank-2 layout links against the spec VLA declarations
     for sa in sas:
         for arr, ld in links.items():
@@ -695,7 +703,7 @@ def _build_call(call: str, sas: list[SpecAbi]) -> CallAbi:
         if k == "array":
             ap.elem = p.base
             ap.const = p.ctype.startswith("const")
-            ap.rank = ranks[p.name]
+            ap.rank = next(iter(ranks[p.name])) if len(ranks[p.name]) == 1 else None
             ap.layout = links.get(p.name)
             ap.written = written.get(p.name, False)
         if k == "int":

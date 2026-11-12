@@ -154,6 +154,9 @@ static PolygeistCuGetErrorStringFn g_cu_get_error_string;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
 static int            g_initialized = 0;
+// This runtime owns one stream and one set of library handles per process.
+// The owner remains fixed after destroy because other caches are process-lived.
+static int            g_runtime_device = -1;
 static int            g_atexit_registered = 0;
 static int            g_pipeline_depth = 0;
 static int            g_require_gpu_libraries = 0;
@@ -342,6 +345,8 @@ typedef struct {
   int64_t output_extents[64];
   int64_t output_strides[64];
   int32_t output_modes[64];
+  int device;
+  cutensorOperator_t unary_op;
   cutensorHandle_t handle;
   cutensorTensorDescriptor_t input_desc;
   cutensorTensorDescriptor_t output_desc;
@@ -1519,7 +1524,18 @@ static int make_i32_backend_tensor(
 }
 
 void polygeist_cublas_init(void) {
-  if (g_initialized) return;
+  int device = -1;
+  CUDA_CHECK(cudaGetDevice(&device));
+  if (g_runtime_device >= 0 && device != g_runtime_device) {
+    fprintf(stderr,
+            "polygeist runtime: CUDA device changed from %d to %d; "
+            "one CUDA device per process is supported\n",
+            g_runtime_device, device);
+    abort();
+  }
+  if (g_initialized)
+    return;
+  g_runtime_device = device;
   CUDA_CHECK(cudaStreamCreate(&g_stream));
   CUBLAS_CHECK(cublasCreate(&g_handle));
   CUBLAS_CHECK(cublasSetStream(g_handle, g_stream));
@@ -1544,6 +1560,8 @@ void polygeist_cublas_destroy(void) {
     g_timing_file = NULL;
   }
   if (!g_initialized) return;
+  // Enforce the same owner before synchronizing or releasing cached plans.
+  polygeist_cublas_init();
   CUDA_CHECK(cudaStreamSynchronize(g_stream));
   destroy_cuda_graph_cache();
 #ifndef POLYGEIST_DISABLE_CUDNN_CLEANUP
@@ -9499,7 +9517,8 @@ void polygeist_rmsnorm_f32_epsilon(
   timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
 }
 
-#define POINTWISE_GRAPH_CACHE_CAP 8
+/* Preserve capacity for eight original graphs, each with up to 24 stages. */
+#define POINTWISE_GRAPH_CACHE_CAP (8 * 24)
 struct pointwise_graph_plan {
   int in_use;
   int unsupported;
@@ -9524,6 +9543,8 @@ struct pointwise_graph_plan {
   cudnnBackendDescriptor_t engine_cfg;
   cudnnBackendDescriptor_t plan;
   cudnnBackendDescriptor_t variant_pack;
+  cudnnBackendDescriptor_t direct_variant_pack;
+  void *direct_ptrs[5];
 };
 
 static struct pointwise_graph_plan
@@ -9604,6 +9625,7 @@ static cudnnBackendDescriptor_t pointwise_graph_ref_desc(
 }
 
 static void release_pointwise_graph_plan(struct pointwise_graph_plan *p) {
+  destroy_backend_desc(&p->direct_variant_pack);
   destroy_backend_desc(&p->variant_pack);
   destroy_backend_desc(&p->plan);
   destroy_backend_desc(&p->engine_cfg);
@@ -9984,6 +10006,70 @@ static void pointwise_graph_host_f32(
   }
 }
 
+static cudnnBackendDescriptor_t
+pointwise_direct_pack(struct pointwise_graph_plan *p, void *ptrs[5],
+                      const int32_t strides[4], int32_t out_stride,
+                      int graph_is_capturing) {
+  if (out_stride != 1 || (uintptr_t)ptrs[4] % 4)
+    return NULL;
+  for (int i = 0; i < 4; ++i)
+    if (p->used_inputs[i]) {
+      if (strides[i] != 1 || (uintptr_t)ptrs[i] % 4)
+        return NULL;
+      uintptr_t a = (uintptr_t)ptrs[i], b = (uintptr_t)ptrs[4];
+      if (a <= b ? b - a < p->bytes : a - b < p->bytes)
+        return NULL;
+    }
+  if (p->direct_variant_pack &&
+      memcmp(p->direct_ptrs, ptrs, sizeof(p->direct_ptrs)) == 0)
+    return p->direct_variant_pack;
+  // Reuse a warmed binding during capture, otherwise retain the already-built
+  // staged variant pack. Never mutate descriptor ownership during capture.
+  if (graph_is_capturing)
+    return NULL;
+  destroy_backend_desc(&p->direct_variant_pack);
+  cudnnStatus_t status = cudnnBackendCreateDescriptor(
+      CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &p->direct_variant_pack);
+  if (status != CUDNN_STATUS_SUCCESS)
+    return NULL;
+  int64_t uids[13];
+  void *values[13];
+  int nuid = 0;
+  for (int i = 0; i < 4; ++i)
+    if (p->used_inputs[i]) {
+      uids[nuid] = 100 + i;
+      values[nuid++] = ptrs[i];
+    }
+  for (int i = 0; i < 8; ++i)
+    if (p->used_scalars[i]) {
+      uids[nuid] = 200 + i;
+      values[nuid++] = &p->scalars[i];
+    }
+  uids[nuid] = 400;
+  values[nuid++] = ptrs[4];
+  if (!set_backend_attr(p->direct_variant_pack,
+                        CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+                        CUDNN_TYPE_VOID_PTR, nuid, values,
+                        "pointwise.direct.ptrs", &status) ||
+      !set_backend_attr(p->direct_variant_pack,
+                        CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, CUDNN_TYPE_INT64,
+                        nuid, uids, "pointwise.direct.uids", &status) ||
+      !set_backend_attr(p->direct_variant_pack,
+                        CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR,
+                        1, &p->workspace, "pointwise.direct.workspace",
+                        &status) ||
+      !finalize_backend_desc(p->direct_variant_pack,
+                             "pointwise.direct.finalize", &status)) {
+    destroy_backend_desc(&p->direct_variant_pack);
+    return NULL;
+  }
+  memcpy(p->direct_ptrs, ptrs, sizeof(p->direct_ptrs));
+  return p->direct_variant_pack;
+}
+
+#include "polygeist_pointwise_rounding.inc"
+#include "polygeist_pointwise_division.inc"
+
 void polygeist_cudnn_pointwise_graph_f32(
     int32_t N,
     int64_t graph0, int64_t graph1, int64_t graph2, int64_t graph3,
@@ -10025,6 +10111,13 @@ void polygeist_cudnn_pointwise_graph_f32(
             N, num_nodes, cudaGetErrorString(prior), (void *)Out, out_stride,
             graph_is_capturing ? " (capture: CUDA queries skipped)" : "");
   }
+  if (num_nodes == 1 && ((uint32_t)words[0] >> 24) == 4) {
+    pointwise_division_execute(N, (uint32_t)words[0], scalars, inputs, strides,
+                               out_stride, Out, graph_is_capturing);
+    return;
+  }
+  if (pointwise_rounding_execute(N, words, num_nodes, scalars, inputs, strides,
+                                 out_stride, Out, graph_is_capturing)) return;
   struct pointwise_graph_plan *p =
       find_pointwise_graph_plan(N, words, num_nodes);
   if (!p) {
@@ -10066,6 +10159,15 @@ void polygeist_cudnn_pointwise_graph_f32(
   register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 5);
 
   memcpy(p->scalars, scalars, sizeof(p->scalars));
+  cudnnBackendDescriptor_t direct_pack =
+      pointwise_direct_pack(p, device_ptrs, strides, out_stride, graph_is_capturing);
+  if (direct_pack) {
+    double host_start_ms = wall_time_ms();
+    timing_gpu_begin();
+    CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, direct_pack));
+    timing_gpu_end("cudnnPointwiseGraph_f32_direct", 1, N, num_nodes, host_start_ms);
+    return;
+  }
   double host_start_ms = wall_time_ms();
   timing_gpu_begin();
   for (int i = 0; i < 4; ++i)
@@ -10585,7 +10687,7 @@ static void *polygeist_cub_companion_symbol(const char *symbol) {
 }
 
 typedef int (*polygeist_cub_segmented_argreduce_f32_fn)(
-    int32_t, int32_t, int32_t, const float *, int32_t *, cudaStream_t);
+    int32_t, int32_t, int32_t, const float *, void *, cudaStream_t);
 typedef int (*polygeist_cub_quant_col_offsets_i8_i32_fn)(
     int32_t, int32_t, int32_t, const int8_t *, int32_t *, cudaStream_t);
 typedef int (*polygeist_cub_adjacent_difference_f32_fn)(
@@ -10593,7 +10695,7 @@ typedef int (*polygeist_cub_adjacent_difference_f32_fn)(
 
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
-    const float *x, int32_t *out) {
+    const float *x, void *out) {
   static polygeist_cub_segmented_argreduce_f32_fn function = NULL;
   if (!function)
     function = (polygeist_cub_segmented_argreduce_f32_fn)
@@ -10761,15 +10863,30 @@ void polygeist_cub_segmented_inclusive_product2d_f32(int32_t r,int32_t c,const f
 #undef INIT_DISPATCH_END
 
 #if POLYGEIST_HAS_CUTENSOR
+static void
+release_cutensor_permute_entry(PolygeistCutensorPermuteCacheEntry *entry) {
+  if (!entry->valid)
+    return;
+  cutensorDestroyPlan(entry->plan);
+  cutensorDestroyPlanPreference(entry->preference);
+  cutensorDestroyOperationDescriptor(entry->operation);
+  cutensorDestroyTensorDescriptor(entry->input_desc);
+  cutensorDestroyTensorDescriptor(entry->output_desc);
+  cutensorDestroy(entry->handle);
+  memset(entry, 0, sizeof(*entry));
+}
+
 static int cutensor_permute_cache_matches(
-    const PolygeistCutensorPermuteCacheEntry *entry, int32_t rank,
-    const int64_t *input_extents, const int64_t *input_strides,
-    const int32_t *input_modes, const int64_t *output_extents,
-    const int64_t *output_strides, const int32_t *output_modes,
-    uint32_t input_alignment, uint32_t output_alignment) {
+    const PolygeistCutensorPermuteCacheEntry *entry, int device,
+    cutensorOperator_t unary_op, int32_t rank, const int64_t *input_extents,
+    const int64_t *input_strides, const int32_t *input_modes,
+    const int64_t *output_extents, const int64_t *output_strides,
+    const int32_t *output_modes, uint32_t input_alignment,
+    uint32_t output_alignment) {
   size_t i64_bytes = (size_t)rank * sizeof(int64_t);
   size_t i32_bytes = (size_t)rank * sizeof(int32_t);
-  return entry->valid && entry->rank == rank &&
+  return entry->valid && entry->device == device &&
+         entry->unary_op == unary_op && entry->rank == rank &&
          entry->input_alignment == input_alignment &&
          entry->output_alignment == output_alignment &&
          memcmp(entry->input_extents, input_extents, i64_bytes) == 0 &&
@@ -10781,19 +10898,29 @@ static int cutensor_permute_cache_matches(
 }
 
 static PolygeistCutensorPermuteCacheEntry *get_cutensor_permute_cache_entry(
-    int32_t rank, const int64_t *input_extents, const int64_t *input_strides,
-    const int32_t *input_modes, const int64_t *output_extents,
-    const int64_t *output_strides, const int32_t *output_modes,
-    uint32_t input_alignment, uint32_t output_alignment) {
+    cutensorOperator_t unary_op, int32_t rank, const int64_t *input_extents,
+    const int64_t *input_strides, const int32_t *input_modes,
+    const int64_t *output_extents, const int64_t *output_strides,
+    const int32_t *output_modes, uint32_t input_alignment,
+    uint32_t output_alignment) {
+  int device = 0;
+  CUDA_CHECK(cudaGetDevice(&device));
   for (int i = 0; i < POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP; ++i) {
     PolygeistCutensorPermuteCacheEntry *entry = &g_cutensor_permute_cache[i];
     if (cutensor_permute_cache_matches(
-            entry, rank, input_extents, input_strides, input_modes,
-            output_extents, output_strides, output_modes, input_alignment,
-            output_alignment))
+            entry, device, unary_op, rank, input_extents, input_strides,
+            input_modes, output_extents, output_strides, output_modes,
+            input_alignment, output_alignment))
       return entry;
   }
 
+  // CUDA Graph capture requires the warmup to have created every plan. In
+  // particular, eviction must not synchronize or destroy plans during capture.
+  if (g_active_cuda_graph && g_active_cuda_graph->state == CUDA_GRAPH_CAPTURE) {
+    fprintf(stderr, "polygeist runtime: cuTENSOR cache miss during capture; "
+                    "warm up the same operation/layout/alignment first\n");
+    abort();
+  }
   PolygeistCutensorPermuteCacheEntry *entry = NULL;
   for (int i = 0; i < POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP; ++i)
     if (!g_cutensor_permute_cache[i].valid) {
@@ -10801,10 +10928,15 @@ static PolygeistCutensorPermuteCacheEntry *get_cutensor_permute_cache_entry(
       break;
     }
   if (!entry) {
-    fprintf(stderr, "polygeist runtime: cuTENSOR permutation cache full\n");
-    abort();
+    static unsigned next_eviction = 0;
+    CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    entry = &g_cutensor_permute_cache[next_eviction++ %
+                                      POLYGEIST_CUTENSOR_PERMUTE_CACHE_CAP];
+    release_cutensor_permute_entry(entry);
   }
 
+  entry->device = device;
+  entry->unary_op = unary_op;
   entry->rank = rank;
   entry->input_alignment = input_alignment;
   entry->output_alignment = output_alignment;
@@ -10825,13 +10957,13 @@ static PolygeistCutensorPermuteCacheEntry *get_cutensor_permute_cache_entry(
       entry->output_strides, CUDA_R_32F, output_alignment));
   CUTENSOR_CHECK(cutensorCreatePermutation(
       entry->handle, &entry->operation, entry->input_desc, entry->input_modes,
-      CUTENSOR_OP_IDENTITY, entry->output_desc, entry->output_modes,
+      unary_op, entry->output_desc, entry->output_modes,
       CUTENSOR_COMPUTE_DESC_32F));
-  CUTENSOR_CHECK(cutensorCreatePlanPreference(
-      entry->handle, &entry->preference, CUTENSOR_ALGO_DEFAULT,
-      CUTENSOR_JIT_MODE_NONE));
+  CUTENSOR_CHECK(cutensorCreatePlanPreference(entry->handle, &entry->preference,
+                                              CUTENSOR_ALGO_DEFAULT,
+                                              CUTENSOR_JIT_MODE_NONE));
   CUTENSOR_CHECK(cutensorCreatePlan(entry->handle, &entry->plan,
-                                   entry->operation, entry->preference, 0));
+                                    entry->operation, entry->preference, 0));
   entry->valid = 1;
   return entry;
 }
@@ -10889,7 +11021,7 @@ void polygeist_cutensor_permute_f32(
     output_alignment *= 2;
   PolygeistCutensorPermuteCacheEntry *entry =
       get_cutensor_permute_cache_entry(
-          rank, input_extents, input_strides, input_modes, output_extents,
+          CUTENSOR_OP_IDENTITY, rank, input_extents, input_strides, input_modes, output_extents,
           output_strides, output_modes, input_alignment, output_alignment);
   timing_gpu_begin();
   CUTENSOR_CHECK(cutensorPermute(
@@ -10904,9 +11036,10 @@ void polygeist_cutensor_permute_f32(
 #endif
 }
 
-void polygeist_cutensor_unary_f32(
-    int32_t op, int32_t n, const float *x, float *out) {
-  if (n <= 0) return;
+void polygeist_cutensor_unary_f32(int32_t op, int32_t n, const float *x,
+                                  float *out) {
+  if (n <= 0)
+    return;
 #if POLYGEIST_HAS_CUTENSOR
   polygeist_cublas_init();
   double host_start_ms = timing_enabled() ? wall_time_ms() : 0.0;
@@ -10917,39 +11050,25 @@ void polygeist_cutensor_unary_f32(
   int64_t stride[1] = {1};
   int32_t mode[1] = {0};
   float alpha = 1.0f;
-  cutensorHandle_t handle = NULL;
-  cutensorTensorDescriptor_t desc_x = NULL, desc_out = NULL;
-  cutensorOperationDescriptor_t operation = NULL;
-  cutensorPlanPreference_t preference = NULL;
-  cutensorPlan_t plan = NULL;
-  CUTENSOR_CHECK(cutensorCreate(&handle));
   uint32_t input_alignment = 128, output_alignment = 128;
-  while ((uintptr_t)dx % input_alignment) input_alignment >>= 1;
-  while ((uintptr_t)dout % output_alignment) output_alignment >>= 1;
-  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &desc_x, 1, extent, stride, CUDA_R_32F, input_alignment));
-  CUTENSOR_CHECK(cutensorCreateTensorDescriptor(
-      handle, &desc_out, 1, extent, stride, CUDA_R_32F, output_alignment));
-  CUTENSOR_CHECK(cutensorCreatePermutation(
-      handle, &operation, desc_x, mode, cutensor_unary_operator(op),
-      desc_out, mode, CUTENSOR_COMPUTE_DESC_32F));
-  CUTENSOR_CHECK(cutensorCreatePlanPreference(
-      handle, &preference, CUTENSOR_ALGO_DEFAULT, CUTENSOR_JIT_MODE_NONE));
-  CUTENSOR_CHECK(cutensorCreatePlan(handle, &plan, operation, preference, 0));
+  while ((uintptr_t)dx % input_alignment)
+    input_alignment >>= 1;
+  while ((uintptr_t)dout % output_alignment)
+    output_alignment >>= 1;
+  PolygeistCutensorPermuteCacheEntry *entry = get_cutensor_permute_cache_entry(
+      cutensor_unary_operator(op), 1, extent, stride, mode, extent, stride,
+      mode, input_alignment, output_alignment);
   timing_gpu_begin();
-  CUTENSOR_CHECK(cutensorPermute(handle, plan, &alpha, dx, dout, g_stream));
+  CUTENSOR_CHECK(
+      cutensorPermute(entry->handle, entry->plan, &alpha, dx, dout, g_stream));
   timing_gpu_end("cutensorUnary_f32", n, op, 0, host_start_ms);
-  CUTENSOR_CHECK(cutensorDestroyPlan(plan));
-  CUTENSOR_CHECK(cutensorDestroyPlanPreference(preference));
-  CUTENSOR_CHECK(cutensorDestroyOperationDescriptor(operation));
-  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(desc_x));
-  CUTENSOR_CHECK(cutensorDestroyTensorDescriptor(desc_out));
-  CUTENSOR_CHECK(cutensorDestroy(handle));
+
 #else
-  (void)op; (void)x; (void)out;
-  fprintf(stderr,
-          "polygeist_cutensor_unary_f32 requires "
-          "-DPOLYGEIST_ENABLE_CUTENSOR and -lcutensor\n");
+  (void)op;
+  (void)x;
+  (void)out;
+  fprintf(stderr, "polygeist_cutensor_unary_f32 requires "
+                  "-DPOLYGEIST_ENABLE_CUTENSOR and -lcutensor\n");
   abort();
 #endif
 }
@@ -11118,6 +11237,26 @@ void polygeist_gpu_region_timing_end(void) {
   free(region->marks);
   memset(region, 0, sizeof(*region));
   g_gpu_timing_region_depth--;
+}
+
+
+void polygeist_cublas_reverse_f32(int32_t n, const float *x, float *out) {
+  if (n <= 0) return;
+  polygeist_cublas_init();
+  void *host_ptrs[2] = {(void *)x, out};
+  size_t byte_sizes[2] = {(size_t)n * sizeof(float), (size_t)n * sizeof(float)};
+  void *device_ptrs[2];
+  register_host_operands_safe(host_ptrs, byte_sizes, device_ptrs, 2);
+  CUBLAS_CHECK(cublasScopy(g_handle, n, (const float *)device_ptrs[0], -1,
+                         (float *)device_ptrs[1], 1));
+  unregister_host_safe((void *)x);
+  unregister_host_safe(out);
+}
+
+void polygeist_cub_mean1d_f32(int32_t n, const float *x, float *out) {
+  if (n <= 0) return;
+  polygeist_cub_segmented_reduce_f32(0, 1, n, x, out);
+  polygeist_cublas_sscal(1, 1.0f / (float)n, out);
 }
 
 /* Device-buffer ABI wrapper. All arithmetic executes in the cuBLAS API. */

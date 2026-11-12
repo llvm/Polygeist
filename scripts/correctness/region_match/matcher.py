@@ -1231,9 +1231,20 @@ def _launch(E: _Emit, spec: _LaunchSpec, b: Binding, ignore_perms: bool = False)
                         E.notes.append(f"{cname}: {target} has a non-zero/dynamic offset carried by its "
                                        "memref descriptor")
                 elif _layout_part(aty) == _layout_part(ty):
-                    c = E.fresh(re.sub(r"\W", "", cname))
-                    E.lines.append(f"{c} = memref.cast {opnd} : {aty} to {ty}")
-                    opnd = c
+                    actual = re.fullmatch(r"((?:(?:\d+|\?)x)*)(.+)", _shape_part(aty))
+                    expected = re.fullmatch(r"((?:(?:\d+|\?)x)*)(.+)", _shape_part(ty))
+                    adims = actual[1].split("x")[:-1]
+                    sdims = expected[1].split("x")[:-1]
+                    if (actual[2] == expected[2] and len(adims) == len(sdims)
+                            and all(s == "?" or a == s for a, s in zip(adims, sdims))):
+                        # A launch may retain a more precise application shape.
+                        # Erasing it hides sizes/strides from C-pointer lowering,
+                        # even though the reference accepts these dimensions.
+                        lty = aty
+                    else:
+                        c = E.fresh(re.sub(r"\W", "", cname))
+                        E.lines.append(f"{c} = memref.cast {opnd} : {aty} to {ty}")
+                        opnd = c
                 else:
                     raise Reject(f"{cname}: cannot pass {aty} as {ty}")
             if o_arr and i_arr and i_arr != o_arr:

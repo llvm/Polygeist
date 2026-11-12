@@ -197,12 +197,17 @@ def exact_conditional_selection_rules():
 
 
 def algebra_rules(include_distributivity: bool = True):
-    # Strict mode admits only exact selection identities. Relaxed mode also
-    # permits real-arithmetic identities; runtime error still needs validation.
+    # Strict mode admits exact selection identities and multiplication operand
+    # exchange, matching upstream arith.mulf/muli's Commutative trait. This does
+    # not change precision, parenthesization, signed-zero behavior or NaN class.
+    # NaN payload identity is not part of the IR/backend numerical contract.
+    # Relaxed mode also permits real-arithmetic identities; runtime error still
+    # needs validation.
     integer_rules = (exact_integer_selection_rules() +
                      exact_conditional_selection_rules())
     if numeric_model() == "strict":
-        return ruleset(*integer_rules, name="strict_scalar_operations")
+        return ruleset(*integer_rules, rewrite(a * b).to(b * a),
+                       name="strict_scalar_operations")
     one = Term.Lit(1.0)
     zero = Term.Lit(0.0)
     # Numeric literal variables — required for the factoring + folding rules

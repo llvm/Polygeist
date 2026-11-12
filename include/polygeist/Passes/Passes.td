@@ -227,7 +227,11 @@ def NormalizeLinalgMatchingViews : Pass<"normalize-linalg-matching-views"> {
   let options = [Option<"maxParallelDims", "max-parallel-dims", "unsigned",
                         "0", "Optionally tile extra parallel dimensions by one">,
                  Option<"maxOperandRank", "max-operand-rank", "unsigned",
-                        "0", "Optionally slice parallel coordinates of high-rank operands">];
+                        "0", "Optionally slice parallel coordinates of high-rank operands">,
+                 Option<"fuseInitializers", "fuse-initializers", "bool",
+                        "false", "Optionally fuse scalar initializers into parallel tiles">,
+                 Option<"splitReductionInputs", "split-reduction-inputs", "bool",
+                        "false", "Materialize pure scalar producers independently of reduction state">];
   let dependentDialects = [
     "arith::ArithDialect", "bufferization::BufferizationDialect",
     "linalg::LinalgDialect", "memref::MemRefDialect", "tensor::TensorDialect",

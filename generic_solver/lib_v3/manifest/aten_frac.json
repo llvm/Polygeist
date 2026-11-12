@@ -1,0 +1,38 @@
+{
+  "routine": "aten_frac",
+  "source": "Pinned public ATen implementation",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/UnaryOpsKernel.cpp",
+      "sha256": "15cf2f206fc3274a2c263ce279984e5a425ac573082032367dd415e747eff637"
+    }
+  ],
+  "adaptation": "The pinned frac_kernel scalar lambda is retained. Float overloads map to equivalent C functions; arrays remain contiguous and dynamic length. The cuDNN graph is mechanically emitted from imported reference IR, with separately tested opcode semantics, not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_frac_f32",
+      "args": [
+        "n",
+        "a",
+        "output"
+      ],
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "assumptions": [
+        "positive n <= INT_MAX; contiguous FP32 arrays",
+        "output disjoint from inputs; errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

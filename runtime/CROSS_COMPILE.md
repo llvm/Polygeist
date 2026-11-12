@@ -155,3 +155,21 @@ If the Jetson is on a different CUDA major (e.g. 11.4 from JetPack 5.x, or
 12.x where x ≠ 6), `apt install` the matching `*-cross-sbsa-XX-Y` packages
 and update the `CUDA=` line in the build script. The cross-sbsa repo has
 11-7 through 12-9 currently.
+
+## Pointwise FP32 division backend
+
+Pointwise graphs retain their expression order and materialize required FP32
+rounding boundaries. DIV nodes execute through the actual public Thrust
+`transform` and `cuda::std::divides<float>` implementation; other supported
+nodes use cuDNN. These graphs are a mixed cuDNN/Thrust backend, not imported
+cuDNN source. Generated adapter metadata records both vendor dependencies.
+The four pointer/constant-iterator Thrust reference variants are independently
+raised and validated in `lib_v3/manifest/thrust_divide.json`.
+
+Both CUDA builders compile `polygeist_thrust_rt.cu` with the pinned CCCL headers,
+NVCC and the aarch64 C++ compiler. `--fmad=false --ftz=false --prec-div=true`
+are required: FP32 subnormals, large denominators and intermediate rounding
+are part of the contract. The target also needs `libstdc++`; no host arithmetic
+fallback or FP64 promotion is used. The C ABI accepts contiguous device-visible
+arrays; the graph runtime marshals strides and aliases and retains scratch
+addresses for CUDA graph capture/replay.

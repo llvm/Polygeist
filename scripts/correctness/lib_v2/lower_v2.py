@@ -579,8 +579,62 @@ def rewrite(text: str, names: dict, specs: dict, calls: dict, report: list,
     return text
 
 
+COPY_RE = re.compile(r'^(?P<ind>\s*)memref\.copy (?P<src>%[\w$.\-]+), (?P<dst>%[\w$.\-]+) : (?P<sty>memref<.*>) to (?P<dty>memref<.*>)\s*$')
+
+
+def rewrite_memory_copies(text: str, backend: str) -> str:
+    """CUDA operands may be device pointers; residual memory movement must
+    preserve that address space. CPU/PVA emission is unchanged."""
+    if backend != 'cuda':
+        return text
+    lines, used = [], False
+    for n, line in enumerate(text.split('\n')):
+        m = COPY_RE.match(line)
+        if not m:
+            lines.append(line)
+            continue
+        if m['src'] == m['dst'] and m['sty'] == m['dty']:
+            continue  # Exact SSA/type identity is a no-op, including empty views.
+        rank, elem = memref_info(m['sty'])
+        if memref_info(m['dty']) != (rank, elem):
+            raise LowerError('memory copy rank/element mismatch')
+        e = Emitter(m['ind'], 'copy' + str(n))
+        src = ArrayVal(e, m['src'], m['sty'], elem)
+        dst = ArrayVal(e, m['dst'], m['dty'], elem)
+        for a, b in zip(src.sizes, dst.sizes):
+            ok = e.op(f'arith.cmpi eq, {a}, {b} : index', 'shape')
+            e.raw(f'cf.assert {ok}, "lib_v2 memory copy: shape mismatch"')
+        prefix, e.lines = e.lines, []
+        e.ind += '  '
+        def metadata(values):
+            ty = f'memref<{max(rank, 1)}xi64>'
+            storage = e.op(f'memref.alloca() : {ty}', 'meta')
+            for i, value in enumerate(values):
+                at = e.const(i, 'index')
+                val = e.op(f'arith.index_cast {value} : index to i64', 'dim')
+                e.raw(f'memref.store {val}, {storage}[{at}] : {ty}')
+            address = e.op(f'memref.extract_aligned_pointer_as_index {storage} : {ty} -> index', 'address')
+            integer = e.op(f'arith.index_cast {address} : index to i64', 'addr')
+            return e.op(f'llvm.inttoptr {integer} : i64 to !llvm.ptr', 'ptr')
+        pointers = [metadata(src.sizes), metadata(src.strides), metadata(dst.strides)]
+        args = [e.const(rank, 'i64'), e.const(ELEM_BYTES[elem], 'i64'), *pointers, src.ptr, dst.ptr]
+        types = ['i64', 'i64'] + ['!llvm.ptr'] * 5
+        e.raw(f"func.call @polygeist_v2_memref_copy({', '.join(args)}) : ({', '.join(types)}) -> ()")
+        lines.extend(prefix)
+        lines.append(m['ind'] + 'memref.alloca_scope {')
+        lines.extend(e.lines)
+        lines.append(m['ind'] + '  memref.alloca_scope.return')
+        lines.append(m['ind'] + '}')
+        used = True
+    output = '\n'.join(lines)
+    if used and 'func.func private @polygeist_v2_memref_copy(' not in output:
+        output = insert_after_module_open(output,
+            '  func.func private @polygeist_v2_memref_copy(i64, i64, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr)\n')
+    return output
+
 def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
-          allow_legaliser: bool = True, backend: str = "cpu") -> str:
+          allow_legaliser: bool = True, backend: str = "cpu",
+          deallocate: bool = False) -> str:
     report = report if report is not None else {}
     report.setdefault("launches", [])
     report.setdefault("opt", [])
@@ -592,6 +646,8 @@ def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
             text = bufferize(re.sub(r"bufferization\.to_tensor (%[^ ]*) :",
                                     r"bufferization.to_tensor \1 restrict writable :", text),
                              report["opt"], allow_legaliser)
+        if deallocate:
+            text = run_opt(["--lower-affine", "--buffer-deallocation"], text, report["opt"])
         return text
     calls, specs, errors = A.build_table()
     bad = [s for s in used if s not in specs]
@@ -600,6 +656,10 @@ def lower(text: str, do_bufferize: bool = True, report: dict | None = None,
     text, names = prepare(text, specs, calls)
     if do_bufferize:
         text = bufferize(text, report["opt"], allow_legaliser)
+    # Resolve lifetimes before rewriting launches to raw-pointer calls. After
+    # that rewrite memref liveness cannot see the call's use of the buffer.
+    if deallocate:
+        text = run_opt(["--lower-affine", "--buffer-deallocation"], text, report["opt"])
     return rewrite(text, names, specs, calls, report["launches"], backend)
 
 
@@ -607,8 +667,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("input")
     ap.add_argument("-o", "--output", required=True)
+    ap.add_argument("--memory-copies-only", action="store_true",
+                    help="lower residual copies after higher-level GPU transforms")
     ap.add_argument("--no-bufferize", action="store_true",
                     help="input launches are already memref-form")
+    ap.add_argument("--deallocate", action="store_true",
+                    help="resolve buffer lifetimes before emitting raw-pointer calls")
     ap.add_argument("--no-legaliser", action="store_true",
                     help="fail instead of falling back to legalize_tensor_submaps.py "
                          "when production view lowering leaves tensor submaps")
@@ -618,8 +682,12 @@ def main() -> int:
     a = ap.parse_args()
     report: dict = {}
     try:
-        out = lower(Path(a.input).read_text(), not a.no_bufferize, report,
-                    allow_legaliser=not a.no_legaliser, backend=a.backend)
+        if a.memory_copies_only:
+            out = rewrite_memory_copies(Path(a.input).read_text(), a.backend)
+        else:
+            out = lower(Path(a.input).read_text(), not a.no_bufferize, report,
+                        allow_legaliser=not a.no_legaliser, backend=a.backend,
+                        deallocate=a.deallocate)
     except LowerError as ex:
         print(f"lower_v2: error: {ex}", file=sys.stderr)
         if a.report:

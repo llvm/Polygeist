@@ -37,16 +37,26 @@ class ViewProofOptions(unittest.TestCase):
 
     def test_emitted_options_verify(self):
         for suffix in ('', '=max-parallel-dims=2', '=max-operand-rank=2',
-                       '=max-parallel-dims=2 max-operand-rank=2'):
+                       '=max-parallel-dims=2 max-operand-rank=2',
+                       '=max-operand-rank=2 fuse-initializers=true',
+                       '=max-parallel-dims=2 max-operand-rank=2 fuse-initializers=true'):
             with self.subTest(suffix=suffix):
                 self.proof['view_normalization']['pass_name'] = '--normalize-linalg-matching-views' + suffix
                 SM.verify('module {}', self.proof, backend='cuda')
+
+    def test_initializer_fusion_requires_an_explicit_rank_limit(self):
+        with self.assertRaisesRegex(SM.SpecificationError, 'rank limit'):
+            SM.match('module {}', fuse_initializers=True)
+        with self.assertRaisesRegex(SM.SpecificationError, 'boolean'):
+            SM.match('module {}', max_operand_rank=2, fuse_initializers='yes')
 
     def test_unsupported_options_and_changed_compiler_fail(self):
         for suffix in ('=max-parallel-dims=-1', '=max-operand-rank=0',
                        '=max-parallel-dims=2 max-parallel-dims=3',
                        '=max-operand-rank=2 max-parallel-dims=2',
-                       '=unknown=2', '=max-parallel-dims=2 --canonicalize'):
+                       '=unknown=2', '=max-parallel-dims=2 --canonicalize',
+                       '=fuse-initializers=true', '=max-operand-rank=2 fuse-initializers=false',
+                       '=fuse-initializers=true max-operand-rank=2'):
             proof = copy.deepcopy(self.proof)
             proof['view_normalization']['pass_name'] += suffix
             with self.subTest(suffix=suffix), self.assertRaises(SM.SpecificationError):

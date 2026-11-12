@@ -22,6 +22,51 @@ module {
       %rows: index, %input: memref<?xi32>, %output: memref<?xi32>) {
     kernel.yield
   }
+  // PVA Solutions typed image-operation ABIs. Signedness is encoded in the
+  // symbol because builtin MLIR integer types are signless; the matcher proves
+  // it from extension/conversion/comparison semantics before selecting one.
+  kernel.defn @pvaBoxFilter_3x3_u8(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaBoxFilter_3x3_s8(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaBoxFilter_3x3_u16(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaBoxFilter_3x3_s16(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaGaussianFilter_3x3_u8(%h: i32, %w: i32,
+      %sigma_x: f32, %sigma_y: f32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaGaussianFilter_3x3_s8(%h: i32, %w: i32,
+      %sigma_x: f32, %sigma_y: f32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaGaussianFilter_3x3_u16(%h: i32, %w: i32,
+      %sigma_x: f32, %sigma_y: f32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaGaussianFilter_3x3_s16(%h: i32, %w: i32,
+      %sigma_x: f32, %sigma_y: f32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaMorphologyDilate_3x3_u8(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaMorphologyDilate_3x3_s8(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaMorphologyDilate_3x3_u16(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaMorphologyDilate_3x3_s16(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<?xi16>) { kernel.yield }
+  kernel.defn @pvaBilateralFilter_3x3_u8(%h: i32, %w: i32,
+      %sigma_range: f32, %sigma_space: f32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+  kernel.defn @pvaImageHistogram_256_u8_u32(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<256xi32>) { kernel.yield }
+  kernel.defn @pvaImageHistogram_256_u8_s32(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<256xi32>) { kernel.yield }
+  kernel.defn @pvaImageHistogram_256_u16_u32(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<256xi32>) { kernel.yield }
+  kernel.defn @pvaImageHistogram_256_u16_s32(%h: i32, %w: i32,
+      %in: memref<?xi16>, %out: memref<256xi32>) { kernel.yield }
+  kernel.defn @pvaHistogramEqualization_u8(%h: i32, %w: i32,
+      %in: memref<?xi8>, %out: memref<?xi8>) { kernel.yield }
+
   // Device-wide integer histogram. The executable matcher selects this
   // overwrite form only when it also proves a zero-initialized destination.
   kernel.defn @cubHistogramEvenI32ShiftZero_memref(
@@ -195,6 +240,14 @@ module {
   kernel.defn @cublasDdot_memref(
       %x: memref<?xf64>, %y: memref<?xf64>,
       %out: memref<?xf64>) { kernel.yield }
+  kernel.defn @cublasReverse1D_f32_memref(
+      %x: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubMean1D_f32_memref(
+      %x: memref<?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedValueMax_f32_memref(
+      %x: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
+  kernel.defn @cubSegmentedValueMin_f32_memref(
+      %x: memref<?x?xf32>, %out: memref<?xf32>) { kernel.yield }
   kernel.defn @cubSegmentedArgMax_f32_i32_memref(
       %x: memref<?x?xf32>, %out: memref<?xi32>) { kernel.yield }
   kernel.defn @cubSegmentedArgMin_f32_i32_memref(

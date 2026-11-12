@@ -4,6 +4,7 @@
 #include <cub/cub.cuh>
 #include <cuda_runtime.h>
 #include <cstdint>
+#include <cstddef>
 #include <climits>
 #include <cmath>
 #include <cstdlib>
@@ -443,38 +444,44 @@ cleanup:
 
 extern "C" int polygeist_cub_exclusive_sum1d_i32_cuda(
     int32_t n, const int32_t *input, int32_t *output, cudaStream_t stream) {
-  if (n < 0) return -1;
-  if (n == 0) { output[0] = 0; return 0; }
-  int32_t *d_input = nullptr, *d_output = nullptr;
+  if (n < 0 || n == INT32_MAX || !output || (n && !input))
+    return cudaErrorInvalidValue;
+  void *resident = nullptr;
+  bool owns_input = !cub_device_pointer(input, &resident);
+  int32_t *device_input = owns_input ? nullptr : static_cast<int32_t *>(resident);
+  bool owns_output = !cub_device_pointer(output, &resident);
+  int32_t *device_output = owns_output ? nullptr : static_cast<int32_t *>(resident);
   void *temporary = nullptr;
   size_t temporary_bytes = 0;
-  cudaError_t status = cudaMalloc(&d_input, (size_t)n * sizeof(int32_t));
-  if (status == cudaSuccess)
-    status = cudaMalloc(&d_output, (size_t)(n + 1) * sizeof(int32_t));
-  if (status == cudaSuccess)
-    status = cudaMemcpyAsync(d_input, input, (size_t)n * sizeof(int32_t),
-                             cudaMemcpyHostToDevice, stream);
-  if (status == cudaSuccess)
-    status = cub::DeviceScan::ExclusiveSum(
-        temporary, temporary_bytes, d_input, d_output, n, stream);
-  if (status == cudaSuccess) status = cudaMalloc(&temporary, temporary_bytes);
-  if (status == cudaSuccess)
-    status = cub::DeviceScan::ExclusiveSum(
-        temporary, temporary_bytes, d_input, d_output, n, stream);
-  if (status == cudaSuccess)
-    status = cudaMemcpyAsync(output, d_output, (size_t)n * sizeof(int32_t),
-                             cudaMemcpyDeviceToHost, stream);
-  int32_t last_prefix = 0, last_input = 0;
-  if (status == cudaSuccess)
-    status = cudaMemcpyAsync(&last_prefix, d_output + n - 1, sizeof(int32_t),
-                             cudaMemcpyDeviceToHost, stream);
-  if (status == cudaSuccess)
-    status = cudaMemcpyAsync(&last_input, d_input + n - 1, sizeof(int32_t),
-                             cudaMemcpyDeviceToHost, stream);
+  size_t output_bytes = (static_cast<size_t>(n) + 1) * sizeof(int32_t);
+  cudaError_t status = cudaSuccess;
+  if (owns_input && n) {
+    status = cudaMalloc(&device_input, static_cast<size_t>(n) * sizeof(int32_t));
+    if (status != cudaSuccess) goto cleanup;
+    status = cudaMemcpyAsync(device_input, input, static_cast<size_t>(n) * sizeof(int32_t), cudaMemcpyHostToDevice, stream);
+    if (status != cudaSuccess) goto cleanup;
+  }
+  if (owns_output) {
+    status = cudaMalloc(&device_output, output_bytes);
+    if (status != cudaSuccess) goto cleanup;
+  }
+  status = cudaMemsetAsync(device_output, 0, sizeof(int32_t), stream);
+  if (status == cudaSuccess && n) {
+    status = cub::DeviceScan::InclusiveSum(temporary, temporary_bytes,
+        device_input, device_output + 1, n, stream);
+    if (status == cudaSuccess) status = cudaMalloc(&temporary, temporary_bytes);
+    if (status == cudaSuccess)
+      status = cub::DeviceScan::InclusiveSum(temporary, temporary_bytes,
+          device_input, device_output + 1, n, stream);
+  }
+  if (status == cudaSuccess && owns_output)
+    status = cudaMemcpyAsync(output, device_output, output_bytes, cudaMemcpyDeviceToHost, stream);
   if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
-  if (status == cudaSuccess) output[n] = last_prefix + last_input;
-  cudaFree(temporary); cudaFree(d_output); cudaFree(d_input);
-  return status;
+cleanup:
+  if (temporary) cudaFree(temporary);
+  if (owns_input && device_input) cudaFree(device_input);
+  if (owns_output && device_output) cudaFree(device_output);
+  return static_cast<int>(status);
 }
 
 extern "C" int polygeist_cub_segmented_inclusive_product2d_f32_cuda(
@@ -990,8 +997,9 @@ struct ArgReduceF32 {
 
 extern "C" int polygeist_cub_segmented_argreduce_f32_cuda(
     int32_t op, int32_t rows, int32_t cols, const float *host_x,
-    int32_t *host_out, cudaStream_t stream) {
-  if ((op != 0 && op != 1) || rows <= 0 || cols <= 0) return -1;
+    void *host_out, cudaStream_t stream) {
+  if (op < 0 || op > 3 || rows <= 0 || cols <= 0 ||
+      (int64_t)rows * cols > INT32_MAX) return -1;
   size_t input_bytes = (size_t)rows * cols * sizeof(float);
   size_t pair_bytes = (size_t)rows * sizeof(IndexedValueF32);
   float *device_x = nullptr;
@@ -1031,19 +1039,21 @@ extern "C" int polygeist_cub_segmented_argreduce_f32_cuda(
         INT32_MAX, op == 0 ? -INFINITY : INFINITY};
     status = cub::DeviceSegmentedReduce::Reduce(
         temporary, temporary_bytes, values, device_pairs, rows,
-        offsets, offsets + 1, ArgReduceF32{op}, identity, stream);
+        offsets, offsets + 1, ArgReduceF32{op & 1}, identity, stream);
     if (status != cudaSuccess) goto cleanup;
     status = cudaMalloc(&temporary, temporary_bytes);
     if (status != cudaSuccess) goto cleanup;
     status = cub::DeviceSegmentedReduce::Reduce(
         temporary, temporary_bytes, values, device_pairs, rows,
-        offsets, offsets + 1, ArgReduceF32{op}, identity, stream);
+        offsets, offsets + 1, ArgReduceF32{op & 1}, identity, stream);
     if (status != cudaSuccess) goto cleanup;
   }
   if (status == cudaSuccess) {
     void *destination = owns_out ? static_cast<void *>(host_out)
                                  : static_cast<void *>(device_out);
-    status = cudaMemcpy2DAsync(destination, sizeof(int32_t), device_pairs,
+    const void *selected = reinterpret_cast<const char *>(device_pairs) +
+        (op >= 2 ? offsetof(IndexedValueF32, value) : offsetof(IndexedValueF32, index));
+    status = cudaMemcpy2DAsync(destination, sizeof(int32_t), selected,
                                sizeof(IndexedValueF32), sizeof(int32_t), rows,
                                owns_out ? cudaMemcpyDeviceToHost
                                         : cudaMemcpyDeviceToDevice,

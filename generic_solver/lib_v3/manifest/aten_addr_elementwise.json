@@ -1,0 +1,42 @@
+{
+  "routine": "aten_addr_elementwise",
+  "source": "Pinned public ATen implementation",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/LinearAlgebraKernel.cpp",
+      "sha256": "c14ea3c29963a52a56027bd1310bffdfb62f119d7c3a631b8595a6a89a640e3f"
+    }
+  ],
+  "adaptation": "The two pinned addr_kernel scalar lambdas and beta==0 dispatch are retained. Uniform TensorIterator dispatch is distributed over its independent elements; the arithmetic order is unchanged. Float overloads map to equivalent C functions; arrays remain contiguous and dynamic length. The cuDNN graph is mechanically emitted from imported reference IR, with separately tested opcode semantics, not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_addr_elementwise_f32",
+      "args": [
+        "n",
+        "self_val",
+        "vec1_val",
+        "vec2_val",
+        "beta_val",
+        "alpha_val",
+        "output"
+      ],
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "assumptions": [
+        "positive n <= INT_MAX; contiguous FP32 arrays",
+        "output disjoint from inputs; errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

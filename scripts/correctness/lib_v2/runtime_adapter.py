@@ -6,6 +6,7 @@ recognize applications or contain formulas for named operations.
 import functools
 import math
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -76,11 +77,16 @@ def pointwise_graph(A, spec, args, extent):
     types={v:'f32' for v in values};scalars=[];scalar_arguments={};instructions=[]
     booleans={name:literal=='true' for name,literal in re.findall(
         r'(%[\w.$-]+) = arith.constant (true|false)\b',f.text)}
+    literal_values=K.parse_constants(f.text)
+    literal_types=dict(re.findall(
+        r'(%[\w.$-]+)\s*=\s*arith.constant\s+[^\s:]+\s*:\s*(\w+)',f.text))
     for name,value in K.parse_generics(f.text,infer_outputs_from_yield=True)[0].constants.items():
         if name in booleans:
             types[name]='i1'
             continue
         if not math.isfinite(value):raise A.AbiError('nonfinite pointwise reference constant')
+        types[name]=literal_types.get(name)
+        if types[name]!='f32':continue
         if len(scalars)==8:raise A.AbiError('too many pointwise constants')
         values[name]=4+len(scalars);types[name]='f32';scalars.append(value)
     scalar_parameters=set()
@@ -95,6 +101,8 @@ def pointwise_graph(A, spec, args, extent):
     definitions={result:op for op in f.ops for result in op.results}
     active=set();used_parameters=set();temporary=0
     boolean_integers={}
+    integer_graphs={}
+    integer_active=set()
 
     def emit(mode,operands,result,result_type):
         if any(x not in values for x in operands):raise A.AbiError('unbound/recursive pointwise scalar')
@@ -148,6 +156,12 @@ def pointwise_graph(A, spec, args, extent):
     def ensure(value):
         if value in scalar_parameters:used_parameters.add(value)
         if value in values or value in booleans or value in boolean_integers:return
+        if value in literal_values:
+            types[value]=literal_types.get(value)
+            if not math.isfinite(literal_values[value]):
+                raise A.AbiError('nonfinite pointwise reference constant')
+            if types[value]=='f32':alias(value,scalar_literal(literal_values[value]))
+            return
         operation=definitions.get(value)
         if operation is None or value in active or len(operation.results)!=1:
             raise A.AbiError('unbound/recursive pointwise scalar: '+value)
@@ -156,7 +170,7 @@ def pointwise_graph(A, spec, args, extent):
         active.remove(value)
 
     def scalar_literal(value):
-        # Exact FP32 constants used by predicate conversions: only 0 and +/-1.
+        # Reuse a literal only by exact value/sign, never a parameter slot.
         for name,index in values.items():
             if 4 <= index < 4+len(scalars) and index-4 not in scalar_arguments.values() and types[name]=='f32' and scalars[index-4].hex()==float(value).hex():
                 return name
@@ -164,10 +178,78 @@ def pointwise_graph(A, spec, args, extent):
         name=temp();values[name]=4+len(scalars);types[name]='f32';scalars.append(float(value))
         return name
 
+    def lower_constant_conversion(line):
+        m=re.fullmatch(r'(%[\w.$-]+) = arith.truncf (%[\w.$-]+) : (\w+) to (\w+)',line)
+        if not m:return False
+        result,operand,source,target=m.groups();ensure(operand)
+        if (source,target)!=('f64','f32') or types.get(operand)!=source or operand not in literal_values:
+            raise A.AbiError('pointwise float truncation requires an explicit FP64 literal')
+        # Materialize the reference's explicit IEEE FP64-to-FP32 conversion.
+        # This cannot authorize conversion of dynamic inputs or FP64 arithmetic.
+        try:value=struct.unpack('!f',struct.pack('!f',literal_values[operand]))[0]
+        except OverflowError:raise A.AbiError('nonfinite pointwise converted constant')
+        if not math.isfinite(value):raise A.AbiError('nonfinite pointwise converted constant')
+        alias(result,scalar_literal(value))
+        return True
+
+    def bounded_integer(value, ty):
+        # Only materialize arithmetic that is exact in both the declared signed
+        # integer width and FP32. This is a backend lowering of proved reference
+        # instructions, not a floating-point equivalence used by the matcher.
+        key=(value,ty)
+        if key in integer_graphs:return integer_graphs[key]
+        if value in integer_active:raise A.AbiError('recursive integer reference')
+        if not re.fullmatch(r'i(?:[2-9]|[1-5][0-9]|6[0-4])',ty):
+            raise A.AbiError('unsupported integer arithmetic width')
+        integer_active.add(value)
+        op=definitions.get(value)
+        m=re.fullmatch(r'(%[\w.$-]+) = arith\.(addi|subi) (%[\w.$-]+), (%[\w.$-]+) : (i\d+)',op.text.strip()) if op else None
+        if m:
+            result,opcode,left,right,declared=m.groups()
+            if result!=value or declared!=ty:raise A.AbiError('integer arithmetic type mismatch')
+            lv,lo,hi=bounded_integer(left,ty);rv,rl,rh=bounded_integer(right,ty)
+            low,high=(lo+rl,hi+rh) if opcode=='addi' else (lo-rh,hi-rl)
+            mode='ADD' if opcode=='addi' else 'SUB'
+            operands=[lv,rv]
+        elif value in literal_values:
+            number=literal_values[value]
+            if literal_types.get(value)!=ty or not math.isfinite(number) or number!=int(number):
+                raise A.AbiError('integer arithmetic literal type mismatch')
+            low=high=int(number);mode=None
+        else:
+            ensure(value)
+            if types.get(value)!=ty or value not in boolean_integers:
+                raise A.AbiError('integer arithmetic requires a bounded predicate expression')
+            predicate,one=boolean_integers[value]
+            low,high=min(0,one),max(0,one);mode='BINARY_SELECT'
+            yes,no=scalar_literal(one),scalar_literal(0.)
+            if predicate in booleans:
+                result=yes if booleans[predicate] else no;mode=None
+            else:operands=[predicate,yes,no]
+        bits=int(ty[1:])
+        if low < -(1<<(bits-1)) or high >= (1<<(bits-1)):
+            raise A.AbiError('integer arithmetic may overflow its declared width')
+        if low < -(1<<24) or high > (1<<24):
+            raise A.AbiError('integer arithmetic is not exact in FP32')
+        if mode is not None:
+            result=temp();emit(mode,operands,result,'f32')
+        elif value in literal_values:result=scalar_literal(low)
+        integer_active.remove(value)
+        integer_graphs[key]=(result,low,high)
+        return integer_graphs[key]
+
     def lower_conversion(line):
         m=re.fullmatch(r'(%[\w.$-]+) = arith\.(extui|extsi|uitofp|sitofp) (%[\w.$-]+) : (i\d+) to (i\d+|f32)',line)
         if not m:return False
-        result,opcode,operand,source,target=m.groups();ensure(operand)
+        result,opcode,operand,source,target=m.groups()
+        operation=definitions.get(operand)
+        if opcode in ('sitofp','uitofp') and operation is not None and operation.name in ('arith.addi','arith.subi'):
+            if target!='f32':raise A.AbiError('integer arithmetic conversion must produce FP32')
+            materialized,low,high=bounded_integer(operand,source)
+            if opcode=='uitofp' and low<0:
+                raise A.AbiError('unsigned conversion of possibly negative integer expression')
+            alias(result,materialized);return True
+        ensure(operand)
         if types.get(operand)!=source:raise A.AbiError('predicate conversion source type mismatch')
         if opcode in ('extui','extsi'):
             if source!='i1' or not target.startswith('i') or not 1<int(target[1:])<=64:
@@ -187,7 +269,11 @@ def pointwise_graph(A, spec, args, extent):
         return True
 
     def lower_instruction(line):
+        if lower_constant_conversion(line.strip()):return
         if lower_conversion(line.strip()):return
+        integer=re.fullmatch(r'(%[\w.$-]+) = arith\.(?:addi|subi) .+ : (i\d+)',line.strip())
+        if integer:
+            result,ty=integer.groups();bounded_integer(result,ty);types[result]=ty;return
         m=re.fullmatch(r'(%[\w.$-]+) = ([\w.]+) (.*?) : (f32|i1)',line.strip())
         if not m:raise A.AbiError('unsupported reference pointwise instruction: '+line)
         result,opcode,operands,ty=m.groups();operands=[x.strip() for x in operands.split(',')]
@@ -214,6 +300,18 @@ def pointwise_graph(A, spec, args, extent):
         elif opcode in ('arith.andi','arith.ori'):
             mode='LOGICAL_AND' if opcode=='arith.andi' else 'LOGICAL_OR'
             expected=['i1','i1'];result_type='i1'
+        elif opcode=='math.trunc':
+            if ty!='f32' or len(operands)!=1:
+                raise A.AbiError('pointwise truncation requires one FP32 operand')
+            operand=operands[0];ensure(operand)
+            if types.get(operand)!='f32':raise A.AbiError('pointwise truncation type mismatch')
+            # Round toward zero with the vendor's exact floor/ceil operations.
+            # At -0 the false arm retains floor(-0) == -0. NaNs remain NaNs;
+            # no arithmetic or rounding-association equivalence is introduced.
+            zero=scalar_literal(0.);negative,up,down=temp(),temp(),temp()
+            emit('CMP_LT',[operand,zero],negative,'i1')
+            emit('CEIL',[operand],up,'f32');emit('FLOOR',[operand],down,'f32')
+            emit('BINARY_SELECT',[negative,up,down],result,'f32');return
         elif opcode in POINTWISE:
             mode=POINTWISE[opcode]
             arity=2 if opcode in ('arith.addf','arith.subf','arith.mulf','arith.divf','math.powf','math.atan2') else 1
@@ -305,7 +403,12 @@ def contract(A,spec,target,ret,args):
         if a.kind=='array':params.append(A.AbiParam(p.layout,'int',layout_of=p.name));binding[p.layout]=('const_num',1)
     if cfg['kind']=='pointwise_reference':
         graph=pointwise_graph(A,spec,args,extent)
-        return params,binding,dict(cfg,graph=graph,entry='polygeist_cudnn_pointwise_graph_f32')
+        vendors = ['cuDNN']
+        if any(((graph['words'][i // 2] >> (32 * (i % 2) + 24)) & 255) == 4
+               for i in range(graph['nodes'])):
+            vendors.append('Thrust')
+        return params,binding,dict(cfg,graph=graph,entry='polygeist_cudnn_pointwise_graph_f32',
+                                   vendor_dependencies=vendors)
     if cfg['kind']=='unary_reference':
         declaration=re.search(r'void\s+polygeist_cutensor_unary_f32\s*\(([^;]+)\);',header)
         if not declaration:raise A.AbiError('cuTENSOR unary runtime entry unavailable')

@@ -3453,15 +3453,36 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
           // from the exact same location, it is permitted.
           if (load.getMemref() == store.getMemref() &&
               load.getAffineMap() == store.getAffineMap() &&
-              load.getIndices() == store.getIndices() &&
-              DI.dominates((Operation *)load, (Operation *)store)) {
-            // Example case where load does not dominate stores - if the load
-            // was conditional. Or, store followed by load? Q. Can't we still
-            // overlook the aliasing?
-            stores_map[load] = store;
+              load.getIndices() == store.getIndices()) {
+            // An exact-address load before the store is an in-place update.
+            // An exact-address load after the store is handled by the
+            // store-to-load forwarding analysis below.  Neither case is a
+            // cross-iteration dependence by itself.
+            if (DI.dominates((Operation *)load, (Operation *)store))
+              stores_map[load] = store;
             continue;
           }
-          //return failure();
+          // A different access through the same base buffer can carry a
+          // dependence between loop iterations (for example
+          // cdf[i] = cdf[i - 1] + histogram[i]).  Representing that loop as
+          // parallel linalg.generic is unsound.  Keep it sequential unless a
+          // dedicated scan/prefix-sum representation proves the dependence.
+          if (load.getMemref() == store.getMemref()) {
+            // Different indices need not overlap: for example a Cholesky
+            // dot product reads A[i, k] for k < j while updating A[i, j].
+            // Permit that case only when affine analysis proves no carried
+            // store-to-load dependence at this loop depth.
+            DependenceResult dependence = checkMemrefAccessDependence(
+                MemRefAccess(store), MemRefAccess(load),
+                getNestingDepth(loop) + 1,
+                /*dependenceConstraints=*/nullptr,
+                /*dependenceComponents=*/nullptr);
+            if (dependence.value == DependenceResult::NoDependence)
+              continue;
+            LLVM_DEBUG(llvm::dbgs()
+                       << "REJECTED: possible carried flow dependence\n");
+            return failure();
+          }
         }
       }
       for (auto &&[_, store2] : stores) {

@@ -1,0 +1,42 @@
+{
+  "routine": "aten_trunc",
+  "source": "Pinned public ATen implementation",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/cpu/vec/vec_base.h",
+      "sha256": "58ec91e4c6782ef7d9c9f90e4177d8bb5fffc24b667891559817eb7a97f4802a"
+    },
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/zmath.h",
+      "sha256": "69e060171893d7ec3d6788b8c54661754466e308da1bbe4a50c21652c00f0053"
+    }
+  ],
+  "adaptation": "The pinned Vectorized<float>::trunc method maps trunc_impl<float> over lanes; its std::trunc implementation is retained. Float overloads map to equivalent C functions; arrays remain contiguous and dynamic length. The cuDNN graph is mechanically emitted from imported reference IR, with separately tested opcode semantics, not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_trunc_f32",
+      "args": [
+        "n",
+        "a",
+        "output"
+      ],
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "assumptions": [
+        "positive n <= INT_MAX; contiguous FP32 arrays",
+        "output disjoint from inputs; errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

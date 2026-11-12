@@ -42,7 +42,9 @@ int* alloc() {
 // CHECK:           %[[VAL_18:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_17]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i8>
 // CHECK:           %[[VAL_19:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_15]]) : (memref<?xi32>) -> !llvm.ptr
 // CHECK:           scf.for %[[VAL_20:[A-Za-z0-9_]*]] = %[[VAL_0]] to %[[VAL_16]] step %[[VAL_1]] {
-// CHECK:             %[[VAL_21:[A-Za-z0-9_]*]] = arith.muli %[[VAL_20]], %[[VAL_3]] : index
+// CHECK:             %[[IDX32:.*]] = arith.index_cast %[[VAL_20]] : index to i32
+// CHECK:             %[[IDX:.*]] = arith.index_castui %[[IDX32]] : i32 to index
+// CHECK:             %[[VAL_21:[A-Za-z0-9_]*]] = arith.muli %[[IDX]], %[[VAL_3]] : index
 // CHECK:             %[[VAL_22:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_21]] : index to i64
 // CHECK:             %[[VAL_23:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_19]]{{\[}}%[[VAL_22]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
 // CHECK:             %[[VAL_24:[A-Za-z0-9_]*]] = llvm.call @__isoc99_scanf(%[[VAL_18]], %[[VAL_23]]) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32

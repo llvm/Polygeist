@@ -36,6 +36,10 @@ void polygeist_cublas_destroy(void);
 void polygeist_cub_scan_inclusive_seed_f32(int32_t n, float seed,
                                           const float *input, float *output);
 
+/* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceScanInclusiveScanInit polygeist_cub_scan_product_seed_f32 */
+void polygeist_cub_scan_product_seed_f32(int32_t n, float seed,
+                                       const float *input, float *output);
+
 /* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_sum_f32 */
 void polygeist_cub_reduce_sum_f32(int32_t n, float seed, const float *input, float *output);
 /* POLYGEIST_TYPED_VENDOR_ENTRY CUB DeviceReduce polygeist_cub_reduce_sum_f64 */
@@ -630,43 +634,46 @@ void polygeist_pva_conv2d_3x3_i16(
     int16_t w6, int16_t w7, int16_t w8,
     const int16_t *A, int16_t *B);
 
-// BoxFilter — uniform-weight K×K filter. Single-channel signed 8/16-bit on
-// PVA via libpva_operator's pvaBoxFilter{Create,Submit}. No coefficient
-// tensor (the filter is implicitly 1/K² everywhere). REPLICATE border.
-// Output saturates to dtype range. M/N are full image dims; the shim
-// writes a (M-2)×(N-2) interior to caller-supplied B starting at &B[1][1]
-// (same pointer-shift convention the matcher uses for conv2d).
-void polygeist_pva_boxfilter_3x3_i8(int32_t M, int32_t N,
-                                     const int8_t *A, int8_t *B);
-void polygeist_pva_boxfilter_3x3_i16(int32_t M, int32_t N,
-                                      const int16_t *A, int16_t *B);
-
-// GaussianFilter — separable Gaussian via PVA's pvaGaussianFilter. The
-// hardware takes (sigmaX, sigmaY, kernelSize) parameters; for the v0
-// integration we hardcode kernelSize=3 and sigmaX=sigmaY=1.0 (the natural
-// 3×3 Gaussian). Surfacing sigma as launch operands is future work; the
-// matcher would need to recognize Gaussian-weighted convs and route here
-// instead of to OpConv2d.
-void polygeist_pva_gaussian_3x3_i8(int32_t M, int32_t N,
-                                    const int8_t *A, int8_t *B);
-void polygeist_pva_gaussian_3x3_i16(int32_t M, int32_t N,
-                                     const int16_t *A, int16_t *B);
-
-// BilateralFilter — edge-preserving smoothing. PVA's pvaBilateralFilter
-// hardcodes sigmaRange=25.0 / sigmaSpace=10.0 (typical edge-preserving
-// parameters) for v0. CPU stub is approximate (matches PVA within a few
-// LSBs on typical-content images; bilateral is non-linear so bit-exact
-// match is impractical to model without the full PVA fixed-point spec).
-// Validation strategy: PVA must run cleanly + output must be in-range.
-void polygeist_pva_bilateral_3x3_i8(int32_t M, int32_t N,
-                                     const int8_t *A, int8_t *B);
-void polygeist_pva_bilateral_3x3_i16(int32_t M, int32_t N,
-                                      const int16_t *A, int16_t *B);
-
-// HistogramEqualization — U8-only on PVA; we reinterpret i8 bytes as u8
-// (bitwise identical) for the shim's tensor allocation.
-void polygeist_pva_histeq_i8(int32_t M, int32_t N,
-                              const int8_t *A, int8_t *B);
+// Typed, flat-buffer PVA image ABI used by semantic matches. These adapters
+// construct single-channel HWC vendor tensors and invoke only PVA Solutions
+// pva*Create/pva*Submit entry points. Image-filter adapters preserve the
+// caller's one-pixel border because the matched C regions update only the
+// complete 3x3 interior.
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u8 */
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s8 */
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u16 */
+/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s16 */
+#define POLYGEIST_DECLARE_PVA_FILTER_TYPES(op)                               \
+  void polygeist_pva_##op##_3x3_u8(int32_t, int32_t,                        \
+                                    const uint8_t *, uint8_t *);             \
+  void polygeist_pva_##op##_3x3_s8(int32_t, int32_t,                        \
+                                    const int8_t *, int8_t *);               \
+  void polygeist_pva_##op##_3x3_u16(int32_t, int32_t,                       \
+                                     const uint16_t *, uint16_t *);          \
+  void polygeist_pva_##op##_3x3_s16(int32_t, int32_t,                       \
+                                     const int16_t *, int16_t *)
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(boxfilter);
+POLYGEIST_DECLARE_PVA_FILTER_TYPES(morphology_dilate);
+#undef POLYGEIST_DECLARE_PVA_FILTER_TYPES
+#define POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(suffix, type)                    \
+  void polygeist_pva_gaussian_3x3_##suffix(                                 \
+      int32_t, int32_t, float, float, const type *, type *)
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u8, uint8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s8, int8_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(u16, uint16_t);
+POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE(s16, int16_t);
+#undef POLYGEIST_DECLARE_PVA_GAUSSIAN_TYPE
+void polygeist_pva_bilateral_3x3_u8(int32_t, int32_t, float, float,
+                                     const uint8_t *, uint8_t *);
+void polygeist_pva_histogram_256_u8_u32(int32_t, int32_t, const uint8_t *,
+                                        uint32_t *);
+void polygeist_pva_histogram_256_u8_s32(int32_t, int32_t, const uint8_t *,
+                                        int32_t *);
+void polygeist_pva_histogram_256_u16_u32(int32_t, int32_t, const uint16_t *,
+                                         uint32_t *);
+void polygeist_pva_histogram_256_u16_s32(int32_t, int32_t, const uint16_t *,
+                                         int32_t *);
+void polygeist_pva_histeq_u8(int32_t, int32_t, const uint8_t *, uint8_t *);
 
 // ============================================================================
 // Extracted-darknet batched CNN-block primitives. All four take 4D NCHW
@@ -851,6 +858,19 @@ void polygeist_cudnn_conv_bn_relu_fused(
 
 // llama2.c RMSNorm, FP32:
 //   Out[i] = Weight[i] * X[i] * rsqrt(sum_j X[j]^2 / N + 1e-5)
+// Actual Thrust transform with FP32 divides and pointer/constant iterators.
+/* POLYGEIST_TYPED_VENDOR_ENTRY Thrust transform polygeist_thrust_divide_f32 */
+void polygeist_thrust_divide_f32(int32_t n, const float *x, const float *y, float *output);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY Thrust transform polygeist_thrust_divide_scalar_left_f32 */
+void polygeist_thrust_divide_scalar_left_f32(int32_t n, float x, const float *y, float *output);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY Thrust transform polygeist_thrust_divide_scalar_right_f32 */
+void polygeist_thrust_divide_scalar_right_f32(int32_t n, const float *x, float y, float *output);
+
+/* POLYGEIST_TYPED_VENDOR_ENTRY Thrust transform polygeist_thrust_divide_scalars_f32 */
+void polygeist_thrust_divide_scalars_f32(int32_t n, float x, float y, float *output);
+
 /* POLYGEIST_VENDOR_ADAPTER cuDNN cudnnBackendExecute */
 void polygeist_rmsnorm_f32(
     int32_t N, const float *X, const float *Weight, float *Out);
@@ -956,7 +976,7 @@ void polygeist_cub_segmented_reduce_i32(
     const int32_t *x, int32_t *out);
 void polygeist_cub_segmented_argreduce_f32(
     int32_t op, int32_t rows, int32_t cols,
-    const float *x, int32_t *out);
+    const float *x, void *out);
 void polygeist_cub_quant_col_offsets_i8_i32(
     int32_t rows, int32_t cols, int32_t offset,
     const int8_t *weights, int32_t *out);
@@ -1015,18 +1035,13 @@ void polygeist_gpu_region_timing_enter(int32_t category);
 void polygeist_gpu_region_timing_leave(void);
 void polygeist_gpu_region_timing_end(void);
 
+// Contiguous unary buffer operations selected by structural matching.
+void polygeist_cublas_reverse_f32(int32_t n, const float *x, float *out);
+void polygeist_cub_mean1d_f32(int32_t n, const float *x, float *out);
+
 /* POLYGEIST_TYPED_VENDOR_ENTRY cuBLAS cublasDgeam polygeist_cublas_geam_vector_f64 */
 void polygeist_cublas_geam_vector_f64(int32_t n, double alpha,
                                     const double *x, double beta, double *y);
-
-/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u8 */
-void polygeist_pva_morphology_dilate_3x3_u8(int32_t, int32_t, const uint8_t *, uint8_t *);
-/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s8 */
-void polygeist_pva_morphology_dilate_3x3_s8(int32_t, int32_t, const int8_t *, int8_t *);
-/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_u16 */
-void polygeist_pva_morphology_dilate_3x3_u16(int32_t, int32_t, const uint16_t *, uint16_t *);
-/* POLYGEIST_TYPED_VENDOR_ENTRY PVA pvaMorphologySubmit polygeist_pva_morphology_dilate_3x3_s16 */
-void polygeist_pva_morphology_dilate_3x3_s16(int32_t, int32_t, const int16_t *, int16_t *);
 
 #ifdef __cplusplus
 }

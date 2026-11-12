@@ -1,8 +1,11 @@
 /*
- * dsyr2k.c -- faithful C transliteration of Reference-BLAS DSYR2K.
+ * dsyr2k.c -- C transliteration of Reference-BLAS DSYR2K / SSYR2K.
  *
  * Source: Reference-LAPACK commit 6a1a8b8afd07ef4f6afc9fff320771fa26671f8d,
  *         BLAS/SRC/dsyr2k.f, SUBROUTINE at L191, executable part L231-L393.
+ * NETLIB_SCALAR=float instantiates the same control flow and arithmetic with
+ * SSYR2K's REAL arguments, accumulators and constants. The FP32 manifest pins
+ * OpenBLAS 0.3.31's lapack-netlib/BLAS/SRC/ssyr2k.f as its source.
  *
  *   C := alpha*A*B**T + alpha*B*A**T + beta*C   or
  *   C := alpha*A**T*B + alpha*B**T*A + beta*C
@@ -73,6 +76,9 @@
 #ifndef NETLIB_SPEC
 #error "NETLIB_SPEC must name the specialised function"
 #endif
+#ifndef NETLIB_SCALAR
+#define NETLIB_SCALAR double
+#endif
 #define LSAME(CA, CB) ((CA) == (CB))
 #ifndef ALPHA_CASE
 #define ALPHA_CASE 2
@@ -81,7 +87,7 @@
 #define ALPHA_PARAM
 #define ALPHA 0.0
 #else
-#define ALPHA_PARAM double alpha,
+#define ALPHA_PARAM NETLIB_SCALAR alpha,
 #define ALPHA alpha
 #endif
 #ifdef BETA_CASE
@@ -92,7 +98,7 @@
 #define BETA_PARAM
 #define BETA 1.0
 #else
-#define BETA_PARAM double beta,
+#define BETA_PARAM NETLIB_SCALAR beta,
 #define BETA beta
 #endif
 #define BETA_EQ_ZERO (BETA_CASE == 0)
@@ -110,10 +116,10 @@
 #error "BETA_CASE must be 0, 1 or 2"
 #endif
 
-void NETLIB_SPEC(int n, int k, ALPHA_PARAM int lda, double A[][lda], int ldb,
-                 double B[][ldb], BETA_PARAM int ldc, double C[][ldc]) {
-  const double ONE = 1.0, ZERO = 0.0; /* L225-L226 */
-  double temp1, temp2;
+void NETLIB_SPEC(int n, int k, ALPHA_PARAM int lda, NETLIB_SCALAR A[][lda], int ldb,
+                 NETLIB_SCALAR B[][ldb], BETA_PARAM int ldc, NETLIB_SCALAR C[][ldc]) {
+  const NETLIB_SCALAR ONE = 1.0, ZERO = 0.0; /* L225-L226 */
+  NETLIB_SCALAR temp1, temp2;
   int i, j, l, upper;
 
   /* L236 */

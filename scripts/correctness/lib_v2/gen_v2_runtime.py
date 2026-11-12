@@ -110,6 +110,8 @@ def gen_cpu(calls) -> str:
             p = abi[d]
             if p.tkind != "array":
                 continue
+            if p.rank is None:
+                raise A.AbiError(f"{ca.call}: dropped array {d} needs a concrete rank")
             cands = [q for q in passed_arrays if q.written and q.rank == p.rank]
             if not cands:
                 raise A.AbiError(f"{ca.call}: dropped {d} has no in-place candidate")

@@ -2409,6 +2409,8 @@ using v2::applySubviewInverseChain;
 struct MultiRootCtx {
   // Per-root current tensor state.
   DenseMap<Value, Value> rootToTensor;
+  // Private roots become available at their allocation, not at loop entry.
+  DenseSet<Value> localRoots;
   // Initial to_tensor SSA per root (for "did anything change" comparisons).
   DenseMap<Value, Value> rootInitial;
   PatternRewriter *rewriter;
@@ -2718,6 +2720,20 @@ static void handleAffineFor(MultiRootCtx &ctx, affine::AffineForOp forOp) {
 static void walkBlock(MultiRootCtx &ctx, Block &block) {
   for (auto it = block.begin(), end = block.end(); it != end;) {
     Operation &op = *it++;
+    if (isa<memref::AllocaOp, memref::AllocOp>(op) &&
+        ctx.localRoots.contains(op.getResult(0))) {
+      // This allocation belongs to the current iteration. Creating its tensor
+      // here preserves dominance and excludes it from the enclosing iter_args.
+      Value root = op.getResult(0);
+      auto type = cast<MemRefType>(root.getType());
+      ctx.rewriter->setInsertionPointAfter(&op);
+      auto tensor = ctx.rewriter->create<bufferization::ToTensorOp>(
+          op.getLoc(), RankedTensorType::get(type.getShape(), type.getElementType()),
+          root);
+      ctx.rootToTensor[root] = tensor.getResult();
+      ctx.rootInitial[root] = tensor.getResult();
+      continue;
+    }
     if (auto load = dyn_cast<memref::LoadOp>(&op)) {
       Value root = findRoot(load.getMemRef());
       auto rit = ctx.rootToTensor.find(root);
@@ -2939,16 +2955,40 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   }
   if (roots.empty()) return failure();
 
-  // The multi-root loop handlers thread every tracked root written in a loop
-  // as an iter_arg.  A root allocated inside that loop cannot be one of those
-  // operands because its definition does not dominate the loop.  Leave such
-  // functions to the region-recursive walker, which deliberately treats
-  // loop-local allocations as private state.
+  // Loop-local allocations must not escape: the walker tracks their tensor
+  // state only while visiting that iteration and never writes it back later.
+  // Views used by Linalg are supported; other memory observers retain the
+  // conservative rejection, including copies and explicit bufferization ops.
   Block *entry = &funcOp.getBody().front();
+  DenseSet<Value> localRoots;
   for (Value root : roots) {
-    if (Operation *def = root.getDefiningOp())
-      if (def->getBlock() != entry)
+    Operation *def = root.getDefiningOp();
+    if (!def || def->getBlock() == entry)
+      continue;
+    if (!isa<memref::AllocaOp, memref::AllocOp>(def) ||
+        isUnderUnhandledRegion(def))
+      return failure();
+    SmallVector<Value> pending{root};
+    DenseSet<Value> visited;
+    while (!pending.empty()) {
+      Value value = pending.pop_back_val();
+      if (!visited.insert(value).second)
+        continue;
+      for (Operation *user : value.getUsers()) {
+        if (isa<polygeist::SubmapOp, memref::SubViewOp>(user)) {
+          pending.append(user->result_begin(), user->result_end());
+          continue;
+        }
+        if (isa<linalg::GenericOp, memref::DeallocOp>(user))
+          continue;
+        if (value == root &&
+            isa<memref::LoadOp, memref::StoreOp, affine::AffineLoadOp,
+                affine::AffineStoreOp>(user))
+          continue;
         return failure();
+      }
+    }
+    localRoots.insert(root);
   }
 
   // Feasibility check WITHOUT touching the IR. Build a "would-be" root
@@ -2963,6 +3003,7 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   rewriter.setInsertionPointToStart(&funcOp.getBody().front());
   MultiRootCtx ctx;
   ctx.rewriter = &rewriter;
+  ctx.localRoots = localRoots;
   SmallVector<bufferization::ToTensorOp> initial;
   // As in v2::handleRoot, the entry to_tensor ops are speculative: build
   // them without notifying the greedy driver so that undoing them on a
@@ -2971,6 +3012,8 @@ static LogicalResult handleAllRoots(func::FuncOp funcOp,
   OpBuilder speculative(rewriter.getContext());
   speculative.setInsertionPointToStart(&funcOp.getBody().front());
   for (Value root : roots) {
+    if (localRoots.contains(root))
+      continue;
     if (auto alloc = root.getDefiningOp())
       speculative.setInsertionPointAfter(alloc);
     else

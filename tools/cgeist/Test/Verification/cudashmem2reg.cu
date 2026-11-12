@@ -38,10 +38,12 @@ double *bar(double *w, double *s) {
 // CHECK-NEXT:      scf.yield
 // CHECK-NEXT:    }
 // CHECK-NEXT:    scf.parallel (%[[arg2:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:      %[[V1:.+]] = memref.load %[[arg0]][%[[arg2]]] : memref<?xf64>
+// CHECK-NEXT:      %[[IDX32:.+]] = arith.index_cast %[[arg2]] : index to i32
+// CHECK-NEXT:      %[[IDX:.+]] = arith.index_castui %[[IDX32]] : i32 to index
+// CHECK-NEXT:      %[[V1:.+]] = memref.load %[[arg0]][%[[IDX]]] : memref<?xf64>
 // CHECK-NEXT:      %[[V2:.+]] = memref.load %[[V0]][] : memref<f64>
 // CHECK-NEXT:      %[[V3:.+]] = arith.divf %[[V1]], %[[V2]] : f64
-// CHECK-NEXT:      memref.store %[[V3]], %[[arg0]][%[[arg2]]] : memref<?xf64>
+// CHECK-NEXT:      memref.store %[[V3]], %[[arg0]][%[[IDX]]] : memref<?xf64>
 // CHECK-NEXT:      scf.yield
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %[[arg0]] : memref<?xf64>

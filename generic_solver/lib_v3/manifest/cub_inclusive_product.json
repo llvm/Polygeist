@@ -1,0 +1,73 @@
+{
+  "routine": "cub_inclusive_product",
+  "source": "Pinned public CUB seeded ThreadScanInclusive implementation",
+  "upstream_files": [
+    {
+      "path": "third_party/cuda_headers/cuda_cccl/include/cccl/cub/thread/thread_scan.cuh",
+      "sha256": "8a191310fc31d74b567ac900f861da25eae26cf84e51822a69c55e2219a35fc8"
+    },
+    {
+      "path": "third_party/cuda_headers/cuda_cccl/include/cccl/cub/device/device_scan.cuh",
+      "sha256": "8be7c2bfef2a876abe2c7ec7cb00ca9852dbc8a854e8cda633a6f1531b963156"
+    },
+    {
+      "path": "third_party/cuda_headers/cuda_cccl/include/cccl/cuda/std/__functional/operations.h",
+      "sha256": "8b201a02ba305dc0c882cda06680f5dbd77a0b5d65e5c9c7e23e745e78c0da98"
+    }
+  ],
+  "adaptation": "T=float and ScanOp=cuda::std::multiplies<float>; runtime extent replaces template LENGTH; discarded final aggregate return. The seed remains a parameter. DeviceScan::InclusiveScanInit uses the same seed and inclusive output contract, with parallel reassociation checked separately.",
+  "specs": [
+    {
+      "name": "cub_inclusive_product_f32",
+      "target": {
+        "library": "CUB",
+        "call": "DeviceScanInclusiveScanInit",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_cub_scan_product_seed_f32",
+          "arguments": [
+            "n",
+            "inclusive",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "n"
+            ],
+            "output": [
+              "n"
+            ]
+          },
+          "bounds": {
+            "n": {
+              "min": 1,
+              "max": 2147483647
+            }
+          },
+          "alias_policy": "disjoint",
+          "linkage": "optional"
+        }
+      },
+      "args": [
+        "n",
+        "inclusive",
+        "input",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX; contiguous disjoint FP32 input and output",
+        "parallel backend reassociation requires declared numerical tolerance; no strict bitwise backend equivalence claim"
+      ],
+      "deviations": [],
+      "defines": {
+        "SCAN_PRODUCT": "1"
+      }
+    }
+  ],
+  "ref_c": "cub_inclusive_scan.c"
+}

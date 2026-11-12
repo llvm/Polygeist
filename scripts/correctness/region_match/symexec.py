@@ -1318,11 +1318,15 @@ def _exec_launch(self, op: Op, rest: str):
             raise Unsupported(f"kernel.launch @{spec}: {len(op.results)} results vs {len(outs)} outputs")
         for r, k in zip(op.results, outs):
             v = vals[k]
-            if not isinstance(v, TensorVal) or v.view is not None:
-                raise Unsupported(f"kernel.launch @{spec}: output operand {k} is not a full tensor")
+            if not isinstance(v, TensorVal):
+                raise Unsupported(f"kernel.launch @{spec}: output operand {k} is not a tensor")
             v.buf.version += 1
             self.mark_write(v.buf, True)
-            self.env[r] = TensorVal(v.buf, v.buf.version, None)
+            # An opaque call can update a slice just as a linalg operation can.
+            # Retain its coordinates so the subsequent scatter restores the
+            # correct parent tensor; invalidating the whole buffer remains
+            # conservative for stale reads, including reads of other slices.
+            self.env[r] = TensorVal(v.buf, v.buf.version, v.view)
     else:
         for k in outs:
             v = vals[k]

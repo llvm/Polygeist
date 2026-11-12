@@ -193,7 +193,8 @@ private:
 
   std::map<int, mlir::Value> constants;
 
-  mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
+  mlir::Value castToIndex(mlir::Location loc, mlir::Value val,
+                          bool isUnsigned = false);
 
   mlir::Value castScalarToBool(mlir::Location loc, mlir::Value val);
 
