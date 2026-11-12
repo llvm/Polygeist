@@ -32,3 +32,9 @@ int main(int argc, char **argv) {
 
 // CHECK-LABEL: func.func @float_to_signed
 // CHECK: arith.fptosi {{.*}} : f32 to i8
+
+int load_by_unsigned_byte(const int *values, byte_t index) {
+  return values[index];
+}
+// CHECK-LABEL: func.func @load_by_unsigned_byte
+// CHECK: arith.index_castui {{.*}} : i8 to index

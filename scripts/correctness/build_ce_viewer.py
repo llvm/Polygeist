@@ -265,6 +265,10 @@ EQUALITY_SATURATION_CAMPAIGN_DIR = (
 EQUALITY_SATURATION_EGRAPH_DIR = (
     EQUALITY_SATURATION_RESULTS_DIR / "egraph_benefit_20260908"
 )
+BUILD_TIME_RESULTS_DIR = env_path(
+    "POLYGEIST_BUILD_TIME_RESULTS_DIR",
+    EQUALITY_SATURATION_RESULTS_DIR / "polybench_whole_compile_20260909",
+)
 EQUALITY_SATURATION_POLYBENCH_DIR = (
     EQUALITY_SATURATION_RESULTS_DIR / "polybench_variants_20260909"
 )
@@ -8313,51 +8317,43 @@ PVA_KERNELS: list[dict] = [
                 "Q16.16 fixed-point semantics to kernel coefficients.",
     },
     {
-        "id": "boxfilter_i8",
-        "op": "OpBoxFilter",
-        "vendor_call": "pvaBoxFilterCreate / pvaBoxFilterSubmit",
-        "shim": "polygeist_pva_boxfilter_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_boxfilter_i8_256",
-        "timings": [("256×256", "40.4 ms")],
-        "note": "Uniform 1/K² 3×3 mean filter — no coefficient tensor. "
-                "Validated via hand-authored MLIR (matcher template for "
-                "uniform-weight conv is not yet written).",
-    },
-    {
-        "id": "gaussian_i8",
+        "id": "gaussian_u8_structural",
         "op": "OpGaussianFilter",
         "vendor_call": "pvaGaussianFilterCreate / pvaGaussianFilterSubmit",
-        "shim": "polygeist_pva_gaussian_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_gaussian_i8_256",
-        "timings": [("256×256", "32.6 ms")],
-        "note": "σ=1, K=3 hardcoded in shim. PVA computes the discrete "
-                "Gaussian kernel internally; matches canonical "
-                "[1,2,1;2,4,2;1,2,1]/16. Hand-authored MLIR.",
+        "shim": "polygeist_pva_gaussian_3x3_u8",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("full-output validation", "exact")],
+        "note": "Structure-derived whole-image match. The compiler recovers "
+                "the [1,2,1] coefficient axis, infers sigmaX=sigmaY="
+                "0.8493218, proves the quantized PVA coefficients and source "
+                "rounding equivalent, and carries both sigmas in the ABI.",
     },
     {
-        "id": "bilateral_i8",
-        "op": "OpBilateralFilter",
-        "vendor_call": "pvaBilateralFilterCreate / pvaBilateralFilterSubmit",
-        "shim": "polygeist_pva_bilateral_3x3_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_bilateral_i8_256",
-        "timings": [("256×256", "57.5 ms")],
-        "note": "PVA Bilateral only accepts U8; shim reinterprets i8 bytes "
-                "bitwise as U8 via make_pva_image_tensor_dtype. "
-                "sigmaRange=25, sigmaSpace=10 hardcoded.",
+        "id": "morphology_dilate_u8_structural",
+        "op": "OpMorphology",
+        "vendor_call": "pvaMorphologyCreate / pvaMorphologySubmit",
+        "shim": "polygeist_pva_morphology_dilate_3x3_u8",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("U8 full-output", "exact"),
+                    ("S8 full-output", "exact"),
+                    ("U16 full-output", "exact"),
+                    ("S16 full-output", "exact")],
+        "note": "Structure-derived 3×3 maximum reduction. All four vendor "
+                "dtypes passed complete-output comparison on PVA silicon; "
+                "signed tests exercise negative values and the full bit range.",
     },
     {
-        "id": "histeq_i8",
-        "op": "OpHistogramEqualization",
-        "vendor_call": "pvaHistogramEqualizationCreate / pvaHistogramEqualizationSubmit",
-        "shim": "polygeist_pva_histeq_i8",
-        "matched": False,
-        "build_dir": "/tmp/pva_histeq_i8_256",
-        "timings": [("256×256", "38.8 ms")],
-        "note": "Pointwise 256-bin LUT (no spatial kernel). PVA computes "
-                "the histogram + CDF + LUT internally. Hand-authored MLIR.",
+        "id": "histogram_u8_u32_structural",
+        "op": "OpImageHistogram",
+        "vendor_call": "pvaImageHistogramCreate / pvaImageHistogramSubmit",
+        "shim": "polygeist_pva_histogram_256_u8_u32",
+        "matched": True,
+        "build_dir": "issues/pva_semantic_matchers",
+        "timings": [("full-output validation", "exact")],
+        "note": "Structure-derived complete zero-fill plus indirect unit-bin "
+                "increment. The complete 256-bin output passed exactly.",
     },
 ]
 
@@ -8472,11 +8468,7 @@ def _multi_backend_story() -> str:
 
 
 def _pva_section() -> str:
-    """Polygeist → PVA Solutions kernels. Each row is a kernel we successfully
-    lowered through --lower-kernel-launch-to-pva and ran on the Jetson Orin
-    PVA accelerator. Timings are wall-clock from pva*Submit (full setup +
-    submit + sync round-trip, single-shot). No CPU comparison here — PVA-only
-    datapoints; the CPU stubs exist for separate per-op correctness validation."""
+    """Polygeist → PVA Solutions kernels retained as executable matches."""
     rows = []
     for spec in PVA_KERNELS:
         first = True
@@ -8530,6 +8522,58 @@ def _pva_section() -> str:
         + "\n".join(rows) +
         '</tbody></table>'
     )
+    contract_csv = (REPO_ROOT / "issues/pva_semantic_matchers" /
+                    "raised_c_numerical_contracts.csv")
+    contract_rows = []
+    if contract_csv.exists():
+        with contract_csv.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                exact = row["contract_class"] == "exact"
+                status_class = "pass" if exact else "partial"
+                if row["default_selection"] == "yes":
+                    policy = "automatic"
+                elif row["default_selection"] == "explicit-abi":
+                    policy = "exact; explicit output ABI"
+                else:
+                    policy = (f'opt-in only (budget '
+                              f'{html.escape(row["opt_in_budget"])})')
+                validation = (
+                    f'{html.escape(row["correctness_status"])}; '
+                    f'{html.escape(row["mismatches"])} / '
+                    f'{html.escape(row["comparison_elements"])} differ; '
+                    f'max error {html.escape(row["max_error"])}')
+                contract_rows.append(
+                    '<tr>'
+                    f'<td><b>{html.escape(row["operation"])}</b></td>'
+                    f'<td><code>{html.escape(row["input_dtype"])} &rarr; '
+                    f'{html.escape(row["output_dtype"])}</code></td>'
+                    f'<td>{html.escape(row["source_semantics"])}</td>'
+                    f'<td>{html.escape(row["vendor_numerics"])}</td>'
+                    f'<td><span class="{status_class}"><b>'
+                    f'{html.escape(row["contract_class"])}</b></span></td>'
+                    f'<td>{policy}</td>'
+                    f'<td>{validation}</td>'
+                    f'<td><code>{html.escape(row["evidence"])}</code></td>'
+                    '</tr>')
+    contract_table = (
+        '<h3 style="margin:24px 20px 8px">Raised-C numerical-contract audit</h3>'
+        '<div class="intro">'
+        'The counting unit is one raised-C operation/type route. Structural '
+        'recognition is independent of numerical legality. Exact routes select '
+        'automatically. A non-bit-exact route remains residual code unless the '
+        'user supplies an operation-specific <code>--pva-approximation-budget '
+        'OP=N</code>; the emitted <code>kernel.launch</code> records that budget. '
+        'The approximate results below are empirical full-output observations '
+        'for the retained input campaign, not proofs that the same bound holds '
+        'for every possible image. Bilateral&apos;s source budget of 2 must not '
+        'be confused with NVIDIA&apos;s tolerance of 1 against its own Q1.7 CPU '
+        'reference.</div>'
+        '<table><thead><tr><th>operation</th><th>dtype</th>'
+        '<th>raised-C semantics</th><th>PVA numerical contract</th>'
+        '<th>classification</th><th>selection</th><th>silicon validation</th>'
+        '<th>evidence</th></tr></thead><tbody>'
+        + '\n'.join(contract_rows) + '</tbody></table>'
+        if contract_rows else '')
     return (
         '<div class="section-header" id="pva" '
         'style="background:#e4f3e4; border-color:#7faf8a">'
@@ -8542,17 +8586,22 @@ def _pva_section() -> str:
         '  pass (see <code>lib/polygeist/Passes/LowerKernelLaunchToPVA.cpp</code>). '
         '  Each row is a kernel that successfully reaches PVA silicon via a '
         '  <code>func.call @polygeist_pva_*</code> emitted by the lowering pass and '
-        '  resolved at link-time against the PVA shim in '
-        '  <code>runtime/polygeist_pva_rt.c</code>, which wraps the corresponding '
+        '  resolved at link-time against the PVA shims in '
+        '  <code>runtime/polygeist_pva_rt.c</code> (integer convolution) and '
+        '  <code>runtime/polygeist_pva_image_rt.c</code> (typed image operations), '
+        '  which wrap the corresponding '
         '  <code>pva*Create</code> / <code>pva*Submit</code> entrypoint in '
         '  <code>libpva_operator.so</code>.'
         '  <br><br>'
-        '  Two kernels come through the full <em>matcher</em> pipeline today '
-        '  (Conv2d i8 and i16, lifted from extracted dtype-specific conv2d sources). '
-        '  The remaining four were validated via <em>hand-authored</em> kernel.launch '
-        '  MLIR — the lowering + shim + silicon work, but matcher templates that '
-        '  recognise their C-level patterns (uniform-weight conv, Gaussian-weighted '
-        '  conv, bilateral, histogram-eq) have not been written yet.'
+        '  The image-operation rows shown here are retained only when structural '
+        '  recognition, parameter recovery, ABI lowering, and exact full-output '
+        '  silicon validation all pass. Legacy hand-authored box, Gaussian, '
+        '  bilateral, and histogram-equalization launch ABIs were retired: they '
+        '  discarded signedness, parameters, or exact rounding semantics. Box, '
+        '  bilateral, and histogram equalization are rejected by the default '
+        '  exact-only policy. They can now be selected only through an explicit, '
+        '  operation-specific approximation budget; the numerical contract is '
+        '  retained on the emitted launch and reported separately below.'
         '  <br><br>'
         '  <b>Per-call timing floor</b>: ~30&ndash;35 ms at any image size up to '
         '  ~1024², dominated by PVA allocator + <code>CupvaMemGetHostPointer</code> '
@@ -8560,12 +8609,12 @@ def _pva_section() -> str:
         '  sub-ms at these sizes. At 10240² (105M pixels) the per-call setup '
         '  amortises and PVA compute dominates.'
         '  <br><br>'
-        '  No CPU comparison shown here; for bit-exact CPU/PVA diff validation '
-        '  see the <code>scripts/correctness/pva_*_jetson.sh</code> test scaffolds '
-        '  and the matching CPU stubs in '
-        '  <code>runtime/polygeist_cublas_rt_cpu.c</code>.'
+        '  Full-output evidence is retained under '
+        '  <code>issues/pva_semantic_matchers</code>. Direct vendor-ABI probes are '
+        '  feasibility evidence only and are not counted as compiler matches.'
         '</div>'
         + _multi_backend_story()
+        + contract_table
         + table
         + '<div style="margin-top:14px; padding:10px 14px; '
           'background:#e4f3e4; border-left:4px solid #7faf8a;">'
@@ -8575,20 +8624,18 @@ def _pva_section() -> str:
           '      (<code>lib/polygeist/Passes/LowerKernelLaunchToPVA.cpp</code>)</li>'
           '  <li>Shared 9-tap conv lowering helper extracted from the cuBLAS '
           '      pass into <code>KernelLaunchLoweringUtils.{h,cpp}</code>; '
-          '      both passes call it. Added a parallel '
-          '      <code>lowerImageFilter2Operand</code> helper for the 2-memref '
-          '      filter shape (Box/Gaussian/Bilateral/HistogramEq).</li>'
-          '  <li>PVA runtime shim <code>runtime/polygeist_pva_rt.c</code> with '
-          '      a generic <code>make_pva_image_tensor_dtype</code> backbone, '
+          '      both passes call it. Typed semantic image matches use '
+          '      <code>lowerFlatTypedLaunch</code>, which preserves scalar '
+          '      parameters and explicit signedness.</li>'
+          '  <li>PVA image runtime shim '
+          '      <code>runtime/polygeist_pva_image_rt.c</code> with '
+          '      a typed image-tensor backbone, '
           '      <code>CupvaMemGetHostPointer</code>-mediated host I/O, '
           '      and one <code>pva&lt;Op&gt;Create</code> + '
           '      <code>pva&lt;Op&gt;Submit</code> wrapper per op.</li>'
-          '  <li>Matching CPU reference stubs in '
-          '      <code>runtime/polygeist_cublas_rt_cpu.c</code>, hand-modelled '
-          '      to mirror PVA hardware semantics (centred anchor, REPLICATE '
-          '      border, Q-shift, unsigned-kernel reinterpretation) so the '
-          '      <code>conv2d_jetson</code> &harr; <code>conv2d_jetson_cpustub</code> '
-          '      diff is bit-exact.</li>'
+          '  <li>Independent full-output source references validate exactness. '
+          '      Approximate CPU substitutes and hardcoded legacy PVA entry '
+          '      points are deliberately absent.</li>'
           '  <li>Cross-compile script <code>conv2d_cudnn_jetson_dtype.sh</code> '
           '      extended with an <code>i8</code> dtype branch + PVA-library '
           '      link line (<code>libpva_operator</code>, <code>libcvcuda</code>, '
@@ -9462,8 +9509,9 @@ def refresh_equality_saturation_viewer_links() -> None:
     text = index_path.read_text()
     card_href = '<a class="suite-card" href="saturation-paper.html">'
     card = (
-        card_href + '<b>Equality saturation study</b>'
-        '<span>30 PolyBench kernels</span><small>Controlled equivalent-IR '
+        card_href + '<b>Equality saturation studies</b>'
+        '<span>687 corpus inputs + 30 PolyBench kernels</span><small>The '
+        'original corpus ablation followed by controlled equivalent-IR '
         'variations: 93.7% Egglog match retention versus 44.3% for exact '
         'syntax, plus compile-time cost and CPU validation.</small></a>')
     if card_href in text:
@@ -9493,7 +9541,7 @@ def _saturation_paper_study_page() -> str:
     if not summary_path.is_file() or not variants_path.is_file():
         return (
             '<div class="section-header"><h2 class="section-title">'
-            'PolyBench equality-saturation study</h2></div>'
+            'Controlled PolyBench variation study</h2></div>'
             '<div class="intro paper-provisional"><b>Study artifacts are '
             'unavailable.</b> Run the controlled PolyBench variation campaign '
             'and rebuild the viewer.</div>')
@@ -9553,7 +9601,7 @@ def _saturation_paper_study_page() -> str:
 
     return (
         '<div class="section-header"><h2 class="section-title">'
-        'PolyBench equality-saturation study</h2></div>'
+        'Controlled PolyBench variation study</h2></div>'
         '<div class="intro"><b>Equality saturation keeps library matches '
         'stable when equivalent source expressions are written differently.</b> '
         'Across the controlled common-baseline comparison, Egglog retained '
@@ -9679,14 +9727,14 @@ def _saturation_paper_study_page() -> str:
 
 
 def _legacy_saturation_paper_study_page() -> str:
-    """Render the audited Egglog-versus-exact-syntax ablation."""
+    """Render the original audited Egglog-versus-exact-syntax ablation."""
     summary_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "summary.json"
     runs_path = EQUALITY_SATURATION_CAMPAIGN_DIR / "runs.csv"
     graph_runs_path = EQUALITY_SATURATION_EGRAPH_DIR / "runs.csv"
     if not summary_path.is_file() or not runs_path.is_file():
         return (
             '<div class="section-header"><h2 class="section-title">'
-            'Saturation paper study</h2></div>'
+            'Original equality-saturation corpus study</h2></div>'
             '<div class="intro paper-provisional"><b>Study artifacts are '
             'unavailable.</b> Run the equality-saturation ablation and rebuild '
             'the viewer.</div>')
@@ -9805,7 +9853,7 @@ def _legacy_saturation_paper_study_page() -> str:
 
     return (
         '<div class="section-header"><h2 class="section-title">'
-        'Saturation paper study</h2></div>'
+        'Original equality-saturation corpus study</h2></div>'
         '<div class="intro"><b>Equality saturation finds a small but concrete '
         'set of larger external-library matches that exact syntax misses.</b> '
         f'On {common_inputs} common-success inputs, Egglog selects '
@@ -9877,6 +9925,187 @@ def _legacy_saturation_paper_study_page() -> str:
         f'<div><b>E-graph diagnostic</b><span><a href="{artifact}/egraph_benefit_20260908/runs.csv">'
         f'raw CSV</a> &middot; <a href="{artifact}/egraph_benefit_20260908/SUMMARY.md">'
         'summary</a></span></div></div>')
+
+
+def write_build_time_artifact_link() -> None:
+    """Expose raw whole-compilation measurements from the viewer."""
+    artifact_link = OUTPUT_DIR / "build_time_artifacts"
+    if artifact_link.is_symlink():
+        if artifact_link.resolve() != BUILD_TIME_RESULTS_DIR.resolve():
+            artifact_link.unlink()
+            artifact_link.symlink_to(
+                BUILD_TIME_RESULTS_DIR, target_is_directory=True)
+    elif not artifact_link.exists():
+        artifact_link.symlink_to(
+            BUILD_TIME_RESULTS_DIR, target_is_directory=True)
+
+
+def refresh_build_time_viewer_links() -> None:
+    """Add Build Time navigation to an existing generated viewer."""
+    old_nav = '<a href="saturation-paper.html">Saturation paper study</a>'
+    new_nav = old_nav + ' &middot; <a href="build-time.html">Build time</a>'
+    for page in OUTPUT_DIR.glob("*.html"):
+        text = page.read_text()
+        if "build-time.html" not in text and old_nav in text:
+            page.write_text(text.replace(old_nav, new_nav, 1))
+
+    index_path = OUTPUT_DIR / "index.html"
+    if not index_path.is_file():
+        return
+    text = index_path.read_text()
+    card_href = '<a class="suite-card" href="build-time.html">'
+    if card_href in text:
+        return
+    card = (
+        card_href + '<b>Build time</b><span>30 PolyBench kernels</span>'
+        '<small>Five Egglog and five exact-syntax source-to-AArch64 builds: '
+        'whole compilation time, matcher cost, peak memory, coverage, and '
+        'failures.</small></a>')
+    marker = '</div><a name="taxonomy"></a>'
+    if marker not in text:
+        print("warning: could not add build-time landing card", file=sys.stderr)
+        return
+    index_path.write_text(text.replace(marker, card + marker, 1))
+
+
+def _build_time_page() -> str:
+    """Render the PolyBench whole-compilation cost campaign."""
+    summary_path = BUILD_TIME_RESULTS_DIR / "summary.json"
+    kernels_path = BUILD_TIME_RESULTS_DIR / "per_kernel.csv"
+    metadata_path = BUILD_TIME_RESULTS_DIR / "metadata.json"
+    if not summary_path.is_file() or not kernels_path.is_file():
+        return (
+            '<div class="section-header"><h2 class="section-title">'
+            'Build time</h2></div>'
+            '<div class="intro paper-provisional"><b>Build-time artifacts '
+            'are unavailable.</b> Run the PolyBench compilation-cost campaign '
+            'and regenerate this page.</div>')
+
+    summary = json.loads(summary_path.read_text())
+    metadata = (json.loads(metadata_path.read_text())
+                if metadata_path.is_file() else {})
+    rows = _read_csv(kernels_path)
+    egg = summary["mode_summary"]["egglog"]
+    syntax = summary["mode_summary"]["syntactic"]
+    delta = summary["paired_egglog_minus_syntactic"]
+    artifacts = "build_time_artifacts"
+
+    metrics = "".join((
+        '<div class="audit-metric"><b>300</b><span>sequential build attempts</span></div>',
+        f'<div class="audit-metric"><b>{summary["successful_kernels_both_modes"]}/30</b>'
+        '<span>kernels linked in both modes</span></div>',
+        f'<div class="audit-metric"><b>{egg["wall_median_seconds"]:.2f} s</b>'
+        '<span>Egglog median whole build</span></div>',
+        f'<div class="audit-metric"><b>{syntax["wall_median_seconds"]:.2f} s</b>'
+        '<span>syntax median whole build</span></div>',
+        f'<div class="audit-metric"><b>{delta["matcher_median_ms"]:+.1f} ms</b>'
+        '<span>paired Egglog matcher overhead</span></div>',
+        f'<div class="audit-metric"><b>{egg["peak_rss_median_kib"] / 1024:.1f} MiB</b>'
+        '<span>median build peak RSS</span></div>',
+    ))
+
+    def number(row: dict, key: str):
+        value = row.get(key, "")
+        return None if value in ("", None, "None") else float(value)
+
+    def cell(value, suffix="", digits=2):
+        if value is None:
+            return '<td data-sort="inf"><span class="none">failed</span></td>'
+        return (f'<td data-sort="{value}">{value:,.{digits}f}'
+                f'{html.escape(suffix)}</td>')
+
+    table_rows = []
+    for row in rows:
+        egg_ok = int(row["egglog_ok"])
+        syntax_ok = int(row["syntactic_ok"])
+        failed = egg_ok != 5 or syntax_ok != 5
+        status = (f'<span class="result-status fail">failed {egg_ok}/5, '
+                  f'{syntax_ok}/5</span>' if failed else
+                  '<span class="result-status pass">5/5 both</span>')
+        egg_matches = number(row, "egglog_selected_matches_median")
+        syntax_matches = number(row, "syntactic_selected_matches_median")
+        table_rows.append(
+            f'<tr class="{"build-failed" if failed else ""}">'
+            f'<td data-sort="{html.escape(row["kernel"])}"><code>'
+            f'{html.escape(row["kernel"])}</code></td>'
+            f'<td data-sort="{0 if failed else 1}">{status}</td>'
+            + cell(number(row, "egglog_wall_median_seconds"), " s")
+            + cell(number(row, "syntactic_wall_median_seconds"), " s")
+            + cell(number(row, "paired_wall_delta_seconds"), " s", 3)
+            + cell((number(row, "egglog_peak_rss_median_kib") or 0) / 1024
+                   if number(row, "egglog_peak_rss_median_kib") is not None else None,
+                   " MiB", 1)
+            + cell((number(row, "syntactic_peak_rss_median_kib") or 0) / 1024
+                   if number(row, "syntactic_peak_rss_median_kib") is not None else None,
+                   " MiB", 1)
+            + cell(number(row, "egglog_matcher_median_ms"), " ms", 1)
+            + cell(number(row, "syntactic_matcher_median_ms"), " ms", 1)
+            + cell(egg_matches, "", 0)
+            + cell(syntax_matches, "", 0)
+            + '</tr>')
+
+    load = metadata.get("load_average_at_campaign_start", [])
+    load_text = ", ".join(f"{float(value):.2f}" for value in load) or "unavailable"
+    failed_names = ", ".join(summary["failed_kernels_both_modes"])
+    return (
+        '<div class="section-header"><h2 class="section-title">Build time</h2></div>'
+        '<div class="intro"><b>Whole source-to-executable compilation is '
+        'effectively unchanged by equality saturation at suite scale.</b> '
+        'Across 115 successful same-kernel, same-repetition pairs, the median '
+        f'Egglog minus syntax delta is {delta["total_wall_median_seconds"]:+.3f} s '
+        f'and the mean is {delta["total_wall_mean_seconds"]:+.3f} s. '
+        'The matcher itself costs tens of milliseconds more, but compiling the '
+        'runtime shim and completing the downstream toolchain dominate the '
+        'roughly eight-second build.</div>'
+        f'<div class="audit-metrics">{metrics}</div>'
+        '<div class="intro paper-provisional"><b>Measurement boundary.</b> '
+        'LARGE/FP64 PolyBench/C, five fresh Egglog and five exact-syntax builds '
+        'per kernel, alternating arm order, one build process at a time. Both '
+        'arms disable the handwritten semantic fallback. Total time covers '
+        'cgeist through final AArch64 linking. The generic link harness retains '
+        'the transformed symbol but does not execute it, so this page makes no '
+        'runtime-correctness claim.</div>'
+        '<div class="section-header"><h3 class="section-title">Per-kernel results</h3></div>'
+        '<div class="intro">Click a column heading to sort. Wall time and peak '
+        'RSS are medians of the five successful builds. Delta is Egglog minus '
+        'syntax; positive values mean Egglog took longer.</div>'
+        '<div class="table-wrap"><table id="build-time-table" '
+        'class="audit-table paper-family"><thead><tr>'
+        '<th>kernel</th><th>build status</th><th>Egglog wall</th>'
+        '<th>syntax wall</th><th>wall delta</th><th>Egglog RSS</th>'
+        '<th>syntax RSS</th><th>Egglog matcher</th><th>syntax matcher</th>'
+        '<th>Egglog launches</th><th>syntax launches</th>'
+        '</tr></thead><tbody>' + ''.join(table_rows) + '</tbody></table></div>'
+        '<div class="section-header"><h3 class="section-title">Coverage and failures</h3></div>'
+        '<div class="intro">Egglog selected 32 launches per complete suite '
+        'versus 29 for exact syntax: one additional <code>2mm</code> launch and '
+        'two additional <code>gemver</code> launches. Seven kernels failed in '
+        f'both modes after matching: <code>{html.escape(failed_names)}</code>. '
+        'These are retained downstream ABI/IR validation failures, not timeouts, '
+        'and are excluded from successful whole-build timing comparisons.</div>'
+        '<div class="section-header"><h3 class="section-title">Environment and artifacts</h3></div>'
+        f'<div class="intro">Pinned worktree commit: <code>{html.escape(metadata.get("git_head", "unknown"))}</code>. '
+        f'Host: <code>{html.escape(metadata.get("host", "unknown"))}</code>, '
+        f'{metadata.get("logical_cpu_count", "?")} logical CPUs; campaign-start '
+        f'load averages: {html.escape(load_text)}. Because the host was not idle, '
+        'these should be labelled loaded-host measurements. No individual '
+        'Egglog proof exceeded 23 ms.</div>'
+        '<div class="paper-notes">'
+        f'<div><b>Report</b><span><a href="{artifacts}/SUMMARY.md">method and interpretation</a></span></div>'
+        f'<div><b>Tables</b><span><a href="{artifacts}/runs.csv">300 raw runs</a> &middot; '
+        f'<a href="{artifacts}/per_kernel.csv">per-kernel CSV</a> &middot; '
+        f'<a href="{artifacts}/summary.json">summary JSON</a></span></div>'
+        f'<div><b>Provenance</b><span><a href="{artifacts}/metadata.json">compiler, source, '
+        'manifest, parameters, and hashes</a></span></div></div>'
+        '<script>(function(){const t=document.getElementById("build-time-table");'
+        'if(!t)return;let col=-1,asc=true;[...t.tHead.rows[0].cells].forEach((h,i)=>{'
+        'h.tabIndex=0;h.addEventListener("click",()=>{asc=col===i?!asc:true;col=i;'
+        'const rows=[...t.tBodies[0].rows];rows.sort((a,b)=>{let x=a.cells[i].dataset.sort||'
+        'a.cells[i].textContent.trim(),y=b.cells[i].dataset.sort||b.cells[i].textContent.trim();'
+        'const nx=Number(x),ny=Number(y);let c=Number.isNaN(nx)||Number.isNaN(ny)?'
+        'x.localeCompare(y):nx-ny;return asc?c:-c;});rows.forEach(r=>t.tBodies[0].appendChild(r));'
+        '});h.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();h.click();}});'
+        '});})();</script>')
 
 
 def build_site_pages(polybench_stats: dict[str, dict],
@@ -10066,7 +10295,8 @@ def build_site_pages(polybench_stats: dict[str, dict],
             '<a href="aten-paper.html">ATen paper analysis</a> &middot; '
             '<a href="mfem-paper.html">MFEM paper analysis</a> &middot; '
             '<a href="llama-paper.html">Llama paper analysis</a> &middot; '
-            '<a href="saturation-paper.html">Equality saturation</a>'
+            '<a href="saturation-paper.html">Equality saturation</a> &middot; '
+            '<a href="build-time.html">Build time</a>'
             '</div></div>'
         )
 
@@ -10111,6 +10341,7 @@ def build_site_pages(polybench_stats: dict[str, dict],
         'font-size:10px; font-weight:bold; text-transform:uppercase; background:#eee; } '
         '.result-status.pass { background:#dff5e5; color:#176b35; } '
         '.result-status.fail,.result-status.partial { background:#ffe2e2; color:#8a1c1c; } '
+        '.build-failed { background:#fff7f7; } '
         '.result-status.blocked { background:#fff0c2; color:#745600; } '
         '.scope { font-size:10px; color:#666; } '
         '.paper-matrix { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); '
@@ -10267,9 +10498,11 @@ def build_site_pages(polybench_stats: dict[str, dict],
                "NE=1024 analysis: 128/128 matches correctness-validated; 17 kernels have four-runtime timings.")
         + card("llama-paper.html", "Llama paper analysis", 5,
                "Section 4.2 correctness-gated percentage charts, raw samples, and exclusions.")
-        + card("saturation-paper.html", "Equality saturation study",
-               30,
-               "Controlled PolyBench variations: 93.7% Egglog match retention versus 44.3% for exact syntax, with compile-time cost and CPU validation.")
+        + card("saturation-paper.html", "Equality saturation studies",
+               687,
+               "Original 687-input corpus study followed by the controlled 30-kernel PolyBench variation study and CPU validation.")
+        + card("build-time.html", "Build time", 30,
+               "Five Egglog and five exact-syntax whole builds per PolyBench kernel, with time, memory, coverage, and failures.")
         + card("ginsbach.html", "Ginsbach ASPLOS'18", ginsbach_count,
                "103/103 units raised; CG currently emits 8 external-library calls, with scope-labelled silicon evidence.")
         + card("ai.html", "AI kernels",
@@ -10293,7 +10526,12 @@ def build_site_pages(polybench_stats: dict[str, dict],
         mfem_application_extraction_stats
     )
     llama_paper = nav() + _llama_paper_analysis_page()
-    saturation_paper = nav() + _saturation_paper_study_page()
+    saturation_paper = (
+        nav()
+        + _legacy_saturation_paper_study_page()
+        + _saturation_paper_study_page()
+    )
+    build_time = nav() + _build_time_page()
     modified = nav() + modified_body
     numerical_pages = {
         "numerical.html": render_html(
@@ -10343,6 +10581,9 @@ def build_site_pages(polybench_stats: dict[str, dict],
         "saturation-paper.html": render_html(
             "Polygeist: PolyBench equality saturation", saturation_paper, extra_css
         ),
+        "build-time.html": render_html(
+            "Polygeist: build time", build_time, extra_css
+        ),
         "modified-kernels.html": render_html(
             "Polygeist: modified and extracted kernels", modified, extra_css
         ),
@@ -10369,6 +10610,7 @@ def main():
     ginsbach_only = "--ginsbach-only" in sys.argv[1:]
     pva_only = "--pva-only" in sys.argv[1:]
     saturation_only = "--saturation-only" in sys.argv[1:]
+    build_time_only = "--build-time-only" in sys.argv[1:]
     unknown_args = [
         arg for arg in sys.argv[1:]
         if arg not in (
@@ -10378,15 +10620,26 @@ def main():
             "--ginsbach-only",
             "--pva-only",
             "--saturation-only",
+            "--build-time-only",
         )
     ]
     if unknown_args:
         raise SystemExit(f"unknown argument(s): {' '.join(unknown_args)}")
     if sum((paper_analysis_only, mfem_only, aten_only, polybench_only,
             polybench_results_only, ginsbach_only, pva_only,
-            saturation_only)) > 1:
+            saturation_only, build_time_only)) > 1:
         raise SystemExit("suite-only arguments are mutually exclusive")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if build_time_only:
+        pages = build_site_pages(
+            {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
+        )
+        OUTPUT_DIR.joinpath("build-time.html").write_text(
+            pages["build-time.html"])
+        write_build_time_artifact_link()
+        refresh_build_time_viewer_links()
+        print(f"Done. Open {OUTPUT_DIR}/build-time.html.")
+        return
     if saturation_only:
         pages = build_site_pages(
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
@@ -10402,8 +10655,10 @@ def main():
             {}, {}, [], [], [], {}, {}, {}, {}, {}, {}, {},
         )
         write_equality_saturation_artifact_link()
+        write_build_time_artifact_link()
         for page in ("polybench-paper.html", "b300.html", "aten-paper.html",
-                     "llama-paper.html", "saturation-paper.html"):
+                     "llama-paper.html", "saturation-paper.html",
+                     "build-time.html"):
             OUTPUT_DIR.joinpath(page).write_text(pages[page])
         write_aten_paper_artifact_link()
         print(
@@ -10412,7 +10667,8 @@ def main():
             f"{OUTPUT_DIR}/b300.html, "
             f"{OUTPUT_DIR}/aten-paper.html, or "
             f"{OUTPUT_DIR}/llama-paper.html, or "
-            f"{OUTPUT_DIR}/saturation-paper.html."
+            f"{OUTPUT_DIR}/saturation-paper.html, or "
+            f"{OUTPUT_DIR}/build-time.html."
         )
         return
     if pva_only:
@@ -10808,6 +11064,7 @@ def main():
     write_aten_paper_artifact_link()
     write_polybench_results_page()
     write_equality_saturation_artifact_link()
+    write_build_time_artifact_link()
     for obsolete in ("polybenchgpu.html", "polybench-section42.html"):
         OUTPUT_DIR.joinpath(obsolete).unlink(missing_ok=True)
     print(f"\nWrote {len(pages)} explorer pages.")

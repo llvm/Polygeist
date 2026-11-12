@@ -1,0 +1,37 @@
+{
+  "candidate_matches": 0,
+  "candidates": [],
+  "egraph_classes_max": 0,
+  "egraph_classes_sum": 0,
+  "egraph_nodes_max": 0,
+  "egraph_nodes_sum": 0,
+  "input": "/tmp/tmp.4qbFHc2EPX/linalg.mlir",
+  "input_bytes": 5035,
+  "iteration_limit": 8,
+  "linalg_bodies": 2,
+  "matched_linalg_bodies": 2,
+  "matcher_elapsed_ms": 446.8606188893318,
+  "mode": "egglog",
+  "no_matches": 0,
+  "peak_rss_kib": 70960,
+  "proof_elapsed_max_ms": 16.1108560860157,
+  "proof_elapsed_ms": 30.56987375020981,
+  "proofs_attempted": 2,
+  "proofs_matched": 0,
+  "proofs_over_10s": 0,
+  "rule_matches": 10,
+  "selected": [
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "symbol": "cublasDsymmLeftLowerRowMajor_memref[whole-symm]"
+    }
+  ],
+  "selected_matches": 1,
+  "syntactic_comparisons": 0,
+  "syntactic_unifications": 0,
+  "telemetry_elapsed_ms": 0.0,
+  "template_attempts": 0
+}
